@@ -43,10 +43,14 @@ setup() {
   gcloud storage buckets update "gs://$BUCKET" --lifecycle-file deploy/lifecycle.json
 
   echo "▸ secrets"
-  : "${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}"
-  for s in ANTHROPIC_API_KEY DB_PASSWORD; do
+  # The active provider's key is required; the other may stay empty.
+  case "$LLM_PROVIDER" in
+    deepseek) : "${DEEPSEEK_API_KEY:?set DEEPSEEK_API_KEY in .env}" ;;
+    anthropic) : "${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}" ;;
+  esac
+  for s in DEEPSEEK_API_KEY ANTHROPIC_API_KEY DB_PASSWORD; do
     exists gcloud secrets describe "$s" || gcloud secrets create "$s" --replication-policy automatic
-    printf '%s' "${!s}" | gcloud secrets versions add "$s" --data-file=-
+    printf '%s' "${!s:-unset}" | gcloud secrets versions add "$s" --data-file=-
   done
 
   echo "▸ service account $SERVICE_ACCOUNT"
@@ -54,7 +58,7 @@ setup() {
   exists gcloud iam service-accounts describe "$SA_EMAIL" || gcloud iam service-accounts create "$SERVICE_ACCOUNT" --display-name "Homework Quest API"
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$SA_EMAIL" --role roles/cloudsql.client --condition=None >/dev/null
   gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member "serviceAccount:$SA_EMAIL" --role roles/storage.objectAdmin >/dev/null
-  for s in ANTHROPIC_API_KEY DB_PASSWORD; do
+  for s in DEEPSEEK_API_KEY ANTHROPIC_API_KEY DB_PASSWORD; do
     gcloud secrets add-iam-policy-binding "$s" --member "serviceAccount:$SA_EMAIL" --role roles/secretmanager.secretAccessor >/dev/null
   done
   echo "✓ setup done"
@@ -73,8 +77,8 @@ deploy() {
     --image "$IMAGE:${GIT_SHA:-latest}" --region "$REGION" --platform managed \
     --service-account "$SA_EMAIL" \
     --add-cloudsql-instances "$CONN" \
-    --set-env-vars "DATABASE_URL=jdbc:postgresql:///$DB_NAME?cloudSqlInstance=$CONN&socketFactory=com.google.cloud.sql.postgres.SocketFactory,DB_USER=$DB_USER,STORAGE=gcs,GCS_BUCKET=$BUCKET,ANTHROPIC_MODEL=$ANTHROPIC_MODEL" \
-    --set-secrets "ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,DB_PASSWORD=DB_PASSWORD:latest" \
+    --set-env-vars "DATABASE_URL=jdbc:postgresql:///$DB_NAME?cloudSqlInstance=$CONN&socketFactory=com.google.cloud.sql.postgres.SocketFactory,DB_USER=$DB_USER,STORAGE=gcs,GCS_BUCKET=$BUCKET,LLM_PROVIDER=$LLM_PROVIDER,DEEPSEEK_MODEL=$DEEPSEEK_MODEL,ANTHROPIC_MODEL=$ANTHROPIC_MODEL" \
+    --set-secrets "DEEPSEEK_API_KEY=DEEPSEEK_API_KEY:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,DB_PASSWORD=DB_PASSWORD:latest" \
     --memory 1Gi --cpu 1 --min-instances 0 --max-instances 3 --concurrency 20 --timeout 300 \
     --allow-unauthenticated
   URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)')

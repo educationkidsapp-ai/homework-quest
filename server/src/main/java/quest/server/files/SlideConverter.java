@@ -13,6 +13,8 @@ import java.util.List;
 import javax.imageio.ImageIO;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.rendering.ImageType;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
 
@@ -51,5 +53,21 @@ public final class SlideConverter {
 
     public static int pdfPageCount(byte[] pdf) throws IOException {
         try (PDDocument doc = Loader.loadPDF(pdf)) { return doc.getNumberOfPages(); }
+    }
+
+    /** Renders each PDF page to a PNG (for providers that take images but not documents). */
+    public static List<byte[]> pdfToPngs(byte[] pdf, int maxPages) throws IOException {
+        List<byte[]> out = new ArrayList<>();
+        try (PDDocument doc = Loader.loadPDF(pdf)) {
+            PDFRenderer renderer = new PDFRenderer(doc);
+            int pages = Math.min(doc.getNumberOfPages(), maxPages);
+            for (int i = 0; i < pages; i++) {
+                BufferedImage img = renderer.renderImageWithDPI(i, 110, ImageType.RGB);
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                ImageIO.write(img, "png", bos);
+                out.add(bos.toByteArray());
+            }
+        }
+        return out;
     }
 }

@@ -56,14 +56,15 @@ docker compose up --build       # Postgres 16 + API on http://localhost:8080
 curl localhost:8080/health
 ```
 
-Without Docker: `SPRING_PROFILES_ACTIVE=h2 FAKE_LLM=true ./gradlew :server:bootRun` (in-memory database, sample answers).
+Without Docker: `SPRING_PROFILES_ACTIVE=h2 LLM_PROVIDER=deepseek DEEPSEEK_API_KEY=sk-... ./gradlew :server:bootRun` (in-memory database). `FAKE_LLM=true` needs no key at all.
 
 ### `.env` variables
 
 | Variable | Meaning |
 |---|---|
-| `ANTHROPIC_API_KEY` | server-side only; never shipped in the app |
-| `ANTHROPIC_MODEL` | default `claude-opus-5` (vision-capable) |
+| `LLM_PROVIDER` | `deepseek` (default in `.env.example`), `anthropic`, or `fake` |
+| `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` / `DEEPSEEK_BASE_URL` | DeepSeek (OpenAI-compatible); default model `deepseek-flash` (vision). PDFs are rendered to PNG pages because DeepSeek takes images, not documents |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Anthropic; default `claude-opus-5`. PDFs are sent as documents |
 | `FAKE_LLM` | `true` → answer from `shared-api` sample outputs |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` | PostgreSQL |
 | `DATABASE_URL` | JDBC URL (compose and Cloud Run set it) |
@@ -88,7 +89,7 @@ Errors are `{code, message}` with codes `unreadable_file`, `no_teaching_content`
 ### AI pipeline
 
 `server/src/main/java/quest/server/ai/Prompts.java` holds Prompt A (skill extraction) and Prompt B (question generation). Both return JSON only.
-Output is validated with the **same** validator the app uses (`shared-api` `SchemaValidator`: JSON Schema 2020-12 + answer-correctness rules), and
+Providers: `DeepSeekLlmClient` (Chat Completions, JSON mode) and `AnthropicLlmClient` (Messages API), chosen by `LLM_PROVIDER`. Output is validated with the **same** validator the app uses (`shared-api` `SchemaValidator`: JSON Schema 2020-12 + answer-correctness rules), and
 retried once with the validation errors. PDFs are sent as document blocks, PPTX is rendered to one PNG per slide (Apache POI), photos as image blocks.
 Uploaded files are deleted as soon as the app confirms `ready` and by the bucket's 24-hour lifecycle rule regardless. Logs carry ids, counts and status only.
 

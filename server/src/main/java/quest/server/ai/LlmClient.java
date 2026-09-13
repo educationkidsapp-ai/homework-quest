@@ -15,6 +15,9 @@ public interface LlmClient {
     /** Sends one conversation and returns the assistant text (JSON expected). */
     String complete(String system, List<Turn> turns) throws LlmException;
 
+    /** Whether {@link Block.Pdf} may be sent directly; otherwise the pipeline renders PDF pages to images. */
+    default boolean supportsPdf() { return true; }
+
     class LlmException extends Exception {
         public LlmException(String message, Throwable cause) { super(message, cause); }
         public LlmException(String message) { super(message); }

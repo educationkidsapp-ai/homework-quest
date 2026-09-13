@@ -43,8 +43,12 @@ public class SkillExtractionService {
                 if ("application/pdf".equals(u.getMimeType())) {
                     int pages = SlideConverter.pdfPageCount(bytes);
                     if (pages > MAX_PDF_PAGES) throw new ExtractionException(ApiError.TOO_LARGE, "That PDF has " + pages + " pages. Please upload only today's slides.", null);
-                    blocks.add(new LlmClient.Block.Pdf(bytes, "slides-" + (slideCount + 1)));
-                    slideCount += pages;
+                    if (llm.supportsPdf()) {
+                        blocks.add(new LlmClient.Block.Pdf(bytes, "slides-" + (slideCount + 1)));
+                        slideCount += pages;
+                    } else {
+                        for (byte[] png : SlideConverter.pdfToPngs(bytes, MAX_IMAGES)) { blocks.add(new LlmClient.Block.Image(png, "image/png")); slideCount++; }
+                    }
                 } else if (SlideConverter.PPTX.equals(u.getMimeType()) || u.getFileName().toLowerCase().endsWith(".pptx")) {
                     for (byte[] png : SlideConverter.pptxToPngs(bytes)) { blocks.add(new LlmClient.Block.Image(png, "image/png")); slideCount++; }
                 } else if (u.getMimeType().startsWith("image/")) {

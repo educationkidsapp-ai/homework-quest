@@ -27,6 +27,10 @@ services:
       DATABASE_URL: jdbc:postgresql://db:5432/${DB_NAME:-quest}
       DB_USER: ${DB_USER:-quest}
       DB_PASSWORD: ${DB_PASSWORD:-quest}
+      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5}
       FAKE_LLM: ${FAKE_LLM:-false}

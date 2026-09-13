@@ -11,6 +11,13 @@ spring:
     enabled: true
 quest:
   fake-llm: true
+  llm:
+    provider: fake
+  deepseek:
+    api-key: ""
+    base-url: http://localhost:0
+    model: deepseek-flash
+    max-tokens: 8000
   anthropic:
     api-key: ""
     model: claude-opus-5
