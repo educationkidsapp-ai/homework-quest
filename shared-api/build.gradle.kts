@@ -1,15 +1,20 @@
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.android.library) apply false
 }
+
+val serverOnly = (findProperty("quest.serverOnly") ?: System.getenv("QUEST_SERVER_ONLY"))?.toString() == "true"
+if (!serverOnly) apply(plugin = "com.android.library")
 
 kotlin {
     jvmToolchain(17)
     jvm()
-    androidTarget()
-    iosArm64()
-    iosSimulatorArm64()
+    if (!serverOnly) {
+        androidTarget()
+        iosArm64()
+        iosSimulatorArm64()
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -27,10 +32,12 @@ kotlin {
     }
 }
 
-android {
-    namespace = "quest.api"
-    compileSdk = libs.versions.android.compileSdk.get().toInt()
-    defaultConfig { minSdk = libs.versions.android.minSdk.get().toInt() }
+if (!serverOnly) {
+    extensions.configure<com.android.build.gradle.LibraryExtension> {
+        namespace = "quest.api"
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        defaultConfig { minSdk = libs.versions.android.minSdk.get().toInt() }
+    }
 }
 
 // Embed the JSON schema files as Kotlin constants so common code (app + server) validates with the same text.

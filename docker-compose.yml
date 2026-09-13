@@ -1,0 +1,42 @@
+# Local development: `docker compose up --build` starts PostgreSQL and the API together.
+# Secrets come from .env (see .env.example); it is git-ignored.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-quest}
+      POSTGRES_USER: ${DB_USER:-quest}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-quest}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-quest} -d ${DB_NAME:-quest}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      DATABASE_URL: jdbc:postgresql://db:5432/${DB_NAME:-quest}
+      DB_USER: ${DB_USER:-quest}
+      DB_PASSWORD: ${DB_PASSWORD:-quest}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5}
+      FAKE_LLM: ${FAKE_LLM:-false}
+      STORAGE: local
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
+  uploads:

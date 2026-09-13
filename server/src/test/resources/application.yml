@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:quest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: true
+quest:
+  fake-llm: true
+  anthropic:
+    api-key: ""
+    model: claude-opus-5
+    max-tokens: 16000
+  storage:
+    kind: local
+    local-dir: ${java.io.tmpdir}/quest-test-uploads
+logging:
+  level:
+    http: WARN

@@ -1,0 +1,58 @@
+server:
+  port: ${PORT:8080}
+  max-http-request-header-size: 16KB
+
+spring:
+  application:
+    name: homework-quest-api
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/quest}
+    username: ${DB_USER:quest}
+    password: ${DB_PASSWORD:quest}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_MB:25}MB
+      max-request-size: ${MAX_REQUEST_MB:60}MB
+  task:
+    execution:
+      pool:
+        core-size: 2
+        max-size: 4
+        queue-capacity: 50
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+quest:
+  anthropic:
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: ${ANTHROPIC_MODEL:claude-opus-5}
+    max-tokens: 16000
+  storage:
+    kind: ${STORAGE:local}          # local | gcs
+    local-dir: ${UPLOAD_DIR:/tmp/quest-uploads}
+    gcs-bucket: ${GCS_BUCKET:}
+  fake-llm: ${FAKE_LLM:false}       # true = answer from the shared sample outputs (no API key needed)
+
+logging:
+  level:
+    root: INFO
+    quest: INFO
+    org.hibernate.SQL: WARN

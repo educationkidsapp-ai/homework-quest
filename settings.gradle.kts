@@ -30,8 +30,13 @@ dependencyResolutionManagement {
     }
 }
 
+// `-Pquest.serverOnly=true` (used by the Dockerfile and CI) builds only the JVM server and its contract,
+// so no Android SDK is needed in the container.
+val serverOnly = (extra.properties["quest.serverOnly"] ?: System.getenv("QUEST_SERVER_ONLY"))?.toString() == "true"
 include(":shared-api")
-include(":shared")
-include(":androidApp")
-include(":desktopApp")
-//include(":server")
+include(":server")
+if (!serverOnly) {
+    include(":shared")
+    include(":androidApp")
+    include(":desktopApp")
+}

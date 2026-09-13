@@ -1,0 +1,12 @@
+**/build
+**/.gradle
+.git
+.idea
+androidApp
+desktopApp
+iosApp
+shared
+docs
+deploy
+*.md
+.env

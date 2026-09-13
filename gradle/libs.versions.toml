@@ -23,6 +23,11 @@ h2 = "2.3.232"
 poi = "5.4.1"
 pdfbox = "3.0.5"
 logback = "1.5.18"
+spring-boot = "3.5.5"
+spring-dependency-management = "1.1.7"
+networknt-schema = "1.5.6"
+anthropic-java = "2.34.0"
+gcs = "2.53.0"
 junit = "4.13.2"
 
 [libraries]
@@ -84,8 +89,13 @@ poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 logback = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 junit = { module = "junit:junit", version.ref = "junit" }
+networknt-schema = { module = "com.networknt:json-schema-validator", version.ref = "networknt-schema" }
+anthropic-java = { module = "com.anthropic:anthropic-java", version.ref = "anthropic-java" }
+gcs = { module = "com.google.cloud:google-cloud-storage", version.ref = "gcs" }
 
 [plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
