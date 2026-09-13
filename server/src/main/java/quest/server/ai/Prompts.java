@@ -59,6 +59,8 @@ public final class Prompts {
         - questions: EXACTLY the number requested. Every question has a plain-language "hint" (one short
           sentence) and, for numeric types, a "numberLine" the hint screen can draw (from, to, step, highlight).
         - Question text and hints are one short sentence. No trick questions.
+        - Mix the question types within a set: use at least two different types whenever the skill allows
+          (for example counting skills mix sequence and count; sound skills mix sound, word, readTap and trace).
         - Distractors must be plausible for a 6-year-old: adjacent numbers, look-alike or sound-alike words.
         - Use only these question types, matching the game exactly:
             sequence  — number chips with one missing shown as null, options 2-4 numbers

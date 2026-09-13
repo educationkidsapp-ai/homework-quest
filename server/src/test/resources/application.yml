@@ -16,7 +16,8 @@ quest:
   deepseek:
     api-key: ""
     base-url: http://localhost:0
-    model: deepseek-flash
+    model: deepseek-v4-pro
+    vision-model: deepseek-flash
     max-tokens: 8000
   anthropic:
     api-key: ""

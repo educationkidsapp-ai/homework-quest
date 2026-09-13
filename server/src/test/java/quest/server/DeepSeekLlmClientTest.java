@@ -36,7 +36,7 @@ class DeepSeekLlmClientTest {
             ex.close();
         });
         server.start();
-        client = new DeepSeekLlmClient(new QuestProperties.DeepSeek("test-key", "http://127.0.0.1:" + server.getAddress().getPort(), "deepseek-flash", 8000), mapper);
+        client = new DeepSeekLlmClient(new QuestProperties.DeepSeek("test-key", "http://127.0.0.1:" + server.getAddress().getPort(), "deepseek-v4-pro", "deepseek-flash", 8000), mapper);
     }
 
     @AfterEach void stop() { server.stop(0); }
@@ -56,6 +56,11 @@ class DeepSeekLlmClientTest {
         assertEquals("image_url", parts.get(0).get("type").asText());
         assertTrue(parts.get(0).get("image_url").get("url").asText().startsWith("data:image/png;base64,AQID"));
         assertEquals("List the skills taught", parts.get(1).get("text").asText());
+    }
+
+    @Test void textOnlyTurnsUseTheTextModel() throws Exception {
+        client.complete("S", List.of(new LlmClient.Turn("user", List.of(new LlmClient.Block.Text("Skill: x")))));
+        assertEquals("deepseek-v4-pro", mapper.readTree(captured.get()).get("model").asText());
     }
 
     @Test void pdfIsNotSupportedDirectly() {

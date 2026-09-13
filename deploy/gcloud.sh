@@ -77,7 +77,7 @@ deploy() {
     --image "$IMAGE:${GIT_SHA:-latest}" --region "$REGION" --platform managed \
     --service-account "$SA_EMAIL" \
     --add-cloudsql-instances "$CONN" \
-    --set-env-vars "DATABASE_URL=jdbc:postgresql:///$DB_NAME?cloudSqlInstance=$CONN&socketFactory=com.google.cloud.sql.postgres.SocketFactory,DB_USER=$DB_USER,STORAGE=gcs,GCS_BUCKET=$BUCKET,LLM_PROVIDER=$LLM_PROVIDER,DEEPSEEK_MODEL=$DEEPSEEK_MODEL,ANTHROPIC_MODEL=$ANTHROPIC_MODEL" \
+    --set-env-vars "DATABASE_URL=jdbc:postgresql:///$DB_NAME?cloudSqlInstance=$CONN&socketFactory=com.google.cloud.sql.postgres.SocketFactory,DB_USER=$DB_USER,STORAGE=gcs,GCS_BUCKET=$BUCKET,LLM_PROVIDER=$LLM_PROVIDER,DEEPSEEK_MODEL=$DEEPSEEK_MODEL,DEEPSEEK_VISION_MODEL=$DEEPSEEK_VISION_MODEL,ANTHROPIC_MODEL=$ANTHROPIC_MODEL" \
     --set-secrets "DEEPSEEK_API_KEY=DEEPSEEK_API_KEY:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,DB_PASSWORD=DB_PASSWORD:latest" \
     --memory 1Gi --cpu 1 --min-instances 0 --max-instances 3 --concurrency 20 --timeout 300 \
     --allow-unauthenticated

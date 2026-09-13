@@ -69,6 +69,10 @@ class LessonEndpointsTest extends ApiTestSupport {
         assertEquals(3, ready.skills().size());
         assertEquals("Adding two numbers", ready.skills().get(1).name());
         assertEquals(3, ready.questionSets().size());
+        // Every set keeps its 7 questions even though the model reuses q1..q7 ids; stored ids are globally unique.
+        Set<String> allIds = new HashSet<>();
+        ready.questionSets().forEach(set -> set.questions().forEach(q -> assertTrue(allIds.add(q.id()), "duplicate id " + q.id())));
+        assertEquals(21, allIds.size());
         for (Questions.QuestionSet set : ready.questionSets()) {
             assertEquals(7, set.questions().size());
             assertNotNull(set.id());

@@ -63,7 +63,7 @@ Without Docker: `SPRING_PROFILES_ACTIVE=h2 LLM_PROVIDER=deepseek DEEPSEEK_API_KE
 | Variable | Meaning |
 |---|---|
 | `LLM_PROVIDER` | `deepseek` (default in `.env.example`), `anthropic`, or `fake` |
-| `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` / `DEEPSEEK_BASE_URL` | DeepSeek (OpenAI-compatible); default model `deepseek-flash` (vision). PDFs are rendered to PNG pages because DeepSeek takes images, not documents |
+| `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` / `DEEPSEEK_BASE_URL` | DeepSeek (OpenAI-compatible); `DEEPSEEK_MODEL` (default `deepseek-v4-pro`) writes questions; `DEEPSEEK_VISION_MODEL` (default `deepseek-flash`, the only DeepSeek model with vision) reads slides. PDFs are rendered to PNG pages because DeepSeek takes images, not documents |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Anthropic; default `claude-opus-5`. PDFs are sent as documents |
 | `FAKE_LLM` | `true` → answer from `shared-api` sample outputs |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` | PostgreSQL |

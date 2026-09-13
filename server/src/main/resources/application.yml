@@ -50,7 +50,8 @@ quest:
   deepseek:
     api-key: ${DEEPSEEK_API_KEY:}
     base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
-    model: ${DEEPSEEK_MODEL:deepseek-flash}   # vision-capable; PDFs are rendered to PNG pages before sending
+    model: ${DEEPSEEK_MODEL:deepseek-v4-pro}           # text turns (question generation)
+    vision-model: ${DEEPSEEK_VISION_MODEL:deepseek-flash} # turns with slide images (skill extraction); v4-pro has no vision
     max-tokens: 8000
   storage:
     kind: ${STORAGE:local}          # local | gcs

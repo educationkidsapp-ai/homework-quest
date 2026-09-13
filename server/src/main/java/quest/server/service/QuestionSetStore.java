@@ -32,15 +32,19 @@ public class QuestionSetStore {
         e.setId(id); e.setSkillId(set.skillId()); e.setMode(set.mode().wire()); e.setSeed(seed);
         e.setExplanation(set.explanation()); e.setWorkedExamplesJson(json.write(set.workedExamples())); e.setGeneratedAt(Instant.now());
         sets.save(e);
+        // Models number questions q1..qN in every set; make ids globally unique so sets never overwrite each other
+        // (the app's local table and the no-repeat rule key on this id too).
+        String prefix = id.substring(0, 8);
+        List<Questions.Question> renamed = set.questions().stream().map(q -> q.withId(prefix + "-" + q.id())).toList();
         int pos = 0;
-        for (Questions.Question q : set.questions()) {
+        for (Questions.Question q : renamed) {
             QuestionEntity qe = new QuestionEntity();
             qe.setId(q.id()); qe.setQuestionSetId(id); qe.setPosition(pos++); qe.setType(q.typeName());
             qe.setPromptJson(json.write(q)); qe.setOptionsJson(json.write(q.optionIds())); qe.setCorrectOptionId(q.correctOptionId());
             qe.setHint(q.hint()); qe.setNumberLineJson(q.numberLine() == null ? null : json.write(q.numberLine())); qe.setIllustrationKey(q.illustrationKey());
             questions.save(qe);
         }
-        return set.withId(id);
+        return new Questions.QuestionSet(id, set.skillId(), set.mode(), set.explanation(), set.workedExamples(), renamed);
     }
 
     @Transactional(readOnly = true)

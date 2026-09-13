@@ -33,8 +33,10 @@ public class DeepSeekLlmClient implements LlmClient {
 
     @Override
     public String complete(String system, List<Turn> turns) throws LlmException {
+        boolean hasImages = turns.stream().flatMap(t -> t.blocks().stream()).anyMatch(b -> b instanceof Block.Image);
+        String model = hasImages && props.visionModel() != null && !props.visionModel().isBlank() ? props.visionModel() : props.model();
         ObjectNode body = mapper.createObjectNode();
-        body.put("model", props.model());
+        body.put("model", model);
         body.put("max_tokens", props.maxTokens());
         body.put("temperature", 0.4);
         body.putObject("response_format").put("type", "json_object");
@@ -85,7 +87,7 @@ public class DeepSeekLlmClient implements LlmClient {
             if ("length".equals(finish)) throw new LlmException("The model answer was cut off.");
             if ("content_filter".equals(finish)) throw new LlmException("The model declined to read this content.");
             String content = choice.path("message").path("content").asText("");
-            log.info("deepseek call ok model={} in={} out={}", props.model(), root.path("usage").path("prompt_tokens").asInt(), root.path("usage").path("completion_tokens").asInt());
+            log.info("deepseek call ok model={} in={} out={}", model, root.path("usage").path("prompt_tokens").asInt(), root.path("usage").path("completion_tokens").asInt());
             return content;
         } catch (IOException e) { throw new LlmException("DeepSeek response was not JSON", e); }
     }
