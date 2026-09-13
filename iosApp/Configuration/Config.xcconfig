@@ -1,0 +1,5 @@
+TEAM_ID=
+BUNDLE_ID=app.homeworkquest
+APP_NAME=Homework Quest
+// Leave empty to use the in-app FakeLessonApi; set to the Cloud Run URL for release builds.
+API_BASE_URL=

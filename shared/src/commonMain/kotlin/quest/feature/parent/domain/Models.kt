@@ -34,6 +34,8 @@ data class SkillReport(
 data class CalendarDay(val date: LocalDate, val subjects: List<Subject>)
 
 interface ParentRepository {
+    /** Current parent-mode language code ("en" | "ar"), observable for the theme. */
+    val language: kotlinx.coroutines.flow.StateFlow<String>
     suspend fun profile(): ChildProfile
     suspend fun saveProfile(name: String, grade: Int, curriculum: String, avatarColor: String)
     suspend fun setPin(pin: String)

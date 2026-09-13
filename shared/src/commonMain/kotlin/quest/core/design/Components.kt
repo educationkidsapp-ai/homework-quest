@@ -21,8 +21,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -52,7 +52,7 @@ fun ReadAloudButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
             .semantics { contentDescription = "Read aloud" },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Filled.VolumeUp, contentDescription = null, tint = Palette.ink, modifier = Modifier.size(32.dp))
+        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = Palette.ink, modifier = Modifier.size(32.dp))
     }
 }
 
@@ -68,7 +68,7 @@ fun RoundIconButton(onClick: () -> Unit, contentDescription: String, modifier: M
 
 @Composable
 fun BackButton(onClick: () -> Unit, modifier: Modifier = Modifier) =
-    RoundIconButton(onClick, "Back", modifier) { Icon(Icons.Filled.ArrowBack, null, tint = Palette.ink) }
+    RoundIconButton(onClick, "Back", modifier) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Palette.ink) }
 
 /**
  * A 176×100 answer tile. `dimmed` is the post-wrong-answer state: visibly out of play, not clickable,

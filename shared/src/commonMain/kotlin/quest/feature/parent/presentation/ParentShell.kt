@@ -38,7 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import quest.core.db.SettingsStore
+import quest.feature.parent.domain.ParentRepository
 import quest.core.design.Dimens
 import quest.core.design.Palette
 import quest.core.design.ParentTheme
@@ -46,8 +46,8 @@ import quest.core.design.ParentTheme
 /** Wraps every parent route: applies the parent theme, RTL when Arabic, and the header with the language toggle. */
 @Composable
 fun ParentShell(title: (Strings) -> String, onBack: (() -> Unit)?, content: @Composable (Strings) -> Unit) {
-    val settings: SettingsStore = koinInject()
-    val language by settings.language.collectAsStateWithLifecycle()
+    val parent: ParentRepository = koinInject()
+    val language by parent.language.collectAsStateWithLifecycle()
     val strings = Strings.forLanguage(language)
     val scope = rememberCoroutineScope()
     ParentTheme(rtl = strings.isRtl) {
@@ -60,7 +60,7 @@ fun ParentShell(title: (Strings) -> String, onBack: (() -> Unit)?, content: @Com
                         }
                     } else Spacer(Modifier.width(Dimens.s8))
                     Text(title(strings), style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk, modifier = Modifier.weight(1f).padding(start = Dimens.s8))
-                    LanguageToggle(language) { code -> scope.launch { settings.setLanguage(code) } }
+                    LanguageToggle(language) { code -> scope.launch { parent.setLanguage(code) } }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) { content(strings) }
             }

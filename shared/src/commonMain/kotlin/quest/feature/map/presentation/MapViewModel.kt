@@ -1,6 +1,5 @@
 package quest.feature.map.presentation
 
-import quest.core.db.Db
 import quest.core.mvi.MviViewModel
 import quest.core.platform.Today
 import quest.feature.map.domain.IslandStatus
@@ -8,12 +7,13 @@ import quest.feature.map.domain.IslandsUseCase
 import quest.feature.map.presentation.MapContract.Effect
 import quest.feature.map.presentation.MapContract.Intent
 import quest.feature.map.presentation.MapContract.State
+import quest.feature.parent.domain.ParentRepository
 import quest.feature.rewards.domain.RewardsRepository
 
 class MapViewModel(
     private val islands: IslandsUseCase,
     private val rewards: RewardsRepository,
-    private val db: Db,
+    private val parent: ParentRepository,
 ) : MviViewModel<State, Intent, Effect>(State()) {
 
     init { dispatch(Intent.Load) }
@@ -27,11 +27,11 @@ class MapViewModel(
     }
 
     private suspend fun load() {
-        val child = db.read { selectChild().executeAsOneOrNull() }
+        val profile = parent.profile()
         val data = islands(Today.date())
         val streak = rewards.streak()
         val stickers = rewards.stickers().size
-        reduce { copy(loading = false, childName = child?.name ?: "", islands = data.islands, isEmpty = data.isEmpty, streakDays = streak.currentDays, stickerCount = stickers) }
+        reduce { copy(loading = false, childName = profile.name, islands = data.islands, isEmpty = data.isEmpty, streakDays = streak.currentDays, stickerCount = stickers) }
     }
 
     private suspend fun tap(id: String) {

@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -133,7 +133,7 @@ private fun ReadTapPrompt(q: Question.ReadTap, onSpeak: (String) -> Unit, modifi
             contentAlignment = Alignment.Center,
         ) {
             Box(Modifier.size(Dimens.minTarget).clickable { onSpeak(q.word) }, contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.VolumeUp, null, tint = Palette.ink)
+                Icon(Icons.AutoMirrored.Filled.VolumeUp, null, tint = Palette.ink)
             }
         }
     }

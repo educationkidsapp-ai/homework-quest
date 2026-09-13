@@ -26,7 +26,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import org.koin.compose.koinInject
-import quest.core.db.Db
+import quest.feature.parent.domain.ParentRepository
 import quest.core.design.BigButton
 import quest.core.design.Dimens
 import quest.core.design.Palette
@@ -37,11 +37,11 @@ import quest.core.platform.Speaker
 
 @Composable
 fun WelcomeRoute(onPlay: () -> Unit, onGrownUps: () -> Unit) {
-    val db: Db = koinInject()
+    val parent: ParentRepository = koinInject()
     val speaker: Speaker = koinInject()
     var name by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
-        name = db.read { selectChild().executeAsOneOrNull()?.name } ?: ""
+        name = parent.profile().name
         speaker.speak(greeting(name))
     }
     WelcomeScreen(name, onPlay, onGrownUps, onReadAloud = { speaker.speak(greeting(name)) })

@@ -8,6 +8,8 @@ import quest.feature.parent.domain.ParentSettings
 import quest.feature.parent.domain.PinHasher
 
 class ParentRepositoryImpl(private val db: Db, private val settings: SettingsStore, private val childId: suspend () -> String) : ParentRepository {
+    override val language get() = settings.language
+
     override suspend fun profile(): ChildProfile {
         val id = childId()
         val row = db.read { selectChild().executeAsOneOrNull() }

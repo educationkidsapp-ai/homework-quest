@@ -26,6 +26,11 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
+    // Cloud SQL connector (socket factory) for Cloud Run → Cloud SQL without a public IP.
+    runtimeOnly("com.google.cloud.sql:postgres-socket-factory:1.21.0") {
+        exclude(group = "io.grpc")
+        exclude(group = "io.opentelemetry")
+    }
 
     implementation(libs.anthropic.java)
     implementation(libs.poi.ooxml)
