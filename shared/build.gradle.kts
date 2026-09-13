@@ -24,6 +24,7 @@ kotlin {
         target.binaries.framework {
             baseName = "Shared"
             isStatic = true
+            linkerOpts.add("-lsqlite3")   // SQLDelight native driver
         }
     }
 
