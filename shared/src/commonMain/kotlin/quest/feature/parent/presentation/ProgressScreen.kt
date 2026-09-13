@@ -1,0 +1,78 @@
+package quest.feature.parent.presentation
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.koin.compose.viewmodel.koinViewModel
+import quest.api.dto.Subject
+import quest.core.design.Dimens
+import quest.core.design.Palette
+import quest.core.mvi.MviEffect
+import quest.core.mvi.MviIntent
+import quest.core.mvi.MviState
+import quest.core.mvi.MviViewModel
+import quest.feature.parent.domain.ProgressReportUseCase
+import quest.feature.parent.domain.SkillReport
+
+object ProgressContract {
+    data class State(val loading: Boolean = true, val reports: List<SkillReport> = emptyList()) : MviState
+    sealed interface Intent : MviIntent { data object Load : Intent }
+    sealed interface Effect : MviEffect
+}
+
+class ProgressViewModel(private val report: ProgressReportUseCase) : MviViewModel<ProgressContract.State, ProgressContract.Intent, ProgressContract.Effect>(ProgressContract.State()) {
+    override suspend fun handle(intent: ProgressContract.Intent) { val r = report(); reduce { copy(loading = false, reports = r) } }
+}
+
+@Composable
+fun ProgressRoute(onBack: () -> Unit) {
+    val vm: ProgressViewModel = koinViewModel()
+    val state by vm.state.collectAsStateWithLifecycle()
+    LaunchedEffect(vm) { vm.dispatch(ProgressContract.Intent.Load) }
+    ParentShell(title = { it.progress }, onBack = onBack) { s -> ProgressScreen(state, s) }
+}
+
+/** Progress report: bands and words, never a percentage. */
+@Composable
+fun ProgressScreen(state: ProgressContract.State, s: Strings) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
+        Spacer(Modifier.height(Dimens.s8))
+        if (state.reports.isEmpty() && !state.loading) ParentCard { Text(s.noLessonsToday, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInkSoft) }
+        state.reports.forEach { r ->
+            ParentCard(Modifier.padding(bottom = Dimens.s12)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (r.subject == Subject.MATH) "🔢" else "🔤", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.padding(Dimens.s4))
+                    Text(r.name, style = MaterialTheme.typography.titleMedium, color = Palette.parentInk, modifier = Modifier.weight(1f))
+                    BandChip(r.band, s)
+                }
+                Spacer(Modifier.height(Dimens.s8))
+                r.accuracyWords?.let { Text("${s.firstTry}: ${s.accuracy(it)}", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk) }
+                Text("${r.attempts} ${s.attempts}" + (r.lastPractised?.let { " · ${s.lastPractised} ${formatDate(it)}" } ?: ""), style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+                r.requeuedFor?.let { Text("↻ ${s.queuedFor} ${it.dayOfMonth}/${it.monthNumber}", style = MaterialTheme.typography.bodySmall, color = Palette.sunDeep) }
+            }
+        }
+        Spacer(Modifier.height(Dimens.s24))
+    }
+}
+
+private fun formatDate(epochMillis: Long): String {
+    val d = Instant.fromEpochMilliseconds(epochMillis).toLocalDateTime(TimeZone.currentSystemDefault()).date
+    return "${d.dayOfMonth}/${d.monthNumber}"
+}

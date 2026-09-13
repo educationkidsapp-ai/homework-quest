@@ -23,4 +23,5 @@ object Routes {
     @Serializable object Calendar
     @Serializable object Progress
     @Serializable object Settings
+    @Serializable object ChangePin
 }

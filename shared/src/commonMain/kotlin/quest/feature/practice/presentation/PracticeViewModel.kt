@@ -19,6 +19,7 @@ import quest.feature.practice.presentation.PracticeContract.Phase
 import quest.feature.practice.presentation.PracticeContract.State
 import quest.feature.rewards.domain.AwardStickerUseCase
 import quest.feature.rewards.domain.UpdateStreakUseCase
+import quest.feature.parent.domain.RequeueWeakSkillsUseCase
 
 class PracticeViewModel(
     private val setId: String,
@@ -29,6 +30,7 @@ class PracticeViewModel(
     private val completeSet: CompleteSetUseCase,
     private val awardSticker: AwardStickerUseCase,
     private val updateStreak: UpdateStreakUseCase,
+    private val requeueWeakSkills: RequeueWeakSkillsUseCase,
 ) : MviViewModel<State, Intent, Effect>(State(setId = setId)) {
 
     private var session: PracticeSession? = null
@@ -112,6 +114,7 @@ class PracticeViewModel(
         completeSet(setId, s.stars)
         val sticker = awardSticker()
         updateStreak(Today.date())
+        runCatching { requeueWeakSkills(Today.date()) }
         reduce { copy(phase = Phase.COMPLETE, stars = s.stars, stickerKey = sticker.key, firstTryCorrect = s.firstTryCorrect) }
         effect(Effect.Speak("You did it! You earned a new sticker."))
     }

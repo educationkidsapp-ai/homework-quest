@@ -75,7 +75,7 @@ val practiceModule = module {
     factory { RecordAttemptUseCase(get()) }
     factory { CompleteSetUseCase(get()) }
     factory { SkillProgressUseCase(get()) }
-    viewModel { (setId: String) -> PracticeViewModel(setId, get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { (setId: String) -> PracticeViewModel(setId, get(), get(), get(), get(), get(), get(), get(), get()) }
 }
 
 val rewardsModule = module {
