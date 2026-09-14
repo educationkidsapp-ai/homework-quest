@@ -38,8 +38,8 @@ shared/       The app: MVI features (auth, children, content, map, journey, rewa
 androidApp/   desktopApp/   iosApp/       entry points (Android · desktop runner · SwiftUI host)
 webAdmin/     Compose for Web admin panel (wasmJs + js), RemoteAdminApi, MVI features (auth, lessons, editor, reports)
 server/       Spring Boot 3 (Java 21, Maven): auth · children · content · analysis · admin · files; Flyway; H2 profile
-deploy/       gcloud scripts (Cloud Run, Cloud SQL, GCS 24 h lifecycle, Secret Manager, Artifact Registry, Firebase Hosting)
-Dockerfile · docker-compose.yml · firebase.json · .github/workflows/deploy.yml
+infra/        Terraform (per-environment GCP project), bootstrap.sh, secrets.sh, firebase-auth.sh — see deploy/README.md
+Dockerfile · docker-compose.yml · .github/workflows/{ci,deploy-qa,deploy-production,rollback,migration-check}.yml
 ```
 
 ### Architecture
@@ -101,7 +101,7 @@ anything else is retried once with the validator's errors.
 
 ## Environments and CI/CD
 
-`develop` → **QA** (`homework-quest-qa`), `main` → **production** (`homework-quest-prod`): separate GCP + Firebase projects,
+`develop` → **QA** (`homework-quest-qa`), `main` → **production** (`homework-quest-prod`): separate GCP projects (Firebase Auth only),
 Cloud SQL, buckets, keys, Spring profiles (`qa` / `prod`) and Android flavors (`qa` / `prod`). Terraform in `infra/terraform`,
 six GitHub Actions workflows (CI, QA deploy with APK link on the PR, production promotion with a no-traffic canary, rollback,
 migration check, Dependabot). Everything is driven with `gh` — see [deploy/README.md](deploy/README.md).
@@ -109,5 +109,5 @@ migration check, Dependabot). Everything is driven with `gh` — see [deploy/REA
 ## Still needed from the school / project owner
 
 * `docs/example-play.html` (the reference Hot Soup journey) and the real `docs/design.md`
-* Firebase project files: `google-services.json`, `GoogleService-Info.plist`, and the server service-account JSON
-  (`FIREBASE_CREDENTIALS`) — until then the app uses `FakeAuth` and the server runs with `FAKE_AUTH`
+* iOS: `FIREBASE_API_KEY` in `iosApp/Configuration/Config.xcconfig` for the production Firebase project (the Android
+  `google-services.json` per flavor is written by `infra/firebase-auth.sh`; no server-side Firebase key is needed)

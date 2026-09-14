@@ -24,7 +24,7 @@ variable "admin_email" {
   default = "admin@quest.local"
 }
 variable "cors_origins" {
-  description = "Admin-panel origins; the Firebase Hosting site is added automatically"
+  description = "Extra CORS origins for the admin panel (local dev servers); the deployed panel is same-origin"
   type        = list(string)
   default     = []
 }

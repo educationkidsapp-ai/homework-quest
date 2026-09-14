@@ -6,4 +6,6 @@ expect object Browser {
     fun set(key: String, value: String?)
     fun open(url: String)
     fun reload()
+    /** scheme://host[:port] of the page — the API when the panel is served by the server itself (`/panel/`). */
+    fun origin(): String
 }

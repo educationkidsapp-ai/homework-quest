@@ -1,7 +1,8 @@
 name: Deploy QA
 
-# develop → QA project. Builds the image once, tags it with the commit SHA (production later promotes that exact digest),
-# applies Terraform, deploys Cloud Run, the admin panel and a QA APK, and posts the links on the merged PR.
+# develop → QA project. Builds the image once (server + admin panel, served at /panel/), tags it with the commit SHA
+# (production later promotes that exact digest), applies Terraform, deploys Cloud Run, builds a QA APK, and posts the
+# links on the merged PR.
 on:
   push:
     branches: [develop]
@@ -35,8 +36,13 @@ jobs:
           region: ${{ vars.GCP_REGION }}
           wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Admin panel bundle (Kotlin/Wasm) → server/panel, served by the API at /panel/
+        run: ./scripts/build-panel.sh
       - uses: docker/setup-buildx-action@v3
-      - name: Build and push the image (Gradle contract → Maven → Temurin 21 + LibreOffice)
+      - name: Build and push the image (Gradle contract → Maven → Temurin 21 + LibreOffice + panel)
         id: push
         uses: docker/build-push-action@v6
         with:
@@ -101,26 +107,6 @@ jobs:
         run: |
           for _ in $(seq 1 20); do curl -fsS "${{ vars.API_URL }}/health" && exit 0; sleep 6; done; exit 1
 
-  admin:
-    name: Admin panel → Firebase Hosting (QA)
-    needs: deploy
-    runs-on: ubuntu-latest
-    environment: qa
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: "17" }
-      - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :webAdmin:wasmJsBrowserDistribution -Pquest.admin.apiBaseUrl=${{ vars.API_URL }} --no-daemon
-      - uses: ./.github/actions/gcp-auth
-        with:
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          region: ${{ vars.GCP_REGION }}
-          wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
-      - name: firebase deploy (auth through the WIF-issued ADC)
-        run: npx --yes firebase-tools@14 deploy --only hosting:admin --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
-
   apk:
     name: QA APK
     needs: deploy
@@ -128,7 +114,6 @@ jobs:
     environment: qa
     outputs:
       artifact_url: ${{ steps.upload.outputs.artifact-url }}
-      distribution_url: ${{ steps.distribute.outputs.url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -150,24 +135,10 @@ jobs:
           name: homework-quest-qa-${{ github.sha }}
           path: androidApp/build/outputs/apk/qa/release/*.apk
           retention-days: 30
-      - uses: ./.github/actions/gcp-auth
-        with:
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          region: ${{ vars.GCP_REGION }}
-          wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
-      - name: Firebase App Distribution (group "qa"; auth through the WIF-issued ADC)
-        id: distribute
-        run: |
-          out=$(npx --yes firebase-tools@14 appdistribution:distribute androidApp/build/outputs/apk/qa/release/*.apk \
-            --app "${{ vars.FIREBASE_ANDROID_APP_ID }}" --groups qa --project "${{ vars.GCP_PROJECT_ID }}" \
-            --release-notes "develop ${TAG:0:7} → ${{ vars.API_URL }}" --non-interactive 2>&1 | tee /dev/stderr)
-          url=$(echo "$out" | grep -o 'https://appdistribution.firebase.google.com/[^ ?]*' | head -1)
-          echo "url=$url" >> "$GITHUB_OUTPUT"
 
   announce:
     name: Post links on the merged PR
-    needs: [image, deploy, admin, apk]
+    needs: [image, deploy, apk]
     if: always() && needs.deploy.result == 'success'
     runs-on: ubuntu-latest
     environment: qa
@@ -180,9 +151,8 @@ jobs:
             const body = [
               `🚀 **Deployed to QA** (\`${sha.slice(0, 7)}\`)`,
               `- API: ${{ vars.API_URL }}`,
-              `- Admin panel: ${{ vars.HOSTING_URL }}`,
-              `- QA APK (App Distribution, group qa): ${{ needs.apk.outputs.distribution_url || 'upload failed' }}`,
-              `- QA APK (workflow artifact): ${{ needs.apk.outputs.artifact_url || 'build failed' }}`,
+              `- Admin panel: ${{ vars.ADMIN_URL }}`,
+              `- QA APK: ${{ needs.apk.outputs.artifact_url || 'build failed' }}`,
               `- Image digest for promotion: \`${{ needs.image.outputs.digest }}\``,
             ].join('\n');
             for (const pr of prs.data) await github.rest.issues.createComment({ ...context.repo, issue_number: pr.number, body });

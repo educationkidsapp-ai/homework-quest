@@ -14,9 +14,10 @@ plugins {
  * composables as the app (shared-ui), same contract and validator (shared-api). Uploads and AI live behind the server.
  *
  *   ./gradlew :webAdmin:wasmJsBrowserDevelopmentRun -Pquest.admin.apiBaseUrl=http://localhost:8080
- *   ./gradlew :webAdmin:wasmJsBrowserDistribution -Pquest.admin.apiBaseUrl=https://<cloud-run-url>
+ *   ./gradlew :webAdmin:wasmJsBrowserDistribution            # same-origin bundle, served by the server at /panel/
  */
-val apiBaseUrl = (findProperty("quest.admin.apiBaseUrl") ?: "http://localhost:8080").toString()
+// Empty (the default for distributions) = same origin: the server serves the bundle under /panel/. Dev runs point at a local server.
+val apiBaseUrl = (findProperty("quest.admin.apiBaseUrl") ?: "").toString()
 
 kotlin {
     fun KotlinJsTargetDsl.web() {
