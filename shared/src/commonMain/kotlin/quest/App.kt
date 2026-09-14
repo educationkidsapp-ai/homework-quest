@@ -19,6 +19,7 @@ import quest.core.navigation.Routes
 import quest.di.AppInitializer
 import quest.feature.auth.presentation.SignInRoute
 import quest.feature.children.presentation.AddChildRoute
+import quest.feature.children.presentation.ChildPickerRoute
 import quest.feature.journey.presentation.JourneyRoute
 import quest.feature.journey.presentation.LessonCompleteRoute
 import quest.feature.journey.presentation.LoadingView
@@ -52,9 +53,11 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
             val editingId = entry.toRoute<Routes.AddChild>().editingId
             AddChildRoute(editingId, onSaved = { if (editingId == null) nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } else nav.popBackStack() }, onBack = if (editingId == null) null else ({ nav.popBackStack() }))
         }
+        composable<Routes.ChildPicker> { ChildPickerRoute(onPicked = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } }, onAdd = { nav.navigate(Routes.AddChild()) }, onBack = { nav.popBackStack() }) }
         composable<Routes.WorldMap> {
             ChildTheme {
                 WorldMapRoute(
+                    onSwitchChild = { nav.navigate(Routes.ChildPicker) },
                     onOpenLesson = { id, level, variant -> nav.navigate(Routes.Journey(id, level, variant)) },
                     onStickers = { nav.navigate(Routes.StickerBook) }, onChest = { nav.navigate(Routes.TreasureChest) },
                     onGrownUps = { nav.navigate(Routes.ParentPin()) },

@@ -57,7 +57,10 @@ fun apiModule(config: ApiConfig): Module = module {
     single { FakeAuth(get()) }
     single<AuthProvider> { get<FakeAuth>() }
     when (config) {
-        ApiConfig.Fake -> single<ContentApi> { FakeContentApi(get()) }
+        ApiConfig.Fake -> single<ContentApi> {
+            val db = get<Db>()
+            FakeContentApi(get(), persisted = { childId -> db.read { selectAllAttempts(childId).executeAsList().map { quest.api.dto.AttemptUpload(it.id, it.stopId, it.lessonId, it.level.toInt(), it.answerJson, it.correct == 1L, it.attemptNumber.toInt(), it.mistakes.toInt(), it.stars.toInt(), it.answeredAt) } } })
+        }
         is ApiConfig.Server -> single<ContentApi> { RemoteContentApi(config.baseUrl, get(), HttpClient()) }
     }
 }
@@ -98,7 +101,7 @@ val parentModule = module {
     viewModel { (changePin: Boolean) -> PinViewModel(get(), get(), get(), changePin) }
     viewModel { ParentHomeViewModel(get(), get(), get()) }
     viewModel { CalendarViewModel(get(), get()) }
-    viewModel { ProgressViewModel(get(), get()) }
+    viewModel { ProgressViewModel(get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get()) }
 }
 

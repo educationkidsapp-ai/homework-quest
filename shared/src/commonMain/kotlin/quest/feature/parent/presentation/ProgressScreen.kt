@@ -31,13 +31,17 @@ import quest.ui.design.Dimens
 import quest.ui.design.Palette
 
 object ProgressContract {
-    data class State(val loading: Boolean = true, val reports: List<SkillReport> = emptyList()) : MviState
+    data class State(val loading: Boolean = true, val reports: List<SkillReport> = emptyList(), val streakDays: Int = 0, val stickers: Int = 0) : MviState
     sealed interface Intent : MviIntent { data object Load : Intent }
     sealed interface Effect : MviEffect
 }
 
-class ProgressViewModel(private val report: ProgressReportUseCase, private val children: ChildrenRepository) : MviViewModel<ProgressContract.State, ProgressContract.Intent, ProgressContract.Effect>(ProgressContract.State()) {
-    override suspend fun handle(intent: ProgressContract.Intent) { val child = children.currentChild.value ?: return; val r = report(child); reduce { copy(loading = false, reports = r) } }
+class ProgressViewModel(private val report: ProgressReportUseCase, private val children: ChildrenRepository, private val rewards: quest.feature.rewards.domain.RewardsRepository) : MviViewModel<ProgressContract.State, ProgressContract.Intent, ProgressContract.Effect>(ProgressContract.State()) {
+    override suspend fun handle(intent: ProgressContract.Intent) {
+        val child = children.currentChild.value ?: return
+        val r = report(child); val streak = rewards.streak().currentDays; val stickers = rewards.stickers().size
+        reduce { copy(loading = false, reports = r, streakDays = streak, stickers = stickers) }
+    }
 }
 
 @Composable
@@ -53,6 +57,15 @@ fun ProgressRoute(onBack: () -> Unit) {
 fun ProgressScreen(state: ProgressContract.State, s: Strings) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
         Spacer(Modifier.height(Dimens.s8))
+        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Dimens.s12)) {
+            ParentCard(Modifier.weight(1f)) { Text("🔥 ${state.streakDays}", style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk); Text(s.streak, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft) }
+            ParentCard(Modifier.weight(1f)) { Text("🌟 ${state.stickers}", style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk); Text(s.stickers, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft) }
+        }
+        SectionTitle(s.weakSkills)
+        val weak = state.reports.filter { it.band == Band.NEEDS_ANOTHER_LOOK }
+        if (weak.isEmpty()) ParentCard { Text(s.noWeakSkills, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft) }
+        weak.forEach { r -> ParentCard(Modifier.padding(bottom = Dimens.s8)) { Row(verticalAlignment = Alignment.CenterVertically) { Text(r.name, style = MaterialTheme.typography.titleMedium, color = Palette.parentInk, modifier = Modifier.weight(1f)); Chip("↻", Palette.bandLook) } } }
+        SectionTitle(s.progress)
         if (state.reports.isEmpty() && !state.loading) ParentCard { Text(s.noLessonsToday, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInkSoft) }
         state.reports.forEach { r ->
             ParentCard(Modifier.padding(bottom = Dimens.s12)) {

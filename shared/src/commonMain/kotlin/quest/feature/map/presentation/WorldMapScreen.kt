@@ -63,7 +63,7 @@ import quest.ui.design.SpeechBubble
 import quest.ui.design.StarRow
 
 @Composable
-fun WorldMapRoute(onOpenLesson: (String, Int, Int) -> Unit, onStickers: () -> Unit, onChest: () -> Unit, onGrownUps: () -> Unit, onNeedsChild: () -> Unit) {
+fun WorldMapRoute(onSwitchChild: () -> Unit, onOpenLesson: (String, Int, Int) -> Unit, onStickers: () -> Unit, onChest: () -> Unit, onGrownUps: () -> Unit, onNeedsChild: () -> Unit) {
     val vm: MapViewModel = koinViewModel()
     val speaker: Speaker = koinInject()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -77,15 +77,17 @@ fun WorldMapRoute(onOpenLesson: (String, Int, Int) -> Unit, onStickers: () -> Un
             }
         }
     }
-    WorldMapScreen(state, vm::dispatch, onStickers, onChest, onGrownUps)
+    WorldMapScreen(state, vm::dispatch, onStickers, onChest, onGrownUps, onSwitchChild)
 }
 
 @Composable
-fun WorldMapScreen(state: State, dispatch: (Intent) -> Unit, onStickers: () -> Unit, onChest: () -> Unit, onGrownUps: () -> Unit) {
+fun WorldMapScreen(state: State, dispatch: (Intent) -> Unit, onStickers: () -> Unit, onChest: () -> Unit, onGrownUps: () -> Unit, onSwitchChild: () -> Unit = {}) {
     Box(Modifier.fillMaxSize().background(Palette.sea)) {
         Waves()
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = Dimens.s16)) {
             Row(Modifier.fillMaxWidth().padding(top = Dimens.s8), verticalAlignment = Alignment.CenterVertically) {
+                RoundIconButton(onSwitchChild, "Switch child") { Pip(PipPose.IDLE, 44.dp, animated = false, color = state.child?.avatarColor ?: "sky") }
+                Spacer(Modifier.width(Dimens.s8))
                 RoundIconButton(onStickers, "Sticker book") { Text("🌟", fontSize = 26.sp) }
                 Spacer(Modifier.width(Dimens.s8))
                 RoundIconButton(onChest, "Treasure chest") { Text("🎁", fontSize = 26.sp) }

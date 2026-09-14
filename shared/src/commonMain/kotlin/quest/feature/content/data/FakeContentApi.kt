@@ -36,7 +36,10 @@ import quest.core.platform.Today
  * In-app stand-in for the Spring Boot API: serves the §6 seed lessons, keeps children and attempts in
  * memory, assembles the map with the shared [MapAssembler], and simulates network delays.
  */
-class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Long = 350) : ContentApi {
+/**
+ * @param persisted attempts the app already uploaded in earlier sessions (the fake is in-memory; a real server keeps them).
+ */
+class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Long = 350, private val persisted: suspend (String) -> List<AttemptUpload> = { emptyList() }) : ContentApi {
     private val mutex = Mutex()
     private val children = mutableMapOf<String, MutableList<Child>>()          // uid → children
     private val attempts = mutableMapOf<String, MutableList<AttemptUpload>>()  // childId → attempts
@@ -105,11 +108,17 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         return ProgressResponse(childId, skills, skills.filter { it.band == Band.NEEDS_ANOTHER_LOOK.name }.map { it.skillId }, 0, null, emptyList())
     }
 
+    private suspend fun allAttempts(childId: String): List<AttemptUpload> {
+        val mem = mutex.withLock { attempts[childId].orEmpty().toList() }
+        val ids = mem.map { it.id }.toSet()
+        return mem + persisted(childId).filter { it.id !in ids }
+    }
+
     // ---- derived state ----
     private data class Completion(val lessonId: String, val level: Int, val variant: Int, val stars: Int, val total: Int, val mostTwo: Boolean)
 
     private suspend fun completions(childId: String): List<Completion> {
-        val mine = mutex.withLock { attempts[childId].orEmpty().toList() }
+        val mine = allAttempts(childId)
         return Seeds.lessons.flatMap { lesson ->
             (lesson.plays + lesson.variant).mapNotNull { play ->
                 val done = play.stops.map { stop -> mine.filter { it.stopId == stop.id && it.lessonId == lesson.id && it.level == play.level }.maxByOrNull { it.stars } }
@@ -123,7 +132,7 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
 
     /** band, accuracy, attempts per skill — from first tries on single-answer stops. */
     private suspend fun skillBands(childId: String): Map<String, Triple<Band, Double, Int>> {
-        val mine = mutex.withLock { attempts[childId].orEmpty().toList() }
+        val mine = allAttempts(childId)
         return Seeds.lessons.flatMap { l -> l.skills.map { it.id to l } }.associate { (skillId, lesson) ->
             val singleStopIds = (lesson.plays + lesson.variant).flatMap { p -> p.stops.flatMap { s -> listOf(s) + ((s as? Stop.ExitTicket)?.questions ?: emptyList()) } }.filter { it.category == StopCategory.SINGLE }.map { it.id }.toSet()
             val firstTries = mine.filter { it.lessonId == lesson.id && it.stopId in singleStopIds && it.attemptNumber == 1 }.sortedByDescending { it.answeredAt }.map { it.correct }

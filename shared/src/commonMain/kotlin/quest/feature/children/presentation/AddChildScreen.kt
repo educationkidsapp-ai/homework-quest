@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,6 +30,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 import quest.api.dto.Child
@@ -60,9 +62,9 @@ object AddChildContract {
     ) : MviState
     sealed interface Intent : MviIntent {
         data object Load : Intent; data class Name(val v: String) : Intent; data class Avatar(val v: String) : Intent
-        data class SetCurriculum(val v: Curriculum) : Intent; data class Grade(val v: Int) : Intent; data class ToggleLanguage(val code: String) : Intent; data object Save : Intent
+        data class SetCurriculum(val v: Curriculum) : Intent; data class Grade(val v: Int) : Intent; data class ToggleLanguage(val code: String) : Intent; data object Save : Intent; data object Delete : Intent
     }
-    sealed interface Effect : MviEffect { data class Saved(val child: Child) : Effect }
+    sealed interface Effect : MviEffect { data class Saved(val child: Child) : Effect; data object Deleted : Effect }
 }
 
 class AddChildViewModel(private val editingId: String?, private val children: ChildrenRepository, private val addChild: AddChildUseCase) :
@@ -79,6 +81,7 @@ class AddChildViewModel(private val editingId: String?, private val children: Ch
             is AddChildContract.Intent.SetCurriculum -> reduce { copy(curriculum = intent.v) }
             is AddChildContract.Intent.Grade -> reduce { copy(grade = intent.v) }
             is AddChildContract.Intent.ToggleLanguage -> reduce { copy(languages = if (intent.code in languages) (languages - intent.code).ifEmpty { listOf("en") } else languages + intent.code) }
+            AddChildContract.Intent.Delete -> { editingId?.let { children.delete(it) }; effect(AddChildContract.Effect.Deleted) }
             AddChildContract.Intent.Save -> {
                 reduce { copy(busy = true, error = null) }
                 runCatching {
@@ -95,7 +98,7 @@ class AddChildViewModel(private val editingId: String?, private val children: Ch
 fun AddChildRoute(editingId: String?, onSaved: () -> Unit, onBack: (() -> Unit)?) {
     val vm: AddChildViewModel = koinViewModel(key = "child-$editingId") { parametersOf(editingId) }
     val state by vm.state.collectAsStateWithLifecycle()
-    LaunchedEffect(vm) { vm.effects.collect { if (it is AddChildContract.Effect.Saved) onSaved() } }
+    LaunchedEffect(vm) { vm.effects.collect { when (it) { is AddChildContract.Effect.Saved -> onSaved(); AddChildContract.Effect.Deleted -> onSaved() } } }
     ParentShell(title = { if (editingId == null) it.addChild else it.childProfile }, onBack = onBack) { s -> AddChildScreen(state, s, vm::dispatch) }
 }
 
@@ -130,7 +133,28 @@ fun AddChildScreen(state: AddChildContract.State, s: Strings, dispatch: (AddChil
         state.error?.let { Text(it, color = Palette.parentAccent, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Dimens.s8)) }
         Spacer(Modifier.height(Dimens.s24))
         ParentButton(s.save, { dispatch(AddChildContract.Intent.Save) }, enabled = state.name.isNotBlank() && !state.busy)
+        if (state.editingId != null) {
+            Spacer(Modifier.height(Dimens.s24))
+            var confirm by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            if (!confirm) ParentButton(s.deleteChild, { confirm = true }, primary = false, icon = "🗑️")
+            else ParentCard {
+                Text(s.deleteChildBody, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft)
+                Spacer(Modifier.height(Dimens.s12))
+                ParentButton(s.deleteChildConfirm, { dispatch(AddChildContract.Intent.Delete) })
+            }
+        }
         Spacer(Modifier.height(Dimens.s24))
+    }
+}
+
+@Composable
+fun ChildPickerRoute(onPicked: () -> Unit, onAdd: () -> Unit, onBack: () -> Unit) {
+    val repo: ChildrenRepository = org.koin.compose.koinInject()
+    var list by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<List<Child>>(emptyList()) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(Unit) { list = repo.refresh() }
+    ParentShell(title = { it.whoIsPlaying }, onBack = onBack) { s ->
+        ChildPickerScreen(list, s, onPick = { c -> scope.launch { repo.select(c.id); onPicked() } }, onAdd = onAdd)
     }
 }
 

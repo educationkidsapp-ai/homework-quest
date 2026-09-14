@@ -47,9 +47,9 @@ class ParentScreensScreenshotTest {
     @Test fun addChild() = shot("41-add-child") { s -> AddChildScreen(AddChildContract.State(name = "Maya", avatar = "sun", loaded = true), s, {}) }
     @Test fun childPicker() = shot("42-child-picker") { s -> ChildPickerScreen(listOf(maya, omar), s, {}, {}) }
     @Test fun pin() = shot("43-pin") { s -> PinScreen(PinContract.State(PinContract.Mode.ENTER, "12"), {}, s) }
-    @Test fun home() = shot("44-parent-home") { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya, omar), maya, listOf(CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), false))), s, {}, {}, {}, {}, {}, {}, {}) }
-    @Test fun homeArabic() = shot("44b-parent-home-ar", Strings.ar) { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya), maya, listOf(CalendarDay(today, listOf(Subject.ENGLISH), listOf("l2"), true))), s, {}, {}, {}, {}, {}, {}, {}) }
-    @Test fun calendar() = shot("45-calendar") { s -> CalendarScreen(CalendarContract.State(2026, 9, today, today, mapOf(today to CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), false), LocalDate(2026, 9, 11) to CalendarDay(LocalDate(2026, 9, 11), listOf(Subject.ENGLISH), listOf("l0"), true))), s, {}, {}) }
+    @Test fun home() = shot("44-parent-home") { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya, omar), maya, listOf(CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), listOf("l2")))), s, {}, {}, {}, {}, {}, {}, {}) }
+    @Test fun homeArabic() = shot("44b-parent-home-ar", Strings.ar) { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya), maya, listOf(CalendarDay(today, listOf(Subject.ENGLISH), listOf("l2"), listOf("l2")))), s, {}, {}, {}, {}, {}, {}, {}) }
+    @Test fun calendar() = shot("45-calendar") { s -> CalendarScreen(CalendarContract.State(2026, 9, today, today, mapOf(today to CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), listOf("l2")), LocalDate(2026, 9, 11) to CalendarDay(LocalDate(2026, 9, 11), listOf(Subject.ENGLISH), listOf("l0"), listOf("l0")))), s, {}, {}) }
     @Test fun progress() = shot("46-progress") { s -> ProgressScreen(ProgressContract.State(false, listOf(
         SkillReport("s1", "Counting by 2s", Subject.MATH, Band.GOING_WELL, "most of the time", 14, null),
         SkillReport("s2", "The sh sound", Subject.ENGLISH, Band.NEEDS_ANOTHER_LOOK, "some of the time", 7, null),

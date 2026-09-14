@@ -31,6 +31,8 @@ data class Strings(
     val languages: String = "Subject languages", val whoIsPlaying: String = "Who is playing?", val children: String = "Children", val signOut: String = "Sign out",
     val level: String = "Level", val unlockLevel: String = "Unlock", val lessonPanel: String = "Lesson panel", val objectives: String = "Learning objectives",
     val supported: String = "Supported", val challengeIdeas: String = "Challenge", val tipsPerStop: String = "Tips for each stop", val played: String = "Played", val notPlayed: String = "Not played yet", val playRecording: String = "Play the recording",
+    val deleteChild: String = "Delete this child", val deleteChildBody: String = "Removes the child, their progress, recordings and drawings from this device and the server.", val deleteChildConfirm: String = "Yes, delete",
+    val weakSkills: String = "Needs another look", val noWeakSkills: String = "Nothing to review right now — great!", val streak: String = "Day streak", val stickers: String = "Stickers",
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -92,6 +94,8 @@ data class Strings(
             languages = "لغات المواد", whoIsPlaying = "من يلعب؟", children = "الأطفال", signOut = "تسجيل الخروج",
             level = "المستوى", unlockLevel = "فتح", lessonPanel = "لوحة الدرس", objectives = "أهداف التعلّم",
             supported = "دعم", challengeIdeas = "تحدٍّ", tipsPerStop = "نصائح لكل محطة", played = "لُعب", notPlayed = "لم يُلعب بعد", playRecording = "تشغيل التسجيل",
+            deleteChild = "حذف هذا الطفل", deleteChildBody = "يزيل الطفل وتقدّمه وتسجيلاته ورسوماته من هذا الجهاز ومن الخادم.", deleteChildConfirm = "نعم، احذف",
+            weakSkills = "يحتاج مراجعة", noWeakSkills = "لا شيء للمراجعة الآن — رائع!", streak = "أيام متتالية", stickers = "الملصقات",
             accuracyWords = mapOf("almost every time" to "في كل مرة تقريبًا", "most of the time" to "في معظم الأحيان", "more than half the time" to "أكثر من نصف المرات", "some of the time" to "أحيانًا", "not yet" to "ليس بعد"),
             weekdays = listOf("ن", "ث", "ر", "خ", "ج", "س", "ح"),
             months = listOf("يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"),

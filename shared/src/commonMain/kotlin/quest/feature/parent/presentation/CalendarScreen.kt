@@ -118,7 +118,7 @@ fun CalendarScreen(state: CalendarContract.State, s: Strings, dispatch: (Calenda
                 ParentCard(Modifier.padding(bottom = Dimens.s8), onClick = { onLessonPanel(id) }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(if (day.subjects.getOrNull(i) == Subject.MATH) "🔢 ${s.math}" else "📖 ${s.english}", style = MaterialTheme.typography.titleMedium, color = Palette.parentInk, modifier = Modifier.weight(1f))
-                        Chip(if (day.done) s.played else s.notPlayed, if (day.done) Palette.mint else Palette.parentAccentSoft)
+                        Chip(if (id in day.doneIds) s.played else s.notPlayed, if (id in day.doneIds) Palette.mint else Palette.parentAccentSoft)
                     }
                 }
             }

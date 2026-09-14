@@ -22,13 +22,19 @@ class SetPinUseCase(private val repo: ParentRepository) { suspend operator fun i
 /** Every skill the child has met — server bands when online, local first-try results otherwise. Words, never percentages. */
 class ProgressReportUseCase(private val journey: JourneyRepository, private val lessons: LessonRepository) {
     suspend operator fun invoke(child: Child): List<SkillReport> {
-        val remote = journey.progressReport(child.id)
-        if (remote != null) return remote.skills.map { SkillReport(it.skillId, it.name, it.subject, it.band?.let { b -> Band.valueOf(b) }, it.firstTryAccuracyWords, it.attempts, it.lastPractised) }
-        return lessons.cachedSummaries().flatMap { s -> lessons.cached(s.id)?.skills.orEmpty() }.distinctBy { it.id }.map { skill ->
+        val local = lessons.cachedSummaries().flatMap { s -> lessons.cached(s.id)?.skills.orEmpty() }.distinctBy { it.id }.map { skill ->
             val results = journey.firstTryResults(child.id, skill.id)
             val acc = ProgressBands.accuracy(results)
             SkillReport(skill.id, skill.name, skill.subject, acc?.let(ProgressBands::band), acc?.let(ProgressBands::accuracyWords), results.size, null)
         }
+        val remote = journey.progressReport(child.id) ?: return local
+        // The server is the source of truth once it has the attempts; until they are uploaded, the local record wins.
+        val localById = local.associateBy { it.skillId }
+        val merged = remote.skills.map { r ->
+            val l = localById[r.skillId]
+            if (l != null && l.attempts > r.attempts) l else SkillReport(r.skillId, r.name, r.subject, r.band?.let { b -> Band.valueOf(b) }, r.firstTryAccuracyWords, r.attempts, r.lastPractised)
+        }
+        return merged + local.filter { l -> remote.skills.none { it.skillId == l.skillId } }
     }
 }
 
@@ -39,7 +45,7 @@ class CalendarUseCase(private val maps: MapRepository) {
         val last = first.plus(1, DateTimeUnit.MONTH).minus(1, DateTimeUnit.DAY)
         val map = maps.map(child, first, last, today)
         return map.islands.filter { it.kind == IslandKind.LESSON }.groupBy { it.date }.map { (date, islands) ->
-            CalendarDay(date, islands.mapNotNull { it.subject }.distinct(), islands.mapNotNull { it.lessonId }, islands.all { it.state == IslandState.DONE })
+            CalendarDay(date, islands.mapNotNull { it.subject }, islands.mapNotNull { it.lessonId }, islands.filter { it.state == IslandState.DONE }.mapNotNull { it.lessonId })
         }.sortedBy { it.date }
     }
 }

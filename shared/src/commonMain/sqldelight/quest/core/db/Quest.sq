@@ -133,6 +133,9 @@ SELECT lessonId, level, completedAt FROM LessonCompletion WHERE childId = ? ORDE
 insertAttempt:
 INSERT INTO Attempt(id, childId, stopId, lessonId, level, skillIds, answerJson, correct, attemptNumber, mistakes, stars, answeredAt, uploaded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);
 
+selectAllAttempts:
+SELECT * FROM Attempt WHERE childId = ? ORDER BY answeredAt;
+
 selectPendingAttempts:
 SELECT * FROM Attempt WHERE childId = ? AND uploaded = 0 ORDER BY answeredAt LIMIT 200;
 
