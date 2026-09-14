@@ -42,6 +42,7 @@ resource "google_sql_database_instance" "db" {
   region           = var.region
   settings {
     tier              = var.sql_tier
+    edition           = "ENTERPRISE" # shared-core tiers (db-f1-micro) only exist in the Enterprise edition
     availability_type = var.env == "prod" ? "REGIONAL" : "ZONAL"
     disk_autoresize   = true
     backup_configuration {
@@ -184,7 +185,9 @@ resource "google_cloud_run_v2_service" "api" {
       }
     }
     containers {
-      image = "${var.region}-docker.pkg.dev/${var.project_id}/homework-quest/${local.service}:bootstrap"
+      # Placeholder that answers 200 on every path (so the startup probe passes); the deploy workflow swaps in the real image
+      # and Terraform ignores that field afterwards.
+      image = "us-docker.pkg.dev/cloudrun/container/hello"
       resources {
         limits            = { cpu = "2", memory = "2Gi" }
         cpu_idle          = true
@@ -205,6 +208,11 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "SPRING_PROFILES_ACTIVE"
         value = local.profile
+      }
+      env {
+        # Firebase Admin verifies parents' ID tokens with the runtime service account (no key file); it needs the project id.
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
       }
       env {
         name  = "CLOUD_SQL_INSTANCE"
@@ -242,13 +250,15 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "PUBLIC_URL"
         value = "https://${local.service}-${data.google_project.this.number}.${var.region}.run.app"
       }
+      # only secrets that have a version are wired in — a missing optional one (ANTHROPIC_API_KEY, FIREBASE_CREDENTIALS)
+      # must not stop the revision from starting
       dynamic "env" {
-        for_each = google_secret_manager_secret.s
+        for_each = google_secret_manager_secret_version.v
         content {
           name = env.key
           value_source {
             secret_key_ref {
-              secret  = env.value.secret_id
+              secret  = google_secret_manager_secret.s[env.key].secret_id
               version = "latest"
             }
           }

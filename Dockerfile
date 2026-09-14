@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # ---- stage 1: the shared contract (Kotlin/JVM) → ~/.m2 via Gradle publishToMavenLocal (no Android SDK needed) ----
-FROM eclipse-temurin:21-jdk AS contract
+FROM eclipse-temurin:17-jdk AS contract
 WORKDIR /src
 ENV GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.console=plain"
 COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
