@@ -30,20 +30,33 @@ android {
         }
     }
     buildTypes {
-        debug {
-            buildConfigField("boolean", "USE_FAKE_API", (findProperty("quest.useFakeApi")?.toString() ?: "true"))
-            buildConfigField("String", "API_BASE_URL", "\"${findProperty("quest.apiBaseUrl") ?: "http://10.0.2.2:8080"}\"")
-        }
+        debug {}
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.findByName("ci") ?: signingConfigs.getByName("debug")
-            buildConfigField("boolean", "USE_FAKE_API", (findProperty("quest.release.useFakeApi")?.toString() ?: "false"))
-            buildConfigField("String", "API_BASE_URL", "\"${findProperty("quest.release.apiBaseUrl") ?: "https://REPLACE-WITH-CLOUD-RUN-URL"}\"")
         }
     }
 
     // Two environments (§9): `qa` talks to the QA Cloud Run service and installs side by side with production.
-    // The API URL is injected by CI from the environment's variables (-Pquest.qa.apiBaseUrl / -Pquest.prod.apiBaseUrl).
+    // The API URL is injected from the environment's variables (-Pquest.qa.apiBaseUrl / -Pquest.prod.apiBaseUrl); without one
+    // the build uses the in-app fake API (override with -Pquest.useFakeApi=false -Pquest.apiBaseUrl=http://10.0.2.2:8080 for a
+    // local server). These fields live on the flavors only: a build-type buildConfigField would override the flavor's value.
+    // The Firebase Web API key (a public client identifier) is read from the flavor's google-services.json
+    // (`firebase apps:sdkconfig android <app id> > androidApp/src/<flavor>/google-services.json`); sign-in stays fake without it.
+    fun firebaseApiKey(flavor: String): String {
+        val f = file("src/$flavor/google-services.json")
+        if (!f.exists()) return ""
+        return Regex("\"current_key\"\\s*:\\s*\"([^\"]+)\"").find(f.readText())?.groupValues?.get(1) ?: ""
+    }
+    fun com.android.build.api.dsl.ApplicationProductFlavor.apiFields(flavor: String) {
+        val envUrl = findProperty("quest.$flavor.apiBaseUrl")?.toString()
+        val url = envUrl ?: findProperty("quest.apiBaseUrl")?.toString()
+        // an environment URL always means the real server; otherwise gradle.properties' quest.useFakeApi decides
+        val fake = if (envUrl != null) false else findProperty("quest.useFakeApi")?.toString()?.toBoolean() ?: (url == null)
+        buildConfigField("boolean", "USE_FAKE_API", fake.toString())
+        buildConfigField("String", "API_BASE_URL", "\"${url ?: "http://10.0.2.2:8080"}\"")
+        buildConfigField("String", "FIREBASE_API_KEY", "\"${firebaseApiKey(flavor)}\"")
+    }
     flavorDimensions += "env"
     productFlavors {
         create("qa") {
@@ -51,12 +64,12 @@ android {
             applicationIdSuffix = ".qa"
             versionNameSuffix = "-qa"
             resValue("string", "app_name", "HQ · QA")
-            findProperty("quest.qa.apiBaseUrl")?.let { buildConfigField("String", "API_BASE_URL", "\"$it\""); buildConfigField("boolean", "USE_FAKE_API", "false") }
+            apiFields("qa")
         }
         create("prod") {
             dimension = "env"
             resValue("string", "app_name", "Homework Quest")
-            findProperty("quest.prod.apiBaseUrl")?.let { buildConfigField("String", "API_BASE_URL", "\"$it\""); buildConfigField("boolean", "USE_FAKE_API", "false") }
+            apiFields("prod")
         }
     }
     compileOptions {

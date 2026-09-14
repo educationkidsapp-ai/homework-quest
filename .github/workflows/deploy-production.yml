@@ -150,7 +150,7 @@ jobs:
           region: ${{ vars.GCP_REGION }}
           wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
-      - run: npx --yes firebase-tools@14 deploy --only hosting --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
+      - run: npx --yes firebase-tools@14 deploy --only hosting:admin --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
 
   release:
     name: Production APK + GitHub release

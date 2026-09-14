@@ -12,11 +12,11 @@ import quest.core.db.SettingsStore
  * Stand-in for Firebase Authentication while the backend does not exist. Any email + password (≥ 6 chars)
  * signs in; the uid is derived from the email so the same "account" comes back after a restart.
  */
-class FakeAuth(private val settings: SettingsStore) : AuthProvider {
+class FakeAuth(private val settings: SettingsStore) : AuthProvider, SessionRestorer {
     private val _state = MutableStateFlow<AuthState>(AuthState.Unknown)
     override val state: StateFlow<AuthState> = _state
 
-    suspend fun restore() {
+    override suspend fun restore() {
         val saved = settings.get(SettingsStore.KEY_FAKE_UID)
         _state.value = if (saved == null) AuthState.SignedOut else AuthState.SignedIn(saved.substringBefore('|'), saved.substringAfter('|'))
     }

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "625882725080",
+    "project_id": "homework-quest-qa",
+    "storage_bucket": "homework-quest-qa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:625882725080:android:818833947f3232e8df35ad",
+        "android_client_info": {
+          "package_name": "app.homeworkquest.qa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC03OwoFXsv6_cRenoo5u77ZFeoQjYuLPs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

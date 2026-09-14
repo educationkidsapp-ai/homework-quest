@@ -115,7 +115,7 @@ jobs:
           wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
       - name: firebase deploy (auth through the WIF-issued ADC)
-        run: npx --yes firebase-tools@14 deploy --only hosting --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
+        run: npx --yes firebase-tools@14 deploy --only hosting:admin --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
 
   apk:
     name: QA APK

@@ -10,6 +10,8 @@ import quest.core.db.Db
 import quest.core.db.SettingsStore
 import quest.core.platform.platformModule
 import quest.feature.auth.data.FakeAuth
+import quest.feature.auth.data.FirebaseAuth
+import quest.feature.auth.data.SessionRestorer
 import quest.feature.auth.presentation.SignInViewModel
 import quest.feature.children.data.ChildrenRepositoryImpl
 import quest.feature.children.domain.AddChildUseCase
@@ -48,14 +50,18 @@ import quest.ui.design.StickerKeys
 /** Which [ContentApi] sits behind the interface. Screens never know. */
 sealed interface ApiConfig {
     data object Fake : ApiConfig
-    data class Server(val baseUrl: String) : ApiConfig
+    /** [firebaseApiKey] is the Firebase Web API key of the environment's project; blank keeps [FakeAuth] (server must run FAKE_AUTH). */
+    data class Server(val baseUrl: String, val firebaseApiKey: String = "") : ApiConfig
 }
 
 fun apiModule(config: ApiConfig): Module = module {
     single<ApiConfig> { config }
-    // Firebase arrives in Phase 4 (expect/actual); FakeAuth derives a stable uid from the email meanwhile.
-    single { FakeAuth(get()) }
-    single<AuthProvider> { get<FakeAuth>() }
+    // Real Firebase Authentication (REST, shared by every platform) when the environment has a key; FakeAuth otherwise.
+    single<AuthProvider> {
+        val key = (config as? ApiConfig.Server)?.firebaseApiKey.orEmpty()
+        if (key.isBlank()) FakeAuth(get()) else FirebaseAuth(key, get(), HttpClient())
+    }
+    single<SessionRestorer> { get<AuthProvider>() as SessionRestorer }
     when (config) {
         ApiConfig.Fake -> single<ContentApi> {
             val db = get<Db>()
