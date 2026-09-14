@@ -102,7 +102,19 @@ quest:
   admin.seed-password: admin1234
 
 ---
-# Cloud Run: Cloud SQL socket factory, GCS, Firebase, secrets from Secret Manager (env)
+# QA on Cloud Run (project homework-quest-qa, branch develop): same wiring as prod, verbose logs, seeded sample lessons
+spring.config.activate.on-profile: qa
+spring:
+  datasource:
+    url: jdbc:postgresql:///${DB_NAME:quest}?cloudSqlInstance=${CLOUD_SQL_INSTANCE}&socketFactory=com.google.cloud.sql.postgres.SocketFactory
+quest:
+  auth.fake: false
+  storage.kind: gcs
+logging.level:
+  quest: DEBUG
+
+---
+# Production on Cloud Run (project homework-quest-prod, branch main): Cloud SQL socket factory, GCS, Firebase, Secret Manager env
 spring.config.activate.on-profile: prod
 spring:
   datasource:

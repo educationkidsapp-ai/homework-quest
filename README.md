@@ -99,10 +99,12 @@ bump one to invalidate its cache. Rejected model answers are kept under `data/ll
 (explicit nulls, enum case, over-long strings, missing hints, unknown illustration keys) are applied before validation;
 anything else is retried once with the validator's errors.
 
-## Deploy
+## Environments and CI/CD
 
-See [deploy/README.md](deploy/README.md): `./deploy/gcloud.sh all` (Cloud Run + Cloud SQL + GCS + Secret Manager +
-Firebase Hosting), GitHub Actions on push to `main`.
+`develop` → **QA** (`homework-quest-qa`), `main` → **production** (`homework-quest-prod`): separate GCP + Firebase projects,
+Cloud SQL, buckets, keys, Spring profiles (`qa` / `prod`) and Android flavors (`qa` / `prod`). Terraform in `infra/terraform`,
+six GitHub Actions workflows (CI, QA deploy with APK link on the PR, production promotion with a no-traffic canary, rollback,
+migration check, Dependabot). Everything is driven with `gh` — see [deploy/README.md](deploy/README.md).
 
 ## Still needed from the school / project owner
 

@@ -1,47 +1,76 @@
-# Deploying to Google Cloud
+# Environments, CI/CD and deployment (§9)
 
-Everything runs in one region (`REGION` in `variables.env`, default `me-central1`).
+Two isolated environments, each with its own GCP project, Cloud SQL, bucket, Secret Manager, Firebase project,
+Spring profile, Android flavor and API key — a QA mistake cannot touch production data.
 
-| Piece | Service | Notes |
+| | QA | Production |
 |---|---|---|
-| API container | **Cloud Run** | `homework-quest-api`, scales to zero, 2 GiB / 2 vCPU (PDF rendering + LibreOffice) |
-| Database | **Cloud SQL for PostgreSQL 16** | Cloud SQL Java connector (socket factory), no public IP; Flyway migrates on start |
-| Uploaded slides, page images, children's media | **Cloud Storage** bucket | lifecycle rule deletes `uploads/` objects older than 24 h; page images and media stay |
-| Secrets | **Secret Manager** | `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `DB_PASSWORD`, `ADMIN_PASSWORD`, `ADMIN_JWT_SECRET`, `FIREBASE_CREDENTIALS` |
-| Images | **Artifact Registry** + **Cloud Build** | `deploy/gcloud.sh build` (multi-stage Dockerfile: Gradle contract → Maven server → Temurin 21 JRE + LibreOffice) |
-| Admin panel | **Firebase Hosting** | Compose for Web (Wasm) static files, `deploy/gcloud.sh admin` |
-| Parent sign-in | **Firebase Authentication** | the server verifies ID tokens with the Firebase Admin SDK |
+| Git branch | `develop` (default; PRs target it) | `main` |
+| GCP project | `homework-quest-qa` | `homework-quest-prod` |
+| GitHub environment | `qa` | `production` |
+| Spring profile | `qa` (seeded sample lessons, debug logs) | `prod` |
+| Android flavor | `qa` → `app.homeworkquest.qa`, "HQ · QA" | `prod` → `app.homeworkquest` |
+| Admin panel | `https://homework-quest-qa.web.app` | `https://homework-quest-prod.web.app` |
+| Deploy trigger | merge to `develop` | `Deploy production` workflow (manual, from `main`, type `deploy`) |
 
-## First deploy (from your laptop)
+Everything inside the projects is Terraform (`infra/terraform`): APIs, Artifact Registry, Cloud SQL 16 (+ backups, PITR in prod),
+the files bucket (24 h lifecycle on `uploads/`), Secret Manager, the runtime service account, the Cloud Run service, and
+Workload Identity Federation so GitHub Actions deploys **without any service-account keys**.
+
+## Phase 0 — bootstrap (once per environment)
+
+Prerequisites on your side: `gh auth login` (done), `gcloud auth login && gcloud auth application-default login`, the two
+GCP projects created with billing attached, Firebase added to each (`firebase projects:addfirebase <project>`).
 
 ```bash
-cp .env.example .env                      # DEEPSEEK_API_KEY, DB_PASSWORD, ADMIN_PASSWORD, PROJECT_ID, FIREBASE_CREDENTIALS=<path to service-account.json>
-set -a; source .env; set +a
-gcloud auth login && gcloud auth application-default login
-./deploy/gcloud.sh all                    # setup → build → deploy → admin
+export DEEPSEEK_API_KEY=sk-...            # QA key
+export ADMIN_PASSWORD=...                 # admin panel sign-in
+export FIREBASE_CREDENTIALS=~/keys/homework-quest-qa-firebase.json   # service account for verifying parents' tokens
+export FIREBASE_TOKEN=$(firebase login:ci)                            # once, shared by both environments
+# optional: ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD
+infra/bootstrap.sh qa
+# then again with the production values
+infra/bootstrap.sh prod
 ```
 
-`setup` is idempotent — re-run it after changing a secret. `deploy` prints the service URL and sets `PUBLIC_URL` on the service.
-Build the release app against it:
+`bootstrap.sh` creates the Terraform state bucket, applies Terraform with your credentials, and writes the resulting
+variables (`GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER`, `GCP_DEPLOYER_SA`, `API_URL`, `IMAGE`, `HOSTING_URL`) and
+secrets (`DEEPSEEK_API_KEY`, `ADMIN_PASSWORD`, `FIREBASE_CREDENTIALS`, `FIREBASE_TOKEN`, `ANDROID_*`) into the GitHub
+environment with `gh variable set` / `gh secret set`. Values never appear in chat, commits or logs. After that, CI
+deploys through Workload Identity and re-applies Terraform on every deploy.
+
+## The six workflows
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `ci.yml` | every PR / push to `develop`, `main` | contract tests → server tests (H2 + Postgres via Testcontainers) → app tests, screenshots, Android QA APK, Wasm admin. iOS full-cycle UI test on `main` or PRs labelled `ios`. Status check `ci`. |
+| `deploy-qa.yml` | merge to `develop` | build image once (tag = SHA) → `terraform apply` (QA) → `gcloud run deploy` → smoke test → admin panel to Firebase Hosting → signed QA APK → comment with API / admin / APK links on the merged PR |
+| `deploy-production.yml` | manual (`gh workflow run deploy-production.yml -f confirm=deploy`) from `main` | promotes the **same QA image by digest** (no rebuild) → `terraform apply` (prod) → Cloud Run revision with **no traffic** (`canary` tag) → smoke tests on the canary URL → 100 % traffic → admin panel → production APK attached to a GitHub release `vYYYY.MM.DD-<sha>` |
+| `rollback.yml` | manual (`gh workflow run rollback.yml -f environment=production`) | shifts traffic back to the previous (or a named) revision, no build |
+| `migration-check.yml` | PRs touching `server/src/main/resources/db/migration/**` | applied migrations unchanged, new ones additive (no DROP/RENAME), apply on Postgres 16 on top of `develop`'s schema, JPA `validate` boots |
+| `dependabot.yml` | weekly | Gradle, Maven, Actions, Terraform updates, labelled `dependencies` |
+
+Watching from the terminal:
 
 ```bash
-./gradlew :androidApp:assembleRelease -Pquest.release.apiBaseUrl=https://homework-quest-api-xxxx-run.app
+gh pr create --base develop --fill && gh pr checks --watch
+gh run watch                                    # the deploy that started on merge
+gh workflow run deploy-production.yml -f confirm=deploy && gh run watch
+gh release list
 ```
 
-The admin panel's origin (`https://<project>.web.app`) must be in `CORS_ORIGINS` (set in `variables.env`, applied by `deploy`).
+### Production gate
 
-## Continuous deployment
+The account is on the GitHub Free plan with a private repository, where GitHub does not enforce environment reviewers or
+branch protection. The gate is therefore in the workflow itself: production deploys only via manual dispatch, only from
+`main`, only with `confirm=deploy`, and only an image that already ran through QA. Upgrading to GitHub Pro (or making
+the repo public) lets you add the `production` required reviewer with one command:
+`gh api --method PUT repos/educationkidsapp-ai/homework-quest/environments/production --input reviewers.json`.
 
-`.github/workflows/deploy.yml` runs the shared-contract tests, the server tests (H2 + Testcontainers) and the OpenAPI ↔ contract check,
-then on push to `main` builds the image with Cloud Build, deploys to Cloud Run and (when `FIREBASE_TOKEN` is set) the admin panel to Firebase Hosting.
-Repository secrets: `GCP_PROJECT_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT` (a deployer SA with
-`roles/run.admin`, `roles/cloudbuild.builds.editor`, `roles/iam.serviceAccountUser`, `roles/artifactregistry.writer`, `roles/storage.admin` on the Cloud Build bucket),
-optional `FIREBASE_TOKEN` (`firebase login:ci`). Optional variable: `GCP_REGION`.
-
-## Checks
+## Local
 
 ```bash
-curl https://<service-url>/health                                   # {"status":"ok","version":"<git sha>"}
-open https://<service-url>/swagger-ui.html                          # OpenAPI
-gcloud run services logs read homework-quest-api --region $REGION   # request lines carry ids and status only, never slide content
+docker compose up --build                       # Postgres + API, profile local
+./server/run-local.sh                           # in-memory H2, no Docker
+./gradlew :androidApp:installQaDebug -Pquest.qa.apiBaseUrl=https://<qa-cloud-run-url>
 ```

@@ -1,0 +1,50 @@
+name: Rollback
+
+# One command: shift Cloud Run traffic back to the previous (or a named) revision. No build, no migration runs.
+#   gh workflow run rollback.yml -f environment=production            # previous revision
+#   gh workflow run rollback.yml -f environment=qa -f revision=homework-quest-api-00042-abc
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: qa | production
+        required: true
+        default: production
+        type: choice
+        options: [qa, production]
+      revision:
+        description: Revision name to send 100 % of traffic to (empty = the revision that served traffic before the current one)
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/gcp-auth
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          region: ${{ vars.GCP_REGION }}
+          wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - name: Pick the target revision
+        id: pick
+        run: |
+          R="${{ inputs.revision }}"
+          if [ -z "$R" ]; then
+            CURRENT=$(gcloud run services describe homework-quest-api --region ${{ vars.GCP_REGION }} --format 'value(status.traffic[0].revisionName)')
+            R=$(gcloud run revisions list --service homework-quest-api --region ${{ vars.GCP_REGION }} --format 'value(metadata.name)' --sort-by '~metadata.creationTimestamp' | grep -v "^$CURRENT$" | head -1)
+          fi
+          [ -n "$R" ] || { echo "::error::no previous revision"; exit 1; }
+          echo "revision=$R" >> "$GITHUB_OUTPUT"; echo "rolling back to $R"
+      - run: gcloud run services update-traffic homework-quest-api --region ${{ vars.GCP_REGION }} --to-revisions "${{ steps.pick.outputs.revision }}=100" --quiet
+      - run: curl -fsS "${{ vars.API_URL }}/health"
+      - name: Note
+        run: echo "::notice::${{ inputs.environment }} now serves ${{ steps.pick.outputs.revision }}. Database migrations are forward-only — a rolled-back image must still understand the current schema (Flyway migrations are additive by policy; see migration-check)."

@@ -1,0 +1,183 @@
+name: Deploy production
+
+# main → production project. Promotes the image QA already tested (copied by digest, never rebuilt), rolls it out as a
+# no-traffic canary, smoke-tests the canary URL, then shifts 100 % of traffic and tags a GitHub release.
+# Gate (GitHub Free, private repo): manual dispatch from `main` only, with the word "deploy" typed in.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type "deploy" to promote the current develop image to production
+        required: true
+      qa_sha:
+        description: Commit SHA of the QA image to promote (default = HEAD of develop)
+        required: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  guard:
+    name: Guard
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.pick.outputs.sha }}
+    steps:
+      - name: Only from main, only when confirmed
+        run: |
+          [ "${{ github.ref }}" = "refs/heads/main" ] || { echo "::error::run this workflow from main"; exit 1; }
+          [ "${{ inputs.confirm }}" = "deploy" ] || { echo "::error::type deploy to confirm"; exit 1; }
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: pick
+        run: |
+          SHA="${{ inputs.qa_sha }}"; [ -n "$SHA" ] || SHA=$(git rev-parse origin/develop)
+          git merge-base --is-ancestor "$SHA" origin/main || { echo "::error::$SHA is not merged into main"; exit 1; }
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+  promote:
+    name: Promote QA image → production registry
+    needs: guard
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      digest: ${{ steps.copy.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: imjasonh/setup-crane@v0.4
+      - name: Read from QA (WIF, qa environment credentials are scoped to the repository)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.QA_WIF_PROVIDER }}
+          service_account: ${{ vars.QA_DEPLOYER_SA }}
+      - run: crane auth login ${{ vars.GCP_REGION }}-docker.pkg.dev -u oauth2accesstoken -p "$(gcloud auth print-access-token)"
+      - run: crane pull "${{ vars.QA_IMAGE }}:${{ needs.guard.outputs.sha }}" "$RUNNER_TEMP/image.tar"
+      - uses: ./.github/actions/gcp-auth
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          region: ${{ vars.GCP_REGION }}
+          wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - id: copy
+        run: |
+          crane auth login ${{ vars.GCP_REGION }}-docker.pkg.dev -u oauth2accesstoken -p "$(gcloud auth print-access-token)"
+          crane push "$RUNNER_TEMP/image.tar" "${{ vars.IMAGE }}:${{ needs.guard.outputs.sha }}"
+          crane tag "${{ vars.IMAGE }}:${{ needs.guard.outputs.sha }}" main
+          echo "digest=$(crane digest ${{ vars.IMAGE }}:${{ needs.guard.outputs.sha }})" >> "$GITHUB_OUTPUT"
+
+  infra:
+    name: Terraform apply (production)
+    needs: promote
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/gcp-auth
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          region: ${{ vars.GCP_REGION }}
+          wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_wrapper: false }
+      - working-directory: infra/terraform
+        env:
+          TF_VAR_deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          TF_VAR_admin_password: ${{ secrets.ADMIN_PASSWORD }}
+          TF_VAR_firebase_credentials_json: ${{ secrets.FIREBASE_CREDENTIALS }}
+        run: |
+          terraform init -backend-config=envs/prod.backend -input=false
+          terraform apply -var-file=envs/prod.tfvars -auto-approve -input=false
+
+  canary:
+    name: Canary (no traffic) → smoke test → 100 %
+    needs: [guard, promote, infra]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/gcp-auth
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          region: ${{ vars.GCP_REGION }}
+          wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - name: Deploy revision without traffic
+        id: rev
+        run: |
+          gcloud run deploy homework-quest-api --region "${{ vars.GCP_REGION }}" \
+            --image "${{ vars.IMAGE }}@${{ needs.promote.outputs.digest }}" \
+            --update-env-vars "APP_VERSION=${SHA:0:7}" --no-traffic --tag canary --quiet
+          echo "url=$(gcloud run services describe homework-quest-api --region ${{ vars.GCP_REGION }} --format 'value(status.traffic.url)' | tr ';' '\n' | grep canary | head -1)" >> "$GITHUB_OUTPUT"
+          echo "revision=$(gcloud run services describe homework-quest-api --region ${{ vars.GCP_REGION }} --format 'value(status.latestCreatedRevisionName)')" >> "$GITHUB_OUTPUT"
+        env:
+          SHA: ${{ needs.guard.outputs.sha }}
+      - name: Smoke-test the canary (health, OpenAPI, a published lesson list)
+        run: |
+          U="${{ steps.rev.outputs.url }}"; echo "canary at $U"
+          for _ in $(seq 1 20); do curl -fsS "$U/health" && break; sleep 6; done
+          curl -fsS "$U/health" | grep -q '"ok"'
+          curl -fsS "$U/v3/api-docs" | grep -q '"/lessons/{id}"'
+          [ "$(curl -s -o /dev/null -w '%{http_code}' "$U/children")" = "401" ]
+      - name: Shift all traffic to the canary
+        run: gcloud run services update-traffic homework-quest-api --region "${{ vars.GCP_REGION }}" --to-latest --quiet
+      - name: Verify on the public URL
+        run: curl -fsS "${{ vars.API_URL }}/health" | grep -q "${SHA:0:7}"
+        env:
+          SHA: ${{ needs.guard.outputs.sha }}
+
+  admin:
+    name: Admin panel → Firebase Hosting (production)
+    needs: canary
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :webAdmin:wasmJsBrowserDistribution -Pquest.admin.apiBaseUrl=${{ vars.API_URL }} --no-daemon
+      - uses: ./.github/actions/gcp-auth
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          region: ${{ vars.GCP_REGION }}
+          wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - run: npx --yes firebase-tools@14 deploy --only hosting --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
+
+  release:
+    name: Production APK + GitHub release
+    needs: [guard, promote, canary]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Signing key (optional — debug key when the secret is absent)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"; echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"; fi
+      - run: ./gradlew :androidApp:assembleProdRelease -Pquest.prod.apiBaseUrl=${{ vars.API_URL }} --no-daemon
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.guard.outputs.sha }}
+        run: |
+          TAG="v$(date -u +%Y.%m.%d)-${SHA:0:7}"
+          cp androidApp/build/outputs/apk/prod/release/*.apk "homework-quest-$TAG.apk"
+          gh release create "$TAG" "homework-quest-$TAG.apk" --target "${{ github.sha }}" --generate-notes \
+            --title "Production $TAG" --notes "Image digest: \`${{ needs.promote.outputs.digest }}\` (promoted from QA \`${SHA:0:7}\`). Rollback: run the Rollback workflow with environment=production."

@@ -1,0 +1,18 @@
+name: GCP auth
+description: Authenticate to the environment's GCP project through Workload Identity Federation (no keys), set up gcloud + Docker.
+inputs:
+  project_id: { required: true }
+  region: { required: true }
+  wif_provider: { required: true }
+  service_account: { required: true }
+runs:
+  using: composite
+  steps:
+    - uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ inputs.wif_provider }}
+        service_account: ${{ inputs.service_account }}
+        project_id: ${{ inputs.project_id }}
+    - uses: google-github-actions/setup-gcloud@v2
+    - shell: bash
+      run: gcloud auth configure-docker ${{ inputs.region }}-docker.pkg.dev --quiet

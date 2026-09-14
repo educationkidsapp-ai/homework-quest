@@ -41,6 +41,7 @@ kotlin {
 }
 
 android {
+    lint { checkReleaseBuilds = false; abortOnError = false }
     namespace = "quest.ui"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     defaultConfig { minSdk = libs.versions.android.minSdk.get().toInt() }

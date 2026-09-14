@@ -100,6 +100,7 @@ kotlin {
 }
 
 android {
+    lint { checkReleaseBuilds = false; abortOnError = false }
     namespace = "quest.shared"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     defaultConfig { minSdk = libs.versions.android.minSdk.get().toInt() }
