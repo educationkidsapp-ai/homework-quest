@@ -49,7 +49,7 @@ jobs:
       digest: ${{ steps.copy.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
-      - uses: imjasonh/setup-crane@v0.4
+      - uses: imjasonh/setup-crane@v0.7
       - name: Read from QA (WIF, qa environment credentials are scoped to the repository)
         uses: google-github-actions/auth@v2
         with:
