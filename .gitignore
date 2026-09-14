@@ -19,3 +19,4 @@ target/
 iosApp/build/
 firebase-debug.log
 .firebase/
+server/panel/

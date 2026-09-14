@@ -1,13 +1,12 @@
 locals {
-  name        = "homework-quest-${var.env}"
-  service     = "homework-quest-api"
-  profile     = var.env == "prod" ? "prod" : "qa"
-  hosting_url = "https://${var.project_id}.web.app"
+  name    = "homework-quest-${var.env}"
+  service = "homework-quest-api"
+  profile = var.env == "prod" ? "prod" : "qa"
+  api_url = "https://${local.service}-${data.google_project.this.number}.${var.region}.run.app"
   apis = [
     "run.googleapis.com", "sqladmin.googleapis.com", "storage.googleapis.com", "secretmanager.googleapis.com",
     "artifactregistry.googleapis.com", "iam.googleapis.com", "iamcredentials.googleapis.com", "sts.googleapis.com",
-    "cloudresourcemanager.googleapis.com", "firebase.googleapis.com", "firebasehosting.googleapis.com", "identitytoolkit.googleapis.com",
-    "firebaseappdistribution.googleapis.com",
+    "cloudresourcemanager.googleapis.com", "firebase.googleapis.com", "identitytoolkit.googleapis.com", # Firebase Auth only
   ]
 }
 
@@ -234,12 +233,13 @@ resource "google_cloud_run_v2_service" "api" {
         value = var.admin_email
       }
       env {
+        # the admin panel is served by the API itself (/panel/), so CORS is only for local dev origins
         name  = "CORS_ORIGINS"
-        value = join(",", concat([local.hosting_url], var.cors_origins))
+        value = join(",", var.cors_origins)
       }
       env {
         name  = "PUBLIC_URL"
-        value = "https://${local.service}-${data.google_project.this.number}.${var.region}.run.app"
+        value = local.api_url
       }
       dynamic "env" {
         for_each = toset(local.runtime_secrets)
@@ -310,8 +310,7 @@ resource "google_service_account_iam_member" "deployer_wif" {
 resource "google_project_iam_member" "deployer" {
   for_each = toset([
     "roles/run.admin", "roles/artifactregistry.writer", "roles/iam.serviceAccountUser",
-    "roles/secretmanager.admin", "roles/cloudsql.client", "roles/firebasehosting.admin", "roles/storage.objectViewer",
-    "roles/firebaseappdistro.admin", # QA APK → App Distribution
+    "roles/secretmanager.admin", "roles/cloudsql.client", "roles/storage.objectViewer",
   ])
   project = var.project_id
   role    = each.key

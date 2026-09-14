@@ -34,6 +34,7 @@ springdoc:
 quest:
   version: ${APP_VERSION:dev}
   public-url: ${PUBLIC_URL:http://localhost:8080}
+  panel-dir: ${PANEL_DIR:}   # admin panel bundle served at /panel/ (the Docker image sets it)
   cors-origins: ${CORS_ORIGINS:http://localhost:8081,http://localhost:5173}
   auth:
     fake: ${FAKE_AUTH:false}

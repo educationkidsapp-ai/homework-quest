@@ -35,7 +35,7 @@ gh variable set GCP_WIF_PROVIDER   --env "$GH_ENV" --repo "$REPO" --body "$(terr
 gh variable set GCP_DEPLOYER_SA    --env "$GH_ENV" --repo "$REPO" --body "$(terraform output -raw deployer_service_account)"
 gh variable set API_URL            --env "$GH_ENV" --repo "$REPO" --body "$(terraform output -raw cloud_run_url)"
 gh variable set IMAGE              --env "$GH_ENV" --repo "$REPO" --body "$(terraform output -raw image)"
-gh variable set HOSTING_URL        --env "$GH_ENV" --repo "$REPO" --body "$(terraform output -raw hosting_url)"
+gh variable set ADMIN_URL          --env "$GH_ENV" --repo "$REPO" --body "$(terraform output -raw admin_url)"
 if [ "$ENV" = qa ]; then   # production promotes QA's image: it needs read access to QA's registry
   gh variable set QA_WIF_PROVIDER --env production --repo "$REPO" --body "$(terraform output -raw wif_provider)"
   gh variable set QA_DEPLOYER_SA  --env production --repo "$REPO" --body "$(terraform output -raw deployer_service_account)"
@@ -44,12 +44,11 @@ fi
 [ -n "${DEEPSEEK_API_KEY:-}" ] && gh secret set DEEPSEEK_API_KEY --env "$GH_ENV" --repo "$REPO" --body "$DEEPSEEK_API_KEY"
 [ -n "${ADMIN_PASSWORD:-}" ]   && gh secret set ADMIN_PASSWORD   --env "$GH_ENV" --repo "$REPO" --body "$ADMIN_PASSWORD"
 if [ -n "${FIREBASE_CREDENTIALS:-}" ]; then FJ="$FIREBASE_CREDENTIALS"; [ -f "$FJ" ] && FJ=$(cat "$FJ"); gh secret set FIREBASE_CREDENTIALS --env "$GH_ENV" --repo "$REPO" --body "$FJ"; fi
-[ -n "${FIREBASE_TOKEN:-}" ]   && gh secret set FIREBASE_TOKEN --repo "$REPO" --body "$FIREBASE_TOKEN"
 for s in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
   [ -n "${!s:-}" ] && gh secret set "$s" --repo "$REPO" --body "${!s}"
 done
 
-echo "▸ Firebase Hosting site for the admin panel"
-firebase projects:list 2>/dev/null | grep -q "$PROJECT" || echo "  (add Firebase to $PROJECT: firebase projects:addfirebase $PROJECT)"
-echo "✓ $ENV ready — API $(terraform output -raw cloud_run_url), admin $(terraform output -raw hosting_url)"
+echo "▸ Firebase Authentication (parents' sign-in) — the only Firebase feature in use"
+firebase projects:list 2>/dev/null | grep -q "$PROJECT" || echo "  (add Firebase to $PROJECT once: firebase projects:addfirebase $PROJECT, then infra/firebase-auth.sh $PROJECT)"
+echo "✓ $ENV ready — API $(terraform output -raw cloud_run_url), admin panel $(terraform output -raw admin_url)"
 echo "  first image: push to $([ "$ENV" = prod ] && echo main || echo develop) and watch: gh run watch"

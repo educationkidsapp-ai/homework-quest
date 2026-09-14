@@ -10,5 +10,6 @@ object Graph {
     val session: SessionStore by lazy { SessionStore() }
     val remote: RemoteAdminApi by lazy { RemoteAdminApi(BuildConfig.API_BASE_URL, { session.token() }) }
     val api: AdminApi get() = remote
-    val apiBaseUrl: String get() = BuildConfig.API_BASE_URL
+    /** Empty at build time (the production bundle) means "same origin": the server serves the panel under /panel/. */
+    val apiBaseUrl: String get() = BuildConfig.API_BASE_URL.ifBlank { quest.admin.core.platform.Browser.origin() }
 }

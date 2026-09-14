@@ -1,7 +1,0 @@
-{
-  "projects": { "qa": "homework-quest-qa", "prod": "homework-quest-prod" },
-  "targets": {
-    "homework-quest-qa":   { "hosting": { "admin": ["homework-quest-qa"] } },
-    "homework-quest-prod": { "hosting": { "admin": ["homework-quest-prod"] } }
-  }
-}

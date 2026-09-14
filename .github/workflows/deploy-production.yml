@@ -137,25 +137,6 @@ jobs:
         env:
           SHA: ${{ needs.guard.outputs.sha }}
 
-  admin:
-    name: Admin panel → Firebase Hosting (production)
-    needs: canary
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: "17" }
-      - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :webAdmin:wasmJsBrowserDistribution -Pquest.admin.apiBaseUrl=${{ vars.API_URL }} --no-daemon
-      - uses: ./.github/actions/gcp-auth
-        with:
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          region: ${{ vars.GCP_REGION }}
-          wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
-      - run: npx --yes firebase-tools@14 deploy --only hosting:admin --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
-
   release:
     name: Production APK + GitHub release
     needs: [guard, promote, canary]

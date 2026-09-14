@@ -27,10 +27,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && groupadd -r quest && useradd -r -g quest -d /app quest
 WORKDIR /app
 COPY --from=build /server.jar /app/server.jar
+# the admin panel (Compose for Web, Wasm) — built by CI / scripts/build-panel.sh into server/panel before docker build
+COPY server/panel /app/panel
 RUN mkdir -p /app/data && chown -R quest:quest /app
 USER quest
 ARG APP_VERSION=dev
-ENV APP_VERSION=$APP_VERSION PORT=8080 HOME=/app JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -Djava.awt.headless=true -Dfile.encoding=UTF-8" STORAGE_DIR=/app/data/files
+ENV APP_VERSION=$APP_VERSION PORT=8080 HOME=/app JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -Djava.awt.headless=true -Dfile.encoding=UTF-8" STORAGE_DIR=/app/data/files PANEL_DIR=/app/panel
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s CMD curl -fsS http://127.0.0.1:${PORT}/actuator/health || exit 1
 ENTRYPOINT ["java", "-jar", "/app/server.jar"]
