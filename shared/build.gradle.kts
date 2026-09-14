@@ -31,6 +31,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(projects.sharedApi)
+            api(projects.sharedUi)
 
             implementation(compose.runtime)
             implementation(compose.foundation)
@@ -118,8 +119,3 @@ sqldelight {
     }
 }
 
-compose.resources {
-    publicResClass = false
-    packageOfResClass = "quest.resources"
-    generateResClass = always
-}

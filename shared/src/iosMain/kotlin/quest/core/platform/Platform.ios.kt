@@ -1,8 +1,5 @@
 package quest.core.platform
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import org.koin.core.module.Module
@@ -37,8 +34,3 @@ actual fun platformModule(): Module = module {
     single<Speaker> { IosSpeaker() }
 }
 
-@Composable
-actual fun rememberFilePicker(onPicked: (List<PickedFile>) -> Unit): FilePickerLauncher {
-    val callback = rememberUpdatedState(onPicked)
-    return remember { IosFilePicker { callback.value(it) } }
-}

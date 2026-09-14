@@ -1,6 +1,5 @@
 package quest.core.platform
 
-import androidx.compose.runtime.Composable
 import app.cash.sqldelight.db.SqlDriver
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
@@ -31,16 +30,6 @@ expect fun platformModule(): Module
 
 expect val platformName: String
 
-enum class PickKind { PDF, PPTX, CAMERA, GALLERY }
-
-class PickedFile(val name: String, val mimeType: String, val bytes: ByteArray)
-
-interface FilePickerLauncher {
-    fun launch(kind: PickKind)
-}
-
-@Composable
-expect fun rememberFilePicker(onPicked: (List<PickedFile>) -> Unit): FilePickerLauncher
 
 object Ids {
     @OptIn(ExperimentalUuidApi::class)

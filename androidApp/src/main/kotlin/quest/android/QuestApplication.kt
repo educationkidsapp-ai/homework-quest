@@ -10,7 +10,7 @@ import quest.di.appModules
 class QuestApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        val config = if (BuildConfig.USE_FAKE_API) ApiConfig.Fake() else ApiConfig.Server(BuildConfig.API_BASE_URL)
+        val config = if (BuildConfig.USE_FAKE_API) ApiConfig.Fake else ApiConfig.Server(BuildConfig.API_BASE_URL)
         startKoin {
             androidLogger()
             androidContext(this@QuestApplication)

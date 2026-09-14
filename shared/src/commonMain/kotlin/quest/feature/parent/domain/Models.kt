@@ -1,46 +1,22 @@
 package quest.feature.parent.domain
 
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.datetime.LocalDate
 import quest.api.dto.Subject
-import quest.feature.practice.domain.Band
+import quest.api.progress.Band
 
-data class ChildProfile(
-    val id: String,
-    val name: String,
-    val avatarColor: String,
-    val grade: Int,
-    val curriculum: String,
-    val languages: List<String>,
-    val hasPin: Boolean,
-)
+data class ParentSettings(val language: String)
 
-data class ParentSettings(
-    val practiceLength: Int,
-    val language: String,       // "en" | "ar"
-)
+data class SkillReport(val skillId: String, val name: String, val subject: Subject, val band: Band?, val accuracyWords: String?, val attempts: Int, val lastPractised: Long?)
 
-data class SkillReport(
-    val skillId: String,
-    val name: String,
-    val subject: Subject,
-    val lessonDate: LocalDate?,
-    val band: Band?,
-    val accuracyWords: String?,
-    val attempts: Long,
-    val lastPractised: Long?,
-    val requeuedFor: LocalDate?,
-)
-
-data class CalendarDay(val date: LocalDate, val subjects: List<Subject>)
+data class CalendarDay(val date: LocalDate, val subjects: List<Subject>, val lessonIds: List<String>, val done: Boolean)
 
 interface ParentRepository {
     /** Current parent-mode language code ("en" | "ar"), observable for the theme. */
-    val language: kotlinx.coroutines.flow.StateFlow<String>
-    suspend fun profile(): ChildProfile
-    suspend fun saveProfile(name: String, grade: Int, curriculum: String, avatarColor: String)
+    val language: StateFlow<String>
+    suspend fun hasPin(): Boolean
     suspend fun setPin(pin: String)
     suspend fun verifyPin(pin: String): Boolean
     suspend fun settings(): ParentSettings
-    suspend fun setPracticeLength(length: Int)
     suspend fun setLanguage(code: String)
 }

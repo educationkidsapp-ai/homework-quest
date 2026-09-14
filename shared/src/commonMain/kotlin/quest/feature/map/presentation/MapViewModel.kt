@@ -1,22 +1,26 @@
 package quest.feature.map.presentation
 
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
+import quest.api.dto.IslandKind
+import quest.api.dto.IslandState
 import quest.core.mvi.MviViewModel
 import quest.core.platform.Today
-import quest.feature.map.domain.IslandStatus
-import quest.feature.map.domain.IslandsUseCase
+import quest.feature.children.domain.ChildrenRepository
+import quest.feature.content.domain.JourneyRepository
+import quest.feature.content.domain.MapRepository
 import quest.feature.map.presentation.MapContract.Effect
 import quest.feature.map.presentation.MapContract.Intent
 import quest.feature.map.presentation.MapContract.State
-import quest.feature.parent.domain.ParentRepository
 import quest.feature.rewards.domain.RewardsRepository
 
 class MapViewModel(
-    private val islands: IslandsUseCase,
+    private val children: ChildrenRepository,
+    private val maps: MapRepository,
+    private val journey: JourneyRepository,
     private val rewards: RewardsRepository,
-    private val parent: ParentRepository,
 ) : MviViewModel<State, Intent, Effect>(State()) {
-
-    init { dispatch(Intent.Load) }
 
     override suspend fun handle(intent: Intent) {
         when (intent) {
@@ -27,24 +31,27 @@ class MapViewModel(
     }
 
     private suspend fun load() {
-        val profile = parent.profile()
-        val data = islands(Today.date())
+        val child = children.currentChild.value ?: children.refresh().let { children.currentChild.value }
+        if (child == null) { effect(Effect.NeedsChild); return }
+        runCatching { journey.flushAttempts(child.id) }
+        val today = Today.date()
+        val map = maps.map(child, today.minus(30, DateTimeUnit.DAY), today.plus(7, DateTimeUnit.DAY), today)
         val streak = rewards.streak()
-        val stickers = rewards.stickers().size
-        reduce { copy(loading = false, childName = profile.name, islands = data.islands, isEmpty = data.isEmpty, streakDays = streak.currentDays, stickerCount = stickers) }
+        reduce { copy(loading = false, child = child, islands = map.islands, streakDays = streak.currentDays) }
     }
 
     private suspend fun tap(id: String) {
         val island = current.islands.firstOrNull { it.id == id } ?: return
-        when (island.status) {
-            IslandStatus.ASLEEP -> effect(Effect.Speak("This island is still asleep."))
-            else -> effect(Effect.OpenIntro(island.id))
+        when (island.kind) {
+            IslandKind.LOCKED -> effect(Effect.Speak("This island is still asleep."))
+            IslandKind.REVIEW -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 1))
+            IslandKind.LESSON -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 0))
         }
     }
 
     private fun readAloudText(): String = when {
-        current.isEmpty -> "No quest today yet. Ask a grown-up to add today's lesson."
-        current.islands.any { it.status == IslandStatus.TODAY } -> "Tap the glowing island to start today's quest!"
-        else -> "You finished today's quest! Tap an island to play again."
+        current.isEmpty -> "No quest today yet. Ask a grown-up to check the map tomorrow."
+        current.islands.any { it.state == IslandState.TODAY } -> "Tap the glowing island to start today's quest!"
+        else -> "Tap an island to play."
     }
 }

@@ -1,72 +1,69 @@
--- Data model from the dev prompt §5 (mirrored on the server by Flyway V1__init.sql).
+-- The child's own data on the device (dev prompt §6 mirror) plus the published-lesson cache.
 
 CREATE TABLE Child (
     id TEXT NOT NULL PRIMARY KEY,
+    parentUid TEXT NOT NULL,
     name TEXT NOT NULL,
     avatarColor TEXT NOT NULL,
-    grade INTEGER NOT NULL,
     curriculum TEXT NOT NULL,
-    languages TEXT NOT NULL,
-    pinHash TEXT
+    grade INTEGER NOT NULL,
+    languages TEXT NOT NULL
 );
 
-CREATE TABLE Lesson (
+CREATE TABLE LessonCache (
     id TEXT NOT NULL PRIMARY KEY,
+    version INTEGER NOT NULL,
+    json TEXT NOT NULL,
+    fetchedAt INTEGER NOT NULL
+);
+
+CREATE TABLE StopCompletion (
     childId TEXT NOT NULL,
-    date TEXT NOT NULL,
-    subject TEXT NOT NULL,
-    status TEXT NOT NULL,
-    sourceFileNames TEXT NOT NULL,
-    createdAt INTEGER NOT NULL,
-    errorCode TEXT,
-    errorMessage TEXT,
-    filesDeleted INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE Skill (
-    id TEXT NOT NULL PRIMARY KEY,
     lessonId TEXT NOT NULL,
-    name TEXT NOT NULL,
-    subject TEXT NOT NULL,
-    method TEXT NOT NULL,
-    confidence REAL NOT NULL,
-    confirmed INTEGER NOT NULL,
-    examplesJson TEXT NOT NULL,
-    unsureJson TEXT,
-    requeuedFor TEXT
+    level INTEGER NOT NULL,
+    variant INTEGER NOT NULL,
+    stopId TEXT NOT NULL,
+    stars INTEGER NOT NULL,
+    completedAt INTEGER NOT NULL,
+    recordingPath TEXT,
+    drawingPath TEXT,
+    PRIMARY KEY (childId, lessonId, level, variant, stopId)
 );
 
-CREATE TABLE QuestionSet (
-    id TEXT NOT NULL PRIMARY KEY,
-    skillId TEXT NOT NULL,
-    mode TEXT NOT NULL,
-    explanation TEXT NOT NULL,
-    workedExamplesJson TEXT NOT NULL,
-    generatedAt INTEGER NOT NULL
-);
-
-CREATE TABLE Question (
-    id TEXT NOT NULL PRIMARY KEY,
-    questionSetId TEXT NOT NULL,
-    type TEXT NOT NULL,
-    promptJson TEXT NOT NULL,
-    optionsJson TEXT NOT NULL,
-    correctOptionId TEXT,
-    hint TEXT NOT NULL,
-    numberLineJson TEXT,
-    illustrationKey TEXT,
-    position INTEGER NOT NULL
+CREATE TABLE LessonCompletion (
+    childId TEXT NOT NULL,
+    lessonId TEXT NOT NULL,
+    level INTEGER NOT NULL,
+    variant INTEGER NOT NULL,
+    starsEarned INTEGER NOT NULL,
+    starsTotal INTEGER NOT NULL,
+    mostStopsTwoStars INTEGER NOT NULL,
+    certificateIssued INTEGER NOT NULL,
+    completedAt INTEGER NOT NULL,
+    PRIMARY KEY (childId, lessonId, level, variant)
 );
 
 CREATE TABLE Attempt (
     id TEXT NOT NULL PRIMARY KEY,
-    questionId TEXT NOT NULL,
     childId TEXT NOT NULL,
-    skillId TEXT NOT NULL,
-    chosenOptionId TEXT,
+    stopId TEXT NOT NULL,
+    lessonId TEXT NOT NULL,
+    level INTEGER NOT NULL,
+    skillIds TEXT NOT NULL,
+    answerJson TEXT NOT NULL,
     correct INTEGER NOT NULL,
     attemptNumber INTEGER NOT NULL,
-    answeredAt INTEGER NOT NULL
+    mistakes INTEGER NOT NULL,
+    stars INTEGER NOT NULL,
+    answeredAt INTEGER NOT NULL,
+    uploaded INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE ParentUnlock (
+    childId TEXT NOT NULL,
+    lessonId TEXT NOT NULL,
+    level INTEGER NOT NULL,
+    PRIMARY KEY (childId, lessonId, level)
 );
 
 CREATE TABLE Sticker (
@@ -82,139 +79,85 @@ CREATE TABLE Streak (
     lastPlayedDate TEXT
 );
 
-CREATE TABLE SetCompletion (
-    questionSetId TEXT NOT NULL PRIMARY KEY,
-    childId TEXT NOT NULL,
-    stars INTEGER NOT NULL,
-    completedAt INTEGER NOT NULL
-);
-
 CREATE TABLE Setting (
     key TEXT NOT NULL PRIMARY KEY,
     value TEXT NOT NULL
 );
 
-CREATE INDEX attempt_skill ON Attempt(skillId, attemptNumber, answeredAt);
-CREATE INDEX skill_lesson ON Skill(lessonId);
-CREATE INDEX lesson_date ON Lesson(date);
+CREATE INDEX attempt_child ON Attempt(childId, uploaded);
+CREATE INDEX attempt_stop ON Attempt(childId, stopId, attemptNumber);
 
--- Child ------------------------------------------------------------------
+-- Child --------------------------------------------------------------------
+selectChildren:
+SELECT * FROM Child WHERE parentUid = ? ORDER BY name;
+
 selectChild:
-SELECT * FROM Child LIMIT 1;
+SELECT * FROM Child WHERE id = ?;
 
 upsertChild:
-INSERT OR REPLACE INTO Child(id, name, avatarColor, grade, curriculum, languages, pinHash)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO Child(id, parentUid, name, avatarColor, curriculum, grade, languages) VALUES (?, ?, ?, ?, ?, ?, ?);
 
-updatePin:
-UPDATE Child SET pinHash = ? WHERE id = ?;
+deleteChild:
+DELETE FROM Child WHERE id = ?;
 
--- Lesson -----------------------------------------------------------------
+-- LessonCache ---------------------------------------------------------------
 upsertLesson:
-INSERT OR REPLACE INTO Lesson(id, childId, date, subject, status, sourceFileNames, createdAt, errorCode, errorMessage, filesDeleted)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-
-updateLessonStatus:
-UPDATE Lesson SET status = ?, errorCode = ?, errorMessage = ? WHERE id = ?;
-
-markFilesDeleted:
-UPDATE Lesson SET filesDeleted = 1 WHERE id = ?;
+INSERT OR REPLACE INTO LessonCache(id, version, json, fetchedAt) VALUES (?, ?, ?, ?);
 
 selectLesson:
-SELECT * FROM Lesson WHERE id = ?;
+SELECT * FROM LessonCache WHERE id = ?;
 
-selectLessonsByDate:
-SELECT * FROM Lesson WHERE date = ? ORDER BY createdAt;
+selectLessonVersions:
+SELECT id, version FROM LessonCache;
 
-selectAllLessons:
-SELECT * FROM Lesson ORDER BY date DESC, createdAt DESC;
+-- Completions ----------------------------------------------------------------
+upsertStopCompletion:
+INSERT OR REPLACE INTO StopCompletion(childId, lessonId, level, variant, stopId, stars, completedAt, recordingPath, drawingPath) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
-selectLessonDates:
-SELECT DISTINCT date FROM Lesson ORDER BY date;
+selectStopCompletions:
+SELECT * FROM StopCompletion WHERE childId = ? AND lessonId = ? AND level = ? AND variant = ?;
 
-selectLessonsWithFiles:
-SELECT * FROM Lesson WHERE filesDeleted = 0;
+upsertLessonCompletion:
+INSERT OR REPLACE INTO LessonCompletion(childId, lessonId, level, variant, starsEarned, starsTotal, mostStopsTwoStars, certificateIssued, completedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
-deleteLesson:
-DELETE FROM Lesson WHERE id = ?;
+selectLessonCompletions:
+SELECT * FROM LessonCompletion WHERE childId = ?;
 
--- Skill ------------------------------------------------------------------
-upsertSkill:
-INSERT OR REPLACE INTO Skill(id, lessonId, name, subject, method, confidence, confirmed, examplesJson, unsureJson, requeuedFor)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+selectLessonCompletionsFor:
+SELECT * FROM LessonCompletion WHERE childId = ? AND lessonId = ?;
 
-setSkillConfirmed:
-UPDATE Skill SET confirmed = ?, name = ? WHERE id = ?;
+selectCompletionDates:
+SELECT lessonId, level, completedAt FROM LessonCompletion WHERE childId = ? ORDER BY completedAt DESC;
 
-setRequeuedFor:
-UPDATE Skill SET requeuedFor = ? WHERE id = ?;
-
-selectSkill:
-SELECT * FROM Skill WHERE id = ?;
-
-selectSkillsByLesson:
-SELECT * FROM Skill WHERE lessonId = ?;
-
-selectConfirmedSkillsByDate:
-SELECT Skill.* FROM Skill JOIN Lesson ON Skill.lessonId = Lesson.id
-WHERE Skill.confirmed = 1 AND (Lesson.date = ? OR Skill.requeuedFor = ?)
-ORDER BY Lesson.createdAt;
-
-selectAllConfirmedSkills:
-SELECT Skill.*, Lesson.date AS lessonDate FROM Skill JOIN Lesson ON Skill.lessonId = Lesson.id
-WHERE Skill.confirmed = 1 ORDER BY Lesson.date DESC;
-
-deleteSkillsByLesson:
-DELETE FROM Skill WHERE lessonId = ?;
-
--- QuestionSet / Question ---------------------------------------------------
-insertQuestionSet:
-INSERT OR REPLACE INTO QuestionSet(id, skillId, mode, explanation, workedExamplesJson, generatedAt)
-VALUES (?, ?, ?, ?, ?, ?);
-
-insertQuestion:
-INSERT OR REPLACE INTO Question(id, questionSetId, type, promptJson, optionsJson, correctOptionId, hint, numberLineJson, illustrationKey, position)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-
-selectQuestionSet:
-SELECT * FROM QuestionSet WHERE id = ?;
-
-selectQuestionSetsBySkill:
-SELECT * FROM QuestionSet WHERE skillId = ? ORDER BY generatedAt;
-
-selectLatestQuestionSetForSkill:
-SELECT * FROM QuestionSet WHERE skillId = ? ORDER BY generatedAt DESC LIMIT 1;
-
-selectQuestionsBySet:
-SELECT * FROM Question WHERE questionSetId = ? ORDER BY position;
-
-selectQuestionIdsBySkill:
-SELECT Question.id FROM Question JOIN QuestionSet ON Question.questionSetId = QuestionSet.id
-WHERE QuestionSet.skillId = ?;
-
--- Attempt ------------------------------------------------------------------
+-- Attempts --------------------------------------------------------------------
 insertAttempt:
-INSERT INTO Attempt(id, questionId, childId, skillId, chosenOptionId, correct, attemptNumber, answeredAt)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO Attempt(id, childId, stopId, lessonId, level, skillIds, answerJson, correct, attemptNumber, mistakes, stars, answeredAt, uploaded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);
 
-selectFirstTryResults:
-SELECT correct FROM Attempt WHERE skillId = ? AND attemptNumber = 1 ORDER BY answeredAt DESC LIMIT 14;
+selectPendingAttempts:
+SELECT * FROM Attempt WHERE childId = ? AND uploaded = 0 ORDER BY answeredAt LIMIT 200;
 
-selectLastAnsweredAt:
-SELECT MAX(answeredAt) FROM Attempt WHERE skillId = ?;
+markAttemptsUploaded:
+UPDATE Attempt SET uploaded = 1 WHERE id IN ?;
 
-countAttemptsForSkill:
-SELECT COUNT(*) FROM Attempt WHERE skillId = ?;
+selectFirstTryResultsForSkill:
+SELECT correct FROM Attempt WHERE childId = ? AND attemptNumber = 1 AND skillIds LIKE ? ORDER BY answeredAt DESC LIMIT 14;
 
--- Sticker / Streak -----------------------------------------------------------
+countAttempts:
+SELECT COUNT(*) FROM Attempt WHERE childId = ?;
+
+-- Parent unlock ----------------------------------------------------------------
+upsertParentUnlock:
+INSERT OR REPLACE INTO ParentUnlock(childId, lessonId, level) VALUES (?, ?, ?);
+
+selectParentUnlocks:
+SELECT * FROM ParentUnlock WHERE childId = ?;
+
+-- Sticker / Streak ---------------------------------------------------------------
 insertSticker:
 INSERT INTO Sticker(id, childId, key, earnedAt) VALUES (?, ?, ?, ?);
 
 selectStickers:
 SELECT * FROM Sticker WHERE childId = ? ORDER BY earnedAt;
-
-countStickers:
-SELECT COUNT(*) FROM Sticker WHERE childId = ?;
 
 selectStreak:
 SELECT * FROM Streak WHERE childId = ?;
@@ -222,24 +165,12 @@ SELECT * FROM Streak WHERE childId = ?;
 upsertStreak:
 INSERT OR REPLACE INTO Streak(childId, currentDays, lastPlayedDate) VALUES (?, ?, ?);
 
--- SetCompletion ------------------------------------------------------------
-upsertCompletion:
-INSERT OR REPLACE INTO SetCompletion(questionSetId, childId, stars, completedAt) VALUES (?, ?, ?, ?);
-
-selectCompletion:
-SELECT * FROM SetCompletion WHERE questionSetId = ?;
-
-selectCompletionsForSkill:
-SELECT SetCompletion.* FROM SetCompletion JOIN QuestionSet ON SetCompletion.questionSetId = QuestionSet.id
-WHERE QuestionSet.skillId = ?;
-
--- Setting ------------------------------------------------------------------
+-- Setting ----------------------------------------------------------------------------
 selectSetting:
 SELECT value FROM Setting WHERE key = ?;
 
 upsertSetting:
 INSERT OR REPLACE INTO Setting(key, value) VALUES (?, ?);
 
--- Wipe (delete uploaded files also clears local copies of source names) ------
-clearSourceFileNames:
-UPDATE Lesson SET sourceFileNames = '[]', filesDeleted = 1;
+deleteSetting:
+DELETE FROM Setting WHERE key = ?;

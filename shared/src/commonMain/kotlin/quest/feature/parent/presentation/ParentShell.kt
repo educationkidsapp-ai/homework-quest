@@ -39,9 +39,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import quest.feature.parent.domain.ParentRepository
-import quest.core.design.Dimens
-import quest.core.design.Palette
-import quest.core.design.ParentTheme
+import quest.ui.design.Dimens
+import quest.ui.design.Palette
+import quest.ui.design.ParentTheme
 
 /** Wraps every parent route: applies the parent theme, RTL when Arabic, and the header with the language toggle. */
 @Composable

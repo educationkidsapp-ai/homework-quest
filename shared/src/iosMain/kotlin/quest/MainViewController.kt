@@ -14,7 +14,7 @@ private var koinStarted = false
 fun MainViewController(): UIViewController {
     if (!koinStarted) {
         val url = NSBundle.mainBundle.objectForInfoDictionaryKey("API_BASE_URL") as? String
-        val config = if (url.isNullOrBlank()) ApiConfig.Fake() else ApiConfig.Server(url)
+        val config = if (url.isNullOrBlank()) ApiConfig.Fake else ApiConfig.Server(url)
         startKoin { modules(appModules(config)) }
         koinStarted = true
     }

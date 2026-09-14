@@ -7,47 +7,50 @@ import kotlinx.serialization.Serializable
 enum class Subject { @SerialName("math") MATH, @SerialName("english") ENGLISH }
 
 @Serializable
-enum class GenerateMode {
-    @SerialName("normal") NORMAL,
-    @SerialName("again") AGAIN,
-    @SerialName("harder") HARDER,
-    @SerialName("easier") EASIER,
+enum class Curriculum { @SerialName("american") AMERICAN, @SerialName("british") BRITISH }
+
+/** A (curriculum, grade) pair; six courses exist. */
+@Serializable
+data class Course(val curriculum: Curriculum, val grade: Int) {
+    val key: String get() = "${curriculum.name.lowercase()}/$grade"
+    companion object {
+        val all: List<Course> = Curriculum.entries.flatMap { c -> (1..3).map { Course(c, it) } }
+        fun parse(key: String): Course { val (c, g) = key.split('/'); return Course(Curriculum.valueOf(c.uppercase()), g.toInt()) }
+    }
 }
 
-/** Job status for `GET /lessons/{id}`. `GENERATING` sits between confirm and ready (see README §API). */
+@Serializable
+enum class SourceKind {
+    @SerialName("story") STORY, @SerialName("informational") INFORMATIONAL, @SerialName("math") MATH,
+    @SerialName("phonics") PHONICS, @SerialName("vocabulary") VOCABULARY, @SerialName("mixed") MIXED,
+}
+
 @Serializable
 enum class LessonStatus {
-    @SerialName("uploading") UPLOADING,
-    @SerialName("reading") READING,
-    @SerialName("needs_confirmation") NEEDS_CONFIRMATION,
-    @SerialName("generating") GENERATING,
-    @SerialName("ready") READY,
-    @SerialName("error") ERROR;
-
-    val isTerminal: Boolean get() = this == NEEDS_CONFIRMATION || this == READY || this == ERROR
+    @SerialName("draft") DRAFT, @SerialName("uploading") UPLOADING, @SerialName("analyzing") ANALYZING,
+    @SerialName("needs_review") NEEDS_REVIEW, @SerialName("generating") GENERATING, @SerialName("review") REVIEW,
+    @SerialName("published") PUBLISHED, @SerialName("error") ERROR;
+    val isTerminal: Boolean get() = this == NEEDS_REVIEW || this == REVIEW || this == PUBLISHED || this == ERROR || this == DRAFT
 }
 
 @Serializable
-enum class QuestionType {
-    @SerialName("sequence") SEQUENCE,
-    @SerialName("count") COUNT,
-    @SerialName("compare") COMPARE,
-    @SerialName("sound") SOUND,
-    @SerialName("word") WORD,
-    @SerialName("trace") TRACE,
-    @SerialName("readTap") READ_TAP;
+enum class IslandKind { @SerialName("lesson") LESSON, @SerialName("review") REVIEW, @SerialName("locked") LOCKED }
 
-    val isNumeric: Boolean get() = this == SEQUENCE || this == COUNT || this == COMPARE
-}
+@Serializable
+enum class IslandState { @SerialName("done") DONE, @SerialName("waiting") WAITING, @SerialName("today") TODAY, @SerialName("locked") LOCKED }
+
+@Serializable
+enum class MediaKind { @SerialName("recording") RECORDING, @SerialName("drawing") DRAWING }
 
 @Serializable
 data class ApiError(val code: String, val message: String) {
     companion object {
-        const val UNREADABLE_FILE = "unreadable_file"
-        const val NO_TEACHING_CONTENT = "no_teaching_content"
-        const val MODEL_FAILED = "model_failed"
-        const val TOO_LARGE = "too_large"
-        const val NOT_FOUND = "not_found"
-        const val NETWORK = "network"
+        const val UNREADABLE_FILE = "unreadable_file"; const val NO_TEACHING_CONTENT = "no_teaching_content"; const val MODEL_FAILED = "model_failed"
+        const val TOO_LARGE = "too_large"; const val NOT_FOUND = "not_found"; const val BAD_REQUEST = "bad_request"; const val NETWORK = "network"
+        const val UNAUTHORIZED = "unauthorized"; const val FORBIDDEN = "forbidden"
     }
 }
+
+/** Bilingual text (parent-facing copy is always EN + AR). */
+@Serializable
+data class Bilingual(val en: String, val ar: String)

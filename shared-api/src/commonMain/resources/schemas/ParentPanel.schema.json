@@ -1,0 +1,146 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://homeworkquest.app/schemas/ParentPanel.json",
+ "title": "ParentPanel",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "objectives",
+  "supported",
+  "challenge"
+ ],
+ "properties": {
+  "objectives": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "en",
+    "ar"
+   ],
+   "properties": {
+    "en": {
+     "type": "array",
+     "minItems": 3,
+     "maxItems": 5,
+     "items": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+     }
+    },
+    "ar": {
+     "type": "array",
+     "minItems": 3,
+     "maxItems": 5,
+     "items": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+     }
+    }
+   }
+  },
+  "supported": {
+   "type": "array",
+   "minItems": 2,
+   "maxItems": 4,
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "en",
+     "ar"
+    ],
+    "properties": {
+     "en": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+     },
+     "ar": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+     }
+    }
+   }
+  },
+  "challenge": {
+   "type": "array",
+   "minItems": 2,
+   "maxItems": 4,
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "en",
+     "ar"
+    ],
+    "properties": {
+     "en": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+     },
+     "ar": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+     }
+    }
+   }
+  },
+  "stopTips": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "stopId",
+     "en",
+     "ar"
+    ],
+    "properties": {
+     "stopId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60
+     },
+     "en": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+     },
+     "ar": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+     }
+    }
+   }
+  },
+  "modelAnswers": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "stopId",
+     "en"
+    ],
+    "properties": {
+     "stopId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60
+     },
+     "en": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+     }
+    }
+   }
+  }
+ }
+}

@@ -23,6 +23,14 @@ data class Strings(
     val today: String, val noLessonsThatDay: String, val statusLabel: Map<String, String>,
     val weekdays: List<String>, val months: List<String>,
     val accuracyWords: Map<String, String> = emptyMap(),
+    // v3
+    val signIn: String = "Sign in", val register: String = "Create account", val signInBody: String = "Parents sign in; children just play.",
+    val email: String = "Email", val password: String = "Password", val createAccount: String = "Create account", val googleSignIn: String = "Continue with Google",
+    val haveAccount: String = "I already have an account", val noAccount: String = "New here? Create an account",
+    val addChild: String = "Add a child", val avatar: String = "Pip's colour", val american: String = "American", val british: String = "British",
+    val languages: String = "Subject languages", val whoIsPlaying: String = "Who is playing?", val children: String = "Children", val signOut: String = "Sign out",
+    val level: String = "Level", val unlockLevel: String = "Unlock", val lessonPanel: String = "Lesson panel", val objectives: String = "Learning objectives",
+    val supported: String = "Supported", val challengeIdeas: String = "Challenge", val tipsPerStop: String = "Tips for each stop", val played: String = "Played", val notPlayed: String = "Not played yet",
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -77,6 +85,13 @@ data class Strings(
             deleted = "تم حذف الملفات", privacy = "الخصوصية", privacyBody = "تُقرأ الشرائح مرة واحدة ثم تُحذف. تُحفظ المهارات والأسئلة فقط على هذا الجهاز.",
             version = "الإصدار", today = "اليوم", noLessonsThatDay = "لا يوجد درس في هذا اليوم.",
             statusLabel = mapOf("uploading" to "جارٍ الرفع", "reading" to "جارٍ القراءة", "needs_confirmation" to "بانتظار موافقتك", "generating" to "إعداد الأسئلة", "ready" to "جاهز", "error" to "مشكلة"),
+            signIn = "تسجيل الدخول", register = "إنشاء حساب", signInBody = "الأهل يسجّلون الدخول؛ الأطفال يلعبون فقط.",
+            email = "البريد الإلكتروني", password = "كلمة المرور", createAccount = "إنشاء حساب", googleSignIn = "المتابعة عبر Google",
+            haveAccount = "لديّ حساب بالفعل", noAccount = "جديد هنا؟ أنشئ حسابًا",
+            addChild = "إضافة طفل", avatar = "لون بيب", american = "أمريكي", british = "بريطاني",
+            languages = "لغات المواد", whoIsPlaying = "من يلعب؟", children = "الأطفال", signOut = "تسجيل الخروج",
+            level = "المستوى", unlockLevel = "فتح", lessonPanel = "لوحة الدرس", objectives = "أهداف التعلّم",
+            supported = "دعم", challengeIdeas = "تحدٍّ", tipsPerStop = "نصائح لكل محطة", played = "لُعب", notPlayed = "لم يُلعب بعد",
             accuracyWords = mapOf("almost every time" to "في كل مرة تقريبًا", "most of the time" to "في معظم الأحيان", "more than half the time" to "أكثر من نصف المرات", "some of the time" to "أحيانًا", "not yet" to "ليس بعد"),
             weekdays = listOf("ن", "ث", "ر", "خ", "ج", "س", "ح"),
             months = listOf("يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"),

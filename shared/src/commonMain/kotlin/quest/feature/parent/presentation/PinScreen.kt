@@ -28,8 +28,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
-import quest.core.design.Dimens
-import quest.core.design.Palette
+import quest.ui.design.Dimens
+import quest.ui.design.Palette
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
@@ -52,7 +52,7 @@ class PinViewModel(private val repo: ParentRepository, private val verify: Verif
     override suspend fun handle(intent: PinContract.Intent) {
         when (intent) {
             PinContract.Intent.Load -> {
-                val hasPin = repo.profile().hasPin
+                val hasPin = repo.hasPin()
                 reduce { copy(mode = if (!changePin && hasPin) PinContract.Mode.ENTER else PinContract.Mode.CREATE) }
             }
             PinContract.Intent.Backspace -> reduce { copy(digits = digits.dropLast(1), error = false) }

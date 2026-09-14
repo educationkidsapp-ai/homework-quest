@@ -1,58 +1,47 @@
 package quest.feature.parent.domain
 
 import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.minus
 import kotlinx.datetime.plus
-import quest.feature.lesson.domain.LessonRepository
-import quest.feature.practice.domain.Band
-import quest.feature.practice.domain.PracticeRepository
-import quest.feature.practice.domain.ProgressBands
+import kotlinx.datetime.toLocalDateTime
+import quest.api.dto.Child
+import quest.api.dto.IslandKind
+import quest.api.dto.IslandState
+import quest.api.progress.Band
+import quest.api.progress.ProgressBands
+import quest.feature.content.domain.JourneyRepository
+import quest.feature.content.domain.LessonRepository
+import quest.feature.content.domain.MapRepository
 
-class VerifyPinUseCase(private val repo: ParentRepository) {
-    suspend operator fun invoke(pin: String): Boolean = pin.length == 4 && repo.verifyPin(pin)
-}
+class VerifyPinUseCase(private val repo: ParentRepository) { suspend operator fun invoke(pin: String): Boolean = pin.length == 4 && repo.verifyPin(pin) }
+class SetPinUseCase(private val repo: ParentRepository) { suspend operator fun invoke(pin: String) { require(pin.length == 4 && pin.all { it.isDigit() }); repo.setPin(pin) } }
 
-class SetPinUseCase(private val repo: ParentRepository) {
-    suspend operator fun invoke(pin: String) { require(pin.length == 4 && pin.all { it.isDigit() }); repo.setPin(pin) }
-}
-
-/** Every confirmed skill with its band — words, never percentages. */
-class ProgressReportUseCase(private val lessons: LessonRepository, private val practice: PracticeRepository) {
-    suspend operator fun invoke(): List<SkillReport> = lessons.allConfirmedSkills().map { skill ->
-        val progress = practice.progress(skill.id)
-        SkillReport(
-            skillId = skill.id, name = skill.name, subject = skill.subject, lessonDate = skill.lessonDate,
-            band = progress.band, accuracyWords = progress.accuracy?.let(ProgressBands::accuracyWords),
-            attempts = progress.attempts, lastPractised = progress.lastAnsweredAt, requeuedFor = skill.requeuedFor,
-        )
-    }
-}
-
-/**
- * Weak-skill requeue (dev prompt §5): any skill in "Needs another look" is queued into the next day's
- * practice. Runs after every completed set and on parent-mode entry. Skills that recover are un-queued.
- */
-class RequeueWeakSkillsUseCase(private val lessons: LessonRepository, private val practice: PracticeRepository) {
-    suspend operator fun invoke(today: LocalDate): List<String> {
-        val tomorrow = today.plus(1, DateTimeUnit.DAY)
-        val requeued = mutableListOf<String>()
-        lessons.allConfirmedSkills().forEach { skill ->
-            val band = practice.progress(skill.id).band
-            when {
-                band == Band.NEEDS_ANOTHER_LOOK && skill.requeuedFor != tomorrow && skill.lessonDate != tomorrow -> {
-                    lessons.requeue(skill.id, tomorrow); requeued += skill.id
-                }
-                band != Band.NEEDS_ANOTHER_LOOK && skill.requeuedFor != null && skill.requeuedFor > today -> lessons.requeue(skill.id, null)
-            }
+/** Every skill the child has met — server bands when online, local first-try results otherwise. Words, never percentages. */
+class ProgressReportUseCase(private val journey: JourneyRepository, private val lessons: LessonRepository) {
+    suspend operator fun invoke(child: Child): List<SkillReport> {
+        val remote = journey.progressReport(child.id)
+        if (remote != null) return remote.skills.map { SkillReport(it.skillId, it.name, it.subject, it.band?.let { b -> Band.valueOf(b) }, it.firstTryAccuracyWords, it.attempts, it.lastPractised) }
+        return lessons.cachedSummaries().flatMap { s -> lessons.cached(s.id)?.skills.orEmpty() }.distinctBy { it.id }.map { skill ->
+            val results = journey.firstTryResults(child.id, skill.id)
+            val acc = ProgressBands.accuracy(results)
+            SkillReport(skill.id, skill.name, skill.subject, acc?.let(ProgressBands::band), acc?.let(ProgressBands::accuracyWords), results.size, null)
         }
-        return requeued
     }
 }
 
-class CalendarUseCase(private val lessons: LessonRepository) {
-    suspend fun days(): Map<LocalDate, CalendarDay> = lessons.allLessons()
-        .groupBy { it.date }
-        .mapValues { (date, ls) -> CalendarDay(date, ls.map { it.subject }.distinct()) }
-
-    suspend fun skillsOn(date: LocalDate) = lessons.confirmedSkillsFor(date)
+/** Month view: which dates have published lessons for the child's course and whether they were played. */
+class CalendarUseCase(private val maps: MapRepository) {
+    suspend operator fun invoke(child: Child, year: Int, month: Int, today: LocalDate): List<CalendarDay> {
+        val first = LocalDate(year, month, 1)
+        val last = first.plus(1, DateTimeUnit.MONTH).minus(1, DateTimeUnit.DAY)
+        val map = maps.map(child, first, last, today)
+        return map.islands.filter { it.kind == IslandKind.LESSON }.groupBy { it.date }.map { (date, islands) ->
+            CalendarDay(date, islands.mapNotNull { it.subject }.distinct(), islands.mapNotNull { it.lessonId }, islands.all { it.state == IslandState.DONE })
+        }.sortedBy { it.date }
+    }
 }
+
+fun epochToDate(epochMillis: Long): LocalDate = Instant.fromEpochMilliseconds(epochMillis).toLocalDateTime(TimeZone.currentSystemDefault()).date
