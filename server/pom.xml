@@ -74,7 +74,7 @@
         <exclusion><groupId>io.grpc</groupId><artifactId>grpc-googleapis</artifactId></exclusion>
         <exclusion><groupId>org.conscrypt</groupId><artifactId>conscrypt-openjdk-uber</artifactId></exclusion>
         <exclusion><groupId>com.google.cloud</groupId><artifactId>google-cloud-monitoring</artifactId></exclusion>
-        <exclusion><groupId>io.opentelemetry</groupId><artifactId>*</artifactId></exclusion>
+        <!-- the exporters go, but StorageOptions references io.opentelemetry.api.OpenTelemetry at class-load: keep the API -->
         <exclusion><groupId>io.opentelemetry.contrib</groupId><artifactId>*</artifactId></exclusion>
         <exclusion><groupId>io.opentelemetry.semconv</groupId><artifactId>*</artifactId></exclusion>
         <exclusion><groupId>com.google.cloud.opentelemetry</groupId><artifactId>*</artifactId></exclusion>

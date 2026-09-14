@@ -18,3 +18,4 @@ server/data/
 target/
 .firebaserc
 iosApp/build/
+firebase-debug.log

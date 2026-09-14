@@ -1,4 +1,5 @@
-output "cloud_run_url" { value = google_cloud_run_v2_service.api.uri }
+# deterministic form (same value PUBLIC_URL and the admin bundle use); .uri would return the legacy random-suffix host
+output "cloud_run_url" { value = "https://${google_cloud_run_v2_service.api.name}-${data.google_project.this.number}.${var.region}.run.app" }
 output "artifact_registry" { value = "${var.region}-docker.pkg.dev/${var.project_id}/homework-quest" }
 output "image" { value = "${var.region}-docker.pkg.dev/${var.project_id}/homework-quest/${local.service}" }
 output "wif_provider" { value = google_iam_workload_identity_pool_provider.github.name }
