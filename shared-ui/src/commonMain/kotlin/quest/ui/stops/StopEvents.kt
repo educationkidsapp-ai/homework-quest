@@ -9,6 +9,6 @@ sealed interface StopEvent {
     /** Single-answer stop answered wrongly: the player shows the hint sheet; the tile is already dimmed. */
     data class Wrong(val attempt: Int, val hint: String, val numberLine: NumberLine?) : StopEvent
     /** Info / multi / open / exit stop finished with the stars it earned. */
-    data class Completed(val stars: Int, val answer: String = "", val mistakes: Int = 0) : StopEvent
+    data class Completed(val stars: Int, val answer: String = "", val mistakes: Int = 0, val recording: ByteArray? = null, val drawing: String? = null) : StopEvent
     data class Speak(val text: String) : StopEvent
 }

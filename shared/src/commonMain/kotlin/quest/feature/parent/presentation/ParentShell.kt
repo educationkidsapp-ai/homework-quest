@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -70,11 +70,11 @@ fun ParentShell(title: (Strings) -> String, onBack: (() -> Unit)?, content: @Com
 
 @Composable
 private fun LanguageToggle(current: String, onChange: (String) -> Unit) {
-    Row(Modifier.border(1.dp, Palette.parentLine, RoundedCornerShape(50)).padding(3.dp).semantics { contentDescription = "Language" }) {
+    Row(Modifier.border(1.dp, Palette.parentLine, RectangleShape).padding(3.dp).semantics { contentDescription = "Language" }) {
         listOf("en" to "EN", "ar" to "ع").forEach { (code, label) ->
             val on = code == current
             Box(
-                Modifier.background(if (on) Palette.parentAccent else Color.Transparent, RoundedCornerShape(50))
+                Modifier.background(if (on) Palette.parentAccent else Color.Transparent, RectangleShape)
                     .clickable(role = Role.Button) { onChange(code) }.padding(horizontal = 12.dp, vertical = 6.dp),
             ) { Text(label, style = MaterialTheme.typography.labelLarge, color = if (on) Color.White else Palette.parentInkSoft) }
         }
@@ -84,7 +84,7 @@ private fun LanguageToggle(current: String, onChange: (String) -> Unit) {
 @Composable
 fun ParentCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Column(
-        modifier.fillMaxWidth().background(Palette.parentSurface, RoundedCornerShape(16.dp)).border(1.dp, Palette.parentLine, RoundedCornerShape(16.dp))
+        modifier.fillMaxWidth().background(Palette.parentSurface, RectangleShape).border(1.dp, Palette.parentLine, RectangleShape)
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .padding(Dimens.s16),
     ) { content() }
@@ -94,7 +94,7 @@ fun ParentCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, con
 fun ParentButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = true, enabled: Boolean = true, icon: String? = null) {
     Box(
         modifier.fillMaxWidth().heightIn(min = 52.dp).alpha(if (enabled) 1f else 0.5f)
-            .background(if (primary) Palette.parentAccent else Palette.parentAccentSoft, RoundedCornerShape(14.dp))
+            .background(if (primary) Palette.parentAccent else Palette.parentAccentSoft, RectangleShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = Dimens.s16, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -108,7 +108,7 @@ fun ParentButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifie
 @Composable
 fun Chip(text: String, color: Color, modifier: Modifier = Modifier, selected: Boolean = true, onClick: (() -> Unit)? = null) {
     Box(
-        modifier.background(if (selected) color else Color.Transparent, RoundedCornerShape(50)).border(1.dp, color, RoundedCornerShape(50))
+        modifier.background(if (selected) color else Color.Transparent, RectangleShape).border(1.dp, color, RectangleShape)
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) { Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.parentInk) }

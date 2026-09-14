@@ -57,7 +57,7 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
                 WorldMapRoute(
                     onOpenLesson = { id, level, variant -> nav.navigate(Routes.Journey(id, level, variant)) },
                     onStickers = { nav.navigate(Routes.StickerBook) }, onChest = { nav.navigate(Routes.TreasureChest) },
-                    onGrownUps = { nav.navigate(Routes.ParentPin) },
+                    onGrownUps = { nav.navigate(Routes.ParentPin()) },
                     onNeedsChild = { nav.navigate(Routes.AddChild()) { popUpTo(Routes.WorldMap) { inclusive = true } } },
                 )
             }
@@ -68,7 +68,7 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
                 JourneyRoute(r.lessonId, r.level, r.variant,
                     onOpenStop = { id, level, variant, index -> nav.navigate(Routes.StopPlayer(id, level, variant, index)) },
                     onComplete = { id, level, variant -> nav.navigate(Routes.LessonComplete(id, level, variant)) },
-                    onParentPanel = { nav.navigate(Routes.ParentPin) }, onBack = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } })
+                    onParentPanel = { nav.navigate(Routes.ParentPin(it)) }, onBack = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } })
             }
         }
         composable<Routes.StopPlayer> { entry ->

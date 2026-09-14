@@ -30,7 +30,9 @@ data class LevelProgress(val lessonId: String, val level: Int, val variant: Int,
 /** The child's own play data: stop and lesson completions, attempts (queued for upload), parent unlocks. */
 interface JourneyRepository {
     suspend fun progress(childId: String, lessonId: String, level: Int, variant: Int): LevelProgress
-    suspend fun recordStop(childId: String, lesson: PublishedLesson, play: Play, stopId: String, stars: Int, answer: String, correct: Boolean, attemptNumber: Int, mistakes: Int)
+    suspend fun recordStop(childId: String, lesson: PublishedLesson, play: Play, stopId: String, stars: Int, answer: String, correct: Boolean, attemptNumber: Int, mistakes: Int, recording: ByteArray? = null, drawing: String? = null)
+    /** Saved recordings / drawings for the parent panel. */
+    suspend fun media(childId: String, lessonId: String): List<StopMediaRecord>
     suspend fun recordWrongAttempt(childId: String, lesson: PublishedLesson, play: Play, stopId: String, answer: String, attemptNumber: Int)
     suspend fun completeLevel(childId: String, lesson: PublishedLesson, play: Play): LevelProgress
     suspend fun completions(childId: String): List<quest.api.dto.LessonCompletionInfo>
@@ -41,4 +43,4 @@ interface JourneyRepository {
     suspend fun progressReport(childId: String): ProgressResponse?
 }
 
-class PendingAttempts(val attempts: List<AttemptUpload>)
+data class StopMediaRecord(val stopId: String, val level: Int, val recordingPath: String?, val drawingPath: String?, val completedAt: Long)

@@ -209,3 +209,20 @@ object StopScoring {
     const val INFO = 3
     const val OPEN = 3
 }
+
+/** Pure logic behind the multi-answer stops, shared by the player and tests. */
+object MultiAnswerLogic {
+    data class Check(val right: List<String>, val wrong: List<String>)
+
+    /** Splits a Check press into right and wrong picks; already-lit picks are ignored by the caller. */
+    fun check(selected: Collection<String>, correctIds: Collection<String>): Check {
+        val right = selected.filter { it in correctIds }
+        return Check(right, selected.filter { it !in right })
+    }
+
+    /** Length of the leading run of correctly placed items (order stop). */
+    fun lockedPrefix(placed: List<String>, correctOrder: List<String>): Int = placed.zip(correctOrder).takeWhile { (a, b) -> a == b }.size
+
+    /** Exit ticket: average of the three question stars, never below one. */
+    fun exitTicketStars(stars: List<Int>): Int = if (stars.isEmpty()) 1 else stars.average().toInt().coerceAtLeast(1)
+}

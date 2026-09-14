@@ -1,6 +1,9 @@
 package quest.feature.journey.presentation
 
 import kotlinx.coroutines.delay
+import quest.api.ContentApi
+import quest.api.UploadFile
+import quest.api.dto.MediaKind
 import quest.api.dto.StopCategory
 import quest.api.dto.StopScoring
 import quest.api.map.MapAssembler
@@ -59,7 +62,7 @@ class JourneyViewModel(
 /** Plays the stops of one level in order; owns hint sheet, correct overlay and ingredient drop. */
 class StopPlayerViewModel(
     private val lessonId: String, private val level: Int, private val variant: Int, private val startIndex: Int,
-    private val lessons: LessonRepository, private val journey: JourneyRepository, private val children: ChildrenRepository,
+    private val lessons: LessonRepository, private val journey: JourneyRepository, private val children: ChildrenRepository, private val media: ContentApi,
 ) : MviViewModel<PlayerContract.State, PlayerContract.Intent, PlayerContract.Effect>(PlayerContract.State(index = startIndex)) {
 
     private var childId = ""
@@ -70,7 +73,7 @@ class StopPlayerViewModel(
             PlayerContract.Intent.Load -> load()
             is PlayerContract.Intent.Correct -> onCorrect(intent.attempt, intent.answer)
             is PlayerContract.Intent.Wrong -> onWrong(intent)
-            is PlayerContract.Intent.Completed -> onCompleted(intent.stars, intent.answer, intent.mistakes)
+            is PlayerContract.Intent.Completed -> onCompleted(intent.stars, intent.answer, intent.mistakes, intent.recording, intent.drawing)
             PlayerContract.Intent.TryAgain -> { reduce { copy(phase = PlayerContract.Phase.STOP) }; current.stop?.let { effect(PlayerContract.Effect.Speak(it.speak)) } }
             PlayerContract.Intent.Advance -> advance()
             PlayerContract.Intent.ReadAloud -> effect(PlayerContract.Effect.Speak(if (current.phase == PlayerContract.Phase.HINT) current.hint else current.stop?.speak ?: ""))
@@ -111,17 +114,19 @@ class StopPlayerViewModel(
         effect(PlayerContract.Effect.Speak(i.hint))
     }
 
-    private suspend fun onCompleted(stars: Int, answer: String, mistakes: Int) {
+    private suspend fun onCompleted(stars: Int, answer: String, mistakes: Int, recording: ByteArray?, drawing: String?) {
         val stop = current.stop ?: return
-        record(stop.id, stars, answer, true, 1, mistakes)
+        record(stop.id, stars, answer, true, 1, mistakes, recording, drawing)
+        if (recording != null) launch { runCatching { media.uploadStopMedia(childId, stop.id, UploadFile("${stop.id}.m4a", "audio/mp4", recording), MediaKind.RECORDING) } }
+        if (drawing != null) launch { runCatching { media.uploadStopMedia(childId, stop.id, UploadFile("${stop.id}.json", "application/json", drawing.encodeToByteArray()), MediaKind.DRAWING) } }
         reduce { copy(phase = PlayerContract.Phase.INGREDIENT, lastIngredient = stop.ingredient) }
         effect(PlayerContract.Effect.Speak("${stop.ingredient.name} goes in the pot!"))
         launch { delay(1400); dispatch(PlayerContract.Intent.Advance) }
     }
 
-    private suspend fun record(stopId: String, stars: Int, answer: String, correct: Boolean, attempt: Int, mistakes: Int) {
+    private suspend fun record(stopId: String, stars: Int, answer: String, correct: Boolean, attempt: Int, mistakes: Int, recording: ByteArray? = null, drawing: String? = null) {
         val lesson = current.lesson ?: return; val play = current.play ?: return
-        journey.recordStop(childId, lesson, play, stopId, stars, answer, correct, attempt, mistakes)
+        journey.recordStop(childId, lesson, play, stopId, stars, answer, correct, attempt, mistakes, recording, drawing)
         reduce { copy(stopStars = stopStars + (stopId to stars)) }
     }
 

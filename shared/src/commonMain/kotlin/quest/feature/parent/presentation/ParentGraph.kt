@@ -9,14 +9,19 @@ import quest.feature.children.presentation.AddChildRoute
 
 /** Parent-mode graph (behind the PIN). Nothing here is reachable from child screens except the PIN entry. */
 fun NavGraphBuilder.parentGraph(nav: NavHostController) {
-    fun exitToChild() { nav.popBackStack(Routes.ParentHome, inclusive = true) }
-    composable<Routes.ParentPin> { PinRoute(onUnlocked = { nav.navigate(Routes.ParentHome) { popUpTo(Routes.ParentPin) { inclusive = true } } }, onBack = { nav.popBackStack() }) }
+    composable<Routes.ParentPin> { entry ->
+        val lessonId = entry.toRoute<Routes.ParentPin>().lessonId
+        PinRoute(onUnlocked = {
+            val target: Any = if (lessonId != null) Routes.LessonPanel(lessonId) else Routes.ParentHome
+            nav.navigate(target) { popUpTo<Routes.ParentPin> { inclusive = true } }
+        }, onBack = { nav.popBackStack() })
+    }
     composable<Routes.ParentHome> {
         ParentHomeRoute(
             onAddChild = { nav.navigate(Routes.AddChild()) }, onEditChild = { nav.navigate(Routes.AddChild(it)) },
             onCalendar = { nav.navigate(Routes.Calendar) }, onProgress = { nav.navigate(Routes.Progress) }, onSettings = { nav.navigate(Routes.Settings) },
             onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) },
-            onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } }, onExit = ::exitToChild,
+            onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } }, onExit = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } },
         )
     }
     composable<Routes.Calendar> { CalendarRoute(onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) }, onBack = { nav.popBackStack() }) }

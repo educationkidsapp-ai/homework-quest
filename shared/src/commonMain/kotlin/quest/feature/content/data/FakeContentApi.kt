@@ -72,11 +72,12 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         val child = mutex.withLock { children.values.flatten().firstOrNull { it.id == childId } } ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "child"))
         val completions = completions(childId)
         val weak = weakSkills(childId)
+        // One review island per weak lesson (its Level-1 variant); attempts are recorded per stop, so bands are per lesson skill set.
         val review = weak.mapNotNull { (skillId, name) ->
             val lesson = Seeds.lessons.firstOrNull { l -> l.skills.any { it.id == skillId } } ?: return@mapNotNull null
             if (completions.any { it.lessonId == lesson.id && it.level == 1 && it.variant == 1 }) return@mapNotNull null
             MapAssembler.ReviewCandidate(skillId, name, lesson.id, "${lesson.id}:1:1")
-        }
+        }.distinctBy { it.lessonId }
         return MapAssembler.assemble(child, Seeds.summaries, completions.map { LessonCompletionInfo(it.lessonId, it.level, it.stars, it.total, it.mostTwo) }, review, emptyMap(), from, to, Today.date())
     }
 

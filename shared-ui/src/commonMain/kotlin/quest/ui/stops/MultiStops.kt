@@ -22,6 +22,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -64,7 +66,7 @@ private fun PickTiles(id: String, prompt: String, options: List<Tile>, correctId
             selected = if (tid in selected) selected - tid else if (remaining == null || selected.size < remaining) selected + tid else selected
         })
         CheckButton(enabled = selected.isNotEmpty() && !done) {
-            val right = selected.filter { it in correctIds }; val wrong = selected - right.toSet()
+            val (right, wrong) = quest.api.dto.MultiAnswerLogic.check(selected, correctIds)
             lit = lit + right; dimmed = dimmed + wrong; mistakes += wrong.size; selected = emptySet()
             if (wrong.isNotEmpty()) onEvent(StopEvent.Speak(if (right.isNotEmpty()) "Some are right! Keep going." else "Not those. Try again!"))
             if (lit.containsAll(correctIds)) { done = true; onEvent(StopEvent.Completed(StopScoring.byMistakes(mistakes), answer = lit.joinToString(","), mistakes = mistakes)) }
@@ -157,7 +159,7 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
         }
         CheckButton(enabled = placed.size == stop.correctOrder.size && !done) {
             attempts += 1
-            val prefix = placed.zip(stop.correctOrder).takeWhile { (a, b) -> a == b }.size
+            val prefix = quest.api.dto.MultiAnswerLogic.lockedPrefix(placed, stop.correctOrder)
             if (prefix == stop.correctOrder.size) { locked = prefix; done = true; onEvent(StopEvent.Completed(StopScoring.byAttempts(attempts), answer = placed.joinToString(","), mistakes = attempts - 1)) }
             else { locked = prefix; placed = placed.take(prefix); onEvent(StopEvent.Speak("Almost! The first $prefix are right. Try the rest again.")) }
         }
@@ -174,10 +176,11 @@ fun TraceStop(stop: Stop.Trace, onEvent: (StopEvent) -> Unit, modifier: Modifier
     }
 }
 
-/** Retell: the child taps each cue picture as they tell the story. Audio recording arrives in Phase 2. */
+/** Retell: the child taps each cue picture as they tell the story, optionally recording audio for the parent. */
 @Composable
 fun RetellStop(stop: Stop.Retell, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
     var told by rememberSaveable(stop.id) { mutableStateOf(setOf<String>()) }
+    val recorder = RecorderState(stop.id, enabled = stop.record)
     Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Dimens.s12)) {
         PromptText(stop.prompt)
         stop.cues.forEach { cue ->
@@ -188,18 +191,43 @@ fun RetellStop(stop: Stop.Retell, onEvent: (StopEvent) -> Unit, modifier: Modifi
                 }
             }
         }
-        DoneButton(text = "I told it!", enabled = told.size == stop.cues.size) { onEvent(StopEvent.Completed(StopScoring.OPEN, answer = "retold")) }
+        RecorderControls(recorder)
+        DoneButton(text = "I told it!", enabled = told.size == stop.cues.size && !recorder.recording) { onEvent(StopEvent.Completed(StopScoring.OPEN, answer = "retold", recording = recorder.bytes)) }
     }
 }
 
-/** Open answer: the child answers aloud (drawing canvas arrives in Phase 2). No wrong state. */
+/** Open answer: speak (recorded), draw, or both. No wrong state; Pip celebrates the attempt. */
 @Composable
 fun OpenAnswerStop(stop: Stop.OpenAnswer, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Dimens.s16)) {
+    val recorder = RecorderState(stop.id, enabled = stop.mode != "draw")
+    var drawing by rememberSaveable(stop.id) { mutableStateOf<String?>(null) }
+    Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Dimens.s12)) {
         PromptText(stop.prompt)
-        Text("🗣️", fontSize = 72.sp)
-        Text("Say your idea out loud to a grown-up.", style = MaterialTheme.typography.bodyLarge, color = Palette.inkSoft, textAlign = TextAlign.Center)
-        DoneButton(text = "I said it!") { onEvent(StopEvent.Completed(StopScoring.OPEN, answer = "spoken")) }
+        if (stop.mode != "draw") { Text("🗣️", fontSize = 56.sp); Text("Say your idea out loud.", style = MaterialTheme.typography.bodyLarge, color = Palette.inkSoft, textAlign = TextAlign.Center); RecorderControls(recorder) }
+        if (stop.mode != "speak") DrawingCanvas(onChange = { drawing = it })
+        DoneButton(text = "I'm done!", enabled = !recorder.recording) { onEvent(StopEvent.Completed(StopScoring.OPEN, answer = if (drawing != null) "drawn" else "spoken", recording = recorder.bytes, drawing = drawing)) }
+    }
+}
+
+class RecorderHandle(val recording: Boolean, val bytes: ByteArray?, val available: Boolean, val toggle: () -> Unit, val play: () -> Unit)
+
+@Composable
+private fun RecorderState(key: String, enabled: Boolean): RecorderHandle {
+    val media = LocalStopMedia.current
+    var recording by rememberSaveable(key) { mutableStateOf(false) }
+    var bytes by remember(key) { mutableStateOf<ByteArray?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    return RecorderHandle(recording, bytes, enabled && media.canRecord,
+        toggle = { scope.launch { if (recording) { bytes = media.stopRecording(); recording = false } else if (media.startRecording()) recording = true } },
+        play = { bytes?.let { b -> scope.launch { media.play(b) } } })
+}
+
+@Composable
+private fun RecorderControls(r: RecorderHandle) {
+    if (!r.available) return
+    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s12)) {
+        BigButton(if (r.recording) "Stop" else if (r.bytes == null) "Record" else "Record again", onClick = r.toggle, modifier = Modifier.width(170.dp), color = if (r.recording) Palette.coral else Palette.lavender, emoji = if (r.recording) "⏹️" else "🎙️", compact = true)
+        if (r.bytes != null && !r.recording) BigButton("Play", onClick = r.play, modifier = Modifier.width(130.dp), color = Palette.cream, emoji = "▶️", compact = true)
     }
 }
 
@@ -215,8 +243,8 @@ fun ExitTicketStop(stop: Stop.ExitTicket, onEvent: (StopEvent) -> Unit, modifier
         }
         StopContent(q, onEvent = { e ->
             when (e) {
-                is StopEvent.Correct -> { val s = stars + StopScoring.singleAnswer(e.attempt); stars = s; onEvent(e); if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(s.average().toInt().coerceAtLeast(1))) else index += 1 }
-                is StopEvent.Completed -> { val s = stars + e.stars; stars = s; if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(s.average().toInt().coerceAtLeast(1))) else { index += 1; onEvent(StopEvent.Speak(stop.questions[index].speak)) } }
+                is StopEvent.Correct -> { val s = stars + StopScoring.singleAnswer(e.attempt); stars = s; onEvent(e); if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(quest.api.dto.MultiAnswerLogic.exitTicketStars(s))) else index += 1 }
+                is StopEvent.Completed -> { val s = stars + e.stars; stars = s; if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(quest.api.dto.MultiAnswerLogic.exitTicketStars(s))) else { index += 1; onEvent(StopEvent.Speak(stop.questions[index].speak)) } }
                 else -> onEvent(e)
             }
         })

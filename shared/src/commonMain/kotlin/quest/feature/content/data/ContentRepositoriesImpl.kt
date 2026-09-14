@@ -22,6 +22,8 @@ import quest.feature.content.domain.JourneyRepository
 import quest.feature.content.domain.LessonRepository
 import quest.feature.content.domain.LevelProgress
 import quest.feature.content.domain.MapRepository
+import quest.feature.content.domain.StopMediaRecord
+import quest.core.platform.MediaFiles
 
 class LessonRepositoryImpl(private val api: ContentApi, private val db: Db) : LessonRepository {
     private val json = SchemaValidator.json
@@ -79,12 +81,20 @@ class JourneyRepositoryImpl(private val api: ContentApi, private val db: Db) : J
         LevelProgress(lessonId, level, variant, stops, done?.completedAt)
     }
 
-    override suspend fun recordStop(childId: String, lesson: PublishedLesson, play: Play, stopId: String, stars: Int, answer: String, correct: Boolean, attemptNumber: Int, mistakes: Int) {
+    override suspend fun recordStop(childId: String, lesson: PublishedLesson, play: Play, stopId: String, stars: Int, answer: String, correct: Boolean, attemptNumber: Int, mistakes: Int, recording: ByteArray?, drawing: String?) {
         val now = Today.epochMillis()
+        val recordingPath = recording?.let { MediaFiles.save("$childId-$stopId-$now.m4a", it) }
+        val drawingPath = drawing?.let { MediaFiles.save("$childId-$stopId-$now.json", it.encodeToByteArray()) }
         db.write {
-            upsertStopCompletion(childId, lesson.id, play.level.toLong(), play.variant.toLong(), stopId, stars.toLong(), now, null, null)
+            upsertStopCompletion(childId, lesson.id, play.level.toLong(), play.variant.toLong(), stopId, stars.toLong(), now, recordingPath, drawingPath)
             insertAttempt(Ids.random(), childId, stopId, lesson.id, play.level.toLong(), lesson.skills.joinToString(",") { it.id }, answer, if (correct) 1 else 0, attemptNumber.toLong(), mistakes.toLong(), stars.toLong(), now)
         }
+    }
+
+    override suspend fun media(childId: String, lessonId: String): List<StopMediaRecord> = db.read {
+        (1..3).flatMap { level -> selectStopCompletions(childId, lessonId, level.toLong(), 0).executeAsList() }
+            .filter { it.recordingPath != null || it.drawingPath != null }
+            .map { StopMediaRecord(it.stopId, it.level.toInt(), it.recordingPath, it.drawingPath, it.completedAt) }
     }
 
     override suspend fun recordWrongAttempt(childId: String, lesson: PublishedLesson, play: Play, stopId: String, answer: String, attemptNumber: Int) {

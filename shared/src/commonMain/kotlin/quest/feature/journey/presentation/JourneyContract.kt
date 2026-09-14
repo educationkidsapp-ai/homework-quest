@@ -45,7 +45,7 @@ object PlayerContract {
         data object Load : Intent
         data class Correct(val attempt: Int, val answer: String) : Intent
         data class Wrong(val attempt: Int, val hint: String, val numberLine: NumberLine?, val answer: String) : Intent
-        data class Completed(val stars: Int, val answer: String, val mistakes: Int) : Intent
+        data class Completed(val stars: Int, val answer: String, val mistakes: Int, val recording: ByteArray? = null, val drawing: String? = null) : Intent
         data object TryAgain : Intent
         data object Advance : Intent
         data object ReadAloud : Intent

@@ -59,6 +59,8 @@ import quest.ui.design.SpeechBubble
 import quest.ui.journey.PotView
 import quest.ui.stops.StopContent
 import quest.ui.stops.StopEvent
+import quest.ui.stops.LocalStopMedia
+import quest.core.platform.rememberStopMedia
 
 @Composable
 fun StopPlayerRoute(lessonId: String, level: Int, variant: Int, index: Int, onFinished: (String, Int, Int) -> Unit, onBack: () -> Unit) {
@@ -74,7 +76,8 @@ fun StopPlayerRoute(lessonId: String, level: Int, variant: Int, index: Int, onFi
             }
         }
     }
-    StopPlayerScreen(state, vm::dispatch, onBack)
+    val media = rememberStopMedia()
+    androidx.compose.runtime.CompositionLocalProvider(LocalStopMedia provides media) { StopPlayerScreen(state, vm::dispatch, onBack) }
 }
 
 @Composable
@@ -123,7 +126,7 @@ private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
                 when (e) {
                     is StopEvent.Correct -> dispatch(Intent.Correct(e.attempt, e.answer))
                     is StopEvent.Wrong -> dispatch(Intent.Wrong(e.attempt, e.hint, e.numberLine, ""))
-                    is StopEvent.Completed -> dispatch(Intent.Completed(e.stars, e.answer, e.mistakes))
+                    is StopEvent.Completed -> dispatch(Intent.Completed(e.stars, e.answer, e.mistakes, e.recording, e.drawing))
                     is StopEvent.Speak -> dispatch(Intent.Speak(e.text))
                 }
             }, childName = state.childName)

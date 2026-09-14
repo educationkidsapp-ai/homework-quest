@@ -17,7 +17,7 @@ object Routes {
     @Serializable object TreasureChest
 
     // parent mode
-    @Serializable object ParentPin
+    @Serializable data class ParentPin(val lessonId: String? = null)
     @Serializable object ParentHome
     @Serializable object Calendar
     @Serializable object Progress

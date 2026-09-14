@@ -47,6 +47,6 @@ class AndroidSpeaker(context: Context) : Speaker {
 }
 
 actual fun platformModule(): Module = module {
-    single { DriverFactory(androidContext()) }
+    single { DriverFactory(androidContext().also { initMediaFiles(it) }) }
     single<Speaker> { AndroidSpeaker(androidContext()) }
 }
