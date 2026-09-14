@@ -37,25 +37,15 @@ variable "cloud_run_min_instances" {
   default = 0
 }
 
-# Secret *values* never live in tfvars. They come from GitHub Actions secrets (TF_VAR_...) or your shell at bootstrap.
-variable "deepseek_api_key" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-variable "anthropic_api_key" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-variable "admin_password" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-variable "firebase_credentials_json" {
-  description = "Service-account JSON the server uses to verify parents' Firebase ID tokens (empty keeps the previous version)"
-  type        = string
-  sensitive   = true
-  default     = ""
+# Secret *values* never live in tfvars or in the Terraform state: infra/bootstrap.sh and the deploy workflow add
+# them to Secret Manager with `gcloud secrets versions add`. Optional secrets are wired into Cloud Run only once
+# they exist — list them here after providing a value.
+variable "optional_secrets" {
+  description = "Optional secrets (ANTHROPIC_API_KEY, FIREBASE_CREDENTIALS) that have a version and should reach the server"
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = alltrue([for s in var.optional_secrets : contains(["ANTHROPIC_API_KEY", "FIREBASE_CREDENTIALS"], s)])
+    error_message = "optional_secrets may only contain ANTHROPIC_API_KEY and FIREBASE_CREDENTIALS"
+  }
 }

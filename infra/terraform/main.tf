@@ -7,6 +7,7 @@ locals {
     "run.googleapis.com", "sqladmin.googleapis.com", "storage.googleapis.com", "secretmanager.googleapis.com",
     "artifactregistry.googleapis.com", "iam.googleapis.com", "iamcredentials.googleapis.com", "sts.googleapis.com",
     "cloudresourcemanager.googleapis.com", "firebase.googleapis.com", "firebasehosting.googleapis.com", "identitytoolkit.googleapis.com",
+    "firebaseappdistribution.googleapis.com",
   ]
 }
 
@@ -93,24 +94,27 @@ resource "google_storage_bucket" "files" {
 }
 
 # ---------------------------------------------------------------- secrets
+# Terraform owns the secret *containers* and the two values it generates. User-supplied values (LLM keys, admin
+# password, optional Firebase JSON) are added as versions by infra/bootstrap.sh and the deploy workflow with
+# `gcloud secrets versions add` (only when the value changed), so they never sit in the Terraform state.
 resource "random_password" "jwt" {
   length  = 48
   special = false
 }
 
 locals {
-  secrets = {
-    DB_PASSWORD          = random_password.db.result
-    ADMIN_JWT_SECRET     = random_password.jwt.result
-    DEEPSEEK_API_KEY     = var.deepseek_api_key
-    ANTHROPIC_API_KEY    = var.anthropic_api_key
-    ADMIN_PASSWORD       = var.admin_password
-    FIREBASE_CREDENTIALS = var.firebase_credentials_json
+  generated_secrets = {
+    DB_PASSWORD      = random_password.db.result
+    ADMIN_JWT_SECRET = random_password.jwt.result
   }
+  required_secrets = ["DB_PASSWORD", "ADMIN_JWT_SECRET", "DEEPSEEK_API_KEY", "ADMIN_PASSWORD"]
+  optional_secrets = ["ANTHROPIC_API_KEY", "FIREBASE_CREDENTIALS"]
+  # wired into Cloud Run: the required ones always, an optional one once its value has been provided (var.optional_secrets)
+  runtime_secrets = concat(local.required_secrets, var.optional_secrets)
 }
 
 resource "google_secret_manager_secret" "s" {
-  for_each  = local.secrets
+  for_each  = toset(concat(local.required_secrets, local.optional_secrets))
   secret_id = each.key
   replication {
     auto {}
@@ -118,23 +122,10 @@ resource "google_secret_manager_secret" "s" {
   depends_on = [google_project_service.apis]
 }
 
-# An empty value means "keep whatever version exists" (CI passes only the secrets it owns).
-# Keys are listed explicitly: for_each may not derive from sensitive values.
-locals {
-  secret_present = {
-    DB_PASSWORD          = true
-    ADMIN_JWT_SECRET     = true
-    DEEPSEEK_API_KEY     = nonsensitive(var.deepseek_api_key != "")
-    ANTHROPIC_API_KEY    = nonsensitive(var.anthropic_api_key != "")
-    ADMIN_PASSWORD       = nonsensitive(var.admin_password != "")
-    FIREBASE_CREDENTIALS = nonsensitive(var.firebase_credentials_json != "")
-  }
-}
-
-resource "google_secret_manager_secret_version" "v" {
-  for_each    = { for k, present in local.secret_present : k => k if present }
+resource "google_secret_manager_secret_version" "generated" {
+  for_each    = local.generated_secrets
   secret      = google_secret_manager_secret.s[each.key].id
-  secret_data = local.secrets[each.key]
+  secret_data = each.value
 }
 
 # ---------------------------------------------------------------- runtime service account
@@ -250,10 +241,8 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "PUBLIC_URL"
         value = "https://${local.service}-${data.google_project.this.number}.${var.region}.run.app"
       }
-      # only secrets that have a version are wired in — a missing optional one (ANTHROPIC_API_KEY, FIREBASE_CREDENTIALS)
-      # must not stop the revision from starting
       dynamic "env" {
-        for_each = google_secret_manager_secret_version.v
+        for_each = toset(local.runtime_secrets)
         content {
           name = env.key
           value_source {
@@ -269,9 +258,9 @@ resource "google_cloud_run_v2_service" "api" {
 
   lifecycle {
     # the deploy workflows own the running image and the traffic split
-    ignore_changes = [template[0].containers[0].image, traffic, client, client_version, template[0].labels, template[0].annotations]
+    ignore_changes = [template[0].containers[0].image, traffic, client, client_version, template[0].labels, template[0].annotations, scaling]
   }
-  depends_on = [google_secret_manager_secret_version.v, google_secret_manager_secret_iam_member.runtime_secrets]
+  depends_on = [google_secret_manager_secret_version.generated, google_secret_manager_secret_iam_member.runtime_secrets]
 }
 
 data "google_project" "this" {}
@@ -322,6 +311,7 @@ resource "google_project_iam_member" "deployer" {
   for_each = toset([
     "roles/run.admin", "roles/artifactregistry.writer", "roles/iam.serviceAccountUser",
     "roles/secretmanager.admin", "roles/cloudsql.client", "roles/firebasehosting.admin", "roles/storage.objectViewer",
+    "roles/firebaseappdistro.admin", # QA APK → App Distribution
   ])
   project = var.project_id
   role    = each.key

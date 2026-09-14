@@ -2,7 +2,7 @@
 # Phase 0 / one-time per environment: state bucket → terraform apply → GitHub environment secrets & variables via gh.
 # Runs with YOUR gcloud credentials (application-default); afterwards GitHub Actions deploys through Workload Identity.
 #
-#   export DEEPSEEK_API_KEY=sk-... ADMIN_PASSWORD=... FIREBASE_CREDENTIALS=/path/to/service-account.json   # never committed
+#   export DEEPSEEK_API_KEY=sk-... ADMIN_PASSWORD=...          # never committed; FIREBASE_CREDENTIALS / ANTHROPIC_API_KEY optional
 #   infra/bootstrap.sh qa        # project homework-quest-qa   ← develop
 #   infra/bootstrap.sh prod      # project homework-quest-prod ← main
 set -euo pipefail
@@ -20,11 +20,13 @@ gcloud services enable storage.googleapis.com cloudresourcemanager.googleapis.co
 gcloud storage buckets describe "gs://$STATE" >/dev/null 2>&1 || gcloud storage buckets create "gs://$STATE" --location "$REGION" --uniform-bucket-level-access
 gcloud storage buckets update "gs://$STATE" --versioning >/dev/null
 
-echo "▸ terraform apply"
+echo "▸ terraform: secret containers first, then your values, then everything else"
 terraform init -reconfigure -backend-config="envs/$ENV.backend" >/dev/null
-FIREBASE_JSON=""; [ -n "${FIREBASE_CREDENTIALS:-}" ] && [ -f "$FIREBASE_CREDENTIALS" ] && FIREBASE_JSON=$(cat "$FIREBASE_CREDENTIALS")
-TF_VAR_deepseek_api_key="${DEEPSEEK_API_KEY:-}" TF_VAR_anthropic_api_key="${ANTHROPIC_API_KEY:-}" TF_VAR_admin_password="${ADMIN_PASSWORD:-}" TF_VAR_firebase_credentials_json="$FIREBASE_JSON" \
-  terraform apply -var-file="envs/$ENV.tfvars" -auto-approve
+terraform apply -var-file="envs/$ENV.tfvars" -auto-approve -target=google_secret_manager_secret.s >/dev/null
+OPTIONAL=$(../secrets.sh "$PROJECT" | paste -sd, -)
+[ -n "${DEEPSEEK_API_KEY:-}" ] || gcloud secrets versions access latest --secret DEEPSEEK_API_KEY --project "$PROJECT" >/dev/null 2>&1 || { echo "export DEEPSEEK_API_KEY first (Cloud Run needs it)"; exit 1; }
+[ -n "${ADMIN_PASSWORD:-}" ]   || gcloud secrets versions access latest --secret ADMIN_PASSWORD   --project "$PROJECT" >/dev/null 2>&1 || { echo "export ADMIN_PASSWORD first (admin sign-in needs it)"; exit 1; }
+terraform apply -var-file="envs/$ENV.tfvars" -auto-approve -var="optional_secrets=[$(echo "$OPTIONAL" | sed 's/[^,]*/"&"/g' | sed 's/""//')]"
 
 echo "▸ GitHub: variables + secrets for environment $GH_ENV (values go straight from terraform/env to gh, never printed)"
 gh variable set GCP_PROJECT_ID     --env "$GH_ENV" --repo "$REPO" --body "$PROJECT"
@@ -41,7 +43,7 @@ if [ "$ENV" = qa ]; then   # production promotes QA's image: it needs read acces
 fi
 [ -n "${DEEPSEEK_API_KEY:-}" ] && gh secret set DEEPSEEK_API_KEY --env "$GH_ENV" --repo "$REPO" --body "$DEEPSEEK_API_KEY"
 [ -n "${ADMIN_PASSWORD:-}" ]   && gh secret set ADMIN_PASSWORD   --env "$GH_ENV" --repo "$REPO" --body "$ADMIN_PASSWORD"
-[ -n "$FIREBASE_JSON" ]        && gh secret set FIREBASE_CREDENTIALS --env "$GH_ENV" --repo "$REPO" --body "$FIREBASE_JSON"
+if [ -n "${FIREBASE_CREDENTIALS:-}" ]; then FJ="$FIREBASE_CREDENTIALS"; [ -f "$FJ" ] && FJ=$(cat "$FJ"); gh secret set FIREBASE_CREDENTIALS --env "$GH_ENV" --repo "$REPO" --body "$FJ"; fi
 [ -n "${FIREBASE_TOKEN:-}" ]   && gh secret set FIREBASE_TOKEN --repo "$REPO" --body "$FIREBASE_TOKEN"
 for s in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
   [ -n "${!s:-}" ] && gh secret set "$s" --repo "$REPO" --body "${!s}"

@@ -3,3 +3,5 @@ BUNDLE_ID=app.homeworkquest
 APP_NAME=Homework Quest
 // Leave empty to use the in-app FakeLessonApi; set to the Cloud Run URL for release builds.
 API_BASE_URL=
+// Firebase Web API key of the same environment (public client id; from GoogleService-Info.plist API_KEY). Empty keeps FakeAuth.
+FIREBASE_API_KEY=

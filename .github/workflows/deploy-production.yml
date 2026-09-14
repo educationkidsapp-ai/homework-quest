@@ -85,14 +85,18 @@ jobs:
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
       - uses: hashicorp/setup-terraform@v3
         with: { terraform_wrapper: false }
-      - working-directory: infra/terraform
+      - name: Terraform (secret containers → your values via gcloud → everything else)
+        working-directory: infra/terraform
         env:
-          TF_VAR_deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-          TF_VAR_admin_password: ${{ secrets.ADMIN_PASSWORD }}
-          TF_VAR_firebase_credentials_json: ${{ secrets.FIREBASE_CREDENTIALS }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
         run: |
           terraform init -backend-config=envs/prod.backend -input=false
-          terraform apply -var-file=envs/prod.tfvars -auto-approve -input=false
+          terraform apply -var-file=envs/prod.tfvars -auto-approve -input=false -target=google_secret_manager_secret.s
+          optional=$(../secrets.sh "${{ vars.GCP_PROJECT_ID }}" | paste -sd, - | sed 's/[^,]*/"&"/g; s/""//')
+          terraform apply -var-file=envs/prod.tfvars -auto-approve -input=false -var="optional_secrets=[$optional]"
 
   canary:
     name: Canary (no traffic) → smoke test → 100 %
@@ -114,7 +118,7 @@ jobs:
         run: |
           gcloud run deploy homework-quest-api --region "${{ vars.GCP_REGION }}" \
             --image "${{ vars.IMAGE }}@${{ needs.promote.outputs.digest }}" \
-            --update-env-vars "APP_VERSION=${SHA:0:7}" --no-traffic --tag canary --quiet
+            --no-traffic --tag canary --quiet
           echo "url=$(gcloud run services describe homework-quest-api --region ${{ vars.GCP_REGION }} --format 'value(status.traffic.url)' | tr ';' '\n' | grep canary | head -1)" >> "$GITHUB_OUTPUT"
           echo "revision=$(gcloud run services describe homework-quest-api --region ${{ vars.GCP_REGION }} --format 'value(status.latestCreatedRevisionName)')" >> "$GITHUB_OUTPUT"
         env:
@@ -150,7 +154,7 @@ jobs:
           region: ${{ vars.GCP_REGION }}
           wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
-      - run: npx --yes firebase-tools@14 deploy --only hosting --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
+      - run: npx --yes firebase-tools@14 deploy --only hosting:admin --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
 
   release:
     name: Production APK + GitHub release

@@ -69,7 +69,7 @@ cp .env.example .env                          # DEEPSEEK_API_KEY=sk-…  (LLM_PR
 ./server/run-local.sh                         # http://localhost:8080 — admin@quest.local / admin1234, FAKE_AUTH (Bearer fake-token-<uid>)
 ```
 
-App against it from the emulator: `./gradlew :androidApp:installDebug -Pquest.useFakeApi=false -Pquest.apiBaseUrl=http://10.0.2.2:8080`
+App against it from the emulator: `./gradlew :androidApp:installQaDebug -Pquest.apiBaseUrl=http://10.0.2.2:8080`
 
 ### Server + PostgreSQL (Docker)
 

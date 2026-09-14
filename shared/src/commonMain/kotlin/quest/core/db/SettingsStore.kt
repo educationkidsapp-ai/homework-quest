@@ -36,5 +36,6 @@ class SettingsStore(private val db: Db) {
         const val KEY_CURRENT_CHILD = "currentChild"
         const val KEY_PIN_HASH = "pinHash"
         const val KEY_FAKE_UID = "fakeAuthUid"
+        const val KEY_FIREBASE_SESSION = "firebaseSession" // refreshToken|uid|email
     }
 }
