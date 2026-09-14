@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
+
 package quest.core.platform
 
 import androidx.compose.runtime.Composable
@@ -18,6 +20,7 @@ import platform.AVFAudio.AVSampleRateKey
 import platform.AVFAudio.setActive
 import platform.CoreAudioTypes.kAudioFormatMPEG4AAC
 import platform.Foundation.NSData
+import platform.Foundation.timeIntervalSince1970
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
@@ -66,7 +69,7 @@ actual fun rememberStopMedia(): StopMedia = remember {
             if (!permission()) return false
             val session = AVAudioSession.sharedInstance()
             session.setCategory(AVAudioSessionCategoryPlayAndRecord, null); session.setActive(true, null)
-            path = NSTemporaryDirectory() + "retell-${platform.Foundation.NSDate().timeIntervalSince1970.toLong()}.m4a"
+            path = NSTemporaryDirectory() + "retell-${(platform.Foundation.NSDate().timeIntervalSince1970 * 1000).toLong()}.m4a"
             val settings = mapOf<Any?, Any?>(AVFormatIDKey to kAudioFormatMPEG4AAC, AVSampleRateKey to 44100.0, AVNumberOfChannelsKey to 1, AVEncoderAudioQualityKey to 64)
             val r = AVAudioRecorder(NSURL.fileURLWithPath(path), settings, null)
             recorder = r

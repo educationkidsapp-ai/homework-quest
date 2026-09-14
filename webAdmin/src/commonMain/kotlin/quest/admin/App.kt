@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import quest.admin.resources.Res
 import quest.admin.resources.notocoloremoji
+import quest.ui.resources.ibmplexsansarabic_regular
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.savedstate.read
@@ -41,7 +42,7 @@ private fun EmojiFallback(content: @Composable () -> Unit) {
     val arabic by org.jetbrains.compose.resources.preloadFont(quest.ui.resources.Res.font.ibmplexsansarabic_regular)
     val resolver = androidx.compose.ui.platform.LocalFontFamilyResolver.current
     var ready by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    LaunchedEffect(emoji, arabic) { val e = emoji; val a = arabic; if (e != null && a != null) { resolver.preload(androidx.compose.ui.text.font.FontFamily(listOf(a, e))); ready = true } }
+    LaunchedEffect(emoji, arabic) { val e = emoji; val a = arabic; if (e != null && a != null) { resolver.preload(androidx.compose.ui.text.font.FontFamily(e)); resolver.preload(androidx.compose.ui.text.font.FontFamily(a)); ready = true } }
     if (ready) content()
 }
 
