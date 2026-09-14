@@ -14,7 +14,7 @@ server/uploads/
 captures/
 .kotlin/
 server/data/
-data/
+/data/
 target/
 .firebaserc
 iosApp/build/
