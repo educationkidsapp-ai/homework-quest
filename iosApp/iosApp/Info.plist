@@ -12,9 +12,9 @@
 	<key>CFBundleShortVersionString</key><string>0.1.0</string>
 	<key>CFBundleVersion</key><string>1</string>
 	<key>LSRequiresIPhoneOS</key><true/>
+	<key>CADisableMinimumFrameDurationOnPhone</key><true/>
+	<key>NSMicrophoneUsageDescription</key><string>Record your child retelling the story.</string>
 	<key>API_BASE_URL</key><string>$(API_BASE_URL)</string>
-	<key>NSCameraUsageDescription</key><string>Take a photo of today's worksheet or slides.</string>
-	<key>NSPhotoLibraryUsageDescription</key><string>Choose photos of today's slides.</string>
 	<key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 	<key>UILaunchScreen</key><dict/>
 	<key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
