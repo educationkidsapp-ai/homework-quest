@@ -17,3 +17,4 @@ server/data/
 data/
 target/
 .firebaserc
+iosApp/build/

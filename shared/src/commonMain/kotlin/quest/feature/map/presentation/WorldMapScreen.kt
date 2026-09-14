@@ -135,8 +135,10 @@ private fun IslandList(state: State, dispatch: (Intent) -> Unit) {
 
 @Composable
 private fun IslandView(island: Island, onClick: () -> Unit) {
-    val transition = rememberInfiniteTransition(label = "glow")
-    val glow by transition.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse), label = "scale")
+    val glow = if (quest.ui.design.Motion.reduced) 1f else {
+        val transition = rememberInfiniteTransition(label = "glow")
+        transition.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse), label = "scale").value
+    }
     val today = island.state == IslandState.TODAY
     val ground = when {
         island.kind == IslandKind.LOCKED -> Palette.night

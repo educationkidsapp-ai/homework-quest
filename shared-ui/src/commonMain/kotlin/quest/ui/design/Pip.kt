@@ -37,6 +37,7 @@ enum class PipPose { IDLE, WAVING, THINKING, CELEBRATING, SLEEPING }
  */
 @Composable
 fun Pip(pose: PipPose, size: Dp = Dimens.pipMedium, modifier: Modifier = Modifier, animated: Boolean = true, color: String = "sky") {
+    if (Motion.reduced || !animated) { PipBody(pose, size, modifier, color, bounce = 0.5f, eyeOpen = 1f); return }
     val transition = rememberInfiniteTransition(label = "pip")
     val bounce by transition.animateFloat(
         initialValue = 0f, targetValue = 1f, label = "bounce",
@@ -46,9 +47,12 @@ fun Pip(pose: PipPose, size: Dp = Dimens.pipMedium, modifier: Modifier = Modifie
         initialValue = 1f, targetValue = 1f, label = "blink",
         animationSpec = infiniteRepeatable(keyframes { durationMillis = 3200; 1f at 0; 1f at 2900; 0.1f at 3000; 1f at 3100 }),
     )
-    val b = if (animated) bounce else 0.5f
-    val eyeOpen = if (!animated) 1f else blink
+    PipBody(pose, size, modifier, color, bounce, blink)
+}
 
+@Composable
+private fun PipBody(pose: PipPose, size: Dp, modifier: Modifier, color: String, bounce: Float, eyeOpen: Float) {
+    val b = bounce
     Box(modifier.size(size).semantics { contentDescription = "Pip ${pose.name.lowercase()}" }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size)) {
             val w = this.size.width
