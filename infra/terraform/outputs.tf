@@ -1,0 +1,9 @@
+output "cloud_run_url" { value = google_cloud_run_v2_service.api.uri }
+output "artifact_registry" { value = "${var.region}-docker.pkg.dev/${var.project_id}/homework-quest" }
+output "image" { value = "${var.region}-docker.pkg.dev/${var.project_id}/homework-quest/${local.service}" }
+output "wif_provider" { value = google_iam_workload_identity_pool_provider.github.name }
+output "deployer_service_account" { value = google_service_account.deployer.email }
+output "runtime_service_account" { value = google_service_account.runtime.email }
+output "sql_connection_name" { value = google_sql_database_instance.db.connection_name }
+output "bucket" { value = google_storage_bucket.files.name }
+output "hosting_url" { value = local.hosting_url }

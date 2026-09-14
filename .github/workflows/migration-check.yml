@@ -1,0 +1,65 @@
+name: Migration check
+
+# Every PR that touches a Flyway migration: existing migrations must be untouched (checksums), new ones must apply
+# cleanly on top of the current develop schema on a real PostgreSQL 16, and must be additive (no DROP/RENAME of
+# columns or tables) so a rollback of the image keeps working against the migrated database.
+on:
+  pull_request:
+    paths: ["server/src/main/resources/db/migration/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_DB: quest, POSTGRES_USER: quest, POSTGRES_PASSWORD: quest }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U quest" --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Existing migrations must not change
+        run: |
+          BASE=origin/${{ github.base_ref }}
+          CHANGED=$(git diff --name-only --diff-filter=MD "$BASE"...HEAD -- server/src/main/resources/db/migration/ || true)
+          if [ -n "$CHANGED" ]; then echo "::error::edit or delete of an applied migration: $CHANGED — add a new V<n>__ file instead"; exit 1; fi
+      - name: New migrations must be additive
+        run: |
+          BASE=origin/${{ github.base_ref }}
+          for f in $(git diff --name-only --diff-filter=A "$BASE"...HEAD -- server/src/main/resources/db/migration/); do
+            if grep -iE "^\s*(DROP\s+(TABLE|COLUMN)|ALTER\s+TABLE\s+\S+\s+(DROP|RENAME))" "$f"; then
+              echo "::error::$f removes or renames schema — write an additive migration and clean up in a later release"; exit 1
+            fi
+          done
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21", cache: maven }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :shared-api:publishToMavenLocal -Pquest.serverOnly=true --no-daemon -x jvmTest
+      - name: Apply base migrations (develop), then the PR's, on PostgreSQL 16
+        run: |
+          BASE=origin/${{ github.base_ref }}
+          mkdir -p /tmp/base && git archive "$BASE" server/src/main/resources/db/migration | tar -x -C /tmp/base
+          cd server
+          ./mvnw -B -q org.flywaydb:flyway-maven-plugin:11.8.2:migrate -Dflyway.url=jdbc:postgresql://localhost:5432/quest -Dflyway.user=quest -Dflyway.password=quest -Dflyway.locations=filesystem:/tmp/base/server/src/main/resources/db/migration
+          ./mvnw -B -q org.flywaydb:flyway-maven-plugin:11.8.2:migrate -Dflyway.url=jdbc:postgresql://localhost:5432/quest -Dflyway.user=quest -Dflyway.password=quest -Dflyway.locations=filesystem:src/main/resources/db/migration
+          ./mvnw -B -q org.flywaydb:flyway-maven-plugin:11.8.2:validate -Dflyway.url=jdbc:postgresql://localhost:5432/quest -Dflyway.user=quest -Dflyway.password=quest -Dflyway.locations=filesystem:src/main/resources/db/migration
+      - name: JPA entities must match the migrated schema (ddl-auto=validate at context start)
+        working-directory: server
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/quest
+          DB_USER: quest
+          DB_PASSWORD: quest
+          FAKE_AUTH: "true"
+          LLM_PROVIDER: fake
+          ADMIN_JWT_SECRET: migration-check-secret-migration-check-secret
+        run: |
+          set +e
+          timeout 150 ./mvnw -B -q spring-boot:run -Dspring-boot.run.arguments="--spring.main.web-application-type=none --spring.flyway.enabled=false" > boot.log 2>&1
+          code=$?
+          set -e
+          grep -q "Started ServerApplication" boot.log && exit 0
+          echo "::error::context failed to start against the migrated schema"; tail -60 boot.log; exit "$code"

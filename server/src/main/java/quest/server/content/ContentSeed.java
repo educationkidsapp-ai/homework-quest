@@ -16,7 +16,7 @@ import quest.server.config.Json;
 
 /** Dev database seed (profiles local, dev, h2): the three §6 lessons from shared-api, published with all levels and the variant. */
 @Component
-@Profile({"local", "dev", "h2", "test"})
+@Profile({"local", "dev", "h2", "test", "qa"})
 public class ContentSeed implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(ContentSeed.class);
     private final LessonRepository lessons; private final SkillRepository skills; private final LessonStore store; private final Json json;

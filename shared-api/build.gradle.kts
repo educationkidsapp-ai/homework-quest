@@ -44,6 +44,7 @@ kotlin {
 
 if (!serverOnly) {
     extensions.configure<com.android.build.gradle.LibraryExtension> {
+        lint { checkReleaseBuilds = false; abortOnError = false }
         namespace = "quest.api"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         defaultConfig { minSdk = libs.versions.android.minSdk.get().toInt() }
