@@ -1,0 +1,33 @@
+package quest.server.content;
+
+import java.util.concurrent.TimeUnit;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import quest.server.auth.Principals;
+import quest.server.children.ChildRepository;
+import quest.server.config.ApiException;
+
+/** `GET /lessons/{id}` — a published lesson, immutable per version, long cache headers. */
+@RestController
+public class LessonController {
+    private final LessonRepository lessons; private final LessonStore store; private final ChildRepository children;
+    public LessonController(LessonRepository lessons, LessonStore store, ChildRepository children) { this.lessons = lessons; this.store = store; this.children = children; }
+
+    @GetMapping(value = "/lessons/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> lesson(@PathVariable String id, @RequestParam(required = false) Integer version, @RequestParam(required = false) String childId, @AuthenticationPrincipal Principals.Parent parent) {
+        var lesson = lessons.findById(id).filter(l -> "published".equals(l.getStatus())).orElseThrow(() -> ApiException.notFound("lesson"));
+        if (childId != null) {
+            var child = children.findById(childId).filter(c -> c.getParentId().equals(parent.parentId()) && c.getDeletedAt() == null).orElseThrow(() -> ApiException.notFound("child"));
+            if (!child.courseId().equals(lesson.getCourseId())) throw ApiException.forbidden("This lesson is for a different course.");
+        }
+        String body = store.assembleJson(lesson);
+        if (body == null) throw ApiException.notFound("lesson content");
+        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic()).eTag("\"" + lesson.getId() + "-v" + lesson.getVersion() + "\"").body(body);
+    }
+}

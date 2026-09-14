@@ -4,28 +4,24 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-import java.io.IOException;
+import java.util.Optional;
 
-/** Cloud Storage bucket with a 24-hour lifecycle rule (deploy/gcloud.sh). Uses the Cloud Run service identity. */
+/** Google Cloud Storage bucket (`uploads/` prefix carries the 24-hour lifecycle rule; media and page images are kept). */
 public class GcsFileStore implements FileStore {
-    private final Storage storage = StorageOptions.getDefaultInstance().getService();
-    private final String bucket;
+    private final Storage storage; private final String bucket;
+    public GcsFileStore(String bucket) { this(StorageOptions.getDefaultInstance().getService(), bucket); }
+    public GcsFileStore(Storage storage, String bucket) { this.storage = storage; this.bucket = bucket; }
 
-    public GcsFileStore(String bucket) {
-        if (bucket == null || bucket.isBlank()) throw new IllegalStateException("GCS_BUCKET is required when STORAGE=gcs");
-        this.bucket = bucket;
+    @Override public Stored put(String path, byte[] bytes, String mimeType) {
+        storage.create(BlobInfo.newBuilder(BlobId.of(bucket, path)).setContentType(mimeType).build(), bytes);
+        return new Stored(path, mimeType, bytes.length);
     }
 
-    @Override public String put(String key, byte[] bytes, String mimeType) throws IOException {
-        storage.create(BlobInfo.newBuilder(BlobId.of(bucket, key)).setContentType(mimeType).build(), bytes);
-        return key;
+    @Override public Optional<Blob> get(String path) {
+        var blob = storage.get(BlobId.of(bucket, path));
+        if (blob == null) return Optional.empty();
+        return Optional.of(new Blob(blob.getContent(), blob.getContentType() == null ? "application/octet-stream" : blob.getContentType()));
     }
 
-    @Override public byte[] get(String key) throws IOException {
-        var blob = storage.get(BlobId.of(bucket, key));
-        if (blob == null) throw new IOException("missing " + key);
-        return blob.getContent();
-    }
-
-    @Override public void delete(String key) throws IOException { storage.delete(BlobId.of(bucket, key)); }
+    @Override public void delete(String path) { storage.delete(BlobId.of(bucket, path)); }
 }

@@ -1,51 +1,43 @@
 package quest.server;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
-import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import quest.server.api.dto.Enums;
-import quest.server.api.dto.Requests;
 
+/** Full context on in-memory H2 with FAKE_AUTH, the sample LLM and the seeded lessons. */
 @SpringBootTest
-@AutoConfigureMockMvc
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+@ActiveProfiles("test")
 public abstract class ApiTestSupport {
     @Autowired protected MockMvc mvc;
-    @Autowired protected ObjectMapper mapper;
+    protected final ObjectMapper mapper = new ObjectMapper();
+    protected final String PARENT = "Bearer fake-token-parent-" + java.util.UUID.randomUUID().toString().substring(0, 8);   // a fresh parent per test
 
-    /** A 1×1 PNG. */
-    protected static final byte[] PNG = java.util.Base64.getDecoder().decode(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+    protected JsonNode json(MvcResult r) throws Exception { var body = r.getResponse().getContentAsString(); return body.isEmpty() ? mapper.nullNode() : mapper.readTree(body); }
 
-    protected Requests.LessonJob createLesson(Enums.Subject subject, String typedTask, boolean withFile) throws Exception {
-        var req = new Requests.CreateLessonRequest(subject, 1, "IB PYP", LocalDate.of(2026, 9, 14), 7, typedTask, withFile ? List.of("slide.png") : List.of());
-        var builder = MockMvcRequestBuilders.multipart("/lessons")
-                .file(new MockMultipartFile("request", "", "application/json", mapper.writeValueAsBytes(req)));
-        if (withFile) builder.file(new MockMultipartFile("files", "slide.png", "image/png", PNG));
-        String body = mvc.perform(builder).andExpect(r -> assertTrue(r.getResponse().getStatus() == 202, "status " + r.getResponse().getStatus() + " " + r.getResponse().getContentAsString()))
-                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        return mapper.readValue(body, Requests.LessonJob.class);
+    protected JsonNode parentGet(String path) throws Exception { return json(mvc.perform(MockMvcRequestBuilders.get(path).header("Authorization", PARENT)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is2xxSuccessful()).andReturn()); }
+    protected JsonNode parentPost(String path, String body) throws Exception { return json(mvc.perform(MockMvcRequestBuilders.post(path).header("Authorization", PARENT).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is2xxSuccessful()).andReturn()); }
+
+    protected String adminToken() throws Exception {
+        return json(mvc.perform(MockMvcRequestBuilders.post("/admin/auth/sign-in").contentType(MediaType.APPLICATION_JSON).content("{\"email\":\"admin@test.local\",\"password\":\"admin1234\"}")).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk()).andReturn()).get("token").asText();
     }
+    protected MockHttpServletRequestBuilder admin(MockHttpServletRequestBuilder b, String token) { return b.header("Authorization", "Bearer " + token); }
 
-    protected Requests.LessonJob getLesson(String id) throws Exception {
-        String body = mvc.perform(MockMvcRequestBuilders.get("/lessons/" + id)).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        return mapper.readValue(body, Requests.LessonJob.class);
-    }
-
-    protected Requests.LessonJob awaitTerminal(String id) throws Exception {
+    /** Polls the lesson until it leaves the given transient status (async jobs run on the task executor). */
+    protected JsonNode awaitStatus(String token, String lessonId, String... terminal) throws Exception {
         for (int i = 0; i < 100; i++) {
-            Requests.LessonJob job = getLesson(id);
-            if (job.status().isTerminal()) return job;
-            Thread.sleep(50);
+            var l = json(mvc.perform(admin(MockMvcRequestBuilders.get("/admin/lessons/" + lessonId), token)).andReturn());
+            for (String t : terminal) if (t.equals(l.get("status").asText())) return l;
+            if ("error".equals(l.get("status").asText())) throw new AssertionError("lesson failed: " + l.get("error"));
+            Thread.sleep(100);
         }
-        throw new AssertionError("lesson " + id + " did not reach a terminal state");
+        throw new AssertionError("timed out waiting for " + String.join("/", terminal));
     }
 }

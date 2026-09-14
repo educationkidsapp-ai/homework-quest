@@ -48,17 +48,22 @@ setup() {
     deepseek) : "${DEEPSEEK_API_KEY:?set DEEPSEEK_API_KEY in .env}" ;;
     anthropic) : "${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}" ;;
   esac
-  for s in DEEPSEEK_API_KEY ANTHROPIC_API_KEY DB_PASSWORD; do
+  ADMIN_JWT_SECRET="${ADMIN_JWT_SECRET:-$(openssl rand -base64 48 | tr -d '/+=' | cut -c1-48)}"
+  : "${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}"
+  for s in DEEPSEEK_API_KEY ANTHROPIC_API_KEY DB_PASSWORD ADMIN_PASSWORD ADMIN_JWT_SECRET; do
     exists gcloud secrets describe "$s" || gcloud secrets create "$s" --replication-policy automatic
     printf '%s' "${!s:-unset}" | gcloud secrets versions add "$s" --data-file=-
   done
+  # Firebase service account for verifying parents' ID tokens (a file path in .env)
+  exists gcloud secrets describe FIREBASE_CREDENTIALS || gcloud secrets create FIREBASE_CREDENTIALS --replication-policy automatic
+  if [ -n "${FIREBASE_CREDENTIALS:-}" ] && [ -f "$FIREBASE_CREDENTIALS" ]; then gcloud secrets versions add FIREBASE_CREDENTIALS --data-file="$FIREBASE_CREDENTIALS"; else printf '' | gcloud secrets versions add FIREBASE_CREDENTIALS --data-file=- ; fi
 
   echo "▸ service account $SERVICE_ACCOUNT"
   SA_EMAIL="$SERVICE_ACCOUNT@$PROJECT_ID.iam.gserviceaccount.com"
   exists gcloud iam service-accounts describe "$SA_EMAIL" || gcloud iam service-accounts create "$SERVICE_ACCOUNT" --display-name "Homework Quest API"
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$SA_EMAIL" --role roles/cloudsql.client --condition=None >/dev/null
   gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member "serviceAccount:$SA_EMAIL" --role roles/storage.objectAdmin >/dev/null
-  for s in DEEPSEEK_API_KEY ANTHROPIC_API_KEY DB_PASSWORD; do
+  for s in DEEPSEEK_API_KEY ANTHROPIC_API_KEY DB_PASSWORD ADMIN_PASSWORD ADMIN_JWT_SECRET FIREBASE_CREDENTIALS; do
     gcloud secrets add-iam-policy-binding "$s" --member "serviceAccount:$SA_EMAIL" --role roles/secretmanager.secretAccessor >/dev/null
   done
   echo "✓ setup done"
@@ -77,13 +82,15 @@ deploy() {
     --image "$IMAGE:${GIT_SHA:-latest}" --region "$REGION" --platform managed \
     --service-account "$SA_EMAIL" \
     --add-cloudsql-instances "$CONN" \
-    --set-env-vars "DATABASE_URL=jdbc:postgresql:///$DB_NAME?cloudSqlInstance=$CONN&socketFactory=com.google.cloud.sql.postgres.SocketFactory,DB_USER=$DB_USER,STORAGE=gcs,GCS_BUCKET=$BUCKET,LLM_PROVIDER=$LLM_PROVIDER,DEEPSEEK_MODEL=$DEEPSEEK_MODEL,DEEPSEEK_VISION_MODEL=$DEEPSEEK_VISION_MODEL,ANTHROPIC_MODEL=$ANTHROPIC_MODEL" \
-    --set-secrets "DEEPSEEK_API_KEY=DEEPSEEK_API_KEY:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,DB_PASSWORD=DB_PASSWORD:latest" \
-    --memory 1Gi --cpu 1 --min-instances 0 --max-instances 3 --concurrency 20 --timeout 300 \
+    --set-env-vars "^@^SPRING_PROFILES_ACTIVE=prod@CLOUD_SQL_INSTANCE=$CONN@DB_NAME=$DB_NAME@DB_USER=$DB_USER@STORAGE_KIND=gcs@GCS_BUCKET=$BUCKET@LLM_PROVIDER=$LLM_PROVIDER@DEEPSEEK_MODEL=$DEEPSEEK_MODEL@DEEPSEEK_VISION_MODEL=$DEEPSEEK_VISION_MODEL@ANTHROPIC_MODEL=$ANTHROPIC_MODEL@CORS_ORIGINS=$CORS_ORIGINS@ADMIN_EMAIL=$ADMIN_EMAIL@APP_VERSION=${GIT_SHA:-latest}" \
+    --set-secrets "DEEPSEEK_API_KEY=DEEPSEEK_API_KEY:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,DB_PASSWORD=DB_PASSWORD:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest,ADMIN_JWT_SECRET=ADMIN_JWT_SECRET:latest,FIREBASE_CREDENTIALS=FIREBASE_CREDENTIALS:latest" \
+    --memory 2Gi --cpu 2 --min-instances 0 --max-instances 3 --concurrency 20 --timeout 600 \
     --allow-unauthenticated
   URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)')
+  gcloud run services update "$SERVICE" --region "$REGION" --update-env-vars "PUBLIC_URL=$URL" >/dev/null
   echo "✓ deployed: $URL"
   echo "  point the release app at it: ./gradlew :androidApp:assembleRelease -Pquest.release.apiBaseUrl=$URL"
+  echo "  build the admin panel against it: ./gradlew :webAdmin:wasmJsBrowserDistribution -Pquest.admin.apiBaseUrl=$URL"
 }
 
 case "${1:-all}" in

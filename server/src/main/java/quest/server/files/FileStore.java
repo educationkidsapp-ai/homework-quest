@@ -1,10 +1,13 @@
 package quest.server.files;
 
-import java.io.IOException;
+import java.util.Optional;
 
-/** Temporary storage for uploaded slides. Files live only until generation succeeds (or 24 h, whichever first). */
+/** Where bytes live: uploaded slides, rendered page images, children's recordings and drawings. */
 public interface FileStore {
-    String put(String key, byte[] bytes, String mimeType) throws IOException;
-    byte[] get(String key) throws IOException;
-    void delete(String key) throws IOException;
+    record Stored(String path, String mimeType, long size) {}
+    record Blob(byte[] bytes, String mimeType) {}
+
+    Stored put(String path, byte[] bytes, String mimeType);
+    Optional<Blob> get(String path);
+    void delete(String path);
 }

@@ -10,8 +10,8 @@ import quest.api.validation.Sha256
  */
 object CacheKeys {
     const val PROMPT_A_VERSION = "a1"
-    const val PROMPT_B_VERSION = "b1"
-    const val PROMPT_C_VERSION = "c1"
+    const val PROMPT_B_VERSION = "b2"
+    const val PROMPT_C_VERSION = "c2"
 
     fun sourceHash(fileHashes: List<String>, curriculum: Curriculum, grade: Int, subject: Subject, notes: String?): String =
         Sha256.hex((fileHashes.sorted().joinToString(",") + "|" + curriculum.name.lowercase() + grade + subject.name.lowercase() + "|" + Sha256.hex((notes ?: "").trim())).encodeToByteArray())

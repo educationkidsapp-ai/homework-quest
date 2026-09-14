@@ -1,48 +1,47 @@
-server:
-  port: ${PORT:8080}
-  max-http-request-header-size: 16KB
-
 spring:
-  application:
-    name: homework-quest-api
+  application.name: homework-quest
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/quest}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/${DB_NAME:quest}}
     username: ${DB_USER:quest}
     password: ${DB_PASSWORD:quest}
-    hikari:
-      maximum-pool-size: ${DB_POOL_SIZE:5}
   jpa:
     open-in-view: false
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate.jdbc.time_zone: UTC
+    hibernate.ddl-auto: validate
+    properties.hibernate.jdbc.time_zone: UTC
   flyway:
     enabled: true
-  servlet:
-    multipart:
-      max-file-size: ${MAX_UPLOAD_MB:25}MB
-      max-request-size: ${MAX_REQUEST_MB:60}MB
-  task:
-    execution:
-      pool:
-        core-size: 2
-        max-size: 4
-        queue-capacity: 50
+  servlet.multipart:
+    max-file-size: 25MB
+    max-request-size: 120MB
+  task.execution.pool:
+    core-size: 2
+    max-size: 4
+    queue-capacity: 50
+
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+  compression.enabled: true
 
 management:
-  endpoints:
-    web:
-      exposure:
-        include: health
-  endpoint:
-    health:
-      probes:
-        enabled: true
+  endpoints.web.exposure.include: health,info
+  endpoint.health.probes.enabled: true
+
+springdoc:
+  api-docs.path: /v3/api-docs
+  swagger-ui.path: /swagger-ui.html
 
 quest:
+  version: ${APP_VERSION:dev}
+  public-url: ${PUBLIC_URL:http://localhost:8080}
+  cors-origins: ${CORS_ORIGINS:http://localhost:8081,http://localhost:5173}
+  auth:
+    fake: ${FAKE_AUTH:false}
+    firebase-credentials: ${FIREBASE_CREDENTIALS:}
+    jwt-secret: ${ADMIN_JWT_SECRET:change-me-to-a-long-random-string-at-least-32-bytes}
+    jwt-hours: 12
   llm:
-    provider: ${LLM_PROVIDER:anthropic}   # anthropic | deepseek | fake
+    provider: ${LLM_PROVIDER:deepseek}
   anthropic:
     api-key: ${ANTHROPIC_API_KEY:}
     model: ${ANTHROPIC_MODEL:claude-opus-5}
@@ -50,17 +49,64 @@ quest:
   deepseek:
     api-key: ${DEEPSEEK_API_KEY:}
     base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
-    model: ${DEEPSEEK_MODEL:deepseek-v4-pro}           # text turns (question generation)
-    vision-model: ${DEEPSEEK_VISION_MODEL:deepseek-flash} # turns with slide images (skill extraction); v4-pro has no vision
-    max-tokens: 8000
+    model: ${DEEPSEEK_MODEL:deepseek-v4-pro}
+    vision-model: ${DEEPSEEK_VISION_MODEL:deepseek-flash}
+    max-tokens: ${DEEPSEEK_MAX_TOKENS:16384}
   storage:
-    kind: ${STORAGE:local}          # local | gcs
-    local-dir: ${UPLOAD_DIR:/tmp/quest-uploads}
+    kind: ${STORAGE_KIND:local}
+    local-dir: ${STORAGE_DIR:data/files}
     gcs-bucket: ${GCS_BUCKET:}
-  fake-llm: ${FAKE_LLM:false}       # true = answer from the shared sample outputs (no API key needed)
+  admin:
+    seed-email: ${ADMIN_EMAIL:}
+    seed-password: ${ADMIN_PASSWORD:}
 
-logging:
-  level:
-    root: INFO
-    quest: INFO
-    org.hibernate.SQL: WARN
+logging.level:
+  quest: INFO
+  org.hibernate.SQL: WARN
+
+---
+# Local development against docker-compose PostgreSQL, fake auth, real LLM from .env
+spring.config.activate.on-profile: local
+quest.auth.fake: true
+quest.cors-origins: "*"
+
+---
+# No PostgreSQL at hand: in-memory H2, fake auth, seeded lessons, no model calls unless LLM_PROVIDER is set
+spring.config.activate.on-profile: h2
+spring:
+  datasource:
+    url: jdbc:h2:mem:quest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+quest:
+  auth.fake: true
+  cors-origins: "*"
+  llm.provider: ${LLM_PROVIDER:fake}
+
+---
+spring.config.activate.on-profile: test
+spring:
+  datasource:
+    url: jdbc:h2:mem:questtest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  task.execution.pool.core-size: 1
+quest:
+  auth.fake: true
+  auth.jwt-secret: test-secret-test-secret-test-secret-test-secret
+  llm.provider: fake
+  storage.local-dir: ${java.io.tmpdir}/quest-test-files
+  admin.seed-email: admin@test.local
+  admin.seed-password: admin1234
+
+---
+# Cloud Run: Cloud SQL socket factory, GCS, Firebase, secrets from Secret Manager (env)
+spring.config.activate.on-profile: prod
+spring:
+  datasource:
+    url: jdbc:postgresql:///${DB_NAME:quest}?cloudSqlInstance=${CLOUD_SQL_INSTANCE}&socketFactory=com.google.cloud.sql.postgres.SocketFactory
+quest:
+  auth.fake: false
+  storage.kind: gcs

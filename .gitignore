@@ -13,3 +13,6 @@ iosApp/Pods/
 server/uploads/
 captures/
 .kotlin/
+server/data/
+data/
+target/

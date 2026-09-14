@@ -2,7 +2,13 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.android.library) apply false
+    `maven-publish`
 }
+
+// The server (Maven) depends on the JVM artifact: `./gradlew :shared-api:publishToMavenLocal -Pquest.serverOnly=true`
+group = "quest"
+version = "0.1.0"
+publishing { repositories { mavenLocal() } }
 
 val serverOnly = (findProperty("quest.serverOnly") ?: System.getenv("QUEST_SERVER_ONLY"))?.toString() == "true"
 if (!serverOnly) apply(plugin = "com.android.library")
