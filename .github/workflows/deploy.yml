@@ -3,7 +3,7 @@ name: Server — test, build, deploy to Cloud Run
 on:
   push:
     branches: [main]
-    paths: ["server/**", "shared-api/**", "Dockerfile", "deploy/**", "gradle/**", "*.gradle.kts", ".github/workflows/deploy.yml"]
+    paths: ["server/**", "shared-api/**", "shared-ui/**", "webAdmin/**", "Dockerfile", "firebase.json", "deploy/**", "gradle/**", "*.gradle.kts", ".github/workflows/deploy.yml"]
   workflow_dispatch:
 
 env:
@@ -50,3 +50,11 @@ jobs:
           set -a; source deploy/variables.env; set +a
           ./deploy/gcloud.sh build
           ./deploy/gcloud.sh deploy
+      - name: Admin panel → Firebase Hosting
+        if: ${{ secrets.FIREBASE_TOKEN != '' }}
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -a; source deploy/variables.env; set +a
+          npm i -g firebase-tools
+          ./deploy/gcloud.sh admin

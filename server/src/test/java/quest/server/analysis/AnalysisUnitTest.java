@@ -73,4 +73,21 @@ class AnalysisUnitTest {
         var c = llm.complete(Prompts.SYSTEM_C, Prompts.userC(a.text(), "[]"), List.of());
         assertThat(SchemaValidator.INSTANCE.validatePanelJson(c.text()).getErrors()).isEmpty();
     }
+
+    @Test void model_output_is_repaired_before_validation() throws Exception {
+        String raw = "{\"stops\":[{\"type\":\"trueFalse\",\"id\":\"q1\",\"speak\":\"" + "a ".repeat(60) + "end\",\"statement\":\"x\",\"answer\":true},"
+                + "{\"type\":\"storyPieces\",\"cards\":[{\"piece\":\"Title\"},{\"piece\":\"genre\"},{\"piece\":\"characters\"},{\"piece\":\"setting\"},{\"piece\":\"plot\"},{\"piece\":\"problem\"},{\"piece\":\"resolution\"}]},"
+                + "{\"type\":\"retell\",\"cues\":[{\"stage\":\"Beginning\",\"cue\":\"x\",\"illustrationKey\":\"grandpa\"}]}]}";
+        var node = mapper.readTree(LlmJson.cleanIllustrations(raw));
+        var tf = node.get("stops").get(0);
+        assertThat(tf.get("hint").asText()).isNotBlank();
+        assertThat(tf.get("speak").asText().length()).isLessThanOrEqualTo(90);
+        assertThat(tf.get("speak").asText()).endsWith("…");
+        var cards = node.get("stops").get(1).get("cards");
+        assertThat(cards).hasSize(6);
+        assertThat(cards.get(0).get("piece").asText()).isEqualTo("title");
+        var cue = node.get("stops").get(2).get("cues").get(0);
+        assertThat(cue.get("stage").asText()).isEqualTo("beginning");
+        assertThat(cue.has("illustrationKey")).isFalse();
+    }
 }

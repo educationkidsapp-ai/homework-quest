@@ -6,6 +6,7 @@
 #   ./deploy/gcloud.sh setup     # APIs, Artifact Registry, Cloud SQL, bucket (24 h lifecycle), secrets, service account
 #   ./deploy/gcloud.sh build     # Cloud Build → Artifact Registry image
 #   ./deploy/gcloud.sh deploy    # Cloud Run service wired to Cloud SQL, the bucket and Secret Manager
+#   ./deploy/gcloud.sh admin     # build the Wasm admin panel against the Cloud Run URL, deploy to Firebase Hosting
 #   ./deploy/gcloud.sh all
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -93,10 +94,21 @@ deploy() {
   echo "  build the admin panel against it: ./gradlew :webAdmin:wasmJsBrowserDistribution -Pquest.admin.apiBaseUrl=$URL"
 }
 
+# The admin panel: Compose for Web (Wasm) built against the Cloud Run URL, served by Firebase Hosting.
+admin() {
+  URL=${API_URL:-$(gcloud run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)')}
+  echo "▸ admin panel → $URL"
+  ./gradlew :webAdmin:wasmJsBrowserDistribution -Pquest.admin.apiBaseUrl="$URL" --no-daemon
+  command -v firebase >/dev/null || { echo "install the Firebase CLI: npm i -g firebase-tools"; exit 1; }
+  firebase deploy --only hosting --project "$PROJECT_ID"
+  echo "✓ admin panel at https://$PROJECT_ID.web.app — make sure CORS_ORIGINS on Cloud Run includes it"
+}
+
 case "${1:-all}" in
   setup) setup ;;
   build) build ;;
   deploy) deploy ;;
-  all) setup; build; deploy ;;
-  *) echo "usage: $0 setup|build|deploy|all"; exit 1 ;;
+  admin) admin ;;
+  all) setup; build; deploy; admin ;;
+  *) echo "usage: $0 setup|build|deploy|admin|all"; exit 1 ;;
 esac

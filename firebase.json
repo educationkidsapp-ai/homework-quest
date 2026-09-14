@@ -1,0 +1,12 @@
+{
+  "hosting": {
+    "public": "webAdmin/build/dist/wasmJs/productionExecutable",
+    "ignore": ["**/.*", "**/*.map"],
+    "headers": [
+      { "source": "**/*.wasm", "headers": [{ "key": "Content-Type", "value": "application/wasm" }, { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
+      { "source": "**/*.@(js|ttf)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
+      { "source": "index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+    ],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+  }
+}

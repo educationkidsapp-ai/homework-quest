@@ -16,3 +16,4 @@ captures/
 server/data/
 data/
 target/
+.firebaserc

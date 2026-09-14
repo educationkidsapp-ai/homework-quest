@@ -20,6 +20,10 @@ kotlin {
         androidTarget()
         iosArm64()
         iosSimulatorArm64()
+        // The web admin panel (Kotlin/Wasm first, JS fallback) shares the same contract and validator.
+        @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+        wasmJs { browser() }
+        js(IR) { browser() }
     }
 
     sourceSets {

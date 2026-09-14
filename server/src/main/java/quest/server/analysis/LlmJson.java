@@ -20,6 +20,13 @@ final class LlmJson {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Set<String> KNOWN = new HashSet<>(Illustrations.INSTANCE.getKeys());
     private static final Set<String> PIECES = Set.of("title", "genre", "characters", "setting", "plot", "problem");
+    private static final Set<String> SINGLE_TYPES = Set.of("choice", "trueFalse", "sequence", "count", "compare", "sound", "word", "readTap");
+    /** Child-facing string limits from Play.schema.json; a few characters over is trimmed at a word boundary instead of costing a retry. */
+    private static final java.util.Map<String, Integer> LIMITS = java.util.Map.ofEntries(
+            java.util.Map.entry("title", 40), java.util.Map.entry("speak", 90), java.util.Map.entry("hint", 90), java.util.Map.entry("question", 90), java.util.Map.entry("statement", 90),
+            java.util.Map.entry("prompt", 90), java.util.Map.entry("explanation", 80), java.util.Map.entry("cue", 90), java.util.Map.entry("meaning", 80), java.util.Map.entry("sentence", 120),
+            java.util.Map.entry("definition", 90), java.util.Map.entry("frame", 90), java.util.Map.entry("servedText", 60), java.util.Map.entry("dishName", 30), java.util.Map.entry("potName", 20),
+            java.util.Map.entry("en", 200), java.util.Map.entry("ar", 200), java.util.Map.entry("modelAnswer", 300), java.util.Map.entry("pictureDescription", 120), java.util.Map.entry("text", 80));
 
     /** Unknown illustration keys are dropped where the key is optional (tiles, cues, order items, readPage, page lists); enum-like fields are lower-cased. */
     static String cleanIllustrations(String raw) {
@@ -32,6 +39,8 @@ final class LlmJson {
                 boolean optional = o.has("label") || o.has("cue") || o.has("text") || o.has("sentences") || o.has("pageImageId");
                 if (optional) o.remove("illustrationKey");
             }
+            if (SINGLE_TYPES.contains(o.path("type").asText()) && !o.hasNonNull("hint")) o.put("hint", "Look again and try once more.");
+            LIMITS.forEach((field, max) -> { JsonNode v = o.get(field); if (v != null && v.isTextual() && v.asText().length() > max) o.put(field, trim(v.asText(), max)); });
             for (String enumField : new String[] {"piece", "stage", "mode", "genre", "kind", "subject"})
                 if (o.get(enumField) != null && o.get(enumField).isTextual()) o.put(enumField, o.get(enumField).asText().trim().toLowerCase());
             if (o.get("cards") instanceof ArrayNode cards && cards.size() > 6) {   // storyPieces: drop cards outside the six pieces (e.g. "resolution")
@@ -44,6 +53,11 @@ final class LlmJson {
             }
             o.fields().forEachRemaining(e -> clean(e.getValue()));
         } else if (node instanceof ArrayNode a) for (JsonNode n : a) clean(n);
+    }
+
+    static String trim(String s, int max) {
+        String t = s.substring(0, max - 1); int cut = t.lastIndexOf(' ');
+        return (cut > max / 2 ? t.substring(0, cut) : t).replaceAll("[,;:\\s]+$", "") + "…";
     }
 
     /** Schema errors from a `oneOf` are noisy; when the play decodes, the shared semantic rules explain the problem in one line each. */

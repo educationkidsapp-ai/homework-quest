@@ -39,4 +39,5 @@ if (!serverOnly) {
     include(":shared")
     include(":androidApp")
     include(":desktopApp")
+    include(":webAdmin")
 }
