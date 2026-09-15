@@ -50,6 +50,16 @@ class MediaAuthorizationTest extends ApiTestSupport {
         user("media-teacher-a", A, "media-teacher@alpha.test"); user("media-teacher-b", B, "media-teacher@beta.test");
     }
 
+    /**
+     * The whole suite shares one H2 database, and `TenancyContractTest` asserts that <em>every</em> lesson in it lives
+     * in the default school — so a test that seeds lessons of its own outside that school puts them back.
+     */
+    @org.junit.jupiter.api.AfterEach void removeWhatThisTestSeeded() {
+        pageImages.deleteAll(pageImages.findAll().stream().filter(p -> p.getLessonId().startsWith("media-lesson-")).toList());
+        childMedia.deleteAll(childMedia.findAll().stream().filter(m -> m.getId().startsWith("media-rec-")).toList());
+        lessons.deleteAll(lessons.findAll().stream().filter(l -> l.getId().startsWith("media-lesson-")).toList());
+    }
+
     @Test void a_parent_reads_her_own_school_and_nothing_else() throws Exception {
         parentPost("/children", "{\"name\":\"Lina\",\"avatarColor\":\"mint\",\"curriculum\":\"british\",\"grade\":1,\"schoolCode\":\"MEDAAA\"}");
 

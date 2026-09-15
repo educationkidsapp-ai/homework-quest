@@ -62,6 +62,19 @@ class ReportsQueryCountTest extends ApiTestSupport {
         analysis(SHARED_HASH); generation(SHARED_HASH);
     }
 
+    /**
+     * The whole suite shares one H2 database, and `TenancyContractTest` asserts that <em>every</em> lesson in it lives
+     * in the default school — so a test that seeds lessons of its own outside that school puts them back.
+     */
+    @org.junit.jupiter.api.AfterEach void removeWhatThisTestSeeded() {
+        attempts.deleteAll(attempts.findAll().stream().filter(a -> a.getLessonId().startsWith("reports-")).toList());
+        stops.deleteAll(stops.findAll().stream().filter(s -> s.getLessonId().startsWith("reports-")).toList());
+        plays.deleteAll(plays.findAll().stream().filter(p -> p.getLessonId().startsWith("reports-")).toList());
+        lessons.deleteAll(lessons.findAll().stream().filter(l -> l.getId().startsWith("reports-")).toList());
+        analysisCache.deleteAll(analysisCache.findAll().stream().filter(a -> a.getSourceHash().startsWith("reports-")).toList());
+        generationCache.deleteAll(generationCache.findAll().stream().filter(g -> g.getSourceHash().startsWith("reports-")).toList());
+    }
+
     @Test void the_reports_cost_the_same_number_of_statements_whatever_the_number_of_lessons() throws Exception {
         String token = adminToken();
         long usageOne = statements(() -> mvc.perform(admin(get("/admin/usage"), token)).andExpect(status().isOk()));
