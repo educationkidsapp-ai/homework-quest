@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import kotlinx.serialization.builtins.BuiltinSerializersKt;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,6 +46,7 @@ public class AdminReportsController {
         this.analysisCache = analysisCache; this.generationCache = generationCache; this.lessons = lessons; this.children = children; this.attempts = attempts; this.completions = completions; this.stops = stops; this.json = json;
     }
 
+    @PreAuthorize("@permit.has('cache.read')")
     @GetMapping(value = "/admin/cache", produces = MediaType.APPLICATION_JSON_VALUE)
     public String cache() {
         Map<String, List<String>> lessonsByHash = new HashMap<>();
@@ -58,6 +60,7 @@ public class AdminReportsController {
         return json.encodeShared(out, BuiltinSerializersKt.ListSerializer(CacheEntry.Companion.serializer()));
     }
 
+    @PreAuthorize("@permit.has('usage.read')")
     @GetMapping(value = "/admin/usage", produces = MediaType.APPLICATION_JSON_VALUE)
     public String usage() {
         List<CourseUsage> courses = new ArrayList<>();
@@ -77,6 +80,7 @@ public class AdminReportsController {
         return json.encodeShared(new UsageResponse(courses, lessonUsage, stopAccuracy), UsageResponse.Companion.serializer());
     }
 
+    @PreAuthorize("@permit.has('calendar.read')")
     @GetMapping(value = "/admin/calendar", produces = MediaType.APPLICATION_JSON_VALUE)
     public String calendar(@RequestParam String curriculum, @RequestParam int grade, @RequestParam int year, @RequestParam int month) {
         Course course;

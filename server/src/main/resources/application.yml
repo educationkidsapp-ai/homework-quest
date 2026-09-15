@@ -14,14 +14,12 @@ spring:
   servlet.multipart:
     max-file-size: 25MB
     max-request-size: 120MB
-  task.execution.pool:
-    core-size: 2
-    max-size: 4
-    queue-capacity: 50
 
 server:
   port: ${PORT:8080}
-  forward-headers-strategy: framework
+  # native = Tomcat's RemoteIpValve: it resolves `getRemoteAddr()` to the rightmost hop it does not trust, so an
+  # X-Forwarded-For entry a caller writes themselves cannot become the sign-in rate limit's key (AuthController.clientIp).
+  forward-headers-strategy: native
   compression.enabled: true
 
 management:
@@ -35,13 +33,26 @@ springdoc:
 quest:
   version: ${APP_VERSION:dev}
   public-url: ${PUBLIC_URL:http://localhost:8080}
+  dashboard-url: ${DASHBOARD_URL:}          # origin the dashboard is served from; blank falls back to public-url
+  platform-name: ${PLATFORM_NAME:}          # blank = the seeded default in QuestProperties.SEEDED_PLATFORM_NAME
   panel-dir: ${PANEL_DIR:}   # admin panel bundle served at /panel/ (the Docker image sets it)
   cors-origins: ${CORS_ORIGINS:http://localhost:8081,http://localhost:5173}
   auth:
     fake: ${FAKE_AUTH:false}
     firebase-credentials: ${FIREBASE_CREDENTIALS:}
     jwt-secret: ${ADMIN_JWT_SECRET:change-me-to-a-long-random-string-at-least-32-bytes}
-    jwt-hours: 12
+    jwt-hours: 12                           # the `/admin/auth/sign-in` alias only, so `webAdmin/` keeps its session
+    access-minutes: 15
+    refresh-days: 30
+    reset-minutes: 60
+    invite-days: 7
+    impersonate-minutes: 30
+    sign-in-attempts: 10                    # per email + IP
+    sign-in-window-minutes: 15
+  mail:
+    provider: ${MAIL_PROVIDER:log}          # log | resend
+    api-key: ${RESEND_API_KEY:}
+    from: ${MAIL_FROM:no-reply@localhost}
   llm:
     provider: ${LLM_PROVIDER:deepseek}
   anthropic:
@@ -94,7 +105,6 @@ spring:
     username: sa
     password: ""
     driver-class-name: org.h2.Driver
-  task.execution.pool.core-size: 1
 quest:
   auth.fake: true
   auth.jwt-secret: test-secret-test-secret-test-secret-test-secret

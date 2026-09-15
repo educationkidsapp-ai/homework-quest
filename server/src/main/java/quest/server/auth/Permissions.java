@@ -30,8 +30,6 @@ public class Permissions {
     private final List<Endpoint> endpoints;
     private final Map<String, Endpoint> byRoute;
 
-    public Permissions() { this(new ObjectMapper()); }
-
     public Permissions(ObjectMapper mapper) {
         Document doc;
         try (InputStream in = new ClassPathResource("permissions.json").getInputStream()) {
@@ -54,6 +52,12 @@ public class Permissions {
 
     /** The roles a permission is granted to. */
     public List<String> roles(String permission) { return matrix.getOrDefault(permission, List.of()); }
+
+    /** True when `permissions.json` declares the key at all — what `PreAuthorizeCoverageTest` checks the annotations against. */
+    public boolean isDeclared(String permission) { return matrix.containsKey(permission); }
+
+    /** What `@permit.has('lesson.publish')` resolves to: is this permission granted to this role? */
+    public boolean grants(String role, String permission) { return role != null && roles(permission).contains(role); }
 
     /** Every permission key a role holds — the payload of `GET /me/permissions`. */
     public List<String> forRole(String role) { return matrix.entrySet().stream().filter(e -> e.getValue().contains(role)).map(Map.Entry::getKey).sorted().toList(); }

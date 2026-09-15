@@ -86,6 +86,8 @@ data class DashboardUser(
     val mustChangePassword: Boolean = false,
     val lastLoginAt: Long? = null,
     val createdAt: Long = 0,
+    /** Set on `GET /me` while an Admin is viewing the dashboard as this user (§5 "View as…"); the id of that Admin. */
+    val impersonatedBy: String? = null,
 )
 
 /** The public half of a teacher account: what the teacher island and the school page show. */
@@ -114,7 +116,10 @@ data class Invite(
     val createdAt: Long = 0,
 )
 
-/** `POST /admin/auth/sign-in` (and, from P1.3, `POST /auth/sign-in`). */
+/**
+ * `POST /auth/sign-in` (and `POST /admin/auth/sign-in`, the alias `webAdmin/` still calls). `token` is the 15-minute
+ * access token; `refreshToken` is the 30-day one and is empty on the legacy alias, which issues a long session instead.
+ */
 @Serializable
 data class SignInResponse(
     val token: String,
@@ -124,4 +129,110 @@ data class SignInResponse(
     val schoolId: String? = null,
     val displayName: String? = null,
     val mustChangePassword: Boolean = false,
+    val refreshToken: String? = null,
 )
+
+/** A fresh access/refresh pair. `POST /auth/refresh` rotates: the refresh token that was presented is revoked here. */
+@Serializable
+data class TokenPair(val token: String, val refreshToken: String, val expiresAt: Long)
+
+@Serializable data class RefreshRequest(val refreshToken: String)
+@Serializable data class ForgotPasswordRequest(val email: String)
+@Serializable data class ResetPasswordRequest(val token: String, val newPassword: String)
+@Serializable data class ChangePasswordRequest(val currentPassword: String, val newPassword: String)
+
+/** `code` is generated (6 characters, A–Z0–9) when it is left out. */
+@Serializable
+data class CreateSchoolRequest(
+    val name: String,
+    val code: String? = null,
+    val curriculumOptions: List<Curriculum> = emptyList(),
+    val gradeOptions: List<Int> = emptyList(),
+)
+
+/** Every field is optional: only the ones that are present are written. */
+@Serializable
+data class UpdateSchoolRequest(
+    val name: String? = null,
+    val curriculumOptions: List<Curriculum>? = null,
+    val gradeOptions: List<Int>? = null,
+    val status: SchoolStatus? = null,
+)
+
+/** The teacher half of an invite: filled in when `role` is TEACHER, so the account is complete the moment it is accepted. */
+@Serializable
+data class TeacherProfileInput(
+    val displayName: String? = null,
+    val photoUrl: String? = null,
+    val subjects: List<Subject> = emptyList(),
+    val curriculum: Curriculum? = null,
+    val grades: List<Int> = emptyList(),
+    val bioEn: String? = null,
+    val bioAr: String? = null,
+)
+
+@Serializable
+data class CreateInviteRequest(val email: String, val role: Role, val teacherProfile: TeacherProfileInput? = null)
+
+/** What the public accept-invite page shows before the person picks a password. */
+@Serializable
+data class InviteInfo(val email: String, val role: Role, val schoolName: String? = null, val expiresAt: Long = 0)
+
+@Serializable data class AcceptInviteRequest(val password: String, val displayName: String? = null)
+
+/** `GET /me/permissions`: the keys of `permissions.json` the caller's role holds. */
+@Serializable
+data class MePermissions(val role: Role, val permissions: List<String> = emptyList(), val readOnly: Boolean = false)
+
+/** `GET /admin/users` filters; an absent field does not filter. */
+@Serializable
+data class UserFilter(val role: Role? = null, val schoolId: String? = null, val status: UserStatus? = null)
+
+/** `PATCH /admin/users/{id}`: status (disable/enable), display name, or role within the same school. */
+@Serializable
+data class UpdateUserRequest(val status: UserStatus? = null, val displayName: String? = null, val role: Role? = null)
+
+/**
+ * The Schools Dashboard's view of the backend (P1.3). The Angular client is generated from `server/openapi.json`
+ * and the server is the only implementation, so nothing in this module implements the interface — it is the
+ * contract both sides are checked against.
+ */
+interface DashboardApi {
+    // ---- auth (public except change-password)
+    suspend fun signIn(email: String, password: String): SignInResponse
+    /** Rotation: the old refresh token is revoked and a new pair issued; presenting a revoked one kills the family. */
+    suspend fun refresh(request: RefreshRequest): TokenPair
+    suspend fun signOut(request: RefreshRequest)
+    /** Always succeeds, whether or not the address belongs to an account. */
+    suspend fun forgotPassword(request: ForgotPasswordRequest)
+    suspend fun resetPassword(request: ResetPasswordRequest)
+    /** Clears `mustChangePassword` and revokes every other session of the user. */
+    suspend fun changePassword(request: ChangePasswordRequest)
+
+    // ---- the caller
+    suspend fun me(): DashboardUser
+    suspend fun myPermissions(): MePermissions
+
+    // ---- schools (Admin)
+    suspend fun schools(): List<SchoolSummary>
+    suspend fun createSchool(request: CreateSchoolRequest): School
+    suspend fun school(schoolId: String): School
+    suspend fun updateSchool(schoolId: String, request: UpdateSchoolRequest): School
+
+    // ---- dashboard users and invites
+    suspend fun users(filter: UserFilter = UserFilter()): List<DashboardUser>
+    suspend fun updateUser(userId: String, request: UpdateUserRequest): DashboardUser
+    /** Emails the person a reset link; the account itself is untouched. */
+    suspend fun resetUserPassword(userId: String)
+    suspend fun createInvite(schoolId: String, request: CreateInviteRequest): Invite
+    /** Public: what the accept-invite page shows. */
+    suspend fun inviteInfo(token: String): InviteInfo
+    /** Public: sets the password, activates the account and signs the person in. */
+    suspend fun acceptInvite(token: String, request: AcceptInviteRequest): SignInResponse
+
+    // ---- View as… (§5): a read-only token for a Teacher or Managerial user, audit-logged on every request
+    suspend fun impersonate(userId: String): SignInResponse
+
+    /** Public: what a parent sees after typing a school code in Add child. */
+    suspend fun schoolByCode(code: String): JoinSchoolInfo
+}

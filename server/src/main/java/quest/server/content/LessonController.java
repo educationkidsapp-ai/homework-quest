@@ -6,6 +6,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,6 +22,7 @@ public class LessonController {
     private final LessonRepository lessons; private final LessonStore store; private final ChildRepository children;
     public LessonController(LessonRepository lessons, LessonStore store, ChildRepository children) { this.lessons = lessons; this.store = store; this.children = children; }
 
+    @PreAuthorize("@permit.has('lesson.play')")
     @GetMapping(value = "/lessons/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> lesson(@PathVariable String id, @RequestParam(required = false) Integer version, @RequestParam(required = false) String childId, @AuthenticationPrincipal Principals.Parent parent) {
         var lesson = lessons.findById(id).filter(l -> "published".equals(l.getStatus())).orElseThrow(() -> ApiException.notFound("lesson"));
