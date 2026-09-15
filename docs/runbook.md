@@ -52,6 +52,7 @@ A first request after a sleep or a scale-to-zero waits for a cold start. The e2e
 
 ```bash
 export JAVA_HOME=/Users/kareemshehab/.gradle/jdks/eclipse_adoptium-21-aarch64-os_x.2/jdk-21.0.11+10/Contents/Home
+export PATH="$JAVA_HOME/bin:$PATH"   # the default `java` is 17; run-local.sh execs a bare `java`, which would not boot the jar
 ./gradlew :shared-api:publishToMavenLocal -Pquest.serverOnly=true   # the server builds against the published contract
 ./server/run-local.sh          # in-memory H2 on :8080, FAKE_AUTH, reads ../.env
 docker compose up --build      # Postgres 16 + API on :8080 (profile local)
@@ -343,6 +344,7 @@ Against a local H2 server:
 
 ```bash
 export JAVA_HOME=/Users/kareemshehab/.gradle/jdks/eclipse_adoptium-21-aarch64-os_x.2/jdk-21.0.11+10/Contents/Home
+export PATH="$JAVA_HOME/bin:$PATH"   # `java` must be 21: JAVA_HOME alone only steers ./mvnw, not the `java` below
 ./gradlew :shared-api:publishToMavenLocal -Pquest.serverOnly=true
 cd server && ./mvnw -q package -DskipTests
 SPRING_PROFILES_ACTIVE=h2 ADMIN_EMAIL=admin@quest.local ADMIN_PASSWORD='<throwaway>' \
@@ -398,8 +400,9 @@ is a shared interface — it is created and owned by the `dashboard` worker and 
 
 ## CI
 
-`.github/workflows/ci.yml` on every PR and push to `develop` / `main`. Six workflows in all
-([deploy/README.md](../deploy/README.md) has the deploy ones).
+`.github/workflows/ci.yml` on every PR and push to `develop` / `main`. Five workflows in all — `ci`, `deploy-qa`,
+`deploy-production`, `rollback`, `migration-check` — plus Dependabot, which is `.github/dependabot.yml` rather than a
+workflow of its own ([deploy/README.md](../deploy/README.md) has the deploy ones).
 
 | Job | What it runs |
 |---|---|
