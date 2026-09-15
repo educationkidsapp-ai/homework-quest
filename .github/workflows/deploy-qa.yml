@@ -98,6 +98,8 @@ jobs:
           region: ${{ vars.GCP_REGION }}
           wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - name: Wake the database if it was put to sleep (infra/env.sh qa sleep)
+        run: ./infra/env.sh qa wake
       - name: Deploy (Flyway migrates on start; the startup probe waits for /health)
         run: |
           # the image carries APP_VERSION (Dockerfile ARG); no --update-env-vars, so Terraform's env stays the single source

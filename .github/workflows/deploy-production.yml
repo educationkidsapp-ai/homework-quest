@@ -113,6 +113,8 @@ jobs:
           region: ${{ vars.GCP_REGION }}
           wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - name: Wake the database if it was put to sleep (infra/env.sh prod sleep)
+        run: ./infra/env.sh prod wake
       - name: Deploy revision without traffic
         id: rev
         run: |
