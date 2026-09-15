@@ -6,7 +6,8 @@ lessons, and a backend that analyses each slide deck **once** and publishes it t
 * **App** — Kotlin Multiplatform + Compose Multiplatform (Android first, iOS from the same UI). Downloads published
   lessons, plays them, reports answers. Never uploads slides, never calls AI.
 * **Admin panel** — Compose Multiplatform for Web (Kotlin/Wasm, JS fallback) in `webAdmin/`. Uploads slides, reviews
-  and edits what the model wrote, publishes.
+  and edits what the model wrote, publishes. Being replaced by `dashboard/`, an Angular 22 workspace that grows it into
+  a multi-school panel for three roles; both are in the tree until phase 3 retires `webAdmin/`.
 * **Backend** — Spring Boot 3 / Java 21 / PostgreSQL in `server/` (Maven). DeepSeek by default (Anthropic optional),
   permanent AI cache, Firebase auth for parents, JWT for admins. Docker → Google Cloud Run.
 
@@ -36,9 +37,15 @@ shared-api/   KMP contract for app, server and admin: ContentApi / AdminApi, DTO
 shared-ui/    Design system + every stop composable, pot/journey widgets, tracing. No DB, no platform services → reused by the web admin
 shared/       The app: MVI features (auth, children, content, map, journey, rewards, parent), SQLDelight, Koin, Ktor
 androidApp/   desktopApp/   iosApp/       entry points (Android · desktop runner · SwiftUI host)
+dashboard/    Angular 22 workspace (pnpm, standalone + signals, strict TS): the ui component library, motion system,
+              EN/AR, Vitest + Playwright. Replaces webAdmin/ in phase 3; the two run side by side until then
 webAdmin/     Compose for Web admin panel (wasmJs + js), RemoteAdminApi, MVI features (auth, lessons, editor, reports)
-server/       Spring Boot 3 (Java 21, Maven): auth · children · content · analysis · admin · files; Flyway; H2 profile
-infra/        Terraform (per-environment GCP project), bootstrap.sh, secrets.sh, firebase-auth.sh — see deploy/README.md
+server/       Spring Boot 3 (Java 21, Maven): auth · tenancy · schools · users · children · content · analysis · admin ·
+              files; Flyway; H2 profile; permissions.json is the one permission matrix
+design/       tokens.json — the single token source the Angular dashboard and shared-ui both generate from
+e2e/          Cross-cutting scripts: the two-school QA seed and the cross-school isolation assertions
+docs/         plan.md (work packages) · runbook.md (operating the platform) · prompts/ · design.md · screenshots/
+infra/        Terraform (per-environment GCP project), bootstrap.sh, secrets.sh, firebase-auth.sh, env.sh — see deploy/README.md
 Dockerfile · docker-compose.yml · .github/workflows/{ci,deploy-qa,deploy-production,rollback,migration-check}.yml
 ```
 
@@ -80,15 +87,20 @@ docker compose up --build                     # Postgres 16 + API on http://loca
 ### Admin panel
 
 ```bash
-./gradlew :webAdmin:wasmJsBrowserDevelopmentRun -Pquest.admin.apiBaseUrl=http://localhost:8080   # Kotlin/Wasm
-./gradlew :webAdmin:jsBrowserDevelopmentRun     -Pquest.admin.apiBaseUrl=http://localhost:8080   # JS fallback
+cd dashboard && corepack pnpm install && pnpm start   # Angular, http://localhost:4200/panel/ (styleguide at /panel/styleguide)
+
+./gradlew :webAdmin:wasmJsBrowserDevelopmentRun -Pquest.admin.apiBaseUrl=http://localhost:8080   # legacy, Kotlin/Wasm
+./gradlew :webAdmin:jsBrowserDevelopmentRun     -Pquest.admin.apiBaseUrl=http://localhost:8080   # legacy, JS fallback
 ```
 
 ### Tests
 
 ```bash
 ./gradlew :shared-api:jvmTest :shared:desktopTest      # schemas, scoring, map rule; architecture; 45 screenshot tests
-cd server && ./mvnw test                              # parent flow, admin pipeline + cache, unit, OpenAPI contract (Testcontainers needs Docker)
+./gradlew :shared-ui:checkTokens                      # Tokens.kt / Theme.kt against design/tokens.json
+cd server && ./mvnw test                              # 107 tests: parent flow, admin pipeline + cache, tenancy isolation,
+                                                      # auth + permissions, OpenAPI contract (Testcontainers needs Docker)
+cd dashboard && pnpm lint && pnpm test                # ESLint (incl. the local hq rules) + Vitest
 ```
 
 ## Prompts
@@ -105,6 +117,12 @@ anything else is retried once with the validator's errors.
 Cloud SQL, buckets, keys, Spring profiles (`qa` / `prod`) and Android flavors (`qa` / `prod`). Terraform in `infra/terraform`,
 six GitHub Actions workflows (CI, QA deploy with APK link on the PR, production promotion with a no-traffic canary, rollback,
 migration check, Dependabot). Everything is driven with `gh` — see [deploy/README.md](deploy/README.md).
+
+Each environment serves **many schools**. A school is a tenant with its own join code, curricula, grades and users;
+every tenant row carries `school_id` and is filtered in the server from the caller's JWT. Dashboard users are `ADMIN`
+(the platform owner, across every school, with an `X-School-Id` switcher), `TEACHER` and `MANAGERIAL` (one school
+each); parents stay in Firebase Auth. Existing data lives in the default school `HQ0001`. Operating it — sleep/wake,
+accounts and invites, the permission matrix, seeding two schools, rollback — is [docs/runbook.md](docs/runbook.md).
 
 ## Still needed from the school / project owner
 
