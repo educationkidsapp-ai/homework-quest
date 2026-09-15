@@ -20,3 +20,4 @@ iosApp/build/
 firebase-debug.log
 .firebase/
 server/panel/
+.claude/worktrees/
