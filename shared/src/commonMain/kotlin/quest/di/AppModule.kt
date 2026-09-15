@@ -74,7 +74,7 @@ fun apiModule(config: ApiConfig): Module = module {
 val coreModule = module {
     single { Db(get()) }
     single { SettingsStore(get()) }
-    single { quest.feature.journey.data.LessonImages() }
+    single { quest.feature.journey.data.LessonImages(get()) }
     single { AppInitializer(get(), get()) }
 }
 
