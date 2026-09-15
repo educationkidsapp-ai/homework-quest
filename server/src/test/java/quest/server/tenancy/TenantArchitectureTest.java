@@ -25,11 +25,13 @@ class TenantArchitectureTest {
     private static final JavaClasses SERVER = new ClassFileImporter().withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");
 
     /**
-     * `users`, `invites` and `audit_log` also carry a `school_id`, but `quest.server.auth.Entities` belongs to the
-     * dashboard-auth package (P1.3) and is annotated there, not here. Remove an entry as soon as it is annotated.
+     * `invites` and `audit_log` also carry a `school_id` and are still unfiltered: both are written and read by flows
+     * that legitimately run outside a school scope — an invitation is opened and accepted by someone with no token at
+     * all, and the platform ADMIN's audit trail spans every school. `users` left this list in P1.3.
+     * Remove an entry as soon as its entity is annotated.
      */
     private static final Set<String> PENDING = Set.of(
-            "quest.server.auth.Entities$UserEntity", "quest.server.auth.Entities$InviteEntity", "quest.server.auth.Entities$AuditLogEntity");
+            "quest.server.auth.Entities$InviteEntity", "quest.server.auth.Entities$AuditLogEntity");
 
     @Test void every_tenant_entity_carries_the_school_filter() {
         classes().that().areAnnotatedWith(Entity.class).and(new com.tngtech.archunit.base.DescribedPredicate<JavaClass>("have a schoolId field") {

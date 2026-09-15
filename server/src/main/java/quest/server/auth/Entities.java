@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import org.hibernate.annotations.Filter;
 
 public final class Entities {
     private Entities() {}
@@ -21,8 +22,14 @@ public final class Entities {
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }
 
-    /** Every dashboard user: ADMIN (platform owner, no school), TEACHER and MANAGERIAL (one school each). */
+    /**
+     * Every dashboard user: ADMIN (platform owner, no school), TEACHER and MANAGERIAL (one school each). Tenant table:
+     * a query from a scoped request only sees that school's users, which is the second lock under `UserService.list`'s
+     * own scope. `school_id` is null on the ADMIN row, so the platform owner is invisible to a school's queries — and
+     * `findById` (which Hibernate filters never touch) is what the flows that must reach any row use, sign-in included.
+     */
     @Entity @Table(name = "users")
+    @Filter(name = "school", condition = "school_id = :schoolId")
     public static class UserEntity {
         @Id private String id;
         @Column(name = "school_id") private String schoolId;

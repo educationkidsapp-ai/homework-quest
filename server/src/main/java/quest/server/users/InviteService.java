@@ -56,8 +56,11 @@ public class InviteService {
         if (!UserService.SCHOOL_ROLES.contains(role)) throw ApiException.badRequest("A school user is a TEACHER or a MANAGERIAL.");
         String email = AuthService.normalise(request.email());
 
-        var user = users.findByEmailIgnoreCase(email).orElse(null);
+        // Across schools, and by id: `users` is filtered to the caller's school now, but `email` is unique platform-wide,
+        // so a Managerial caller has to be told the address is taken rather than run into the unique index.
+        var user = users.findIdByEmailAcrossSchools(email).flatMap(users::findById).orElse(null);
         if (user != null && !"invited".equals(user.getStatus())) throw ApiException.badRequest("That address already has an account.");
+        if (user != null && !schoolId.equals(user.getSchoolId()) && !caller.isAdmin()) throw ApiException.badRequest("That address already has an account.");
         if (user == null) {
             user = new Entities.UserEntity();
             user.setId(UUID.randomUUID().toString()); user.setEmail(email); user.setCreatedAt(Instant.now());

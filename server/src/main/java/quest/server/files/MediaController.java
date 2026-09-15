@@ -14,8 +14,17 @@ import quest.server.config.ApiException;
 import quest.server.content.PageImageRepository;
 
 /**
- * Public, unguessable-id media: rendered page images (`/media/pages/{id}`) referenced from published lessons,
- * and children's recordings/drawings (`/media/child/{id}`) shown in the parent panel.
+ * Public, id-addressed media: rendered page images (`/media/pages/{id}`) referenced from published lessons, and
+ * children's recordings/drawings (`/media/child/{id}`) shown in the parent panel.
+ *
+ * <p><strong>Known gap, not closed here.</strong> The ids are not unguessable: `StopIds.pageImageId` builds them as
+ * `<first 8 of the lesson id>:page-N`, so whoever learns one lesson id can read every page crop of that lesson
+ * without a token, across schools. Authorising these two routes through the lesson's school is the fix, but the app
+ * downloads them with a bare HTTP client that attaches no bearer token
+ * (`shared/src/commonMain/kotlin/quest/feature/journey/data/LessonImages.kt`, built with no `AuthProvider` in
+ * `AppModule`), so requiring authentication today would blank every picture in the app. `webAdmin`'s preview does
+ * send its token (`RemoteAdminApi.imageBytes`). Sequence: teach the app's loader to send the Firebase token (or move
+ * to signed, expiring media URLs), then put `/media/**` behind authentication and scope it by school.
  */
 @RestController
 @Tag(name = "Media", description = "Page crops and child recordings")
