@@ -30,7 +30,7 @@ gcloud projects create homework-quest-qa && gcloud billing projects link homewor
 firebase projects:addfirebase homework-quest-qa    # needs the Firebase terms accepted once in the console for this account
 export DEEPSEEK_API_KEY=sk-...            # LLM key for this environment
 export ADMIN_PASSWORD=...                 # admin panel sign-in (admin@quest.local)
-# optional: ANTHROPIC_API_KEY, ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD
+# optional: ANTHROPIC_API_KEY, RESEND_API_KEY (auth email — see below), ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD
 infra/bootstrap.sh qa                     # state bucket → terraform → your secret values → GitHub variables/secrets
 infra/firebase-auth.sh homework-quest-qa  # Email/Password provider + Android app → androidApp/src/qa/google-services.json (commit)
 # production: the same three with homework-quest-prod / prod
@@ -42,6 +42,43 @@ your values via `gcloud secrets versions add` — they never enter the Terraform
 (`DEEPSEEK_API_KEY`, `ADMIN_PASSWORD`, `ANDROID_*`) into the GitHub environment with `gh variable set` / `gh secret set`.
 Values never appear in chat, commits or logs. After that, CI deploys through Workload Identity and re-applies Terraform on
 every deploy. Parents' ID tokens are verified with the Cloud Run service account — no Firebase service-account key anywhere.
+
+## Auth email (invites and password resets)
+
+The dashboard's invites and password resets go through the server's `Mailer` (P1.3). Terraform sets these on Cloud Run:
+
+| Env var | Terraform | QA today | Meaning |
+|---|---|---|---|
+| `MAIL_PROVIDER` | `mail_provider` | `log` | `log` = the invite/reset link is only written to the Cloud Run log; `resend` = really sent |
+| `RESEND_API_KEY` | optional secret | absent | Resend key; wired into Cloud Run only once it has a version in Secret Manager |
+| `MAIL_FROM` | `mail_from` | `no-reply@homework-quest.invalid` | **placeholder** (RFC 2606 `.invalid`); replace with an address on a Resend-verified domain before switching |
+| `DASHBOARD_URL` | fixed to the API URL | `<API>` | origin the links are built on; the server appends `/panel/…`. Falls back to `PUBLIC_URL` when empty |
+| `PLATFORM_NAME` | `platform_name` | empty | product name in the mail; empty keeps the name seeded by the server |
+
+With the default `log` provider **no link reaches anyone** — it stays in the log, so an invited person cannot complete
+sign-up from an email. The QA path that does work is the `e2e` seed: it creates staff through the ADMIN-only create-user
+endpoint (`POST /admin/schools/{id}/users`, see `e2e/seed/seed.mjs`) and hands the report real passwords, so QA needs no
+mailbox at all.
+
+Switching QA to Resend (owner, once a key exists — the key never goes into git, tfvars or the Terraform state):
+
+```bash
+export RESEND_API_KEY=re_...                     # from resend.com, for a verified sending domain
+infra/secrets.sh homework-quest-qa               # adds a Secret Manager version (prints only the secret NAMES)
+gh secret set RESEND_API_KEY --env qa --body "$RESEND_API_KEY"   # so the deploy workflow can re-push it
+# then in infra/terraform/envs/qa.tfvars:
+#   mail_provider = "resend"
+#   mail_from     = "no-reply@<your-verified-domain>"
+# commit that on a branch, open a PR, merge → deploy-qa re-applies Terraform and the next invite is really sent
+```
+
+`infra/secrets.sh` prints the optional secrets that now have a version and the deploy workflow feeds that list to
+Terraform's `optional_secrets`, so `RESEND_API_KEY` reaches the container only after the value exists — exactly like
+`ANTHROPIC_API_KEY`. Production works the same way with `envs/prod.tfvars` and `--env production`.
+
+`DASHBOARD_URL` currently equals the API URL because the dashboard is served by the API container at `<API>/panel/`
+(decision D2). If the dashboard ever moves to its own hosting, this is the one value to repoint — the links then use the
+dashboard origin and everything else stays as it is.
 
 ## Sleeping an environment
 

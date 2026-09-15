@@ -2,7 +2,7 @@
 # Phase 0 / one-time per environment: state bucket → terraform apply → GitHub environment secrets & variables via gh.
 # Runs with YOUR gcloud credentials (application-default); afterwards GitHub Actions deploys through Workload Identity.
 #
-#   export DEEPSEEK_API_KEY=sk-... ADMIN_PASSWORD=...          # never committed; FIREBASE_CREDENTIALS / ANTHROPIC_API_KEY optional
+#   export DEEPSEEK_API_KEY=sk-... ADMIN_PASSWORD=...          # never committed; FIREBASE_CREDENTIALS / ANTHROPIC_API_KEY / RESEND_API_KEY optional
 #   infra/bootstrap.sh qa        # project homework-quest-qa   ← develop
 #   infra/bootstrap.sh prod      # project homework-quest-prod ← main
 set -euo pipefail
@@ -43,6 +43,7 @@ if [ "$ENV" = qa ]; then   # production promotes QA's image: it needs read acces
 fi
 [ -n "${DEEPSEEK_API_KEY:-}" ] && gh secret set DEEPSEEK_API_KEY --env "$GH_ENV" --repo "$REPO" --body "$DEEPSEEK_API_KEY"
 [ -n "${ADMIN_PASSWORD:-}" ]   && gh secret set ADMIN_PASSWORD   --env "$GH_ENV" --repo "$REPO" --body "$ADMIN_PASSWORD"
+[ -n "${RESEND_API_KEY:-}" ]  && gh secret set RESEND_API_KEY  --env "$GH_ENV" --repo "$REPO" --body "$RESEND_API_KEY"   # auth mail (optional)
 if [ -n "${FIREBASE_CREDENTIALS:-}" ]; then FJ="$FIREBASE_CREDENTIALS"; [ -f "$FJ" ] && FJ=$(cat "$FJ"); gh secret set FIREBASE_CREDENTIALS --env "$GH_ENV" --repo "$REPO" --body "$FJ"; fi
 for s in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
   [ -n "${!s:-}" ] && gh secret set "$s" --repo "$REPO" --body "${!s}"
