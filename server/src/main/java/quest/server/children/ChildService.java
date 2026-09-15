@@ -17,11 +17,24 @@ import quest.server.tenancy.TenantContext;
 
 @Service
 public class ChildService {
-    private final ChildRepository children; private final SchoolRepository schools;
-    public ChildService(ChildRepository children, SchoolRepository schools) { this.children = children; this.schools = schools; }
+    private final ChildRepository children; private final SchoolRepository schools; private final TenantContext tenant;
+    public ChildService(ChildRepository children, SchoolRepository schools, TenantContext tenant) { this.children = children; this.schools = schools; this.tenant = tenant; }
 
+    /** A parent's own child. `findOneById`, not `findById`: filters do not apply to `em.find`. */
     public Entities.ChildEntity owned(String childId, Principals.Parent parent) {
-        return children.findById(childId).filter(c -> c.getDeletedAt() == null && c.getParentId().equals(parent.parentId())).orElseThrow(() -> ApiException.notFound("child"));
+        return children.findOneById(childId).filter(c -> c.getDeletedAt() == null && c.getParentId().equals(parent.parentId())).orElseThrow(() -> ApiException.notFound("child"));
+    }
+
+    /**
+     * A child a dashboard user may see: of her school, or of the school an Admin switched to. Everything hanging off a
+     * child — attempts, completions, media, stickers, streaks, parent unlocks — is reached by `child_id`, so this is
+     * the one gate in front of all of them.
+     */
+    public Entities.ChildEntity scoped(String childId) {
+        var child = children.findOneById(childId).filter(c -> c.getDeletedAt() == null).orElseThrow(() -> ApiException.notFound("child"));
+        var schoolId = tenant.schoolId();
+        if (schoolId != null && !schoolId.equals(child.getSchoolId())) throw ApiException.notFound("child");
+        return child;
     }
 
     public List<Child> list(Principals.Parent parent) { return children.findByParentIdAndDeletedAtIsNullOrderByCreatedAt(parent.parentId()).stream().map(ChildService::dto).toList(); }

@@ -62,6 +62,7 @@ import quest.server.content.StopRepository;
 import quest.server.files.FileStore;
 import quest.server.tenancy.ClassService;
 import quest.server.tenancy.TenantContext;
+import quest.server.tenancy.TenantGuard;
 
 /** Everything behind `/admin/lessons/**`: lifecycle draft → analysing → needs_review → generating → review → published. */
 @Service
@@ -69,14 +70,22 @@ public class AdminLessonService {
     private final LessonRepository lessons; private final SourceFileRepository sourceFiles; private final SkillRepository skills; private final PlayRepository plays; private final StopRepository stops; private final ParentPanelRepository panels;
     private final AnalysisCacheRepository analysisCache; private final LessonStore store; private final AnalysisService analysisService; private final GenerationService generation; private final LessonPipeline pipeline; private final LessonState state;
     private final FileStore files; private final Json json; private final PageImageRepository pageImages; private final String publicUrl; private final LessonSteps steps;
-    private final TenantContext tenant; private final ClassService classes;
+    private final TenantContext tenant; private final ClassService classes; private final TenantGuard guard;
 
-    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, ClassService classes) {
+    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, ClassService classes, TenantGuard guard) {
         this.lessons = lessons; this.sourceFiles = sourceFiles; this.skills = skills; this.plays = plays; this.stops = stops; this.panels = panels; this.analysisCache = analysisCache; this.store = store; this.analysisService = analysisService; this.generation = generation; this.pipeline = pipeline; this.state = state; this.files = files; this.json = json;
-        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.classes = classes;
+        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.classes = classes; this.guard = guard;
     }
 
-    public LessonEntity get(String id) { return lessons.findById(id).orElseThrow(() -> ApiException.notFound("lesson")); }
+    /**
+     * `findOneById`, never `findById`: Hibernate filters do not apply to `em.find`, so a `findById` would hand a
+     * Teacher of school A a lesson of school B by id. Every lesson, skill, play, stop, panel and file the admin API
+     * touches is reached through here, which is what scopes them all.
+     */
+    public LessonEntity get(String id) { return lessons.findOneById(id).orElseThrow(() -> ApiException.notFound("lesson")); }
+
+    /** The same lesson, for a caller who is about to change it: MANAGERIAL reads her school but writes nothing (§5). */
+    private LessonEntity getForWrite(String id) { guard.requireLessonWrite(); return get(id); }
 
     public List<AdminLesson> list(LessonFilter f) {
         return lessons.findAllByOrderByDateDescCreatedAtDesc().stream().filter(l -> {
@@ -99,8 +108,10 @@ public class AdminLessonService {
         e.setDate(jdate(req.getDate())); e.setStatus("draft"); e.setVersion(0); e.setNotes(req.getNotes()); e.setPracticeLength(req.getPracticeLength());
         e.setCreatedBy(admin == null ? null : admin.email()); e.setCreatedAt(Instant.now()); e.setUpdatedAt(Instant.now());
         var schoolId = tenant.writeSchoolId();
+        var curriculum = req.getCurriculum().name().toLowerCase(); var subject = req.getSubject().name().toLowerCase();
+        var teacherId = guard.lessonCreator(curriculum, req.getGrade(), subject);   // §5: a teacher's subject/curriculum/grades, or 403
         e.setSchoolId(schoolId);
-        e.setClassId(classes.findOrCreate(schoolId, req.getCurriculum().name().toLowerCase(), req.getGrade(), req.getSubject().name().toLowerCase()).getId());
+        e.setClassId(classes.findOrCreateForTeacher(schoolId, curriculum, req.getGrade(), subject, teacherId).getId());
         if (req.getTitle() != null && !req.getTitle().isBlank()) e.setTitle(req.getTitle().trim());
         if (req.getSource() == LessonSource.MANUAL) {
             // hand-written: straight to review with an empty Level 1; the admin adds stops, writes or generates the rest
@@ -114,7 +125,7 @@ public class AdminLessonService {
 
     // not @Transactional: the failed-upload branch must commit its step/status writes after the inner transaction rolled back
     public LessonStatus upload(String id, List<AnalysisService.Upload> uploads) {
-        var lesson = get(id);
+        var lesson = getForWrite(id);
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
         if (!manual(lesson)) steps.ensure(id);
         try { analysisService.upload(lesson, uploads); }
@@ -135,7 +146,7 @@ public class AdminLessonService {
     }
 
     public LessonStatus analyze(String id) {
-        var lesson = get(id);
+        var lesson = getForWrite(id);
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
         if (sourceFiles.findByLessonIdOrderByCreatedAt(id).stream().noneMatch(f -> f.getDeletedAt() == null)) throw ApiException.badRequest("Upload the slides first.");
         steps.ensure(id); steps.done(id, PipelineStep.UPLOAD);
@@ -146,7 +157,7 @@ public class AdminLessonService {
 
     @Transactional
     public LessonStatus confirmSkills(String id, List<ConfirmedSkill> confirmed) {
-        var lesson = get(id);
+        var lesson = getForWrite(id);
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
         if (confirmed.isEmpty()) throw ApiException.badRequest("Confirm at least one skill.");
         var existing = skills.findByLessonIdOrderByPosition(id);
@@ -171,7 +182,7 @@ public class AdminLessonService {
     @Transactional
     public Stop updateStop(String stopId, Stop stop) {
         var se = stops.findById(stopId).orElseThrow(() -> ApiException.notFound("stop"));
-        var lesson = get(se.getLessonId()); requireReview(lesson);
+        var lesson = getForWrite(se.getLessonId()); requireReview(lesson);
         var pe = plays.findById(se.getPlayId()).orElseThrow();
         Play play = store.play(pe);
         List<Stop> list = new ArrayList<>(play.getStops());
@@ -203,7 +214,7 @@ public class AdminLessonService {
 
     @Transactional
     public AdminPlay createPlay(String lessonId, int level, int variant) {
-        var lesson = get(lessonId); requireReview(lesson);
+        var lesson = getForWrite(lessonId); requireReview(lesson);
         if (level < 1 || level > 3 || variant < 0 || variant > 1 || (variant == 1 && level != 1)) throw ApiException.badRequest("Levels are 1–3; only Level 1 has an Again variant.");
         if (plays.findByLessonIdAndLevelAndVariant(lessonId, level, variant).isPresent()) throw ApiException.badRequest("That level already exists.");
         if (!manual(lesson)) { lesson.setSource("manual"); } // a hand-added level makes the lesson hand-edited: lenient rules from here on
@@ -215,7 +226,7 @@ public class AdminLessonService {
     @Transactional
     public Stop addStop(String playId, Stop stop) {
         var pe = plays.findById(playId).orElseThrow(() -> ApiException.notFound("play"));
-        var lesson = get(pe.getLessonId()); requireReview(lesson);
+        var lesson = getForWrite(pe.getLessonId()); requireReview(lesson);
         Play play = store.play(pe);
         String prefix = quest.server.analysis.StopIds.prefix(lesson.getId(), play.getLevel(), play.getVariant());
         String id = stop.getId() == null || stop.getId().isBlank() || !stop.getId().startsWith(prefix) ? prefix + "m" + UUID.randomUUID().toString().substring(0, 6) : stop.getId();
@@ -237,7 +248,7 @@ public class AdminLessonService {
     @Transactional
     public void deleteStop(String stopId) {
         var se = stops.findById(stopId).orElseThrow(() -> ApiException.notFound("stop"));
-        var lesson = get(se.getLessonId()); requireReview(lesson);
+        var lesson = getForWrite(se.getLessonId()); requireReview(lesson);
         var pe = plays.findById(se.getPlayId()).orElseThrow();
         Play play = store.play(pe);
         List<Stop> list = play.getStops().stream().filter(s -> !s.getId().equals(stopId)).toList();
@@ -249,7 +260,7 @@ public class AdminLessonService {
     @Transactional
     public Play reorderStops(String playId, List<String> ids) {
         var pe = plays.findById(playId).orElseThrow(() -> ApiException.notFound("play"));
-        var lesson = get(pe.getLessonId()); requireReview(lesson);
+        var lesson = getForWrite(pe.getLessonId()); requireReview(lesson);
         Play play = store.play(pe);
         var byId = new java.util.LinkedHashMap<String, Stop>(); play.getStops().forEach(s -> byId.put(s.getId(), s));
         if (ids.size() != byId.size() || !new java.util.HashSet<>(ids).equals(byId.keySet())) throw ApiException.badRequest("The new order must contain every stop exactly once.");
@@ -264,7 +275,7 @@ public class AdminLessonService {
     /** Stores a picture in the lesson's image folder and registers it as a page image the app can show. */
     @Transactional
     public LessonImage uploadImage(String lessonId, String fileName, String mimeType, byte[] bytes) {
-        var lesson = get(lessonId);
+        var lesson = getForWrite(lessonId);
         if (bytes.length == 0) throw ApiException.badRequest("Empty file.");
         if (bytes.length > 8 * 1024 * 1024) throw ApiException.badRequest("Pictures must be under 8 MB.");
         int width = 0, height = 0;
@@ -284,7 +295,7 @@ public class AdminLessonService {
     /** Prompt A on the admin's text, then Prompt B for every level that does not exist yet (+ the Again variant) and Prompt C. */
     @Transactional
     public LessonStatus generateFromText(String id, String text) {
-        var lesson = get(id);
+        var lesson = getForWrite(id);
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
         if (text == null || text.trim().length() < 20) throw ApiException.badRequest("Write a few sentences about the lesson first (at least 20 characters).");
         if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw ApiException.badRequest("Unpublish the lesson before generating.");
@@ -330,7 +341,7 @@ public class AdminLessonService {
 
     public Stop regenerateStop(String stopId) {
         var se = stops.findById(stopId).orElseThrow(() -> ApiException.notFound("stop"));
-        var lesson = get(se.getLessonId()); requireReview(lesson);
+        var lesson = getForWrite(se.getLessonId()); requireReview(lesson);
         var pe = plays.findById(se.getPlayId()).orElseThrow();
         var stop = generation.regenerateStop(lesson, pe, stopId);
         touch(lesson);
@@ -339,7 +350,7 @@ public class AdminLessonService {
 
     public Play regeneratePlay(String playId) {
         var pe = plays.findById(playId).orElseThrow(() -> ApiException.notFound("play"));
-        var lesson = get(pe.getLessonId()); requireReview(lesson);
+        var lesson = getForWrite(pe.getLessonId()); requireReview(lesson);
         var play = generation.regeneratePlay(lesson, pe);
         touch(lesson);
         return play;
@@ -347,7 +358,7 @@ public class AdminLessonService {
 
     @Transactional
     public ParentPanel updatePanel(String id, ParentPanel panel) {
-        var lesson = get(id); requireReview(lesson);
+        var lesson = getForWrite(id); requireReview(lesson);
         if (panel.getObjectives().getEn().size() != panel.getObjectives().getAr().size()) throw ApiException.badRequest("Objectives need the same number of English and Arabic lines.");
         store.savePanel(id, panel); touch(lesson);
         return panel;
@@ -355,7 +366,7 @@ public class AdminLessonService {
 
     @Transactional
     public AdminLesson publish(String id) {
-        var lesson = get(id);
+        var lesson = getForWrite(id);
         if (LessonState.status(lesson) != LessonStatus.REVIEW) throw ApiException.badRequest("Only a lesson in review can be published.");
         if (manual(lesson)) completeManual(lesson);
         if (store.assemble(lesson) == null) throw ApiException.badRequest("All three levels, the Again variant and the parent panel must exist.");
@@ -365,7 +376,7 @@ public class AdminLessonService {
 
     @Transactional
     public AdminLesson unpublish(String id) {
-        var lesson = get(id);
+        var lesson = getForWrite(id);
         if (LessonState.status(lesson) != LessonStatus.PUBLISHED) throw ApiException.badRequest("The lesson isn't published.");
         lesson.setStatus("review"); lesson.setUpdatedAt(Instant.now());
         return toAdmin(lessons.save(lesson), true);
@@ -373,7 +384,7 @@ public class AdminLessonService {
 
     // ---------------------------------------------------------------- retry
     public LessonStatus retry(String id) {
-        var lesson = get(id);
+        var lesson = getForWrite(id);
         if (manual(lesson)) throw ApiException.badRequest("Hand-written lessons have no pipeline to retry — press Generate the other levels instead.");
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
         if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw ApiException.badRequest("Unpublish the lesson first.");
@@ -385,7 +396,7 @@ public class AdminLessonService {
     }
 
     public LessonStatus retryStep(String id, PipelineStep step) {
-        var lesson = get(id);
+        var lesson = getForWrite(id);
         if (manual(lesson)) throw ApiException.badRequest("Hand-written lessons have no pipeline to retry.");
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
         if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw ApiException.badRequest("Unpublish the lesson first.");
@@ -400,14 +411,14 @@ public class AdminLessonService {
 
     @Transactional
     public void deleteFiles(String id) {
-        get(id);
+        getForWrite(id);
         for (var f : sourceFiles.findByLessonIdOrderByCreatedAt(id)) if (f.getDeletedAt() == null) { files.delete(f.getStoragePath()); f.setDeletedAt(Instant.now()); sourceFiles.save(f); }
     }
 
     /** Removes the lesson, its uploaded files and page images in the bucket, and (by cascade) skills, plays, stops, panel, steps. The AI caches are keyed by file hash and stay. */
     @Transactional
     public void delete(String id) {
-        var lesson = get(id);
+        var lesson = getForWrite(id);
         if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw new ApiException(org.springframework.http.HttpStatus.CONFLICT, "published", "Unpublish the lesson first; published lessons can't be deleted.");
         if (!editable(lesson)) throw new ApiException(org.springframework.http.HttpStatus.CONFLICT, "running", "Wait for the current job to finish.");
         deleteFiles(id);
@@ -418,6 +429,7 @@ public class AdminLessonService {
     /** Deletes every lesson in error. */
     @Transactional
     public int deleteFailed() {
+        guard.requireLessonWrite();
         int n = 0;
         for (var l : lessons.findAllByOrderByDateDescCreatedAtDesc()) if (LessonState.status(l) == LessonStatus.ERROR) { delete(l.getId()); n++; }
         return n;
