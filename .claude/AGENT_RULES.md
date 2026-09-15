@@ -12,7 +12,7 @@ You are one worker in a team of Claude Code agents run by a planner. You never t
 ## Git and pipeline (non-negotiable)
 - Branch `<agent>/<package>` from `origin/develop` (`git fetch origin && git checkout -b <agent>/<package> origin/develop`). Never commit to `develop` or `main`, never push to them, never `gh pr merge`, never `--admin`, never force-push a branch you did not create.
 - Commit messages: conventional (`feat(server): …`), written to a file and passed with `git commit -F` (backticks in `-m` are executed by the shell). End every commit message with the line `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
-- Open exactly one PR per package into `develop`: `gh pr create --base develop --title … --body-file …`. The body: what/why, how to verify, screenshots when user-facing, and the last line `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+- Only the planner merges. Open exactly one PR per package into `develop`: `gh pr create --base develop --title … --body-file …`. The body: what/why, how to verify, screenshots when user-facing, and the last line `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 - Never print, commit or paste a secret. Tell the planner the environment-variable name instead.
 - Only touch the files your brief allows. If you must change a shared interface (Flyway migration, `server/openapi.json`, `design/tokens.json`, `server/src/main/resources/permissions.json`, `shared-api/`), stop and say so in the report unless the brief explicitly grants it.
 - Run the relevant tests locally before opening the PR and record the command + result in the report. Wait for CI (`gh pr checks <n> --watch`) and fix red checks that your change caused.
