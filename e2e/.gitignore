@@ -1,0 +1,3 @@
+# The id summary seed.mjs writes (E2E_SEED_OUT). Ids only, never tokens or passwords — but it is per-environment.
+.seed.json
+.seed.*.json
