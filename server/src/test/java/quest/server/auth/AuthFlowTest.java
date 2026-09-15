@@ -105,11 +105,53 @@ class AuthFlowTest extends ApiTestSupport {
                 .andExpect(status().isUnauthorized());
     }
 
-    @Test void an_unknown_address_still_gets_a_204_and_no_mail() throws Exception {
+    /** The page must not answer differently — in words or in milliseconds — for an address that has an account. */
+    @Test void an_unknown_and_a_known_address_both_get_a_204_and_the_mail_leaves_after_the_commit() throws Exception {
+        var user = user("timing", "TEACHER", "default");
         mailer.clear();
+
         mvc.perform(post("/auth/forgot-password").contentType(MediaType.APPLICATION_JSON).content(body("email", "nobody@nowhere.test")))
                 .andExpect(status().isNoContent());
-        assertThat(mailer.sent()).isEmpty();
+        mvc.perform(post("/auth/forgot-password").contentType(MediaType.APPLICATION_JSON).content(body("email", user.getEmail())))
+                .andExpect(status().isNoContent());
+
+        var mail = mailer.last();
+        assertThat(mail.to()).isEqualTo(user.getEmail());
+        assertThat(mail.inTransaction()).as("the mail leaves after the transaction commits, not inside it").isFalse();
+        assertThat(mail.thread()).as("…and off the thread that answered the request").isNotEqualTo(Thread.currentThread().getName());
+        assertThat(mailer.settled()).as("the unknown address is never mailed").hasSize(1);
+    }
+
+    /** A link sets a password; it never changes what the account is. */
+    @Test void a_reset_link_cannot_revive_a_disabled_account_or_finish_an_invite() throws Exception {
+        for (String status : new String[] {"disabled", "invited"}) {
+            var user = user("reset-" + status, "TEACHER", "default");
+            mailer.clear();
+            mvc.perform(post("/auth/forgot-password").contentType(MediaType.APPLICATION_JSON).content(body("email", user.getEmail())))
+                    .andExpect(status().isNoContent());
+            String token = mailer.last().token();
+
+            user.setStatus(status); users.save(user);
+
+            mvc.perform(post("/auth/reset-password").contentType(MediaType.APPLICATION_JSON)       // refused in the words of a stale link
+                    .content(mapper.createObjectNode().put("token", token).put("newPassword", "sneaking-back-in").toString()))
+                    .andExpect(status().isUnauthorized());
+
+            var after = users.findById(user.getId()).orElseThrow();
+            assertThat(after.getStatus()).as("the reset did not touch the account's status").isEqualTo(status);
+            assertThat(encoder.matches("sneaking-back-in", after.getPasswordHash())).as("nor its password").isFalse();
+            mvc.perform(signInRequest(user.getEmail(), "sneaking-back-in")).andExpect(status().isUnauthorized());
+        }
+    }
+
+    /** A forgot-password link for an address that never had one must not become an account either. */
+    @Test void an_inactive_account_is_not_mailed_a_reset_link_at_all() throws Exception {
+        var user = user("nolink", "TEACHER", "default");
+        user.setStatus("disabled"); users.save(user);
+        mailer.clear();
+        mvc.perform(post("/auth/forgot-password").contentType(MediaType.APPLICATION_JSON).content(body("email", user.getEmail())))
+                .andExpect(status().isNoContent());
+        assertThat(mailer.settled()).isEmpty();
     }
 
     @Test void the_first_login_is_gated_until_the_password_is_changed() throws Exception {
@@ -140,6 +182,22 @@ class AuthFlowTest extends ApiTestSupport {
             mvc.perform(signInRequest(user.getEmail(), "wrong-password-" + attempt)).andExpect(status().isUnauthorized());
         mvc.perform(signInRequest(user.getEmail(), "wrong-password-11")).andExpect(status().isTooManyRequests());
         mvc.perform(signInRequest(user.getEmail(), PASSWORD)).andExpect(status().isTooManyRequests());   // even the right one waits
+    }
+
+    /**
+     * The bypass the review found: `X-Forwarded-For` is appended to by each hop, so its first entry is whatever the
+     * caller typed. The limit keys on the peer address instead, and a fresh header per attempt buys nothing.
+     */
+    @Test void a_rotating_x_forwarded_for_does_not_buy_more_attempts() throws Exception {
+        var user = user("spoofer", "TEACHER", "default");
+        for (int attempt = 0; attempt < 10; attempt++)
+            mvc.perform(signInRequest(user.getEmail(), "wrong-password-" + attempt)
+                    .header("X-Forwarded-For", "10.0.0." + attempt + ", 35.191.0.1")).andExpect(status().isUnauthorized());
+
+        mvc.perform(signInRequest(user.getEmail(), "wrong-password-11").header("X-Forwarded-For", "10.0.0.240, 35.191.0.1"))
+                .andExpect(status().isTooManyRequests());
+        mvc.perform(signInRequest(user.getEmail().toUpperCase(java.util.Locale.ROOT), PASSWORD)     // …and the bucket is the normalised email
+                .header("X-Forwarded-For", "203.0.113.7")).andExpect(status().isTooManyRequests());
     }
 
     // ---- helpers

@@ -77,10 +77,15 @@ public class AuthController {
         return caller;
     }
 
-    /** Cloud Run puts the caller in `X-Forwarded-For`; the first entry is the client. */
+    /**
+     * The peer the request really came from, never a header the caller wrote. `X-Forwarded-For` is appended to by every
+     * hop, so its first entry is whatever the client typed — reading it let one caller rotate through 10.0.0.1, 10.0.0.2…
+     * and get a fresh rate-limit bucket per attempt. `server.forward-headers-strategy: native` puts Tomcat's
+     * `RemoteIpValve` in front of us instead: it walks the header from the right, skips the hops it trusts
+     * (`server.tomcat.remoteip.internal-proxies`) and leaves the rightmost untrusted one — the address Cloud Run's front
+     * end appended — in `getRemoteAddr()`. Entries a caller adds on the left are ignored.
+     */
     static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
         return request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
     }
 }

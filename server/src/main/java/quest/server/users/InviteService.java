@@ -25,7 +25,7 @@ import quest.server.auth.UserRepository;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
 import quest.server.config.QuestProperties;
-import quest.server.mail.DashboardMails;
+import quest.server.mail.OutgoingMail;
 import quest.server.schools.SchoolService;
 
 /**
@@ -38,11 +38,11 @@ public class InviteService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final InviteRepository invites; private final UserRepository users; private final TeacherRepository teachers;
-    private final SchoolService schools; private final PasswordEncoder encoder; private final DashboardMails mails;
+    private final SchoolService schools; private final PasswordEncoder encoder; private final OutgoingMail mails;
     private final AuditService audit; private final AuthService auth; private final Json json; private final Duration ttl;
 
     public InviteService(InviteRepository invites, UserRepository users, TeacherRepository teachers, SchoolService schools,
-                         PasswordEncoder encoder, DashboardMails mails, AuditService audit, AuthService auth, Json json, QuestProperties props) {
+                         PasswordEncoder encoder, OutgoingMail mails, AuditService audit, AuthService auth, Json json, QuestProperties props) {
         this.invites = invites; this.users = users; this.teachers = teachers; this.schools = schools; this.encoder = encoder;
         this.mails = mails; this.audit = audit; this.auth = auth; this.json = json;
         this.ttl = Duration.ofDays(props.auth().inviteDays() <= 0 ? 7 : props.auth().inviteDays());
@@ -77,7 +77,7 @@ public class InviteService {
         invite.setExpiresAt(Instant.now().plus(ttl)); invite.setCreatedAt(Instant.now());
         invites.save(invite);
 
-        mails.sendInvite(email, school.getName(), role, token);
+        mails.invite(email, school.getName(), role, token);          // leaves after this transaction commits, off the request thread
         audit.record(caller.userId(), "user.invite", "user", user.getId(), schoolId, Map.of("email", email, "role", role));
         return toDto(invite);
     }
@@ -89,22 +89,37 @@ public class InviteService {
                 invite.getSchoolId() == null ? null : schools.require(invite.getSchoolId()).getName(), invite.getExpiresAt().toEpochMilli());
     }
 
-    /** Public: sets the password, activates the account and signs the person straight in. */
+    /**
+     * Public: sets the password, activates the account and signs the person straight in. Only an account that is still
+     * `invited` can be accepted — otherwise an unused link would stay a role- and school-changing password reset for
+     * the rest of its 7 days, on an account that has meanwhile gone `active` some other way.
+     */
     @Transactional
     public DashboardDto.SignInResponse accept(String token, UserDto.AcceptInviteRequest request) {
         AuthService.requireStrong(request.password());
         var invite = open(token);
         var user = users.findByEmailIgnoreCase(invite.getEmail()).orElseThrow(() -> ApiException.notFound("user"));
+        if (!"invited".equals(user.getStatus())) throw gone("That invitation has already been used.");
         user.setPasswordHash(encoder.encode(request.password()));
         user.setStatus("active"); user.setMustChangePassword(false);
         if (request.displayName() != null && !request.displayName().isBlank()) user.setDisplayName(request.displayName().trim());
         user.setSchoolId(invite.getSchoolId()); user.setRole(invite.getRole());
         user.setLastLoginAt(Instant.now()); user.setUpdatedAt(Instant.now());
         users.save(user);
-        invite.setAcceptedAt(Instant.now());
-        invites.save(invite);
+        consume(invite);
         audit.record(user.getId(), "user.inviteAccepted", "user", user.getId(), user.getSchoolId(), Map.of("role", user.getRole()));
         return auth.session(user);
+    }
+
+    /** The link is spent, and so is every other one still open for that address. */
+    private void consume(Entities.InviteEntity accepted) {
+        Instant now = Instant.now();
+        accepted.setAcceptedAt(now);
+        invites.save(accepted);
+        for (var sibling : invites.findByEmailIgnoreCaseAndAcceptedAtIsNull(accepted.getEmail())) {
+            sibling.setAcceptedAt(now);
+            invites.save(sibling);
+        }
     }
 
     private Entities.InviteEntity open(String token) {

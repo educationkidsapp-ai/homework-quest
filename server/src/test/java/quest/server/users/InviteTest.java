@@ -80,6 +80,28 @@ class InviteTest extends ApiTestSupport {
                 .content("{\"password\":\"another-password\"}")).andExpect(status().isGone());
     }
 
+    /** An unused link must not stay a role- and school-changing password reset once the account is no longer `invited`. */
+    @Test void accepting_one_invitation_retires_every_other_link_for_that_address() throws Exception {
+        String token = adminToken();
+        String schoolId = newSchool(token, "Twice School").get("id").asText();
+        String email = "twice-" + UUID.randomUUID().toString().substring(0, 8) + "@twice.test";
+
+        mailer.clear();
+        String first = inviteLink(token, schoolId, email, "TEACHER");
+        String second = inviteLink(token, schoolId, email, "MANAGERIAL");
+        assertThat(second).isNotEqualTo(first);
+
+        mvc.perform(post("/invites/" + second + "/accept").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"password\":\"twice-password-1\"}")).andExpect(status().isOk());
+        assertThat(users.findByEmailIgnoreCase(email).orElseThrow().getStatus()).isEqualTo("active");
+
+        mvc.perform(get("/invites/" + first)).andExpect(status().isGone());                      // consumed with its sibling
+        mvc.perform(post("/invites/" + first + "/accept").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"password\":\"back-door-1234\"}")).andExpect(status().isGone());
+        assertThat(users.findByEmailIgnoreCase(email).orElseThrow().getRole())
+                .as("the retired link did not change the role").isEqualTo("MANAGERIAL");
+    }
+
     @Test void an_expired_invitation_is_gone() throws Exception {
         String token = adminToken();
         String schoolId = newSchool(token, "Sunrise School").get("id").asText();
@@ -107,6 +129,14 @@ class InviteTest extends ApiTestSupport {
         assertThat(joined.get("name").asText()).isEqualTo("Code School");
         assertThat(joined.get("curriculumOptions").toString()).contains("british");
         mvc.perform(get("/schools/by-code/ZZZZZZ")).andExpect(status().isNotFound());
+    }
+
+    /** Invites the address and returns the one-time token out of the mail that follows the commit. */
+    private String inviteLink(String token, String schoolId, String email, String role) throws Exception {
+        int before = mailer.sent().size();
+        mvc.perform(admin(post("/admin/schools/" + schoolId + "/invites").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"%s\",\"role\":\"%s\"}".formatted(email, role)), token)).andExpect(status().isOk());
+        return mailer.awaitAtLeast(before + 1).getLast().token();
     }
 
     private JsonNode newSchool(String token, String name) throws Exception {

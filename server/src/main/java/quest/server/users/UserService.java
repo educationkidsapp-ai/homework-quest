@@ -1,10 +1,14 @@
 package quest.server.users;
 
+import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import quest.server.auth.AdminJwtService;
@@ -30,15 +34,20 @@ public class UserService {
         this.users = users; this.auth = auth; this.jwt = jwt; this.refreshTokens = refreshTokens; this.audit = audit;
     }
 
-    /** A Managerial caller only ever sees their own school, whatever they ask for. */
+    /**
+     * A Managerial caller only ever sees their own school, whatever they ask for. The scope and the filters are part of
+     * the query: the list must not load the users table and throw most of it away.
+     */
     public List<DashboardDto.DashboardUser> list(Principals.User caller, String role, String schoolId, String status) {
         String scope = caller.isAdmin() ? schoolId : caller.schoolId();
-        return users.findAll().stream()
-                .filter(u -> scope == null || scope.equals(u.getSchoolId()))
-                .filter(u -> role == null || role.equalsIgnoreCase(u.getRole()))
-                .filter(u -> status == null || status.equalsIgnoreCase(u.getStatus()))
-                .sorted((a, b) -> a.getEmail().compareToIgnoreCase(b.getEmail()))
-                .map(u -> DashboardDto.of(u, null)).toList();
+        Specification<Entities.UserEntity> spec = (root, query, cb) -> {
+            List<Predicate> where = new ArrayList<>();
+            if (scope != null) where.add(cb.equal(root.get("schoolId"), scope));
+            if (role != null) where.add(cb.equal(cb.upper(root.get("role")), role.trim().toUpperCase(Locale.ROOT)));
+            if (status != null) where.add(cb.equal(cb.lower(root.get("status")), status.trim().toLowerCase(Locale.ROOT)));
+            return cb.and(where.toArray(Predicate[]::new));
+        };
+        return users.findAll(spec, Sort.by(Sort.Order.asc("email").ignoreCase())).stream().map(u -> DashboardDto.of(u, null)).toList();
     }
 
     @Transactional
@@ -65,9 +74,11 @@ public class UserService {
         return DashboardDto.of(user, null);
     }
 
+    /** Only an active account: a reset link never revives a disabled one, and an invited one finishes through its invite. */
     @Transactional
     public void sendPasswordReset(Principals.User caller, String userId) {
         var user = reachable(caller, userId);
+        if (!"active".equals(user.getStatus())) throw ApiException.badRequest("That account is not active.");
         auth.sendResetLink(user);
         audit.record(caller.userId(), "user.resetPassword", "user", user.getId(), user.getSchoolId(), Map.of());
     }

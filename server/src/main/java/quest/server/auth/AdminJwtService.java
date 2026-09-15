@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import javax.crypto.SecretKey;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import quest.server.config.QuestProperties;
 
@@ -31,9 +32,8 @@ public class AdminJwtService {
     private final SecretKey key;
     private final Duration legacyTtl, accessTtl, impersonateTtl, resetTtl;
 
-    public AdminJwtService(QuestProperties props) {
-        String secret = props.auth().jwtSecret();
-        if (secret == null || secret.length() < 32) secret = (secret == null ? "" : secret) + "-homework-quest-dev-secret-please-change-me";
+    public AdminJwtService(QuestProperties props, Environment environment) {
+        String secret = requireLongEnough(props.auth().jwtSecret(), environment);
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.legacyTtl = Duration.ofHours(positive(props.auth().jwtHours(), 12));
         this.accessTtl = Duration.ofMinutes(positive(props.auth().accessMinutes(), 15));
@@ -104,6 +104,19 @@ public class AdminJwtService {
             var sha = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(sha).substring(0, 16);
         } catch (Exception e) { throw new IllegalStateException(e); }
+    }
+
+    /**
+     * HS256 needs 32 bytes of key. Padding a short `ADMIN_JWT_SECRET` out to length, as this used to, turns a
+     * misconfigured deployment into a silently weak one — so outside the `test`/`h2` profiles a short secret stops the
+     * server at startup instead. The message never contains the secret.
+     */
+    private static String requireLongEnough(String secret, Environment environment) {
+        String value = secret == null ? "" : secret;
+        if (value.getBytes(StandardCharsets.UTF_8).length >= 32) return value;
+        boolean developer = java.util.Arrays.stream(environment.getActiveProfiles()).anyMatch(p -> "test".equals(p) || "h2".equals(p));
+        if (!developer) throw new IllegalStateException("ADMIN_JWT_SECRET must be at least 32 bytes long; the server will not start with a shorter one.");
+        return "homework-quest-in-memory-profile-secret-do-not-use-anywhere-else";
     }
 
     private static long positive(long value, long fallback) { return value <= 0 ? fallback : value; }

@@ -17,7 +17,9 @@ spring:
 
 server:
   port: ${PORT:8080}
-  forward-headers-strategy: framework
+  # native = Tomcat's RemoteIpValve: it resolves `getRemoteAddr()` to the rightmost hop it does not trust, so an
+  # X-Forwarded-For entry a caller writes themselves cannot become the sign-in rate limit's key (AuthController.clientIp).
+  forward-headers-strategy: native
   compression.enabled: true
 
 management:

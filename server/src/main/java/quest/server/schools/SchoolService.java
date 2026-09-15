@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import quest.server.auth.AuditService;
+import quest.server.auth.Principals;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
 import quest.server.tenancy.Entities;
@@ -28,13 +29,32 @@ public class SchoolService {
         this.schools = schools; this.json = json; this.em = em; this.audit = audit;
     }
 
-    public List<SchoolDto.SchoolSummary> summaries() {
-        return schools.findAll().stream().sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName())).map(this::summary).toList();
+    /**
+     * The Admin sees every school; a Teacher or Managerial user sees exactly their own, so no other tenant's join
+     * `code` is ever in the payload. The scope is an explicit `schoolId` check against the caller's token on purpose:
+     * P1.2's Hibernate filter does not apply to `findById`, so a filter alone would not close this.
+     */
+    public List<SchoolDto.SchoolSummary> summaries(Principals.User caller) {
+        var rows = caller != null && caller.isAdmin() ? schools.findAll()
+                : schools.findById(ownSchoolId(caller)).map(List::of).orElseGet(List::of);
+        return rows.stream().sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName())).map(this::summary).toList();
     }
 
-    public SchoolDto.School get(String id) { return toDto(require(id)); }
+    /** A school the caller may not see is a 404, not a 403: they learn nothing about the other tenants. */
+    public SchoolDto.School get(Principals.User caller, String id) { return toDto(requireVisible(caller, id)); }
 
+    /** No scope check: for callers that have already proved they may touch this school (invites, the by-code lookup). */
     public Entities.SchoolEntity require(String id) { return schools.findById(id).orElseThrow(() -> ApiException.notFound("school")); }
+
+    Entities.SchoolEntity requireVisible(Principals.User caller, String id) {
+        if (caller == null || (!caller.isAdmin() && !ownSchoolId(caller).equals(id))) throw ApiException.notFound("school");
+        return require(id);
+    }
+
+    /** The one school a non-Admin caller belongs to; `""` (which matches nothing) when the token carries none. */
+    private static String ownSchoolId(Principals.User caller) {
+        return caller == null || caller.schoolId() == null ? "" : caller.schoolId();
+    }
 
     public SchoolDto.JoinSchoolInfo byCode(String code) {
         var school = schools.findByCodeIgnoreCase(code == null ? "" : code.trim()).filter(s -> "active".equals(s.getStatus()))
