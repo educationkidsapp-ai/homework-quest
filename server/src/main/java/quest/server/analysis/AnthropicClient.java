@@ -43,7 +43,7 @@ public class AnthropicClient implements LlmClient {
         blocks.add(ContentBlockParam.ofText(TextBlockParam.builder().text(user).build()));
         var params = MessageCreateParams.builder().model(model).maxTokens(maxTokens).system(system).thinking(ThinkingConfigAdaptive.builder().build()).addUserMessageOfBlockParams(blocks).build();
         Message message;
-        try { message = client.messages().create(params); } catch (RuntimeException e) { throw new LlmException("Anthropic call failed: " + e.getMessage(), e); }
+        try { message = client.messages().create(params); } catch (RuntimeException e) { throw new LlmException("Anthropic call failed: " + e.getMessage(), e, true); }
         var text = new StringBuilder();
         for (var block : message.content()) block.text().ifPresent(t -> text.append(t.text()));
         if (text.isEmpty()) throw new LlmException("Anthropic returned no text");

@@ -145,7 +145,8 @@ public class AnalysisService {
         for (int attempt = 0; attempt < 2; attempt++) {
             String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected by the validator:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
             LlmClient.Result r;
-            try { r = llm.complete(Prompts.SYSTEM_A, u, attachments); } catch (LlmClient.LlmException e) { throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", e.getMessage()); }
+            try { r = llm.complete(Prompts.SYSTEM_A, u, attachments); }
+            catch (LlmClient.LlmException e) { if (e.isTransient()) throw new LessonSteps.TransientFailure(e.getMessage(), e); throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", e.getMessage()); }
             used += r.total();
             JsonNode probe = tryTree(r.text());
             if (probe != null && "no_teaching_content".equals(probe.path("error").asText(null))) { state.addUsage(lesson.getId(), used, 0); throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "no_teaching_content", "These slides don't contain anything to practise."); }

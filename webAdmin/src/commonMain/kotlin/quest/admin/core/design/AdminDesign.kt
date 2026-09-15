@@ -49,6 +49,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -149,6 +152,20 @@ fun Page(title: String, description: String? = null, breadcrumb: String? = null,
         // scroll = false: the content fills the space between header and footer and owns its scroll regions (e.g. list + pinned phone)
         else Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = AdminTokens.pagePadding).padding(top = AdminTokens.gutter), content = content)
         if (footer != null) StickyFooter(footer)
+    }
+}
+
+/** Row overflow menu trigger: three drawn dots (no font glyph). */
+@Composable
+fun MenuDots(onClick: () -> Unit, enabled: Boolean = true) {
+    val src = remember { MutableInteractionSource() }
+    val hovered by src.collectIsHoveredAsState()
+    Box(Modifier.size(AdminTokens.buttonHeight - AdminTokens.gutter / 3).hoverable(src, enabled).clickable(src, null, enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
+        val color = if (hovered) Palette.parentAccent else Palette.parentInk
+        Canvas(Modifier.size(AdminTokens.gutter * 2 / 3, AdminTokens.gutter / 6)) {
+            val r = size.height / 2
+            for (i in 0..2) drawCircle(color, r, Offset(r + i * (size.width - 2 * r) / 2, r))
+        }
     }
 }
 
@@ -264,7 +281,7 @@ fun Field(value: String, onChange: (String) -> Unit, label: String, modifier: Mo
         Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.parentInk, modifier = Modifier.padding(bottom = AdminTokens.gutter / 4))
         val border = when { error != null -> Palette.parentAccent; focused -> Palette.parentAccent; !enabled -> Palette.parentRule; else -> Palette.parentInk }
         Box(Modifier.fillMaxWidth().heightIn(min = if (singleLine) AdminTokens.inputHeight else AdminTokens.inputHeight * minLines / 2 + AdminTokens.gutter).background(if (enabled) Palette.parentSurface else Palette.parentBg).border(AdminTokens.rule, border).padding(horizontal = AdminTokens.gutter / 2, vertical = if (singleLine) 0.dp else AdminTokens.gutter / 2), contentAlignment = Alignment.CenterStart) {
-            BasicTextField(value, onChange, Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }, enabled = enabled, singleLine = singleLine, minLines = minLines,
+            BasicTextField(value, onChange, Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.onPreviewKeyEvent { e -> if (onSubmit != null && singleLine && e.key == androidx.compose.ui.input.key.Key.Enter && e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) { onSubmit(); true } else false }, enabled = enabled, singleLine = singleLine, minLines = minLines,
                 textStyle = (if (mono) monoStyle() else inputStyle()).copy(color = Palette.parentInk), cursorBrush = SolidColor(Palette.parentAccent),
                 visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
                 keyboardOptions = if (onSubmit != null) KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done) else KeyboardOptions.Default,
@@ -288,6 +305,16 @@ fun ErrorBanner(message: String?, onDismiss: (() -> Unit)? = null) {
     if (message == null) return
     ErrorBand(message, onDismiss)
     Spacer(Modifier.height(AdminTokens.gutter / 2))
+}
+
+/** A destructive confirmation in the red band style: message, a red-text confirm, Cancel. */
+@Composable
+fun ConfirmBand(message: String, confirm: String, onConfirm: () -> Unit, onCancel: () -> Unit) {
+    Row(Modifier.fillMaxWidth().background(Palette.parentAccentSoft).border(AdminTokens.rule, Palette.parentAccent).padding(horizontal = AdminTokens.gutter / 2, vertical = AdminTokens.gutter / 3), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AdminTokens.gutter / 2)) {
+        Text(message, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk, modifier = Modifier.weight(1f))
+        SecondaryButton("Cancel", onCancel)
+        DestructiveButton(confirm, onConfirm)
+    }
 }
 
 /** A quiet confirmation (never a toast): ink band that the user dismisses. */
@@ -324,7 +351,7 @@ fun Tag(text: String, color: Color = Palette.parentAccentSoft, textColor: Color 
 /** Status as a plain word, right-aligned in rows: Draft / Published / Reading… — never a coloured chip. */
 fun statusWord(status: String): String = when (status) {
     "published" -> "Published"; "review" -> "Draft"; "needs_review" -> "Draft"; "draft" -> "Draft"
-    "uploading" -> "Uploading…"; "analyzing" -> "Reading…"; "generating" -> "Writing…"; "error" -> "Error"; else -> status
+    "uploading" -> "Uploading…"; "analyzing" -> "Reading…"; "generating" -> "Writing…"; "error" -> "Error"; "paused" -> "Paused"; else -> status
 }
 
 // ---------------------------------------------------------------- selection cards (curriculum, grade, source)

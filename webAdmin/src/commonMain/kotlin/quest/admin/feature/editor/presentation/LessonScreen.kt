@@ -96,9 +96,12 @@ fun LessonScreen(vm: LessonViewModel, onBack: () -> Unit) {
         footer = if (lesson == null) null else { { Footer(s, vm) } },
         scroll = lesson == null || s.shownStep != Step.PLAYS) {
         if (lesson == null) { if (s.loading) Loading("Loading the lesson…") else ErrorBanner(s.error); return@Page }
-        ErrorBanner(s.error) { vm.dispatch(Intent.DismissError) }
+        if (s.hasPipeline) { StepStrip(s, vm); Gap(2) }
+        val failed = s.failedStep
+        if (failed != null && s.status == "error") FailedStepBand(s, vm, failed) else ErrorBanner(s.error) { vm.dispatch(Intent.DismissError) }
         if (s.notice != null) NoticeBand(s.notice!!) { vm.dispatch(Intent.DismissNotice) }
-        BusyBar(s.busy ?: if (s.isJobRunning) "${statusWord(s.status)} This page refreshes itself every few seconds." else null)
+        BusyBar(s.busy ?: if (s.isJobRunning) "${statusWord(s.status)}${lesson.currentStep?.let { " ${it.label}" } ?: ""} — this page refreshes itself every few seconds." else null)
+        if (s.status == "paused" && !s.isJobRunning) { NoticeBand("Paused after a single-step retry. Press Retry and continue to run the remaining steps.") { }; }
         Steps(s, vm)
         Gap(2)
         when (s.shownStep) {
@@ -108,6 +111,52 @@ fun LessonScreen(vm: LessonViewModel, onBack: () -> Unit) {
             Step.PANEL -> PanelStep(s, vm)
         }
     }
+}
+
+// ---------------------------------------------------------------- pipeline strip: done / running / error / pending
+@Composable
+private fun StepStrip(s: LessonContract.State, vm: LessonViewModel) {
+    val lesson = s.lesson!!
+    Row(Modifier.fillMaxWidth().background(Palette.parentSurface).border(AdminTokens.rule, Palette.parentInk).padding(horizontal = AdminTokens.gutter / 2, vertical = AdminTokens.gutter / 3), verticalAlignment = Alignment.CenterVertically) {
+        lesson.steps.forEachIndexed { i, st ->
+            val running = st.status == quest.api.StepStatus.RUNNING || (lesson.currentStep == st.step && s.isJobRunning)
+            val (fill, border, ink) = when {
+                running -> Triple(Palette.parentAccentSoft, Palette.parentAccent, Palette.parentAccent)
+                st.status == quest.api.StepStatus.DONE -> Triple(Palette.parentInk, Palette.parentInk, Palette.parentSurface)
+                st.status == quest.api.StepStatus.ERROR -> Triple(Palette.parentAccent, Palette.parentAccent, Palette.parentSurface)
+                else -> Triple(Palette.parentSurface, Palette.parentRule, Palette.parentDisabled)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(AdminTokens.gutter).background(fill).border(AdminTokens.rule, border), contentAlignment = Alignment.Center) {
+                    if (running) quest.admin.core.design.Spinner(AdminTokens.gutter / 2)
+                    else Text(when (st.status) { quest.api.StepStatus.DONE -> "✓"; quest.api.StepStatus.ERROR -> "!"; else -> "" }, style = MaterialTheme.typography.labelLarge, color = ink)
+                }
+                Spacer(Modifier.width(AdminTokens.gutter / 4))
+                Text(st.step.label, style = MaterialTheme.typography.bodySmall, color = when { running -> Palette.parentAccent; st.status == quest.api.StepStatus.ERROR -> Palette.parentAccent; st.status == quest.api.StepStatus.DONE -> Palette.parentInk; else -> Palette.parentInkSoft }, maxLines = 1)
+                if (st.attempt > 1) Text(" ×${st.attempt}", style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+            }
+            if (i < lesson.steps.size - 1) Box(Modifier.weight(1f).padding(horizontal = AdminTokens.gutter / 4).height(AdminTokens.rule).background(if (st.status == quest.api.StepStatus.DONE) Palette.parentInk else Palette.parentRule))
+        }
+    }
+}
+
+/** The failed step: what went wrong in plain words, the technical code, and the three ways out. */
+@Composable
+private fun FailedStepBand(s: LessonContract.State, vm: LessonViewModel, failed: quest.api.LessonStepInfo) {
+    val canReplace = failed.step == quest.api.PipelineStep.UPLOAD || failed.step == quest.api.PipelineStep.ANALYZE
+    Column(Modifier.fillMaxWidth().background(Palette.parentAccentSoft).border(AdminTokens.rule, Palette.parentAccent).padding(AdminTokens.gutter / 2)) {
+        Text("${failed.step.label} failed" + (if (failed.attempt > 1) " after ${failed.attempt} attempts" else ""), style = MaterialTheme.typography.labelLarge, color = Palette.parentInk)
+        Gap()
+        Text(failed.errorMessage ?: s.error ?: "Something went wrong at this step.", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk)
+        Text(failed.errorCode ?: "", style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+        Gap()
+        Row(horizontalArrangement = Arrangement.spacedBy(AdminTokens.gutter / 2)) {
+            AdminButton("Retry and continue", { vm.dispatch(Intent.RetryContinue) }, enabled = s.busy == null && !s.isJobRunning, kind = ButtonKind.ACCENT)
+            SecondaryButton("Retry this step only", { vm.dispatch(Intent.RetryStep(failed.step)) }, enabled = s.busy == null && !s.isJobRunning)
+            if (canReplace) SecondaryButton("Replace file", { vm.dispatch(Intent.ReplaceFile) }, enabled = s.busy == null && !s.isJobRunning)
+        }
+    }
+    Gap(2)
 }
 
 @Composable
@@ -139,6 +188,8 @@ private fun androidx.compose.foundation.layout.RowScope.Footer(s: LessonContract
         else -> {
             val hint = when {
                 s.isJobRunning -> "Working… the buttons return when the model is done."
+                s.status == "error" -> "Fix the failed step above; what is already generated stays editable."
+                s.status == "paused" -> "Some steps are still pending."
                 s.status == "draft" -> "Upload the files, then read them."
                 s.status == "needs_review" -> "Confirm the skills to write the levels."
                 s.manual && !s.publishReady -> "Add at least one stop to Level 1 to publish."
@@ -152,7 +203,8 @@ private fun androidx.compose.foundation.layout.RowScope.Footer(s: LessonContract
                 Step.SKILLS -> AdminButton(if (s.status == "generating") "Writing levels…" else "Build practice (3 levels)", { vm.dispatch(Intent.ConfirmSkills) }, enabled = s.busy == null && !s.isJobRunning)
                 Step.PLAYS, Step.PANEL -> {
                     if (s.shownStep == Step.PANEL) SecondaryButton("Save panel", { vm.dispatch(Intent.SavePanel) }, enabled = s.busy == null && s.panelDraft != null)
-                    AdminButton("Publish to $course", { vm.dispatch(Intent.AskPublish(true)) }, enabled = s.publishReady && s.status == "review" && s.busy == null, kind = ButtonKind.ACCENT)
+                    if (s.status == "paused" || s.status == "error") AdminButton("Retry and continue", { vm.dispatch(Intent.RetryContinue) }, enabled = s.busy == null && !s.isJobRunning, kind = ButtonKind.ACCENT)
+                    else AdminButton("Publish to $course", { vm.dispatch(Intent.AskPublish(true)) }, enabled = s.publishReady && s.status == "review" && s.busy == null, kind = ButtonKind.ACCENT)
                 }
             }
         }

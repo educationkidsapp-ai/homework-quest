@@ -42,6 +42,10 @@ import quest.server.analysis.CacheEntities;
 import quest.server.analysis.GenerationService;
 import quest.server.analysis.LessonPipeline;
 import quest.server.analysis.LessonState;
+import quest.server.analysis.LessonSteps;
+import quest.api.LessonStepInfo;
+import quest.api.PipelineStep;
+import quest.api.StepStatus;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
@@ -62,11 +66,11 @@ import quest.server.files.FileStore;
 public class AdminLessonService {
     private final LessonRepository lessons; private final SourceFileRepository sourceFiles; private final SkillRepository skills; private final PlayRepository plays; private final StopRepository stops; private final ParentPanelRepository panels;
     private final AnalysisCacheRepository analysisCache; private final LessonStore store; private final AnalysisService analysisService; private final GenerationService generation; private final LessonPipeline pipeline; private final LessonState state;
-    private final FileStore files; private final Json json; private final PageImageRepository pageImages; private final String publicUrl;
+    private final FileStore files; private final Json json; private final PageImageRepository pageImages; private final String publicUrl; private final LessonSteps steps;
 
-    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props) {
+    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps) {
         this.lessons = lessons; this.sourceFiles = sourceFiles; this.skills = skills; this.plays = plays; this.stops = stops; this.panels = panels; this.analysisCache = analysisCache; this.store = store; this.analysisService = analysisService; this.generation = generation; this.pipeline = pipeline; this.state = state; this.files = files; this.json = json;
-        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl();
+        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps;
     }
 
     public LessonEntity get(String id) { return lessons.findById(id).orElseThrow(() -> ApiException.notFound("lesson")); }
@@ -102,14 +106,25 @@ public class AdminLessonService {
         return toAdmin(lessons.save(e), true);
     }
 
-    @Transactional
+    // not @Transactional: the failed-upload branch must commit its step/status writes after the inner transaction rolled back
     public LessonStatus upload(String id, List<AnalysisService.Upload> uploads) {
         var lesson = get(id);
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
-        analysisService.upload(lesson, uploads);
+        if (!manual(lesson)) steps.ensure(id);
+        try { analysisService.upload(lesson, uploads); }
+        catch (ApiException e) {
+            // an unreadable / too large file is a failed upload step, not a dead end: the lesson shows "Replace file"
+            if (manual(lesson) || !(e.error().code().equals("unreadable_file") || e.error().code().equals("too_large") || e.error().code().equals("no_teaching_content"))) throw e;
+            String message = LessonSteps.Messages.of(e.error().code(), e.error().message());
+            steps.mark(id, PipelineStep.UPLOAD, "error", e.error().code(), message);
+            state.fail(id, e.error().code(), message);
+            return LessonStatus.ERROR;
+        }
         var kinds = sourceFiles.findByLessonIdOrderByCreatedAt(id).stream().filter(f -> f.getDeletedAt() == null).map(quest.server.content.Entities.SourceFileEntity::getKind).toList();
         lesson.setSource(kinds.contains("pptx") ? "slides" : kinds.contains("pdf") ? "pdf" : kinds.isEmpty() ? lesson.getSource() : "images");
+        lesson.setErrorCode(null); lesson.setErrorMessage(null);
         lessons.save(lesson);
+        steps.resetFrom(id, PipelineStep.ANALYZE); steps.done(id, PipelineStep.UPLOAD);
         return LessonStatus.DRAFT;
     }
 
@@ -117,6 +132,7 @@ public class AdminLessonService {
         var lesson = get(id);
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
         if (sourceFiles.findByLessonIdOrderByCreatedAt(id).stream().noneMatch(f -> f.getDeletedAt() == null)) throw ApiException.badRequest("Upload the slides first.");
+        steps.ensure(id); steps.done(id, PipelineStep.UPLOAD);
         state.set(id, LessonStatus.ANALYZING);
         pipeline.analyzeAsync(id);
         return LessonStatus.ANALYZING;
@@ -138,7 +154,8 @@ public class AdminLessonService {
             s.setConfirmed(true); s.setUnsureJson(null);
         }
         skills.saveAll(existing);
-        lesson.setStatus("generating"); lesson.setUpdatedAt(Instant.now()); lessons.save(lesson);
+        lesson.setStatus("generating"); lesson.setErrorCode(null); lesson.setErrorMessage(null); lesson.setUpdatedAt(Instant.now()); lessons.save(lesson);
+        if (!manual(lesson)) { steps.ensure(id); steps.done(id, PipelineStep.SKILLS); steps.resetFrom(id, PipelineStep.GENERATE_L1); }
         org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
             @Override public void afterCommit() { pipeline.generateAsync(id); }
         });
@@ -348,18 +365,56 @@ public class AdminLessonService {
         return toAdmin(lessons.save(lesson), true);
     }
 
+    // ---------------------------------------------------------------- retry
+    public LessonStatus retry(String id) {
+        var lesson = get(id);
+        if (manual(lesson)) throw ApiException.badRequest("Hand-written lessons have no pipeline to retry — press Generate the other levels instead.");
+        if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
+        if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw ApiException.badRequest("Unpublish the lesson first.");
+        var from = pipeline.firstToRun(id);
+        if (from == PipelineStep.SKILLS) throw ApiException.badRequest("Confirm the skills to continue.");
+        state.set(id, from.ordinal() <= PipelineStep.ANALYZE.ordinal() ? LessonStatus.ANALYZING : LessonStatus.GENERATING);
+        pipeline.retryAsync(id);
+        return LessonState.status(get(id));
+    }
+
+    public LessonStatus retryStep(String id, PipelineStep step) {
+        var lesson = get(id);
+        if (manual(lesson)) throw ApiException.badRequest("Hand-written lessons have no pipeline to retry.");
+        if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
+        if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw ApiException.badRequest("Unpublish the lesson first.");
+        if (step == PipelineStep.SKILLS) throw ApiException.badRequest("Confirm the skills on the Skills step.");
+        steps.ensure(id);
+        if (step.ordinal() > PipelineStep.SKILLS.ordinal() && !steps.isDone(id, PipelineStep.SKILLS)) throw ApiException.badRequest("Confirm the skills first.");
+        if (steps.isDone(id, step)) throw ApiException.badRequest(step.getLabel() + " is already done.");
+        state.set(id, step.ordinal() <= PipelineStep.ANALYZE.ordinal() ? LessonStatus.ANALYZING : LessonStatus.GENERATING);
+        pipeline.retryStepAsync(id, step);
+        return LessonState.status(get(id));
+    }
+
     @Transactional
     public void deleteFiles(String id) {
         get(id);
         for (var f : sourceFiles.findByLessonIdOrderByCreatedAt(id)) if (f.getDeletedAt() == null) { files.delete(f.getStoragePath()); f.setDeletedAt(Instant.now()); sourceFiles.save(f); }
     }
 
+    /** Removes the lesson, its uploaded files and page images in the bucket, and (by cascade) skills, plays, stops, panel, steps. The AI caches are keyed by file hash and stay. */
     @Transactional
     public void delete(String id) {
         var lesson = get(id);
-        if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw ApiException.badRequest("Unpublish the lesson first.");
+        if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw new ApiException(org.springframework.http.HttpStatus.CONFLICT, "published", "Unpublish the lesson first; published lessons can't be deleted.");
+        if (!editable(lesson)) throw new ApiException(org.springframework.http.HttpStatus.CONFLICT, "running", "Wait for the current job to finish.");
         deleteFiles(id);
+        for (var img : pageImages.findByLessonIdOrderByPageNumber(id)) files.delete(img.getStoragePath());
         lessons.delete(lesson);
+    }
+
+    /** Deletes every lesson in error. */
+    @Transactional
+    public int deleteFailed() {
+        int n = 0;
+        for (var l : lessons.findAllByOrderByDateDescCreatedAtDesc()) if (LessonState.status(l) == LessonStatus.ERROR) { delete(l.getId()); n++; }
+        return n;
     }
 
     // ---------------------------------------------------------------- DTO
@@ -369,15 +424,17 @@ public class AdminLessonService {
         var fileInfos = sourceFiles.findByLessonIdOrderByCreatedAt(l.getId()).stream().map(f -> new SourceFileInfo(f.getId(), f.getFileName(), f.getFileHash(), f.getPageCount(), f.isCacheHit(), f.getDeletedAt() != null)).toList();
         var error = l.getErrorCode() == null ? null : new ApiError(l.getErrorCode(), l.getErrorMessage() == null ? "" : l.getErrorMessage());
         var source = LessonSource.valueOf(l.getSource().toUpperCase());
+        var stepInfos = steps.list(l.getId()).stream().map(s -> new LessonStepInfo(LessonSteps.parse(s.getStep()), StepStatus.valueOf(s.getStatus().toUpperCase()), s.getAttempt(), s.getErrorCode(), s.getErrorMessage(), s.getUpdatedAt().toEpochMilli())).toList();
+        var currentStep = l.getCurrentStep() == null ? null : LessonSteps.parse(l.getCurrentStep());
         if (!full) return new AdminLesson(l.getId(), course, Subject.valueOf(l.getSubject().toUpperCase()), kdate(l.getDate()), status, l.getVersion(), l.getNotes(), l.getTitle(), l.getTokenUsage(), l.getTokensSaved(),
-                fileInfos, null, List.of(), List.of(), null, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, List.of());
+                fileInfos, null, List.of(), List.of(), null, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, stepInfos, currentStep, List.of());
         SourceAnalysis analysis = l.getSourceHash() == null ? null : analysisCache.findById(CacheKeys.INSTANCE.analysisKey(l.getSourceHash())).map(c -> json.decodeShared(c.getAnalysisJson(), SourceAnalysis.Companion.serializer())).orElse(null);
         var skillDtos = skills.findByLessonIdOrderByPosition(l.getId()).stream().map(this::skill).toList();
         var playDtos = store.plays(l.getId()).stream().map(p -> new AdminPlay(p.getId(), p.getLevel(), p.getVariant(), store.play(p), p.getPromptVersion(), p.getGeneratedAt().toEpochMilli())).toList();
         var panel = panels.findById(l.getId()).map(p -> json.decodeShared(p.getPanelJson(), ParentPanel.Companion.serializer())).orElse(null);
         var images = pageImages.findByLessonIdOrderByPageNumber(l.getId()).stream().map(i -> new PageImage(i.getId(), publicUrl + "/media/pages/" + i.getId(), i.getWidth(), i.getHeight(), i.getDescription())).toList();
         return new AdminLesson(l.getId(), course, Subject.valueOf(l.getSubject().toUpperCase()), kdate(l.getDate()), status, l.getVersion(), l.getNotes(), l.getTitle(), l.getTokenUsage(), l.getTokensSaved(),
-                fileInfos, analysis, skillDtos, playDtos, panel, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, images);
+                fileInfos, analysis, skillDtos, playDtos, panel, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, stepInfos, currentStep, images);
     }
 
     private ExtractedSkill skill(SkillEntity s) {
@@ -388,7 +445,7 @@ public class AdminLessonService {
     }
 
     private static boolean editable(LessonEntity l) { var s = LessonState.status(l); return s != LessonStatus.ANALYZING && s != LessonStatus.GENERATING && s != LessonStatus.UPLOADING; }
-    private static void requireReview(LessonEntity l) { var s = LessonState.status(l); if (s != LessonStatus.REVIEW && s != LessonStatus.PUBLISHED) throw ApiException.badRequest("Generate the levels first."); }
+    private static void requireReview(LessonEntity l) { var s = LessonState.status(l); if (s != LessonStatus.REVIEW && s != LessonStatus.PUBLISHED && s != LessonStatus.ERROR && s != LessonStatus.PAUSED) throw ApiException.badRequest("Generate the levels first."); }
     private void touch(LessonEntity l) { l.setUpdatedAt(Instant.now()); if (LessonState.status(l) == LessonStatus.PUBLISHED) l.setStatus("review"); lessons.save(l); }
     static LocalDate jdate(kotlinx.datetime.LocalDate d) { return LocalDate.of(d.getYear(), d.getMonthNumber(), d.getDayOfMonth()); }
     static kotlinx.datetime.LocalDate kdate(LocalDate d) { return new kotlinx.datetime.LocalDate(d.getYear(), d.getMonthValue(), d.getDayOfMonth()); }

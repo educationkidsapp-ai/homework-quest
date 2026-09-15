@@ -13,5 +13,12 @@ public interface LlmClient {
     default boolean acceptsPdf() { return false; }
     Result complete(String system, String user, List<Attachment> attachments);
 
-    class LlmException extends RuntimeException { public LlmException(String m, Throwable c) { super(m, c); } public LlmException(String m) { super(m); } }
+    /** {@code transientFailure}: the provider was busy/unreachable (429, 5xx, timeout) — worth retrying later; false = it answered but wrongly. */
+    class LlmException extends RuntimeException {
+        private final boolean transientFailure;
+        public LlmException(String m, Throwable c) { this(m, c, false); }
+        public LlmException(String m) { this(m, null, false); }
+        public LlmException(String m, Throwable c, boolean transientFailure) { super(m, c); this.transientFailure = transientFailure; }
+        public boolean isTransient() { return transientFailure; }
+    }
 }

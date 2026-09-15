@@ -41,7 +41,9 @@ object LessonContract {
         val manual: Boolean get() = lesson?.source == LessonSource.MANUAL
         val currentPlay get() = lesson?.plays?.firstOrNull { if (tab == 3) it.level == 1 && it.variant == 1 else it.level == tab + 1 && it.variant == 0 }
         val selectedStop: Stop? get() = currentPlay?.play?.stops?.firstOrNull { it.id == selectedStopId }
-        val editable: Boolean get() = !isJobRunning && busy == null && (status == "review" || status == "published")
+        val editable: Boolean get() = !isJobRunning && busy == null && (status == "review" || status == "published" || status == "error" || status == "paused")
+        val failedStep: quest.api.LessonStepInfo? get() = lesson?.steps?.firstOrNull { it.status == quest.api.StepStatus.ERROR }
+        val hasPipeline: Boolean get() = lesson?.steps?.isNotEmpty() == true
         /** The step shown: the admin's choice, else the furthest the lesson has reached. */
         val shownStep: Step get() = step ?: when {
             lesson == null -> Step.FILES
@@ -88,6 +90,9 @@ object LessonContract {
         data object Unpublish : Intent
         data object DismissError : Intent
         data object DismissNotice : Intent
+        data object RetryContinue : Intent
+        data class RetryStep(val step: quest.api.PipelineStep) : Intent
+        data object ReplaceFile : Intent
     }
     sealed interface Effect : MviEffect
 
