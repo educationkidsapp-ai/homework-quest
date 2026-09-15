@@ -58,6 +58,71 @@ jobs:
         if: always()
         with: { name: screenshots, path: shared/build/screenshots/**, retention-days: 7 }
 
+  dashboard:
+    # Path-filtered inside the job (not with a workflow-level `paths:`) so the `ci` aggregate below always exists as a
+    # status check. No Gradle/Maven setup here and no Java toolchain: this job caches pnpm only, and on a PR that does
+    # not touch the dashboard every step after the filter is skipped, so it costs ~10 s of runner time.
+    # Playwright (`pnpm e2e`, styleguide screenshots) is deliberately NOT part of CI: it needs browser downloads and a
+    # deployed target, and runs against QA after the deploy in phase 3 (P3.x), not on every PR.
+    name: Dashboard (lint, unit tests, build)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # dorny/paths-filter lists the PR's changed files through the API instead of a deep fetch
+    env:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            dashboard:
+              - 'dashboard/**'
+              - 'design/tokens.json'
+              - '.github/workflows/ci.yml'
+      - name: Enable corepack (pnpm version comes from dashboard/package.json "packageManager")
+        if: steps.changes.outputs.dashboard == 'true'
+        run: |
+          # --install-directory keeps the shims out of the root-owned /usr/local/bin (no sudo, survives setup-node);
+          # `prepare --activate` reads the "packageManager": "pnpm@x.y.z" pin and makes that version the default, so the
+          # `pnpm store path` that setup-node runs from the repo root resolves to the same pnpm as the steps below.
+          mkdir -p "$RUNNER_TEMP/corepack"
+          corepack enable --install-directory "$RUNNER_TEMP/corepack"
+          corepack prepare --activate
+          echo "$RUNNER_TEMP/corepack" >> "$GITHUB_PATH"
+      # after corepack, so setup-node's `cache: pnpm` finds the pinned pnpm and can read the store path
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.dashboard == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: dashboard/pnpm-lock.yaml
+      - name: Install
+        if: steps.changes.outputs.dashboard == 'true'
+        run: corepack pnpm install --frozen-lockfile
+      - name: Design tokens must match design/tokens.json
+        if: steps.changes.outputs.dashboard == 'true'
+        run: pnpm tokens --check
+      - name: Subset fonts must match the TTFs in shared-ui
+        if: steps.changes.outputs.dashboard == 'true'
+        run: node tools/fonts.mjs --check
+      - name: Lint
+        if: steps.changes.outputs.dashboard == 'true'
+        run: pnpm lint
+      - name: Unit tests (Vitest)
+        if: steps.changes.outputs.dashboard == 'true'
+        run: pnpm test
+      - name: Build (QA configuration)
+        if: steps.changes.outputs.dashboard == 'true'
+        run: pnpm build --configuration=qa
+      - uses: actions/upload-artifact@v4
+        if: steps.changes.outputs.dashboard == 'true'
+        with: { name: dashboard-dist, path: dashboard/dist, retention-days: 1 }
+
   ios:
     # macOS minutes are expensive: runs on PRs labelled `ios` and on every push to main.
     name: iOS (simulator build + full-cycle UI test)
@@ -77,10 +142,12 @@ jobs:
   # The status check the deploy workflows and the (Pro-only) branch rules wait for.
   ci:
     name: ci
-    needs: [contract, server, app]
+    needs: [contract, server, app, dashboard]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "contract=${{ needs.contract.result }} server=${{ needs.server.result }} app=${{ needs.app.result }}"
-          [ "${{ needs.contract.result }}" = success ] && [ "${{ needs.server.result }}" = success ] && [ "${{ needs.app.result }}" = success ]
+          echo "contract=${{ needs.contract.result }} server=${{ needs.server.result }} app=${{ needs.app.result }} dashboard=${{ needs.dashboard.result }}"
+          [ "${{ needs.contract.result }}" = success ] && [ "${{ needs.server.result }}" = success ] && [ "${{ needs.app.result }}" = success ] || exit 1
+          # the dashboard job is path-filtered, so `skipped` (nothing under dashboard/ changed) counts as success
+          case "${{ needs.dashboard.result }}" in success|skipped) ;; *) exit 1 ;; esac
