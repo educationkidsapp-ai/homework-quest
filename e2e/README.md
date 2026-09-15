@@ -18,7 +18,9 @@ The fixture:
 | lesson (manual, published) | british/1/math "Counting by 2s — Al Noor" | british/1/english "The sh sound — Green Valley" |
 | parent · child | `parent.a@alnoor.test` · Aya (british, grade 1) | `parent.b@greenvalley.test` · Bilal (british, grade 1) |
 
-Classes are not created directly: publishing a lesson into a (school, curriculum, grade, subject) that has none makes one.
+Classes are not created directly: `AdminLessonService.create()` puts every new lesson in the class for its
+(school, curriculum, grade, subject) and makes one when the school has none — before the lesson row is even saved.
+`publish()` touches no class.
 
 ## Environment
 
@@ -71,9 +73,10 @@ a live server is safe — every step finds its row and skips.
 
 ## Against QA
 
-QA is Cloud Run and may have scaled to zero; the first request then waits for a cold start (the scripts retry a
-transport error or a 502/503/504 four times with a backoff). Waking it (`infra/env.sh qa wake`) is the planner's call —
-do not run it from here. If QA answers 5xx or times out, report it and finish the local run.
+QA is Cloud Run and may have scaled to zero; the first request then waits for a cold start. Both scripts retry a
+transport error (curl exit 6, 7, 28, …) or a 502/503/504 four times with a growing backoff — `seed.mjs` in `call()`,
+`isolation.sh` in `req()` — so one cold start is not a failure. Waking QA (`infra/env.sh qa wake`) is the planner's
+call; do not run it from here. If QA still answers 5xx or times out after that, report it and finish the local run.
 
 ```bash
 export E2E_BASE_URL=https://homework-quest-api-625882725080.me-central1.run.app
@@ -94,22 +97,24 @@ in the `homework-quest-qa` Firebase project; delete them there when the fixture 
 Both scripts refuse early, with the deployed commit in the message, when the target predates P1.3
 `backend/dashboard-auth` — `GET /auth/sign-in` answers 405 wherever that route is mapped and 401/403/404 where it is not.
 
-## Known gap — staff accounts have no password
+## How staff accounts get a password
 
-The seed can create a TEACHER or MANAGERIAL row, but it cannot give it a password, so neither can sign in:
+`seed.mjs` tries three things per TEACHER / MANAGERIAL account, in order:
 
-* `POST /admin/schools/{id}/invites` returns an `Invite` **without** the one-time token (`server/openapi.json`);
-* the token only leaves the server by email, and the QA mailer is `LogMailer`, which logs the subject and a redacted
-  recipient and deliberately never logs the body;
-* `POST /admin/users/{id}/reset-password` and `POST /auth/forgot-password` also only email a link;
-* the one account whose password can be set is the platform ADMIN, from `ADMIN_EMAIL`/`ADMIN_PASSWORD` at start-up.
+1. **sign in** with `E2E_STAFF_PASSWORD` — the account is already there (the idempotent path);
+2. **`POST /admin/schools/{id}/users`** (ADMIN only, P1.9: `email, role, password, displayName, teacherProfile?`) when
+   the target's OpenAPI document (`/v3/api-docs`) lists it. The account comes back active with `mustChangePassword`,
+   which the first sign-in clears by re-setting the same password;
+3. **`POST /admin/schools/{id}/invites`**, accepting the one-time token — *if* the response carries it. `seed.mjs`
+   looks for `token`, `inviteToken`, `acceptToken`, `oneTimeToken` or an accept link.
 
-Until that is closed the seed exits `2`, and `isolation.sh` falls back to the ADMIN-only, read-only **View as…** token
-(`POST /admin/users/{id}/impersonate`) for the staff read assertions — enough for every `GET`, and reported as
-`BLOCKED` for the two assertions that need a write (the teacher's `subject` refusal and the managerial refusal).
-The lesson is then created by ADMIN with `X-School-Id` instead of by the teacher's own token.
+**Against a target with none of 2 or 3 the account row exists but has no usable password**, because the invite token
+only leaves the server by email and the mailer is `LogMailer`, which logs the subject and a redacted recipient and
+deliberately never logs the body (`POST /admin/users/{id}/reset-password` and `POST /auth/forgot-password` likewise only
+email a link; `POST /admin/users/{id}/impersonate` issues a read-only token). The only account whose password can be
+chosen is then the platform ADMIN, from `ADMIN_EMAIL`/`ADMIN_PASSWORD` at start-up.
 
-**What would close it:** either put the token in the `Invite` response for an ADMIN caller, or add an ADMIN-only
-`POST /admin/schools/{id}/users` taking `email, role, password, teacherProfile`. Owner: the `backend` agent. Both
-scripts already take the first path the moment a token appears in the response — `seed.mjs` looks for `token`,
-`inviteToken`, `acceptToken`, `oneTimeToken` or an accept link, and accepts the invite with `E2E_STAFF_PASSWORD`.
+In that case the seed exits `2` and names the accounts, and `isolation.sh` falls back to the ADMIN-only, read-only
+**View as…** token (`POST /admin/users/{id}/impersonate`) for the staff read assertions — enough for every `GET`, and
+reported as `BLOCKED` for the two that need a write (the teacher's `subject` refusal and the managerial refusal). The
+lesson is then created by ADMIN with `X-School-Id` instead of by the teacher's own token.

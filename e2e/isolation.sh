@@ -55,20 +55,60 @@ fi
 seed() { json "$1" < "$SEED_FILE"; }
 
 # ---------------------------------------------------------------- http
-#   req METHOD PATH [token] [schoolId] [body]  ->  writes the body to $BODY, echoes the status
+#   req METHOD PATH [token] [schoolId] [body]  ->  writes the response body to $BODY, echoes the status
+#
+# Four attempts with a growing backoff over a 502/503/504 or a transport failure, so a Cloud Run cold start or one bad
+# gateway is not a FAIL. Request bodies go to curl over stdin (`--data-binary @-`), never in its argv, so a password is
+# not visible in `ps` to other local users. `req` runs inside `$(…)` at every call site, so curl's exit code is left in
+# $RC (a file) rather than a variable, which a subshell would not propagate.
 
 BODY="$(mktemp)"
-trap 'rm -f "$BODY"' EXIT
+RC="$(mktemp)"
+trap 'rm -f "$BODY" "$RC"' EXIT
 
 req() {
   local method="$1" path="$2" token="${3:-}" school="${4:-}" body="${5:-}"
   local args=(-s -o "$BODY" -w '%{http_code}' -X "$method" --max-time 60)
   [ -n "$token" ] && args+=(-H "authorization: Bearer $token")
   [ -n "$school" ] && args+=(-H "X-School-Id: $school")
-  [ -n "$body" ] && args+=(-H 'content-type: application/json' --data-binary "$body")
+  [ -n "$body" ] && args+=(-H 'content-type: application/json' --data-binary @-)
   local url="$path"; case "$path" in http*) ;; *) url="$BASE$path";; esac
-  curl "${args[@]}" "$url" 2>/dev/null || echo 000
+
+  local attempt=1 status rc
+  while :; do
+    if [ -n "$body" ]; then status=$(printf '%s' "$body" | curl "${args[@]}" "$url" 2>/dev/null); rc=$?
+    else                   status=$(curl "${args[@]}" "$url" 2>/dev/null); rc=$?
+    fi
+    [ "$rc" -ne 0 ] && status=000                 # 6 dns, 7 refused, 28 timeout, …: curl prints 000 anyway
+    printf '%s' "$rc" > "$RC"
+    [ "$attempt" -ge 4 ] && break
+    case "$status" in
+      000|502|503|504) sleep "$((attempt * 2))"; attempt=$((attempt + 1));;
+      *) break;;
+    esac
+  done
+  printf '%s' "$status"
 }
+
+transport_rc() { cat "$RC"; }                     # curl's exit code from the last req: 0 = the server answered
+
+# body_json builds a request body without putting any value in a process's argv: the secret arrives on stdin, and only
+# the non-secret fields are arguments. It also escapes properly, so a password containing " or \ is safe.
+if [ -z "${E2E_NO_JQ:-}" ] && command -v jq >/dev/null 2>&1; then
+  credentials() {                                 # credentials EMAIL PASSWORD [extra JSON object to merge in]
+    local extra="${3:-}"; [ -z "$extra" ] && extra='{}'
+    printf '%s' "$2" | jq -Rs --arg e "$1" --argjson x "$extra" '{email:$e, password:.} + $x'
+  }
+else
+  credentials() {
+    local extra="${3:-}"; [ -z "$extra" ] && extra='{}'
+    printf '%s' "$2" | node -e '
+      let p = ""; process.stdin.on("data", c => p += c).on("end", () => {
+        process.stdout.write(JSON.stringify({ email: process.argv[1], password: p, ...JSON.parse(process.argv[2]) }));
+      });
+    ' "$1" "$extra"
+  }
+fi
 
 # ---------------------------------------------------------------- verdicts
 
@@ -81,10 +121,13 @@ assert_status() { if [ "$3" = "$2" ]; then ok "$1"; else bad "$1" "expected $2, 
 
 # ---------------------------------------------------------------- tokens
 
+# 429 is the SignInRateLimiter (10 failures per email + IP per window); it is worth saying out loud, because a handful
+# of seed+isolation cycles in one window otherwise looks like a wrong password.
+SIGN_IN_STATUS=0
 sign_in() {                                  # sign_in EMAIL PASSWORD -> token on stdout, empty when refused
-  local status
-  status=$(req POST /auth/sign-in '' '' "$(printf '{"email":"%s","password":"%s"}' "$1" "$2")")
-  [ "$status" = 200 ] && json token < "$BODY"
+  SIGN_IN_STATUS=$(req POST /auth/sign-in '' '' "$(credentials "$1" "$2")")
+  [ "$SIGN_IN_STATUS" = 429 ] && printf 'rate limited (429) signing in as %s — wait for the window to clear\n' "$1" >&2
+  [ "$SIGN_IN_STATUS" = 200 ] && json token < "$BODY"
 }
 
 view_as() {                                  # view_as ADMIN_TOKEN USER_ID -> read-only token
@@ -99,7 +142,7 @@ parent_token() {                             # parent_token UID EMAIL -> bearer 
   key="${E2E_FIREBASE_API_KEY:-$(json client[].api_key[].current_key < "$REPO/androidApp/src/qa/google-services.json" | head -1)}"
   [ -z "$key" ] && return
   status=$(req POST "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$key" '' '' \
-    "$(printf '{"email":"%s","password":"%s","returnSecureToken":true}' "$email" "${E2E_PARENT_PASSWORD:-}")")
+    "$(credentials "$email" "${E2E_PARENT_PASSWORD:-}" '{"returnSecureToken":true}')")
   [ "$status" = 200 ] && json idToken < "$BODY"
 }
 
@@ -130,10 +173,15 @@ echo "  school B $SCHOOL_B   lesson B $LESSON_B"
 echo ""
 
 # `GET /auth/sign-in` is 405 wherever P1.3 mapped the route and 401/403/404 where it is not: a target that predates
-# backend/dashboard-auth has none of the endpoints below, and saying so beats twelve confusing FAILs.
-probe=$(req GET /auth/sign-in)
-if [ "$probe" != 405 ]; then
-  echo "FAIL    $BASE has no POST /auth/sign-in (GET is $probe, not 405) — it is running $(req GET /health >/dev/null; json version < "$BODY"),"
+# backend/dashboard-auth has none of the endpoints below, and saying so beats twelve confusing FAILs. A host that never
+# answered at all is a different thing and is reported as one — curl's exit code, not the HTTP status, tells them apart.
+probe=$(req GET /auth/sign-in); probe_rc=$(transport_rc)
+if [ "$probe_rc" -ne 0 ]; then
+  echo "FAIL    $BASE did not answer after four attempts (curl exit $probe_rc). Is the server up, and is E2E_BASE_URL right?"
+  exit 1
+elif [ "$probe" != 405 ]; then
+  req GET /health >/dev/null; version=$(json version < "$BODY")
+  echo "FAIL    $BASE has no POST /auth/sign-in (GET is $probe, not 405) — it is running ${version:-an unknown revision},"
   echo "        which is older than P1.3 backend/dashboard-auth. Deploy develop to this environment first."
   exit 1
 fi
@@ -154,8 +202,8 @@ staff_token() {                              # staff_token EMAIL USER_ID LABEL
   bad "$3 signs in" "neither a password nor a View-as token for $1"
 }
 
-staff_token "$TEACHER_A_EMAIL" "$TEACHER_A_ID" "teacher A";   TEACHER_A=$TOKEN; TEACHER_A_MODE=$MODE
-staff_token "$TEACHER_B_EMAIL" "$TEACHER_B_ID" "teacher B";   TEACHER_B=$TOKEN; TEACHER_B_MODE=$MODE
+staff_token "$TEACHER_A_EMAIL" "$TEACHER_A_ID" "teacher A";    TEACHER_A=$TOKEN; TEACHER_A_MODE=$MODE
+staff_token "$TEACHER_B_EMAIL" "$TEACHER_B_ID" "teacher B";    TEACHER_B=$TOKEN            # reads only, so no mode needed
 staff_token "$MANAGER_A_EMAIL" "$MANAGER_A_ID" "managerial A"; MANAGER_A=$TOKEN; MANAGER_A_MODE=$MODE
 
 # ---------------------------------------------------------------- teacher A

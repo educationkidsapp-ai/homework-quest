@@ -149,7 +149,10 @@ async function requireDashboardApi() {
 
 async function adminToken() {
   if (!ADMIN_PASSWORD) fail('E2E_ADMIN_PASSWORD is not set.');
-  const session = await call('POST', '/auth/sign-in', { body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } });
+  const signedIn = await call('POST', '/auth/sign-in', { body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD }, expect: [200, 401, 403, 429], raw: true });
+  if (signedIn.status === 429) fail(`sign-in is rate limited (429) for ${ADMIN_EMAIL}: SignInRateLimiter allows 10 failures per email + IP per window. Wait for the window to clear.`);
+  if (signedIn.status !== 200) fail(`POST /auth/sign-in refused ${ADMIN_EMAIL} with ${signedIn.status}.`);
+  const session = signedIn.body;
   if (session.role !== 'ADMIN') fail(`${ADMIN_EMAIL} signs in as ${session.role}, not ADMIN.`);
   if (session.mustChangePassword) fail(`${ADMIN_EMAIL} must change its password before it can seed.`);
   return session.token;
@@ -170,46 +173,55 @@ async function ensureSchool(token, spec) {
 }
 
 /**
- * A dashboard user with a password we know.
+ * A dashboard user with a password we know. Three paths, in order:
  *
- * The only account the platform can create with a chosen password is the ADMIN, from ADMIN_EMAIL/ADMIN_PASSWORD at
- * start-up. `POST /admin/schools/{id}/invites` returns an {@code Invite} without the token (server/openapi.json), and
- * the one-time link is only emailed — the QA mailer is `LogMailer`, which deliberately logs the subject and a redacted
- * recipient but never the body. So unless a future response carries the token, this step can create the account row
- * (status `invited`) but cannot give it a password, and the run ends as BLOCKED rather than working around it.
+ * <ol>
+ *   <li>sign in — the account is already there with this password (the idempotent path);</li>
+ *   <li>`POST /admin/schools/{id}/users` (ADMIN only, P1.9: email, role, password, displayName, teacherProfile) when
+ *       the target's OpenAPI document lists it. The account comes back active with `mustChangePassword`, which the
+ *       first sign-in clears;</li>
+ *   <li>`POST /admin/schools/{id}/invites` and accept the one-time token — <em>if</em> the response ever carries it.</li>
+ * </ol>
+ *
+ * Where a target has none of 2 or 3, the row can be created but not given a password: the token only leaves by email,
+ * and the mailer is `LogMailer`, which logs the subject and a redacted recipient and never the body. The run then ends
+ * BLOCKED rather than working around it.
  */
 async function ensureStaff(token, schoolId, role, spec) {
   if (!STAFF_PASSWORD) fail('E2E_STAFF_PASSWORD is not set.');
+  const profile = role === 'TEACHER'
+    ? { displayName: spec.displayName, subjects: spec.subjects, curriculum: spec.curriculum, grades: spec.grades }
+    : { displayName: spec.displayName };
 
-  const signedIn = await call('POST', '/auth/sign-in', {
-    body: { email: spec.email, password: STAFF_PASSWORD },
-    expect: [200, 401, 403],
-    raw: true,
-  });
-  if (signedIn.status === 200) {
-    const s = signedIn.body;
-    if (s.mustChangePassword) {
-      await call('POST', '/auth/change-password', {
-        token: s.token,
-        body: { currentPassword: STAFF_PASSWORD, newPassword: STAFF_PASSWORD },
-        expect: [204, 400],
-      });
-    }
+  const session = await staffSession(spec.email);
+  if (session) {
     note(`${role.toLowerCase()} ${spec.email}: found`);
     const id = await userId(token, schoolId, spec.email);
-    return { id, email: spec.email, role, schoolId: s.schoolId, token: s.token, usable: true, created: false };
+    return { id, email: spec.email, role, schoolId: session.schoolId, token: session.token, usable: true, created: false };
+  }
+
+  if (await hasCreateUserEndpoint()) {
+    const created = await call('POST', `/admin/schools/${schoolId}/users`, {
+      token,
+      schoolId,
+      body: { email: spec.email, role, password: STAFF_PASSWORD, displayName: spec.displayName, teacherProfile: profile },
+      expect: [200, 201, 400, 409],
+      raw: true,
+    });
+    if (created.status === 200 || created.status === 201) {
+      const fresh = await staffSession(spec.email);
+      if (!fresh) fail(`POST /admin/schools/${schoolId}/users created ${spec.email} but it cannot sign in.`);
+      note(`${role.toLowerCase()} ${spec.email}: created with a password`);
+      const id = created.body?.id ?? (await userId(token, schoolId, spec.email));
+      return { id, email: spec.email, role, schoolId: fresh.schoolId, token: fresh.token, usable: true, created: true };
+    }
+    // 400/409 = the address is taken by a row whose password we do not have; the invite path below reports it.
   }
 
   const invite = await call('POST', `/admin/schools/${schoolId}/invites`, {
     token,
     schoolId,
-    body: {
-      email: spec.email,
-      role,
-      teacherProfile: role === 'TEACHER'
-        ? { displayName: spec.displayName, subjects: spec.subjects, curriculum: spec.curriculum, grades: spec.grades }
-        : { displayName: spec.displayName },
-    },
+    body: { email: spec.email, role, teacherProfile: profile },
     expect: [200, 400],
     raw: true,
   });
@@ -232,6 +244,49 @@ async function ensureStaff(token, schoolId, role, spec) {
   note(`${role.toLowerCase()} ${spec.email}: invited and accepted`);
   const id = await userId(token, schoolId, spec.email);
   return { id, email: spec.email, role, schoolId: accepted.schoolId, token: accepted.token, usable: true, created: true };
+}
+
+/**
+ * Signs a staff account in with `E2E_STAFF_PASSWORD`, clearing `mustChangePassword` on the way (a first login must,
+ * §5, and P1.9 creates accounts with the flag set). Returns null when the account cannot sign in with that password.
+ */
+async function staffSession(email) {
+  const signedIn = await call('POST', '/auth/sign-in', {
+    body: { email, password: STAFF_PASSWORD },
+    expect: [200, 401, 403, 429],
+    raw: true,
+  });
+  if (signedIn.status === 429) {
+    fail(`sign-in is rate limited (429) for ${email}: SignInRateLimiter allows 10 failures per email + IP per window. Wait for the window to clear.`);
+  }
+  if (signedIn.status !== 200) return null;
+  const s = signedIn.body;
+  if (s.mustChangePassword) {
+    // Re-setting the same password is accepted (AuthService.changePassword has no reuse rule) and clears the flag.
+    await call('POST', '/auth/change-password', {
+      token: s.token,
+      body: { currentPassword: STAFF_PASSWORD, newPassword: STAFF_PASSWORD },
+      expect: [204, 400],
+    });
+  }
+  return s;
+}
+
+/**
+ * Whether this target has the ADMIN-only create-user endpoint (P1.9). Asked of the served OpenAPI document rather than
+ * probed with a request, so a target without it is never sent a call it would refuse. Looked up once.
+ */
+let createUserEndpoint;
+async function hasCreateUserEndpoint() {
+  if (createUserEndpoint !== undefined) return createUserEndpoint;
+  createUserEndpoint = false;
+  for (const path of ['/v3/api-docs', '/openapi.json']) {
+    const doc = await call('GET', path, { expect: [200, 401, 403, 404], raw: true });
+    if (doc.status !== 200 || typeof doc.body !== 'object' || !doc.body?.paths) continue;
+    if (doc.body.paths['/admin/schools/{id}/users']?.post) { createUserEndpoint = true; }
+    break;
+  }
+  return createUserEndpoint;
 }
 
 /** The dashboard user row for an address inside one school. */
@@ -436,11 +491,10 @@ async function main() {
     for (const b of blockers) console.log(`  - ${b}`);
     console.log(
       '\n  The seed needs an ADMIN-only way to create a dashboard user with a known password.\n' +
-      '  Today the only account with a settable password is the platform ADMIN (ADMIN_EMAIL/ADMIN_PASSWORD at\n' +
-      '  start-up). POST /admin/schools/{id}/invites returns an Invite with no token, and the one-time link is only\n' +
-      '  emailed — LogMailer logs the subject and a redacted recipient, never the body.\n' +
-      '  Either add the token to the Invite response for an ADMIN caller, or add POST /admin/schools/{id}/users\n' +
-      '  (email, role, password, teacherProfile). Owner: the `backend` agent.');
+      '  This target has neither POST /admin/schools/{id}/users (P1.9) in its OpenAPI document nor a token in the\n' +
+      '  POST /admin/schools/{id}/invites response, and the one-time link is only emailed — LogMailer logs the\n' +
+      '  subject and a redacted recipient, never the body. The only account with a settable password is the platform\n' +
+      '  ADMIN (ADMIN_EMAIL/ADMIN_PASSWORD at start-up). Owner: the `backend` agent.');
     process.exit(2);
   }
   console.log('\nseeded.');
