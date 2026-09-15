@@ -384,7 +384,7 @@ public class AdminLessonService {
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
         if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw ApiException.badRequest("Unpublish the lesson first.");
         if (step == PipelineStep.SKILLS) throw ApiException.badRequest("Confirm the skills on the Skills step.");
-        steps.ensure(id);
+        pipeline.backfill(id); steps.ensure(id);
         if (step.ordinal() > PipelineStep.SKILLS.ordinal() && !steps.isDone(id, PipelineStep.SKILLS)) throw ApiException.badRequest("Confirm the skills first.");
         if (steps.isDone(id, step)) throw ApiException.badRequest(step.getLabel() + " is already done.");
         state.set(id, step.ordinal() <= PipelineStep.ANALYZE.ordinal() ? LessonStatus.ANALYZING : LessonStatus.GENERATING);
@@ -424,6 +424,7 @@ public class AdminLessonService {
         var fileInfos = sourceFiles.findByLessonIdOrderByCreatedAt(l.getId()).stream().map(f -> new SourceFileInfo(f.getId(), f.getFileName(), f.getFileHash(), f.getPageCount(), f.isCacheHit(), f.getDeletedAt() != null)).toList();
         var error = l.getErrorCode() == null ? null : new ApiError(l.getErrorCode(), l.getErrorMessage() == null ? "" : l.getErrorMessage());
         var source = LessonSource.valueOf(l.getSource().toUpperCase());
+        if (full && !manual(l) && !sourceFiles.findByLessonIdOrderByCreatedAt(l.getId()).isEmpty()) pipeline.backfill(l.getId());
         var stepInfos = steps.list(l.getId()).stream().map(s -> new LessonStepInfo(LessonSteps.parse(s.getStep()), StepStatus.valueOf(s.getStatus().toUpperCase()), s.getAttempt(), s.getErrorCode(), s.getErrorMessage(), s.getUpdatedAt().toEpochMilli())).toList();
         var currentStep = l.getCurrentStep() == null ? null : LessonSteps.parse(l.getCurrentStep());
         if (!full) return new AdminLesson(l.getId(), course, Subject.valueOf(l.getSubject().toUpperCase()), kdate(l.getDate()), status, l.getVersion(), l.getNotes(), l.getTitle(), l.getTokenUsage(), l.getTokensSaved(),
