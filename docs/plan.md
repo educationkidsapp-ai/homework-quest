@@ -97,7 +97,7 @@ Reviewer: `quality-performance` on every PR above.
 - **Token gaps** (dashboard + mobile, a small tokens package before P3.1): `font.label-*` (14 px) matches no Kotlin label step (15/12 px); `letter-spacing-label` 0.02em vs 0.14em; no tokens for description/navItem/cardTitle/mono and the parent Material steps; `space.*` deliberately unmapped in Kotlin.
 - **Sign-in rate limiter is per instance** (Cloud Run may run several) — a shared store or Cloud Armor is a later infra/backend package.
 - **`GET /lessons/{id}` without `childId`** still serves any published lesson to any authenticated parent (content is public-by-id, cached per version in the app) — decide in phase 2 with the flags work.
-- **`webAdmin/RemoteAdminApi.imageBytes` comment** still says media is public — goes away with P3.6.
+- **`webAdmin/RemoteAdminApi.imageBytes` comment** still says media is public — goes away with P3.6. **README** still says "six GitHub Actions workflows" (five + Dependabot) — fix in P2.4.
 - **`ApiError` lacks a `conflict` constant** (used by `user.create` 409) — add when the dashboard matches on it (P3.1).
 - **Owner actions**: install the Renovate GitHub App (Dependabot version updates are now off for gradle/maven/github-actions); provide `RESEND_API_KEY` + a verified `MAIL_FROM` and set `mail_provider = "resend"` in `envs/qa.tfvars` when real invite emails are wanted; the 15 open Dependabot PRs (#2–#16, incl. Spring Boot 4 and Flyway 13 majors) are left for P6.4.
 
@@ -115,5 +115,5 @@ Reviewer: `quality-performance` on every PR above.
 | P1.8 | #34 | merged | app sends bearer on media; seeded shuffles |
 | P1.6 | #35 | merged | seed + isolation: local 11 pass / 5 blocked until P1.9; QA run pending P1.9 deploy |
 | P1.9 | #36 | in review | one item (uniform 404 body) fixed |
-| P1.7 | #37 | in review | two items (PATH in fenced blocks, workflow count) fixed |
+| P1.7 | #37 | merged | two review items (PATH in fenced blocks, workflow count) fixed |
 | P1.10 | #38 | merged, on QA | env applied; `RESEND_API_KEY` container created, not wired until a version exists |
