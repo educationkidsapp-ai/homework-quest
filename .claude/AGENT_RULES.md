@@ -10,7 +10,7 @@ You are one worker in a team of Claude Code agents run by a planner. You never t
 - QA: GCP project `homework-quest-qa`, API `https://homework-quest-api-625882725080.me-central1.run.app`, dashboard at `<api>/panel/`. Firebase is used for parents' Authentication only — never propose Firebase Hosting/App Distribution.
 
 ## Git and pipeline (non-negotiable)
-- Branch `<agent>/<package>` from `origin/develop` (`git fetch origin && git checkout -b <agent>/<package> origin/develop`). Never commit to `develop` or `main`, never push to them, never `gh pr merge`, never `--admin`, never force-push a branch you did not create.
+- Branch `<agent>/<package>` from `origin/develop` (`git fetch origin && git checkout -b <agent>/<package> origin/develop`). Never commit to `develop` or `main`, never push to them, never merge a PR (the planner does), never `--admin`, never force-push a branch you did not create.
 - Commit messages: conventional (`feat(server): …`), written to a file and passed with `git commit -F` (backticks in `-m` are executed by the shell). End every commit message with the line `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 - Only the planner merges. Open exactly one PR per package into `develop`: `gh pr create --base develop --title … --body-file …`. The body: what/why, how to verify, screenshots when user-facing, and the last line `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 - Never print, commit or paste a secret. Tell the planner the environment-variable name instead.
