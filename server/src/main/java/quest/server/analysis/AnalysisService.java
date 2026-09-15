@@ -103,6 +103,27 @@ public class AnalysisService {
         return analysis;
     }
 
+    /**
+     * Prompt A on text the admin typed (manual lessons): the text is the single "page", cached under the hash of the
+     * text + course like any upload. Confirms every extracted skill so generation can follow immediately.
+     */
+    public SourceAnalysis analyzeText(LessonEntity lesson, String text) {
+        String hash = CacheKeys.INSTANCE.sourceHash(List.of(Sha256.INSTANCE.hex(text)), Curriculum.valueOf(lesson.getCourseId().split("/")[0].toUpperCase()), Integer.parseInt(lesson.getCourseId().split("/")[1]), Subject.valueOf(lesson.getSubject().toUpperCase()), lesson.getNotes());
+        String key = CacheKeys.INSTANCE.analysisKey(hash);
+        var cached = cache.findById(key).orElse(null);
+        String analysisJson;
+        if (cached != null) { cached.setHits(cached.getHits() + 1); cache.save(cached); state.addUsage(lesson.getId(), 0, cached.getTokenUsage()); analysisJson = cached.getAnalysisJson(); }
+        else {
+            var src = new SlideProcessor.Source("text", List.of(new SlideProcessor.Page(1, text, new byte[0], 0, 0)));
+            analysisJson = promptA(lesson, src, List.of(), hash, key);
+        }
+        lesson.setSourceHash(hash); lessons.save(lesson);
+        var analysis = json.decodeShared(analysisJson, SourceAnalysis.Companion.serializer());
+        applyAnalysis(lesson, analysis);
+        for (var s : skills.findByLessonIdOrderByPosition(lesson.getId())) { s.setConfirmed(true); s.setUnsureJson(null); skills.save(s); }
+        return analysis;
+    }
+
     private String runPromptA(LessonEntity lesson, List<SourceFileEntity> activeFiles, String hash, String key) {
         List<SlideProcessor.Page> pages = new ArrayList<>(); List<LlmClient.Attachment> attachments = new ArrayList<>();
         int offset = 0;
@@ -114,7 +135,10 @@ public class AnalysisService {
             offset += source.pages().size();
         }
         if (attachments.isEmpty()) for (var p : pages) { if (attachments.size() >= MAX_IMAGES_PER_CALL) break; attachments.add(new LlmClient.Attachment("image/png", p.png(), "page-" + p.number())); }
-        var src = new SlideProcessor.Source("mixed", pages);
+        return promptA(lesson, new SlideProcessor.Source("mixed", pages), attachments, hash, key);
+    }
+
+    private String promptA(LessonEntity lesson, SlideProcessor.Source src, List<LlmClient.Attachment> attachments, String hash, String key) {
         String[] course = lesson.getCourseId().split("/");
         String user = Prompts.userA(course[0], Integer.parseInt(course[1]), lesson.getSubject(), lesson.getNotes(), src.textDump(), !attachments.isEmpty());
         long used = 0; String text = null; List<String> errors = List.of();

@@ -45,7 +45,9 @@ public class AdminPanelController {
                 : name.endsWith(".html") ? MediaType.TEXT_HTML
                 : name.endsWith(".ttf") ? MediaType.parseMediaType("font/ttf")
                 : MediaType.APPLICATION_OCTET_STREAM;
-        CacheControl cache = asset && !name.endsWith(".html") ? CacheControl.maxAge(365, TimeUnit.DAYS).immutable() : CacheControl.noCache();
+        // only content-hashed files (e.g. 8bc1b48ee28fd6b51bb9.wasm) may be cached forever; admin.js / index.html / fonts keep their names across deploys
+        boolean hashed = name.matches("^[0-9a-f]{16,}\\.[a-z0-9]+$");
+        CacheControl cache = asset && hashed ? CacheControl.maxAge(365, TimeUnit.DAYS).immutable() : CacheControl.noCache();
         return ResponseEntity.ok().contentType(type).cacheControl(cache).body(new FileSystemResource(file));
     }
 }

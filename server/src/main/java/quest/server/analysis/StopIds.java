@@ -59,8 +59,14 @@ public final class StopIds {
     static String resolve(String raw, String lessonId, java.util.Map<Integer, java.util.Set<String>> ids) {
         if (raw == null || raw.isBlank()) return null;
         var m = java.util.regex.Pattern.compile("^(?:L|level|l)?\\s*([123])\\s*[:_\\-]\\s*(.+)$").matcher(raw.trim());
-        if (m.matches()) { int level = Integer.parseInt(m.group(1)); String id = m.group(2).trim(); if (ids.getOrDefault(level, java.util.Set.of()).contains(id)) return prefix(lessonId, level, 0) + id; }
-        for (int level = 1; level <= 3; level++) if (ids.getOrDefault(level, java.util.Set.of()).contains(raw.trim())) return prefix(lessonId, level, 0) + raw.trim();
+        if (m.matches()) { int level = Integer.parseInt(m.group(1)); String id = m.group(2).trim(); if (ids.getOrDefault(level, java.util.Set.of()).contains(id)) return withPrefix(lessonId, level, id); }
+        for (int level = 1; level <= 3; level++) if (ids.getOrDefault(level, java.util.Set.of()).contains(raw.trim())) return withPrefix(lessonId, level, raw.trim());
         return null;
+    }
+
+    /** Hand-written stops already carry the lesson prefix; model ids do not. */
+    private static String withPrefix(String lessonId, int level, String id) {
+        String p = prefix(lessonId, level, 0);
+        return id.startsWith(p) ? id : p + id;
     }
 }

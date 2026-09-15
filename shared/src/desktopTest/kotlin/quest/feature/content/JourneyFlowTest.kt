@@ -29,7 +29,7 @@ class JourneyFlowTest {
     private val db = Db(DriverFactory(null))
     private val settings = SettingsStore(db)
     private val auth: AuthProvider = FakeAuth(settings)
-    private val api = FakeContentApi(auth, delayMillis = 0)
+    private val api = FakeContentApi(auth, delayMillis = 0, today = { today })   // the seed lesson is dated 2026-09-14; never the wall clock
     private val children = ChildrenRepositoryImpl(api, db, settings, auth)
     private val lessons = LessonRepositoryImpl(api, db)
     private val journey = JourneyRepositoryImpl(api, db)

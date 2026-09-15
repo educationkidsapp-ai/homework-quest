@@ -28,6 +28,18 @@ public class LessonPipeline {
         catch (Exception e) { log.error("analysis of {} crashed", lessonId, e); state.fail(lessonId, "model_failed", "Something went wrong while reading the slides. Try again."); }
     }
 
+    /** Manual lessons: Prompt A on the admin's text, then the missing levels and the panel. */
+    @Async
+    public void generateFromTextAsync(String lessonId, String text) {
+        try {
+            var lesson = lessons.findById(lessonId).orElseThrow();
+            analysis.analyzeText(lesson, text);
+            generation.generateMissing(lessons.findById(lessonId).orElseThrow());
+            state.set(lessonId, LessonStatus.REVIEW);
+        } catch (ApiException e) { log.warn("text generation for {} failed: {}", lessonId, e.getMessage()); state.fail(lessonId, e.error().code(), e.error().message()); }
+        catch (Exception e) { log.error("text generation for {} crashed", lessonId, e); state.fail(lessonId, "model_failed", "Something went wrong while writing the levels. Try again."); }
+    }
+
     @Async
     public void generateAsync(String lessonId) {
         try {

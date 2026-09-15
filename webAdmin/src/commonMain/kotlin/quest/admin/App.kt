@@ -65,9 +65,9 @@ private fun AdminAppContent() {
         }
         AdminShell(route, session?.email, Graph.apiBaseUrl, onNavigate = { nav.navigate(it) { launchSingleTop = true; popUpTo("lessons") } }, onSignOut = { Graph.session.clear() }) {
             NavHost(nav, startDestination = "lessons") {
-                composable("lessons") { val vm = viewModel { LessonsViewModel(Graph.api, today) }; LessonsScreen(vm, onOpen = { nav.navigate("lesson/$it") }, onNew = { nav.navigate("new") }) }
-                composable("calendar") { val vm = viewModel { LessonsViewModel(Graph.api, today) }; CalendarScreen(vm, onOpenDay = { nav.navigate("lessons") }) }
-                composable("new") { val vm = viewModel { NewLessonViewModel(Graph.api, today) }; NewLessonScreen(vm, onCreated = { nav.navigate("lesson/$it") { popUpTo("lessons") } }) }
+                composable("lessons") { val vm = viewModel { LessonsViewModel(Graph.api, today, session?.email) }; LessonsScreen(vm, onOpen = { nav.navigate("lesson/$it") }, onNew = { nav.navigate("new") }) }
+                composable("calendar") { val vm = viewModel { LessonsViewModel(Graph.api, today, session?.email) }; CalendarScreen(vm, onOpenDay = { nav.navigate("lessons") { launchSingleTop = true } }) }
+                composable("new") { val vm = viewModel { NewLessonViewModel(Graph.api, today, session?.email) }; NewLessonScreen(vm, onCreated = { nav.navigate("lesson/$it") { popUpTo("lessons") } }) }
                 composable("lesson/{id}") { back ->
                     val id = back.arguments?.read { getString("id") } ?: return@composable
                     val vm = viewModel(key = id) { LessonViewModel(id, Graph.api) }

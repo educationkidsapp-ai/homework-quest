@@ -1,7 +1,12 @@
 package quest.ui.stops
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import quest.ui.design.Dimens
 import quest.api.dto.Stop
 
 /**
@@ -11,6 +16,19 @@ import quest.api.dto.Stop
  */
 @Composable
 fun StopContent(stop: Stop, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier, childName: String = "") {
+    // an attached picture sits above any stop except readPage, which shows it in its own picture area
+    val image = stop.imageId
+    if (image != null && stop !is Stop.ReadPage) {
+        Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+            StopPicture(image)
+            Spacer(Modifier.height(Dimens.s12))
+            StopBody(stop, onEvent, Modifier, childName)
+        }
+    } else StopBody(stop, onEvent, modifier, childName)
+}
+
+@Composable
+private fun StopBody(stop: Stop, onEvent: (StopEvent) -> Unit, modifier: Modifier, childName: String) {
     when (stop) {
         is Stop.ReadPage -> ReadPageStop(stop, onEvent, modifier)
         is Stop.StoryPieces -> StoryPiecesStop(stop, onEvent, modifier)

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -71,8 +72,11 @@ fun ReadPageStop(stop: Stop.ReadPage, onEvent: (StopEvent) -> Unit, modifier: Mo
         BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = Dimens.s16).aspectRatio(1.5f).shadow(4.dp, RoundedCornerShape(Dimens.radiusCard)).background(IllustrationGlyphs.tint(stop.illustrationKey ?: "book"), RoundedCornerShape(Dimens.radiusCard))
             .semantics { contentDescription = stop.pictureDescription ?: "picture" }) {
             val w = maxWidth; val h = maxHeight
+            val picture by rememberStopImage(stop.imageId ?: stop.pageImageId)
+            val bmp = picture
+            if (bmp != null) androidx.compose.foundation.Image(bmp, stop.pictureDescription, Modifier.matchParentSize().clip(RoundedCornerShape(Dimens.radiusCard)), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
             if (task == null) {
-                Text(IllustrationGlyphs.glyph(stop.illustrationKey ?: "book"), fontSize = 96.sp, modifier = Modifier.align(Alignment.Center))
+                if (bmp == null) Text(IllustrationGlyphs.glyph(stop.illustrationKey ?: "book"), fontSize = 96.sp, modifier = Modifier.align(Alignment.Center))
             } else {
                 task.hotspots.forEach { hs ->
                     val ok = hs.id in found

@@ -39,9 +39,10 @@ public class GenerationService {
 
     private final GenerationCacheRepository cache; private final AnalysisCacheRepository analyses; private final SkillRepository skills;
     private final LessonStore store; private final LlmClient llm; private final Json json; private final LessonState state; private final AnalysisService analysisService;
+    private final quest.server.content.ParentPanelRepository panels;
 
-    public GenerationService(GenerationCacheRepository cache, AnalysisCacheRepository analyses, SkillRepository skills, LessonStore store, LlmClient llm, Json json, LessonState state, AnalysisService analysisService) {
-        this.cache = cache; this.analyses = analyses; this.skills = skills; this.store = store; this.llm = llm; this.json = json; this.state = state; this.analysisService = analysisService;
+    public GenerationService(GenerationCacheRepository cache, AnalysisCacheRepository analyses, SkillRepository skills, LessonStore store, LlmClient llm, Json json, LessonState state, AnalysisService analysisService, quest.server.content.ParentPanelRepository panels) {
+        this.cache = cache; this.analyses = analyses; this.skills = skills; this.store = store; this.llm = llm; this.json = json; this.state = state; this.analysisService = analysisService; this.panels = panels;
     }
 
     /** All four plays and the panel for a lesson (called by the pipeline after skills are confirmed). */
@@ -59,6 +60,32 @@ public class GenerationService {
             attach(lesson, canonical, level, variant, 0);
         }
         panel(lesson, hash, analysisJson, canonicalPlays);
+    }
+
+    /**
+     * Manual lessons: writes only the levels that are still empty (the admin's own levels stay as they are) and the
+     * parent panel if missing. The admin's Level 1 is what Prompt C sees for level 1; its stop ids are excluded
+     * from the Again variant.
+     */
+    public void generateMissing(LessonEntity lesson) {
+        String hash = requireHash(lesson);
+        String analysisJson = analysisJson(hash);
+        String skillsJson = confirmedSkillsJson(lesson);
+        var existing = new HashMap<String, PlayEntity>();
+        for (var p : store.plays(lesson.getId())) if (!store.play(p).getStops().isEmpty()) existing.put(p.getLevel() + ":" + p.getVariant(), p);
+        Map<String, String> canonicalPlays = new HashMap<>();
+        Set<String> level1Ids = new HashSet<>();
+        var l1 = existing.get("1:0");
+        if (l1 != null) { canonicalPlays.put("1:0", l1.getPlayJson()); store.play(l1).getStops().forEach(s -> level1Ids.add(s.getId())); }
+        for (int[] t : TARGETS) {
+            int level = t[0], variant = t[1];
+            if (existing.containsKey(level + ":" + variant)) { canonicalPlays.putIfAbsent(level + ":" + variant, existing.get(level + ":" + variant).getPlayJson()); continue; }
+            String canonical = playJson(lesson, hash, analysisJson, skillsJson, level, variant, 0, variant == 1 ? level1Ids : Set.of());
+            if (level == 1 && variant == 0) level1Ids.addAll(stopIds(canonical));
+            canonicalPlays.put(level + ":" + variant, canonical);
+            attach(lesson, canonical, level, variant, 0);
+        }
+        if (panels.findById(lesson.getId()).isEmpty()) panel(lesson, hash, analysisJson, canonicalPlays);
     }
 
     /** Regenerate one level with the next seed (a fresh cache slot). */

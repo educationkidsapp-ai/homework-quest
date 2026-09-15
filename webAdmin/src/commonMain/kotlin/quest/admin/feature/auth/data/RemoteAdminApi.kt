@@ -16,6 +16,7 @@ import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.readRawBytes
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
@@ -55,7 +56,7 @@ class RemoteAdminApi(private val baseUrl: String, private val token: () -> Strin
         client.get("$baseUrl/admin/lessons") {
             authed()
             filter.curriculum?.let { parameter("curriculum", it.name.lowercase()) }; filter.grade?.let { parameter("grade", it) }; filter.subject?.let { parameter("subject", it.name.lowercase()) }
-            filter.from?.let { parameter("from", it.toString()) }; filter.to?.let { parameter("to", it.toString()) }; filter.status?.let { parameter("status", it.name.lowercase()) }
+            filter.from?.let { parameter("from", it.toString()) }; filter.to?.let { parameter("to", it.toString()) }
         }
     }
     override suspend fun createLesson(request: CreateLessonRequest): AdminLesson = call { client.post("$baseUrl/admin/lessons") { authed(); contentType(ContentType.Application.Json); setBody(request) } }
@@ -71,6 +72,19 @@ class RemoteAdminApi(private val baseUrl: String, private val token: () -> Strin
     override suspend fun analyze(lessonId: String): JobRef = call { client.post("$baseUrl/admin/lessons/$lessonId/analyze") { authed() } }
     override suspend fun confirmSkills(lessonId: String, skills: List<ConfirmedSkill>): JobRef = call { client.post("$baseUrl/admin/lessons/$lessonId/skills") { authed(); contentType(ContentType.Application.Json); setBody(skills) } }
     override suspend fun updateStop(stopId: String, stop: Stop): Stop = call { client.put("$baseUrl/admin/stops/$stopId") { authed(); contentType(ContentType.Application.Json); setBody(stop) } }
+    override suspend fun createPlay(lessonId: String, level: Int, variant: Int): quest.api.AdminPlay = call { client.post("$baseUrl/admin/lessons/$lessonId/plays") { authed(); contentType(ContentType.Application.Json); setBody(quest.api.CreatePlayRequest(level, variant)) } }
+    override suspend fun addStop(playId: String, stop: Stop): Stop = call { client.post("$baseUrl/admin/plays/$playId/stops") { authed(); contentType(ContentType.Application.Json); setBody(stop) } }
+    override suspend fun deleteStop(stopId: String) { val r = client.delete("$baseUrl/admin/stops/$stopId") { authed() }; if (!r.status.isSuccess()) throw r.toException() }
+    override suspend fun reorderStops(playId: String, stopIds: List<String>): Play = call { client.put("$baseUrl/admin/plays/$playId/order") { authed(); contentType(ContentType.Application.Json); setBody(quest.api.ReorderRequest(stopIds)) } }
+    override suspend fun uploadImage(lessonId: String, file: UploadFile): quest.api.LessonImage = call {
+        client.post("$baseUrl/admin/lessons/$lessonId/images") {
+            authed()
+            setBody(MultiPartFormDataContent(formData { append("file", file.bytes, Headers.build { append(HttpHeaders.ContentType, file.mimeType); append(HttpHeaders.ContentDisposition, "filename=\"${file.fileName}\"") }) }))
+        }
+    }
+    override suspend fun generateFromText(lessonId: String, text: String): JobRef = call { client.post("$baseUrl/admin/lessons/$lessonId/generate-from-text") { authed(); contentType(ContentType.Application.Json); setBody(quest.api.GenerateFromTextRequest(text)) } }
+    /** Bytes of a lesson picture for the phone preview (`/media/pages/{id}` is public; the origin may differ in dev). */
+    suspend fun imageBytes(imageId: String): ByteArray? { val r = client.get("$baseUrl/media/pages/$imageId") { authed() }; return if (r.status.isSuccess()) r.readRawBytes() else null }
     override suspend fun regenerateStop(stopId: String): Stop = call { client.post("$baseUrl/admin/stops/$stopId/regenerate") { authed() } }
     override suspend fun regeneratePlay(playId: String): Play = call { client.post("$baseUrl/admin/plays/$playId/regenerate") { authed() } }
     override suspend fun updateParentPanel(lessonId: String, panel: ParentPanel): ParentPanel = call { client.put("$baseUrl/admin/lessons/$lessonId/parent-panel") { authed(); contentType(ContentType.Application.Json); setBody(panel) } }

@@ -27,6 +27,7 @@ public final class Entities {
         private String title; private String notes;
         @Column(name = "practice_length", nullable = false) private int practiceLength = 7;
         @Column(name = "source_hash") private String sourceHash;
+        @Column(nullable = false) private String source = "pdf";
         @Column(name = "token_usage", nullable = false) private long tokenUsage;
         @Column(name = "tokens_saved", nullable = false) private long tokensSaved;
         @Column(name = "error_code") private String errorCode; @Column(name = "error_message") private String errorMessage;
@@ -43,6 +44,7 @@ public final class Entities {
         public String getNotes() { return notes; } public void setNotes(String v) { notes = v; }
         public int getPracticeLength() { return practiceLength; } public void setPracticeLength(int v) { practiceLength = v; }
         public String getSourceHash() { return sourceHash; } public void setSourceHash(String v) { sourceHash = v; }
+        public String getSource() { return source; } public void setSource(String v) { source = v; }
         public long getTokenUsage() { return tokenUsage; } public void setTokenUsage(long v) { tokenUsage = v; }
         public long getTokensSaved() { return tokensSaved; } public void setTokensSaved(long v) { tokensSaved = v; }
         public String getErrorCode() { return errorCode; } public void setErrorCode(String v) { errorCode = v; }

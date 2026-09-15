@@ -38,14 +38,19 @@ object SchemaValidator {
         validate(json.decodeFromJsonElement(Play.serializer(), element), expectedLevel, excludedIds)
     }.getOrElse { ValidationResult(listOf("not valid JSON: ${it.message}")) }
 
-    fun validate(play: Play, expectedLevel: Int? = null, excludedIds: Set<String> = emptySet()): ValidationResult {
+    /**
+     * [lenient] = a hand-written (manual) play: any number of stops (1–9) and the exit ticket is optional, so an admin
+     * can publish a single readPage + multiSelect. Model output is never lenient.
+     */
+    fun validate(play: Play, expectedLevel: Int? = null, excludedIds: Set<String> = emptySet(), lenient: Boolean = false): ValidationResult {
         val errors = mutableListOf<String>()
         if (expectedLevel != null && play.level != expectedLevel) errors += "expected level $expectedLevel, got ${play.level}"
         val all = play.stops.flatMap { s -> listOf(s) + ((s as? Stop.ExitTicket)?.questions ?: emptyList()) }
         val ids = all.map { it.id }
         if (ids.size != ids.toSet().size) errors += "stop ids must be unique"
         ids.filter { it in excludedIds }.forEach { errors += "stop $it was already used" }
-        if (play.stops.lastOrNull() !is Stop.ExitTicket) errors += "the last stop must be an exitTicket"
+        if (lenient) { if (play.stops.isEmpty()) errors += "add at least one stop"; if (play.stops.size > 9) errors += "at most 9 stops" }
+        else if (play.stops.lastOrNull() !is Stop.ExitTicket) errors += "the last stop must be an exitTicket"
         play.stops.dropLast(1).filterIsInstance<Stop.ExitTicket>().forEach { errors += "exitTicket ${it.id} must be the last stop" }
         all.forEach { s -> errors += validate(s).map { "stop ${s.id}: $it" } }
         return ValidationResult(errors)

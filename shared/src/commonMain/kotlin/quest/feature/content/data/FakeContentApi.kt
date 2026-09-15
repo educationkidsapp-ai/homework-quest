@@ -39,7 +39,7 @@ import quest.core.platform.Today
 /**
  * @param persisted attempts the app already uploaded in earlier sessions (the fake is in-memory; a real server keeps them).
  */
-class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Long = 350, private val persisted: suspend (String) -> List<AttemptUpload> = { emptyList() }) : ContentApi {
+class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Long = 350, private val persisted: suspend (String) -> List<AttemptUpload> = { emptyList() }, private val today: () -> LocalDate = { Today.date() }) : ContentApi {
     private val mutex = Mutex()
     private val children = mutableMapOf<String, MutableList<Child>>()          // uid → children
     private val attempts = mutableMapOf<String, MutableList<AttemptUpload>>()  // childId → attempts
@@ -81,7 +81,7 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
             if (completions.any { it.lessonId == lesson.id && it.level == 1 && it.variant == 1 }) return@mapNotNull null
             MapAssembler.ReviewCandidate(skillId, name, lesson.id, "${lesson.id}:1:1")
         }.distinctBy { it.lessonId }
-        return MapAssembler.assemble(child, Seeds.summaries, completions.map { LessonCompletionInfo(it.lessonId, it.level, it.stars, it.total, it.mostTwo) }, review, emptyMap(), from, to, Today.date())
+        return MapAssembler.assemble(child, Seeds.summaries, completions.map { LessonCompletionInfo(it.lessonId, it.level, it.stars, it.total, it.mostTwo) }, review, emptyMap(), from, to, today())
     }
 
     override suspend fun lesson(id: String, version: Int?): PublishedLesson {
