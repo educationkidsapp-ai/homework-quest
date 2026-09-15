@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -50,10 +51,16 @@ import quest.server.content.LessonRepository;
  * <p>The HTTP half runs as ADMIN with `X-School-Id`, because `SecurityConfig` still gates `/admin/**` on
  * `hasRole("ADMIN")` until P1.3 replaces it with the `permissions.json` matrix; a TEACHER token is asserted to be
  * refused there, and her isolation is proven against the services, which is where this package enforces it.
+ *
+ * <p>The scope also fails closed: `users.school_id` is nullable and the token omits the claim when it is null, so a
+ * TEACHER or MANAGERIAL principal can arrive with no school — which used to mean "no filter", the ADMIN path. Such a
+ * principal is now refused by {@link TenantContext} itself, before the interceptor, before any transaction and
+ * therefore before any repository call, and the tests below pin all three.
  */
 class IsolationTest extends ApiTestSupport {
     private static final String A = "school-a", B = "school-b";
     private static final String LESSON_A = "lesson-of-a", LESSON_B = "lesson-of-b";
+    private static final String TEACHER_NO_SCHOOL = "teacher-schoolless", MANAGER_NO_SCHOOL = "manager-schoolless";
     private static final String PANEL = "{\"objectives\":{\"en\":[\"Count\"],\"ar\":[\"Count\"]},\"supported\":[],\"challenge\":[],\"stopTips\":[],\"modelAnswers\":[]}";
     private static final LocalDate DATE_A = LocalDate.of(2027, 4, 7), DATE_B = LocalDate.of(2027, 4, 9);
 
@@ -73,6 +80,8 @@ class IsolationTest extends ApiTestSupport {
         user("manager-a", A, "manager@alpha.test", "MANAGERIAL");
         user("teacher-b", B, "teacher@beta.test", "TEACHER"); teacher("teacher-b", "[\"math\"]", "british", "[1,2]");
         user("manager-b", B, "manager@beta.test", "MANAGERIAL");
+        user(TEACHER_NO_SCHOOL, null, "teacher@nowhere.test", "TEACHER"); teacher(TEACHER_NO_SCHOOL, "[\"math\"]", "british", "[1,2]");
+        user(MANAGER_NO_SCHOOL, null, "manager@nowhere.test", "MANAGERIAL");
         klass(A, "math", "teacher-a"); klass(B, "math", "teacher-b");
         lesson(LESSON_A, A, DATE_A); lesson(LESSON_B, B, DATE_B);
     }
@@ -130,19 +139,72 @@ class IsolationTest extends ApiTestSupport {
     @ParameterizedTest(name = "{0} {1} of another school is 404")
     @MethodSource("routesOfAnotherSchool")
     void a_lesson_of_another_school_is_not_found(String method, String path) throws Exception {
-        var token = adminToken();
-        MockHttpServletRequestBuilder b = switch (method) {
-            case "GET" -> get(path);
-            case "TEXT" -> post(path).contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"A lesson about counting to ten together.\"}");
-            case "PANEL" -> put(path).contentType(MediaType.APPLICATION_JSON).content(PANEL);
-            case "DELETE" -> delete(path);
-            case "MULTIPART" -> multipart(path).file(new MockMultipartFile("files", "s.pdf", "application/pdf", new byte[] {1}))
-                    .file(new MockMultipartFile("file", "s.png", "image/png", new byte[] {1}));
-            default -> post(path).contentType(MediaType.APPLICATION_JSON).content("[]");
-        };
-        var result = mvc.perform(scoped(b, token, A)).andReturn();
+        var result = mvc.perform(scoped(requestFor(method, path), adminToken(), A)).andReturn();
         assertThat(result.getResponse().getStatus()).as("%s %s", method, path).isEqualTo(404);
         assertThat(result.getResponse().getContentAsString()).doesNotContain(LESSON_B);
+    }
+
+    // ---------------------------------------------------------------- a principal with no school at all
+
+    /** The routes above plus the collection and report routes: nothing a school-less dashboard token may reach. */
+    static Stream<Arguments> tenantRoutes() {
+        return Stream.concat(
+                Stream.of(Arguments.of("GET", "/admin/lessons"),
+                        Arguments.of("GET", "/admin/lessons/" + LESSON_A),
+                        Arguments.of("GET", "/admin/usage"),
+                        Arguments.of("GET", "/admin/calendar?curriculum=british&grade=1&year=2027&month=4")),
+                routesOfAnotherSchool());
+    }
+
+    @ParameterizedTest(name = "{0} {1} is 403 for a token with no school")
+    @MethodSource("tenantRoutes")
+    void a_school_less_dashboard_token_is_refused_on_every_tenant_route(String method, String path) throws Exception {
+        for (var principal : List.of(List.of("TEACHER", TEACHER_NO_SCHOOL), List.of("MANAGERIAL", MANAGER_NO_SCHOOL))) {
+            var token = jwt.issue(principal.get(1), principal.get(1) + "@nowhere.test", principal.get(0), null).token();
+            var result = mvc.perform(requestFor(method, path).header("Authorization", "Bearer " + token)).andReturn();
+            assertThat(result.getResponse().getStatus()).as("%s %s as %s", method, path, principal.get(0)).isEqualTo(403);
+            assertThat(result.getResponse().getContentAsString()).doesNotContain(LESSON_A).doesNotContain(LESSON_B);
+        }
+    }
+
+    @Test void a_dashboard_token_with_no_school_is_refused_before_any_handler() {
+        try {
+            for (String role : List.of("TEACHER", "MANAGERIAL")) {
+                tenant.set(role, null, null);                                   // the JWT omits `schoolId` when `users.school_id` is null
+                forbidden(tenant::resolveEagerly);                              // no `X-School-Id` needed for the refusal
+                forbidden(tenant::schoolId);
+                forbidden(tenant::writeSchoolId);
+                tenant.set(role, "no-such-school", null);                       // a school id no `schools` row has
+                forbidden(tenant::resolveEagerly);
+                forbidden(tenant::schoolId);
+            }
+            tenant.set("ADMIN", null, null);                                    // D6 is untouched: the platform ADMIN still reads across schools
+            tenant.resolveEagerly();
+            assertThat(tenant.schoolId()).isNull();
+            assertThat(tenant.unfilteredAllowed()).isTrue();
+        } finally { tenant.clear(); }
+        assertThat(tenant.schoolId()).isNull();                                 // a parent or a job carries no scope at all
+    }
+
+    @Test void no_repository_query_runs_unfiltered_for_a_principal_without_a_school() {
+        for (var principal : List.of(List.of("TEACHER", TEACHER_NO_SCHOOL), List.of("MANAGERIAL", MANAGER_NO_SCHOOL)))
+            as(principal.get(0), principal.get(1), null, () -> {
+                forbidden(() -> lessons.findAll());                             // the transaction is refused before it begins
+                forbidden(() -> lessons.findAllByOrderByDateDescCreatedAtDesc());
+                forbidden(() -> lessons.findOneById(LESSON_A));
+                forbidden(() -> lessonService.list(filter()));
+                forbidden(() -> lessonService.get(LESSON_A));
+                forbidden(() -> childService.scoped("any-child-id"));
+            });
+    }
+
+    @Test void a_parent_may_not_upload_attempts_for_a_lesson_of_another_school() throws Exception {
+        var childA = parentPost("/children", "{\"name\":\"Amal\",\"avatarColor\":\"sky\",\"curriculum\":\"british\",\"grade\":1,\"schoolCode\":\"SCHLAA\"}").get("id").asText();
+        var upload = "[{\"id\":\"cross-school-1\",\"stopId\":\"" + LESSON_B + ":stop-1\",\"lessonId\":\"" + LESSON_B + "\",\"level\":1,\"answerJson\":\"{}\","
+                + "\"correct\":true,\"attemptNumber\":1,\"mistakes\":0,\"stars\":3,\"answeredAt\":1789300000000}]";
+        var body = json(mvc.perform(post("/children/" + childA + "/attempts").header("Authorization", PARENT)
+                .contentType(MediaType.APPLICATION_JSON).content(upload)).andExpect(status().isForbidden()).andReturn());
+        assertThat(body.get("code").asText()).isEqualTo("forbidden");
     }
 
     // ---------------------------------------------------------------- the report endpoints
@@ -225,6 +287,24 @@ class IsolationTest extends ApiTestSupport {
         var out = new java.util.ArrayList<String>();
         adminList(token, schoolId).forEach(l -> out.add(l.get("id").asText()));
         return out;
+    }
+
+    /** The request each row of the parameterised route lists stands for. */
+    private static MockHttpServletRequestBuilder requestFor(String method, String path) {
+        return switch (method) {
+            case "GET" -> get(path);
+            case "TEXT" -> post(path).contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"A lesson about counting to ten together.\"}");
+            case "PANEL" -> put(path).contentType(MediaType.APPLICATION_JSON).content(PANEL);
+            case "DELETE" -> delete(path);
+            case "MULTIPART" -> multipart(path).file(new MockMultipartFile("files", "s.pdf", "application/pdf", new byte[] {1}))
+                    .file(new MockMultipartFile("file", "s.png", "image/png", new byte[] {1}));
+            default -> post(path).contentType(MediaType.APPLICATION_JSON).content("[]");
+        };
+    }
+
+    private static void forbidden(ThrowingCallable body) {
+        assertThatThrownBy(body).isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).error().code()).isEqualTo("forbidden"));
     }
 
     private MockHttpServletRequestBuilder scoped(MockHttpServletRequestBuilder b, String token, String schoolId) {

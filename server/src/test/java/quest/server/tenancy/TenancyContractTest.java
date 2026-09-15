@@ -63,10 +63,11 @@ class TenancyContractTest extends ApiTestSupport {
     }
 
     @Test void the_tenant_scope_follows_the_token_then_the_header() {
+        var own = school();                                                         // a teacher's school has to exist: the scope fails closed
         try {
-            tenant.set("TEACHER", "school-a", "school-b");                          // a teacher's token wins over any header
-            assertThat(tenant.schoolId()).isEqualTo("school-a");
-            assertThat(tenant.writeSchoolId()).isEqualTo("school-a");
+            tenant.set("TEACHER", own, "another-school");                           // a teacher's token wins over any header
+            assertThat(tenant.schoolId()).isEqualTo(own);
+            assertThat(tenant.writeSchoolId()).isEqualTo(own);
 
             tenant.set("ADMIN", null, null);                                        // D6: reads across schools, writes into `default`
             assertThat(tenant.schoolId()).isNull();
@@ -78,8 +79,20 @@ class TenancyContractTest extends ApiTestSupport {
             tenant.set("ADMIN", null, "no-such-school");
             assertThatThrownBy(tenant::schoolId).isInstanceOf(ApiException.class)
                     .satisfies(e -> assertThat(((ApiException) e).error().code()).isEqualTo("not_found"));
+
+            tenant.set("TEACHER", "no-such-school", null);                          // a non-ADMIN scope fails closed, not open
+            assertThatThrownBy(tenant::schoolId).isInstanceOf(ApiException.class)
+                    .satisfies(e -> assertThat(((ApiException) e).error().code()).isEqualTo("forbidden"));
         } finally { tenant.clear(); }
         assertThat(tenant.schoolId()).isNull();
+    }
+
+    /** A school of this test's own, so that nothing here depends on (or collides with) the schools other tests seed. */
+    private String school() {
+        var s = new Entities.SchoolEntity();
+        s.setId("contract-" + UUID.randomUUID()); s.setName("Contract School"); s.setCode(UUID.randomUUID().toString().substring(0, 6).toUpperCase());
+        s.setCurriculumOptionsJson("[\"british\"]"); s.setGradeOptionsJson("[1,2,3]"); s.setCreatedAt(Instant.now());
+        return schools.save(s).getId();
     }
 
     @Test void a_dashboard_token_carries_the_role_and_the_school() {

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import quest.api.dto.AttemptUpload;
 import quest.api.dto.Play;
+import quest.server.config.ApiException;
 import quest.server.content.LessonRepository;
 import quest.server.content.LessonStore;
 
@@ -31,6 +32,7 @@ public class AttemptService {
     public int record(Entities.ChildEntity child, List<AttemptUpload> uploads) {
         int accepted = 0;
         Map<String, Instant> touchedLessons = new HashMap<>();
+        for (var lessonId : uploads.stream().map(AttemptUpload::getLessonId).distinct().toList()) requireSameSchool(child, lessonId);
         for (var a : uploads) {
             if (attempts.existsById(a.getId())) continue;
             var e = new Entities.AttemptEntity();
@@ -49,6 +51,18 @@ public class AttemptService {
         }
         for (var entry : touchedLessons.entrySet()) { deriveLessonCompletions(child, entry.getKey(), entry.getValue()); touchStreak(child, entry.getValue()); }
         return accepted;
+    }
+
+    /**
+     * A parent carries no school scope (she scopes by `parent_id`), so nothing but this stops an upload from naming a
+     * lesson of another school: the rows would link her child to that school's lesson and be counted into its reports.
+     * Checked for the whole batch before anything is written. An id no lesson has is left alone — it is stored and
+     * simply derives no completion, as before.
+     */
+    private void requireSameSchool(Entities.ChildEntity child, String lessonId) {
+        var lesson = lessons.findOneById(lessonId).orElse(null);
+        if (lesson == null || lesson.getSchoolId() == null || child.getSchoolId() == null) return;
+        if (!lesson.getSchoolId().equals(child.getSchoolId())) throw ApiException.forbidden("That lesson belongs to another school.");
     }
 
     private void deriveLessonCompletions(Entities.ChildEntity child, String lessonId, Instant at) {

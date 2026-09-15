@@ -29,10 +29,14 @@ public class ChildService {
      * A child a dashboard user may see: of her school, or of the school an Admin switched to. Everything hanging off a
      * child — attempts, completions, media, stickers, streaks, parent unlocks — is reached by `child_id`, so this is
      * the one gate in front of all of them.
+     *
+     * <p>The scope is resolved <em>first</em>, and deliberately not treated as "no scope, see everything": a dashboard
+     * principal with no resolvable school is refused there with 403 before any child is read. A null scope past that
+     * line is only the platform ADMIN (D6), a parent or a job.
      */
     public Entities.ChildEntity scoped(String childId) {
-        var child = children.findOneById(childId).filter(c -> c.getDeletedAt() == null).orElseThrow(() -> ApiException.notFound("child"));
         var schoolId = tenant.schoolId();
+        var child = children.findOneById(childId).filter(c -> c.getDeletedAt() == null).orElseThrow(() -> ApiException.notFound("child"));
         if (schoolId != null && !schoolId.equals(child.getSchoolId())) throw ApiException.notFound("child");
         return child;
     }

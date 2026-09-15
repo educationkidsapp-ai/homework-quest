@@ -5,6 +5,7 @@ import org.springframework.orm.jpa.EntityManagerHolder;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import quest.server.config.ApiException;
 
 /**
  * Enables the `school` Hibernate filter on the session of every transaction opened while a request is scoped to a
@@ -38,7 +39,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * `schools` lookup it performs while resolving opens a transaction of its own, which finds the scope unresolved and
  * simply runs unfiltered (`schools` is not a tenant table).
  *
- * <p>ADMIN without `X-School-Id` has a null scope and no filter: it reads across schools (D6).
+ * <p>ADMIN without `X-School-Id` has a null scope and no filter: it reads across schools (D6). That is the <em>only</em>
+ * authenticated dashboard principal allowed to run unfiltered — {@link TenantContext#schoolId()} already refuses a
+ * TEACHER or MANAGERIAL with no resolvable school, and the null branch below asserts it a second time rather than
+ * begin an unfiltered transaction, so the two have to agree for a query to run. The branch also disables the filter
+ * explicitly: with `open-in-view: false` every physical transaction gets a fresh {@code EntityManager} and none could
+ * carry a parameter over, but an {@code EntityManagerHolder} bound by something else would.
  */
 public class TenantTransactionManager extends JpaTransactionManager {
     private final transient TenantContext tenant;
@@ -48,9 +54,11 @@ public class TenantTransactionManager extends JpaTransactionManager {
     @Override
     protected void doBegin(Object transaction, TransactionDefinition definition) {
         String schoolId = tenant.schoolId();
+        if (schoolId == null && !tenant.unfilteredAllowed()) throw ApiException.forbidden(TenantContext.NO_SCHOOL);
         super.doBegin(transaction, definition);
-        if (schoolId == null) return;
         var holder = (EntityManagerHolder) TransactionSynchronizationManager.getResource(getEntityManagerFactory());
-        if (holder != null && holder.getEntityManager() != null) TenantFilter.enable(holder.getEntityManager(), schoolId);
+        var em = holder == null ? null : holder.getEntityManager();
+        if (em == null) return;
+        if (schoolId == null) TenantFilter.disable(em); else TenantFilter.enable(em, schoolId);
     }
 }

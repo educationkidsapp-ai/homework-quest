@@ -20,4 +20,9 @@ public final class TenantFilter {
     public static void enable(EntityManager em, String schoolId) {
         em.unwrap(Session.class).enableFilter(NAME).setParameter(PARAM, schoolId).validate();
     }
+
+    /** Switches the filter off for an unscoped transaction (the platform ADMIN, a parent, a job); a no-op when it was never on. */
+    public static void disable(EntityManager em) {
+        em.unwrap(Session.class).disableFilter(NAME);
+    }
 }

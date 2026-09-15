@@ -33,7 +33,14 @@ public class TenantGuard {
         return auth != null && auth.getPrincipal() instanceof Principals.User u ? u : null;
     }
 
-    /** Every write to a lesson, its files, skills, plays, stops, panel or publication state. */
+    /**
+     * Every write to a lesson, its files, skills, plays, stops, panel or publication state.
+     *
+     * <p>Only MANAGERIAL is refused, on purpose: within her own school a TEACHER may edit and publish a colleague's
+     * lesson, including a subject outside her `subjects_json` — the row is already filtered to her school, so this is
+     * not an isolation question. §2/P1.2 restricts lesson <em>creation</em> ({@link #lessonCreator}); who may edit
+     * whose lesson inside a school is P4.0 `backend/teacher-contract`, with the rest of the teacher profile.
+     */
     public void requireLessonWrite() {
         if ("MANAGERIAL".equals(tenant.role()))
             throw ApiException.forbidden("Managerial accounts can read this school's lessons but not change them.");
