@@ -107,7 +107,7 @@ locals {
     ADMIN_JWT_SECRET = random_password.jwt.result
   }
   required_secrets = ["DB_PASSWORD", "ADMIN_JWT_SECRET", "DEEPSEEK_API_KEY", "ADMIN_PASSWORD"]
-  optional_secrets = ["ANTHROPIC_API_KEY", "FIREBASE_CREDENTIALS"]
+  optional_secrets = ["ANTHROPIC_API_KEY", "FIREBASE_CREDENTIALS", "RESEND_API_KEY"]
   # wired into Cloud Run: the required ones always, an optional one once its value has been provided (var.optional_secrets)
   runtime_secrets = concat(local.required_secrets, var.optional_secrets)
 }
@@ -240,6 +240,30 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "PUBLIC_URL"
         value = local.api_url
+      }
+      env {
+        # auth mail: `log` only writes the invite/reset link to the Cloud Run log — nothing is sent until the owner
+        # provides RESEND_API_KEY (optional secret) and sets mail_provider = "resend".
+        name  = "MAIL_PROVIDER"
+        value = var.mail_provider
+      }
+      env {
+        name  = "MAIL_FROM"
+        value = var.mail_from
+      }
+      env {
+        # the dashboard is served by this same API at /panel/ (D2), so the invite/reset links point at the API origin;
+        # it becomes the dashboard's own origin if the panel is ever hosted separately.
+        name  = "DASHBOARD_URL"
+        value = local.api_url
+      }
+      dynamic "env" {
+        # set only when non-empty: an env var with an empty value would be dropped by the API and reappear in every plan
+        for_each = var.platform_name == "" ? [] : [var.platform_name]
+        content {
+          name  = "PLATFORM_NAME"
+          value = env.value
+        }
       }
       dynamic "env" {
         for_each = toset(local.runtime_secrets)

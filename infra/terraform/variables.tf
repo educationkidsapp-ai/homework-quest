@@ -28,6 +28,27 @@ variable "cors_origins" {
   type        = list(string)
   default     = []
 }
+# ---------------------------------------------------------------- auth email (invites, password resets)
+variable "mail_provider" {
+  description = "log | resend — `log` writes the invite/reset link to the Cloud Run log instead of sending it (no key needed); switch to `resend` once RESEND_API_KEY has a version and mail_from is a verified sender"
+  type        = string
+  default     = "log"
+  validation {
+    condition     = contains(["log", "resend"], var.mail_provider)
+    error_message = "mail_provider must be log or resend"
+  }
+}
+variable "mail_from" {
+  description = "Sender address for auth mail. The default is a deliberate placeholder on the RFC 2606 `.invalid` TLD — it is never used while mail_provider = \"log\"; replace it with an address on a Resend-verified domain before switching to `resend`"
+  type        = string
+  default     = "no-reply@homework-quest.invalid"
+}
+variable "platform_name" {
+  description = "Product name used in auth mail and in the dashboard; empty keeps the name seeded by the server"
+  type        = string
+  default     = ""
+}
+
 variable "sql_tier" {
   type    = string
   default = "db-f1-micro"
@@ -41,11 +62,11 @@ variable "cloud_run_min_instances" {
 # them to Secret Manager with `gcloud secrets versions add`. Optional secrets are wired into Cloud Run only once
 # they exist — list them here after providing a value.
 variable "optional_secrets" {
-  description = "Optional secrets (ANTHROPIC_API_KEY, FIREBASE_CREDENTIALS) that have a version and should reach the server"
+  description = "Optional secrets (ANTHROPIC_API_KEY, FIREBASE_CREDENTIALS, RESEND_API_KEY) that have a version and should reach the server"
   type        = list(string)
   default     = []
   validation {
-    condition     = alltrue([for s in var.optional_secrets : contains(["ANTHROPIC_API_KEY", "FIREBASE_CREDENTIALS"], s)])
-    error_message = "optional_secrets may only contain ANTHROPIC_API_KEY and FIREBASE_CREDENTIALS"
+    condition     = alltrue([for s in var.optional_secrets : contains(["ANTHROPIC_API_KEY", "FIREBASE_CREDENTIALS", "RESEND_API_KEY"], s)])
+    error_message = "optional_secrets may only contain ANTHROPIC_API_KEY, FIREBASE_CREDENTIALS and RESEND_API_KEY"
   }
 }

@@ -2,7 +2,7 @@
 # Push user-supplied secret values from the environment into Secret Manager — a new version only when the value
 # changed. Values are read from env vars and piped straight to gcloud; nothing is echoed.
 #
-#   infra/secrets.sh <gcp-project>        # reads DEEPSEEK_API_KEY ADMIN_PASSWORD ANTHROPIC_API_KEY FIREBASE_CREDENTIALS
+#   infra/secrets.sh <gcp-project>        # reads DEEPSEEK_API_KEY ADMIN_PASSWORD ANTHROPIC_API_KEY FIREBASE_CREDENTIALS RESEND_API_KEY
 #
 # FIREBASE_CREDENTIALS may be a path to the service-account JSON or the JSON itself. Empty variables are skipped
 # (the existing version stays). Prints the names of optional secrets that now have a version, one per line, so
@@ -24,10 +24,11 @@ sync() {
 sync DEEPSEEK_API_KEY "${DEEPSEEK_API_KEY:-}"
 sync ADMIN_PASSWORD "${ADMIN_PASSWORD:-}"
 sync ANTHROPIC_API_KEY "${ANTHROPIC_API_KEY:-}"
+sync RESEND_API_KEY "${RESEND_API_KEY:-}"   # auth mail; only used when mail_provider = "resend"
 FIREBASE_JSON="${FIREBASE_CREDENTIALS:-}"
 [ -n "$FIREBASE_JSON" ] && [ -f "$FIREBASE_JSON" ] && FIREBASE_JSON=$(cat "$FIREBASE_JSON")
 sync FIREBASE_CREDENTIALS "$FIREBASE_JSON"
-for s in ANTHROPIC_API_KEY FIREBASE_CREDENTIALS; do
+for s in ANTHROPIC_API_KEY FIREBASE_CREDENTIALS RESEND_API_KEY; do
   gcloud secrets versions list "$s" --project "$PROJECT" --filter="state=ENABLED" --format="value(name)" --limit 1 2>/dev/null | grep -q . && echo "$s"
 done
 exit 0
