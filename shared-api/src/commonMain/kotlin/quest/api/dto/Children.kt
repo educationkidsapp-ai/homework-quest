@@ -11,10 +11,20 @@ data class Child(
     val curriculum: Curriculum,
     val grade: Int,
     val languages: List<String> = listOf("en"),
+    /** The tenant the child belongs to; pre-tenancy children are in the default school. */
+    val schoolId: String = "default",
 ) { val course: Course get() = Course(curriculum, grade) }
 
+/** `schoolCode` is the 6-character code a parent types to join a school; without it the child lands in the default school. */
 @Serializable
-data class CreateChildRequest(val name: String, val avatarColor: String, val curriculum: Curriculum, val grade: Int, val languages: List<String> = listOf("en"))
+data class CreateChildRequest(
+    val name: String,
+    val avatarColor: String,
+    val curriculum: Curriculum,
+    val grade: Int,
+    val languages: List<String> = listOf("en"),
+    val schoolCode: String? = null,
+)
 
 @Serializable
 data class UpdateChildRequest(val name: String? = null, val avatarColor: String? = null, val curriculum: Curriculum? = null, val grade: Int? = null, val languages: List<String>? = null)

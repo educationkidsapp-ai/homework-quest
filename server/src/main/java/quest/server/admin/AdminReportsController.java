@@ -1,5 +1,6 @@
 package quest.server.admin;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ import quest.server.content.StopRepository;
 
 /** `/admin/cache`, `/admin/usage`, `/admin/calendar`. */
 @RestController
+@Tag(name = "Admin reports", description = "Cache, usage and calendar")
 public class AdminReportsController {
     private final AnalysisCacheRepository analysisCache; private final GenerationCacheRepository generationCache; private final LessonRepository lessons; private final ChildRepository children;
     private final AttemptRepository attempts; private final LessonCompletionRepository completions; private final StopRepository stops; private final Json json;

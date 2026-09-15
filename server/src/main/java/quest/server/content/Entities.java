@@ -19,7 +19,9 @@ public final class Entities {
     @Entity @Table(name = "lessons")
     public static class LessonEntity {
         @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId = "default";
         @Column(name = "course_id", nullable = false) private String courseId;
+        @Column(name = "class_id") private String classId;
         @Column(nullable = false) private String subject;
         @Column(nullable = false) private LocalDate date;
         @Column(nullable = false) private String status;
@@ -36,7 +38,9 @@ public final class Entities {
         @Column(name = "created_at", nullable = false) private Instant createdAt; @Column(name = "updated_at", nullable = false) private Instant updatedAt;
         @Column(name = "published_at") private Instant publishedAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getCourseId() { return courseId; } public void setCourseId(String v) { courseId = v; }
+        public String getClassId() { return classId; } public void setClassId(String v) { classId = v; }
         public String getSubject() { return subject; } public void setSubject(String v) { subject = v; }
         public LocalDate getDate() { return date; } public void setDate(LocalDate v) { date = v; }
         public String getStatus() { return status; } public void setStatus(String v) { status = v; }
