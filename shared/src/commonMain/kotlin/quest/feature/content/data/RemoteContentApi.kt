@@ -9,7 +9,6 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
-import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
@@ -47,7 +46,7 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
         install(HttpTimeout) { requestTimeoutMillis = 60_000 }
     }
 
-    private suspend fun HttpRequestBuilder.authed() { auth.idToken()?.let { header(HttpHeaders.Authorization, "Bearer $it") } }
+    private suspend fun HttpRequestBuilder.authed() = authed(auth)
 
     override suspend fun listChildren(): List<Child> = call { client.get("$baseUrl/children") { authed() } }
     override suspend fun createChild(request: CreateChildRequest): Child = call { client.post("$baseUrl/children") { authed(); contentType(ContentType.Application.Json); setBody(request) } }

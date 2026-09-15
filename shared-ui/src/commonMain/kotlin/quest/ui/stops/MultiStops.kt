@@ -24,6 +24,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -80,7 +81,8 @@ private fun PickTiles(id: String, prompt: String, options: List<Tile>, correctId
 /** Two columns; tap one from each; matched pairs lock; stars by mistakes. */
 @Composable
 fun MatchStop(stop: Stop.Match, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
-    val rights = rememberSaveable(stop.id) { stop.pairs.map { it.id }.shuffled() }
+    // Seeded from the stop id: the same stop always shuffles the same way, so a retry (or a screenshot test) is stable.
+    val rights = rememberSaveable(stop.id) { stop.pairs.map { it.id }.shuffled(Random(stop.id.hashCode())) }
     var left by rememberSaveable(stop.id) { mutableStateOf<String?>(null) }
     var matched by rememberSaveable(stop.id) { mutableStateOf(setOf<String>()) }
     var mistakes by rememberSaveable(stop.id) { mutableIntStateOf(0) }
@@ -125,7 +127,8 @@ private fun MatchTile(tile: Tile, locked: Boolean, selected: Boolean, onClick: (
  */
 @Composable
 fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
-    val shuffled = rememberSaveable(stop.id) { stop.items.map { it.id }.shuffled().let { if (it == stop.correctOrder) it.reversed() else it } }
+    // Seeded from the stop id (see MatchStop) so the pile order is the same on every render.
+    val shuffled = rememberSaveable(stop.id) { stop.items.map { it.id }.shuffled(Random(stop.id.hashCode())).let { if (it == stop.correctOrder) it.reversed() else it } }
     var placed by rememberSaveable(stop.id) { mutableStateOf(listOf<String>()) }
     var attempts by rememberSaveable(stop.id) { mutableIntStateOf(0) }
     var done by rememberSaveable(stop.id) { mutableStateOf(false) }
