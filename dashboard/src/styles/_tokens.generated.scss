@@ -1,0 +1,227 @@
+// GENERATED FILE — do not edit.
+// Source: design/tokens.json. Regenerate with `pnpm tokens`; `pnpm tokens --check` fails on drift.
+@use 'sass:map';
+
+:root {
+  --hq-color-bg: #F3F2F2;                             /* Palette.parentBg — the ground */
+  --hq-color-surface: #FFFFFF;                        /* Palette.parentSurface */
+  --hq-color-ink: #201E1D;                            /* Palette.parentInk — text and rules */
+  --hq-color-ink-soft: #6B6866;                       /* Palette.parentInkSoft */
+  --hq-color-accent: #EC3013;                         /* Palette.parentAccent — the one red */
+  --hq-color-accent-soft: #FBE4DF;                    /* Palette.parentAccentSoft — hover tint / red band background */
+  --hq-color-accent-strong: #CC2A0F;                  /* the same red darkened until white-on-red and red-on-ground both clear 4.5:1 — use it for accent TEXT and for fills that carry text; --hq-color-accent stays the brand red for rules and glyphs */
+  --hq-color-line: #201E1D;                           /* Palette.parentLine — 2px rules */
+  --hq-color-rule: #D9D6D2;                           /* Palette.parentRule — light rules, disabled borders */
+  --hq-color-disabled: #A9A5A1;                       /* Palette.parentDisabled */
+  --hq-color-on-accent: #FFFFFF;                      /* text on the red accent */
+  --hq-color-on-ink: #FFFFFF;                         /* text on ink fills */
+  --hq-color-focus: #201E1D;                          /* focus ring colour */
+  --hq-color-band-good: #5FD6A5;                      /* Palette.bandGood (mint) — progress band, never red */
+  --hq-color-band-mid: #FFC93C;                       /* Palette.bandMid (sun) */
+  --hq-color-band-look: #FF8A65;                      /* Palette.bandLook (coral) */
+  --hq-color-skeleton: #E4E2E0;                       /* skeleton block */
+  --hq-color-skeleton-shine: #F3F2F2;                 /* skeleton shimmer highlight */
+  --hq-color-overlay: rgba(32, 30, 29, 0.45);         /* modal scrim */
+  --hq-size-nav-width: 240px;                         /* AdminTokens.navWidth */
+  --hq-size-content-max-width: 1100px;                /* AdminTokens.contentMaxWidth */
+  --hq-size-rule: 2px;                                /* AdminTokens.rule */
+  --hq-size-rule-thin: 1px;                           /* AdminTokens.ruleThin */
+  --hq-size-selected-border: 4px;                     /* AdminTokens.selectedBorder */
+  --hq-size-row-height: 56px;                         /* AdminTokens.rowHeight */
+  --hq-size-button-height: 44px;                      /* AdminTokens.buttonHeight */
+  --hq-size-input-height: 48px;                       /* AdminTokens.inputHeight */
+  --hq-size-page-padding: 32px;                       /* AdminTokens.pagePadding */
+  --hq-size-gutter: 24px;                             /* AdminTokens.gutter */
+  --hq-size-course-card: 132px;                       /* AdminTokens.courseCard */
+  --hq-size-grade-card: 96px;                         /* AdminTokens.gradeCard */
+  --hq-size-phone-width: 396px;                       /* AdminTokens.phoneWidth */
+  --hq-size-phone-height: 812px;                      /* AdminTokens.phoneHeight */
+  --hq-size-phone-bezel: 10px;                        /* AdminTokens.phoneBezel */
+  --hq-size-phone-corner: 40px;                       /* AdminTokens.phoneCorner — the only rounded thing in the system (an Android device frame) */
+  --hq-size-progress-bar: 6px;                        /* AdminTokens.progressBar */
+  --hq-size-spinner: 28px;                            /* AdminTokens.spinner */
+  --hq-size-drop-zone-height: 160px;                  /* AdminTokens.dropZoneHeight */
+  --hq-size-stop-list-width: 300px;                   /* AdminTokens.stopListWidth */
+  --hq-size-logo-size: 28px;                          /* AdminTokens.logoSize */
+  --hq-size-radius: 0px;                              /* Dimens.radiusParent — square corners everywhere */
+  --hq-size-focus-ring: 3px;                          /* visible focus ring width */
+  --hq-size-focus-ring-offset: 2px;
+  --hq-size-touch-target: 44px;                       /* minimum interactive target */
+  --hq-space-4: 4px;
+  --hq-space-8: 8px;
+  --hq-space-12: 12px;
+  --hq-space-16: 16px;
+  --hq-space-24: 24px;
+  --hq-space-32: 32px;
+  --hq-space-48: 48px;
+  --hq-font-family-latin: Archivo, 'Helvetica Neue', Helvetica, Arial, sans-serif; /* Latin (LTR) face — variable TTF in src/assets/fonts */
+  --hq-font-family-arabic: 'IBM Plex Sans Arabic', 'Geeza Pro', 'Noto Sans Arabic', sans-serif; /* RTL face */
+  --hq-font-family-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  --hq-font-title-size: 30px;
+  --hq-font-title-line: 36px;
+  --hq-font-title-weight: 600;
+  --hq-font-body-size: 17px;
+  --hq-font-body-line: 24px;
+  --hq-font-body-weight: 400;
+  --hq-font-label-size: 14px;
+  --hq-font-label-line: 20px;
+  --hq-font-label-weight: 600;
+  --hq-font-input-size: 17px;
+  --hq-font-input-weight: 400;
+  --hq-font-letter-spacing-title: -0.01em;
+  --hq-font-letter-spacing-label: 0.02em;
+  --hq-motion-fast: 150ms;                            /* micro-interactions: hover, toggle glyph */
+  --hq-motion-base: 250ms;                            /* row collapse, band expand */
+  --hq-motion-slow: 400ms;                            /* page enter */
+  --hq-motion-count-up: 600ms;
+  --hq-motion-shake: 300ms;
+  --hq-motion-stagger: 30ms;
+  --hq-motion-skeleton-delay: 300ms;                  /* skeletons only appear after this */
+  --hq-motion-shimmer: 1200ms;
+  --hq-motion-undo-window: 10000ms;                   /* Undo strip countdown */
+  --hq-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --hq-motion-ease-emphasised: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --hq-motion-shake-distance: 6px;                    /* one shake, 6px, 300ms */
+  --hq-motion-page-enter-offset: 24px;                /* pageEnter slides this far in the navigation direction */
+  --hq-motion-list-rise-offset: 12px;                 /* listStagger rise distance */
+  --hq-motion-lift-offset: 2px;                       /* drag-over lift */
+  --hq-z-base: 0;
+  --hq-z-sticky: 10;
+  --hq-z-nav: 20;
+  --hq-z-sticky-footer: 30;
+  --hq-z-overlay: 40;
+  --hq-z-dialog: 50;
+  --hq-z-undo: 60;
+  --hq-z-toastless-band: 70;                          /* the red band always wins */
+  --hq-shadow-none: none;
+  --hq-shadow-raise: 0 1px 0 0 #201E1D;               /* a rule, not a blur — flat Modernist */
+  --hq-shadow-lift: 0 2px 0 0 #201E1D;
+  --hq-shadow-dialog: 0 4px 0 0 #201E1D;
+  --hq-shadow-drag: 0 4px 0 0 #EC3013;                /* drag-over accent */
+  --hq-world-math-primary: #6FC3FF;                   /* placeholder — Palette.sea */
+  --hq-world-math-deep: #3F9BE0;                      /* placeholder — Palette.seaDeep */
+  --hq-world-math-soft: #EAF4FF;                      /* placeholder — Palette.sky */
+  --hq-world-english-primary: #B69CFF;                /* placeholder — Palette.lavender */
+  --hq-world-english-deep: #7E63D8;                   /* placeholder */
+  --hq-world-english-soft: #F1ECFF;                   /* placeholder */
+  --hq-mascot-color-body: #7EC8FF;                    /* placeholder — Pip's body; a school theme overrides this */
+  --hq-mascot-color-body-dark: #5AAEEB;               /* placeholder */
+  --hq-mascot-color-scarf: #FF8A65;                   /* placeholder — Palette.coral */
+}
+
+/// Every token, keyed by its `hq.<group>.<name>` name without the `hq.` prefix,
+/// resolving to the custom property so per-school theming stays a runtime override.
+/// Use `hq.token('color-accent')` rather than a literal.
+$hq-tokens: (
+  'color-bg': var(--hq-color-bg),
+  'color-surface': var(--hq-color-surface),
+  'color-ink': var(--hq-color-ink),
+  'color-ink-soft': var(--hq-color-ink-soft),
+  'color-accent': var(--hq-color-accent),
+  'color-accent-soft': var(--hq-color-accent-soft),
+  'color-accent-strong': var(--hq-color-accent-strong),
+  'color-line': var(--hq-color-line),
+  'color-rule': var(--hq-color-rule),
+  'color-disabled': var(--hq-color-disabled),
+  'color-on-accent': var(--hq-color-on-accent),
+  'color-on-ink': var(--hq-color-on-ink),
+  'color-focus': var(--hq-color-focus),
+  'color-band-good': var(--hq-color-band-good),
+  'color-band-mid': var(--hq-color-band-mid),
+  'color-band-look': var(--hq-color-band-look),
+  'color-skeleton': var(--hq-color-skeleton),
+  'color-skeleton-shine': var(--hq-color-skeleton-shine),
+  'color-overlay': var(--hq-color-overlay),
+  'size-nav-width': var(--hq-size-nav-width),
+  'size-content-max-width': var(--hq-size-content-max-width),
+  'size-rule': var(--hq-size-rule),
+  'size-rule-thin': var(--hq-size-rule-thin),
+  'size-selected-border': var(--hq-size-selected-border),
+  'size-row-height': var(--hq-size-row-height),
+  'size-button-height': var(--hq-size-button-height),
+  'size-input-height': var(--hq-size-input-height),
+  'size-page-padding': var(--hq-size-page-padding),
+  'size-gutter': var(--hq-size-gutter),
+  'size-course-card': var(--hq-size-course-card),
+  'size-grade-card': var(--hq-size-grade-card),
+  'size-phone-width': var(--hq-size-phone-width),
+  'size-phone-height': var(--hq-size-phone-height),
+  'size-phone-bezel': var(--hq-size-phone-bezel),
+  'size-phone-corner': var(--hq-size-phone-corner),
+  'size-progress-bar': var(--hq-size-progress-bar),
+  'size-spinner': var(--hq-size-spinner),
+  'size-drop-zone-height': var(--hq-size-drop-zone-height),
+  'size-stop-list-width': var(--hq-size-stop-list-width),
+  'size-logo-size': var(--hq-size-logo-size),
+  'size-radius': var(--hq-size-radius),
+  'size-focus-ring': var(--hq-size-focus-ring),
+  'size-focus-ring-offset': var(--hq-size-focus-ring-offset),
+  'size-touch-target': var(--hq-size-touch-target),
+  'space-4': var(--hq-space-4),
+  'space-8': var(--hq-space-8),
+  'space-12': var(--hq-space-12),
+  'space-16': var(--hq-space-16),
+  'space-24': var(--hq-space-24),
+  'space-32': var(--hq-space-32),
+  'space-48': var(--hq-space-48),
+  'font-family-latin': var(--hq-font-family-latin),
+  'font-family-arabic': var(--hq-font-family-arabic),
+  'font-family-mono': var(--hq-font-family-mono),
+  'font-title-size': var(--hq-font-title-size),
+  'font-title-line': var(--hq-font-title-line),
+  'font-title-weight': var(--hq-font-title-weight),
+  'font-body-size': var(--hq-font-body-size),
+  'font-body-line': var(--hq-font-body-line),
+  'font-body-weight': var(--hq-font-body-weight),
+  'font-label-size': var(--hq-font-label-size),
+  'font-label-line': var(--hq-font-label-line),
+  'font-label-weight': var(--hq-font-label-weight),
+  'font-input-size': var(--hq-font-input-size),
+  'font-input-weight': var(--hq-font-input-weight),
+  'font-letter-spacing-title': var(--hq-font-letter-spacing-title),
+  'font-letter-spacing-label': var(--hq-font-letter-spacing-label),
+  'motion-fast': var(--hq-motion-fast),
+  'motion-base': var(--hq-motion-base),
+  'motion-slow': var(--hq-motion-slow),
+  'motion-count-up': var(--hq-motion-count-up),
+  'motion-shake': var(--hq-motion-shake),
+  'motion-stagger': var(--hq-motion-stagger),
+  'motion-skeleton-delay': var(--hq-motion-skeleton-delay),
+  'motion-shimmer': var(--hq-motion-shimmer),
+  'motion-undo-window': var(--hq-motion-undo-window),
+  'motion-ease': var(--hq-motion-ease),
+  'motion-ease-emphasised': var(--hq-motion-ease-emphasised),
+  'motion-shake-distance': var(--hq-motion-shake-distance),
+  'motion-page-enter-offset': var(--hq-motion-page-enter-offset),
+  'motion-list-rise-offset': var(--hq-motion-list-rise-offset),
+  'motion-lift-offset': var(--hq-motion-lift-offset),
+  'z-base': var(--hq-z-base),
+  'z-sticky': var(--hq-z-sticky),
+  'z-nav': var(--hq-z-nav),
+  'z-sticky-footer': var(--hq-z-sticky-footer),
+  'z-overlay': var(--hq-z-overlay),
+  'z-dialog': var(--hq-z-dialog),
+  'z-undo': var(--hq-z-undo),
+  'z-toastless-band': var(--hq-z-toastless-band),
+  'shadow-none': var(--hq-shadow-none),
+  'shadow-raise': var(--hq-shadow-raise),
+  'shadow-lift': var(--hq-shadow-lift),
+  'shadow-dialog': var(--hq-shadow-dialog),
+  'shadow-drag': var(--hq-shadow-drag),
+  'world-math-primary': var(--hq-world-math-primary),
+  'world-math-deep': var(--hq-world-math-deep),
+  'world-math-soft': var(--hq-world-math-soft),
+  'world-english-primary': var(--hq-world-english-primary),
+  'world-english-deep': var(--hq-world-english-deep),
+  'world-english-soft': var(--hq-world-english-soft),
+  'mascot-color-body': var(--hq-mascot-color-body),
+  'mascot-color-body-dark': var(--hq-mascot-color-body-dark),
+  'mascot-color-scarf': var(--hq-mascot-color-scarf),
+);
+
+@function token($name) {
+  @if not map.has-key($hq-tokens, $name) {
+    @error 'Unknown design token "#{$name}". See design/tokens.json.';
+  }
+  @return map.get($hq-tokens, $name);
+}

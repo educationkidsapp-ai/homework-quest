@@ -1,0 +1,187 @@
+{
+  "ui": {
+    "loading": "Loading",
+    "optional": "optional",
+    "dismiss": "Dismiss",
+    "undo": "Undo",
+    "close": "Close",
+    "actions": "Actions",
+    "table": {
+      "actions": "Actions"
+    },
+    "step": {
+      "pending": "pending",
+      "running": "in progress",
+      "done": "done",
+      "error": "failed"
+    }
+  },
+  "styleguide": {
+    "title": "Component styleguide",
+    "subtitle": "Every component in every state. Switch language and motion to check both.",
+    "breadcrumb": "Design",
+    "breadcrumbLabel": "Breadcrumb",
+    "language": "Language",
+    "reduceMotion": "Reduce motion",
+    "reduceMotionHint": "Collapses every animation to an instant cross-fade.",
+    "navLabel": "Styleguide sections",
+    "primaryAction": "Save changes",
+    "sections": {
+      "button": "Button",
+      "input": "Input",
+      "select": "Select",
+      "checkbox": "Checkbox",
+      "toggle": "Toggle",
+      "table": "Table",
+      "tabs": "Tabs",
+      "card": "Card",
+      "band": "Band",
+      "stepStrip": "Step strip",
+      "progress": "Progress bar",
+      "skeleton": "Skeleton",
+      "phoneFrame": "Phone frame",
+      "undoStrip": "Undo strip",
+      "emptyState": "Empty state",
+      "nav": "Navigation",
+      "shortcuts": "Shortcuts",
+      "countUp": "Count up",
+      "motion": "Motion"
+    },
+    "button": {
+      "primary": "Primary",
+      "secondary": "Secondary",
+      "danger": "Delete school",
+      "quiet": "Quiet",
+      "loading": "Publishing",
+      "disabled": "Disabled"
+    },
+    "input": {
+      "label": "School name",
+      "placeholder": "Greenfield Primary",
+      "hint": "Parents see this name when they join with a code.",
+      "errorLabel": "School code",
+      "error": "That code is already taken.",
+      "search": "Search lessons",
+      "disabled": "Read-only field"
+    },
+    "select": {
+      "label": "Curriculum",
+      "placeholder": "Choose a curriculum",
+      "american": "American",
+      "british": "British",
+      "hint": "Determines which lessons appear on the map."
+    },
+    "checkbox": {
+      "label": "Send an invite email",
+      "hint": "The teacher gets a one-time link valid for seven days.",
+      "checked": "Include disabled users",
+      "disabled": "Cannot be changed here"
+    },
+    "toggle": {
+      "label": "Complaints",
+      "hint": "Turning this off hides Help & complaints in the parent app.",
+      "off": "Teacher questions",
+      "disabled": "Three levels"
+    },
+    "table": {
+      "label": "Lessons",
+      "columns": {
+        "name": "Lesson",
+        "subject": "Subject",
+        "grade": "Grade",
+        "state": "State"
+      },
+      "empty": "No lessons yet — add today's lesson and it appears on every matching map.",
+      "emptyAction": "New lesson",
+      "menu": "Row actions",
+      "toggleEmpty": "Show the empty state"
+    },
+    "tabs": {
+      "label": "School settings",
+      "overview": "Overview",
+      "users": "Users",
+      "theme": "Theme",
+      "flags": "Feature flags"
+    },
+    "card": {
+      "title": "Lessons published",
+      "eyebrow": "This week",
+      "body": "Cards are the only container: a white panel behind a two-pixel ink rule."
+    },
+    "band": {
+      "error": "Could not publish the lesson — the slide deck has no readable text.",
+      "errorTitle": "Publishing failed",
+      "confirm": "Deleting a school removes every class, user and lesson in it.",
+      "confirmTitle": "Delete Greenfield Primary?",
+      "confirmAction": "Delete school",
+      "notice": "This school is in read-only view-as mode.",
+      "show": "Show band",
+      "hide": "Hide band"
+    },
+    "steps": {
+      "label": "Lesson pipeline",
+      "upload": "Upload",
+      "read": "Read slides",
+      "generate": "Write questions",
+      "publish": "Publish",
+      "readDetail": "18 slides",
+      "errorDetail": "No text layer found",
+      "replay": "Replay"
+    },
+    "progress": {
+      "label": "Upload progress",
+      "indeterminateLabel": "Reading slides"
+    },
+    "skeleton": {
+      "label": "Loading lessons",
+      "toggle": "Loading"
+    },
+    "phone": {
+      "label": "Parent app preview",
+      "caption": "Parent mode, 396 × 812",
+      "body": "The frame scrolls on its own, so a long preview never moves the page."
+    },
+    "undo": {
+      "message": "Lesson deleted",
+      "trigger": "Delete a lesson"
+    },
+    "empty": {
+      "message": "No schools yet — create the first one and invite its managerial user.",
+      "action": "New school"
+    },
+    "nav": {
+      "label": "Admin",
+      "home": "Home",
+      "schools": "Schools",
+      "lessons": "All lessons",
+      "flags": "Feature flags",
+      "usage": "Usage & cost",
+      "brand": "Panel",
+      "footer": "Signed in as admin"
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "open": "Show shortcuts",
+      "searchKeys": "/",
+      "search": "Focus search",
+      "helpKeys": "?",
+      "help": "Show this sheet",
+      "closeKeys": "Esc",
+      "close": "Close the sheet or cancel",
+      "submitKeys": "Enter",
+      "submit": "Run the page's primary action"
+    },
+    "countUp": {
+      "label": "Children active this week",
+      "replay": "Replay"
+    },
+    "motion": {
+      "pageEnter": "Page enter",
+      "listStagger": "List stagger",
+      "rowCollapse": "Row collapse",
+      "shake": "Shake",
+      "replay": "Replay",
+      "body": "Every animation goes through one switch. With reduced motion on, each of these becomes an instant cross-fade."
+    }
+  }
+}

@@ -1,0 +1,88 @@
+@use 'mixins' as m;
+
+:host {
+  display: block;
+  min-block-size: 100vh;
+}
+
+.sg {
+  display: flex;
+  align-items: stretch;
+  min-block-size: 100vh;
+}
+
+.sg__nav {
+  position: sticky;
+  inset-block-start: 0;
+  block-size: 100vh;
+}
+
+.sg__main {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.sg__controls {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--hq-space-24);
+}
+
+.sg__langs {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-8);
+  padding: 0;
+  border: 0;
+
+  legend {
+    padding: 0;
+    color: var(--hq-color-ink-soft);
+  }
+}
+
+.sg__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hq-space-12);
+}
+
+.sg__row--pad {
+  padding: var(--hq-space-16) var(--hq-space-24);
+  border-block-end: var(--hq-size-rule) solid var(--hq-color-line);
+}
+
+.sg__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--hq-size-stop-list-width), 1fr));
+  gap: var(--hq-space-24);
+
+  & + & {
+    margin-block-start: var(--hq-space-24);
+  }
+}
+
+.sg__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--hq-space-16);
+}
+
+.sg__note {
+  margin-block-start: var(--hq-space-12);
+  color: var(--hq-color-ink-soft);
+}
+
+.sg__figure {
+  @include m.title;
+  font-variant-numeric: tabular-nums;
+}
+
+.sg__phone-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-16);
+  padding: var(--hq-space-24);
+}
