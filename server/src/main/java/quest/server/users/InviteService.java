@@ -6,7 +6,6 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -20,10 +19,8 @@ import quest.server.auth.DashboardDto;
 import quest.server.auth.Entities;
 import quest.server.auth.InviteRepository;
 import quest.server.auth.Principals;
-import quest.server.auth.TeacherRepository;
 import quest.server.auth.UserRepository;
 import quest.server.config.ApiException;
-import quest.server.config.Json;
 import quest.server.config.QuestProperties;
 import quest.server.mail.OutgoingMail;
 import quest.server.schools.SchoolService;
@@ -37,14 +34,14 @@ import quest.server.schools.SchoolService;
 public class InviteService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private final InviteRepository invites; private final UserRepository users; private final TeacherRepository teachers;
+    private final InviteRepository invites; private final UserRepository users; private final TeacherProfiles profiles;
     private final SchoolService schools; private final PasswordEncoder encoder; private final OutgoingMail mails;
-    private final AuditService audit; private final AuthService auth; private final Json json; private final Duration ttl;
+    private final AuditService audit; private final AuthService auth; private final Duration ttl;
 
-    public InviteService(InviteRepository invites, UserRepository users, TeacherRepository teachers, SchoolService schools,
-                         PasswordEncoder encoder, OutgoingMail mails, AuditService audit, AuthService auth, Json json, QuestProperties props) {
-        this.invites = invites; this.users = users; this.teachers = teachers; this.schools = schools; this.encoder = encoder;
-        this.mails = mails; this.audit = audit; this.auth = auth; this.json = json;
+    public InviteService(InviteRepository invites, UserRepository users, TeacherProfiles profiles, SchoolService schools,
+                         PasswordEncoder encoder, OutgoingMail mails, AuditService audit, AuthService auth, QuestProperties props) {
+        this.invites = invites; this.users = users; this.profiles = profiles; this.schools = schools; this.encoder = encoder;
+        this.mails = mails; this.audit = audit; this.auth = auth;
         this.ttl = Duration.ofDays(props.auth().inviteDays() <= 0 ? 7 : props.auth().inviteDays());
     }
 
@@ -71,7 +68,7 @@ public class InviteService {
         if (request.teacherProfile() != null && request.teacherProfile().photoUrl() != null) user.setPhotoUrl(request.teacherProfile().photoUrl());
         user.setUpdatedAt(Instant.now());
         users.save(user);
-        if ("TEACHER".equals(role)) saveTeacherProfile(user.getId(), request.teacherProfile());
+        if ("TEACHER".equals(role)) profiles.save(user.getId(), request.teacherProfile());
 
         String token = freshToken();
         var invite = new Entities.InviteEntity();
@@ -130,18 +127,6 @@ public class InviteService {
         if (invite.getAcceptedAt() != null) throw gone("That invitation has already been used.");
         if (invite.getExpiresAt().isBefore(Instant.now())) throw gone("That invitation has expired; ask for a new one.");
         return invite;
-    }
-
-    private void saveTeacherProfile(String userId, UserDto.TeacherProfileInput profile) {
-        var row = teachers.findById(userId).orElseGet(() -> { var t = new Entities.TeacherEntity(); t.setUserId(userId); return t; });
-        if (profile != null) {
-            row.setSubjectsJson(json.write(profile.subjects() == null ? List.of() : profile.subjects()));
-            row.setGradesJson(json.write(profile.grades() == null ? List.of() : profile.grades()));
-            row.setCurriculum(profile.curriculum());
-            row.setBioEn(profile.bioEn()); row.setBioAr(profile.bioAr());
-        }
-        row.setUpdatedAt(Instant.now());
-        teachers.save(row);
     }
 
     static UserDto.Invite toDto(Entities.InviteEntity invite) {

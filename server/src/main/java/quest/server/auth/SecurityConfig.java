@@ -29,11 +29,12 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(a -> a
-                .requestMatchers("/health", "/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/media/**", "/panel", "/panel/**").permitAll()
+                .requestMatchers("/health", "/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/panel", "/panel/**").permitAll()
                 .requestMatchers("/admin/auth/sign-in", "/auth/**", "/invites/**", "/schools/by-code/**").permitAll()
                 .requestMatchers("/me", "/me/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 .requestMatchers("/admin/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 .requestMatchers("/children/**", "/lessons/**").hasRole("PARENT")
+                .requestMatchers("/media/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL")
                 .anyRequest().authenticated())
             .addFilterBefore(firebase, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(adminJwt, UsernamePasswordAuthenticationFilter.class)
@@ -41,5 +42,10 @@ public class SecurityConfig {
         return http.build();
     }
 
-    @Bean public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+    /**
+     * BCrypt at strength 12 (~250 ms per hash on the Cloud Run instance, four times the Spring default of 10). Only
+     * new hashes are written at 12: `BCryptPasswordEncoder` reads the cost out of each stored hash, so every password
+     * set before this still verifies, and `AdminSeed` re-encodes the seeded admin on every start as it always has.
+     */
+    @Bean public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(12); }
 }

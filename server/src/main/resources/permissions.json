@@ -2,7 +2,8 @@
   "permissions": {
     "health.read": ["PUBLIC"],
     "panel.read": ["PUBLIC"],
-    "media.read": ["PUBLIC"],
+    "media.page.read": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL"],
+    "media.child.read": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL"],
     "auth.signIn": ["PUBLIC"],
     "auth.refresh": ["PUBLIC"],
     "auth.signOut": ["PUBLIC"],
@@ -30,6 +31,7 @@
     "user.read": ["ADMIN", "MANAGERIAL"],
     "user.write": ["ADMIN", "MANAGERIAL"],
     "user.invite": ["ADMIN", "MANAGERIAL"],
+    "user.create": ["ADMIN"],
     "user.impersonate": ["ADMIN"],
     "me.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
     "me.permissions": ["ADMIN", "TEACHER", "MANAGERIAL"]
@@ -39,8 +41,8 @@
     { "method": "GET", "path": "/panel", "permission": "panel.read" },
     { "method": "GET", "path": "/panel/", "permission": "panel.read" },
     { "method": "GET", "path": "/panel/**", "permission": "panel.read" },
-    { "method": "GET", "path": "/media/pages/{id}", "permission": "media.read" },
-    { "method": "GET", "path": "/media/child/{id}", "permission": "media.read" },
+    { "method": "GET", "path": "/media/pages/{id}", "permission": "media.page.read" },
+    { "method": "GET", "path": "/media/child/{id}", "permission": "media.child.read" },
 
     { "method": "POST", "path": "/admin/auth/sign-in", "permission": "auth.signIn" },
     { "method": "POST", "path": "/auth/sign-in", "permission": "auth.signIn" },
@@ -100,6 +102,7 @@
     { "method": "GET", "path": "/admin/schools/{id}", "permission": "school.read" },
     { "method": "PATCH", "path": "/admin/schools/{id}", "permission": "school.write" },
     { "method": "POST", "path": "/admin/schools/{id}/invites", "permission": "user.invite" },
+    { "method": "POST", "path": "/admin/schools/{id}/users", "permission": "user.create" },
 
     { "method": "GET", "path": "/admin/users", "permission": "user.read" },
     { "method": "PATCH", "path": "/admin/users/{id}", "permission": "user.write" },

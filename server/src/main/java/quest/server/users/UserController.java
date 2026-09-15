@@ -57,6 +57,15 @@ public class UserController {
         return users.impersonate(require(caller), id);
     }
 
+    /** ADMIN only (§5): an account created outright with a password to hand over, which its owner must change at the first sign-in. */
+    @PostMapping(value = "/admin/schools/{id}/users", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("@permit.has('user.create')")
+    public DashboardDto.DashboardUser createUser(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
+                                                 @RequestBody @Valid UserDto.CreateUserRequest body) {
+        return users.create(require(caller), id, body);
+    }
+
     @PostMapping(value = "/admin/schools/{id}/invites", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('user.invite')")
     public UserDto.Invite createInvite(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,

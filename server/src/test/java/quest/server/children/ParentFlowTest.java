@@ -65,7 +65,10 @@ class ParentFlowTest extends ApiTestSupport {
         assertThat(progress.toString()).doesNotContain("%");
 
         var media = json(mvc.perform(multipart("/children/" + id + "/stops/hs1-retell/media").file(new MockMultipartFile("file", "r.m4a", "audio/mp4", new byte[] {1, 2, 3})).param("kind", "recording").header("Authorization", PARENT)).andExpect(status().isOk()).andReturn());
-        mvc.perform(get(media.get("url").asText().replace("http://localhost:8080", ""))).andExpect(status().isOk());
+        String mediaUrl = media.get("url").asText().replace("http://localhost:8080", "");
+        mvc.perform(get(mediaUrl).header("Authorization", PARENT)).andExpect(status().isOk());
+        mvc.perform(get(mediaUrl)).andExpect(status().isUnauthorized());        // P1.9: media needs a token now
+        mvc.perform(get(mediaUrl).header("Authorization", "Bearer fake-token-other")).andExpect(status().isNotFound());
 
         // ownership: another parent can't see this child
         mvc.perform(get("/children/" + id + "/progress").header("Authorization", "Bearer fake-token-other")).andExpect(status().isNotFound());

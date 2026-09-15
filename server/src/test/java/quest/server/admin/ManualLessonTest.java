@@ -35,7 +35,8 @@ class ManualLessonTest extends ApiTestSupport {
         var image = json(mvc.perform(admin(multipart("/admin/lessons/" + id + "/images").file(new MockMultipartFile("file", "hamster.png", "image/png", png.toByteArray())), token)).andExpect(status().isOk()).andReturn());
         assertThat(image.get("id").asText()).contains(":img-");
         assertThat(image.get("url").asText()).contains("/media/pages/");
-        mvc.perform(get("/media/pages/" + image.get("id").asText())).andExpect(status().isOk());
+        mvc.perform(admin(get("/media/pages/" + image.get("id").asText()), token)).andExpect(status().isOk());
+        mvc.perform(get("/media/pages/" + image.get("id").asText())).andExpect(status().isUnauthorized());   // P1.9
 
         String common = "\"title\":\"%s\",\"speak\":\"%s\",\"ingredient\":{\"emoji\":\"🐹\",\"name\":\"hamster\"},\"parentTip\":{\"en\":\"Read it together.\",\"ar\":\"اقرآه معًا.\"}";
         var readPage = json(mvc.perform(admin(post("/admin/plays/" + playId + "/stops"), token).contentType(MediaType.APPLICATION_JSON)

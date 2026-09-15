@@ -12,6 +12,8 @@ public class ApiException extends RuntimeException {
     public static ApiException badRequest(String message) { return new ApiException(HttpStatus.BAD_REQUEST, "bad_request", message); }
     public static ApiException forbidden(String message) { return new ApiException(HttpStatus.FORBIDDEN, "forbidden", message); }
     public static ApiException unauthorized(String message) { return new ApiException(HttpStatus.UNAUTHORIZED, "unauthorized", message); }
+    /** 409: the request is fine but the row it would create is already there (a taken email address). */
+    public static ApiException conflict(String message) { return new ApiException(HttpStatus.CONFLICT, "conflict", message); }
     public HttpStatus status() { return status; }
     public ApiError error() { return error; }
 }

@@ -174,6 +174,19 @@ data class TeacherProfileInput(
 @Serializable
 data class CreateInviteRequest(val email: String, val role: Role, val teacherProfile: TeacherProfileInput? = null)
 
+/**
+ * `POST /admin/schools/{id}/users` (ADMIN only): an account created outright instead of invited by email. It is
+ * active immediately, signs in with [password] — at least 10 characters — and must replace it at that first sign-in.
+ */
+@Serializable
+data class CreateUserRequest(
+    val email: String,
+    val role: Role,
+    val password: String,
+    val displayName: String? = null,
+    val teacherProfile: TeacherProfileInput? = null,
+)
+
 /** What the public accept-invite page shows before the person picks a password. */
 @Serializable
 data class InviteInfo(val email: String, val role: Role, val schoolName: String? = null, val expiresAt: Long = 0)
@@ -225,6 +238,8 @@ interface DashboardApi {
     /** Emails the person a reset link; the account itself is untouched. */
     suspend fun resetUserPassword(userId: String)
     suspend fun createInvite(schoolId: String, request: CreateInviteRequest): Invite
+    /** ADMIN only: creates the account there and then, with `mustChangePassword` set; 409 when the address is taken. */
+    suspend fun createUser(schoolId: String, request: CreateUserRequest): DashboardUser
     /** Public: what the accept-invite page shows. */
     suspend fun inviteInfo(token: String): InviteInfo
     /** Public: sets the password, activates the account and signs the person in. */
