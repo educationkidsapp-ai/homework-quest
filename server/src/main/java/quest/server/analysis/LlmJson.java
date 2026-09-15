@@ -26,7 +26,13 @@ final class LlmJson {
             java.util.Map.entry("title", 40), java.util.Map.entry("speak", 90), java.util.Map.entry("hint", 90), java.util.Map.entry("question", 90), java.util.Map.entry("statement", 90),
             java.util.Map.entry("prompt", 90), java.util.Map.entry("explanation", 80), java.util.Map.entry("cue", 90), java.util.Map.entry("meaning", 80), java.util.Map.entry("sentence", 120),
             java.util.Map.entry("definition", 90), java.util.Map.entry("frame", 90), java.util.Map.entry("servedText", 60), java.util.Map.entry("dishName", 30), java.util.Map.entry("potName", 20),
-            java.util.Map.entry("en", 200), java.util.Map.entry("ar", 200), java.util.Map.entry("modelAnswer", 300), java.util.Map.entry("pictureDescription", 120), java.util.Map.entry("text", 80));
+            java.util.Map.entry("en", 200), java.util.Map.entry("ar", 200), java.util.Map.entry("modelAnswer", 300), java.util.Map.entry("pictureDescription", 120), java.util.Map.entry("text", 80),
+            // Prompt A (SourceAnalysis): skills, story pieces, facts
+            java.util.Map.entry("method", 120), java.util.Map.entry("name", 40), java.util.Map.entry("setting", 90), java.util.Map.entry("problem", 120), java.util.Map.entry("resolution", 120),
+            java.util.Map.entry("trueStatement", 90), java.util.Map.entry("falseTwin", 90), java.util.Map.entry("word", 16));
+    /** Arrays of strings with a per-item limit (page sentences, examples, objectives…). */
+    private static final java.util.Map<String, Integer> ARRAY_LIMITS = java.util.Map.of(
+            "childText", 90, "examples", 120, "candidates", 40, "characters", 30, "sentences", 90, "steps", 80, "options", 40);
 
     /** Unknown illustration keys are dropped where the key is optional (tiles, cues, order items, readPage, page lists); enum-like fields are lower-cased. */
     static String cleanIllustrations(String raw) {
@@ -40,7 +46,17 @@ final class LlmJson {
                 if (optional) o.remove("illustrationKey");
             }
             if (SINGLE_TYPES.contains(o.path("type").asText()) && !o.hasNonNull("hint")) o.put("hint", "Look again and try once more.");
+            // wordCards / readTap / sound need a picture key per entry: the word itself when we can draw it, else a neutral card
+            if (o.has("word") && !o.hasNonNull("illustrationKey") && (o.has("meaning") || o.has("sentence"))) o.put("illustrationKey", KNOWN.contains(o.path("word").asText().toLowerCase()) ? o.path("word").asText().toLowerCase() : "book");
+            if ("wordCards".equals(o.path("type").asText()) && o.get("words") instanceof ArrayNode words) {   // drop non-object entries the model sometimes emits (plain strings)
+                ArrayNode kept = MAPPER.createArrayNode(); for (JsonNode w : words) if (w.isObject()) kept.add(w);
+                if (kept.size() != words.size()) o.set("words", kept);
+            }
             LIMITS.forEach((field, max) -> { JsonNode v = o.get(field); if (v != null && v.isTextual() && v.asText().length() > max) o.put(field, trim(v.asText(), max)); });
+            if (o.has("emoji") && o.get("name") != null && o.get("name").isTextual() && o.get("name").asText().length() > 20) o.put("name", trim(o.get("name").asText(), 20)); // ingredient names are shorter
+            ARRAY_LIMITS.forEach((field, max) -> { if (o.get(field) instanceof ArrayNode a) for (int i = 0; i < a.size(); i++) if (a.get(i).isTextual() && a.get(i).asText().length() > max) a.set(i, MAPPER.getNodeFactory().textNode(trim(a.get(i).asText(), max))); });
+            if (o.has("objectives") && o.get("objectives") instanceof ObjectNode obj) for (String lang : new String[] {"en", "ar"})   // parent-facing objective lines (160)
+                if (obj.get(lang) instanceof ArrayNode a) for (int i = 0; i < a.size(); i++) if (a.get(i).isTextual() && a.get(i).asText().length() > 160) a.set(i, MAPPER.getNodeFactory().textNode(trim(a.get(i).asText(), 160)));
             for (String enumField : new String[] {"piece", "stage", "mode", "genre", "kind", "subject"})
                 if (o.get(enumField) != null && o.get(enumField).isTextual()) o.put(enumField, o.get(enumField).asText().trim().toLowerCase());
             if (o.get("cards") instanceof ArrayNode cards && cards.size() > 6) {   // storyPieces: drop cards outside the six pieces (e.g. "resolution")
