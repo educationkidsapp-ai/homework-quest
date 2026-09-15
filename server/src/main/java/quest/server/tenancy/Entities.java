@@ -5,6 +5,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
+import org.hibernate.annotations.ParamDef;
 
 /** The tenant itself (`schools`) and the unit lessons are published into (`classes`). */
 public final class Entities {
@@ -32,7 +35,13 @@ public final class Entities {
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }
 
-    @Entity @Table(name = "classes")
+    /**
+     * Carries the one definition of the `school` filter for the whole session factory (filter definitions are global;
+     * every other tenant entity only references it with `@Filter`). See {@link TenantFilter}.
+     */
+    @Entity(name = "ClassEntity") @Table(name = "classes")
+    @FilterDef(name = "school", parameters = @ParamDef(name = "schoolId", type = String.class))
+    @Filter(name = "school", condition = "school_id = :schoolId")
     public static class ClassEntity {
         @Id private String id;
         @Column(name = "school_id", nullable = false) private String schoolId;

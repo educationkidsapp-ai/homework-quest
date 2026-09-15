@@ -1,20 +1,28 @@
+# Renovate (renovate.json at the repo root) owns *version* updates for gradle, maven and github-actions since P1.4:
+# it groups minor+patch per ecosystem into one weekly PR and keeps npm (dashboard/) — which Dependabot never covered —
+# on the same schedule. `open-pull-requests-limit: 0` turns Dependabot's version updates off for those three ecosystems
+# without touching Dependabot *security* updates (a repository-level setting), which stay on for every ecosystem.
+# Terraform is the exception: Renovate has it disabled, so Dependabot still raises its version PRs.
 version: 2
 updates:
   - package-ecosystem: gradle
     directory: /
     schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 0 # version updates handled by Renovate; security updates unaffected
     labels: [dependencies, app]
     groups:
       kotlin-compose: { patterns: ["org.jetbrains.*", "androidx.*", "io.ktor:*", "io.insert-koin:*"] }
   - package-ecosystem: maven
     directory: /server
     schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 0 # version updates handled by Renovate; security updates unaffected
     labels: [dependencies, server]
     groups:
       spring: { patterns: ["org.springframework*"] }
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    open-pull-requests-limit: 0 # version updates handled by Renovate; security updates unaffected
     labels: [dependencies, infra]
   - package-ecosystem: terraform
     directory: /infra/terraform

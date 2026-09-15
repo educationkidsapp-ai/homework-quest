@@ -1,0 +1,307 @@
+<div class="sg">
+  <hq-nav
+    class="sg__nav"
+    [items]="navItems()"
+    [(active)]="navActive"
+    [label]="'styleguide.nav.label' | transloco"
+  >
+    <strong nav-brand>{{ 'styleguide.nav.brand' | transloco }}</strong>
+    <p nav-footer class="hq-muted">{{ 'styleguide.nav.footer' | transloco }}</p>
+  </hq-nav>
+
+  <main class="sg__main">
+    <hq-page
+      [title]="'styleguide.title' | transloco"
+      [subtitle]="'styleguide.subtitle' | transloco"
+      [breadcrumbLabel]="'styleguide.breadcrumbLabel' | transloco"
+      [breadcrumbs]="[
+        { label: 'styleguide.breadcrumb' | transloco, link: '/styleguide' },
+        { label: 'styleguide.title' | transloco },
+      ]"
+    >
+      <div page-actions class="sg__controls">
+        <fieldset class="sg__langs">
+          <legend class="hq-label">{{ 'styleguide.language' | transloco }}</legend>
+          <hq-button
+            [variant]="language.language() === 'en' ? 'primary' : 'secondary'"
+            (pressed)="language.use('en')"
+            >English</hq-button
+          >
+          <hq-button
+            [variant]="language.language() === 'ar' ? 'primary' : 'secondary'"
+            (pressed)="language.use('ar')"
+            >العربية</hq-button
+          >
+        </fieldset>
+        <hq-toggle
+          [label]="'styleguide.reduceMotion' | transloco"
+          [hint]="'styleguide.reduceMotionHint' | transloco"
+          [checked]="reduceMotion()"
+          (checkedChange)="setReduceMotion($event)"
+        />
+      </div>
+
+      <!-- Button -->
+      <hq-card [title]="'styleguide.sections.button' | transloco">
+        <div class="sg__row">
+          <hq-button variant="primary">{{ 'styleguide.button.primary' | transloco }}</hq-button>
+          <hq-button variant="secondary">{{ 'styleguide.button.secondary' | transloco }}</hq-button>
+          <hq-button variant="danger">{{ 'styleguide.button.danger' | transloco }}</hq-button>
+          <hq-button variant="quiet">{{ 'styleguide.button.quiet' | transloco }}</hq-button>
+          <hq-button variant="primary" [loading]="true">{{
+            'styleguide.button.loading' | transloco
+          }}</hq-button>
+          <hq-button variant="secondary" [disabled]="true">{{
+            'styleguide.button.disabled' | transloco
+          }}</hq-button>
+        </div>
+      </hq-card>
+
+      <!-- Input, select, checkbox, toggle -->
+      <hq-card [title]="'styleguide.sections.input' | transloco">
+        <div class="sg__grid">
+          <hq-input
+            [label]="'styleguide.input.label' | transloco"
+            [placeholder]="'styleguide.input.placeholder' | transloco"
+            [hint]="'styleguide.input.hint' | transloco"
+            [(value)]="schoolName"
+            [required]="true"
+          />
+          <hq-input
+            [label]="'styleguide.input.errorLabel' | transloco"
+            [error]="'styleguide.input.error' | transloco"
+            [(value)]="schoolCode"
+            [enterSubmit]="true"
+          />
+          <hq-input type="search" [label]="'styleguide.input.search' | transloco" [enterSubmit]="true" />
+          <hq-input [label]="'styleguide.input.disabled' | transloco" [disabled]="true" />
+          <hq-select
+            [label]="'styleguide.select.label' | transloco"
+            [placeholder]="'styleguide.select.placeholder' | transloco"
+            [hint]="'styleguide.select.hint' | transloco"
+            [options]="curriculumOptions()"
+            [(value)]="curriculum"
+          />
+        </div>
+
+        <div class="sg__grid">
+          <hq-checkbox
+            [label]="'styleguide.checkbox.label' | transloco"
+            [hint]="'styleguide.checkbox.hint' | transloco"
+            [(checked)]="inviteByEmail"
+          />
+          <hq-checkbox [label]="'styleguide.checkbox.checked' | transloco" [(checked)]="includeDisabled" />
+          <hq-checkbox
+            [label]="'styleguide.checkbox.disabled' | transloco"
+            [disabled]="true"
+            [checked]="true"
+          />
+          <hq-toggle
+            [label]="'styleguide.toggle.label' | transloco"
+            [hint]="'styleguide.toggle.hint' | transloco"
+            [(checked)]="complaintsOn"
+          />
+          <hq-toggle [label]="'styleguide.toggle.off' | transloco" [(checked)]="teacherQuestionsOn" />
+          <hq-toggle [label]="'styleguide.toggle.disabled' | transloco" [disabled]="true" />
+        </div>
+      </hq-card>
+
+      <!-- Tabs -->
+      <hq-card [title]="'styleguide.sections.tabs' | transloco">
+        <hq-tabs [tabs]="tabs()" [(selected)]="selectedTab" [label]="'styleguide.tabs.label' | transloco" />
+        <p class="sg__note">{{ selectedTab() }}</p>
+      </hq-card>
+
+      <!-- Table + empty state -->
+      <hq-card [title]="'styleguide.sections.table' | transloco" [flush]="true">
+        <div class="sg__row sg__row--pad">
+          <hq-checkbox [label]="'styleguide.table.toggleEmpty' | transloco" [(checked)]="emptyTable" />
+        </div>
+        <hq-table
+          [rows]="lessons()"
+          [columns]="columns()"
+          [cellTemplate]="cell"
+          [overflowTemplate]="overflow"
+          [label]="'styleguide.table.label' | transloco"
+          [overflowLabel]="'styleguide.table.menu' | transloco"
+          [trackBy]="trackLesson"
+        >
+          <hq-empty-state
+            table-empty
+            [message]="'styleguide.table.empty' | transloco"
+            [actionLabel]="'styleguide.table.emptyAction' | transloco"
+          />
+        </hq-table>
+
+        <ng-template #cell let-lesson let-column="column">
+          @switch (column.key) {
+            @case ('name') {
+              <strong>{{ lesson.name }}</strong>
+            }
+            @case ('subject') {
+              {{ lesson.subject }}
+            }
+            @case ('grade') {
+              {{ lesson.grade }}
+            }
+            @default {
+              {{ lesson.state }}
+            }
+          }
+        </ng-template>
+        <ng-template #overflow let-lesson>
+          <hq-button variant="quiet" [attr.data-lesson]="lesson.id">⋯</hq-button>
+        </ng-template>
+      </hq-card>
+
+      <!-- Card -->
+      <hq-card
+        [title]="'styleguide.card.title' | transloco"
+        [eyebrow]="'styleguide.card.eyebrow' | transloco"
+      >
+        <hq-button card-actions variant="quiet">⋯</hq-button>
+        <p>{{ 'styleguide.card.body' | transloco }}</p>
+      </hq-card>
+
+      <!-- Band -->
+      <hq-card [title]="'styleguide.sections.band' | transloco">
+        <div class="sg__stack">
+          <hq-band
+            [open]="errorBandOpen()"
+            variant="error"
+            [title]="'styleguide.band.errorTitle' | transloco"
+            (dismissed)="errorBandOpen.set(false)"
+          >
+            {{ 'styleguide.band.error' | transloco }}
+          </hq-band>
+          <hq-band
+            [open]="confirmBandOpen()"
+            variant="confirm"
+            [title]="'styleguide.band.confirmTitle' | transloco"
+            [confirmLabel]="'styleguide.band.confirmAction' | transloco"
+            (confirmed)="confirmBandOpen.set(false)"
+            (dismissed)="confirmBandOpen.set(false)"
+          >
+            {{ 'styleguide.band.confirm' | transloco }}
+          </hq-band>
+          <hq-band [open]="true" variant="notice" [dismissible]="false">
+            {{ 'styleguide.band.notice' | transloco }}
+          </hq-band>
+          <div class="sg__row">
+            <hq-button (pressed)="errorBandOpen.set(!errorBandOpen())">{{
+              'styleguide.band.show' | transloco
+            }}</hq-button>
+            <hq-button (pressed)="confirmBandOpen.set(!confirmBandOpen())">{{
+              'styleguide.band.hide' | transloco
+            }}</hq-button>
+          </div>
+        </div>
+      </hq-card>
+
+      <!-- Step strip + progress -->
+      <hq-card [title]="'styleguide.sections.stepStrip' | transloco">
+        <div class="sg__stack">
+          <hq-step-strip
+            [steps]="steps()"
+            [label]="'styleguide.steps.label' | transloco"
+            [stateLabels]="stepStateLabels()"
+          />
+          <hq-button (pressed)="stepPhase.set(stepPhase() + 1)">{{
+            'styleguide.steps.replay' | transloco
+          }}</hq-button>
+          <hq-progress-bar [value]="64" [label]="'styleguide.progress.label' | transloco" />
+          <hq-progress-bar [value]="null" [label]="'styleguide.progress.indeterminateLabel' | transloco" />
+        </div>
+      </hq-card>
+
+      <!-- Skeleton -->
+      <hq-card [title]="'styleguide.sections.skeleton' | transloco">
+        <div class="sg__stack">
+          <hq-checkbox [label]="'styleguide.skeleton.toggle' | transloco" [(checked)]="loading" />
+          <hq-skeleton [loading]="loading()" [lines]="4" [label]="'styleguide.skeleton.label' | transloco" />
+        </div>
+      </hq-card>
+
+      <!-- Count up -->
+      <hq-card
+        [title]="'styleguide.sections.countUp' | transloco"
+        [eyebrow]="'styleguide.card.eyebrow' | transloco"
+      >
+        <div class="sg__stack">
+          <p class="hq-label">{{ 'styleguide.countUp.label' | transloco }}</p>
+          @for (key of [countUpKey()]; track key) {
+            <p class="sg__figure" [hqCountUp]="1284"></p>
+          }
+          <hq-button (pressed)="countUpKey.set(countUpKey() + 1)">{{
+            'styleguide.countUp.replay' | transloco
+          }}</hq-button>
+        </div>
+      </hq-card>
+
+      <!-- Row collapse + undo strip: the pair a destructive-but-undoable action uses -->
+      <hq-card [title]="'styleguide.sections.undoStrip' | transloco" [flush]="true">
+        <ul class="sg__rows">
+          @for (row of collapsibleRows(); track row) {
+            <li hqRowCollapse class="sg__collapsible">
+              <span>{{ row }}</span>
+              <hq-button variant="quiet" (pressed)="removeRow(row)">{{
+                'styleguide.motion.rowCollapse' | transloco
+              }}</hq-button>
+            </li>
+          } @empty {
+            <li class="sg__collapsible">
+              <hq-button (pressed)="restoreRows()">{{ 'styleguide.motion.replay' | transloco }}</hq-button>
+            </li>
+          }
+        </ul>
+        <hq-undo-strip
+          [open]="undoOpen()"
+          [message]="'styleguide.undo.message' | transloco"
+          (undone)="restoreRows()"
+          (expired)="undoOpen.set(false)"
+        />
+      </hq-card>
+
+      <!-- Empty state -->
+      <hq-card [title]="'styleguide.sections.emptyState' | transloco">
+        <hq-empty-state
+          [message]="'styleguide.empty.message' | transloco"
+          [actionLabel]="'styleguide.empty.action' | transloco"
+        />
+      </hq-card>
+
+      <!-- Phone frame -->
+      <hq-card [title]="'styleguide.sections.phoneFrame' | transloco">
+        <hq-phone-frame
+          [label]="'styleguide.phone.label' | transloco"
+          [caption]="'styleguide.phone.caption' | transloco"
+        >
+          <div class="sg__phone-body">
+            <p>{{ 'styleguide.phone.body' | transloco }}</p>
+            <hq-progress-bar [value]="40" [label]="'styleguide.progress.label' | transloco" />
+          </div>
+        </hq-phone-frame>
+      </hq-card>
+
+      <!-- Motion + shortcuts -->
+      <hq-card [title]="'styleguide.sections.motion' | transloco">
+        <p>{{ 'styleguide.motion.body' | transloco }}</p>
+        <div class="sg__row">
+          <hq-button (pressed)="shortcutsOpen.set(true)">{{
+            'styleguide.shortcuts.open' | transloco
+          }}</hq-button>
+        </div>
+      </hq-card>
+
+      <div page-footer>
+        <hq-button variant="primary">{{ 'styleguide.primaryAction' | transloco }}</hq-button>
+      </div>
+    </hq-page>
+  </main>
+
+  <hq-shortcuts-dialog
+    [(open)]="shortcutsOpen"
+    [shortcuts]="shortcuts()"
+    [title]="'styleguide.shortcuts.title' | transloco"
+  />
+</div>

@@ -7,7 +7,20 @@ import quest.server.config.ApiException;
  * Which school the current request runs against. The JWT filter fills it in: a TEACHER or MANAGERIAL token carries its
  * own `schoolId`, an ADMIN token carries none and scopes with the `X-School-Id` header instead (D6: an Admin without
  * the header reads across schools and writes into the default school, which keeps `webAdmin/` working).
- * Only the holder lives here — the Hibernate filter that enforces it is P1.2.
+ *
+ * <p>The scope is resolved once per request — eagerly by {@link TenantInterceptor}, lazily otherwise — and memoised,
+ * because {@link TenantTransactionManager} asks for it at the start of every transaction and the validating lookup in
+ * `schools` is itself a query. While that lookup runs the scope reports "not scoped yet" so the nested transaction
+ * does not recurse; `schools` is not a tenant table, so it needs no filter.
+ *
+ * <p><strong>It fails closed.</strong> `users.school_id` is nullable and the token omits the claim when it is null, so
+ * a TEACHER or MANAGERIAL principal can arrive with no school at all — and a null scope is the ADMIN "read every
+ * school" path. Rather than let such a principal run unfiltered, every resolution for a non-ADMIN role refuses: a
+ * missing school, and a school id no `schools` row has, are both 403 `forbidden`, thrown from {@link #schoolId()}
+ * itself so that no repository query can run unscoped even when the request never passed {@link TenantInterceptor}.
+ * A parent carries no scope at all (nothing calls {@link #set}) and is untouched: parents scope by `parent_id`.
+ *
+ * <p>The filter that enforces the scope is {@link TenantFilter}.
  */
 @Component
 public class TenantContext {
@@ -15,7 +28,15 @@ public class TenantContext {
     public static final String DEFAULT_SCHOOL = "default";
     public static final String HEADER = "X-School-Id";
 
-    private record Scope(String role, String tokenSchoolId, String headerSchoolId) {}
+    /** The refusal a dashboard principal with no usable school gets, on every route and every query. */
+    static final String NO_SCHOOL = "This account is not attached to a school yet — ask your school administrator to add you to one.";
+
+    private static final class Scope {
+        private final String role; private final String tokenSchoolId; private final String headerSchoolId;
+        private boolean resolved; private boolean resolving; private boolean refused; private String schoolId;
+        Scope(String role, String tokenSchoolId, String headerSchoolId) { this.role = role; this.tokenSchoolId = tokenSchoolId; this.headerSchoolId = headerSchoolId; }
+    }
+
     private static final ThreadLocal<Scope> CURRENT = new ThreadLocal<>();
 
     private final SchoolRepository schools;
@@ -25,18 +46,65 @@ public class TenantContext {
     public void clear() { CURRENT.remove(); }
 
     /** The caller's role, or null outside an authenticated dashboard request. */
-    public String role() { var s = CURRENT.get(); return s == null ? null : s.role(); }
+    public String role() { var s = CURRENT.get(); return s == null ? null : s.role; }
 
-    /** The school to read: the token's school, or the Admin's `X-School-Id` header, or null (Admin sees everything). */
+    /** True for a dashboard user who is not the platform ADMIN. */
+    public boolean isAdmin() { return "ADMIN".equals(role()); }
+
+    /** The `X-School-Id` the caller sent, if any. */
+    public String headerSchoolId() { var s = CURRENT.get(); return s == null ? null : s.headerSchoolId; }
+
+    /**
+     * The school to read: the token's school, or the Admin's `X-School-Id` header, or null when there is nothing to
+     * scope — an ADMIN who picked no school (D6), a parent, a background job. A non-ADMIN dashboard principal never
+     * gets null: a missing or unknown school throws 403 `forbidden` here, so a caller that skipped
+     * {@link TenantInterceptor} still cannot reach a repository unfiltered.
+     */
     public String schoolId() {
         var s = CURRENT.get();
         if (s == null) return null;
-        if (s.tokenSchoolId() != null) return s.tokenSchoolId();
-        if ("ADMIN".equals(s.role()) && s.headerSchoolId() != null) {
-            if (!schools.existsById(s.headerSchoolId())) throw ApiException.notFound("school");
-            return s.headerSchoolId();
-        }
-        return null;
+        if (s.refused) throw ApiException.forbidden(NO_SCHOOL);
+        if (s.resolved) return s.schoolId;
+        if (s.resolving) return null;                                           // the `schools` lookup below runs unscoped
+        s.resolving = true;
+        try {
+            String id = null;
+            boolean admin = "ADMIN".equals(s.role);
+            if (s.tokenSchoolId != null) {
+                if (!admin && !schools.existsById(s.tokenSchoolId)) { s.refused = true; throw ApiException.forbidden(NO_SCHOOL); }
+                id = s.tokenSchoolId;
+            } else if (admin) {
+                if (s.headerSchoolId != null) {
+                    if (!schools.existsById(s.headerSchoolId)) throw ApiException.notFound("school");
+                    id = s.headerSchoolId;
+                }
+            } else if (s.role != null) { s.refused = true; throw ApiException.forbidden(NO_SCHOOL); }
+            s.schoolId = id; s.resolved = true;
+            return id;
+        } finally { s.resolving = false; }
+    }
+
+    /**
+     * True when a transaction may legitimately run with no `school` filter: no dashboard scope at all (a parent, a
+     * background job, a test), the platform ADMIN reading across schools, or the re-entrant `schools` lookup that
+     * resolves the scope. {@link TenantTransactionManager} refuses to begin an unfiltered transaction otherwise.
+     */
+    public boolean unfilteredAllowed() {
+        var s = CURRENT.get();
+        return s == null || s.resolving || "ADMIN".equals(s.role) || s.role == null;
+    }
+
+    /**
+     * Validates the request's scope once, before any handler runs: 404 for an `X-School-Id` no school has, 403 when a
+     * TEACHER or MANAGERIAL points the header at a school that is not hers, and 403 when her token carries no school
+     * (or one that no longer exists) — no header needed. Called by {@link TenantInterceptor}.
+     */
+    public void resolveEagerly() {
+        var s = CURRENT.get();
+        if (s == null) return;
+        if (s.headerSchoolId != null && !"ADMIN".equals(s.role) && !s.headerSchoolId.equals(s.tokenSchoolId))
+            throw ApiException.forbidden("This account belongs to another school.");
+        schoolId();
     }
 
     /** The school to write into: `schoolId()`, or the default school for an Admin who did not pick one. */

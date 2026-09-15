@@ -1,0 +1,20 @@
+/** The component library. No UI kit — every screen builds from these. */
+export { ButtonComponent, type ButtonVariant, type ButtonType } from './button/button.component';
+export { InputComponent, type InputType } from './input/input.component';
+export { SelectComponent, type SelectOption } from './select/select.component';
+export { CheckboxComponent } from './checkbox/checkbox.component';
+export { ToggleComponent } from './toggle/toggle.component';
+export { TableComponent, type TableColumn } from './table/table.component';
+export { TabsComponent, type Tab } from './tabs/tabs.component';
+export { CardComponent } from './card/card.component';
+export { BandComponent, type BandVariant } from './band/band.component';
+export { StepStripComponent, type PipelineStep, type StepState } from './step-strip/step-strip.component';
+export { ProgressBarComponent } from './progress-bar/progress-bar.component';
+export { SkeletonComponent } from './skeleton/skeleton.component';
+export { PhoneFrameComponent } from './phone-frame/phone-frame.component';
+export { UndoStripComponent } from './undo-strip/undo-strip.component';
+export { EmptyStateComponent } from './empty-state/empty-state.component';
+export { PageComponent, type Breadcrumb } from './page/page.component';
+export { NavComponent, type NavItem } from './nav/nav.component';
+export { ShortcutsDialogComponent, type Shortcut } from './shortcuts-dialog/shortcuts-dialog.component';
+export * from './motion';

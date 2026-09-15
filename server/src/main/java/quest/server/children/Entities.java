@@ -8,11 +8,14 @@ import jakarta.persistence.Table;
 import java.io.Serializable;
 import java.time.Instant;
 import java.time.LocalDate;
+import org.hibernate.annotations.Filter;
 
 public final class Entities {
     private Entities() {}
 
-    @Entity @Table(name = "children")
+    /** Tenant table: every read through a scoped request is filtered to the caller's school (`quest.server.tenancy`). */
+    @Entity(name = "ChildEntity") @Table(name = "children")
+    @Filter(name = "school", condition = "school_id = :schoolId")
     public static class ChildEntity {
         @Id private String id;
         @Column(name = "parent_id", nullable = false) private String parentId;

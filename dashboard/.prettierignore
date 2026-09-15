@@ -1,0 +1,8 @@
+dist
+.angular
+coverage
+node_modules
+src/app/api/generated
+src/styles/_tokens.generated.scss
+src/app/ui/motion/tokens.generated.ts
+e2e/report

@@ -1,0 +1,93 @@
+// Mixins only — this file emits no CSS of its own, so components may `@use` it
+// without duplicating anything into their scoped stylesheet.
+//
+// `prefers-reduced-motion` is decided in exactly one place: `reduced-motion` below.
+// MotionService mirrors the same decision onto `:root[data-hq-reduced-motion="true"]`
+// so the styleguide's "Reduce motion" toggle and the OS setting collapse identically.
+
+/// Use only inside a selector, and only in a component stylesheet.
+///
+/// `:host-context()` rather than `:root[data-…] &`: Angular's emulated encapsulation
+/// rewrites the *leading* compound of a descendant selector too, so the plain form
+/// compiles to `[_ngcontent-x]:root[data-…] .thing[_ngcontent-x]` — which `<html>` can
+/// never match, and the rule silently does nothing.
+@mixin reduced-motion {
+  @media (prefers-reduced-motion: reduce) {
+    @content;
+  }
+
+  :host-context([data-hq-reduced-motion='true']) & {
+    @content;
+  }
+}
+
+/// Everything animated must go through this, so one switch turns the system off.
+/// Reduced motion collapses it to an instant cross-fade: no transform, no duration.
+@mixin motion-safe($properties, $duration: var(--hq-motion-fast), $easing: var(--hq-motion-ease)) {
+  transition-property: #{$properties};
+  transition-duration: $duration;
+  transition-timing-function: $easing;
+
+  @include reduced-motion {
+    transition-property: opacity;
+    transition-duration: 0ms;
+    animation-duration: 0ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/// Hover/active feedback: 150 ms, colour only — nothing in this system moves on hover.
+@mixin hover-tint($background: var(--hq-color-accent-soft)) {
+  @include motion-safe('background-color, color, border-color, box-shadow');
+
+  &:hover:not(:disabled):not([aria-disabled='true']) {
+    background-color: $background;
+  }
+}
+
+/// Drag-over lift: the 2 px ink rule becomes a 4 px accent rule.
+@mixin drag-lift {
+  border: var(--hq-size-rule) solid var(--hq-color-line);
+  @include motion-safe('border-color, border-width, box-shadow, transform');
+
+  &.is-drag-over {
+    border-width: var(--hq-size-selected-border);
+    border-color: var(--hq-color-accent);
+    box-shadow: var(--hq-shadow-drag);
+    transform: translateY(calc(var(--hq-motion-lift-offset) * -1));
+
+    @include reduced-motion {
+      transform: none;
+    }
+  }
+}
+
+/// The one visible focus ring in the system.
+@mixin focus-ring($color: var(--hq-color-focus)) {
+  &:focus-visible {
+    outline: var(--hq-size-focus-ring) solid $color;
+    outline-offset: var(--hq-size-focus-ring-offset);
+  }
+}
+
+/// A white panel behind a 2 px ink rule — the system's only container treatment.
+@mixin surface {
+  background: var(--hq-color-surface);
+  border: var(--hq-size-rule) solid var(--hq-color-line);
+}
+
+@mixin title {
+  font-size: var(--hq-font-title-size);
+  line-height: calc(var(--hq-font-title-line) / var(--hq-font-title-size));
+  font-weight: var(--hq-font-title-weight);
+  letter-spacing: var(--hq-font-letter-spacing-title);
+}
+
+@mixin label {
+  font-size: var(--hq-font-label-size);
+  line-height: calc(var(--hq-font-label-line) / var(--hq-font-label-size));
+  font-weight: var(--hq-font-label-weight);
+  letter-spacing: var(--hq-font-letter-spacing-label);
+  text-transform: uppercase;
+}

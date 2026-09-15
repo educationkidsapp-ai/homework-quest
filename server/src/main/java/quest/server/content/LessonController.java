@@ -27,8 +27,9 @@ public class LessonController {
     public ResponseEntity<String> lesson(@PathVariable String id, @RequestParam(required = false) Integer version, @RequestParam(required = false) String childId, @AuthenticationPrincipal Principals.Parent parent) {
         var lesson = lessons.findById(id).filter(l -> "published".equals(l.getStatus())).orElseThrow(() -> ApiException.notFound("lesson"));
         if (childId != null) {
-            var child = children.findById(childId).filter(c -> c.getParentId().equals(parent.parentId()) && c.getDeletedAt() == null).orElseThrow(() -> ApiException.notFound("child"));
+            var child = children.findOneById(childId).filter(c -> c.getParentId().equals(parent.parentId()) && c.getDeletedAt() == null).orElseThrow(() -> ApiException.notFound("child"));
             if (!child.courseId().equals(lesson.getCourseId())) throw ApiException.forbidden("This lesson is for a different course.");
+            if (!child.getSchoolId().equals(lesson.getSchoolId())) throw ApiException.notFound("lesson");   // §2: never across schools
         }
         String body = store.assembleJson(lesson);
         if (body == null) throw ApiException.notFound("lesson content");

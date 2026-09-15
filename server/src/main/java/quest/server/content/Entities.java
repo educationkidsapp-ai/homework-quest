@@ -6,6 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
+import org.hibernate.annotations.Filter;
 
 public final class Entities {
     private Entities() {}
@@ -16,7 +17,9 @@ public final class Entities {
         public String getId() { return id; } public String getCurriculum() { return curriculum; } public int getGrade() { return grade; }
     }
 
-    @Entity @Table(name = "lessons")
+    /** Tenant table: every read through a scoped request is filtered to the caller's school (`quest.server.tenancy`). */
+    @Entity(name = "LessonEntity") @Table(name = "lessons")
+    @Filter(name = "school", condition = "school_id = :schoolId")
     public static class LessonEntity {
         @Id private String id;
         @Column(name = "school_id", nullable = false) private String schoolId = "default";
@@ -113,7 +116,7 @@ public final class Entities {
         public int getPosition() { return position; } public void setPosition(int v) { position = v; }
     }
 
-    @Entity @Table(name = "plays")
+    @Entity(name = "PlayEntity") @Table(name = "plays")
     public static class PlayEntity {
         @Id private String id;
         @Column(name = "lesson_id", nullable = false) private String lessonId;
@@ -132,7 +135,7 @@ public final class Entities {
         public Instant getGeneratedAt() { return generatedAt; } public void setGeneratedAt(Instant v) { generatedAt = v; }
     }
 
-    @Entity @Table(name = "stops")
+    @Entity(name = "StopEntity") @Table(name = "stops")
     public static class StopEntity {
         @Id private String id;
         @Column(name = "play_id", nullable = false) private String playId;

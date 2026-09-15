@@ -112,6 +112,10 @@ android {
     }
 }
 
+// The design-token drift gate lives in :shared-ui (TokensDriftTest, aliased as :shared-ui:checkTokens). CI's App job
+// runs `:shared:desktopTest`, so hang it off that task rather than adding a second job.
+tasks.named("desktopTest") { dependsOn(":shared-ui:desktopTest") }
+
 sqldelight {
     databases {
         create("QuestDatabase") {
