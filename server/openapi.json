@@ -77,6 +77,33 @@
         "required" : [ "name" ],
         "type" : "object"
       },
+      "CreateUserRequest" : {
+        "properties" : {
+          "displayName" : {
+            "maxLength" : 120,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "email" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "password" : {
+            "maxLength" : 2147483647,
+            "minLength" : 10,
+            "type" : "string"
+          },
+          "role" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "teacherProfile" : {
+            "$ref" : "#/components/schemas/TeacherProfileInput"
+          }
+        },
+        "required" : [ "email", "password", "role" ],
+        "type" : "object"
+      },
       "DashboardUser" : {
         "properties" : {
           "createdAt" : {
@@ -1359,6 +1386,42 @@
               }
             },
             "description" : "OK"
+          }
+        },
+        "tags" : [ "Dashboard users" ]
+      }
+    },
+    "/admin/schools/{id}/users" : {
+      "post" : {
+        "operationId" : "createUser",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DashboardUser"
+                }
+              }
+            },
+            "description" : "Created"
           }
         },
         "tags" : [ "Dashboard users" ]

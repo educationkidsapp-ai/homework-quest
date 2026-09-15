@@ -20,6 +20,13 @@ public interface ChildRepository extends JpaRepository<Entities.ChildEntity, Str
     long countByCurriculumAndGradeAndDeletedAtIsNull(String curriculum, int grade);
 
     /**
+     * `[curriculum, grade, live children]` for every course at once — one query instead of one per course, and scoped
+     * by the `school` filter like every other read here.
+     */
+    @Query("select c.curriculum, c.grade, count(c) from ChildEntity c where c.deletedAt is null group by c.curriculum, c.grade")
+    List<Object[]> countByCourse();
+
+    /**
      * Look a child up through a query, not `em.find`: Hibernate filters do not apply to `find`, so a `findById` would
      * hand a scoped caller a child of another school — and with her every attempt, completion, sticker and recording,
      * which are all reached by `child_id`.

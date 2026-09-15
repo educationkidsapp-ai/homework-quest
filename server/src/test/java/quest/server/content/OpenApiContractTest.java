@@ -24,7 +24,7 @@ class OpenApiContractTest extends ApiTestSupport {
     static final List<String> DASHBOARD_API = List.of(
             "/auth/sign-in", "/auth/refresh", "/auth/sign-out", "/auth/forgot-password", "/auth/reset-password", "/auth/change-password",
             "/me", "/me/permissions",
-            "/admin/schools", "/admin/schools/{id}", "/admin/schools/{id}/invites",
+            "/admin/schools", "/admin/schools/{id}", "/admin/schools/{id}/invites", "/admin/schools/{id}/users",
             "/admin/users", "/admin/users/{id}", "/admin/users/{id}/reset-password", "/admin/users/{id}/impersonate",
             "/invites/{token}", "/invites/{token}/accept", "/schools/by-code/{code}");
 

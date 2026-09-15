@@ -10,7 +10,7 @@ import java.time.Instant;
 public final class CacheEntities {
     private CacheEntities() {}
 
-    @Entity @Table(name = "analysis_cache")
+    @Entity(name = "AnalysisCacheEntity") @Table(name = "analysis_cache")
     public static class AnalysisCacheEntity {
         @Id @Column(name = "cache_key") private String cacheKey;
         @Column(name = "source_hash", nullable = false) private String sourceHash;
@@ -31,7 +31,7 @@ public final class CacheEntities {
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }
 
-    @Entity @Table(name = "generation_cache")
+    @Entity(name = "GenerationCacheEntity") @Table(name = "generation_cache")
     public static class GenerationCacheEntity {
         @Id @Column(name = "cache_key") private String cacheKey;
         @Column(name = "source_hash", nullable = false) private String sourceHash;

@@ -7,8 +7,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import quest.server.auth.AdminJwtService;
@@ -20,6 +22,7 @@ import quest.server.auth.Principals;
 import quest.server.auth.RefreshTokenService;
 import quest.server.auth.UserRepository;
 import quest.server.config.ApiException;
+import quest.server.schools.SchoolService;
 
 /** §6 screen 6: the dashboard users list, disable/enable, rename, reset password and "View as…" (§5). */
 @Service
@@ -28,10 +31,48 @@ public class UserService {
     private static final List<String> STATUSES = List.of("active", "disabled", "invited");
 
     private final UserRepository users; private final AuthService auth; private final AdminJwtService jwt;
-    private final RefreshTokenService refreshTokens; private final AuditService audit;
+    private final RefreshTokenService refreshTokens; private final AuditService audit; private final SchoolService schools;
+    private final TeacherProfiles profiles; private final PasswordEncoder encoder;
 
-    public UserService(UserRepository users, AuthService auth, AdminJwtService jwt, RefreshTokenService refreshTokens, AuditService audit) {
+    public UserService(UserRepository users, AuthService auth, AdminJwtService jwt, RefreshTokenService refreshTokens,
+                       AuditService audit, SchoolService schools, TeacherProfiles profiles, PasswordEncoder encoder) {
         this.users = users; this.auth = auth; this.jwt = jwt; this.refreshTokens = refreshTokens; this.audit = audit;
+        this.schools = schools; this.profiles = profiles; this.encoder = encoder;
+    }
+
+    /**
+     * `POST /admin/schools/{id}/users` (ADMIN only, §5): the account exists and can sign in straight away with the
+     * password the Admin hands over — and has to replace it at that first sign-in (`mustChangePassword`). Invites stay
+     * email-only; this is the path for a school being set up in the room, or an address that cannot receive the mail.
+     *
+     * <p>The address is checked across schools, by id and through a native query, for the same reason an invite is:
+     * `email` is unique platform-wide while `users` is filtered to the caller's school, so a taken address has to come
+     * back as 409 rather than as a unique-index violation.
+     */
+    @Transactional
+    public DashboardDto.DashboardUser create(Principals.User caller, String schoolId, UserDto.CreateUserRequest request) {
+        if (!caller.isAdmin() && !schoolId.equals(caller.schoolId())) throw ApiException.forbidden("You can only add people to your own school.");
+        schools.require(schoolId);                                              // 404 for a school that does not exist
+        String role = request.role() == null ? "" : request.role().trim().toUpperCase(Locale.ROOT);
+        if (!SCHOOL_ROLES.contains(role)) throw ApiException.badRequest("A school user is a TEACHER or a MANAGERIAL.");
+        AuthService.requireStrong(request.password());
+        String email = AuthService.normalise(request.email());
+        if (users.findIdByEmailAcrossSchools(email).isPresent()) throw ApiException.conflict("That address already has an account.");
+
+        var user = new Entities.UserEntity();
+        user.setId(UUID.randomUUID().toString()); user.setEmail(email); user.setSchoolId(schoolId); user.setRole(role);
+        user.setStatus("active"); user.setMustChangePassword(true);
+        user.setPasswordHash(encoder.encode(request.password()));
+        String displayName = request.displayName() != null ? request.displayName()
+                : request.teacherProfile() == null ? null : request.teacherProfile().displayName();
+        if (displayName != null && !displayName.isBlank()) user.setDisplayName(displayName.trim());
+        if (request.teacherProfile() != null && request.teacherProfile().photoUrl() != null) user.setPhotoUrl(request.teacherProfile().photoUrl());
+        user.setCreatedAt(Instant.now()); user.setUpdatedAt(Instant.now());
+        users.save(user);
+        if ("TEACHER".equals(role)) profiles.save(user.getId(), request.teacherProfile());
+
+        audit.record(caller.userId(), "user.create", "user", user.getId(), schoolId, Map.of("email", email, "role", role));
+        return DashboardDto.of(user, null);
     }
 
     /**

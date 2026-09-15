@@ -17,6 +17,14 @@ public final class UserDto {
     public record TeacherProfileInput(@Size(max = 120) String displayName, String photoUrl, List<String> subjects,
                                       String curriculum, List<Integer> grades, String bioEn, String bioAr) {}
 
+    /**
+     * `POST /admin/schools/{id}/users` (ADMIN only): an account created outright, with a password the Admin hands
+     * over, rather than through an emailed invite. The password must be changed at the first sign-in.
+     */
+    public record CreateUserRequest(@NotBlank @Email String email, @NotBlank String role,
+                                    @NotBlank @Size(min = DashboardDto.MIN_PASSWORD) String password,
+                                    @Size(max = 120) String displayName, TeacherProfileInput teacherProfile) {}
+
     public record CreateInviteRequest(@NotBlank @Email String email, @NotBlank String role, TeacherProfileInput teacherProfile) {}
 
     public record Invite(String id, String email, String role, String schoolId, String invitedBy, long expiresAt, Long acceptedAt, long createdAt) {}
