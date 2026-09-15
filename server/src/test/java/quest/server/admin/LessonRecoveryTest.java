@@ -175,6 +175,23 @@ class LessonRecoveryTest extends ApiTestSupport {
         assertThat(again.get()).isZero();
     }
 
+    /** Lessons from before the ledger: the strip is derived from what exists and a retry resumes at the real failure. */
+    @Test void a_lesson_without_step_rows_is_backfilled_from_its_state() throws Exception {
+        String token = adminToken();
+        String id = create(token, "2026-12-09");
+        upload(token, id, AdminPipelineTest.pdf("Hot Soup for Mummy", "Mummy is in bed.", "Soup."));
+        mvc.perform(admin(post("/admin/lessons/" + id + "/analyze"), token)).andExpect(status().isOk());
+        confirmSkills(token, awaitStatus(token, id, "needs_review"));
+        assertThat(awaitTerminal(token, id).get("status").asText()).isEqualTo("error");   // injected at generate_L2
+        stepRows.deleteAll(stepRows.findByLessonIdOrderByPosition(id));                    // pretend the ledger never existed
+        var l = json(mvc.perform(admin(get("/admin/lessons/" + id), token)).andReturn());
+        assertThat(step(l, "upload")).isEqualTo("done"); assertThat(step(l, "analyze")).isEqualTo("done"); assertThat(step(l, "skills")).isEqualTo("done");
+        assertThat(step(l, "generate_L1")).isEqualTo("done"); assertThat(step(l, "generate_L2")).isEqualTo("error"); assertThat(step(l, "generate_L3")).isEqualTo("pending");
+        mvc.perform(admin(post("/admin/lessons/" + id + "/retry"), token)).andExpect(status().isOk());
+        assertThat(awaitStatus(token, id, "review").get("plays")).hasSize(4);
+    }
+    @org.springframework.beans.factory.annotation.Autowired quest.server.content.LessonStepRepository stepRows;
+
     // ---------------------------------------------------------------- helpers
     private static boolean isEmptyDir(Path p) throws Exception { try (var s = Files.walk(p)) { return s.noneMatch(Files::isRegularFile); } }
     private static String step(JsonNode lesson, String name) { for (var s : lesson.get("steps")) if (name.equals(s.get("step").asText())) return s.get("status").asText(); return "missing"; }

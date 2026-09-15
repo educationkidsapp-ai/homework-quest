@@ -25,11 +25,39 @@ import quest.server.content.SourceFileRepository;
 public class LessonPipeline {
     private static final Logger log = LoggerFactory.getLogger(LessonPipeline.class);
     private final LessonRepository lessons; private final SourceFileRepository files; private final AnalysisService analysis; private final GenerationService generation; private final LessonState state; private final LessonSteps steps;
+    private final quest.server.content.SkillRepository skills; private final quest.server.content.PlayRepository plays; private final quest.server.content.ParentPanelRepository panels; private final AnalysisCacheRepository analyses; private final quest.server.content.LessonStore store;
     /** Test hook: `quest.pipeline.fail-once-at=generate_L2` makes that step fail the first time it runs for each lesson. */
     private final String failOnceAt; private final Set<String> failed = ConcurrentHashMap.newKeySet();
 
-    public LessonPipeline(LessonRepository lessons, SourceFileRepository files, AnalysisService analysis, GenerationService generation, LessonState state, LessonSteps steps, @Value("${quest.pipeline.fail-once-at:}") String failOnceAt) {
+    public LessonPipeline(LessonRepository lessons, SourceFileRepository files, AnalysisService analysis, GenerationService generation, LessonState state, LessonSteps steps, @Value("${quest.pipeline.fail-once-at:}") String failOnceAt,
+                          quest.server.content.SkillRepository skills, quest.server.content.PlayRepository plays, quest.server.content.ParentPanelRepository panels, AnalysisCacheRepository analyses, quest.server.content.LessonStore store) {
         this.lessons = lessons; this.files = files; this.analysis = analysis; this.generation = generation; this.state = state; this.steps = steps; this.failOnceAt = failOnceAt == null ? "" : failOnceAt.trim();
+        this.skills = skills; this.plays = plays; this.panels = panels; this.analyses = analyses; this.store = store;
+    }
+
+    /**
+     * Lessons created before the step ledger existed have no rows: derive them from what is already there, so a
+     * retry resumes at the real failure instead of walking from upload (and asking to confirm the skills again).
+     */
+    public void backfill(String lessonId) {
+        if (!steps.list(lessonId).isEmpty()) return;
+        var lesson = lessons.findById(lessonId).orElse(null); if (lesson == null) return;
+        steps.ensure(lessonId);
+        boolean hasFiles = files.findByLessonIdOrderByCreatedAt(lessonId).stream().anyMatch(f -> f.getDeletedAt() == null);
+        boolean analysed = lesson.getSourceHash() != null && analyses.existsById(quest.api.CacheKeys.INSTANCE.analysisKey(lesson.getSourceHash()));
+        boolean confirmed = !skills.findByLessonIdAndConfirmedTrueOrderByPosition(lessonId).isEmpty();
+        if (hasFiles) steps.done(lessonId, PipelineStep.UPLOAD);
+        if (hasFiles && analysed) steps.done(lessonId, PipelineStep.ANALYZE);
+        if (hasFiles && analysed && confirmed) {
+            steps.done(lessonId, PipelineStep.SKILLS);
+            for (var p : store.plays(lessonId)) if (!store.play(p).getStops().isEmpty()) {
+                PipelineStep s = p.getVariant() == 1 ? PipelineStep.GENERATE_AGAIN : switch (p.getLevel()) { case 1 -> PipelineStep.GENERATE_L1; case 2 -> PipelineStep.GENERATE_L2; default -> PipelineStep.GENERATE_L3; };
+                steps.done(lessonId, s);
+            }
+            if (panels.findById(lessonId).isPresent()) steps.done(lessonId, PipelineStep.PANEL);
+        }
+        // the recorded error belongs to the first step that is not done
+        if (lesson.getErrorCode() != null) for (var e : steps.list(lessonId)) if (!"done".equals(e.getStatus())) { steps.mark(lessonId, LessonSteps.parse(e.getStep()), "error", lesson.getErrorCode(), lesson.getErrorMessage()); break; }
     }
 
     @Async public void analyzeAsync(String lessonId) { runFrom(lessonId, PipelineStep.UPLOAD, true); }
@@ -41,6 +69,7 @@ public class LessonPipeline {
 
     /** The step a retry starts from; throws when there is nothing to run. */
     public PipelineStep firstToRun(String lessonId) {
+        backfill(lessonId);
         steps.ensure(lessonId);
         var list = steps.list(lessonId);
         for (var e : list) if ("error".equals(e.getStatus())) return LessonSteps.parse(e.getStep());
