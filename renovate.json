@@ -1,0 +1,58 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Asia/Riyadh",
+  "schedule": ["* 0-5 * * 1"],
+  "rangeStrategy": "bump",
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Dependency dashboard",
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-5 * * 1"]
+  },
+  "packageRules": [
+    {
+      "description": "npm (dashboard/): one PR a week for every minor and patch bump",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["dashboard/**"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "dashboard npm (minor + patch)",
+      "labels": ["dependencies", "dashboard"]
+    },
+    {
+      "description": "maven (server/): one PR a week for every minor and patch bump",
+      "matchManagers": ["maven", "maven-wrapper"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "server maven (minor + patch)",
+      "labels": ["dependencies", "server"]
+    },
+    {
+      "description": "gradle (the KMP app and shared modules): one PR a week for every minor and patch bump",
+      "matchManagers": ["gradle", "gradle-wrapper"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "gradle (minor + patch)",
+      "labels": ["dependencies", "app"]
+    },
+    {
+      "description": "github-actions: one PR a week for every minor and patch bump",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "groupName": "github-actions (minor + patch)",
+      "labels": ["dependencies", "infra"]
+    },
+    {
+      "description": "Majors are never grouped: one PR each, labelled `major`, so a breaking bump is reviewed on its own",
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "labels": ["dependencies", "major"]
+    },
+    {
+      "description": "Terraform stays with Dependabot (see .github/dependabot.yml) so the two bots never open the same PR",
+      "matchManagers": ["terraform", "terraform-version"],
+      "enabled": false
+    }
+  ]
+}
