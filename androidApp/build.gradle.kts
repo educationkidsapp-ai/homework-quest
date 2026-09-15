@@ -55,7 +55,8 @@ android {
         val fake = if (envUrl != null) false else findProperty("quest.useFakeApi")?.toString()?.toBoolean() ?: (url == null)
         buildConfigField("boolean", "USE_FAKE_API", fake.toString())
         buildConfigField("String", "API_BASE_URL", "\"${url ?: "http://10.0.2.2:8080"}\"")
-        buildConfigField("String", "FIREBASE_API_KEY", "\"${firebaseApiKey(flavor)}\"")
+        // -Pquest.fakeAuth=true keeps FakeAuth (a local server running FAKE_AUTH) even when the flavor has a Firebase key
+        buildConfigField("String", "FIREBASE_API_KEY", "\"${if (findProperty("quest.fakeAuth") == "true") "" else firebaseApiKey(flavor)}\"")
     }
     flavorDimensions += "env"
     productFlavors {

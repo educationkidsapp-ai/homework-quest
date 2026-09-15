@@ -18,6 +18,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.Font
 import quest.ui.resources.Res
@@ -106,6 +107,17 @@ fun ChildTheme(content: @Composable () -> Unit) {
             Box(Modifier.fillMaxSize().background(Palette.sky)) { content() }
         }
     }
+}
+
+/** Admin-panel text styles (web): 30px titles, 17px inputs, 12px uppercase section labels at 0.14em. */
+object AdminType {
+    fun title(f: FontFamily) = TextStyle(fontFamily = f, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold)
+    fun description(f: FontFamily) = TextStyle(fontFamily = f, fontSize = 15.sp, lineHeight = 22.sp)
+    fun input(f: FontFamily) = TextStyle(fontFamily = f, fontSize = 17.sp, lineHeight = 24.sp)
+    fun label(f: FontFamily) = TextStyle(fontFamily = f, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.14.em)
+    fun navItem(f: FontFamily) = TextStyle(fontFamily = f, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
+    fun cardTitle(f: FontFamily) = TextStyle(fontFamily = f, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
+    fun mono(f: FontFamily) = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp)
 }
 
 @Composable

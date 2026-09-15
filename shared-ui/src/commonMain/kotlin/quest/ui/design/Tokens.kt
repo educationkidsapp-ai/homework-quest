@@ -21,20 +21,46 @@ object Palette {
     val night = Color(0xFF2D3561)
     val white = Color(0xFFFFFFFF)
 
-    // Parent mode + admin panel: flat Modernist — Archivo, square corners, one red accent.
-    val parentBg = Color(0xFFF5F4F0)
+    // Parent mode + admin panel: flat Modernist — Archivo, square corners, 2px ink rules, one red accent.
+    val parentBg = Color(0xFFF3F2F2)        // ground
     val parentSurface = Color(0xFFFFFFFF)
-    val parentInk = Color(0xFF111111)
-    val parentInkSoft = Color(0xFF6B6B6B)
-    val parentAccent = Color(0xFFD7263D)
-    val parentAccentSoft = Color(0xFFFBE4E7)
-    val parentLine = Color(0xFF111111)
-    val parentRule = Color(0xFFD9D7D0)
+    val parentInk = Color(0xFF201E1D)       // text and rules
+    val parentInkSoft = Color(0xFF6B6866)
+    val parentAccent = Color(0xFFEC3013)    // the red
+    val parentAccentSoft = Color(0xFFFBE4DF) // hover tint / red band background
+    val parentLine = Color(0xFF201E1D)
+    val parentRule = Color(0xFFD9D6D2)      // light rules, disabled
+    val parentDisabled = Color(0xFFA9A5A1)
 
     /** Progress bands, never red. */
     val bandGood = mint
     val bandMid = sun
     val bandLook = coral
+}
+
+/** Admin panel (web) measurements — the only place sizes for `webAdmin/` are defined. */
+object AdminTokens {
+    val navWidth = 240.dp
+    val contentMaxWidth = 1100.dp
+    val rule = 2.dp
+    val ruleThin = 1.dp
+    val selectedBorder = 4.dp
+    val rowHeight = 56.dp
+    val buttonHeight = 44.dp
+    val inputHeight = 48.dp
+    val pagePadding = 32.dp
+    val gutter = 24.dp
+    val courseCard = 132.dp
+    val gradeCard = 96.dp
+    val phoneWidth = 396.dp
+    val phoneHeight = 812.dp
+    val phoneBezel = 10.dp
+    val phoneCorner = 40.dp
+    val progressBar = 6.dp
+    val spinner = 28.dp
+    val dropZoneHeight = 160.dp
+    val stopListWidth = 300.dp
+    val logoSize = 28.dp
 }
 
 object Dimens {

@@ -13,6 +13,17 @@ import quest.api.CacheKeys;
 import quest.api.ConfirmedSkill;
 import quest.api.CreateLessonRequest;
 import quest.api.LessonFilter;
+import quest.api.LessonImage;
+import quest.api.LessonSource;
+import quest.api.dto.Bilingual;
+import quest.api.dto.BilingualList;
+import quest.api.dto.ModelAnswer;
+import quest.api.dto.PageImage;
+import quest.api.dto.SourceKind;
+import quest.api.dto.StopTip;
+import quest.api.dto.Theme;
+import quest.server.content.Entities.PageImageEntity;
+import quest.server.content.PageImageRepository;
 import quest.api.SourceFileInfo;
 import quest.api.dto.ApiError;
 import quest.api.dto.Course;
@@ -51,10 +62,11 @@ import quest.server.files.FileStore;
 public class AdminLessonService {
     private final LessonRepository lessons; private final SourceFileRepository sourceFiles; private final SkillRepository skills; private final PlayRepository plays; private final StopRepository stops; private final ParentPanelRepository panels;
     private final AnalysisCacheRepository analysisCache; private final LessonStore store; private final AnalysisService analysisService; private final GenerationService generation; private final LessonPipeline pipeline; private final LessonState state;
-    private final FileStore files; private final Json json;
+    private final FileStore files; private final Json json; private final PageImageRepository pageImages; private final String publicUrl;
 
-    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json) {
+    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props) {
         this.lessons = lessons; this.sourceFiles = sourceFiles; this.skills = skills; this.plays = plays; this.stops = stops; this.panels = panels; this.analysisCache = analysisCache; this.store = store; this.analysisService = analysisService; this.generation = generation; this.pipeline = pipeline; this.state = state; this.files = files; this.json = json;
+        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl();
     }
 
     public LessonEntity get(String id) { return lessons.findById(id).orElseThrow(() -> ApiException.notFound("lesson")); }
@@ -65,7 +77,6 @@ public class AdminLessonService {
             if (f.getCurriculum() != null && course.getCurriculum() != f.getCurriculum()) return false;
             if (f.getGrade() != null && course.getGrade() != f.getGrade()) return false;
             if (f.getSubject() != null && !l.getSubject().equals(f.getSubject().name().toLowerCase())) return false;
-            if (f.getStatus() != null && !l.getStatus().equals(LessonState.name(f.getStatus()))) return false;
             if (f.getFrom() != null && l.getDate().isBefore(jdate(f.getFrom()))) return false;
             if (f.getTo() != null && l.getDate().isAfter(jdate(f.getTo()))) return false;
             return true;
@@ -80,6 +91,14 @@ public class AdminLessonService {
         e.setId(UUID.randomUUID().toString()); e.setCourseId(new Course(req.getCurriculum(), req.getGrade()).getKey()); e.setSubject(req.getSubject().name().toLowerCase());
         e.setDate(jdate(req.getDate())); e.setStatus("draft"); e.setVersion(0); e.setNotes(req.getNotes()); e.setPracticeLength(req.getPracticeLength());
         e.setCreatedBy(admin == null ? null : admin.email()); e.setCreatedAt(Instant.now()); e.setUpdatedAt(Instant.now());
+        if (req.getTitle() != null && !req.getTitle().isBlank()) e.setTitle(req.getTitle().trim());
+        if (req.getSource() == LessonSource.MANUAL) {
+            // hand-written: straight to review with an empty Level 1; the admin adds stops, writes or generates the rest
+            e.setSource("manual"); e.setStatus("review"); if (e.getTitle() == null) e.setTitle("Untitled lesson");
+            lessons.save(e);
+            store.savePlay(e.getId(), emptyPlay(e, 1, 0), "manual", 0);
+            return toAdmin(e, true);
+        }
         return toAdmin(lessons.save(e), true);
     }
 
@@ -88,6 +107,9 @@ public class AdminLessonService {
         var lesson = get(id);
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
         analysisService.upload(lesson, uploads);
+        var kinds = sourceFiles.findByLessonIdOrderByCreatedAt(id).stream().filter(f -> f.getDeletedAt() == null).map(quest.server.content.Entities.SourceFileEntity::getKind).toList();
+        lesson.setSource(kinds.contains("pptx") ? "slides" : kinds.contains("pdf") ? "pdf" : kinds.isEmpty() ? lesson.getSource() : "images");
+        lessons.save(lesson);
         return LessonStatus.DRAFT;
     }
 
@@ -135,11 +157,152 @@ public class AdminLessonService {
         if (!stop.getId().equals(stopId)) throw ApiException.badRequest("The stop id can't change.");
         list.set(index, stop);
         Play updated = new Play(play.getLevel(), play.getVariant(), play.getKind(), play.getTheme(), list, play.getId());
-        var v = SchemaValidator.INSTANCE.validate(updated, play.getLevel(), java.util.Collections.emptySet());
-        if (!v.getErrors().isEmpty()) throw ApiException.badRequest(String.join("; ", v.getErrors()));
+        validatePlay(lesson, updated, play.getLevel());
         store.savePlay(lesson.getId(), updated, pe.getPromptVersion(), pe.getSeed());
         touch(lesson);
         return stop;
+    }
+
+    // ---------------------------------------------------------------- manual authoring
+    private static boolean manual(LessonEntity l) { return "manual".equals(l.getSource()); }
+
+    private void validatePlay(LessonEntity lesson, Play play, int level) {
+        var v = SchemaValidator.INSTANCE.validate(play, level, java.util.Collections.emptySet(), manual(lesson));
+        if (!v.getErrors().isEmpty()) throw ApiException.badRequest(String.join("; ", v.getErrors()));
+    }
+
+    /** An empty play with a theme that fits the subject; stops come from the admin. */
+    private static Play emptyPlay(LessonEntity lesson, int level, int variant) {
+        boolean math = "math".equals(lesson.getSubject());
+        var theme = math ? new Theme("Number pot", "Number soup", "🥣", "The number soup is ready!") : new Theme("Story pot", "Story stew", "🍲", "The story stew is ready!");
+        return new Play(level, variant, math ? SourceKind.MATH : SourceKind.MIXED, theme, List.of(), null);
+    }
+
+    @Transactional
+    public AdminPlay createPlay(String lessonId, int level, int variant) {
+        var lesson = get(lessonId); requireReview(lesson);
+        if (level < 1 || level > 3 || variant < 0 || variant > 1 || (variant == 1 && level != 1)) throw ApiException.badRequest("Levels are 1–3; only Level 1 has an Again variant.");
+        if (plays.findByLessonIdAndLevelAndVariant(lessonId, level, variant).isPresent()) throw ApiException.badRequest("That level already exists.");
+        if (!manual(lesson)) { lesson.setSource("manual"); } // a hand-added level makes the lesson hand-edited: lenient rules from here on
+        var pe = store.savePlay(lessonId, emptyPlay(lesson, level, variant), "manual", 0);
+        touch(lesson);
+        return new AdminPlay(pe.getId(), level, variant, store.play(pe), pe.getPromptVersion(), pe.getGeneratedAt().toEpochMilli());
+    }
+
+    @Transactional
+    public Stop addStop(String playId, Stop stop) {
+        var pe = plays.findById(playId).orElseThrow(() -> ApiException.notFound("play"));
+        var lesson = get(pe.getLessonId()); requireReview(lesson);
+        Play play = store.play(pe);
+        String prefix = quest.server.analysis.StopIds.prefix(lesson.getId(), play.getLevel(), play.getVariant());
+        String id = stop.getId() == null || stop.getId().isBlank() || !stop.getId().startsWith(prefix) ? prefix + "m" + UUID.randomUUID().toString().substring(0, 6) : stop.getId();
+        var node = (com.fasterxml.jackson.databind.node.ObjectNode) json.tree(json.encodeShared(stop, Stop.Companion.serializer()));
+        node.put("id", id);
+        Stop withId = json.decodeShared(node.toString(), Stop.Companion.serializer());
+        List<Stop> list = new ArrayList<>(play.getStops());
+        // the exit ticket stays last
+        int at = !list.isEmpty() && list.get(list.size() - 1) instanceof Stop.ExitTicket && !(withId instanceof Stop.ExitTicket) ? list.size() - 1 : list.size();
+        list.add(at, withId);
+        Play updated = new Play(play.getLevel(), play.getVariant(), play.getKind(), play.getTheme(), list, play.getId());
+        if (!manual(lesson)) lesson.setSource("manual");
+        validatePlay(lesson, updated, play.getLevel());
+        store.savePlay(lesson.getId(), updated, pe.getPromptVersion(), pe.getSeed());
+        touch(lesson);
+        return withId;
+    }
+
+    @Transactional
+    public void deleteStop(String stopId) {
+        var se = stops.findById(stopId).orElseThrow(() -> ApiException.notFound("stop"));
+        var lesson = get(se.getLessonId()); requireReview(lesson);
+        var pe = plays.findById(se.getPlayId()).orElseThrow();
+        Play play = store.play(pe);
+        List<Stop> list = play.getStops().stream().filter(s -> !s.getId().equals(stopId)).toList();
+        if (!manual(lesson)) lesson.setSource("manual");
+        store.savePlay(lesson.getId(), new Play(play.getLevel(), play.getVariant(), play.getKind(), play.getTheme(), list, play.getId()), pe.getPromptVersion(), pe.getSeed());
+        touch(lesson);
+    }
+
+    @Transactional
+    public Play reorderStops(String playId, List<String> ids) {
+        var pe = plays.findById(playId).orElseThrow(() -> ApiException.notFound("play"));
+        var lesson = get(pe.getLessonId()); requireReview(lesson);
+        Play play = store.play(pe);
+        var byId = new java.util.LinkedHashMap<String, Stop>(); play.getStops().forEach(s -> byId.put(s.getId(), s));
+        if (ids.size() != byId.size() || !new java.util.HashSet<>(ids).equals(byId.keySet())) throw ApiException.badRequest("The new order must contain every stop exactly once.");
+        List<Stop> list = ids.stream().map(byId::get).toList();
+        Play updated = new Play(play.getLevel(), play.getVariant(), play.getKind(), play.getTheme(), list, play.getId());
+        validatePlay(lesson, updated, play.getLevel());
+        store.savePlay(lesson.getId(), updated, pe.getPromptVersion(), pe.getSeed());
+        touch(lesson);
+        return updated;
+    }
+
+    /** Stores a picture in the lesson's image folder and registers it as a page image the app can show. */
+    @Transactional
+    public LessonImage uploadImage(String lessonId, String fileName, String mimeType, byte[] bytes) {
+        var lesson = get(lessonId);
+        if (bytes.length == 0) throw ApiException.badRequest("Empty file.");
+        if (bytes.length > 8 * 1024 * 1024) throw ApiException.badRequest("Pictures must be under 8 MB.");
+        int width = 0, height = 0;
+        try { var img = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(bytes)); if (img == null) throw ApiException.badRequest("That file isn't a PNG or JPEG picture."); width = img.getWidth(); height = img.getHeight(); }
+        catch (java.io.IOException e) { throw ApiException.badRequest("That file isn't a PNG or JPEG picture."); }
+        int n = (int) pageImages.findByLessonIdOrderByPageNumber(lessonId).stream().filter(i -> i.getId().contains(":img-")).count() + 1;
+        String id = lessonId.substring(0, 8) + ":img-" + n + "-" + UUID.randomUUID().toString().substring(0, 4);
+        String ext = mimeType != null && mimeType.contains("png") ? "png" : "jpg";
+        var stored = files.put("pages/" + lessonId + "/" + id.substring(9) + "." + ext, bytes, ext.equals("png") ? "image/png" : "image/jpeg");
+        var e = new PageImageEntity();
+        e.setId(id); e.setLessonId(lessonId); e.setPageNumber(1000 + n); e.setStoragePath(stored.path()); e.setWidth(width); e.setHeight(height); e.setDescription(fileName == null ? "" : fileName);
+        pageImages.save(e);
+        touch(lesson);
+        return new LessonImage(id, publicUrl + "/media/pages/" + id);
+    }
+
+    /** Prompt A on the admin's text, then Prompt B for every level that does not exist yet (+ the Again variant) and Prompt C. */
+    @Transactional
+    public LessonStatus generateFromText(String id, String text) {
+        var lesson = get(id);
+        if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
+        if (text == null || text.trim().length() < 20) throw ApiException.badRequest("Write a few sentences about the lesson first (at least 20 characters).");
+        if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw ApiException.badRequest("Unpublish the lesson before generating.");
+        lesson.setNotes(lesson.getNotes()); lesson.setStatus("generating"); lesson.setUpdatedAt(Instant.now()); lessons.save(lesson);
+        final String t = text.trim();
+        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
+            @Override public void afterCommit() { pipeline.generateFromTextAsync(id, t); }
+        });
+        return LessonStatus.GENERATING;
+    }
+
+    /** Manual lessons publish with whatever the admin wrote: missing levels repeat Level 1, a missing panel is derived from the stops. */
+    private void completeManual(LessonEntity lesson) {
+        var all = store.plays(lesson.getId());
+        var l1 = all.stream().filter(p -> p.getLevel() == 1 && p.getVariant() == 0).findFirst().orElseThrow(() -> ApiException.badRequest("Level 1 needs at least one stop."));
+        Play base = store.play(l1);
+        if (base.getStops().isEmpty()) throw ApiException.badRequest("Level 1 needs at least one stop.");
+        validatePlay(lesson, base, 1);
+        for (int[] t : new int[][] {{2, 0}, {3, 0}, {1, 1}}) {
+            var existing = all.stream().filter(p -> p.getLevel() == t[0] && p.getVariant() == t[1]).findFirst();
+            if (existing.isPresent() && !store.play(existing.get()).getStops().isEmpty()) { validatePlay(lesson, store.play(existing.get()), t[0]); continue; }
+            var node = (com.fasterxml.jackson.databind.node.ObjectNode) json.tree(json.encodeShared(base, Play.Companion.serializer()));
+            node.put("level", t[0]); node.put("variant", t[1]);
+            String from = quest.server.analysis.StopIds.prefix(lesson.getId(), 1, 0), to = quest.server.analysis.StopIds.prefix(lesson.getId(), t[0], t[1]);
+            var copy = json.decodeShared(node.toString().replace(from, to), Play.Companion.serializer());
+            store.savePlay(lesson.getId(), copy, "manual-copy", 0);
+        }
+        if (panels.findById(lesson.getId()).isEmpty()) {
+            var tips = new ArrayList<StopTip>(); var answers = new ArrayList<ModelAnswer>();
+            for (Stop s : base.getStops()) {
+                tips.add(new StopTip(s.getId(), s.getParentTip().getEn(), s.getParentTip().getAr()));
+                if (s instanceof Stop.OpenAnswer o) answers.add(new ModelAnswer(s.getId(), o.getModelAnswer()));
+                if (s instanceof Stop.Retell r) answers.add(new ModelAnswer(s.getId(), r.getModelAnswer()));
+            }
+            String title = lesson.getTitle() == null ? "this lesson" : lesson.getTitle();
+            var panel = new ParentPanel(new BilingualList(List.of("Practise " + title + " together."), List.of("تدرّبوا معًا على " + title + ".")),
+                    List.of(new Bilingual("Read each question aloud and let your child answer first.", "اقرأ كل سؤال بصوت عالٍ ودع طفلك يجيب أولًا.")),
+                    List.of(new Bilingual("Ask your child to explain why the answer is right.", "اطلب من طفلك أن يشرح لماذا الإجابة صحيحة.")),
+                    tips, answers);
+            store.savePanel(lesson.getId(), panel);
+        }
     }
 
     public Stop regenerateStop(String stopId) {
@@ -171,6 +334,7 @@ public class AdminLessonService {
     public AdminLesson publish(String id) {
         var lesson = get(id);
         if (LessonState.status(lesson) != LessonStatus.REVIEW) throw ApiException.badRequest("Only a lesson in review can be published.");
+        if (manual(lesson)) completeManual(lesson);
         if (store.assemble(lesson) == null) throw ApiException.badRequest("All three levels, the Again variant and the parent panel must exist.");
         lesson.setStatus("published"); lesson.setVersion(lesson.getVersion() + 1); lesson.setPublishedAt(Instant.now()); lesson.setUpdatedAt(Instant.now());
         return toAdmin(lessons.save(lesson), true);
@@ -204,14 +368,16 @@ public class AdminLessonService {
         var status = LessonState.status(l);
         var fileInfos = sourceFiles.findByLessonIdOrderByCreatedAt(l.getId()).stream().map(f -> new SourceFileInfo(f.getId(), f.getFileName(), f.getFileHash(), f.getPageCount(), f.isCacheHit(), f.getDeletedAt() != null)).toList();
         var error = l.getErrorCode() == null ? null : new ApiError(l.getErrorCode(), l.getErrorMessage() == null ? "" : l.getErrorMessage());
+        var source = LessonSource.valueOf(l.getSource().toUpperCase());
         if (!full) return new AdminLesson(l.getId(), course, Subject.valueOf(l.getSubject().toUpperCase()), kdate(l.getDate()), status, l.getVersion(), l.getNotes(), l.getTitle(), l.getTokenUsage(), l.getTokensSaved(),
-                fileInfos, null, List.of(), List.of(), null, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli());
+                fileInfos, null, List.of(), List.of(), null, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, List.of());
         SourceAnalysis analysis = l.getSourceHash() == null ? null : analysisCache.findById(CacheKeys.INSTANCE.analysisKey(l.getSourceHash())).map(c -> json.decodeShared(c.getAnalysisJson(), SourceAnalysis.Companion.serializer())).orElse(null);
         var skillDtos = skills.findByLessonIdOrderByPosition(l.getId()).stream().map(this::skill).toList();
         var playDtos = store.plays(l.getId()).stream().map(p -> new AdminPlay(p.getId(), p.getLevel(), p.getVariant(), store.play(p), p.getPromptVersion(), p.getGeneratedAt().toEpochMilli())).toList();
         var panel = panels.findById(l.getId()).map(p -> json.decodeShared(p.getPanelJson(), ParentPanel.Companion.serializer())).orElse(null);
+        var images = pageImages.findByLessonIdOrderByPageNumber(l.getId()).stream().map(i -> new PageImage(i.getId(), publicUrl + "/media/pages/" + i.getId(), i.getWidth(), i.getHeight(), i.getDescription())).toList();
         return new AdminLesson(l.getId(), course, Subject.valueOf(l.getSubject().toUpperCase()), kdate(l.getDate()), status, l.getVersion(), l.getNotes(), l.getTitle(), l.getTokenUsage(), l.getTokensSaved(),
-                fileInfos, analysis, skillDtos, playDtos, panel, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli());
+                fileInfos, analysis, skillDtos, playDtos, panel, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, images);
     }
 
     private ExtractedSkill skill(SkillEntity s) {

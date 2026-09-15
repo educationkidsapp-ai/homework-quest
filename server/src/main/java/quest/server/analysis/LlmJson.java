@@ -66,7 +66,7 @@ final class LlmJson {
         if (r.getErrors().isEmpty()) return r;
         try {
             Play play = SchemaValidator.INSTANCE.getJson().decodeFromString(Play.Companion.serializer(), raw);
-            List<String> semantic = SchemaValidator.INSTANCE.validate(play, level, excludedIds).getErrors();
+            List<String> semantic = SchemaValidator.INSTANCE.validate(play, level, excludedIds, false).getErrors();
             if (!semantic.isEmpty()) { List<String> all = new ArrayList<>(semantic); all.addAll(r.getErrors().subList(0, Math.min(3, r.getErrors().size()))); return new ValidationResult(all); }
         } catch (Exception ignored) { /* the schema errors are the best we have */ }
         return r;

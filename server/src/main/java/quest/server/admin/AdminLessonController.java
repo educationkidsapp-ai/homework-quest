@@ -7,6 +7,7 @@ import kotlinx.serialization.KSerializer;
 import kotlinx.serialization.builtins.BuiltinSerializersKt;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,11 +44,10 @@ public class AdminLessonController {
 
     @GetMapping(value = "/admin/lessons", produces = MediaType.APPLICATION_JSON_VALUE)
     public String list(@RequestParam(required = false) String curriculum, @RequestParam(required = false) Integer grade, @RequestParam(required = false) String subject,
-                       @RequestParam(required = false) String from, @RequestParam(required = false) String to, @RequestParam(required = false) String status) {
+                       @RequestParam(required = false) String from, @RequestParam(required = false) String to) {
         try {
             var filter = new LessonFilter(curriculum == null ? null : Curriculum.valueOf(curriculum.toUpperCase()), grade, subject == null ? null : Subject.valueOf(subject.toUpperCase()),
-                    from == null ? null : kotlinx.datetime.LocalDate.Companion.parse(from, kotlinx.datetime.LocalDate.Formats.INSTANCE.getISO()), to == null ? null : kotlinx.datetime.LocalDate.Companion.parse(to, kotlinx.datetime.LocalDate.Formats.INSTANCE.getISO()),
-                    status == null ? null : LessonStatus.valueOf(status.toUpperCase()));
+                    from == null ? null : kotlinx.datetime.LocalDate.Companion.parse(from, kotlinx.datetime.LocalDate.Formats.INSTANCE.getISO()), to == null ? null : kotlinx.datetime.LocalDate.Companion.parse(to, kotlinx.datetime.LocalDate.Formats.INSTANCE.getISO()));
             return json.encodeShared(service.list(filter), BuiltinSerializersKt.ListSerializer(AdminLesson.Companion.serializer()));
         } catch (IllegalArgumentException e) { throw ApiException.badRequest("bad filter: " + e.getMessage()); }
     }
@@ -82,6 +82,38 @@ public class AdminLessonController {
     @PutMapping(value = "/admin/stops/{stopId}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public String updateStop(@PathVariable String stopId, @RequestBody String body) {
         return json.encodeShared(service.updateStop(stopId, decode(body, Stop.Companion.serializer())), Stop.Companion.serializer());
+    }
+
+    // ---- manual authoring
+    @PostMapping(value = "/admin/lessons/{id}/plays", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public String createPlay(@PathVariable String id, @RequestBody String body) {
+        var req = decode(body, quest.api.CreatePlayRequest.Companion.serializer());
+        return json.encodeShared(service.createPlay(id, req.getLevel(), req.getVariant()), quest.api.AdminPlay.Companion.serializer());
+    }
+
+    @PostMapping(value = "/admin/plays/{playId}/stops", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public String addStop(@PathVariable String playId, @RequestBody String body) {
+        return json.encodeShared(service.addStop(playId, decode(body, Stop.Companion.serializer())), Stop.Companion.serializer());
+    }
+
+    @DeleteMapping("/admin/stops/{stopId}")
+    public ResponseEntity<Void> deleteStop(@PathVariable String stopId) { service.deleteStop(stopId); return ResponseEntity.noContent().build(); }
+
+    @PutMapping(value = "/admin/plays/{playId}/order", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public String reorder(@PathVariable String playId, @RequestBody String body) {
+        var req = decode(body, quest.api.ReorderRequest.Companion.serializer());
+        return json.encodeShared(service.reorderStops(playId, req.getStopIds()), Play.Companion.serializer());
+    }
+
+    @PostMapping(value = "/admin/lessons/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public String uploadImage(@PathVariable String id, @RequestPart("file") MultipartFile file) throws IOException {
+        return json.encodeShared(service.uploadImage(id, file.getOriginalFilename(), file.getContentType(), file.getBytes()), quest.api.LessonImage.Companion.serializer());
+    }
+
+    @PostMapping(value = "/admin/lessons/{id}/generate-from-text", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public String generateFromText(@PathVariable String id, @RequestBody String body) {
+        var req = decode(body, quest.api.GenerateFromTextRequest.Companion.serializer());
+        return job(id, service.generateFromText(id, req.getText()));
     }
 
     @PostMapping(value = "/admin/stops/{stopId}/regenerate", produces = MediaType.APPLICATION_JSON_VALUE)

@@ -77,7 +77,9 @@ fun StopPlayerRoute(lessonId: String, level: Int, variant: Int, index: Int, onFi
         }
     }
     val media = rememberStopMedia()
-    androidx.compose.runtime.CompositionLocalProvider(LocalStopMedia provides media) { StopPlayerScreen(state, vm::dispatch, onBack) }
+    val images: quest.feature.journey.data.LessonImages = org.koin.compose.koinInject()
+    val imageLoader = androidx.compose.runtime.remember(state.lesson?.id, state.lesson?.version) { images.loaderFor(state.lesson) }
+    androidx.compose.runtime.CompositionLocalProvider(LocalStopMedia provides media, quest.ui.stops.LocalStopImageLoader provides imageLoader) { StopPlayerScreen(state, vm::dispatch, onBack) }
 }
 
 @Composable
