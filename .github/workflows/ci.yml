@@ -90,6 +90,7 @@ jobs:
           # --install-directory keeps the shims out of the root-owned /usr/local/bin (no sudo, survives setup-node);
           # `prepare --activate` reads the "packageManager": "pnpm@x.y.z" pin and makes that version the default, so the
           # `pnpm store path` that setup-node runs from the repo root resolves to the same pnpm as the steps below.
+          mkdir -p "$RUNNER_TEMP/corepack"
           corepack enable --install-directory "$RUNNER_TEMP/corepack"
           corepack prepare --activate
           echo "$RUNNER_TEMP/corepack" >> "$GITHUB_PATH"
