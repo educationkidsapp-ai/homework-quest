@@ -137,6 +137,15 @@ public class AdminLessonController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteFiles(@PathVariable String id) { service.deleteFiles(id); }
 
+    @PostMapping(value = "/admin/lessons/{id}/retry", produces = MediaType.APPLICATION_JSON_VALUE)
+    public String retry(@PathVariable String id) { return job(id, service.retry(id)); }
+
+    @PostMapping(value = "/admin/lessons/{id}/steps/{step}/retry", produces = MediaType.APPLICATION_JSON_VALUE)
+    public String retryStep(@PathVariable String id, @PathVariable String step) { return job(id, service.retryStep(id, quest.server.analysis.LessonSteps.parse(step))); }
+
+    @DeleteMapping(value = "/admin/lessons/failed", produces = MediaType.APPLICATION_JSON_VALUE)
+    public String deleteFailed() { return "{\"deleted\":" + service.deleteFailed() + "}"; }
+
     @DeleteMapping("/admin/lessons/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable String id) { service.delete(id); }

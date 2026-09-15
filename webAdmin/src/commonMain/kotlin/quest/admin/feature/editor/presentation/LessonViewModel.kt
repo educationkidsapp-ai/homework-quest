@@ -92,6 +92,9 @@ class LessonViewModel(lessonId: String, private val api: AdminApi) : MviViewMode
             Intent.Unpublish -> run("Unpublishing…") { apply(api.unpublish(current.lessonId)) }
             Intent.DismissError -> reduce { copy(error = null) }
             Intent.DismissNotice -> reduce { copy(notice = null) }
+            Intent.RetryContinue -> run("Retrying from the failed step…") { api.retry(current.lessonId); refresh(); reduce { copy(step = null) }; dispatch(Intent.Poll) }
+            is Intent.RetryStep -> run("Retrying ${intent.step.label}…") { api.retryStep(current.lessonId, intent.step); refresh(); dispatch(Intent.Poll) }
+            Intent.ReplaceFile -> run("Removing the files…") { api.deleteFiles(current.lessonId); refresh(); reduce { copy(step = LessonContract.Step.FILES) } }
         }
     }
 

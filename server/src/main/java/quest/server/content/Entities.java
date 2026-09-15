@@ -28,6 +28,7 @@ public final class Entities {
         @Column(name = "practice_length", nullable = false) private int practiceLength = 7;
         @Column(name = "source_hash") private String sourceHash;
         @Column(nullable = false) private String source = "pdf";
+        @Column(name = "current_step") private String currentStep;
         @Column(name = "token_usage", nullable = false) private long tokenUsage;
         @Column(name = "tokens_saved", nullable = false) private long tokensSaved;
         @Column(name = "error_code") private String errorCode; @Column(name = "error_message") private String errorMessage;
@@ -45,6 +46,7 @@ public final class Entities {
         public int getPracticeLength() { return practiceLength; } public void setPracticeLength(int v) { practiceLength = v; }
         public String getSourceHash() { return sourceHash; } public void setSourceHash(String v) { sourceHash = v; }
         public String getSource() { return source; } public void setSource(String v) { source = v; }
+        public String getCurrentStep() { return currentStep; } public void setCurrentStep(String v) { currentStep = v; }
         public long getTokenUsage() { return tokenUsage; } public void setTokenUsage(long v) { tokenUsage = v; }
         public long getTokensSaved() { return tokensSaved; } public void setTokensSaved(long v) { tokensSaved = v; }
         public String getErrorCode() { return errorCode; } public void setErrorCode(String v) { errorCode = v; }
@@ -173,5 +175,27 @@ public final class Entities {
         public int getWidth() { return width; } public void setWidth(int v) { width = v; }
         public int getHeight() { return height; } public void setHeight(int v) { height = v; }
         public String getDescription() { return description; } public void setDescription(String v) { description = v; }
+    }
+
+    /** One pipeline step of a lesson: pending → running → done | error, with the attempt count and the last error. */
+    @Entity @Table(name = "lesson_steps")
+    public static class LessonStepEntity {
+        @Id private String id;
+        @Column(name = "lesson_id", nullable = false) private String lessonId;
+        @Column(nullable = false) private String step;
+        @Column(nullable = false) private int position;
+        @Column(nullable = false) private String status;
+        @Column(nullable = false) private int attempt;
+        @Column(name = "error_code") private String errorCode; @Column(name = "error_message") private String errorMessage;
+        @Column(name = "updated_at", nullable = false) private Instant updatedAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getLessonId() { return lessonId; } public void setLessonId(String v) { lessonId = v; }
+        public String getStep() { return step; } public void setStep(String v) { step = v; }
+        public int getPosition() { return position; } public void setPosition(int v) { position = v; }
+        public String getStatus() { return status; } public void setStatus(String v) { status = v; }
+        public int getAttempt() { return attempt; } public void setAttempt(int v) { attempt = v; }
+        public String getErrorCode() { return errorCode; } public void setErrorCode(String v) { errorCode = v; }
+        public String getErrorMessage() { return errorMessage; } public void setErrorMessage(String v) { errorMessage = v; }
+        public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }
     }
 }

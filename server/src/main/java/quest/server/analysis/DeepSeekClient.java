@@ -60,7 +60,7 @@ public class DeepSeekClient implements LlmClient {
         for (int attempt = 0; attempt < 3; attempt++) {
             try {
                 HttpResponse<String> res = http.send(request, HttpResponse.BodyHandlers.ofString());
-                if (res.statusCode() >= 500 || res.statusCode() == 429) { log.warn("DeepSeek {} (attempt {}): {}", res.statusCode(), attempt + 1, abbreviate(res.body())); sleep(2000L * (attempt + 1)); continue; }
+                if (res.statusCode() >= 500 || res.statusCode() == 429) { log.warn("DeepSeek {} (attempt {}): {}", res.statusCode(), attempt + 1, abbreviate(res.body())); sleep(2000L << attempt); continue; }
                 if (res.statusCode() != 200) throw new LlmException("DeepSeek " + res.statusCode() + ": " + abbreviate(res.body()));
                 JsonNode json = mapper.readTree(res.body());
                 String text = json.path("choices").path(0).path("message").path("content").asText("");
@@ -68,10 +68,10 @@ public class DeepSeekClient implements LlmClient {
                 JsonNode usage = json.path("usage");
                 log.info("DeepSeek {} ok: in={} out={}", model, usage.path("prompt_tokens").asLong(), usage.path("completion_tokens").asLong());
                 return new Result(stripFences(text), usage.path("prompt_tokens").asLong(), usage.path("completion_tokens").asLong());
-            } catch (IOException e) { last = e; log.warn("DeepSeek I/O error (attempt {}): {}", attempt + 1, e.toString()); sleep(2000L * (attempt + 1)); }
+            } catch (IOException e) { last = e; log.warn("DeepSeek I/O error (attempt {}): {}", attempt + 1, e.toString()); sleep(2000L << attempt); }
             catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new LlmException("interrupted", e); }
         }
-        throw new LlmException("DeepSeek unreachable", last);
+        throw new LlmException("DeepSeek unreachable or busy after 3 attempts", last, true);
     }
 
     /** Removes markdown fences and any explicit nulls (the shared codec treats a missing key as null, the schemas don't allow null). */

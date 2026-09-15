@@ -28,6 +28,12 @@ import quest.admin.core.course.CourseChoice
 import quest.admin.core.course.CourseChooser
 import quest.admin.core.course.CourseMemory
 import quest.admin.core.design.AdminButton
+import quest.admin.core.design.BusyBar
+import quest.admin.core.design.ConfirmBand
+import quest.admin.core.design.DestructiveButton
+import quest.admin.core.design.LinkButton
+import quest.admin.core.design.MenuDots
+import quest.admin.core.design.NoticeBand
 import quest.admin.core.design.Card
 import quest.admin.core.design.Cell
 import quest.admin.core.design.Choice
@@ -63,12 +69,22 @@ object LessonsContract {
         val loading: Boolean = true, val lessons: List<AdminLesson> = emptyList(), val error: String? = null,
         val course: CourseChoice = CourseChoice(), val subject: Subject? = null,
         val calendar: CalendarResponse? = null, val calYear: Int = 2026, val calMonth: Int = 9,
-    ) : MviState
+        val menuFor: String? = null,                 // lesson id whose row menu is open
+        val confirmDelete: String? = null,           // lesson id awaiting delete confirmation; "*" = all failed
+        val busy: String? = null, val notice: String? = null,
+    ) : MviState {
+        val failed: List<AdminLesson> get() = lessons.filter { it.status == quest.api.dto.LessonStatus.ERROR }
+    }
     sealed interface Intent : MviIntent {
         data object Load : Intent
         data class Course(val v: CourseChoice) : Intent
         data class SubjectFilter(val v: Subject?) : Intent
         data class Month(val year: Int, val month: Int) : Intent
+        data class Menu(val lessonId: String?) : Intent
+        data class AskDelete(val lessonId: String?) : Intent       // null closes; "*" = every failed lesson
+        data object ConfirmDelete : Intent
+        data class Retry(val lessonId: String) : Intent
+        data object DismissNotice : Intent
     }
     sealed interface Effect : MviEffect
 }
@@ -81,6 +97,23 @@ class LessonsViewModel(private val api: AdminApi, today: LocalDate, private val 
             is LessonsContract.Intent.Course -> { CourseMemory.save(email, intent.v); reduce { copy(course = intent.v) }; load(); calendar() }
             is LessonsContract.Intent.SubjectFilter -> { reduce { copy(subject = intent.v) }; load() }
             is LessonsContract.Intent.Month -> { reduce { copy(calYear = intent.year, calMonth = intent.month) }; calendar() }
+            is LessonsContract.Intent.Menu -> reduce { copy(menuFor = intent.lessonId) }
+            is LessonsContract.Intent.AskDelete -> reduce { copy(confirmDelete = intent.lessonId, menuFor = null) }
+            LessonsContract.Intent.ConfirmDelete -> {
+                val target = current.confirmDelete ?: return
+                reduce { copy(busy = "Deleting…", confirmDelete = null, notice = null) }
+                try {
+                    if (target == "*") { val n = api.deleteFailedLessons(); reduce { copy(notice = "Deleted $n failed lesson${if (n == 1) "" else "s"}.") } }
+                    else { api.deleteLesson(target); reduce { copy(notice = "Lesson deleted. Its analysed pages stay in the cache, so the same file costs nothing next time.") } }
+                } catch (e: ApiException) { reduce { copy(error = e.error.message) } }
+                reduce { copy(busy = null) }; load()
+            }
+            is LessonsContract.Intent.Retry -> {
+                reduce { copy(busy = "Retrying…", notice = null, menuFor = null) }
+                try { api.retry(intent.lessonId); reduce { copy(notice = "Retrying from the failed step — the row updates as it runs.") } } catch (e: ApiException) { reduce { copy(error = e.error.message) } }
+                reduce { copy(busy = null) }; load()
+            }
+            LessonsContract.Intent.DismissNotice -> reduce { copy(notice = null, error = null) }
         }
     }
 
@@ -98,13 +131,24 @@ class LessonsViewModel(private val api: AdminApi, today: LocalDate, private val 
     }
 }
 
-private val cols = listOf(Col("Date", AdminTokens.courseCard - AdminTokens.gutter), Col("Subject", AdminTokens.gradeCard), Col("Title"), Col("Source", AdminTokens.gradeCard), Col("Tokens", AdminTokens.gradeCard, numeric = true), Col("Saved", AdminTokens.gradeCard, numeric = true), Col("Status", AdminTokens.gradeCard, numeric = true))
+private val cols = listOf(Col("Date", AdminTokens.courseCard - AdminTokens.gutter), Col("Subject", AdminTokens.gradeCard - AdminTokens.gutter / 2), Col("Title"), Col("Source", AdminTokens.gradeCard - AdminTokens.gutter / 2), Col("Tokens", AdminTokens.gradeCard - AdminTokens.gutter / 2, numeric = true), Col("Status", AdminTokens.courseCard * 2 - AdminTokens.gutter, numeric = true), Col("", AdminTokens.gutter * 2))
+
+private fun courseLabel(l: AdminLesson) = "${l.course.curriculum.name.lowercase().replaceFirstChar { it.uppercase() }} · Grade ${l.course.grade} · ${l.subject.name.lowercase().replaceFirstChar { it.uppercase() }} · ${l.date.dayOfMonth} ${l.date.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)}"
+private fun statusText(l: AdminLesson): String {
+    if (l.status == quest.api.dto.LessonStatus.ERROR) { val at = l.steps.firstOrNull { it.status == quest.api.StepStatus.ERROR }?.step; return if (at != null) "Error at: ${at.short}" else "Error" }
+    val running = l.currentStep; if (running != null && (l.status == quest.api.dto.LessonStatus.ANALYZING || l.status == quest.api.dto.LessonStatus.GENERATING)) return "${statusWord(l.status.name.lowercase())} ${running.short}"
+    return statusWord(l.status.name.lowercase())
+}
+private fun deletable(l: AdminLesson) = l.status != quest.api.dto.LessonStatus.PUBLISHED && l.status != quest.api.dto.LessonStatus.ANALYZING && l.status != quest.api.dto.LessonStatus.GENERATING && l.status != quest.api.dto.LessonStatus.UPLOADING
 
 @Composable
 fun LessonsScreen(vm: LessonsViewModel, onOpen: (String) -> Unit, onNew: () -> Unit) {
     val s by vm.state.collectAsState()
     LaunchedEffect(Unit) { vm.dispatch(LessonsContract.Intent.Load) }
-    LazyPage("Lessons", description = "One island per published lesson, per course and day.", breadcrumb = s.course.label.ifBlank { null }, actions = { AdminButton("+ New lesson", onNew) }) {
+    LazyPage("Lessons", description = "One island per published lesson, per course and day.", breadcrumb = s.course.label.ifBlank { null }, actions = {
+        if (s.failed.isNotEmpty()) DestructiveButton("Delete all failed (${s.failed.size})", { vm.dispatch(LessonsContract.Intent.AskDelete("*")) }, enabled = s.busy == null)
+        AdminButton("+ New lesson", onNew)
+    }) {
         item {
             Card {
                 CourseChooser(s.course, { vm.dispatch(LessonsContract.Intent.Course(it)) }, compact = true)
@@ -113,7 +157,16 @@ fun LessonsScreen(vm: LessonsViewModel, onOpen: (String) -> Unit, onNew: () -> U
                 Choice(listOf("all" to "All", "math" to "Math", "english" to "English"), s.subject?.name?.lowercase() ?: "all") { v -> vm.dispatch(LessonsContract.Intent.SubjectFilter(if (v == "all") null else Subject.valueOf(v.uppercase()))) }
             }
             Gap(2)
-            ErrorBanner(s.error)
+            ErrorBanner(s.error) { vm.dispatch(LessonsContract.Intent.DismissNotice) }
+            if (s.notice != null) NoticeBand(s.notice!!) { vm.dispatch(LessonsContract.Intent.DismissNotice) }
+            if (s.busy != null) { BusyBar(s.busy) }
+            val target = s.confirmDelete
+            if (target != null) {
+                val text = if (target == "*") "Delete ${s.failed.size} failed lesson${if (s.failed.size == 1) "" else "s"}? This removes their uploaded files and any generated plays. Cached analysis is kept, so re-uploading the same files will cost nothing."
+                    else s.lessons.firstOrNull { it.id == target }?.let { "Delete ${courseLabel(it)}? This removes the uploaded file and any generated plays. Cached analysis is kept, so re-uploading the same file will cost nothing." } ?: "Delete this lesson?"
+                ConfirmBand(text, "Delete", { vm.dispatch(LessonsContract.Intent.ConfirmDelete) }, { vm.dispatch(LessonsContract.Intent.AskDelete(null)) })
+                Gap(2)
+            }
         }
         when {
             s.loading -> item { Loading("Loading lessons…") }
@@ -122,15 +175,26 @@ fun LessonsScreen(vm: LessonsViewModel, onOpen: (String) -> Unit, onNew: () -> U
                 item { Column(Modifier.background(Palette.parentSurface).border(AdminTokens.rule, Palette.parentInk)) { TableHeader(cols) } }
                 items(s.lessons.size, key = { s.lessons[it].id }) { i ->
                     val l = s.lessons[i]
-                    Box(Modifier.background(Palette.parentSurface).padding(horizontal = AdminTokens.rule)) {
+                    val failedRow = l.status == quest.api.dto.LessonStatus.ERROR
+                    Column(Modifier.background(Palette.parentSurface).padding(horizontal = AdminTokens.rule)) {
                         TableRow(onClick = { onOpen(l.id) }) {
                             Cell(l.date.toString(), cols[0])
                             Cell(l.subject.name.lowercase().replaceFirstChar { it.uppercase() }, cols[1])
                             Cell(l.title ?: "(untitled)", cols[2], weight = FontWeight.SemiBold)
                             Cell(l.source.name.lowercase(), cols[3], color = Palette.parentInkSoft)
                             Cell(l.tokenUsage.tokens(), cols[4])
-                            Cell(if (l.tokensSaved > 0) l.tokensSaved.tokens() else "–", cols[5], color = Palette.parentInkSoft)
-                            Cell(statusWord(l.status.name.lowercase()), cols[6], color = if (l.status.name == "PUBLISHED") Palette.parentInk else Palette.parentInkSoft)
+                            Row(Modifier.width(cols[5].width!!), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                                Text(statusText(l), style = MaterialTheme.typography.bodyMedium, color = if (failedRow) Palette.parentAccent else if (l.status.name == "PUBLISHED") Palette.parentInk else Palette.parentInkSoft, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                if (failedRow) { Spacer(Modifier.width(AdminTokens.gutter / 3)); LinkButton("Retry", { vm.dispatch(LessonsContract.Intent.Retry(l.id)) }, enabled = s.busy == null) }
+                            }
+                            Box(Modifier.width(cols[6].width!!), contentAlignment = Alignment.CenterEnd) { MenuDots({ vm.dispatch(LessonsContract.Intent.Menu(if (s.menuFor == l.id) null else l.id)) }) }
+                        }
+                        if (s.menuFor == l.id) Row(Modifier.fillMaxWidth().background(Palette.parentBg).padding(horizontal = AdminTokens.gutter / 2, vertical = AdminTokens.gutter / 4), horizontalArrangement = Arrangement.spacedBy(AdminTokens.gutter), verticalAlignment = Alignment.CenterVertically) {
+                            LinkButton("Open", { onOpen(l.id) }, color = Palette.parentInk)
+                            if (failedRow) LinkButton("Retry and continue", { vm.dispatch(LessonsContract.Intent.Retry(l.id)) })
+                            if (deletable(l)) LinkButton("Delete", { vm.dispatch(LessonsContract.Intent.AskDelete(l.id)) })
+                            else Text(if (l.status == quest.api.dto.LessonStatus.PUBLISHED) "Unpublish it first to delete it." else "Wait for the job to finish.", style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+                            Spacer(Modifier.weight(1f)); LinkButton("Close", { vm.dispatch(LessonsContract.Intent.Menu(null)) }, color = Palette.parentInkSoft)
                         }
                     }
                 }

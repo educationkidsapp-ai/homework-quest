@@ -1,0 +1,134 @@
+package quest.server.analysis;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import quest.api.PipelineStep;
+import quest.server.config.ApiException;
+import quest.server.content.Entities.LessonStepEntity;
+import quest.server.content.LessonRepository;
+import quest.server.content.LessonStepRepository;
+
+/**
+ * The per-step ledger of a lesson's pipeline (dev prompt: "errors never dead-end a lesson"). Every step row is
+ * written in its own transaction so the admin panel sees progress while a job runs.
+ *
+ * {@link #run} executes one step: skips it when already done, retries transient failures ({@link TransientFailure},
+ * an LLM 429/5xx/timeout, a bucket or LibreOffice hiccup) with exponential backoff, and marks permanent ones
+ * (unreadable file, schema rejected twice, too large) as {@code error} at once with an actionable message.
+ */
+@Service
+public class LessonSteps {
+    private static final Logger log = LoggerFactory.getLogger(LessonSteps.class);
+    /** Steps in pipeline order; SKILLS is the admin's confirmation and is never run by the server. */
+    public static final List<PipelineStep> ORDER = List.of(PipelineStep.values());
+    public static final int TRANSIENT_ATTEMPTS = 3;
+
+    /** Thrown (or wrapped) by a step body when the failure is worth retrying. */
+    public static class TransientFailure extends RuntimeException { public TransientFailure(String m, Throwable c) { super(m, c); } }
+    /** Thrown when a step is aborted by an operator action (e.g. the lesson was deleted meanwhile). */
+    public static class Stop extends RuntimeException { public Stop(String m) { super(m); } }
+
+    private final LessonStepRepository steps; private final LessonRepository lessons; private final long retryDelayMs;
+
+    public LessonSteps(LessonStepRepository steps, LessonRepository lessons, @Value("${quest.pipeline.retry-delay-ms:2000}") long retryDelayMs) {
+        this.steps = steps; this.lessons = lessons; this.retryDelayMs = retryDelayMs;
+    }
+
+    public static String stepName(PipelineStep s) { return switch (s) { case UPLOAD -> "upload"; case ANALYZE -> "analyze"; case SKILLS -> "skills"; case GENERATE_L1 -> "generate_L1"; case GENERATE_L2 -> "generate_L2"; case GENERATE_L3 -> "generate_L3"; case GENERATE_AGAIN -> "generate_again"; case PANEL -> "panel"; }; }
+    public static PipelineStep parse(String name) { for (var s : ORDER) if (stepName(s).equals(name)) return s; throw ApiException.badRequest("Unknown step: " + name); }
+    private static String id(String lessonId, PipelineStep s) { return lessonId + ":" + stepName(s); }
+
+    public List<LessonStepEntity> list(String lessonId) { return steps.findByLessonIdOrderByPosition(lessonId); }
+    public Optional<LessonStepEntity> get(String lessonId, PipelineStep s) { return steps.findById(id(lessonId, s)); }
+    public boolean isDone(String lessonId, PipelineStep s) { return get(lessonId, s).map(e -> "done".equals(e.getStatus())).orElse(false); }
+
+    /** Creates the ledger for an uploaded lesson (idempotent: existing rows keep their status). */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void ensure(String lessonId) {
+        int pos = 0;
+        for (var s : ORDER) {
+            if (steps.findById(id(lessonId, s)).isEmpty()) {
+                var e = new LessonStepEntity(); e.setId(id(lessonId, s)); e.setLessonId(lessonId); e.setStep(stepName(s)); e.setPosition(pos); e.setStatus("pending"); e.setAttempt(0); e.setUpdatedAt(Instant.now());
+                steps.save(e);
+            }
+            pos++;
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void mark(String lessonId, PipelineStep s, String status, String code, String message) {
+        var e = steps.findById(id(lessonId, s)).orElseGet(() -> { ensure(lessonId); return steps.findById(id(lessonId, s)).orElseThrow(); });
+        e.setStatus(status); e.setErrorCode(code); e.setErrorMessage(message); e.setUpdatedAt(Instant.now());
+        if ("running".equals(status)) e.setAttempt(e.getAttempt() + 1);
+        steps.save(e);
+        lessons.findById(lessonId).ifPresent(l -> { l.setCurrentStep("running".equals(status) ? stepName(s) : null); lessons.save(l); });
+    }
+
+    public void done(String lessonId, PipelineStep s) { mark(lessonId, s, "done", null, null); }
+
+    /** Resets the given steps (and everything after them in the pipeline) to pending, e.g. when the files are replaced. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void resetFrom(String lessonId, PipelineStep from) {
+        ensure(lessonId);
+        for (var e : steps.findByLessonIdOrderByPosition(lessonId))
+            if (e.getPosition() >= from.ordinal()) { e.setStatus("pending"); e.setErrorCode(null); e.setErrorMessage(null); e.setUpdatedAt(Instant.now()); steps.save(e); }
+    }
+
+    /**
+     * Runs one step to completion. Returns true when the step is done afterwards (was done, or succeeded now);
+     * false when it ended in error — the caller stops the pipeline there.
+     */
+    public boolean run(String lessonId, PipelineStep s, Runnable body) {
+        if (isDone(lessonId, s)) { log.info("lesson {} step {} already done — skipped", lessonId, stepName(s)); return true; }
+        for (int attempt = 1; ; attempt++) {
+            mark(lessonId, s, "running", null, null);
+            try {
+                body.run();
+                done(lessonId, s);
+                return true;
+            } catch (TransientFailure e) {
+                if (attempt < TRANSIENT_ATTEMPTS) {
+                    long wait = retryDelayMs * (1L << (attempt - 1));
+                    log.warn("lesson {} step {} transient failure (attempt {}/{}): {} — retrying in {} ms", lessonId, stepName(s), attempt, TRANSIENT_ATTEMPTS, e.getMessage(), wait);
+                    sleep(wait); continue;
+                }
+                mark(lessonId, s, "error", "model_unavailable", Messages.of("model_unavailable", e.getMessage()));
+                return false;
+            } catch (ApiException e) {
+                mark(lessonId, s, "error", e.error().code(), Messages.of(e.error().code(), e.error().message()));
+                return false;
+            } catch (Stop e) {
+                log.info("lesson {} step {} stopped: {}", lessonId, stepName(s), e.getMessage()); return false;
+            } catch (RuntimeException e) {
+                log.error("lesson {} step {} crashed", lessonId, stepName(s), e);
+                mark(lessonId, s, "error", "model_failed", Messages.of("model_failed", e.getMessage()));
+                return false;
+            }
+        }
+    }
+
+    private static void sleep(long ms) { try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
+
+    /** Error codes → what the admin should do next. */
+    public static final class Messages {
+        public static String of(String code, String detail) {
+            String d = detail == null || detail.isBlank() ? "" : " (" + (detail.length() > 160 ? detail.substring(0, 160) + "…" : detail) + ")";
+            return switch (code == null ? "" : code) {
+                case "unreadable_file" -> "I can't read this file. If it is a scanned image with no text, try a PDF exported from PowerPoint, or upload the pages as images." + d;
+                case "no_teaching_content" -> "These pages don't contain anything to practise. Check that you uploaded the lesson slides, not a cover page or a worksheet key.";
+                case "too_large" -> "The file is too big (25 MB per file). Export a smaller PDF or upload the pages as images.";
+                case "model_failed" -> "The AI returned an invalid answer twice. Retry, or edit Level 1 by hand and press Generate the other levels." + d;
+                case "model_unavailable" -> "The AI service didn't answer after three tries (busy or unreachable). Wait a minute and press Retry and continue." + d;
+                case "network" -> "The network dropped while talking to the AI service. Press Retry and continue." + d;
+                default -> (detail == null || detail.isBlank() ? "Something went wrong at this step. Press Retry and continue." : detail);
+            };
+        }
+    }
+}

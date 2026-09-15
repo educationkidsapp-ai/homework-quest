@@ -29,8 +29,10 @@ enum class SourceKind {
 enum class LessonStatus {
     @SerialName("draft") DRAFT, @SerialName("uploading") UPLOADING, @SerialName("analyzing") ANALYZING,
     @SerialName("needs_review") NEEDS_REVIEW, @SerialName("generating") GENERATING, @SerialName("review") REVIEW,
-    @SerialName("published") PUBLISHED, @SerialName("error") ERROR;
-    val isTerminal: Boolean get() = this == NEEDS_REVIEW || this == REVIEW || this == PUBLISHED || this == ERROR || this == DRAFT
+    @SerialName("published") PUBLISHED, @SerialName("error") ERROR,
+    /** A single step was retried and succeeded; the remaining steps wait for "Retry and continue". */
+    @SerialName("paused") PAUSED;
+    val isTerminal: Boolean get() = this == NEEDS_REVIEW || this == REVIEW || this == PUBLISHED || this == ERROR || this == DRAFT || this == PAUSED
 }
 
 @Serializable

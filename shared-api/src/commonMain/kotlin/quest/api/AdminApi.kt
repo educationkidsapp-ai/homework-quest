@@ -41,6 +41,14 @@ interface AdminApi {
     suspend fun publish(lessonId: String): AdminLesson
     suspend fun unpublish(lessonId: String): AdminLesson
     suspend fun deleteFiles(lessonId: String)
+    /** Removes a lesson that is not published (its files, plays, stops, panel); the AI caches stay. */
+    suspend fun deleteLesson(lessonId: String)
+    /** Removes every lesson in error. Returns how many were deleted. */
+    suspend fun deleteFailedLessons(): Int
+    /** Re-runs from the first step in error (or the first pending one) and continues through the rest. */
+    suspend fun retry(lessonId: String): JobRef
+    /** Re-runs one step only. */
+    suspend fun retryStep(lessonId: String, step: PipelineStep): JobRef
     suspend fun cache(): List<CacheEntry>
     suspend fun usage(): UsageResponse
     suspend fun calendar(curriculum: Curriculum, grade: Int, year: Int, month: Int): CalendarResponse
@@ -53,6 +61,17 @@ interface AdminApi {
 @Serializable enum class LessonSource { @SerialName("pdf") PDF, @SerialName("slides") SLIDES, @SerialName("images") IMAGES, @SerialName("manual") MANUAL }
 @Serializable data class CreateLessonRequest(val curriculum: Curriculum, val grade: Int, val subject: Subject, val date: LocalDate, val notes: String? = null, val practiceLength: Int = 7, val source: LessonSource? = null, val title: String? = null)
 @Serializable data class LessonImage(val id: String, val url: String)
+
+/** The pipeline every uploaded lesson goes through; each step is idempotent and cache-first, so a retry resumes where it failed. */
+@Serializable enum class PipelineStep {
+    @SerialName("upload") UPLOAD, @SerialName("analyze") ANALYZE, @SerialName("skills") SKILLS,
+    @SerialName("generate_L1") GENERATE_L1, @SerialName("generate_L2") GENERATE_L2, @SerialName("generate_L3") GENERATE_L3,
+    @SerialName("generate_again") GENERATE_AGAIN, @SerialName("panel") PANEL;
+    val label: String get() = when (this) { UPLOAD -> "Upload"; ANALYZE -> "Read the pages"; SKILLS -> "Confirm skills"; GENERATE_L1 -> "Level 1"; GENERATE_L2 -> "Level 2"; GENERATE_L3 -> "Level 3"; GENERATE_AGAIN -> "Again variant"; PANEL -> "Parent panel" }
+    val short: String get() = when (this) { UPLOAD -> "upload"; ANALYZE -> "analyze"; SKILLS -> "skills"; GENERATE_L1 -> "generate L1"; GENERATE_L2 -> "generate L2"; GENERATE_L3 -> "generate L3"; GENERATE_AGAIN -> "generate Again"; PANEL -> "parent panel" }
+}
+@Serializable enum class StepStatus { @SerialName("pending") PENDING, @SerialName("running") RUNNING, @SerialName("done") DONE, @SerialName("error") ERROR }
+@Serializable data class LessonStepInfo(val step: PipelineStep, val status: StepStatus, val attempt: Int = 0, val errorCode: String? = null, val errorMessage: String? = null, val updatedAt: Long = 0)
 @Serializable data class GenerateFromTextRequest(val text: String)
 @Serializable data class ReorderRequest(val stopIds: List<String>)
 @Serializable data class CreatePlayRequest(val level: Int, val variant: Int = 0)
@@ -67,6 +86,8 @@ data class AdminLesson(
     val files: List<SourceFileInfo> = emptyList(), val analysis: SourceAnalysis? = null, val skills: List<ExtractedSkill> = emptyList(),
     val plays: List<AdminPlay> = emptyList(), val parentPanel: ParentPanel? = null, val error: ApiError? = null,
     val publishedAt: Long? = null, val createdAt: Long = 0, val source: LessonSource = LessonSource.PDF,
+    /** Pipeline progress (uploaded lessons; empty for manual ones) and the step a job is on right now. */
+    val steps: List<LessonStepInfo> = emptyList(), val currentStep: PipelineStep? = null,
     /** Page images and admin-attached pictures (`Stop.imageId` → url); full lesson only. */
     val images: List<quest.api.dto.PageImage> = emptyList(),
 )

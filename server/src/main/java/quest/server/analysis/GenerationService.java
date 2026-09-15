@@ -45,6 +45,24 @@ public class GenerationService {
         this.cache = cache; this.analyses = analyses; this.skills = skills; this.store = store; this.llm = llm; this.json = json; this.state = state; this.analysisService = analysisService; this.panels = panels;
     }
 
+    /** One play (a pipeline step): cache-first on the source hash; the Again variant excludes the stored Level 1's ids. */
+    public void generatePlay(LessonEntity lesson, int level, int variant) {
+        String hash = requireHash(lesson);
+        Set<String> excluded = variant == 1 ? store.plays(lesson.getId()).stream().filter(p -> p.getLevel() == 1 && p.getVariant() == 0).findFirst().map(p -> canonicalIds(store.play(p), lesson, 1, 0)).orElse(Set.of()) : Set.of();
+        String canonical = playJson(lesson, hash, analysisJson(hash), confirmedSkillsJson(lesson), level, variant, 0, excluded);
+        attach(lesson, canonical, level, variant, 0);
+    }
+
+    /** The parent panel (a pipeline step) from the three stored levels. */
+    public void generatePanel(LessonEntity lesson) {
+        String hash = requireHash(lesson);
+        // Prompt C and the panel relabeller work on canonical plays (the model's short stop ids): strip the lesson prefix
+        Map<String, String> plays = new HashMap<>();
+        for (var p : store.plays(lesson.getId())) if (p.getVariant() == 0) plays.put(p.getLevel() + ":0", p.getPlayJson().replace(StopIds.prefix(lesson.getId(), p.getLevel(), 0), ""));
+        if (plays.size() < 3) throw ApiException.badRequest("Write the three levels first.");
+        panel(lesson, hash, analysisJson(hash), plays);
+    }
+
     /** All four plays and the panel for a lesson (called by the pipeline after skills are confirmed). */
     public void generateAll(LessonEntity lesson) {
         String hash = requireHash(lesson);
@@ -200,7 +218,8 @@ public class GenerationService {
 
     // ---------------------------------------------------------------- helpers
     private LlmClient.Result call(String system, String user) {
-        try { return llm.complete(system, user, List.of()); } catch (LlmClient.LlmException e) { throw new ApiException(HttpStatus.BAD_GATEWAY, "model_failed", e.getMessage()); }
+        try { return llm.complete(system, user, List.of()); }
+        catch (LlmClient.LlmException e) { if (e.isTransient()) throw new LessonSteps.TransientFailure(e.getMessage(), e); throw new ApiException(HttpStatus.BAD_GATEWAY, "model_failed", e.getMessage()); }
     }
 
     private String requireHash(LessonEntity lesson) {
