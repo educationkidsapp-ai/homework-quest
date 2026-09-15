@@ -4,6 +4,7 @@ import io.github.optimumcode.json.schema.JsonSchema
 import io.github.optimumcode.json.schema.ValidationError
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.contentOrNull
 import quest.api.Illustrations
 import quest.api.dto.IslandKind
 import quest.api.dto.MapResponse
@@ -153,6 +154,32 @@ object SchemaValidator {
     private fun schemaErrors(schema: JsonSchema, element: JsonElement): List<String> {
         val errors = mutableListOf<ValidationError>()
         schema.validate(element) { errors += it }
-        return errors.map { "${it.objectPath}: ${it.message}" }.distinct().take(40)
+        return errors.filter { relevant(it, element) }.map { "${it.objectPath}: ${it.message}" }.distinct().take(40)
+    }
+
+    /**
+     * A stop is a oneOf over 22 types, so one bad field produces one error per *other* type too ("type: element does not
+     * match constant", "missing sentences"…). Keep only the errors from the branch matching the stop's declared type.
+     */
+    private fun relevant(e: ValidationError, root: JsonElement): Boolean {
+        val location = e.absoluteLocation?.path?.toString() ?: e.schemaPath.toString()
+        val branch = Regex("stop_([A-Za-z]+)").find(location)?.groupValues?.get(1) ?: return true
+        val declared = declaredType(root, e.objectPath.toString()) ?: return true
+        return branch == declared
+    }
+
+    /** The `type` of the innermost stop object that contains [objectPath] (`/stops/1/words/2` → stops[1].type). */
+    private fun declaredType(root: JsonElement, objectPath: String): String? {
+        val segments = objectPath.trim('/').split('/').filter { it.isNotEmpty() }
+        var node: JsonElement = root; var type: String? = null
+        for (seg in segments) {
+            node = when (node) {
+                is kotlinx.serialization.json.JsonObject -> node[seg] ?: return type
+                is kotlinx.serialization.json.JsonArray -> node.getOrNull(seg.toIntOrNull() ?: return type) ?: return type
+                else -> return type
+            }
+            (node as? kotlinx.serialization.json.JsonObject)?.get("type")?.let { t -> (t as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull?.let { type = it } }
+        }
+        return type
     }
 }
