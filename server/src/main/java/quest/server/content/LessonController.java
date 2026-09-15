@@ -1,5 +1,6 @@
 package quest.server.content;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.concurrent.TimeUnit;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -15,6 +16,7 @@ import quest.server.config.ApiException;
 
 /** `GET /lessons/{id}` — a published lesson, immutable per version, long cache headers. */
 @RestController
+@Tag(name = "Lessons", description = "Published lesson content for the app")
 public class LessonController {
     private final LessonRepository lessons; private final LessonStore store; private final ChildRepository children;
     public LessonController(LessonRepository lessons, LessonStore store, ChildRepository children) { this.lessons = lessons; this.store = store; this.children = children; }

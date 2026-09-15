@@ -1,5 +1,6 @@
 package quest.server.admin;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,12 +39,13 @@ import quest.server.config.Json;
 
 /** `/admin/lessons/**`, `/admin/stops/**`, `/admin/plays/**` — the admin panel's `AdminApi`. */
 @RestController
+@Tag(name = "Admin lessons", description = "Lesson pipeline, plays and stops")
 public class AdminLessonController {
     private final AdminLessonService service; private final Json json;
     public AdminLessonController(AdminLessonService service, Json json) { this.service = service; this.json = json; }
 
     @GetMapping(value = "/admin/lessons", produces = MediaType.APPLICATION_JSON_VALUE)
-    public String list(@RequestParam(required = false) String curriculum, @RequestParam(required = false) Integer grade, @RequestParam(required = false) String subject,
+    public String listLessons(@RequestParam(required = false) String curriculum, @RequestParam(required = false) Integer grade, @RequestParam(required = false) String subject,
                        @RequestParam(required = false) String from, @RequestParam(required = false) String to) {
         try {
             var filter = new LessonFilter(curriculum == null ? null : Curriculum.valueOf(curriculum.toUpperCase()), grade, subject == null ? null : Subject.valueOf(subject.toUpperCase()),
@@ -54,15 +56,15 @@ public class AdminLessonController {
 
     @PostMapping(value = "/admin/lessons", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public String create(@RequestBody String body, @AuthenticationPrincipal Principals.Admin admin) {
+    public String createLesson(@RequestBody String body, @AuthenticationPrincipal Principals.User admin) {
         return json.encodeShared(service.create(decode(body, CreateLessonRequest.Companion.serializer()), admin), AdminLesson.Companion.serializer());
     }
 
     @GetMapping(value = "/admin/lessons/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public String get(@PathVariable String id) { return json.encodeShared(service.toAdmin(service.get(id), true), AdminLesson.Companion.serializer()); }
+    public String getLesson(@PathVariable String id) { return json.encodeShared(service.toAdmin(service.get(id), true), AdminLesson.Companion.serializer()); }
 
     @PostMapping(value = "/admin/lessons/{id}/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public String upload(@PathVariable String id, @RequestPart("files") List<MultipartFile> files) throws IOException {
+    public String uploadFiles(@PathVariable String id, @RequestPart("files") List<MultipartFile> files) throws IOException {
         if (files == null || files.isEmpty()) throw ApiException.badRequest("No files.");
         if (files.size() > 10) throw ApiException.badRequest("At most 10 files per lesson.");
         List<AnalysisService.Upload> uploads = new ArrayList<>();
@@ -148,7 +150,7 @@ public class AdminLessonController {
 
     @DeleteMapping("/admin/lessons/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable String id) { service.delete(id); }
+    public void deleteLesson(@PathVariable String id) { service.delete(id); }
 
     private String job(String id, LessonStatus status) { return json.encodeShared(new JobRef(id, status), JobRef.Companion.serializer()); }
     private <T> T decode(String body, KSerializer<T> serializer) { try { return json.decodeShared(body, serializer); } catch (Exception e) { throw ApiException.badRequest("Malformed request: " + e.getMessage()); } }

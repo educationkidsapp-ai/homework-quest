@@ -60,6 +60,8 @@ import quest.server.content.SkillRepository;
 import quest.server.content.SourceFileRepository;
 import quest.server.content.StopRepository;
 import quest.server.files.FileStore;
+import quest.server.tenancy.ClassService;
+import quest.server.tenancy.TenantContext;
 
 /** Everything behind `/admin/lessons/**`: lifecycle draft → analysing → needs_review → generating → review → published. */
 @Service
@@ -67,10 +69,11 @@ public class AdminLessonService {
     private final LessonRepository lessons; private final SourceFileRepository sourceFiles; private final SkillRepository skills; private final PlayRepository plays; private final StopRepository stops; private final ParentPanelRepository panels;
     private final AnalysisCacheRepository analysisCache; private final LessonStore store; private final AnalysisService analysisService; private final GenerationService generation; private final LessonPipeline pipeline; private final LessonState state;
     private final FileStore files; private final Json json; private final PageImageRepository pageImages; private final String publicUrl; private final LessonSteps steps;
+    private final TenantContext tenant; private final ClassService classes;
 
-    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps) {
+    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, ClassService classes) {
         this.lessons = lessons; this.sourceFiles = sourceFiles; this.skills = skills; this.plays = plays; this.stops = stops; this.panels = panels; this.analysisCache = analysisCache; this.store = store; this.analysisService = analysisService; this.generation = generation; this.pipeline = pipeline; this.state = state; this.files = files; this.json = json;
-        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps;
+        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.classes = classes;
     }
 
     public LessonEntity get(String id) { return lessons.findById(id).orElseThrow(() -> ApiException.notFound("lesson")); }
@@ -88,13 +91,16 @@ public class AdminLessonService {
     }
 
     @Transactional
-    public AdminLesson create(CreateLessonRequest req, Principals.Admin admin) {
+    public AdminLesson create(CreateLessonRequest req, Principals.User admin) {
         if (req.getGrade() < 1 || req.getGrade() > 3) throw ApiException.badRequest("Grade must be 1, 2 or 3.");
         if (req.getPracticeLength() < 5 || req.getPracticeLength() > 12) throw ApiException.badRequest("Practice length must be 5–12 stops.");
         var e = new LessonEntity();
         e.setId(UUID.randomUUID().toString()); e.setCourseId(new Course(req.getCurriculum(), req.getGrade()).getKey()); e.setSubject(req.getSubject().name().toLowerCase());
         e.setDate(jdate(req.getDate())); e.setStatus("draft"); e.setVersion(0); e.setNotes(req.getNotes()); e.setPracticeLength(req.getPracticeLength());
         e.setCreatedBy(admin == null ? null : admin.email()); e.setCreatedAt(Instant.now()); e.setUpdatedAt(Instant.now());
+        var schoolId = tenant.writeSchoolId();
+        e.setSchoolId(schoolId);
+        e.setClassId(classes.findOrCreate(schoolId, req.getCurriculum().name().toLowerCase(), req.getGrade(), req.getSubject().name().toLowerCase()).getId());
         if (req.getTitle() != null && !req.getTitle().isBlank()) e.setTitle(req.getTitle().trim());
         if (req.getSource() == LessonSource.MANUAL) {
             // hand-written: straight to review with an empty Level 1; the admin adds stops, writes or generates the rest

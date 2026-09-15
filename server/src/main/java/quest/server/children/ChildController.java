@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 import kotlinx.serialization.builtins.BuiltinSerializersKt;
 import org.springframework.http.HttpStatus;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -36,6 +37,7 @@ import quest.server.files.FileStore;
 
 /** The parent-facing `ContentApi` endpoints (all bodies are the shared-api contract types, encoded with the shared codec). */
 @RestController
+@Tag(name = "Children", description = "Parent-owned children, map, attempts and progress")
 public class ChildController {
     private static final long MAX_MEDIA_BYTES = 10L * 1024 * 1024;
     private final ChildService childService; private final MapService mapService; private final AttemptService attemptService; private final ProgressService progressService;
@@ -47,29 +49,29 @@ public class ChildController {
     }
 
     @GetMapping(value = "/children", produces = MediaType.APPLICATION_JSON_VALUE)
-    public String list(@AuthenticationPrincipal Principals.Parent parent) {
+    public String listChildren(@AuthenticationPrincipal Principals.Parent parent) {
         return json.encodeShared(childService.list(parent), BuiltinSerializersKt.ListSerializer(Child.Companion.serializer()));
     }
 
     @PostMapping(value = "/children", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public String create(@AuthenticationPrincipal Principals.Parent parent, @RequestBody String body) {
+    public String createChild(@AuthenticationPrincipal Principals.Parent parent, @RequestBody String body) {
         var req = decode(body, CreateChildRequest.Companion.serializer());
         return json.encodeShared(childService.create(parent, req), Child.Companion.serializer());
     }
 
     @PatchMapping(value = "/children/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public String update(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestBody String body) {
+    public String updateChild(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestBody String body) {
         var req = decode(body, UpdateChildRequest.Companion.serializer());
         return json.encodeShared(childService.update(parent, id, req), Child.Companion.serializer());
     }
 
     @DeleteMapping("/children/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) { childService.delete(parent, id); }
+    public void deleteChild(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) { childService.delete(parent, id); }
 
     @GetMapping(value = "/children/{id}/map", produces = MediaType.APPLICATION_JSON_VALUE)
-    public String map(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestParam String from, @RequestParam String to, @RequestParam(required = false) String today) {
+    public String childMap(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestParam String from, @RequestParam String to, @RequestParam(required = false) String today) {
         var child = childService.owned(id, parent);
         LocalDate f, t, d;
         try { f = LocalDate.parse(from); t = LocalDate.parse(to); d = today == null ? LocalDate.now() : LocalDate.parse(today); } catch (Exception e) { throw ApiException.badRequest("from/to must be ISO dates"); }
@@ -78,7 +80,7 @@ public class ChildController {
     }
 
     @PostMapping(value = "/children/{id}/attempts", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public String attempts(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestBody String body) {
+    public String uploadAttempts(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestBody String body) {
         var child = childService.owned(id, parent);
         List<AttemptUpload> uploads = decode(body, BuiltinSerializersKt.ListSerializer(AttemptUpload.Companion.serializer()));
         if (uploads.size() > 500) throw ApiException.badRequest("at most 500 attempts per upload");
@@ -86,7 +88,7 @@ public class ChildController {
     }
 
     @PostMapping(value = "/children/{id}/stops/{stopId}/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public String media(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @PathVariable String stopId, @RequestParam("kind") String kind, @RequestPart("file") MultipartFile file) throws java.io.IOException {
+    public String uploadChildMedia(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @PathVariable String stopId, @RequestParam("kind") String kind, @RequestPart("file") MultipartFile file) throws java.io.IOException {
         var child = childService.owned(id, parent);
         MediaKind mk;
         try { mk = MediaKind.valueOf(kind.trim().toUpperCase()); } catch (IllegalArgumentException e) { throw ApiException.badRequest("kind must be recording or drawing"); }
@@ -103,7 +105,7 @@ public class ChildController {
     }
 
     @GetMapping(value = "/children/{id}/progress", produces = MediaType.APPLICATION_JSON_VALUE)
-    public String progress(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) {
+    public String childProgress(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) {
         var child = childService.owned(id, parent);
         return json.encodeShared(progressService.progress(child), ProgressResponse.Companion.serializer());
     }

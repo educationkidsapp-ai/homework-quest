@@ -1,5 +1,7 @@
 package quest.server.config;
 
+import io.swagger.v3.oas.annotations.Hidden;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -22,6 +24,8 @@ import java.util.concurrent.TimeUnit;
  * Assets are content-hashed by webpack, so they get a long cache; index.html never does.
  */
 @RestController
+@Hidden   // a static SPA bundle, not an API: `/panel/**` is no valid OpenAPI path template and the generated client must not see it
+@Tag(name = "Panel", description = "The admin panel bundle")
 public class AdminPanelController {
     private final Path dir;
 

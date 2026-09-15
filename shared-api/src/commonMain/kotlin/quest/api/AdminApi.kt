@@ -54,7 +54,12 @@ interface AdminApi {
     suspend fun calendar(curriculum: Curriculum, grade: Int, year: Int, month: Int): CalendarResponse
 }
 
-@Serializable data class AdminSession(val token: String, val email: String, val expiresAt: Long)
+/** `webAdmin/`'s view of the sign-in response; the dashboard reads the same payload as `quest.api.dashboard.SignInResponse`. */
+@Serializable data class AdminSession(
+    val token: String, val email: String, val expiresAt: Long,
+    val role: quest.api.dashboard.Role = quest.api.dashboard.Role.ADMIN, val schoolId: String? = null,
+    val displayName: String? = null, val mustChangePassword: Boolean = false,
+)
 @Serializable data class JobRef(val jobId: String, val status: LessonStatus)
 @Serializable data class LessonFilter(val curriculum: Curriculum? = null, val grade: Int? = null, val subject: Subject? = null, val from: LocalDate? = null, val to: LocalDate? = null)
 /** Where a lesson's content came from. Uploads are classified from their files; `manual` lessons are written in the panel. */

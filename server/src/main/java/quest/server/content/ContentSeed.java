@@ -13,14 +13,16 @@ import quest.api.dto.Play;
 import quest.api.dto.PublishedLesson;
 import quest.api.samples.Seeds;
 import quest.server.config.Json;
+import quest.server.tenancy.ClassService;
+import quest.server.tenancy.TenantContext;
 
 /** Dev database seed (profiles local, dev, h2): the three §6 lessons from shared-api, published with all levels and the variant. */
 @Component
 @Profile({"local", "dev", "h2", "test", "qa"})
 public class ContentSeed implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(ContentSeed.class);
-    private final LessonRepository lessons; private final SkillRepository skills; private final LessonStore store; private final Json json;
-    public ContentSeed(LessonRepository lessons, SkillRepository skills, LessonStore store, Json json) { this.lessons = lessons; this.skills = skills; this.store = store; this.json = json; }
+    private final LessonRepository lessons; private final SkillRepository skills; private final LessonStore store; private final Json json; private final ClassService classes;
+    public ContentSeed(LessonRepository lessons, SkillRepository skills, LessonStore store, Json json, ClassService classes) { this.lessons = lessons; this.skills = skills; this.store = store; this.json = json; this.classes = classes; }
 
     @Override @Transactional
     public void run(String... args) {
@@ -31,6 +33,8 @@ public class ContentSeed implements CommandLineRunner {
             e.setDate(LocalDate.of(seed.getDate().getYear(), seed.getDate().getMonthNumber(), seed.getDate().getDayOfMonth()));
             e.setStatus("published"); e.setVersion(seed.getVersion()); e.setTitle(seed.getTitle()); e.setSourceHash("seed-" + seed.getId());
             e.setCreatedBy("seed"); e.setCreatedAt(Instant.now()); e.setUpdatedAt(Instant.now()); e.setPublishedAt(Instant.now());
+            e.setSchoolId(TenantContext.DEFAULT_SCHOOL);
+            e.setClassId(classes.findOrCreate(TenantContext.DEFAULT_SCHOOL, seed.getCourse().getCurriculum().name().toLowerCase(), seed.getCourse().getGrade(), seed.getSubject().name().toLowerCase()).getId());
             lessons.save(e);
             int pos = 0;
             for (var s : seed.getSkills()) {

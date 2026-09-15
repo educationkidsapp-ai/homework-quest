@@ -12,11 +12,13 @@ import quest.api.dto.Curriculum;
 import quest.api.dto.UpdateChildRequest;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
+import quest.server.tenancy.SchoolRepository;
+import quest.server.tenancy.TenantContext;
 
 @Service
 public class ChildService {
-    private final ChildRepository children;
-    public ChildService(ChildRepository children) { this.children = children; }
+    private final ChildRepository children; private final SchoolRepository schools;
+    public ChildService(ChildRepository children, SchoolRepository schools) { this.children = children; this.schools = schools; }
 
     public Entities.ChildEntity owned(String childId, Principals.Parent parent) {
         return children.findById(childId).filter(c -> c.getDeletedAt() == null && c.getParentId().equals(parent.parentId())).orElseThrow(() -> ApiException.notFound("child"));
@@ -30,6 +32,7 @@ public class ChildService {
         var e = new Entities.ChildEntity();
         e.setId(UUID.randomUUID().toString()); e.setParentId(parent.parentId()); e.setName(req.getName().trim()); e.setAvatarColor(req.getAvatarColor());
         e.setCurriculum(req.getCurriculum().name().toLowerCase()); e.setGrade(req.getGrade()); e.setLanguages(String.join(",", req.getLanguages())); e.setCreatedAt(Instant.now());
+        e.setSchoolId(schoolOf(req.getSchoolCode()));
         return dto(children.save(e));
     }
 
@@ -48,6 +51,12 @@ public class ChildService {
     @Transactional
     public void delete(Principals.Parent parent, String id) { var e = owned(id, parent); e.setDeletedAt(Instant.now()); children.save(e); }
 
+    /** A parent joins a school with its 6-character code; without one the child stays in the default school. */
+    private String schoolOf(String code) {
+        if (code == null || code.isBlank()) return TenantContext.DEFAULT_SCHOOL;
+        return schools.findByCodeIgnoreCase(code.trim()).orElseThrow(() -> ApiException.notFound("school")).getId();
+    }
+
     private static void validate(String name, int grade, String avatar) {
         if (name == null || name.isBlank() || name.length() > 40) throw ApiException.badRequest("Name must be 1–40 characters.");
         if (grade < 1 || grade > 3) throw ApiException.badRequest("Grade must be 1, 2 or 3.");
@@ -56,6 +65,6 @@ public class ChildService {
 
     public static Child dto(Entities.ChildEntity e) {
         var langs = e.getLanguages() == null || e.getLanguages().isBlank() ? List.of("en") : List.of(e.getLanguages().split(","));
-        return new Child(e.getId(), e.getName(), e.getAvatarColor(), Curriculum.valueOf(e.getCurriculum().toUpperCase()), e.getGrade(), CollectionsKt.toList(langs));
+        return new Child(e.getId(), e.getName(), e.getAvatarColor(), Curriculum.valueOf(e.getCurriculum().toUpperCase()), e.getGrade(), CollectionsKt.toList(langs), e.getSchoolId());
     }
 }

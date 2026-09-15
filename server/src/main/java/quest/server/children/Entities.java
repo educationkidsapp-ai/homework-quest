@@ -16,6 +16,7 @@ public final class Entities {
     public static class ChildEntity {
         @Id private String id;
         @Column(name = "parent_id", nullable = false) private String parentId;
+        @Column(name = "school_id", nullable = false) private String schoolId = "default";
         @Column(nullable = false) private String name; @Column(name = "avatar_color", nullable = false) private String avatarColor;
         @Column(nullable = false) private String curriculum; @Column(nullable = false) private int grade;
         @Column(nullable = false) private String languages = "en";
@@ -24,6 +25,7 @@ public final class Entities {
         public String courseId() { return curriculum + "/" + grade; }
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getParentId() { return parentId; } public void setParentId(String v) { parentId = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getName() { return name; } public void setName(String v) { name = v; }
         public String getAvatarColor() { return avatarColor; } public void setAvatarColor(String v) { avatarColor = v; }
         public String getCurriculum() { return curriculum; } public void setCurriculum(String v) { curriculum = v; }
