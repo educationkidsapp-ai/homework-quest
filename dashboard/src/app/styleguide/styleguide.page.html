@@ -238,15 +238,26 @@
         </div>
       </hq-card>
 
-      <!-- Undo strip -->
+      <!-- Row collapse + undo strip: the pair a destructive-but-undoable action uses -->
       <hq-card [title]="'styleguide.sections.undoStrip' | transloco" [flush]="true">
-        <div class="sg__row sg__row--pad">
-          <hq-button (pressed)="undoOpen.set(true)">{{ 'styleguide.undo.trigger' | transloco }}</hq-button>
-        </div>
+        <ul class="sg__rows">
+          @for (row of collapsibleRows(); track row) {
+            <li hqRowCollapse class="sg__collapsible">
+              <span>{{ row }}</span>
+              <hq-button variant="quiet" (pressed)="removeRow(row)">{{
+                'styleguide.motion.rowCollapse' | transloco
+              }}</hq-button>
+            </li>
+          } @empty {
+            <li class="sg__collapsible">
+              <hq-button (pressed)="restoreRows()">{{ 'styleguide.motion.replay' | transloco }}</hq-button>
+            </li>
+          }
+        </ul>
         <hq-undo-strip
           [open]="undoOpen()"
           [message]="'styleguide.undo.message' | transloco"
-          (undone)="undoOpen.set(false)"
+          (undone)="restoreRows()"
           (expired)="undoOpen.set(false)"
         />
       </hq-card>

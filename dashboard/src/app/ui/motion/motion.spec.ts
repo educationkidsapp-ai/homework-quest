@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal, viewChildren } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -11,10 +11,18 @@ import { ShakeDirective } from './shake.directive';
 import { ListStaggerDirective } from './list-stagger.directive';
 import { ExpandBandDirective } from './expand-band.directive';
 import { PageEnterDirective } from './page-enter.directive';
+import { RowCollapseDirective } from './row-collapse.directive';
 
 @Component({
   selector: 'hq-motion-host',
-  imports: [CountUpDirective, ShakeDirective, ListStaggerDirective, ExpandBandDirective, PageEnterDirective],
+  imports: [
+    CountUpDirective,
+    ShakeDirective,
+    ListStaggerDirective,
+    ExpandBandDirective,
+    PageEnterDirective,
+    RowCollapseDirective,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section hqPageEnter="forward" data-testid="page"></section>
@@ -26,6 +34,9 @@ import { PageEnterDirective } from './page-enter.directive';
       <li>three</li>
     </ul>
     <div [hqExpandBand]="bandOpen()" data-testid="band">Could not publish</div>
+    @for (row of rows(); track row) {
+      <p #collapse="hqRowCollapse" hqRowCollapse [attr.data-row]="row">{{ row }}</p>
+    }
     <button type="button" (click)="errorId.set('e2')">fail again</button>
   `,
 })
@@ -33,6 +44,8 @@ class MotionHost {
   readonly total = signal(120);
   readonly errorId = signal<string | null>(null);
   readonly bandOpen = signal(false);
+  readonly rows = signal<readonly string[]>(['alpha', 'beta']);
+  readonly collapsers = viewChildren(RowCollapseDirective);
 }
 
 describe('motion', () => {
@@ -85,6 +98,22 @@ describe('motion', () => {
     fixture.detectChanges();
 
     expect(band.hidden).toBe(false);
+  });
+
+  it('collapses a row before the caller removes it', async () => {
+    const { fixture } = await renderHq(MotionHost);
+    const host = fixture.componentInstance;
+
+    expect(document.querySelector('[data-row="alpha"]')).not.toBeNull();
+
+    // The caller awaits the collapse, then drops the model — a removed DOM node
+    // cannot animate its own exit.
+    await host.collapsers()[0]?.collapse();
+    host.rows.set(['beta']);
+    fixture.detectChanges();
+
+    expect(document.querySelector('[data-row="alpha"]')).toBeNull();
+    expect(document.querySelector('[data-row="beta"]')).not.toBeNull();
   });
 
   it('sets the page-enter direction so RTL mirrors without a second animation', async () => {

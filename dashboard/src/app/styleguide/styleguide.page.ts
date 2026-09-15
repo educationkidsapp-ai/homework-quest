@@ -1,5 +1,5 @@
 /* hq-flag: none (shell) — the styleguide is not a product feature and never ships to production. */
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChildren } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { LanguageService } from '../core/i18n/language.service';
@@ -16,6 +16,7 @@ import {
   PageComponent,
   PhoneFrameComponent,
   ProgressBarComponent,
+  RowCollapseDirective,
   SelectComponent,
   ShortcutsDialogComponent,
   SkeletonComponent,
@@ -71,6 +72,7 @@ interface DemoLesson {
     NavComponent,
     ShortcutsDialogComponent,
     CountUpDirective,
+    RowCollapseDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './styleguide.page.html',
@@ -119,6 +121,12 @@ export class StyleguidePage {
   protected readonly countUpKey = signal(0);
   protected readonly emptyTable = signal(false);
   protected readonly stepPhase = signal(0);
+  protected readonly collapsibleRows = signal<readonly string[]>([
+    'Counting by 2s',
+    '"sh" sound',
+    'Number line jumps',
+  ]);
+  private readonly rowCollapsers = viewChildren(RowCollapseDirective);
 
   protected readonly curriculumOptions = computed<readonly SelectOption<'american' | 'british'>[]>(() => {
     const t = this.t();
@@ -220,5 +228,18 @@ export class StyleguidePage {
 
   protected trackLesson(lesson: DemoLesson): string {
     return lesson.id;
+  }
+
+  /** The `rowCollapse` contract: animate first, then drop the model. */
+  protected async removeRow(row: string): Promise<void> {
+    const index = this.collapsibleRows().indexOf(row);
+    await this.rowCollapsers().at(index)?.collapse();
+    this.collapsibleRows.update((rows) => rows.filter((candidate) => candidate !== row));
+    this.undoOpen.set(true);
+  }
+
+  protected restoreRows(): void {
+    this.collapsibleRows.set(['Counting by 2s', '"sh" sound', 'Number line jumps']);
+    this.undoOpen.set(false);
   }
 }
