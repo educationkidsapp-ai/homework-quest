@@ -90,4 +90,19 @@ class AnalysisUnitTest {
         assertThat(cue.get("stage").asText()).isEqualTo("beginning");
         assertThat(cue.has("illustrationKey")).isFalse();
     }
+
+    /** The QA failure of 2026-09-15: a wordCards entry without illustrationKey (+ one plain-string entry). */
+    @Test void word_cards_without_a_picture_key_are_repaired_and_errors_name_only_the_real_type() throws Exception {
+        String raw = "{\"stops\":[{\"type\":\"wordCards\",\"id\":\"s2\",\"title\":\"New words\",\"speak\":\"Tap a word.\",\"ingredient\":{\"emoji\":\"🥕\",\"name\":\"carrot\"},\"parentTip\":{\"en\":\"x\",\"ar\":\"y\"},"
+                + "\"words\":[{\"word\":\"fish\",\"meaning\":\"m\",\"sentence\":\"s\",\"illustrationKey\":\"fish\"},{\"word\":\"ship\",\"meaning\":\"m\",\"sentence\":\"s\"},{\"word\":\"whisper\",\"meaning\":\"m\",\"sentence\":\"s\"},\"stray\"]}]}";
+        var words = mapper.readTree(LlmJson.cleanIllustrations(raw)).get("stops").get(0).get("words");
+        assertThat(words).hasSize(3);
+        assertThat(words.get(1).get("illustrationKey").asText()).isEqualTo("ship");   // drawable → the word itself
+        assertThat(words.get(2).get("illustrationKey").asText()).isEqualTo("book");   // not drawable → neutral card
+        // and when something is still wrong, the message names only the declared type's problem
+        var errors = SchemaValidator.INSTANCE.validatePlayJson("{\"level\":2,\"variant\":0,\"kind\":\"story\",\"theme\":{\"potName\":\"p\",\"dishName\":\"d\",\"potEmoji\":\"🍲\",\"servedText\":\"s\"},\"stops\":[" + raw.substring(raw.indexOf('[') + 1, raw.lastIndexOf(']')) + "]}", 2, java.util.Set.of()).getErrors();
+        assertThat(errors).isNotEmpty();
+        assertThat(errors).allSatisfy(e -> assertThat(e).doesNotContain("does not match constant").doesNotContain("sentences").doesNotContain("cards"));
+        assertThat(String.join(" ", errors)).contains("illustrationKey");
+    }
 }

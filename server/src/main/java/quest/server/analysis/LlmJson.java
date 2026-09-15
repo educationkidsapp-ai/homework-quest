@@ -40,6 +40,12 @@ final class LlmJson {
                 if (optional) o.remove("illustrationKey");
             }
             if (SINGLE_TYPES.contains(o.path("type").asText()) && !o.hasNonNull("hint")) o.put("hint", "Look again and try once more.");
+            // wordCards / readTap / sound need a picture key per entry: the word itself when we can draw it, else a neutral card
+            if (o.has("word") && !o.hasNonNull("illustrationKey") && (o.has("meaning") || o.has("sentence"))) o.put("illustrationKey", KNOWN.contains(o.path("word").asText().toLowerCase()) ? o.path("word").asText().toLowerCase() : "book");
+            if ("wordCards".equals(o.path("type").asText()) && o.get("words") instanceof ArrayNode words) {   // drop non-object entries the model sometimes emits (plain strings)
+                ArrayNode kept = MAPPER.createArrayNode(); for (JsonNode w : words) if (w.isObject()) kept.add(w);
+                if (kept.size() != words.size()) o.set("words", kept);
+            }
             LIMITS.forEach((field, max) -> { JsonNode v = o.get(field); if (v != null && v.isTextual() && v.asText().length() > max) o.put(field, trim(v.asText(), max)); });
             for (String enumField : new String[] {"piece", "stage", "mode", "genre", "kind", "subject"})
                 if (o.get(enumField) != null && o.get(enumField).isTextual()) o.put(enumField, o.get(enumField).asText().trim().toLowerCase());
