@@ -1,0 +1,122 @@
+// The keyframes and classes behind the named motion triggers in src/app/ui/motion/.
+// Global only — components use `_mixins.scss`, never this file, so the keyframes
+// are emitted once.
+// This file is global (no component encapsulation), so it cannot use `:host-context`:
+// the plain attribute selector on `<html>` is correct here.
+@mixin reduced-motion {
+  @media (prefers-reduced-motion: reduce) {
+    @content;
+  }
+
+  :root[data-hq-reduced-motion='true'] & {
+    @content;
+  }
+}
+
+@keyframes hq-page-enter {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--hq-motion-page-enter-offset) * var(--hq-page-enter-direction, 1)));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hq-list-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--hq-motion-list-rise-offset));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hq-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(calc(var(--hq-motion-shake-distance) * -1));
+  }
+  45% {
+    transform: translateX(var(--hq-motion-shake-distance));
+  }
+  70% {
+    transform: translateX(calc(var(--hq-motion-shake-distance) * -0.5));
+  }
+}
+
+@keyframes hq-shimmer {
+  from {
+    background-position: -150% 0;
+  }
+  to {
+    background-position: 250% 0;
+  }
+}
+
+@keyframes hq-pulse-arc {
+  from {
+    transform: rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  to {
+    transform: rotate(360deg);
+    opacity: 1;
+  }
+}
+
+@keyframes hq-draw-tick {
+  from {
+    stroke-dashoffset: var(--hq-tick-length);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes hq-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/// `pageEnter` — 24 px slide in the navigation direction plus a fade, 400 ms.
+.hq-anim-page-enter {
+  animation: hq-page-enter var(--hq-motion-slow) var(--hq-motion-ease-emphasised) both;
+
+  @include reduced-motion {
+    animation: hq-fade-in 0ms linear both;
+  }
+}
+
+/// `listStagger` — fade and rise, 30 ms apart, first load only.
+.hq-anim-list-stagger > * {
+  animation: hq-list-rise var(--hq-motion-base) var(--hq-motion-ease) both;
+  animation-delay: calc(var(--hq-stagger-index, 0) * var(--hq-motion-stagger));
+
+  @include reduced-motion {
+    animation: hq-fade-in 0ms linear both;
+    animation-delay: 0ms;
+  }
+}
+
+/// `shake` — one shake, 6 px, 300 ms.
+.hq-anim-shake {
+  animation: hq-shake var(--hq-motion-shake) var(--hq-motion-ease) 1;
+
+  @include reduced-motion {
+    animation: none;
+  }
+}

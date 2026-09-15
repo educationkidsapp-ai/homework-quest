@@ -1,0 +1,63 @@
+{
+  "name": "dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.28.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "styleguide": "ng serve --open",
+    "tokens": "node tools/tokens.mjs",
+    "fonts": "node tools/fonts.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "ng test",
+    "e2e": "playwright test",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "gen:api": "node tools/gen-api.mjs"
+  },
+  "dependencies": {
+    "@angular/common": "^22.1.0",
+    "@angular/compiler": "^22.1.0",
+    "@angular/core": "^22.1.0",
+    "@angular/forms": "^22.1.0",
+    "@angular/platform-browser": "^22.1.0",
+    "@angular/router": "^22.1.0",
+    "@jsverse/transloco": "^8.4.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.1.8",
+    "@angular/cli": "^22.1.8",
+    "@angular/compiler-cli": "^22.1.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "@testing-library/angular": "^19.5.0",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^26.6.0",
+    "angular-eslint": "^22.5.0",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jsdom": "^28.0.0",
+    "prettier": "^3.8.1",
+    "subset-font": "^2.7.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^4.0.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "esbuild",
+      "lmdb",
+      "msgpackr-extract"
+    ]
+  }
+}
