@@ -46,11 +46,19 @@ public class MediaAccess {
         if (!schoolsOf(parent).contains(lesson.getSchoolId())) throw hidden();
     }
 
-    /** `/media/child/{id}`: the child's own parent, or a dashboard user of the child's school (ADMIN any). */
+    /**
+     * `/media/child/{id}`: the child's own parent, or a dashboard user of the child's school (ADMIN any).
+     *
+     * <p>Every refusal {@link ChildService} makes is re-thrown as {@link #hidden()}: on its own it answers "child not
+     * found" for a child that exists but is not the caller's, and the controller answers "media not found" for an id
+     * that does not exist — two different bodies behind the same 404, which is the existence oracle this class is
+     * here to close. Same status, same body, whatever the reason.
+     */
     public void requireChild(String childId, Principals.Parent parent, Principals.User user) {
-        if (user != null) { childService.scoped(childId); return; }             // 404 outside the caller's school
-        if (parent == null) throw hidden();
-        childService.owned(childId, parent);                                    // 404 for another parent's child
+        if (user == null && parent == null) throw hidden();
+        try {
+            if (user != null) childService.scoped(childId); else childService.owned(childId, parent);
+        } catch (ApiException e) { throw hidden(); }
     }
 
     /** The schools a parent reaches through her children; a parent with no child reaches none. */

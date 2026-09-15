@@ -92,10 +92,20 @@ class MediaAuthorizationTest extends ApiTestSupport {
         mvc.perform(get("/media/child/whatever")).andExpect(status().isUnauthorized());
     }
 
+    /** Status <em>and</em> body: a different message for "exists but is not yours" would be the oracle all over again. */
     @Test void an_unknown_id_and_a_hidden_one_look_the_same() throws Exception {
         String teacherB = jwt.issue("media-teacher-b", "media-teacher@beta.test", "TEACHER", B).token();
-        mvc.perform(page("no-such-page").header("Authorization", "Bearer " + teacherB)).andExpect(status().isNotFound());
-        mvc.perform(page(PAGE_A).header("Authorization", "Bearer " + teacherB)).andExpect(status().isNotFound());
+        var unknownPage = mvc.perform(page("no-such-page").header("Authorization", "Bearer " + teacherB)).andExpect(status().isNotFound()).andReturn();
+        var hiddenPage = mvc.perform(page(PAGE_A).header("Authorization", "Bearer " + teacherB)).andExpect(status().isNotFound()).andReturn();
+        org.assertj.core.api.Assertions.assertThat(hiddenPage.getResponse().getContentAsString()).isEqualTo(unknownPage.getResponse().getContentAsString());
+
+        var child = parentPost("/children", "{\"name\":\"Yara\",\"avatarColor\":\"lavender\",\"curriculum\":\"british\",\"grade\":1,\"schoolCode\":\"MEDAAA\"}");
+        String mediaId = recording(child.get("id").asText());
+        var unknownMedia = mvc.perform(get("/media/child/no-such-recording").header("Authorization", "Bearer " + teacherB)).andExpect(status().isNotFound()).andReturn();
+        var otherSchool = mvc.perform(get("/media/child/" + mediaId).header("Authorization", "Bearer " + teacherB)).andExpect(status().isNotFound()).andReturn();
+        var otherParent = mvc.perform(get("/media/child/" + mediaId).header("Authorization", "Bearer fake-token-a-stranger")).andExpect(status().isNotFound()).andReturn();
+        org.assertj.core.api.Assertions.assertThat(otherSchool.getResponse().getContentAsString()).isEqualTo(unknownMedia.getResponse().getContentAsString());
+        org.assertj.core.api.Assertions.assertThat(otherParent.getResponse().getContentAsString()).isEqualTo(unknownMedia.getResponse().getContentAsString());
     }
 
     @Test void a_child_recording_belongs_to_its_parent_and_to_her_school() throws Exception {
