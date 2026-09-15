@@ -3,7 +3,14 @@ package quest.ui.design
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-/** Every visual token from docs/design.md lives here. Swap this file to re-skin the app. */
+/**
+ * Every visual token from docs/design.md lives here. Swap this file to re-skin the app.
+ *
+ * Child mode (docs/design.md §2) is hand-written: it is not part of `design/tokens.json`, which describes the
+ * parent/admin system only. Parent mode and the admin measurements read from [DesignTokens], generated from
+ * `design/tokens.json` by `:shared-ui:generateDesignTokens` — the same file the Angular dashboard generates its
+ * CSS custom properties from. `./gradlew :shared-ui:checkTokens` fails when the two drift apart.
+ */
 object Palette {
     val sky = Color(0xFFEAF4FF)
     val cream = Color(0xFFFFF8EC)
@@ -22,45 +29,55 @@ object Palette {
     val white = Color(0xFFFFFFFF)
 
     // Parent mode + admin panel: flat Modernist — Archivo, square corners, 2px ink rules, one red accent.
-    val parentBg = Color(0xFFF3F2F2)        // ground
-    val parentSurface = Color(0xFFFFFFFF)
-    val parentInk = Color(0xFF201E1D)       // text and rules
-    val parentInkSoft = Color(0xFF6B6866)
-    val parentAccent = Color(0xFFEC3013)    // the red
-    val parentAccentSoft = Color(0xFFFBE4DF) // hover tint / red band background
-    val parentLine = Color(0xFF201E1D)
-    val parentRule = Color(0xFFD9D6D2)      // light rules, disabled
-    val parentDisabled = Color(0xFFA9A5A1)
+    // Generated from design/tokens.json (`hq.color.*`); never hard-code these again.
+    val parentBg = DesignTokens.colorBg              // ground
+    val parentSurface = DesignTokens.colorSurface
+    val parentInk = DesignTokens.colorInk            // text and rules
+    val parentInkSoft = DesignTokens.colorInkSoft
+    val parentAccent = DesignTokens.colorAccent      // the red
+    val parentAccentSoft = DesignTokens.colorAccentSoft // hover tint / red band background
+
+    /**
+     * The same red darkened until white-on-red and red-on-ground both clear 4.5:1. Use it for accent TEXT and for
+     * fills that carry text; [parentAccent] stays the brand red for rules and glyphs.
+     */
+    val parentAccentStrong = DesignTokens.colorAccentStrong
+    val parentLine = DesignTokens.colorLine
+    val parentRule = DesignTokens.colorRule          // light rules, disabled
+    val parentDisabled = DesignTokens.colorDisabled
 
     /** Progress bands, never red. */
-    val bandGood = mint
-    val bandMid = sun
-    val bandLook = coral
+    val bandGood = DesignTokens.colorBandGood
+    val bandMid = DesignTokens.colorBandMid
+    val bandLook = DesignTokens.colorBandLook
 }
 
-/** Admin panel (web) measurements — the only place sizes for `webAdmin/` are defined. */
+/**
+ * Admin panel (web) measurements — the only place sizes for `webAdmin/` are defined.
+ * Generated from design/tokens.json (`hq.size.*`).
+ */
 object AdminTokens {
-    val navWidth = 240.dp
-    val contentMaxWidth = 1100.dp
-    val rule = 2.dp
-    val ruleThin = 1.dp
-    val selectedBorder = 4.dp
-    val rowHeight = 56.dp
-    val buttonHeight = 44.dp
-    val inputHeight = 48.dp
-    val pagePadding = 32.dp
-    val gutter = 24.dp
-    val courseCard = 132.dp
-    val gradeCard = 96.dp
-    val phoneWidth = 396.dp
-    val phoneHeight = 812.dp
-    val phoneBezel = 10.dp
-    val phoneCorner = 40.dp
-    val progressBar = 6.dp
-    val spinner = 28.dp
-    val dropZoneHeight = 160.dp
-    val stopListWidth = 300.dp
-    val logoSize = 28.dp
+    val navWidth = DesignTokens.sizeNavWidth
+    val contentMaxWidth = DesignTokens.sizeContentMaxWidth
+    val rule = DesignTokens.sizeRule
+    val ruleThin = DesignTokens.sizeRuleThin
+    val selectedBorder = DesignTokens.sizeSelectedBorder
+    val rowHeight = DesignTokens.sizeRowHeight
+    val buttonHeight = DesignTokens.sizeButtonHeight
+    val inputHeight = DesignTokens.sizeInputHeight
+    val pagePadding = DesignTokens.sizePagePadding
+    val gutter = DesignTokens.sizeGutter
+    val courseCard = DesignTokens.sizeCourseCard
+    val gradeCard = DesignTokens.sizeGradeCard
+    val phoneWidth = DesignTokens.sizePhoneWidth
+    val phoneHeight = DesignTokens.sizePhoneHeight
+    val phoneBezel = DesignTokens.sizePhoneBezel
+    val phoneCorner = DesignTokens.sizePhoneCorner
+    val progressBar = DesignTokens.sizeProgressBar
+    val spinner = DesignTokens.sizeSpinner
+    val dropZoneHeight = DesignTokens.sizeDropZoneHeight
+    val stopListWidth = DesignTokens.sizeStopListWidth
+    val logoSize = DesignTokens.sizeLogoSize
 }
 
 object Dimens {
@@ -72,7 +89,7 @@ object Dimens {
     val radiusTile = 24.dp
     val radiusCard = 28.dp
     val radiusSheet = 32.dp
-    val radiusParent = 0.dp   // square corners in parent mode / admin
+    val radiusParent = DesignTokens.sizeRadius   // square corners in parent mode / admin
     val pipSmall = 96.dp
     val pipMedium = 140.dp
     val pipLarge = 200.dp
