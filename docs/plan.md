@@ -114,6 +114,6 @@ Reviewer: `quality-performance` on every PR above.
 | P1.3 | #31 | merged, on QA | review found 5 blockers (XFF rate-limit bypass, unscoped school list, weak coverage test, reset reviving disabled accounts, timing enumeration) → all fixed (107 tests) |
 | P1.8 | #34 | merged | app sends bearer on media; seeded shuffles |
 | P1.6 | #35 | merged | seed + isolation: local 11 pass / 5 blocked until P1.9; QA run pending P1.9 deploy |
-| P1.9 | #36 | in review | one item (uniform 404 body) fixed |
+| P1.9 | #36 | merged, deploying to QA | one review item (uniform 404 body) fixed; 121 server tests |
 | P1.7 | #37 | merged | two review items (PATH in fenced blocks, workflow count) fixed |
 | P1.10 | #38 | merged, on QA | env applied; `RESEND_API_KEY` container created, not wired until a version exists |
