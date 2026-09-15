@@ -43,6 +43,17 @@ your values via `gcloud secrets versions add` — they never enter the Terraform
 Values never appear in chat, commits or logs. After that, CI deploys through Workload Identity and re-applies Terraform on
 every deploy. Parents' ID tokens are verified with the Cloud Run service account — no Firebase service-account key anywhere.
 
+## Sleeping an environment
+
+Cloud Run scales to zero by itself; the database is the only part that bills while idle. Stop it when QA is not in use
+and start it again when needed — the deploy workflows wake it themselves before deploying:
+
+```bash
+infra/env.sh qa sleep     # stops Cloud SQL (data kept, storage-only cost); the API answers 503 meanwhile
+infra/env.sh qa wake      # starts it again (~1–2 min); the API is back as soon as the database is up
+infra/env.sh qa status
+```
+
 ## The six workflows
 
 | Workflow | Trigger | What it does |
