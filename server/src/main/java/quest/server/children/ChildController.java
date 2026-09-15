@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -48,11 +49,13 @@ public class ChildController {
         this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl();
     }
 
+    @PreAuthorize("@permit.has('child.read')")
     @GetMapping(value = "/children", produces = MediaType.APPLICATION_JSON_VALUE)
     public String listChildren(@AuthenticationPrincipal Principals.Parent parent) {
         return json.encodeShared(childService.list(parent), BuiltinSerializersKt.ListSerializer(Child.Companion.serializer()));
     }
 
+    @PreAuthorize("@permit.has('child.write')")
     @PostMapping(value = "/children", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public String createChild(@AuthenticationPrincipal Principals.Parent parent, @RequestBody String body) {
@@ -60,16 +63,19 @@ public class ChildController {
         return json.encodeShared(childService.create(parent, req), Child.Companion.serializer());
     }
 
+    @PreAuthorize("@permit.has('child.write')")
     @PatchMapping(value = "/children/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public String updateChild(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestBody String body) {
         var req = decode(body, UpdateChildRequest.Companion.serializer());
         return json.encodeShared(childService.update(parent, id, req), Child.Companion.serializer());
     }
 
+    @PreAuthorize("@permit.has('child.write')")
     @DeleteMapping("/children/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteChild(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) { childService.delete(parent, id); }
 
+    @PreAuthorize("@permit.has('child.read')")
     @GetMapping(value = "/children/{id}/map", produces = MediaType.APPLICATION_JSON_VALUE)
     public String childMap(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestParam String from, @RequestParam String to, @RequestParam(required = false) String today) {
         var child = childService.owned(id, parent);
@@ -79,6 +85,7 @@ public class ChildController {
         return json.encodeShared(mapService.map(child, f, t, d), MapResponse.Companion.serializer());
     }
 
+    @PreAuthorize("@permit.has('child.play')")
     @PostMapping(value = "/children/{id}/attempts", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public String uploadAttempts(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestBody String body) {
         var child = childService.owned(id, parent);
@@ -87,6 +94,7 @@ public class ChildController {
         return json.encodeShared(new AttemptAck(attemptService.record(child, uploads)), AttemptAck.Companion.serializer());
     }
 
+    @PreAuthorize("@permit.has('child.play')")
     @PostMapping(value = "/children/{id}/stops/{stopId}/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public String uploadChildMedia(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @PathVariable String stopId, @RequestParam("kind") String kind, @RequestPart("file") MultipartFile file) throws java.io.IOException {
         var child = childService.owned(id, parent);
@@ -104,6 +112,7 @@ public class ChildController {
         return json.encodeShared(new MediaRef(mediaId, url, mk), MediaRef.Companion.serializer());
     }
 
+    @PreAuthorize("@permit.has('child.read')")
     @GetMapping(value = "/children/{id}/progress", produces = MediaType.APPLICATION_JSON_VALUE)
     public String childProgress(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) {
         var child = childService.owned(id, parent);

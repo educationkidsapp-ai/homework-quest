@@ -5,10 +5,13 @@
     "media.read": ["PUBLIC"],
     "auth.signIn": ["PUBLIC"],
     "auth.refresh": ["PUBLIC"],
+    "auth.signOut": ["PUBLIC"],
     "auth.forgotPassword": ["PUBLIC"],
     "auth.resetPassword": ["PUBLIC"],
     "auth.changePassword": ["ADMIN", "TEACHER", "MANAGERIAL"],
     "school.join": ["PUBLIC"],
+    "invite.read": ["PUBLIC"],
+    "invite.accept": ["PUBLIC"],
     "child.read": ["PARENT"],
     "child.write": ["PARENT"],
     "child.play": ["PARENT"],
@@ -25,6 +28,7 @@
     "school.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
     "school.write": ["ADMIN"],
     "user.read": ["ADMIN", "MANAGERIAL"],
+    "user.write": ["ADMIN", "MANAGERIAL"],
     "user.invite": ["ADMIN", "MANAGERIAL"],
     "user.impersonate": ["ADMIN"],
     "me.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
@@ -41,6 +45,7 @@
     { "method": "POST", "path": "/admin/auth/sign-in", "permission": "auth.signIn" },
     { "method": "POST", "path": "/auth/sign-in", "permission": "auth.signIn" },
     { "method": "POST", "path": "/auth/refresh", "permission": "auth.refresh" },
+    { "method": "POST", "path": "/auth/sign-out", "permission": "auth.signOut" },
     { "method": "POST", "path": "/auth/forgot-password", "permission": "auth.forgotPassword" },
     { "method": "POST", "path": "/auth/reset-password", "permission": "auth.resetPassword" },
     { "method": "POST", "path": "/auth/change-password", "permission": "auth.changePassword" },
@@ -58,6 +63,9 @@
     { "method": "POST", "path": "/children/{id}/stops/{stopId}/media", "permission": "child.play" },
     { "method": "GET", "path": "/lessons/{id}", "permission": "lesson.play" },
     { "method": "GET", "path": "/schools/by-code/{code}", "permission": "school.join" },
+
+    { "method": "GET", "path": "/invites/{token}", "permission": "invite.read" },
+    { "method": "POST", "path": "/invites/{token}/accept", "permission": "invite.accept" },
 
     { "method": "GET", "path": "/admin/lessons", "permission": "lesson.read" },
     { "method": "POST", "path": "/admin/lessons", "permission": "lesson.write" },
@@ -90,9 +98,12 @@
     { "method": "GET", "path": "/admin/schools", "permission": "school.read" },
     { "method": "POST", "path": "/admin/schools", "permission": "school.write" },
     { "method": "GET", "path": "/admin/schools/{id}", "permission": "school.read" },
-    { "method": "PUT", "path": "/admin/schools/{id}", "permission": "school.write" },
-    { "method": "GET", "path": "/admin/schools/{id}/users", "permission": "user.read" },
+    { "method": "PATCH", "path": "/admin/schools/{id}", "permission": "school.write" },
     { "method": "POST", "path": "/admin/schools/{id}/invites", "permission": "user.invite" },
+
+    { "method": "GET", "path": "/admin/users", "permission": "user.read" },
+    { "method": "PATCH", "path": "/admin/users/{id}", "permission": "user.write" },
+    { "method": "POST", "path": "/admin/users/{id}/reset-password", "permission": "user.write" },
     { "method": "POST", "path": "/admin/users/{id}/impersonate", "permission": "user.impersonate" }
   ]
 }

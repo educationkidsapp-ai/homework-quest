@@ -20,12 +20,20 @@ class OpenApiContractTest extends ApiTestSupport {
             "/admin/auth/sign-in", "/admin/lessons", "/admin/lessons/{id}", "/admin/lessons/{id}/files", "/admin/lessons/{id}/analyze", "/admin/lessons/{id}/skills",
             "/admin/stops/{stopId}", "/admin/stops/{stopId}/regenerate", "/admin/plays/{playId}/regenerate", "/admin/lessons/{id}/parent-panel",
             "/admin/lessons/{id}/publish", "/admin/lessons/{id}/unpublish", "/admin/cache", "/admin/usage", "/admin/calendar");
+    /** `quest.api.dashboard.DashboardApi` (P1.3): the Angular client is generated from exactly these. */
+    static final List<String> DASHBOARD_API = List.of(
+            "/auth/sign-in", "/auth/refresh", "/auth/sign-out", "/auth/forgot-password", "/auth/reset-password", "/auth/change-password",
+            "/me", "/me/permissions",
+            "/admin/schools", "/admin/schools/{id}", "/admin/schools/{id}/invites",
+            "/admin/users", "/admin/users/{id}", "/admin/users/{id}/reset-password", "/admin/users/{id}/impersonate",
+            "/invites/{token}", "/invites/{token}/accept", "/schools/by-code/{code}");
 
     @Test void every_shared_api_route_is_served() throws Exception {
         var doc = json(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn());
         Set<String> paths = new java.util.HashSet<>(); doc.get("paths").fieldNames().forEachRemaining(paths::add);
         assertThat(paths).containsAll(CONTENT_API);
         assertThat(paths).containsAll(ADMIN_API);
+        assertThat(paths).containsAll(DASHBOARD_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
     }
 }
