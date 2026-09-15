@@ -45,6 +45,7 @@ API allows (each `BLOCKED` line says why).
 
 ```bash
 export JAVA_HOME=/Users/kareemshehab/.gradle/jdks/eclipse_adoptium-21-aarch64-os_x.2/jdk-21.0.11+10/Contents/Home
+export PATH="$JAVA_HOME/bin:$PATH"   # `java` must be 21: JAVA_HOME alone only steers ./mvnw, not the `java` below
 ./gradlew :shared-api:publishToMavenLocal -Pquest.serverOnly=true     # the server builds against the published contract
 
 # either server/run-local.sh (port 8080, reads ../.env), or explicitly:
