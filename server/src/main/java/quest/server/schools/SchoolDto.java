@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
+import quest.server.platform.ThemeDto;
 
 /** The Java mirror of the school half of `quest.api.dashboard` (§2, §6 screens 4–5). */
 public final class SchoolDto {
@@ -25,6 +26,10 @@ public final class SchoolDto {
     /** Only the fields that are present are written. */
     public record UpdateSchoolRequest(@Size(max = 120) String name, List<String> curriculumOptions, List<Integer> gradeOptions, String status) {}
 
-    /** What a parent sees after typing a school code, before confirming (§2, app "Join school"). */
-    public record JoinSchoolInfo(String name, String logoUrl, List<String> curriculumOptions, List<Integer> gradeOptions) {}
+    /**
+     * What a parent sees after typing a school code, before confirming (§2, app "Join school"). `theme` is the
+     * school's §3 theme, so the app can run the colour transition on the confirm step without a second request.
+     */
+    public record JoinSchoolInfo(String name, String logoUrl, List<String> curriculumOptions, List<Integer> gradeOptions,
+                                 ThemeDto.SchoolTheme theme) {}
 }

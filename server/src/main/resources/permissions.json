@@ -34,7 +34,17 @@
     "user.create": ["ADMIN"],
     "user.impersonate": ["ADMIN"],
     "me.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
-    "me.permissions": ["ADMIN", "TEACHER", "MANAGERIAL"]
+    "me.permissions": ["ADMIN", "TEACHER", "MANAGERIAL"],
+
+    "school.flags": ["PUBLIC"],
+    "school.theme": ["PUBLIC"],
+    "platform.read": ["PUBLIC"],
+    "platform.manage": ["ADMIN"],
+    "platform.write": ["ADMIN"],
+    "flag.read": ["ADMIN", "MANAGERIAL"],
+    "flag.write": ["ADMIN"],
+    "theme.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "theme.write": ["ADMIN"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -65,6 +75,9 @@
     { "method": "POST", "path": "/children/{id}/stops/{stopId}/media", "permission": "child.play" },
     { "method": "GET", "path": "/lessons/{id}", "permission": "lesson.play" },
     { "method": "GET", "path": "/schools/by-code/{code}", "permission": "school.join" },
+    { "method": "GET", "path": "/schools/{id}/flags", "permission": "school.flags" },
+    { "method": "GET", "path": "/schools/{id}/theme", "permission": "school.theme" },
+    { "method": "GET", "path": "/platform-settings", "permission": "platform.read" },
 
     { "method": "GET", "path": "/invites/{token}", "permission": "invite.read" },
     { "method": "POST", "path": "/invites/{token}/accept", "permission": "invite.accept" },
@@ -103,6 +116,16 @@
     { "method": "PATCH", "path": "/admin/schools/{id}", "permission": "school.write" },
     { "method": "POST", "path": "/admin/schools/{id}/invites", "permission": "user.invite" },
     { "method": "POST", "path": "/admin/schools/{id}/users", "permission": "user.create" },
+    { "method": "GET", "path": "/admin/schools/{id}/theme", "permission": "theme.read" },
+    { "method": "PUT", "path": "/admin/schools/{id}/theme", "permission": "theme.write" },
+    { "method": "PUT", "path": "/admin/schools/{id}/flags/{key}", "permission": "flag.write" },
+
+    { "method": "GET", "path": "/admin/flags", "permission": "flag.read" },
+    { "method": "GET", "path": "/admin/flags/audit", "permission": "flag.read" },
+    { "method": "PUT", "path": "/admin/flags/{key}/all", "permission": "flag.write" },
+
+    { "method": "GET", "path": "/admin/platform-settings", "permission": "platform.manage" },
+    { "method": "PUT", "path": "/admin/platform-settings", "permission": "platform.write" },
 
     { "method": "GET", "path": "/admin/users", "permission": "user.read" },
     { "method": "PATCH", "path": "/admin/users/{id}", "permission": "user.write" },

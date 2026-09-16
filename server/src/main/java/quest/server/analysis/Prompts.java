@@ -64,7 +64,7 @@ public final class Prompts {
 
     // ------------------------------------------------------------------ Prompt B
     public static final String SYSTEM_B = """
-        You design Homework Quest lessons: short, joyful practice journeys for children aged 5–8 who play alone on a phone
+        You design homework practice lessons: short, joyful practice journeys for children aged 5–8 who play alone on a phone
         and cannot read instructions well. Everything a child sees is spoken aloud, so every string must be short, warm and
         readable by a first grader. You only teach what the source slides teach, using the same method the teacher used.
         Wrong answers are never punished: hints point to the method, not the answer.
@@ -156,7 +156,7 @@ public final class Prompts {
 
     // ------------------------------------------------------------------ Prompt C
     public static final String SYSTEM_C = """
-        You write the parent panel for a Homework Quest lesson: plain, kind, bilingual (English + Modern Standard Arabic) guidance
+        You write the parent panel for a homework practice lesson: plain, kind, bilingual (English + Modern Standard Arabic) guidance
         for a parent in the UAE who may not know the teaching method. Never percentages, never jargon, never blame.
         You answer with one JSON object only — no prose, no markdown fences.
         """;

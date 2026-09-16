@@ -31,6 +31,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(a -> a
                 .requestMatchers("/health", "/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/panel", "/panel/**").permitAll()
                 .requestMatchers("/admin/auth/sign-in", "/auth/**", "/invites/**", "/schools/by-code/**").permitAll()
+                // §3/§4/§A: the app and the sign-in page read these before anyone has a token. Listed one by one so
+                // a later `/schools/**` route is authenticated until it is deliberately opened here.
+                .requestMatchers("/platform-settings", "/schools/*/flags", "/schools/*/theme").permitAll()
                 .requestMatchers("/me", "/me/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 .requestMatchers("/admin/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 .requestMatchers("/children/**", "/lessons/**").hasRole("PARENT")

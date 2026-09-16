@@ -14,6 +14,7 @@ import quest.server.auth.AuditService;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
+import quest.server.platform.ThemeService;
 import quest.server.tenancy.Entities;
 import quest.server.tenancy.SchoolRepository;
 
@@ -25,8 +26,9 @@ public class SchoolService {
     private static final List<String> CURRICULA = List.of("american", "british");
 
     private final SchoolRepository schools; private final Json json; private final EntityManager em; private final AuditService audit;
-    public SchoolService(SchoolRepository schools, Json json, EntityManager em, AuditService audit) {
-        this.schools = schools; this.json = json; this.em = em; this.audit = audit;
+    private final ThemeService themes;
+    public SchoolService(SchoolRepository schools, Json json, EntityManager em, AuditService audit, ThemeService themes) {
+        this.schools = schools; this.json = json; this.em = em; this.audit = audit; this.themes = themes;
     }
 
     /**
@@ -56,10 +58,12 @@ public class SchoolService {
         return caller == null || caller.schoolId() == null ? "" : caller.schoolId();
     }
 
+    /** The theme travels with the answer so the app's confirm step can run its colour transition straight away (§3). */
     public SchoolDto.JoinSchoolInfo byCode(String code) {
         var school = schools.findByCodeIgnoreCase(code == null ? "" : code.trim()).filter(s -> "active".equals(s.getStatus()))
                 .orElseThrow(() -> ApiException.notFound("school"));
-        return new SchoolDto.JoinSchoolInfo(school.getName(), logoUrl(school), curricula(school), grades(school));
+        var theme = themes.themeOf(school);
+        return new SchoolDto.JoinSchoolInfo(school.getName(), theme.logoUrl(), curricula(school), grades(school), theme);
     }
 
     @Transactional
@@ -146,11 +150,4 @@ public class SchoolService {
 
     private List<String> curricula(Entities.SchoolEntity school) { return json.read(school.getCurriculumOptionsJson(), new TypeReference<List<String>>() {}); }
     private List<Integer> grades(Entities.SchoolEntity school) { return json.read(school.getGradeOptionsJson(), new TypeReference<List<Integer>>() {}); }
-
-    /** The theme package (P2.1) owns the logo; until then `theme_json.logoUrl` is the only place it could live. */
-    private String logoUrl(Entities.SchoolEntity school) {
-        if (school.getThemeJson() == null || school.getThemeJson().isBlank()) return null;
-        var node = json.tree(school.getThemeJson()).get("logoUrl");
-        return node == null || node.isNull() ? null : node.asText();
-    }
 }

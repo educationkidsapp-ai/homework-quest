@@ -2,15 +2,15 @@ package quest.server.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/**
+ * §A: there is no `platform-name` property any more. The product's name lives in the `platform_settings` row seeded
+ * by `V5__flags_themes.sql`, is edited by Admin under Platform settings, and is read through
+ * {@link quest.server.platform.PlatformSettingsService} — an environment variable that could silently win over the
+ * Admin's own setting would be a second source of truth.
+ */
 @ConfigurationProperties(prefix = "quest")
 public record QuestProperties(Auth auth, Llm llm, Anthropic anthropic, DeepSeek deepseek, Storage storage, Admin admin, Mail mail,
-                              String version, String publicUrl, String dashboardUrl, String platformName) {
-    /**
-     * The platform's name as it is first seeded (§A). It lives here, not in the mail code: P2.1 moves it into a
-     * `platform_settings` row and `quest.server.mail.PlatformName` is the only class that has to follow.
-     */
-    public static final String SEEDED_PLATFORM_NAME = "Schools Dashboard";
-
+                              String version, String publicUrl, String dashboardUrl) {
     /** fake=true accepts `Bearer fake-token-<uid>` (development without Firebase). */
     public record Auth(boolean fake, String firebaseCredentials, String jwtSecret, long jwtHours,
                        long accessMinutes, long refreshDays, long resetMinutes, long inviteDays, long impersonateMinutes,
