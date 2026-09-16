@@ -49,28 +49,33 @@ public class TeacherDirectoryService {
         for (var k : classes.listChecked(schoolId))
             if (k.teacherId() != null) classesByTeacher.computeIfAbsent(k.teacherId(), t -> new ArrayList<>()).add(k);
 
-        var published = new LinkedHashMap<String, Object[]>();
+        var published = new LinkedHashMap<String, Published>();
         var scope = Map.<String, Object>of("schoolId", schoolId);
         for (var row : Reports.rows(Reports.bind(em,
                 "SELECT k.teacher_id, COUNT(*) AS n, MAX(l.published_at) AS last FROM lessons l"
                         + " JOIN classes k ON k.id = l.class_id WHERE l.school_id = :schoolId AND l.status = 'published'"
-                        + " AND k.teacher_id IS NOT NULL GROUP BY k.teacher_id", scope)))
-            published.put(Reports.text(row[0]), new Object[] {Reports.number(row[1]), Reports.instant(row[2])});
+                        + " AND k.teacher_id IS NOT NULL GROUP BY k.teacher_id", scope))) {
+            var at = Reports.instant(row[2]);
+            published.put(Reports.text(row[0]), new Published((int) Reports.number(row[1]), at == null ? null : at.toEpochMilli()));
+        }
 
         var out = new ArrayList<SchoolDataDto.TeacherSummary>(accounts.size());
         for (var user : accounts) {
             var profile = byUser.get(user.getId());
-            var stats = published.get(user.getId());
-            var at = stats == null ? null : (java.time.Instant) stats[1];
+            var stats = published.getOrDefault(user.getId(), Published.NONE);
             out.add(new SchoolDataDto.TeacherSummary(user.getId(), user.getEmail(), user.getDisplayName(), user.getPhotoUrl(),
                     user.getStatus(),
                     profile == null ? List.of() : json.strings(profile.getSubjectsJson()),
                     profile == null ? null : profile.getCurriculum(),
                     profile == null ? List.<Integer>of() : json.read(profile.getGradesJson(), new TypeReference<List<Integer>>() {}),
                     classesByTeacher.getOrDefault(user.getId(), List.of()),
-                    stats == null ? 0 : (int) (long) (Long) stats[0],
-                    at == null ? null : at.toEpochMilli()));
+                    stats.lessons(), stats.lastAt()));
         }
         return List.copyOf(out);
+    }
+
+    /** How much one teacher has published, ever; {@link #NONE} is a teacher who has published nothing. */
+    private record Published(int lessons, Long lastAt) {
+        static final Published NONE = new Published(0, null);
     }
 }

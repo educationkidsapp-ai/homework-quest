@@ -118,10 +118,9 @@ public class SchoolClassService {
      * bypasses the tenant filter by design, so the school is compared here rather than assumed.
      */
     private UserEntity teacherOf(String schoolId, String teacherId) {
-        var user = users.findById(teacherId)
+        return users.findById(teacherId)
                 .filter(u -> schoolId.equals(u.getSchoolId()) && "TEACHER".equals(u.getRole()) && !"disabled".equals(u.getStatus()))
-                .orElseThrow(() -> ApiException.badRequest("That teacher is not an active teacher of this school."));
-        return user;
+                .orElseThrow(() -> ApiException.badRequest("That teacher is not a teacher of this school."));
     }
 
     private String teacherName(String teacherId) {
