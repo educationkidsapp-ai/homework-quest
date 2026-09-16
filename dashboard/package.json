@@ -18,9 +18,14 @@
     "e2e": "playwright test",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "gen:api": "node tools/gen-api.mjs"
+    "gen:api": "node tools/gen-api.mjs",
+    "postinstall": "node tools/gen-api.mjs",
+    "e2e:local": "playwright test --config=playwright.local.config.ts",
+    "budget": "node tools/budget.mjs",
+    "gen:permissions": "node tools/gen-permissions.mjs"
   },
   "dependencies": {
+    "@angular/cdk": "22.1.6",
     "@angular/common": "^22.1.0",
     "@angular/compiler": "^22.1.0",
     "@angular/core": "^22.1.0",
@@ -36,6 +41,7 @@
     "@angular/cli": "^22.1.8",
     "@angular/compiler-cli": "^22.1.0",
     "@eslint/js": "^10.0.1",
+    "@openapitools/openapi-generator-cli": "2.41.0",
     "@playwright/test": "^1.63.0",
     "@testing-library/angular": "^19.5.0",
     "@testing-library/dom": "^10.4.2",

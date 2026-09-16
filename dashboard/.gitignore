@@ -42,3 +42,9 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Generated API client (pnpm gen:api, run from postinstall and in CI)
+/src/app/api/generated
+
+# Playwright traces and failure context
+/e2e/.output

@@ -52,6 +52,27 @@ body {
   height: 100%;
 }
 
+// A school's theme is six custom properties swapped on `<html>` at runtime; the transition
+// is what makes that read as the page changing colour rather than as a repaint. 300 ms, §3.
+html,
+body {
+  transition:
+    background-color var(--hq-theme-transition, 0ms) var(--hq-motion-ease),
+    color var(--hq-theme-transition, 0ms) var(--hq-motion-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body {
+    transition-duration: 0ms;
+  }
+}
+
+:root[data-hq-reduced-motion='true'],
+:root[data-hq-reduced-motion='true'] body {
+  transition-duration: 0ms;
+}
+
 html {
   font-family: var(--hq-font-family-latin);
   font-size: var(--hq-font-body-size);
