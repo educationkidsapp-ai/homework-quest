@@ -11,6 +11,7 @@ import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.SchoolTheme
 import quest.core.db.QuestJson
 import quest.core.db.SettingsStore
+import quest.core.runCancellable
 import quest.feature.content.domain.SchoolApi
 import quest.feature.school.domain.SchoolBranding
 import quest.feature.school.domain.SchoolSession
@@ -94,7 +95,7 @@ class SchoolSessionImpl(
     // ---- network refresh; every failure keeps what the device already has ------------------------------------------
 
     private suspend fun refreshFlags(schoolId: String) {
-        val fetched = runCatching { api.schoolFlags(schoolId) }.getOrNull() ?: return
+        val fetched = runCancellable { api.schoolFlags(schoolId) }.getOrNull() ?: return
         // The server is authoritative for the keys it sends; a key it has never heard of keeps its platform default,
         // so an app that ships a flag before the server seeds it still runs.
         val merged = DEFAULT_FLAGS + fetched
@@ -104,7 +105,7 @@ class SchoolSessionImpl(
 
     private suspend fun refreshTheme(schoolId: String) {
         val cachedEtag = settings.get(etagKey(schoolId))
-        val fetch = runCatching { schools.schoolTheme(schoolId, cachedEtag) }.getOrNull() ?: return
+        val fetch = runCancellable { schools.schoolTheme(schoolId, cachedEtag) }.getOrNull() ?: return
         if (fetch.notModified) return
         val theme = fetch.theme ?: return
         _theme.value = theme
@@ -115,7 +116,7 @@ class SchoolSessionImpl(
 
     /** §A: the platform's own name, so a school without an `appName` still shows the product's current name. */
     private suspend fun refreshPlatformName() {
-        val name = runCatching { schools.platformSettings() }.getOrNull()?.name?.takeIf { it.isNotBlank() } ?: return
+        val name = runCancellable { schools.platformSettings() }.getOrNull()?.name?.takeIf { it.isNotBlank() } ?: return
         settings.set(KEY_PLATFORM_NAME, name)
         if (_theme.value?.appName.isNullOrBlank()) _branding.value = _branding.value.copy(appName = name)
     }

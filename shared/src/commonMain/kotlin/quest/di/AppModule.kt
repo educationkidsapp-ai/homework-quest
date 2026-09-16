@@ -65,15 +65,28 @@ fun apiModule(config: ApiConfig): Module = module {
     // Real Firebase Authentication (REST, shared by every platform) when the environment has a key; FakeAuth otherwise.
     single<AuthProvider> {
         val key = (config as? ApiConfig.Server)?.firebaseApiKey.orEmpty()
-        if (key.isBlank()) FakeAuth(get()) else FirebaseAuth(key, get(), HttpClient())
+        if (key.isBlank()) FakeAuth(get()) else FirebaseAuth(key, get(), get())
     }
     single<SessionRestorer> { get<AuthProvider>() as SessionRestorer }
+    // One Ktor client for the whole app: each `HttpClient()` starts an engine and its own thread pool, and the two
+    // implementations plus the logo loader all want the same one. `RemoteContentApi` still derives its own config.
+    single { HttpClient() }
+    // Bound by concrete type first, then aliased: `ContentApi` and `SchoolApi` are two views of the same object, and
+    // going through the concrete class makes that a compile error to get wrong rather than a DI-time ClassCastException.
     when (config) {
-        ApiConfig.Fake -> single<ContentApi> {
-            val db = get<Db>()
-            FakeContentApi(get(), persisted = { childId -> db.read { selectAllAttempts(childId).executeAsList().map { quest.api.dto.AttemptUpload(it.id, it.stopId, it.lessonId, it.level.toInt(), it.answerJson, it.correct == 1L, it.attemptNumber.toInt(), it.mistakes.toInt(), it.stars.toInt(), it.answeredAt) } } })
+        ApiConfig.Fake -> {
+            single {
+                val db = get<Db>()
+                FakeContentApi(get(), persisted = { childId -> db.read { selectAllAttempts(childId).executeAsList().map { quest.api.dto.AttemptUpload(it.id, it.stopId, it.lessonId, it.level.toInt(), it.answerJson, it.correct == 1L, it.attemptNumber.toInt(), it.mistakes.toInt(), it.stars.toInt(), it.answeredAt) } } })
+            }
+            single<ContentApi> { get<FakeContentApi>() }
+            single<SchoolApi> { get<FakeContentApi>() }
         }
-        is ApiConfig.Server -> single<ContentApi> { RemoteContentApi(config.baseUrl, get(), HttpClient()) }
+        is ApiConfig.Server -> {
+            single { RemoteContentApi(config.baseUrl, get(), get()) }
+            single<ContentApi> { get<RemoteContentApi>() }
+            single<SchoolApi> { get<RemoteContentApi>() }
+        }
     }
 }
 
@@ -90,8 +103,7 @@ val coreModule = module {
  * works with and without a backend.
  */
 val schoolModule = module {
-    single<SchoolApi> { get<ContentApi>() as SchoolApi }
-    single<SchoolLogoLoader> { HttpSchoolLogos() }
+    single<SchoolLogoLoader> { HttpSchoolLogos(get()) }
     single<SchoolSession> { SchoolSessionImpl(get(), get(), get()) }
     single<FlagStore> { get<SchoolSession>() }
 }

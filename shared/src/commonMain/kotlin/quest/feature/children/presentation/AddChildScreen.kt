@@ -41,6 +41,7 @@ import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
+import quest.core.runCancellable
 import quest.feature.children.domain.AddChildUseCase
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.presentation.Chip
@@ -122,7 +123,7 @@ class AddChildViewModel(
                 val code = current.schoolCode
                 if (code.length != AddChildContract.CODE_LENGTH) return
                 reduce { copy(lookingUp = true, schoolNotFound = false) }
-                runCatching { school.lookUp(code) }
+                runCancellable { school.lookUp(code) }
                     .onSuccess { info -> reduce { copy(lookingUp = false, school = info, joinStep = AddChildContract.JoinStep.FOUND, schoolNotFound = false) } }
                     // Every failure reads the same to the parent: a wrong code and a school that is offline are the
                     // same problem from the kitchen table, and neither is worth a second message.
@@ -147,12 +148,12 @@ class AddChildViewModel(
             AddChildContract.Intent.Save -> {
                 reduce { copy(busy = true, error = null) }
                 val code = current.schoolCode.takeIf { current.joinStep == AddChildContract.JoinStep.CONFIRMED }
-                runCatching {
+                runCancellable {
                     if (editingId == null) addChild(CreateChildRequest(current.name.trim(), current.avatar, current.curriculum, current.grade, current.languages, code))
                     else children.update(editingId, UpdateChildRequest(current.name.trim(), current.avatar, current.curriculum, current.grade, current.languages))
                 }.onSuccess { child ->
                     // The server decides which school the code belongs to; that id is what the theme and flags follow.
-                    runCatching { school.use(child.schoolId) }
+                    runCancellable { school.use(child.schoolId) }
                     reduce { copy(busy = false) }
                     effect(AddChildContract.Effect.Saved(child))
                 }.onFailure { e -> reduce { copy(busy = false, error = e.message) } }

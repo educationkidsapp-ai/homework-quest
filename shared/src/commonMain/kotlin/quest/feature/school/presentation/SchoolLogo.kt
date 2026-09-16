@@ -27,6 +27,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.decodeToImageBitmap
+import quest.core.runCancellable
 import quest.feature.school.domain.NoSchoolLogos
 import quest.feature.school.domain.SchoolLogoLoader
 
@@ -41,7 +42,7 @@ private fun rememberSchoolLogo(url: String?): State<ImageBitmap?> {
     return produceState<ImageBitmap?>(initialValue = url?.let { decoded[it] }, url, loader) {
         if (url.isNullOrBlank()) { value = null; return@produceState }
         decoded[url]?.let { value = it; return@produceState }
-        val bytes = runCatching { loader.load(url) }.getOrNull()
+        val bytes = runCancellable { loader.load(url) }.getOrNull()
         value = bytes?.let { runCatching { it.decodeToImageBitmap() }.getOrNull() }?.also { decoded[url] = it }
     }
 }

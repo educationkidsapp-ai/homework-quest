@@ -11,6 +11,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
+import quest.core.runCancellable
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.school.domain.SchoolBranding
 import quest.feature.school.domain.SchoolLogoLoader
@@ -50,10 +51,10 @@ fun SchoolThemeHost(content: @Composable () -> Unit) {
 
     // The child decides the school: switching child switches theme and flags together, and a child in the default
     // school clears both. While there is no current child yet, whatever `restore()` painted stays on screen.
-    LaunchedEffect(child?.schoolId) { child?.schoolId?.let { runCatching { session.use(it) } } }
+    LaunchedEffect(child?.schoolId) { child?.schoolId?.let { runCancellable { session.use(it) } } }
     LaunchedEffect(Unit) {
         while (true) {
-            runCatching { session.sync() }
+            runCancellable { session.sync() }
             delay(SYNC_INTERVAL_MILLIS)
         }
     }

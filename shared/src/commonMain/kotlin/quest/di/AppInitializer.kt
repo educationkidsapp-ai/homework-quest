@@ -1,6 +1,7 @@
 package quest.di
 
 import quest.core.db.SettingsStore
+import quest.core.runCancellable
 import quest.feature.auth.data.SessionRestorer
 import quest.feature.school.domain.SchoolSession
 
@@ -15,6 +16,6 @@ class AppInitializer(private val settings: SettingsStore, private val auth: Sess
     suspend fun initialise() {
         settings.load()
         auth.restore()
-        runCatching { school.restore() }
+        runCancellable { school.restore() }
     }
 }

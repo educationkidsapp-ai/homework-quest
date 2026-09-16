@@ -22,4 +22,19 @@ object Flags {
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */
     fun isKnown(key: String): Boolean = key in DEFAULT_FLAGS
+
+    /**
+     * The highest level a school offers. Level 3 is the Challenge path; without [LEVEL_THREE] a lesson tops out at 2.
+     *
+     * This is spelled once, here, because "the Harder path is not offered" has to hold at *every* door into it — the
+     * journey's level selector, the finish screen's next-level button, and the route itself — and three separate
+     * `if (flag) 3 else 2` expressions is exactly how one of those doors gets left open.
+     */
+    fun topLevel(levelThreeEnabled: Boolean): Int = if (levelThreeEnabled) 3 else 2
+
+    /** The levels a school's journey offers, in order. */
+    fun levels(levelThreeEnabled: Boolean): List<Int> = (1..topLevel(levelThreeEnabled)).toList()
+
+    /** False for a level this school does not sell — a route into it must land somewhere else. */
+    fun levelAllowed(level: Int, levelThreeEnabled: Boolean): Boolean = level <= topLevel(levelThreeEnabled)
 }

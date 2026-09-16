@@ -31,6 +31,7 @@ import quest.feature.rewards.presentation.TreasureChestRoute
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.GateFallback
+import quest.feature.school.presentation.LevelGate
 import quest.feature.school.presentation.SchoolThemeHost
 import quest.ui.design.ChildTheme
 
@@ -73,10 +74,15 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
         composable<Routes.Journey> { entry ->
             val r = entry.toRoute<Routes.Journey>()
             ChildTheme {
-                JourneyRoute(r.lessonId, r.level, r.variant,
-                    onOpenStop = { id, level, variant, index -> nav.navigate(Routes.StopPlayer(id, level, variant, index)) },
-                    onComplete = { id, level, variant -> nav.navigate(Routes.LessonComplete(id, level, variant)) },
-                    onParentPanel = { nav.navigate(Routes.ParentPin(it)) }, onBack = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } })
+                // §4 `levels.three`: the route is the last door into the Challenge path. A child who reaches it any
+                // other way — a deep link, a back stack from before the flag was turned off — lands on the map
+                // instead of a level whose own selector would not even list it.
+                LevelGate(r.level, onRefused = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } }) {
+                    JourneyRoute(r.lessonId, r.level, r.variant,
+                        onOpenStop = { id, level, variant, index -> nav.navigate(Routes.StopPlayer(id, level, variant, index)) },
+                        onComplete = { id, level, variant -> nav.navigate(Routes.LessonComplete(id, level, variant)) },
+                        onParentPanel = { nav.navigate(Routes.ParentPin(it)) }, onBack = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } })
+                }
             }
         }
         composable<Routes.StopPlayer> { entry ->

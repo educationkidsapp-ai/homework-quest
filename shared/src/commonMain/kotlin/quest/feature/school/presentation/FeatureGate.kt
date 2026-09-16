@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import quest.api.DEFAULT_FLAGS
 import quest.feature.school.domain.FlagStore
+import quest.feature.school.domain.Flags
 
 /**
  * §4's rule on the app side: **every screen sits inside a gate.** A screen whose flag is off is simply not composed —
@@ -38,6 +39,20 @@ fun FeatureGate(key: String, content: @Composable () -> Unit) {
 fun GateFallback(key: String, onClosed: () -> Unit) {
     val open = featureEnabled(key)
     LaunchedEffect(open) { if (!open) onClosed() }
+}
+
+/**
+ * The door into one level of a lesson (§4 `levels.three`). Composes [content] only when this school sells [level];
+ * otherwise nothing is composed and [onRefused] fires once, so a route into the Challenge path a school does not have
+ * lands on the map rather than on a level whose own selector would not even list it.
+ *
+ * It is a composable rather than an `if` written out at the route because there is more than one door — the journey,
+ * and anything that deep-links into it — and each one written by hand is a door left open.
+ */
+@Composable
+fun LevelGate(level: Int, onRefused: () -> Unit, content: @Composable () -> Unit) {
+    val allowed = Flags.levelAllowed(level, featureEnabled(Flags.LEVEL_THREE))
+    if (allowed) content() else LaunchedEffect(level) { onRefused() }
 }
 
 /** The same decision as [FeatureGate] where the flag changes a parameter rather than whether something is drawn. */
