@@ -10,6 +10,10 @@
 # platform name is set back to what `GET /platform-settings` answered. The one row it cannot take back is the
 # `flag_audit` trail, which is append-only by design — that is the point of assertion (b).
 #
+# Since P2.5 the theme this script reads at the start is the one `seed/seed.mjs` applied (school A's deep green
+# "Al Noor" set), so the restore leaves the seeded theme in place rather than a platform default — which is what
+# `e2e/themes.sh` asserts afterwards.
+#
 # Environment: E2E_BASE_URL, E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD, E2E_STAFF_PASSWORD, E2E_PARENT_PASSWORD,
 # E2E_PARENT_AUTH (fake|firebase), E2E_FIREBASE_API_KEY, E2E_SEED_OUT, E2E_NO_JQ. Nothing is ever printed but ids,
 # colours and verdicts — no password reaches curl's argv or this script's output.
@@ -29,7 +33,9 @@ ADMIN_EMAIL="${E2E_ADMIN_EMAIL:-admin@quest.local}"
 FLAG=certificates
 PLATFORM_NAME_DEFAULT='Schools Dashboard'
 PLATFORM_NAME_TEST='QA Dashboard'
-THEME_APP_NAME='Al Noor'
+# Deliberately *not* school A's seeded `appName` ("Al Noor", P2.5): the (h) assertion below is that `/me.platformName`
+# follows the theme's name, and a test name equal to the seeded one would hold whether or not the save did anything.
+THEME_APP_NAME='Al Noor QA Flip'
 # §3 measures `primaryInk` on `primary` AND on `ground` (ThemeDto: "primary is a light brand surface rather than a
 # saturated fill"), so white ink over a dark navy surface only validates when the ground goes dark with it — and then
 # the default red accent is 2.7:1 on that ground and the default mascot blue is below the 3:1 non-text bar. The valid
