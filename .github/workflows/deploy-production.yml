@@ -3,6 +3,11 @@ name: Deploy production
 # main → production project. Promotes the image QA already tested (copied by digest, never rebuilt), rolls it out as a
 # no-traffic canary, smoke-tests the canary URL, then shifts 100 % of traffic and tags a GitHub release.
 # Gate (GitHub Free, private repo): manual dispatch from `main` only, with the word "deploy" typed in.
+#
+# The dashboard needs nothing extra here: per D11 the image always builds the `production` Angular configuration and the
+# environment-specific values come from the API at runtime, so the bundle QA tested is the bundle production serves.
+# Environment variables: API_URL, IMAGE, QA_IMAGE, GCP_* and DASHBOARD_URL (= <api>/dashboard/, set by
+# infra/bootstrap.sh from `terraform output -raw dashboard_url`); uses below fall back to "<API_URL>/dashboard/".
 on:
   workflow_dispatch:
     inputs:
@@ -168,4 +173,4 @@ jobs:
           TAG="v$(date -u +%Y.%m.%d)-${SHA:0:7}"
           cp androidApp/build/outputs/apk/prod/release/*.apk "homework-quest-$TAG.apk"
           gh release create "$TAG" "homework-quest-$TAG.apk" --target "${{ github.sha }}" --generate-notes \
-            --title "Production $TAG" --notes "Image digest: \`${{ needs.promote.outputs.digest }}\` (promoted from QA \`${SHA:0:7}\`). Rollback: run the Rollback workflow with environment=production."
+            --title "Production $TAG" --notes "Image digest: \`${{ needs.promote.outputs.digest }}\` (promoted from QA \`${SHA:0:7}\`). Dashboard: ${{ vars.DASHBOARD_URL || format('{0}/dashboard/', vars.API_URL) }}. Rollback: run the Rollback workflow with environment=production."

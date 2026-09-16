@@ -252,8 +252,9 @@ resource "google_cloud_run_v2_service" "api" {
         value = var.mail_from
       }
       env {
-        # the dashboard is served by this same API at /panel/ (D2), so the invite/reset links point at the API origin;
-        # it becomes the dashboard's own origin if the panel is ever hosted separately.
+        # the dashboard is served by this same API at /dashboard/ (D2, D10), so the invite/reset links point at the API
+        # origin; it becomes the dashboard's own origin if the bundle is ever hosted separately. DASHBOARD_DIR (where
+        # the bundle lives inside the container) is baked into the image by the Dockerfile — deliberately not here.
         name  = "DASHBOARD_URL"
         value = local.api_url
       }

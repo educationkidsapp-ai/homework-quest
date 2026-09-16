@@ -47,6 +47,11 @@ class FeatureFlagCoverageTest {
      *   <li>{@code DashboardDataController} — classes are §2's unit of publishing and usage is how a school is run.
      *       Neither is a feature a tenant can be without, and gating them would hide the School page that shows
      *       which flags a school has.</li>
+     *   <li>{@code DashboardController} (P3.4a) — not an API at all but the static Angular bundle at `/dashboard/`,
+     *       the sibling of the pre-flag {@code AdminPanelController}. It serves index.html and a handful of hashed
+     *       files; there is no feature behind it to switch off, and a flag that could 404 the page is the one flag
+     *       nobody could ever turn back on, since the screen that edits flags is inside that bundle. Flags gate
+     *       what the dashboard <em>shows</em>, route by route, in the API each screen calls.</li>
      *   <li>{@code TeacherController} (P4.0) — a teacher's profile is what decides which lessons she may publish at
      *       all (`TenantGuard.lessonCreator` reads it), the chooser options are the only way to submit a lesson the
      *       server will accept, and her lessons and her students are the job rather than an addition to it. A flag
@@ -57,7 +62,7 @@ class FeatureFlagCoverageTest {
      */
     private static final Set<String> INFRASTRUCTURE = Set.of(
             "FlagController", "ThemeController", "PlatformSettingsController",
-            "HomeController", "DashboardDataController", "TeacherController");
+            "HomeController", "DashboardDataController", "DashboardController", "TeacherController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

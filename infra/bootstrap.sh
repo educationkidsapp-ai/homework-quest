@@ -36,6 +36,7 @@ gh variable set GCP_DEPLOYER_SA    --env "$GH_ENV" --repo "$REPO" --body "$(terr
 gh variable set API_URL            --env "$GH_ENV" --repo "$REPO" --body "$(terraform output -raw cloud_run_url)"
 gh variable set IMAGE              --env "$GH_ENV" --repo "$REPO" --body "$(terraform output -raw image)"
 gh variable set ADMIN_URL          --env "$GH_ENV" --repo "$REPO" --body "$(terraform output -raw admin_url)"
+gh variable set DASHBOARD_URL      --env "$GH_ENV" --repo "$REPO" --body "$(terraform output -raw dashboard_url)"
 if [ "$ENV" = qa ]; then   # production promotes QA's image: it needs read access to QA's registry
   gh variable set QA_WIF_PROVIDER --env production --repo "$REPO" --body "$(terraform output -raw wif_provider)"
   gh variable set QA_DEPLOYER_SA  --env production --repo "$REPO" --body "$(terraform output -raw deployer_service_account)"

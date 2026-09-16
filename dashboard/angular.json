@@ -25,7 +25,7 @@
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
-            "baseHref": "/panel/",
+            "baseHref": "/dashboard/",
             "outputHashing": "all",
             "assets": [
               {
@@ -38,18 +38,19 @@
                 "output": "assets"
               }
             ],
-            "styles": ["src/styles.scss"],
+            "styles": ["node_modules/@angular/cdk/overlay-prebuilt.css", "src/styles.scss"],
             "stylePreprocessorOptions": {
               "includePaths": ["src/styles"]
-            }
+            },
+            "outputPath": "dist"
           },
           "configurations": {
             "production": {
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "320kB",
-                  "maximumError": "400kB"
+                  "maximumWarning": "420kB",
+                  "maximumError": "480kB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -66,14 +67,24 @@
                   "replace": "src/app/styleguide/styleguide.route.ts",
                   "with": "src/app/styleguide/styleguide.route.prod.ts"
                 }
-              ]
+              ],
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": {
+                  "inline": true
+                }
+              }
             },
             "qa": {
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "320kB",
-                  "maximumError": "400kB"
+                  "maximumWarning": "420kB",
+                  "maximumError": "480kB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -84,9 +95,24 @@
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
-                  "with": "src/environments/environment.qa.ts"
+                  "with": "src/environments/environment.production.ts"
+                },
+                {
+                  "replace": "src/app/styleguide/styleguide.route.ts",
+                  "with": "src/app/styleguide/styleguide.route.prod.ts"
                 }
-              ]
+              ],
+              "sourceMap": true,
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": {
+                  "inline": true
+                }
+              }
             },
             "development": {
               "optimization": false,
