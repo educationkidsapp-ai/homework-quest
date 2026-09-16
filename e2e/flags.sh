@@ -130,6 +130,20 @@ field() {                                         # field KEY < json-object
   ' "$1" 2>/dev/null
 }
 
+# A flag map with its keys sorted, on one line: two responses can then be compared as strings without a difference in
+# key order counting as a difference in content.
+canonical() {
+  node -e '
+    let raw = ""; process.stdin.on("data", c => raw += c).on("end", () => {
+      let o; try { o = JSON.parse(raw); } catch { process.exit(0); }
+      if (!o || typeof o !== "object") process.exit(0);
+      const out = {};
+      for (const k of Object.keys(o).sort()) out[k] = o[k];
+      console.log(JSON.stringify(out));
+    });
+  ' 2>/dev/null
+}
+
 # The keys of a flag map, one per line, sorted — so the count and the set can both be asserted.
 flag_keys() {
   node -e '
@@ -301,23 +315,70 @@ RESTORE_FLAG_B=''
 RESTORE_THEME=''             # school A's theme JSON exactly as GET answered it
 RESTORE_PLATFORM_NAME=''
 
+# put_back WHAT PATH PAYLOAD VERIFY_PATH WANTED READER… — one restore write.
+#
+# A restore that leaves the environment dirty must say so and make the run fail: the operator's last line of output
+# must never claim a clean environment the server did not confirm. `req` has already retried a 5xx and a transport
+# error four times, so a non-200 here means it stayed broken.
+#
+# What counts as dirty is decided by READING VERIFY_PATH back and comparing it to WANTED, not by the PUT's status —
+# assuming the earlier write had landed would be the same sin in a smaller font, and it cuts both ways: a failed
+# restore whose value is already right (the write that would have changed it failed too) is not a dirty environment,
+# and a 500 there should not send an operator hunting for damage that was never done.
+put_back() {
+  local what="$1" path="$2" payload="$3" verify_path="$4" wanted="$5"; shift 5
+  local status verify actual
+  status=$(req PUT "$path" "$ADMIN_TOKEN" '' "$payload")
+  if [ "$status" = 200 ]; then RESTORED=$((RESTORED + 1)); return 0; fi
+
+  verify=$(req GET "$verify_path" "$ADMIN_TOKEN")
+  if [ "$verify" != 200 ]; then
+    printf 'FAIL    restore %s — PUT %s answered %s, and GET %s answered %s: cannot tell what state it is in\n' \
+      "$what" "$path" "$status" "$verify_path" "$verify" >&2
+    RESTORE_FAILED=$((RESTORE_FAILED + 1))
+    return 1
+  fi
+
+  actual="$("$@" < "$BODY")"
+  if [ "$actual" = "$wanted" ]; then
+    printf 'note    restore %s — PUT %s answered %s, but %s already reads the wanted [%s]; nothing left dirty\n' \
+      "$what" "$path" "$status" "$verify_path" "$wanted" >&2
+    RESTORED=$((RESTORED + 1))
+    return 0
+  fi
+
+  printf 'FAIL    restore %s — PUT %s answered %s; %s reads [%s], wanted [%s]\n' \
+    "$what" "$path" "$status" "$verify_path" "${actual:-<empty>}" "$wanted" >&2
+  RESTORE_FAILED=$((RESTORE_FAILED + 1))
+  return 1
+}
+
+RESTORED=0
+RESTORE_FAILED=0
+
 restore() {
   local code=$?
-  local note=0
-  if [ -n "$RESTORE_FLAG_A" ]; then
-    req PUT "/admin/schools/$SCHOOL_A/flags/$FLAG" "$ADMIN_TOKEN" '' "{\"enabled\":$RESTORE_FLAG_A}" >/dev/null; note=1
+  [ -n "$RESTORE_FLAG_A" ] && put_back "$FLAG for school A ($SCHOOL_A)" \
+    "/admin/schools/$SCHOOL_A/flags/$FLAG" "{\"enabled\":$RESTORE_FLAG_A}" \
+    "/schools/$SCHOOL_A/flags" "$RESTORE_FLAG_A" flag_value "$FLAG"
+  [ -n "$RESTORE_FLAG_B" ] && put_back "$FLAG for school B ($SCHOOL_B)" \
+    "/admin/schools/$SCHOOL_B/flags/$FLAG" "{\"enabled\":$RESTORE_FLAG_B}" \
+    "/schools/$SCHOOL_B/flags" "$RESTORE_FLAG_B" flag_value "$FLAG"
+  # The whole theme, not just its appName: a colour left dark is as dirty as a name left set.
+  [ -n "$RESTORE_THEME" ] && put_back "school A's theme" \
+    "/admin/schools/$SCHOOL_A/theme" "$RESTORE_THEME" \
+    "/schools/$SCHOOL_A/theme" "$(canonical <<<"$RESTORE_THEME")" canonical
+  [ -n "$RESTORE_PLATFORM_NAME" ] && put_back "the platform name" \
+    /admin/platform-settings "$(printf '%s' "$RESTORE_PLATFORM_NAME" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>process.stdout.write(JSON.stringify({name:s})))')" \
+    /platform-settings "$RESTORE_PLATFORM_NAME" field name
+
+  if [ "$RESTORE_FAILED" -gt 0 ]; then
+    printf '\n%s thing(s) left changed — %s IS NOT BACK AS IT WAS. Put the FAIL lines above right by hand.\n' \
+      "$RESTORE_FAILED" "$BASE" >&2
+    code=1
+  elif [ "$RESTORED" -gt 0 ]; then
+    printf '\nrestored: %s for both schools, school A'"'"'s theme and the platform name are back as they were\n' "$FLAG" >&2
   fi
-  if [ -n "$RESTORE_FLAG_B" ]; then
-    req PUT "/admin/schools/$SCHOOL_B/flags/$FLAG" "$ADMIN_TOKEN" '' "{\"enabled\":$RESTORE_FLAG_B}" >/dev/null; note=1
-  fi
-  if [ -n "$RESTORE_THEME" ]; then
-    req PUT "/admin/schools/$SCHOOL_A/theme" "$ADMIN_TOKEN" '' "$RESTORE_THEME" >/dev/null; note=1
-  fi
-  if [ -n "$RESTORE_PLATFORM_NAME" ]; then
-    req PUT /admin/platform-settings "$ADMIN_TOKEN" '' "$(printf '%s' "$RESTORE_PLATFORM_NAME" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>process.stdout.write(JSON.stringify({name:s})))')" >/dev/null
-    note=1
-  fi
-  [ "$note" = 1 ] && printf '\nrestored: %s for both schools, school A'"'"'s theme and the platform name are back as they were\n' "$FLAG" >&2
   rm -f "$BODY" "$HEAD" "$RC"
   exit "$code"
 }
@@ -345,6 +406,23 @@ fi
 etag=$(header etag)
 if [ -n "$etag" ]; then ok "(a) GET /schools/A/flags carries an ETag"
 else bad "(a) GET /schools/A/flags carries an ETag" "no ETag header"; fi
+
+# The route is `permitAll`, but a parent's app always calls it with a token attached, and a parent is the only reader
+# of these flags the rest of the suite never exercises: everything else here is an ADMIN, teacher or managerial
+# session. Captured before the parent request overwrites $BODY.
+public_set=$(canonical < "$BODY")
+if [ -z "$PARENT_A" ]; then
+  skipped "(a) parent A: GET /schools/A/flags is the same 14 keys" "no parent token ($PARENT_AUTH auth)"
+else
+  status=$(req GET "/schools/$SCHOOL_A/flags" "$PARENT_A")
+  parent_count=$(flag_keys < "$BODY" | grep -c .)
+  parent_set=$(canonical < "$BODY")
+  if [ "$status" != 200 ]; then bad "(a) parent A: GET /schools/A/flags is 200" "expected 200, got $status"
+  elif [ "$parent_count" != 14 ]; then bad "(a) parent A: GET /schools/A/flags has 14 keys" "got $parent_count"
+  elif [ "$parent_set" != "$public_set" ]; then
+    bad "(a) parent A sees the same set as an anonymous caller" "parent: $parent_set"
+  else ok "(a) parent A: GET /schools/A/flags is 200 with the same 14 keys as the anonymous read"; fi
+fi
 
 # ================================================================ (b) flip `certificates` off for A
 

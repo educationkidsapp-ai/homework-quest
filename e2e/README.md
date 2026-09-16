@@ -134,8 +134,9 @@ lesson is then created by ADMIN with `X-School-Id` instead of by the teacher's o
 
 `e2e/flags.sh` covers §4 (the feature matrix), §3 (per-school white label) and §A (the platform's own name) against
 the same fixture. It needs the same environment as `isolation.sh` — `E2E_BASE_URL`, `E2E_ADMIN_PASSWORD`,
-`E2E_STAFF_PASSWORD` (teacher A and managerial A), and a parent token only to confirm parents can read the public
-flag set:
+`E2E_STAFF_PASSWORD` (teacher A and managerial A), and a parent token, which is used for one assertion: that a
+parent reads the same public flag set an anonymous caller does. Without one that assertion is `BLOCKED` and the rest
+of the run is unaffected:
 
 ```bash
 node e2e/seed/seed.mjs      # idempotent; run it first, the script reads e2e/.seed.json
@@ -146,7 +147,7 @@ What it asserts, in order — one `PASS` / `FAIL` / `BLOCKED` line each:
 
 | | Assertion |
 |---|---|
-| a | `GET /schools/{A}/flags` is 14 keys with the seeded defaults — the 10 on and 4 off of `V5__flags_themes.sql`, which are also `DEFAULT_FLAGS` in `shared-api` — and carries an `ETag` |
+| a | `GET /schools/{A}/flags` is 14 keys with the seeded defaults — the 10 on and 4 off of `V5__flags_themes.sql`, which are also `DEFAULT_FLAGS` in `shared-api` — and carries an `ETag`; parent A reads the identical set with her own token |
 | b | ADMIN flips `certificates` **off** for A: the next public fetch says `false`, school B is untouched, and `GET /admin/flags/audit` gains a row with the ADMIN actor and `schoolId == A` |
 | c | a route the flag guards is 404 for A's users and 200 for B's |
 | d | flipped back **on**: 200 again, no restart and no rebuild |
@@ -162,10 +163,21 @@ handlers in the tree are in `FeatureFlagInterceptorTest`'s own test controller, 
 The script decides this from `/v3/api-docs` rather than from the source, so the skip turns into a `FAIL` naming the
 new route the moment a flagged path is published — that is the cue to assert the 404 here.
 
-**It puts everything back.** An `EXIT`/`INT`/`TERM` trap restores `certificates` for both schools to the value they
-had when the run started, writes school A's theme back exactly as `GET /admin/schools/{A}/theme` answered at the
-start, and sets the platform name back — so an interrupted run leaves no drift either, and `isolation.sh` still
-passes afterwards. Two things it cannot take back, both by design:
+**It puts everything back, and proves it did.** An `EXIT`/`INT`/`TERM` trap restores `certificates` for both schools
+to the value they had when the run started, writes school A's theme back exactly as `GET /admin/schools/{A}/theme`
+answered at the start, and sets the platform name back — so an interrupted run leaves no drift either, and
+`isolation.sh` still passes afterwards.
+
+Each restore write is then **read back and compared**, because a PUT's status alone proves nothing:
+
+- read-back matches what was wanted → a `note` line at most, and the run keeps the exit code its assertions earned.
+  A restore write that failed while the value is already right (the write that would have dirtied it failed too) is
+  not a dirty environment and is not reported as one;
+- read-back differs → a `FAIL restore …` line naming the thing, what it reads now and what it should read, the
+  closing line says `IS NOT BACK AS IT WAS`, and the run exits non-zero **whatever the assertions said**. The
+  "are back as they were" sentence is printed only when every read-back agreed.
+
+Two things it cannot take back, both by design:
 
 - the `flag_audit` rows, which are append-only — that trail is what assertion (b) is about;
 - a school that had **no** `theme_json` ends with an explicit copy of what it was already being shown (the platform
