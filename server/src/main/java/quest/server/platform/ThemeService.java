@@ -77,13 +77,13 @@ public class ThemeService {
 
     /**
      * Normalises every colour to upper-case hex and refuses the theme when a colour is malformed or a pair is below
-     * {@link Contrast#MINIMUM}. The pairs, in the order they are reported:
+     * its threshold. The pairs, in the order they are reported:
      * <ol>
-     *   <li>`primaryInk` on `primary`</li>
-     *   <li>`primaryInk` on `ground`</li>
-     *   <li>`accent` on `ground`</li>
-     *   <li>`mascotColor` on `ground`</li>
-     *   <li>each world's `ink` on its `soft` (the ground that world is drawn on), math before english</li>
+     *   <li>`primaryInk` on `primary` — text, {@link Contrast#MINIMUM}</li>
+     *   <li>`primaryInk` on `ground` — text</li>
+     *   <li>`accent` on `ground` — text</li>
+     *   <li>`mascotColor` on `ground` — a graphic, so {@link Contrast#MINIMUM_NON_TEXT}</li>
+     *   <li>each world's `ink` on its `soft` (the ground that world is drawn on) — text, math before english</li>
      * </ol>
      */
     public ThemeDto.SchoolTheme validated(ThemeDto.SchoolTheme requested) {
@@ -106,25 +106,29 @@ public class ThemeService {
                     colour(palette.soft(), world + ".soft"), colour(palette.ink(), world + ".ink")));
         }
 
-        var pairs = new ArrayList<String[]>(List.of(
-                new String[] {"primaryInk", primaryInk, "primary", primary},
-                new String[] {"primaryInk", primaryInk, "ground", ground},
-                new String[] {"accent", accent, "ground", ground},
-                new String[] {"mascotColor", mascotColor, "ground", ground}));
+        var pairs = new ArrayList<Pair>(List.of(
+                new Pair("primaryInk", primaryInk, "primary", primary, Contrast.MINIMUM),
+                new Pair("primaryInk", primaryInk, "ground", ground, Contrast.MINIMUM),
+                new Pair("accent", accent, "ground", ground, Contrast.MINIMUM),
+                new Pair("mascotColor", mascotColor, "ground", ground, Contrast.MINIMUM_NON_TEXT)));
         for (String world : ThemeDto.WORLDS) {
             var palette = worlds.get(world);
-            pairs.add(new String[] {world + ".ink", palette.ink(), world + ".soft", palette.soft()});
+            pairs.add(new Pair(world + ".ink", palette.ink(), world + ".soft", palette.soft(), Contrast.MINIMUM));
         }
-        for (String[] pair : pairs) {
-            double ratio = Contrast.ratio(pair[1], pair[3]);
-            if (ratio < Contrast.MINIMUM)
-                throw ApiException.badRequest(pair[0] + " on " + pair[2] + " is " + Contrast.format(ratio) + ":1, needs " + Contrast.format(Contrast.MINIMUM) + ":1");
+        for (Pair pair : pairs) {
+            double ratio = Contrast.ratio(pair.foreground(), pair.background());
+            if (ratio < pair.minimum())
+                throw ApiException.badRequest(pair.on() + " on " + pair.over() + " is " + Contrast.format(ratio)
+                        + ":1, needs " + Contrast.format(pair.minimum()) + ":1");
         }
 
         return new ThemeDto.SchoolTheme(blankToNull(requested.logoUrl()), blankToNull(requested.appName()), primary, primaryInk,
                 accent, ground, softBorder, mascotColor, java.util.Collections.unmodifiableMap(worlds),
                 requested.fontChoice() == null ? ThemeDto.FontChoice.NUNITO : requested.fontChoice());
     }
+
+    /** One contrast rule: [on] drawn over [over], and the ratio it has to clear. */
+    private record Pair(String on, String foreground, String over, String background, double minimum) {}
 
     private SchoolEntity require(String schoolId) {
         return schools.findById(schoolId == null ? "" : schoolId).orElseThrow(() -> ApiException.notFound("school"));

@@ -31,10 +31,10 @@ data class WorldPalette(
 )
 
 /**
- * A school's theme. Every colour is `#RRGGBB`; the server rejects a save where any text/background pair is below
- * 4.5:1 (`primaryInk` on `primary` and on `ground`, `accent` and `mascotColor` on `ground`, and each world's `ink`
- * on its `soft`), so [primary] is a light brand surface rather than a saturated fill and [accent] is the colour of
- * an action, dark enough to read on [ground].
+ * A school's theme. Every colour is `#RRGGBB`; the server rejects a save where a text/background pair is below
+ * 4.5:1 — `primaryInk` on `primary` and on `ground`, `accent` on `ground`, and each world's `ink` on its `soft` —
+ * or where [mascotColor] is below 3:1 on [ground] (a graphic, WCAG 1.4.11). So [primary] is a light brand surface
+ * rather than a saturated fill, and [accent] is the colour of an action, dark enough to read on [ground].
  *
  * [appName] overrides the platform's name inside this school's scope (§A); a null one falls back to it.
  *
@@ -50,8 +50,11 @@ data class SchoolTheme(
     val accent: String = "#CC2A0F",
     val ground: String = "#F3F2F2",
     val softBorder: String = "#D9D6D2",
-    /** The tokens' mascot blue darkened until it clears 4.5:1 on [ground], the way `color.accent-strong` was. */
-    val mascotColor: String = "#457192",
+    /**
+     * The tokens' mascot blue darkened until it clears 3:1 on [ground] — the mascot is a graphic, so WCAG 1.4.11's
+     * non-text bar, not the 4.5:1 the five text pairs are held to. Darkened the way `color.accent-strong` was.
+     */
+    val mascotColor: String = "#598FB8",
     val worldPalettes: Map<String, WorldPalette> = mapOf(
         "math" to WorldPalette(),
         "english" to WorldPalette(primary = "#B69CFF", deep = "#7E63D8", soft = "#F1ECFF"),

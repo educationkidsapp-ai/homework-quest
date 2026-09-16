@@ -22,7 +22,8 @@ import org.springframework.stereotype.Component;
  *   <li>`accent` ← `color.accent-strong`, not `color.accent`: the tokens file says accent-strong is the brand red
  *       darkened until it clears 4.5:1, and the brand red itself is 3.8:1 on the ground — it would be rejected by
  *       the very validation this default has to pass;</li>
- *   <li>`mascotColor` ← `mascotColor.body` darkened the same way (a light blue on a near-white ground is 1.6:1);</li>
+ *   <li>`mascotColor` ← `mascotColor.body` darkened the same way, to {@link Contrast#MINIMUM_NON_TEXT}: the mascot
+ *       is a graphic, not text, and the tokens' light blue is 1.6:1 on a near-white ground — below even that bar;</li>
  *   <li>each world ← `worldPalettes.<subject>` with `color.ink` as the ink drawn on it.</li>
  * </ul>
  */
@@ -41,7 +42,7 @@ public class DesignTokens {
         var worlds = new LinkedHashMap<String, ThemeDto.WorldPalette>();
         for (String world : ThemeDto.WORLDS) worlds.put(world, world(world));
         this.defaultTheme = new ThemeDto.SchoolTheme(null, null, colour("surface"), colour("ink"), colour("accent-strong"),
-                ground, colour("rule"), Contrast.darkenUntil(value("mascotColor", "body"), ground, Contrast.MINIMUM),
+                ground, colour("rule"), Contrast.darkenUntil(value("mascotColor", "body"), ground, Contrast.MINIMUM_NON_TEXT),
                 java.util.Collections.unmodifiableMap(worlds), ThemeDto.FontChoice.NUNITO);
     }
 

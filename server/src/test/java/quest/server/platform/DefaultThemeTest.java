@@ -49,7 +49,11 @@ class DefaultThemeTest {
         assertThat(Contrast.ratio(theme.primaryInk(), theme.primary())).isGreaterThanOrEqualTo(Contrast.MINIMUM);
         assertThat(Contrast.ratio(theme.primaryInk(), theme.ground())).isGreaterThanOrEqualTo(Contrast.MINIMUM);
         assertThat(Contrast.ratio(theme.accent(), theme.ground())).isGreaterThanOrEqualTo(Contrast.MINIMUM);
-        assertThat(Contrast.ratio(theme.mascotColor(), theme.ground())).isGreaterThanOrEqualTo(Contrast.MINIMUM);
+        // the mascot is a graphic, so 1.4.11's 3:1 — and it is derived to sit just above it, not far above
+        assertThat(Contrast.ratio(theme.mascotColor(), theme.ground())).isGreaterThanOrEqualTo(Contrast.MINIMUM_NON_TEXT);
+        assertThat(Contrast.ratio(theme.mascotColor(), theme.ground()))
+                .as("darkened no further than the bar asks, so the mascot stays as close to the tokens' blue as it can")
+                .isLessThan(Contrast.MINIMUM);
         for (String world : ThemeDto.WORLDS) {
             var palette = theme.worldPalettes().get(world);
             assertThat(Contrast.ratio(palette.ink(), palette.soft())).as(world).isGreaterThanOrEqualTo(Contrast.MINIMUM);
@@ -94,8 +98,9 @@ class DefaultThemeTest {
 
     @Test void darken_until_stops_at_the_threshold_and_leaves_dark_colours_alone() {
         String ground = tokens.colour("bg");
-        String darkened = Contrast.darkenUntil(tokens.defaultTheme().worldPalettes().get("math").primary(), ground, Contrast.MINIMUM);
-        assertThat(Contrast.ratio(darkened, ground)).isGreaterThanOrEqualTo(Contrast.MINIMUM);
+        String blue = tokens.defaultTheme().worldPalettes().get("math").primary();
+        assertThat(Contrast.ratio(Contrast.darkenUntil(blue, ground, Contrast.MINIMUM), ground)).isGreaterThanOrEqualTo(Contrast.MINIMUM);
+        assertThat(Contrast.ratio(Contrast.darkenUntil(blue, ground, Contrast.MINIMUM_NON_TEXT), ground)).isGreaterThanOrEqualTo(Contrast.MINIMUM_NON_TEXT);
         assertThat(Contrast.darkenUntil("#201E1D", ground, Contrast.MINIMUM)).isEqualTo("#201E1D");
     }
 }

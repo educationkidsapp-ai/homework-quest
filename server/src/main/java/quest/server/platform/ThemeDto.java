@@ -48,7 +48,7 @@ public final class ThemeDto {
             @Schema(example = "#CC2A0F") String accent,
             @Schema(example = "#F3F2F2") String ground,
             @Schema(example = "#D9D6D2") String softBorder,
-            @Schema(example = "#457192") String mascotColor,
+            @Schema(example = "#598FB8") String mascotColor,
             Map<String, WorldPalette> worldPalettes,
             FontChoice fontChoice) {}
 }

@@ -73,9 +73,9 @@ class ThemeApiTest extends ApiTestSupport {
         var accent = putTheme(token, school, goodTheme("X").replace("\"accent\":\"#0B5D2E\"", "\"accent\":\"#EC3013\""));
         assertThat(accent.get("message").asText()).isEqualTo("accent on ground is 3.8:1, needs 4.5:1");
 
-        // the mascot on the ground
+        // the mascot on the ground — a graphic, so the bar is WCAG 1.4.11's 3:1 and the message says so
         var mascot = putTheme(token, school, goodTheme("X").replace("\"mascotColor\":\"#2F5D7C\"", "\"mascotColor\":\"#7EC8FF\""));
-        assertThat(mascot.get("message").asText()).isEqualTo("mascotColor on ground is 1.6:1, needs 4.5:1");
+        assertThat(mascot.get("message").asText()).isEqualTo("mascotColor on ground is 1.6:1, needs 3.0:1");
 
         // a world's own ink on its own ground
         var world = putTheme(token, school, goodTheme("X").replace("\"soft\":\"#EAF4FF\",\"ink\":\"#1A1A1A\"", "\"soft\":\"#EAF4FF\",\"ink\":\"#9FD4FF\""));
@@ -83,6 +83,21 @@ class ThemeApiTest extends ApiTestSupport {
 
         // nothing was stored by any of those attempts
         assertThat(json(mvc.perform(get("/schools/" + school + "/theme")).andReturn()).get("appName").isNull()).isTrue();
+    }
+
+    /** The mascot may sit between the two bars: readable as a shape (≥ 3:1) without being dark enough for text. */
+    @Test void a_mascot_above_three_to_one_but_below_four_and_a_half_is_accepted() throws Exception {
+        var token = adminToken();
+        String school = createSchool(token);
+        saveTheme(token, school, goodTheme("Mascot").replace("\"mascotColor\":\"#2F5D7C\"", "\"mascotColor\":\"#598FB8\""));
+
+        var stored = json(mvc.perform(get("/schools/" + school + "/theme")).andExpect(status().isOk()).andReturn());
+        assertThat(stored.get("mascotColor").asText()).isEqualTo("#598FB8");
+        double ratio = Contrast.ratio("#598FB8", "#F4F4F2");
+        assertThat(ratio).isGreaterThanOrEqualTo(Contrast.MINIMUM_NON_TEXT).isLessThan(Contrast.MINIMUM);
+        // …and the same colour used as text would still be refused
+        assertThat(putTheme(token, school, goodTheme("X").replace("\"accent\":\"#0B5D2E\"", "\"accent\":\"#598FB8\""))
+                .get("message").asText()).startsWith("accent on ground is ").endsWith(", needs 4.5:1");
     }
 
     @Test void colours_must_be_six_digit_hex_and_the_font_one_of_three() throws Exception {

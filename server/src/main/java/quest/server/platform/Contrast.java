@@ -11,8 +11,15 @@ import java.util.regex.Pattern;
  * the 2.4 gamma. Nothing here is theme-specific: {@link ThemeService} owns which pairs are checked.
  */
 public final class Contrast {
-    /** §3: the threshold for text on its background. */
+    /** §3: the threshold for text on its background (WCAG 2.2 §1.4.3, AA). */
     public static final double MINIMUM = 4.5;
+
+    /**
+     * The threshold for a graphic that is not text — the mascot on the ground. WCAG 2.2 §1.4.11 asks 3:1 of a
+     * non-text object, and a mascot is a shape a child recognises, not a string she has to read; holding it to the
+     * text bar would rule out every friendly colour on a light ground. Every other pair §3 names is text.
+     */
+    public static final double MINIMUM_NON_TEXT = 3.0;
 
     /** The only colour syntax a theme may use — no names, no rgba(), no 3-digit shorthand. */
     public static final Pattern HEX = Pattern.compile("^#[0-9A-Fa-f]{6}$");
