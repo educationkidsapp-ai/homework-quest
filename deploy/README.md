@@ -11,7 +11,8 @@ Spring profile, Android flavor and API key — a QA mistake cannot touch product
 | Spring profile | `qa` (seeded sample lessons, debug logs) | `prod` |
 | Android flavor | `qa` → `app.homeworkquest.qa`, "HQ · QA" | `prod` → `app.homeworkquest` |
 | API | `https://homework-quest-api-<project-number>.me-central1.run.app` | same shape, prod project |
-| Admin panel | `<API>/panel/` (served by the API, same origin) | `<API>/panel/` |
+| Dashboard (Angular) | `<API>/dashboard/` (served by the API, same origin) | `<API>/dashboard/` |
+| Admin panel (legacy `webAdmin/`, until P3.6) | `<API>/panel/` (served by the API, same origin) | `<API>/panel/` |
 | Deploy trigger | merge to `develop` | `Deploy production` workflow (manual, from `main`, type `deploy`) |
 
 Everything inside the projects is Terraform (`infra/terraform`): APIs, Artifact Registry, Cloud SQL 16 (+ backups, PITR in prod),
@@ -52,7 +53,7 @@ The dashboard's invites and password resets go through the server's `Mailer` (P1
 | `MAIL_PROVIDER` | `mail_provider` | `log` | `log` = the invite/reset link is only written to the Cloud Run log; `resend` = really sent |
 | `RESEND_API_KEY` | optional secret | absent | Resend key; wired into Cloud Run only once it has a version in Secret Manager |
 | `MAIL_FROM` | `mail_from` | `no-reply@homework-quest.invalid` | **placeholder** (RFC 2606 `.invalid`); replace with an address on a Resend-verified domain before switching |
-| `DASHBOARD_URL` | fixed to the API URL | `<API>` | origin the links are built on; the server appends `/panel/…`. Falls back to `PUBLIC_URL` when empty |
+| `DASHBOARD_URL` | fixed to the API URL | `<API>` | origin the links are built on; the server appends `/dashboard/…`. Falls back to `PUBLIC_URL` when empty |
 
 The product name in the mail is **not** an env var: since P2.1 it lives in the `platform_settings` table and is edited in
 the dashboard under **Platform settings** (`PUT /admin/platform-settings`, ADMIN only), so changing it needs no deploy.
@@ -78,9 +79,29 @@ gh secret set RESEND_API_KEY --env qa --body "$RESEND_API_KEY"   # so the deploy
 Terraform's `optional_secrets`, so `RESEND_API_KEY` reaches the container only after the value exists — exactly like
 `ANTHROPIC_API_KEY`. Production works the same way with `envs/prod.tfvars` and `--env production`.
 
-`DASHBOARD_URL` currently equals the API URL because the dashboard is served by the API container at `<API>/panel/`
-(decision D2). If the dashboard ever moves to its own hosting, this is the one value to repoint — the links then use the
-dashboard origin and everything else stays as it is.
+`DASHBOARD_URL` currently equals the API URL because the dashboard is served by the API container at `<API>/dashboard/`
+(decisions D2, D10). If the dashboard ever moves to its own hosting, this is the one value to repoint — the links then
+use the dashboard origin and everything else stays as it is.
+
+## How the dashboard gets into the image
+
+`Dockerfile` stage `dashboard` (`node:22-alpine` plus a headless JRE, because `postinstall` → `pnpm gen:api` runs the
+Java openapi-generator over `server/openapi.json`) runs `pnpm install --frozen-lockfile` (pnpm store on a BuildKit cache
+mount) and `pnpm build --configuration=$DASHBOARD_CONFIG`, then the runtime stage copies
+`dashboard/dist/browser` to `/app/dashboard` and sets `DASHBOARD_DIR=/app/dashboard` — so the directory is
+baked into the image and Terraform deliberately does **not** set it (`terraform plan` stays clean after a deploy).
+Per **D11** the build-arg defaults to `production` and no workflow overrides it: one bundle serves QA and production, and
+the environment-specific values come from the API at runtime, so promoting the image by digest stays honest.
+`webAdmin/`'s Wasm bundle is still staged by `scripts/build-panel.sh` into `server/panel` → `/app/panel` (`PANEL_DIR`)
+until P3.6 retires it.
+
+GitHub variables used by the workflows come from `infra/bootstrap.sh`; the dashboard adds one:
+
+```bash
+gh variable set DASHBOARD_URL --env qa --body "$(cd infra/terraform && terraform output -raw dashboard_url)"
+```
+
+Every workflow use falls back to `<API_URL>/dashboard/`, so nothing breaks before the variable exists.
 
 ## Sleeping an environment
 
@@ -99,7 +120,7 @@ infra/env.sh qa status
 |---|---|---|
 | `ci.yml` | every PR / push to `develop`, `main` | a ten-second `changes` job decides what the diff needs, then contract tests → server tests (H2 first, Testcontainers second) → app tests, screenshots, Android QA **debug** APK, Wasm admin → dashboard → shell scripts → Terraform/actionlint. Status check `ci`, where a filtered-out job counts as a pass. No macOS. |
 | `ios.yml` | push to `develop` / `main` / a `v*` tag that touches the app, or `gh workflow run ios.yml` | the only macOS runner: Kotlin/Native compile for the simulator target + the full-cycle UI test |
-| `deploy-qa.yml` | merge to `develop` | build image once (server + admin panel at `/panel/`, tag = SHA) → `terraform apply` (QA) → `gcloud run deploy` → smoke test → Playwright against the deployed QA → signed QA APK (workflow artifact) → comment with API / admin / APK links on the merged PR |
+| `deploy-qa.yml` | merge to `develop` | build image once (server + Angular dashboard at `/dashboard/` + legacy panel at `/panel/`, tag = SHA) → `terraform apply` (QA) → `gcloud run deploy` → smoke test → Playwright and Lighthouse CI against `<API>/dashboard/` (performance and accessibility ≥ 90, hard gate, reports uploaded as artifacts) → signed QA APK (workflow artifact) → comment with API / dashboard / Lighthouse scores / APK links on the merged PR |
 | `deploy-production.yml` | manual (`gh workflow run deploy-production.yml -f confirm=deploy`) from `main` | promotes the **same QA image by digest** (no rebuild) → `terraform apply` (prod) → Cloud Run revision with **no traffic** (`canary` tag) → smoke tests on the canary URL → 100 % traffic → production APK attached to a GitHub release `vYYYY.MM.DD-<sha>` |
 | `rollback.yml` | manual (`gh workflow run rollback.yml -f environment=production`) | shifts traffic back to the previous (or a named) revision, no build |
 | `migration-check.yml` | PRs touching `server/src/main/resources/db/migration/**` | applied migrations unchanged, new ones additive (no DROP/RENAME), apply on Postgres 16 on top of `develop`'s schema, JPA `validate` boots |

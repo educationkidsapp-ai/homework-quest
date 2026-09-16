@@ -726,8 +726,11 @@ them: it catches syntax errors and shellcheck warnings instead. `shellcheck` shi
 are expected, and `bash -n` is run one file at a time (it takes a single script; the rest would become its `$1`).
 
 **Playwright** does not run on pull requests. It needs a browser download and a deployed target, and it runs against
-the environment that was actually shipped: `deploy-qa.yml`'s `e2e` job, after the deploy, with `E2E_BASE_URL` pointed
-at the QA API (`pnpm e2e:qa` — the same suite, two retries, no dev server). Lighthouse runs there too.
+the environment that was actually shipped: `deploy-qa.yml`'s `e2e` job, after the deploy, with `E2E_BASE_URL` set to
+`vars.API_URL` (`pnpm e2e:qa` — the same suite against `<API>/dashboard/`, two retries, no dev server; an empty
+`API_URL` fails the job rather than quietly starting a dev server on the runner). `deploy-qa.yml`'s `lighthouse` job
+measures the same deployment in parallel — performance and accessibility ≥ 90 from `.github/lighthouserc.json`, a hard
+gate, with the scores posted in the deploy comment.
 
 Node is pinned by `.nvmrc` (22); pnpm by `dashboard/package.json`'s `packageManager` field, enabled with corepack. The
 dev Mac runs Node 25, which only produces an engine warning.

@@ -86,6 +86,7 @@ jobs:
               - 'docker-compose.yml'
             scripts:
               - 'e2e/**'
+              - '.github/scripts/**'
               - '.github/workflows/ci.yml'
 
   contract:
@@ -189,6 +190,10 @@ jobs:
           cache-dependency-path: dashboard/pnpm-lock.yaml
       - name: Install
         run: corepack pnpm install --frozen-lockfile
+      - name: Generated API client (openapi-generator over server/openapi.json)
+        # P3.1's `postinstall` already generates it during the install above; this re-runs it explicitly so a lockfile
+        # cache hit that skips scripts can never leave lint/test/build compiling against a stale client.
+        run: pnpm run --if-present gen:api
       - name: Design tokens must match design/tokens.json
         run: pnpm tokens --check
       - name: Subset fonts must match the TTFs in shared-ui
@@ -204,7 +209,8 @@ jobs:
 
   scripts:
     # The e2e shell scripts (e2e/isolation.sh, e2e/flags.sh, ...) run against a live server, so CI cannot execute them;
-    # this catches syntax errors and shellcheck warnings before a human does. shellcheck ships on ubuntu-latest.
+    # this catches syntax errors and shellcheck warnings before a human does. `.github/scripts/*.sh` are here too —
+    # actionlint shellchecks `run:` blocks, not files on disk, so nothing else would ever lint them.
     name: Shell scripts (bash -n, shellcheck)
     needs: changes
     if: needs.changes.outputs.scripts == 'true'
@@ -213,9 +219,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Syntax check (bash -n takes one script; the rest would become its $1)
-        run: for f in e2e/*.sh; do bash -n "$f"; done
+        run: for f in e2e/*.sh .github/scripts/*.sh; do bash -n "$f"; done
       - name: shellcheck (warning and above; no suppressions expected)
-        run: shellcheck -S warning e2e/*.sh
+        run: shellcheck -S warning e2e/*.sh .github/scripts/*.sh
 
   infra:
     # Terraform and the workflows are the one part of the repo nothing else compiles. `terraform validate` needs no

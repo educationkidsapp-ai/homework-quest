@@ -54,6 +54,12 @@ export default tseslint.config(
     plugins: { hq: hqPlugin },
     rules: { 'hq/no-product-name-literal': 'error' },
   },
+  // Every API call goes through the generated client; HttpClient is for the interceptors only.
+  {
+    files: ['src/**/*.ts'],
+    plugins: { hq: hqPlugin },
+    rules: { 'hq/no-raw-http': 'error' },
+  },
   // Every screen and feature route says which flag gates it (or opts out explicitly).
   {
     files: ['src/app/features/**/*.routes.ts', 'src/**/*.page.ts'],

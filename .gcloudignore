@@ -17,3 +17,7 @@ data
 .gcloudignore
 scripts
 *.log
+dashboard/node_modules
+dashboard/dist
+dashboard/.angular
+dashboard/src/app/api/generated

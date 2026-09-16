@@ -1,8 +1,14 @@
 name: Deploy QA
 
-# develop → QA project. Builds the image once (server + admin panel, served at /panel/), tags it with the commit SHA
-# (production later promotes that exact digest), applies Terraform, deploys Cloud Run, builds a QA APK, and posts the
-# links on the merged PR.
+# develop → QA project. Builds the image once (server + the Angular dashboard at /dashboard/ + the legacy webAdmin panel
+# at /panel/ until P3.6), tags it with the commit SHA (production later promotes that exact digest), applies Terraform,
+# deploys Cloud Run, runs Lighthouse against the dashboard, builds a QA APK, and posts the links on the merged PR.
+#
+# Environment variables this workflow expects (set by infra/bootstrap.sh from the Terraform outputs):
+#   API_URL, ADMIN_URL, IMAGE, GCP_* … and DASHBOARD_URL (`terraform output -raw dashboard_url`, i.e. <api>/dashboard/).
+#   Re-create a single one by hand with:
+#     gh variable set DASHBOARD_URL --env qa --body "$(cd infra/terraform && terraform output -raw dashboard_url)"
+#   Every use below falls back to "<API_URL>/dashboard/" so the workflow still works before the variable exists.
 on:
   push:
     branches: [develop]
@@ -45,7 +51,7 @@ jobs:
       - name: Admin panel bundle (Kotlin/Wasm) → server/panel, served by the API at /panel/
         run: ./scripts/build-panel.sh
       - uses: docker/setup-buildx-action@v3
-      - name: Build and push the image (Gradle contract → Maven → Temurin 21 + LibreOffice + panel)
+      - name: Build and push the image (Gradle contract → Maven → dashboard (pnpm) → Temurin 21 + LibreOffice)
         id: push
         uses: docker/build-push-action@v6
         with:
@@ -118,7 +124,7 @@ jobs:
   e2e:
     # Playwright runs here, not on pull requests: browser downloads and a deployed target cost minutes on every PR
     # and prove less than one run against the environment that was actually shipped. `E2E_BASE_URL` switches
-    # dashboard/playwright.config.ts from the local dev server to QA (the dashboard is served at <API>/panel/).
+    # dashboard/playwright.config.ts from the local dev server to QA (the dashboard is served at <API>/dashboard/).
     name: Dashboard e2e (Playwright, against QA)
     needs: deploy
     runs-on: ubuntu-latest
@@ -163,6 +169,20 @@ jobs:
       - name: Chromium system libraries (the browser itself came from the cache)
         if: steps.browser.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium
+      - name: The QA origin and the seeded accounts must be configured
+        run: |
+          # An empty E2E_BASE_URL would make the config fall back to `ng serve` on this runner and test nothing that
+          # was deployed, so it is an error, not a warning. The suite reads the passwords by name and never prints
+          # them; this only reports which name is missing.
+          [ -n "$E2E_BASE_URL" ] || { echo "::error::the qa environment has no API_URL variable — nothing to test against"; exit 1; }
+          missing=
+          [ -n "$E2E_ADMIN_PASSWORD" ] || missing="$missing ADMIN_PASSWORD"
+          [ -n "$E2E_STAFF_PASSWORD" ] || missing="$missing E2E_STAFF_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::missing on the qa environment:$missing — set them with 'gh secret set <NAME> --env qa' and seed QA with e2e/seed/seed.mjs"
+            exit 1
+          fi
+          echo "testing ${E2E_BASE_URL}/dashboard/"
       - name: Run the suite against QA
         run: pnpm e2e:qa
       - uses: actions/upload-artifact@v4
@@ -173,6 +193,60 @@ jobs:
             dashboard/playwright-report/**
             dashboard/e2e/.output/**
           retention-days: 7
+
+  lighthouse:
+    # The dashboard sign-in page is public, so Lighthouse needs no credentials. Thresholds live in
+    # .github/lighthouserc.json (JSON, so it carries no comments: `categories:performance` and
+    # `categories:accessibility` ≥ 0.9) and are hard gates — continue-on-error is false, a regression turns Deploy QA
+    # red. Runs only after a successful deploy, so it costs nothing on a failed one.
+    name: Lighthouse CI (dashboard sign-in)
+    needs: deploy # skipped automatically when the deploy fails, so a broken deploy costs no Lighthouse minutes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      # least privilege for the only third-party action in this workflow: no id-token (it must not be able to mint a
+      # GCP WIF token for the QA deployer) and no pull-requests write — the announce job posts the scores.
+      contents: read
+    environment: qa
+    outputs:
+      performance: ${{ steps.scores.outputs.performance }}
+      accessibility: ${{ steps.scores.outputs.accessibility }}
+    env:
+      DASHBOARD_URL: ${{ vars.DASHBOARD_URL || format('{0}/dashboard/', vars.API_URL) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Warm the URL twice (QA scales to zero; a cold start would be measured as page load time)
+        run: |
+          for _ in 1 2; do
+            curl -fsS -o /dev/null --max-time 90 "$DASHBOARD_URL" || true
+            sleep 5
+          done
+          curl -fsS -o /dev/null --max-time 60 "$DASHBOARD_URL"
+      - name: Lighthouse (performance ≥ 90, accessibility ≥ 90)
+        id: lhci
+        continue-on-error: false
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          urls: ${{ env.DASHBOARD_URL }}
+          runs: 3 # lhci asserts on the median run; one run on a shared runner is too noisy for a hard 90 gate
+          configPath: .github/lighthouserc.json
+          uploadArtifacts: true
+          artifactName: lighthouse-dashboard-${{ github.sha }}
+      - name: Scores for the PR comment
+        id: scores
+        if: always()
+        run: |
+          # The action writes .lighthouseci/manifest.json (lhci upload --target=filesystem) before it reports a failed
+          # assertion, so the scores are readable whether the thresholds held or not. Never fail this step: the job's
+          # verdict is the Lighthouse step's, this one only feeds the PR comment.
+          s=$(jq -r '((map(select(.isRepresentativeRun)) + .)[0].summary)
+                     | "\(.performance*100|round)|\(.accessibility*100|round)"' .lighthouseci/manifest.json 2>/dev/null || true)
+          case "$s" in
+            *"|"*) perf=${s%%|*}; a11y=${s##*|} ;;
+            *)     perf=n/a;      a11y=n/a ;;
+          esac
+          printf 'performance=%s\naccessibility=%s\n' "$perf" "$a11y" >> "$GITHUB_OUTPUT"
+          echo "Lighthouse on $DASHBOARD_URL — performance $perf, accessibility $a11y (threshold 90)" >> "$GITHUB_STEP_SUMMARY"
 
   apk:
     name: QA APK
@@ -206,7 +280,7 @@ jobs:
 
   announce:
     name: Post links on the merged PR
-    needs: [image, deploy, apk]
+    needs: [image, deploy, apk, lighthouse]
     if: always() && needs.deploy.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -220,7 +294,9 @@ jobs:
             const body = [
               `🚀 **Deployed to QA** (\`${sha.slice(0, 7)}\`)`,
               `- API: ${{ vars.API_URL }}`,
-              `- Admin panel: ${{ vars.ADMIN_URL }}`,
+              `- Dashboard: ${{ vars.DASHBOARD_URL || format('{0}/dashboard/', vars.API_URL) }}`,
+              `- Admin panel (legacy webAdmin, until P3.6): ${{ vars.ADMIN_URL }}`,
+              `- Lighthouse on the dashboard sign-in (threshold 90): performance **${{ needs.lighthouse.outputs.performance || 'n/a' }}**, accessibility **${{ needs.lighthouse.outputs.accessibility || 'n/a' }}** — ${{ needs.lighthouse.result }}`,
               `- QA APK: ${{ needs.apk.outputs.artifact_url || 'build failed' }}`,
               `- Image digest for promotion: \`${{ needs.image.outputs.digest }}\``,
             ].join('\n');
