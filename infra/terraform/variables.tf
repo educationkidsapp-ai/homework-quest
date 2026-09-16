@@ -43,11 +43,8 @@ variable "mail_from" {
   type        = string
   default     = "no-reply@homework-quest.invalid"
 }
-variable "platform_name" {
-  description = "Product name used in auth mail and in the dashboard; empty keeps the name seeded by the server"
-  type        = string
-  default     = ""
-}
+# The product name is no longer an env var: since P2.1 it lives in the `platform_settings` table and is edited in the
+# dashboard under Platform settings (`PUT /admin/platform-settings`).
 
 variable "sql_tier" {
   type    = string

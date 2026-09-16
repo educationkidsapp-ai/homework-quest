@@ -50,7 +50,7 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "17" }
       - uses: gradle/actions/setup-gradle@v4
-      - name: Shared app tests (architecture rules, journey flow, 45 screenshots)
+      - name: Shared app tests (architecture rules, journey flow, 51 screenshots)
         run: ./gradlew :shared:desktopTest --no-daemon
       - name: Android QA debug APK + admin panel (Wasm)
         run: ./gradlew :androidApp:assembleQaDebug :webAdmin:wasmJsBrowserDistribution --no-daemon

@@ -258,14 +258,6 @@ resource "google_cloud_run_v2_service" "api" {
         value = local.api_url
       }
       dynamic "env" {
-        # set only when non-empty: an env var with an empty value would be dropped by the API and reappear in every plan
-        for_each = var.platform_name == "" ? [] : [var.platform_name]
-        content {
-          name  = "PLATFORM_NAME"
-          value = env.value
-        }
-      }
-      dynamic "env" {
         for_each = toset(local.runtime_secrets)
         content {
           name = env.key
