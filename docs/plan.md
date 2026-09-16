@@ -103,6 +103,8 @@ Reviewer: `quality-performance` on every PR above.
 
 ## Status
 
+**Phase 1: done 2026-09-16.** QA runs `f7aa181`. Phase 2 started (P2.1 in progress).
+
 | Pkg | Branch / PR | State | Notes |
 |---|---|---|---|
 | setup | #26, #28 | merged | agent definitions + this plan |
@@ -113,7 +115,7 @@ Reviewer: `quality-performance` on every PR above.
 | P1.2 | #30 | merged, on QA | review found fail-open scope for school-less staff → fixed (fail closed, 85 tests) |
 | P1.3 | #31 | merged, on QA | review found 5 blockers (XFF rate-limit bypass, unscoped school list, weak coverage test, reset reviving disabled accounts, timing enumeration) → all fixed (107 tests) |
 | P1.8 | #34 | merged | app sends bearer on media; seeded shuffles |
-| P1.6 | #35 | merged | seed + isolation: local 11 pass / 5 blocked until P1.9; QA run pending P1.9 deploy |
-| P1.9 | #36 | merged, deploying to QA | one review item (uniform 404 body) fixed; 121 server tests |
+| P1.6 | #35, #39 | merged; **QA acceptance green** | seed exit 0 on QA; isolation 16 PASS / 0 FAIL ×2 with real teacher/managerial sessions; QA fixture: Al Noor `ALNOOR` (`5c5bc15a-0e3b-4d87-b3a2-d04f7bc267e2`), Green Valley `GREENV` (`f20151c4-719f-4ee8-9034-16b9e0bead8f`); staff/parent passwords live only in the planner session scratchpad `qa-e2e.env` — reset the accounts if lost |
+| P1.9 | #36 | merged, on QA (`f7aa181`) | one review item (uniform 404 body) fixed; 121 server tests |
 | P1.7 | #37 | merged | two review items (PATH in fenced blocks, workflow count) fixed |
 | P1.10 | #38 | merged, on QA | env applied; `RESEND_API_KEY` container created, not wired until a version exists |
