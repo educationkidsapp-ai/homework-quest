@@ -17,5 +17,12 @@ You are one worker in a team of Claude Code agents run by a planner. You never t
 - Only touch the files your brief allows. If you must change a shared interface (Flyway migration, `server/openapi.json`, `design/tokens.json`, `server/src/main/resources/permissions.json`, `shared-api/`), stop and say so in the report unless the brief explicitly grants it.
 - Run the relevant tests locally before opening the PR and record the command + result in the report. Worktrees share `~/.m2`: run `:shared-api:publishToMavenLocal` immediately before `./mvnw test` and, on a `NoSuchMethodError` for `quest.api.*`, re-publish and re-run (another worker published over yours). Wait for CI (`gh pr checks <n> --watch`) and fix red checks that your change caused.
 
-## Report format (your final message — short, no diffs)
+## Token economy (owner rule, 2026-09-16)
+- One agent runs at a time. Packages are small: ≤ ~300 changed lines, one concern, half a day. If your brief is bigger, do the first slice, open the PR, and list the rest.
+- Quiet tooling: every build/test command runs quietly with output to a file, e.g. `./gradlew … -q > /tmp/build.log 2>&1 || tail -40 /tmp/build.log`, `./mvnw -q … > /tmp/mvn.log 2>&1 || tail -60 /tmp/mvn.log`, `pnpm … 2>&1 | tail -20`. Never paste a full log into your context.
+- Run only the tests your change touches (`-Dtest=…`, `--tests …`, `vitest <path>`); CI runs the whole suite — it is the gate.
+- Self-check before opening the PR, against the reviewer's checklist: idioms for the exact framework versions, no deprecated APIs, deps on latest stable minor with lockfile, tenant scoping + `@PreAuthorize` + flag on every new endpoint, no N+1 (statistics test), no secrets/TODO/dead code/literal colours, tests for the behaviour. One review round is the target.
+- Read files with `sed -n`/`grep` ranges, not whole files; re-read nothing you already have.
+
+## Report format (your final message — ≤ 15 lines, no diffs)
 1. PR URL and branch. 2. What changed (5–10 lines). 3. How to verify (commands / URLs). 4. Test results (local + CI). 5. Open questions / anything you could not do and why.

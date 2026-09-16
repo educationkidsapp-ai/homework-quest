@@ -17,6 +17,7 @@ Every package: ≤ 1 day, one owner, one branch `<owner>/<package>`, one PR into
 | D6 | `webAdmin/` keeps working through phases 1–2: an Admin request without `X-School-Id` reads across schools and writes to the default school (`school id = default`, the migration target for existing rows) | QA stays usable until parity |
 | D7 | Node 22 in CI (`.nvmrc`); the dev Mac runs Node 25 (engine warning only). `pnpm` via corepack | prompt |
 | D8 | Existing lessons/children/users migrate into one default school `default` ("Default school", code `HQ0001`, curricula american/british, grades 1–3); the seeded QA admin becomes `ADMIN` with `schoolId = null` | prompt §9.1 |
+| D12 | Token economy (owner, 2026-09-16): one agent at a time; packages ≤ ~300 changed lines; workers `dashboard`/`mobile`/`docs`/`test`/`infra` run on **Sonnet 5**, `backend` and `quality-performance` stay on Opus 5; CI is the single full-suite gate, local runs are targeted; quiet tooling; one review round as the target. Remaining large packages are split (P3.2 → list / new lesson / lesson page / phone preview; P3.3 → schools+wizard / users+flags / theme+settings). | plan usage hit its ceiling |
 | D9 | Dashboard auth is a new `POST /auth/sign-in` (access + refresh, role + schoolId claims); `POST /admin/auth/sign-in` stays as an alias returning the same shape until `webAdmin/` is removed | compatibility |
 | D10 | The Angular dashboard is served by the API at **`/dashboard/`** (`DASHBOARD_DIR`, D2 still applies) while `webAdmin/` keeps `/panel/` until P3.6 — QA never loses the lesson pipeline mid-phase; P3.6 then removes `/panel/` (redirect to `/dashboard/`) | parity before cut-over |
 
@@ -113,6 +114,11 @@ Reviewer: `quality-performance` on every PR above.
 - `isolation.sh`'s `json()` helper has the jq `//` null trap (booleans/nulls); `flags.sh` reads them via node — align in the next test package.
 - Workers sharing `~/.m2`: `:shared-api:publishToMavenLocal` from one worktree can overwrite another's mid-run (`NoSuchMethodError` on `quest.api.*`) — re-publish and re-run; a per-worktree Maven repo is a possible infra improvement.
 - Sign-in rate limiter per instance; `GET /lessons/{id}` without `childId`; token font gaps — unchanged from phase 1.
+
+## P-CI and the repo visibility
+
+- **P-CI `infra/ci-cost`** = PR #54 (owner change request): macOS off PRs (`ios.yml`), path-filtered jobs, docs-only job, caches, Testcontainers singleton, Playwright after the QA deploy, weekly cost report; before = 16.7 billed min/run; after to be measured on its first green run.
+- 2026-09-16: card payments failed on the `educationkidsapp-ai` account, so the repo was made **public** on the owner's instruction to keep Actions free; **revert to private at the end of the programme** (`gh repo edit educationkidsapp-ai/homework-quest --visibility private --accept-visibility-change-consequences`). #49, #51, #52 merged on local reviewer verification while Actions was blocked.
 
 ## Status
 

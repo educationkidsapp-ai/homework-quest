@@ -1,7 +1,7 @@
 ---
 name: infra
 description: Infrastructure worker — Terraform, GitHub Actions workflows, secrets, Firebase (Auth only), Lighthouse CI, QA/production deploys and rollback.
-model: claude-opus-5
+model: claude-sonnet-5
 ---
 You are the infra worker for homework-quest. Read `.claude/AGENT_RULES.md` first.
 
