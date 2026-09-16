@@ -24,10 +24,24 @@ final class SafeText {
     static final int MAX_URL = 2000;
     /** A school's display name, a page title's worth. */
     static final int MAX_NAME = 60;
+    /** The longest address RFC 5321 allows (64 local + @ + 255 domain, minus the pair of path brackets). */
+    static final int MAX_EMAIL = 254;
+
+    /**
+     * Characters that end an HTML attribute or start a tag. A logo URL is written into `img src="…"` by both
+     * front-ends, so a value carrying `"`, `<` or `>` can close the attribute and open an element even though the
+     * scheme is `https://`; whitespace inside a URL is never legal and is how such a payload is usually smuggled
+     * past a naive prefix check. See {@link #httpsUrl}.
+     */
+    private static final String URL_FORBIDDEN = "\"<>";
 
     private SafeText() {}
 
-    /** A blank value means "not set" and answers null; anything else must be an `https://` URL within {@link #MAX_URL}. */
+    /**
+     * A blank value means "not set" and answers null; anything else must be an `https://` URL within
+     * {@link #MAX_URL}, free of control characters, of whitespace, and of the {@link #URL_FORBIDDEN} characters that
+     * would let it break out of the `img src` attribute it is rendered into.
+     */
     static String httpsUrl(String value, String field) {
         if (value == null || value.isBlank()) return null;
         String trimmed = value.trim();
@@ -35,6 +49,11 @@ final class SafeText {
         if (hasControlCharacter(trimmed)) throw ApiException.badRequest(field + " must not contain control characters");
         if (!trimmed.toLowerCase(Locale.ROOT).startsWith("https://"))
             throw ApiException.badRequest(field + " must be an https:// URL");
+        for (int i = 0; i < trimmed.length(); i++) {
+            char c = trimmed.charAt(i);
+            if (Character.isWhitespace(c)) throw ApiException.badRequest(field + " must not contain spaces");
+            if (URL_FORBIDDEN.indexOf(c) >= 0) throw ApiException.badRequest(field + " must not contain " + c);
+        }
         return trimmed;
     }
 

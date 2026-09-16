@@ -46,6 +46,18 @@ public class LessonSteps {
     private static String id(String lessonId, PipelineStep s) { return lessonId + ":" + stepName(s); }
 
     public List<LessonStepEntity> list(String lessonId) { return steps.findByLessonIdOrderByPosition(lessonId); }
+
+    /**
+     * The ledgers of a whole page of lessons, grouped by lesson id — one query for the All lessons screen (§6 screen
+     * 8) instead of one per row. Lessons with no ledger (manual ones) are simply absent from the map.
+     */
+    public java.util.Map<String, List<LessonStepEntity>> listAll(java.util.Collection<String> lessonIds) {
+        if (lessonIds == null || lessonIds.isEmpty()) return java.util.Map.of();
+        var out = new java.util.LinkedHashMap<String, List<LessonStepEntity>>();
+        for (var step : steps.findByLessonIdInOrderByLessonIdAscPositionAsc(lessonIds))
+            out.computeIfAbsent(step.getLessonId(), k -> new java.util.ArrayList<>()).add(step);
+        return out;
+    }
     public Optional<LessonStepEntity> get(String lessonId, PipelineStep s) { return steps.findById(id(lessonId, s)); }
     public boolean isDone(String lessonId, PipelineStep s) { return get(lessonId, s).map(e -> "done".equals(e.getStatus())).orElse(false); }
 

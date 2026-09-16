@@ -78,6 +78,10 @@ public class UserService {
     /**
      * A Managerial caller only ever sees their own school, whatever they ask for. The scope and the filters are part of
      * the query: the list must not load the users table and throw most of it away.
+     *
+     * <p>`schoolName` comes from one lookup for the whole page (§6 screen 6 shows a school column), not one per row —
+     * `schools` is a small table and is not a tenant table, so the names of the schools actually present are read
+     * together and matched in Java.
      */
     public List<DashboardDto.DashboardUser> list(Principals.User caller, String role, String schoolId, String status) {
         String scope = caller.isAdmin() ? schoolId : caller.schoolId();
@@ -88,7 +92,9 @@ public class UserService {
             if (status != null) where.add(cb.equal(cb.lower(root.get("status")), status.trim().toLowerCase(Locale.ROOT)));
             return cb.and(where.toArray(Predicate[]::new));
         };
-        return users.findAll(spec, Sort.by(Sort.Order.asc("email").ignoreCase())).stream().map(u -> DashboardDto.of(u, null)).toList();
+        var rows = users.findAll(spec, Sort.by(Sort.Order.asc("email").ignoreCase()));
+        var names = schools.namesOf(rows.stream().map(Entities.UserEntity::getSchoolId).filter(Objects::nonNull).distinct().toList());
+        return rows.stream().map(u -> DashboardDto.of(u, null, null, names.get(u.getSchoolId()))).toList();
     }
 
     @Transactional

@@ -56,7 +56,7 @@ public class PlatformSettingsService {
         var name = SafeText.plainText(request.name(), "name", SafeText.MAX_NAME);
         var shortName = SafeText.plainText(request.shortName(), "shortName", SafeText.MAX_NAME);
         var logoUrl = SafeText.httpsUrl(request.logoUrl(), "logoUrl");
-        var supportEmail = SafeText.plainText(request.supportEmail(), "supportEmail", SafeText.MAX_NAME);
+        var supportEmail = SafeText.plainText(request.supportEmail(), "supportEmail", SafeText.MAX_EMAIL);
 
         var row = repository.findById(Entities.PlatformSettingsEntity.ID).orElseThrow(PlatformSettingsService::missing);
         if (name != null) row.setName(name);

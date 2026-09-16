@@ -133,6 +133,35 @@ class ThemeApiTest extends ApiTestSupport {
                 .as("nothing hostile was stored").isTrue();
     }
 
+    /**
+     * P3.0, from the P2.1 review: `https://` at the front is not on its own enough. The value is written into an
+     * `img src="…"` by both front-ends, so a quote or an angle bracket can close the attribute and open an element
+     * even with the right scheme, and whitespace inside a URL is never legal and is how such a payload is smuggled.
+     */
+    @Test void a_logo_url_may_not_carry_quotes_brackets_or_spaces() throws Exception {
+        var token = adminToken();
+        String school = createSchool(token);
+
+        // The strings below are JSON source: `\\\"` and `\\t` are what the decoded value carries.
+        for (String hostile : List.of(
+                "https://cdn.test/a.png\\\" onerror=\\\"alert(1)",
+                "https://cdn.test/a.png'><script>alert(1)</script>",
+                "https://cdn.test/a.png<img src=x>",
+                "https://cdn.test/a b.png",
+                "https://cdn.test/a\\tb.png")) {
+            var refused = putTheme(token, school, goodTheme("X").replace("https://cdn.test/al-noor.png", hostile));
+            assertThat(refused.get("code").asText()).as(hostile).isEqualTo("bad_request");
+            assertThat(refused.get("message").asText()).as(hostile).startsWith("logoUrl must not contain");
+        }
+        assertThat(json(mvc.perform(get("/schools/" + school + "/theme")).andReturn()).get("logoUrl").isNull())
+                .as("nothing hostile was stored").isTrue();
+
+        // An ordinary signed storage URL — query string, ampersands, percent-encoding — still goes through.
+        var signed = "https://storage.googleapis.com/bucket/logo.png?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Expires=900%2F1";
+        saveTheme(token, school, goodTheme("X").replace("https://cdn.test/al-noor.png", signed));
+        assertThat(json(mvc.perform(get("/schools/" + school + "/theme")).andReturn()).get("logoUrl").asText()).isEqualTo(signed);
+    }
+
     /** The public theme is cached for five minutes; an unbounded logo or name would be a payload on that route. */
     @Test void an_oversized_logo_url_or_app_name_is_refused_and_the_public_body_stays_small() throws Exception {
         var token = adminToken();

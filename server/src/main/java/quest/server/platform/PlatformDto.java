@@ -22,6 +22,6 @@ public final class PlatformDto {
     public record UpdatePlatformSettingsRequest(@Size(max = SafeText.MAX_NAME) String name,
                                                 @Size(max = SafeText.MAX_NAME) String shortName,
                                                 @Size(max = SafeText.MAX_URL) String logoUrl,
-                                                @Email @Size(max = SafeText.MAX_NAME) String supportEmail,
+                                                @Email @Size(max = SafeText.MAX_EMAIL) String supportEmail,
                                                 ThemeDto.SchoolTheme defaultTheme) {}
 }

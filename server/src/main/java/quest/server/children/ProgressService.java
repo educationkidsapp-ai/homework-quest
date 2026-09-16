@@ -64,6 +64,50 @@ public class ProgressService {
         return out;
     }
 
+    /**
+     * The weakest skills over a whole group of children (a teacher's classes, §6 screen 11), cheapest first.
+     *
+     * <p>Batched on purpose: {@link #skillBands(Entities.ChildEntity, List)} reads one child's attempts per call, so
+     * a Home that looped it would be a query per child. Here the attempts of every child arrive in one query, the
+     * plays and confirmed skills of every lesson in one each, and the first tries are pooled per skill before
+     * {@link ProgressBands} bands them — the same rule as an individual child's progress, read over a class.
+     *
+     * <p>A skill nobody has attempted has no accuracy and is left out: "weakest" is a measurement, not an absence.
+     */
+    public List<SkillBand> weakestSkills(List<Entities.ChildEntity> children, List<LessonEntity> lessons, int limit) {
+        var childIds = children.stream().map(Entities.ChildEntity::getId).toList();
+        var ids = lessons.stream().map(LessonEntity::getId).toList();
+        if (childIds.isEmpty() || ids.isEmpty() || limit <= 0) return List.of();
+
+        var all = attempts.findByChildIdInOrderByAnsweredAtDesc(childIds);
+        Map<String, List<Entities.AttemptEntity>> attemptsByLesson = new LinkedHashMap<>();
+        for (var a : all) attemptsByLesson.computeIfAbsent(a.getLessonId(), k -> new ArrayList<>()).add(a);
+        Map<String, List<quest.server.content.Entities.PlayEntity>> playsByLesson = new LinkedHashMap<>();
+        for (var p : plays.findByLessonIdInOrderByLessonIdAscLevelAscVariantAsc(ids)) playsByLesson.computeIfAbsent(p.getLessonId(), k -> new ArrayList<>()).add(p);
+        Map<String, List<quest.server.content.Entities.SkillEntity>> skillsByLesson = new LinkedHashMap<>();
+        for (var s : skills.findByLessonIdInAndConfirmedTrueOrderByLessonIdAscPositionAsc(ids)) skillsByLesson.computeIfAbsent(s.getLessonId(), k -> new ArrayList<>()).add(s);
+
+        List<SkillBand> out = new ArrayList<>(); Set<String> seen = new HashSet<>();
+        for (var lesson : lessons.stream().sorted(Comparator.comparing(LessonEntity::getDate)).toList()) {
+            var lessonSkills = skillsByLesson.getOrDefault(lesson.getId(), List.of());
+            if (lessonSkills.isEmpty()) continue;
+            var single = singleStopIds(playsByLesson.getOrDefault(lesson.getId(), List.of()));
+            var firstTries = attemptsByLesson.getOrDefault(lesson.getId(), List.<Entities.AttemptEntity>of()).stream()
+                    .filter(a -> single.contains(a.getStopId()) && a.getAttemptNumber() == 1).toList();
+            if (firstTries.isEmpty()) continue;
+            var acc = ProgressBands.INSTANCE.accuracy(firstTries.stream().map(Entities.AttemptEntity::isCorrect).toList());
+            if (acc == null) continue;
+            var last = firstTries.get(0).getAnsweredAt().toEpochMilli();
+            for (var s : lessonSkills) {
+                if (!seen.add(s.getId())) continue;
+                out.add(new SkillBand(s.getId(), s.getName(), Subject.valueOf(s.getSubject().toUpperCase()), lesson.getId(),
+                        ProgressBands.INSTANCE.band(acc), acc, firstTries.size(), last));
+            }
+        }
+        out.sort(Comparator.comparingDouble(SkillBand::accuracy));
+        return out.size() <= limit ? List.copyOf(out) : List.copyOf(out.subList(0, limit));
+    }
+
     private Set<String> singleStopIds(List<quest.server.content.Entities.PlayEntity> lessonPlays) {
         Set<String> ids = new HashSet<>();
         for (var pe : lessonPlays) for (Stop s : store.play(pe).getStops()) {

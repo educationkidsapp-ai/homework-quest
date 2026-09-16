@@ -33,8 +33,11 @@ public class SecurityConfig {
                 .requestMatchers("/admin/auth/sign-in", "/auth/**", "/invites/**", "/schools/by-code/**").permitAll()
                 // §3/§4/§A: the app and the sign-in page read these before anyone has a token. Listed one by one so
                 // a later `/schools/**` route is authenticated until it is deliberately opened here.
-                .requestMatchers("/platform-settings", "/schools/*/flags", "/schools/*/theme").permitAll()
+                .requestMatchers("/platform-settings", "/schools/*/flags", "/schools/*/theme", "/schools/logo").permitAll()
                 .requestMatchers("/me", "/me/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
+                // §6 screens 19–20: "my own school", with no school id in the path. Dashboard roles only; which of
+                // them may read what is the `@PreAuthorize` on each route, as everywhere else.
+                .requestMatchers("/school/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 .requestMatchers("/admin/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 .requestMatchers("/children/**", "/lessons/**").hasRole("PARENT")
                 .requestMatchers("/media/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL")

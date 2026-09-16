@@ -81,6 +81,32 @@ class PlatformSettingsTest extends ApiTestSupport {
     }
 
     /**
+     * P3.0, from the P2.1 review: `supportEmail` was capped at a display name's 60 characters, which refuses addresses
+     * RFC 5321 allows. The cap is the address limit — 254 — and still a cap, not "anything".
+     */
+    @Test void a_support_address_may_be_as_long_as_the_standard_allows_and_no_longer() throws Exception {
+        var token = adminToken();
+        // Every DNS label is 63 characters or fewer, which is what `@Email` itself checks; the address as a whole is
+        // what the 254 cap is about.
+        String longButLegal = "a".repeat(64) + "@" + "b".repeat(60) + "." + "c".repeat(60) + "." + "d".repeat(40) + ".test";
+        assertThat(longButLegal.length()).isBetween(61, 254);
+
+        assertThat(json(mvc.perform(admin(put("/admin/platform-settings").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"supportEmail\":\"" + longButLegal + "\"}"), token)).andExpect(status().isOk()).andReturn())
+                .get("supportEmail").asText()).isEqualTo(longButLegal);
+
+        mvc.perform(admin(put("/admin/platform-settings").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"supportEmail\":\"" + "d".repeat(250) + "@evil.test\"}"), token)).andExpect(status().isBadRequest());
+
+        // and it is still an address, not free text
+        mvc.perform(admin(put("/admin/platform-settings").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"supportEmail\":\"not an address\"}"), token)).andExpect(status().isBadRequest());
+
+        mvc.perform(admin(put("/admin/platform-settings").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"supportEmail\":\"help@acme.test\"}"), token)).andExpect(status().isOk());
+    }
+
+    /**
      * `@Valid` only reaches the top-level body, so a theme arriving nested as `defaultTheme` is checked by
      * `ThemeService.validated` alone — this is the path `@Size` does not cover, and where SafeText has to answer.
      */

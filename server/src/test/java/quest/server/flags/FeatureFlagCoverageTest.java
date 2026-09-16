@@ -36,9 +36,22 @@ class FeatureFlagCoverageTest {
             "ChildController", "AdminPanelController", "HealthController", "LessonController", "MediaController",
             "SchoolController", "UserController");
 
-    /** The flag, theme and platform-settings routes themselves: infrastructure, not a feature (P2.1). */
+    /**
+     * The flag, theme and platform-settings routes themselves: infrastructure, not a feature (P2.1). P3.0 adds the
+     * two controllers the dashboard shell itself is made of, for the same kind of reason:
+     *
+     * <ul>
+     *   <li>{@code HomeController} — `/` sends every signed-in user to their Home (§6 screen 2), so a flag that
+     *       could switch it off would leave that person with nowhere to land. What a Home <em>reports</em> about a
+     *       flagged feature is gated by that feature's own flag, where the feature lives.</li>
+     *   <li>{@code DashboardDataController} — classes are §2's unit of publishing and usage is how a school is run.
+     *       Neither is a feature a tenant can be without, and gating them would hide the School page that shows
+     *       which flags a school has.</li>
+     * </ul>
+     */
     private static final Set<String> INFRASTRUCTURE = Set.of(
-            "FlagController", "ThemeController", "PlatformSettingsController");
+            "FlagController", "ThemeController", "PlatformSettingsController",
+            "HomeController", "DashboardDataController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

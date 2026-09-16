@@ -43,6 +43,11 @@ data class School(
     val featureFlags: String = "{}",
     val status: SchoolStatus = SchoolStatus.ACTIVE,
     val createdAt: Long = 0,
+    /** What the School page's Overview tab counts (§6 screen 5); live children, teachers who are not disabled. */
+    val children: Int = 0,
+    val teachers: Int = 0,
+    val lessons: Int = 0,
+    val classes: Int = 0,
 )
 
 /** A school in a list: no theme, no flags. */
@@ -103,6 +108,8 @@ data class DashboardUser(
      * name, else the name seeded by `V5__flags_themes.sql`. The dashboard's title, heading and footer read it.
      */
     val platformName: String? = null,
+    /** The name of [schoolId], so the Admin's cross-school Users list (§6 screen 6) needs no second request. */
+    val schoolName: String? = null,
 )
 
 /** The public half of a teacher account: what the teacher island and the school page show. */
@@ -283,6 +290,36 @@ interface DashboardApi {
     /** Every field, the platform-wide default theme included. */
     suspend fun platformSettings(): PlatformSettings
     suspend fun savePlatformSettings(request: UpdatePlatformSettingsRequest): PlatformSettings
+
+    // ---- P3.0: what the Angular dashboard's Homes, School page and usage screens read (§6 screens 2, 4-6, 8, 10, 19)
+
+    /** §6 screen 2: the caller's Home, shaped by their role. Sections that do not belong to that role are null. */
+    suspend fun home(): HomeResponse
+
+    /** The School page's Classes tab (§6 screen 5). A Teacher or Managerial caller may only name her own school. */
+    suspend fun schoolClasses(schoolId: String): List<SchoolClass>
+    suspend fun createClass(schoolId: String, request: CreateClassRequest): SchoolClass
+    /** Assigns the class's teacher, or hands it back to nobody with `clearTeacher`. */
+    suspend fun updateClass(schoolId: String, classId: String, request: UpdateClassRequest): SchoolClass
+
+    /** The School page's Usage tab (§6 screen 5); the window defaults to the last 30 days. */
+    suspend fun schoolUsage(schoolId: String, from: String? = null, to: String? = null): SchoolUsage
+    /** The School page's Billing tab: what this school's lessons cost in model tokens, per month. */
+    suspend fun schoolBilling(schoolId: String, months: Int = 6): SchoolBilling
+
+    /** §6 screen 19, Managerial: her own school's usage, with no school id to pass. */
+    suspend fun mySchoolUsage(from: String? = null, to: String? = null): SchoolUsage
+    /** §6 screen 20, Managerial: her school's teachers and their classes, read-only. */
+    suspend fun mySchoolTeachers(): List<TeacherSummary>
+
+    /** §6 screen 10, Admin: the platform's own numbers and what each school cost. */
+    suspend fun platformUsage(from: String? = null, to: String? = null): PlatformUsage
+
+    /** §6 screen 4: the New school wizard's submit — school, theme, flags and the first Managerial user in one go. */
+    suspend fun createSchoolWithWizard(request: SchoolWizardRequest): SchoolWizardResponse
+
+    /** Public (§6 screen 1): the logo to fade in once the person has typed their address. 204 when nothing matches. */
+    suspend fun schoolLogoByEmail(email: String): SchoolLogo?
 }
 
 /** `PUT /admin/platform-settings` (§A): only the fields that are present are written. */
@@ -294,3 +331,217 @@ data class UpdatePlatformSettingsRequest(
     val supportEmail: String? = null,
     val defaultTheme: SchoolTheme? = null,
 )
+
+// ---------------------------------------------------------------------------------------------------------------
+// P3.0 `backend/dashboard-endpoints` — Homes, School page data, the wizard, platform usage and the sign-in logo.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** One of the three big numbers a Home counts up on load (§6 screen 2). [value] is pre-formatted by the server. */
+@Serializable
+data class HomeCard(val key: String, val label: String, val value: String)
+
+/**
+ * One row of a Home's "what needs you" list. [kind] is what the dashboard groups and icons by; [href] is the
+ * dashboard route that does something about it, already carrying whatever the target screen needs preselected.
+ */
+@Serializable
+data class NeedsYouItem(val kind: String, val title: String, val subtitle: String? = null, val href: String? = null)
+
+/** A teacher's class on her Home, with the state of today's lesson for it (§6 screen 11). */
+@Serializable
+data class TeacherClassInfo(
+    val classId: String,
+    val curriculum: Curriculum,
+    val grade: Int,
+    val subject: Subject,
+    val todayLessonId: String? = null,
+    /** The lesson's `LessonStatus` value, or null when the class has no lesson dated today at all. */
+    val todayStatus: String? = null,
+)
+
+/** A skill the children are weakest at, banded by `ProgressBands` — words, never a percentage. */
+@Serializable
+data class WeakSkill(val skillId: String, val name: String, val band: String)
+
+/**
+ * `GET /me/home` (§6 screen 2): one shape for all three roles, with the sections a role does not have left null.
+ *
+ * - ADMIN: [cards] schools / children / lessons published this week; [needsYou] lessons in error or awaiting review
+ *   across schools, schools with no teacher, accounts still `invited` after seven days. [schoolName] and
+ *   [schoolLogoUrl] are null until the Admin picks a school with `X-School-Id`.
+ * - TEACHER: [classes] with today's lesson per class, [cards] children who played yesterday / lessons published this
+ *   week / open `needs_review`, [weakSkills] the three weakest across her classes.
+ * - MANAGERIAL: [cards] children / families active this week / teachers; [needsYou] teachers who have not published
+ *   in seven days. Complaints arrive in phase 5 — until then those fields are absent rather than zero.
+ */
+@Serializable
+data class HomeResponse(
+    val role: Role,
+    val displayName: String? = null,
+    val schoolId: String? = null,
+    val schoolName: String? = null,
+    val schoolLogoUrl: String? = null,
+    val platformName: String? = null,
+    val cards: List<HomeCard> = emptyList(),
+    val needsYou: List<NeedsYouItem> = emptyList(),
+    /** TEACHER only. */
+    val classes: List<TeacherClassInfo>? = null,
+    /** TEACHER only. */
+    val weakSkills: List<WeakSkill>? = null,
+)
+
+/** `POST /admin/schools/{id}/classes`: a class the school runs, with the teacher who owns it. */
+@Serializable
+data class CreateClassRequest(
+    val curriculum: Curriculum,
+    val grade: Int,
+    val subject: Subject,
+    val teacherId: String? = null,
+)
+
+/**
+ * `PATCH /admin/schools/{id}/classes/{classId}`: who teaches it. A null [teacherId] alone means "leave it as it is";
+ * [clearTeacher] is how the class is handed back to nobody, since JSON cannot tell absent from null here.
+ */
+@Serializable
+data class UpdateClassRequest(val teacherId: String? = null, val clearTeacher: Boolean = false)
+
+/** A day of the plays series; [date] is ISO `yyyy-MM-dd`. */
+@Serializable
+data class DayCount(val date: String, val count: Int)
+
+/** A week of the publishing series; [week] is the ISO Monday of that week, `yyyy-MM-dd`. */
+@Serializable
+data class WeekCount(val week: String, val count: Int)
+
+/**
+ * §6 screen 19: how steadily one teacher publishes — [weeksWithALesson] out of [weeks] in the window, and the
+ * moment her last lesson was published (null when she has published none).
+ */
+@Serializable
+data class TeacherConsistency(
+    val teacherId: String,
+    val displayName: String? = null,
+    val lessonsPublished: Int = 0,
+    val weeks: Int = 0,
+    val weeksWithALesson: Int = 0,
+    val lastPublishedAt: Long? = null,
+)
+
+/** `GET /admin/schools/{id}/usage` and `GET /school/usage` (§6 screens 5 and 19). */
+@Serializable
+data class SchoolUsage(
+    val schoolId: String,
+    val schoolName: String? = null,
+    val from: String,
+    val to: String,
+    val children: Int = 0,
+    /** Families with at least one child who answered something inside the window. */
+    val activeFamilies: Int = 0,
+    val playsPerDay: List<DayCount> = emptyList(),
+    val lessonsPublishedPerWeek: List<WeekCount> = emptyList(),
+    val teacherConsistency: List<TeacherConsistency> = emptyList(),
+)
+
+/** One month of a school's model bill; [month] is `yyyy-MM`. [costUsd] is [tokens] at the configured price. */
+@Serializable
+data class MonthCost(val month: String, val tokens: Long = 0, val tokensSaved: Long = 0, val costUsd: Double = 0.0)
+
+/**
+ * `GET /admin/schools/{id}/billing` (§6 screen 5, Billing tab). The price is `quest.llm.price-per-1k-tokens`;
+ * [pricePer1kTokens] travels with the answer so the screen can show the assumption it is built on.
+ */
+@Serializable
+data class SchoolBilling(
+    val schoolId: String,
+    val schoolName: String? = null,
+    val currency: String = "USD",
+    val pricePer1kTokens: Double = 0.0,
+    val months: List<MonthCost> = emptyList(),
+    val totalTokens: Long = 0,
+    val totalCostUsd: Double = 0.0,
+)
+
+/** One school's share of the platform's model bill (§6 screen 10). */
+@Serializable
+data class SchoolCost(
+    val schoolId: String,
+    val schoolName: String? = null,
+    val tokens: Long = 0,
+    val tokensSaved: Long = 0,
+    val costUsd: Double = 0.0,
+    val lessons: Int = 0,
+)
+
+/**
+ * `GET /admin/usage/platform` (§6 screen 10). [aiCalls] is how many analyses and generations actually reached the
+ * model — every cache row is one call that was paid for — and [cacheHits] how often a later lesson reused one, so
+ * [cacheHitRate] is `hits / (hits + calls)`, the §6 "> 90 %" target.
+ */
+@Serializable
+data class PlatformUsage(
+    val from: String,
+    val to: String,
+    val schools: Int = 0,
+    val children: Int = 0,
+    val playsPerDay: List<DayCount> = emptyList(),
+    val aiCalls: Long = 0,
+    val cacheHits: Long = 0,
+    val cacheHitRate: Double = 0.0,
+    val pricePer1kTokens: Double = 0.0,
+    val costPerSchool: List<SchoolCost> = emptyList(),
+    val totalCostUsd: Double = 0.0,
+)
+
+/**
+ * The first Managerial user of a brand-new school (§6 screen 4, last step). With a [password] the account exists and
+ * can sign in at once and must change it; without one an invitation is emailed instead.
+ */
+@Serializable
+data class WizardManagerInput(val email: String, val displayName: String? = null, val password: String? = null)
+
+/** `POST /admin/schools/wizard`: everything the four wizard steps collected, applied in one transaction. */
+@Serializable
+data class SchoolWizardRequest(
+    val school: CreateSchoolRequest,
+    val theme: SchoolTheme? = null,
+    val flags: Map<String, Boolean> = emptyMap(),
+    val manager: WizardManagerInput,
+)
+
+/**
+ * What the wizard made. [user] is the Managerial account — `invited` when no password was given, in which case
+ * [invited] is true and the one-time link is on its way by email.
+ */
+@Serializable
+data class SchoolWizardResponse(
+    val school: School,
+    val user: DashboardUser,
+    val invited: Boolean = false,
+    val theme: SchoolTheme? = null,
+    val flags: Map<String, Boolean> = emptyMap(),
+)
+
+/** §6 screen 20: a teacher of the school, read-only, with the classes she owns. */
+@Serializable
+data class TeacherSummary(
+    val userId: String,
+    val email: String,
+    val displayName: String? = null,
+    val photoUrl: String? = null,
+    val status: UserStatus = UserStatus.ACTIVE,
+    val subjects: List<Subject> = emptyList(),
+    val curriculum: Curriculum? = null,
+    val grades: List<Int> = emptyList(),
+    val classes: List<SchoolClass> = emptyList(),
+    val lessonsPublished: Int = 0,
+    val lastPublishedAt: Long? = null,
+)
+
+/**
+ * `GET /schools/logo?email=` (§6 screen 1): the logo and name of the school the address already belongs to, and
+ * nothing else. It answers only when the domain belongs to exactly one school, so a shared domain (`gmail.com`)
+ * tells a caller nothing, and it is rate-limited like sign-in.
+ */
+@Serializable
+data class SchoolLogo(val name: String, val logoUrl: String? = null)

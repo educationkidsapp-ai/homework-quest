@@ -34,16 +34,19 @@ public final class DashboardDto {
      */
     public record DashboardUser(String id, String email, String role, String schoolId, String status, String displayName,
                                 String photoUrl, String language, boolean mustChangePassword, Long lastLoginAt, long createdAt,
-                                String impersonatedBy, String platformName) {}
+                                String impersonatedBy, String platformName, String schoolName) {}
 
     public record MePermissions(String role, List<String> permissions, boolean readOnly) {}
 
-    public static DashboardUser of(Entities.UserEntity u, String impersonatedBy) { return of(u, impersonatedBy, null); }
+    public static DashboardUser of(Entities.UserEntity u, String impersonatedBy) { return of(u, impersonatedBy, null, null); }
 
-    public static DashboardUser of(Entities.UserEntity u, String impersonatedBy, String platformName) {
+    public static DashboardUser of(Entities.UserEntity u, String impersonatedBy, String platformName) { return of(u, impersonatedBy, platformName, null); }
+
+    /** `schoolName` saves the Admin's cross-school Users list (§6 screen 6) a second request per row. */
+    public static DashboardUser of(Entities.UserEntity u, String impersonatedBy, String platformName, String schoolName) {
         return new DashboardUser(u.getId(), u.getEmail(), u.getRole(), u.getSchoolId(), u.getStatus(), u.getDisplayName(),
                 u.getPhotoUrl(), u.getLanguage(), u.isMustChangePassword(),
                 u.getLastLoginAt() == null ? null : u.getLastLoginAt().toEpochMilli(),
-                u.getCreatedAt() == null ? 0 : u.getCreatedAt().toEpochMilli(), impersonatedBy, platformName);
+                u.getCreatedAt() == null ? 0 : u.getCreatedAt().toEpochMilli(), impersonatedBy, platformName, schoolName);
     }
 }

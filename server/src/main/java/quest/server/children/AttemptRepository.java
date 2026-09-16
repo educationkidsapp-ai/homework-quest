@@ -9,5 +9,7 @@ public interface AttemptRepository extends JpaRepository<Entities.AttemptEntity,
     List<Entities.AttemptEntity> findByLessonId(String lessonId);
     /** Every attempt of a set of lessons — one query for a whole usage report, grouped by lesson in Java. */
     List<Entities.AttemptEntity> findByLessonIdIn(Collection<String> lessonIds);
+    /** Every attempt of a set of children — one query for a whole class's skill bands (see `ProgressService`). */
+    List<Entities.AttemptEntity> findByChildIdInOrderByAnsweredAtDesc(Collection<String> childIds);
     long countByChildId(String childId);
 }
