@@ -27,7 +27,7 @@
     <firebase.version>9.4.3</firebase.version>
     <networknt.version>1.5.6</networknt.version>
     <pdfbox.version>3.0.5</pdfbox.version>
-    <poi.version>5.4.1</poi.version>
+    <poi.version>5.5.1</poi.version>
     <thumbnailator.version>0.4.20</thumbnailator.version>
     <anthropic.version>2.34.0</anthropic.version>
     <gcs.version>2.53.0</gcs.version>
