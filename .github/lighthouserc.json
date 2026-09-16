@@ -1,5 +1,4 @@
 {
-  "$comment": "Lighthouse CI thresholds for the dashboard sign-in page (unauthenticated) on QA. Used by the `lighthouse` job in .github/workflows/deploy-qa.yml; the URL and the number of runs come from the action's inputs, only the assertions live here.",
   "ci": {
     "assert": {
       "assertions": {

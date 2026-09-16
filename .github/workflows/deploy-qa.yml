@@ -121,8 +121,9 @@ jobs:
 
   lighthouse:
     # The dashboard sign-in page is public, so Lighthouse needs no credentials. Thresholds live in
-    # .github/lighthouserc.json (performance ≥ 0.9, accessibility ≥ 0.9) and are hard gates: continue-on-error is false,
-    # a regression turns Deploy QA red. Runs only after a successful deploy, so it costs nothing on a failed one.
+    # .github/lighthouserc.json (JSON, so it carries no comments: `categories:performance` and
+    # `categories:accessibility` ≥ 0.9) and are hard gates — continue-on-error is false, a regression turns Deploy QA
+    # red. Runs only after a successful deploy, so it costs nothing on a failed one.
     name: Lighthouse CI (dashboard sign-in)
     needs: deploy # skipped automatically when the deploy fails, so a broken deploy costs no Lighthouse minutes
     runs-on: ubuntu-latest
