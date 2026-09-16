@@ -13,6 +13,8 @@
 //   E2E_PARENT_AUTH      fake | firebase                 default: fake for localhost, firebase otherwise
 //   E2E_FIREBASE_API_KEY Identity Toolkit web key        default: read from androidApp/src/qa/google-services.json
 //   E2E_SEED_OUT         where the id summary is written default: e2e/.seed.json (git-ignored; isolation.sh reads it)
+//   E2E_RESEED_THEMES    1 = PUT the theme even when the school already carries it (otherwise the PUT is skipped
+//                            when GET /admin/schools/{id}/theme already answers this appName)
 //
 // Exit codes: 0 seeded, 1 an unexpected response, 2 seeded as far as the API allows (see BLOCKED in the output).
 
@@ -30,6 +32,7 @@ const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || '';
 const STAFF_PASSWORD = process.env.E2E_STAFF_PASSWORD || '';
 const PARENT_PASSWORD = process.env.E2E_PARENT_PASSWORD || '';
 const OUT = process.env.E2E_SEED_OUT || resolve(REPO, 'e2e', '.seed.json');
+const RESEED_THEMES = process.env.E2E_RESEED_THEMES === '1';
 
 const LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:|\/|$)/.test(BASE);
 const PARENT_AUTH = (process.env.E2E_PARENT_AUTH || (LOCAL ? 'fake' : 'firebase')).toLowerCase();
@@ -58,6 +61,23 @@ const SCHOOLS = [
     lesson: { curriculum: 'british', grade: 1, subject: 'math', date: DATE_A, title: 'Counting by 2s — Al Noor' },
     parent: { uid: 'e2e-parent-a', email: 'parent.a@alnoor.test' },
     child: { name: 'Aya', avatarColor: 'sky', curriculum: 'british', grade: 1 },
+    // §3 white label: a deep-green house with a warm amber action colour. Every pair below is measured by
+    // `assertThemeValid` before it is sent — see the comment there for why a dark `ground` forces a light everything.
+    theme: {
+      logoUrl: 'https://placehold.co/256x256/0E3B2E/FFFFFF.png?text=AN',
+      appName: 'Al Noor',
+      primary: '#145C46',
+      primaryInk: '#FFFFFF',
+      accent: '#F5B971',
+      ground: '#0E3B2E',
+      softBorder: '#2A6B57',
+      mascotColor: '#7FD1AE',
+      worldPalettes: {
+        math: { primary: '#3FAE8B', deep: '#1E7A5E', soft: '#E3F5EE', ink: '#123B2E' },
+        english: { primary: '#F0A868', deep: '#C2762F', soft: '#FDF1E3', ink: '#4A2C10' },
+      },
+      fontChoice: 'nunito',
+    },
   },
   {
     key: 'B',
@@ -76,6 +96,23 @@ const SCHOOLS = [
     lesson: { curriculum: 'british', grade: 1, subject: 'english', date: DATE_B, title: 'The sh sound — Green Valley' },
     parent: { uid: 'e2e-parent-b', email: 'parent.b@greenvalley.test' },
     child: { name: 'Bilal', avatarColor: 'mint', curriculum: 'british', grade: 1 },
+    // A navy/teal house, a different font and different worlds: nothing here is school A's, so a screenshot or a
+    // theme leak between the two tenants is visible at a glance rather than by reading ids.
+    theme: {
+      logoUrl: 'https://placehold.co/256x256/0B2A45/FFFFFF.png?text=GV',
+      appName: 'Green Valley',
+      primary: '#123C5F',
+      primaryInk: '#FFFFFF',
+      accent: '#7FD3E8',
+      ground: '#0B2A45',
+      softBorder: '#21506E',
+      mascotColor: '#4FB3C9',
+      worldPalettes: {
+        math: { primary: '#5EC8D8', deep: '#2A8FA5', soft: '#E5F6FA', ink: '#0E3542' },
+        english: { primary: '#9AA7FF', deep: '#5566D8', soft: '#ECEEFF', ink: '#1C2250' },
+      },
+      fontChoice: 'fredoka',
+    },
   },
 ];
 
@@ -170,6 +207,88 @@ async function ensureSchool(token, spec) {
   });
   note(`school ${spec.key}: created ${school.code}`);
   return { id: school.id, name: school.name, code: school.code, created: true };
+}
+
+// ---------------------------------------------------------------- the theme (§3 white label)
+
+/**
+ * WCAG 2.2 §1.4.3 relative luminance and the (L1 + 0.05) / (L2 + 0.05) ratio — the same arithmetic as the server's
+ * `quest.server.platform.Contrast`, restated here on purpose. The point is that a palette edited in this file is
+ * measured *locally*, before a request goes out: a tweak that drops a pair below its bar fails with the pair and the
+ * ratio named, rather than as a 400 from a server that may not even be running.
+ */
+const CONTRAST_TEXT = 4.5;      // Contrast.MINIMUM       — every text/background pair
+const CONTRAST_GRAPHIC = 3.0;   // Contrast.MINIMUM_NON_TEXT — the mascot, a shape rather than a string
+
+const channel = (value) => { const c = value / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+
+function luminance(hex) {
+  const rgb = Number.parseInt(hex.slice(1), 16);
+  return 0.2126 * channel((rgb >> 16) & 0xFF) + 0.7152 * channel((rgb >> 8) & 0xFF) + 0.0722 * channel(rgb & 0xFF);
+}
+
+function contrast(foreground, background) {
+  const a = luminance(foreground), b = luminance(background);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+const HEX = /^#[0-9A-Fa-f]{6}$/;
+
+/**
+ * Everything `ThemeService.validated` would refuse, checked before the PUT: the colour syntax, the two free-text caps
+ * (`SafeText`: https-only `logoUrl` ≤ 2000, `appName` ≤ 60) and the six contrast pairs, in the order the server
+ * reports them. A future palette tweak in this file therefore fails fast and locally.
+ */
+function assertThemeValid(key, theme) {
+  const colours = ['primary', 'primaryInk', 'accent', 'ground', 'softBorder', 'mascotColor'];
+  for (const field of colours)
+    if (!HEX.test(theme[field] ?? '')) fail(`school ${key} theme: ${field} must be #RRGGBB, not ${theme[field]}`);
+  for (const [world, palette] of Object.entries(theme.worldPalettes ?? {}))
+    for (const field of ['primary', 'deep', 'soft', 'ink'])
+      if (!HEX.test(palette[field] ?? '')) fail(`school ${key} theme: ${world}.${field} must be #RRGGBB, not ${palette[field]}`);
+
+  if (!theme.logoUrl.startsWith('https://')) fail(`school ${key} theme: logoUrl must be an https:// URL`);
+  if (theme.logoUrl.length > 2000) fail(`school ${key} theme: logoUrl is ${theme.logoUrl.length} characters, over the 2000 cap`);
+  if (theme.appName.length > 60) fail(`school ${key} theme: appName is ${theme.appName.length} characters, over the 60 cap`);
+
+  const pairs = [
+    ['primaryInk', theme.primaryInk, 'primary', theme.primary, CONTRAST_TEXT],
+    ['primaryInk', theme.primaryInk, 'ground', theme.ground, CONTRAST_TEXT],
+    ['accent', theme.accent, 'ground', theme.ground, CONTRAST_TEXT],
+    ['mascotColor', theme.mascotColor, 'ground', theme.ground, CONTRAST_GRAPHIC],
+  ];
+  for (const world of ['math', 'english']) {
+    const palette = theme.worldPalettes?.[world];
+    if (palette) pairs.push([`${world}.ink`, palette.ink, `${world}.soft`, palette.soft, CONTRAST_TEXT]);
+  }
+  for (const [on, foreground, over, background, minimum] of pairs) {
+    const ratio = contrast(foreground, background);
+    if (ratio < minimum)
+      fail(`school ${key} theme: ${on} ${foreground} on ${over} ${background} is ${ratio.toFixed(1)}:1, needs ${minimum.toFixed(1)}:1`);
+  }
+}
+
+/**
+ * `PUT /admin/schools/{id}/theme`, skipped when the school already carries this `appName` — so a second run is a
+ * single GET. `E2E_RESEED_THEMES=1` forces the write, which is what to use after editing a palette above.
+ */
+async function ensureTheme(token, school, spec) {
+  const wanted = spec.theme;
+  assertThemeValid(spec.key, wanted);
+
+  const current = await call('GET', `/admin/schools/${school.id}/theme`, { token });
+  if (!RESEED_THEMES && current?.appName === wanted.appName) {
+    note(`theme ${school.code}: found "${current.appName}" (set E2E_RESEED_THEMES=1 to write it again)`);
+    return { ...current, applied: false };
+  }
+
+  const saved = await call('PUT', `/admin/schools/${school.id}/theme`, { token, body: wanted, expect: [200] });
+  for (const field of ['primary', 'accent', 'ground', 'mascotColor'])
+    if (saved[field]?.toUpperCase() !== wanted[field].toUpperCase())
+      fail(`theme ${school.code}: PUT answered ${field} ${saved[field]}, not ${wanted[field]}`);
+  if (saved.appName !== wanted.appName) fail(`theme ${school.code}: PUT answered appName "${saved.appName}", not "${wanted.appName}"`);
+  note(`theme ${school.code}: applied "${saved.appName}"`);
+  return { ...saved, applied: true };
 }
 
 /**
@@ -456,9 +575,13 @@ async function main() {
 
   for (const spec of SCHOOLS) {
     const school = await ensureSchool(token, spec);
-    // A school a parent can join must be known by code before the child is created.
+    const theme = await ensureTheme(token, school, spec);
+    // A school a parent can join must be known by code before the child is created; `JoinSchoolInfo.theme` is what
+    // the app's confirm step runs its colour transition from, so the theme has to be on the school by now.
     const byCode = await call('GET', `/schools/by-code/${spec.code}`, { expect: [200] });
     if (byCode.name !== school.name) fail(`GET /schools/by-code/${spec.code} is "${byCode.name}", not "${school.name}"`);
+    if (byCode.theme?.appName !== spec.theme.appName)
+      fail(`GET /schools/by-code/${spec.code} carries theme.appName "${byCode.theme?.appName}", not "${spec.theme.appName}"`);
 
     const teacher = await ensureStaff(token, school.id, 'TEACHER', spec.teacher);
     const managerial = await ensureStaff(token, school.id, 'MANAGERIAL', spec.managerial);
@@ -474,6 +597,16 @@ async function main() {
       id: school.id,
       name: school.name,
       code: school.code,
+      theme: {
+        appName: theme.appName,
+        primary: theme.primary,
+        accent: theme.accent,
+        ground: theme.ground,
+        mascotColor: theme.mascotColor,
+        logoUrl: theme.logoUrl,
+        fontChoice: theme.fontChoice,
+        applied: theme.applied,
+      },
       teacher: { id: teacher.id, email: teacher.email, usable: teacher.usable, viewAsOnly: Boolean(teacher.viewAsOnly) },
       managerial: { id: managerial.id, email: managerial.email, usable: managerial.usable, viewAsOnly: Boolean(managerial.viewAsOnly) },
       lesson: { id: lesson.id, title: lesson.title, status: lesson.status, createdBy: lesson.createdBy, ...spec.lesson },
@@ -504,6 +637,8 @@ function summary(result) {
   const rows = [];
   for (const [key, s] of Object.entries(result.schools)) {
     rows.push([`school ${key}`, s.name, s.code, s.id]);
+    rows.push([`  theme`, `"${s.theme.appName}"`, `primary ${s.theme.primary} accent ${s.theme.accent} ${s.theme.fontChoice}`,
+      s.theme.applied ? 'applied' : 'already set']);
     rows.push([`  teacher`, s.teacher.email, s.teacher.usable ? 'signs in' : 'NO PASSWORD (View-as only)', s.teacher.id]);
     rows.push([`  managerial`, s.managerial.email, s.managerial.usable ? 'signs in' : 'NO PASSWORD (View-as only)', s.managerial.id]);
     rows.push([`  lesson`, s.lesson.title, `${s.lesson.curriculum}/${s.lesson.grade}/${s.lesson.subject} ${s.lesson.status}`, s.lesson.id]);

@@ -53,7 +53,9 @@ The dashboard's invites and password resets go through the server's `Mailer` (P1
 | `RESEND_API_KEY` | optional secret | absent | Resend key; wired into Cloud Run only once it has a version in Secret Manager |
 | `MAIL_FROM` | `mail_from` | `no-reply@homework-quest.invalid` | **placeholder** (RFC 2606 `.invalid`); replace with an address on a Resend-verified domain before switching |
 | `DASHBOARD_URL` | fixed to the API URL | `<API>` | origin the links are built on; the server appends `/panel/…`. Falls back to `PUBLIC_URL` when empty |
-| `PLATFORM_NAME` | `platform_name` | empty | product name in the mail; empty keeps the name seeded by the server |
+
+The product name in the mail is **not** an env var: since P2.1 it lives in the `platform_settings` table and is edited in
+the dashboard under **Platform settings** (`PUT /admin/platform-settings`, ADMIN only), so changing it needs no deploy.
 
 With the default `log` provider **no link reaches anyone** — it stays in the log, so an invited person cannot complete
 sign-up from an email. The QA path that does work is the `e2e` seed: it creates staff through the ADMIN-only create-user

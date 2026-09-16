@@ -18,6 +18,7 @@ Every package: ≤ 1 day, one owner, one branch `<owner>/<package>`, one PR into
 | D7 | Node 22 in CI (`.nvmrc`); the dev Mac runs Node 25 (engine warning only). `pnpm` via corepack | prompt |
 | D8 | Existing lessons/children/users migrate into one default school `default` ("Default school", code `HQ0001`, curricula american/british, grades 1–3); the seeded QA admin becomes `ADMIN` with `schoolId = null` | prompt §9.1 |
 | D9 | Dashboard auth is a new `POST /auth/sign-in` (access + refresh, role + schoolId claims); `POST /admin/auth/sign-in` stays as an alias returning the same shape until `webAdmin/` is removed | compatibility |
+| D10 | The Angular dashboard is served by the API at **`/dashboard/`** (`DASHBOARD_DIR`, D2 still applies) while `webAdmin/` keeps `/panel/` until P3.6 — QA never loses the lesson pipeline mid-phase; P3.6 then removes `/panel/` (redirect to `/dashboard/`) | parity before cut-over |
 
 ## Phase 1 — Tenancy and roles (+ the Angular workspace in parallel)
 
@@ -45,6 +46,8 @@ Reviewer: `quality-performance` on every PR above.
 | P2.2 `mobile/join-school-theme-flags` | mobile | prompt §3, §4, §6 app additions; P2.1 endpoints | Join school in Add child (code → name + logo → confirm, colour transition), theme JSON → runtime token override (logo on map header, primary/accent on tabs/buttons, Pip in `mascotColor`), `FeatureGate`, `FlagStore` sync on launch + 6 h, `:shared:checkFeatureGates`, screenshot tests, `FakeContentApi` parity | desktop tests + screenshots; QA APK joins school A and shows its colours | P2.1, P1.5 |
 | P2.3 `test/flag-flip-e2e` | test | prompt §10 acceptance 2; P2.1 | script: flip `complaints` off for A → API 404 within one sync, on → 200; theme validation cases | exits 0 against QA | P2.1 |
 | P2.4 `docs/phase2` | docs | merged P2.x | runbook: flags, themes, platform settings | commands verified against QA | P2.2 |
+| P2.5 `test/seed-themes` | test | §10 acceptance 1 | seed applies a distinct validated theme + placeholder logo per school; `e2e/themes.sh`; `flags.sh` test appName made distinct | local + QA: themes 7/0, isolation 16/0, flags 34/0/1; both QA schools left themed | P2.2 |
+| P2.6 `infra/platform-name-cleanup` | infra | P2.1 removed `PLATFORM_NAME` | Terraform/deploy README drop it; CI step title screenshot count | `terraform validate`; plan 0/1/0 | P2.1 |
 
 ## Phase 3 — Angular dashboard shell, lesson pipeline port, remove `webAdmin/`
 
@@ -54,7 +57,8 @@ Reviewer: `quality-performance` on every PR above.
 | P3.1 `dashboard/shell-auth-home` | dashboard | P1.0 ui library; `server/openapi.json` from P3.0; prompt §5, §6 shared screens, §7 | generated API client (`pnpm gen:api`), auth + error interceptors, sign-in (logo fade-in by email domain), forgot password, first-login change, role routes + guards, 240px nav with gliding red rule, page template with `pageEnter`, role Homes (count-up cards, "what needs you"), profile (EN/AR live), guided tour (4 steps per role), skeletons, Undo strip, keyboard shortcuts (`/`, `?`), RTL mirroring, Admin school switcher | Vitest units; Playwright: one login per role lands on its Home, EN/AR switch without reload; Lighthouse performance + accessibility ≥ 90 on QA after deploy; initial JS ≤ 350 kB gzipped per route | P1.0, P3.0 |
 | P3.2 `dashboard/lesson-pipeline` | dashboard | `webAdmin/` screens (parity reference), `docs/screenshots/admin-v2`, prompt §7 step strip | All lessons / My lessons, New lesson (PDF, slides, images, manual), step strip animations (pulse, tick draw, shake, band expand), retry, review plays with `phone-preview` per stop type, drag-reorder, parent panel, cache, usage, calendar — parity with `webAdmin/` | Playwright against QA: create → upload → step strip → confirm skills → review → publish; every `webAdmin/` feature has a counterpart (checklist in the PR); before/after screenshots | P3.1 |
 | P3.3 `dashboard/admin-schools-flags-theme` | dashboard | prompt §3, §4, §6 Admin screens 4–7; P2.1 endpoints | Schools cards, New school wizard (progress rail, slide steps), School page tabs (Overview, Users, Theme with live phone preview + 300 ms transitions, Feature flags, Classes, Usage, Billing), Users (invite/disable/reset/View as banner), Feature flags matrix (+ audit, enable/disable for all, confirmation strip), Platform settings | Playwright: create a school through the wizard, flip a flag and see the confirmation strip + audit row, save a bad theme and see the failing pair; renaming in Platform settings changes title/heading/footer | P3.1 |
-| P3.4 `infra/serve-dashboard` | infra | P3.1 build output; current `Dockerfile`, `scripts/build-panel.sh` | Dockerfile copies `dashboard/dist` (replaces `scripts/build-panel.sh` + `server/panel`), deploy workflows build the dashboard, Lighthouse CI after the QA deploy (thresholds ≥ 90), `ci.yml` drops the `webAdmin` build | Deploy QA green; `<api>/panel/` serves the Angular bundle with hashed assets immutable and `index.html` no-cache; Lighthouse job posts scores on the PR | P3.1 |
+| P3.4a `backend/serve-dashboard` | backend | D10 | `/dashboard/**` served from `DASHBOARD_DIR` (SPA fallback, hashed assets immutable, CSP, nosniff), invite/reset links → `/dashboard/…` | `DashboardStaticTest` | P3.0 |
+| P3.4 `infra/serve-dashboard` | infra | D10; `dashboard/` build | Dockerfile `dashboard` stage (Node 22, pnpm) → `/app/dashboard`, `DASHBOARD_CONFIG` build-arg, Lighthouse CI after the QA deploy (≥ 0.9 perf + a11y), announce comment adds the dashboard URL; `server/panel` kept until P3.6 | Deploy QA green; `<api>/dashboard/` serves Angular; Lighthouse scores posted | P3.1 (parallel) |
 | P3.5 `test/dashboard-e2e` | test | P3.2–P3.4 on QA; prompt §10 | Playwright suite against QA (login per role, isolation by UI, flag flip, lesson pipeline smoke); screenshot set 1366×768 EN/AR light/dark in `docs/screenshots/phase3/` | suite green against QA twice in a row; screenshots committed | P3.2, P3.3, P3.4 |
 | P3.6 `infra/remove-webadmin` | infra | P3.5 verdict | delete `webAdmin/`, its `settings.gradle.kts` include, `scripts/build-panel.sh`, CI/deploy references | full CI green without the module; Deploy QA green | P3.5 |
 | P3.7 `docs/dev-prompt-and-phase3` | docs | `docs/prompts/schools-dashboard.md`, merged P3.x | `docs/dev-prompt.md` (the spec, reconciled with what shipped), runbook, README (dashboard replaces webAdmin) | every command verified; no reference to `webAdmin/` remains outside history | P3.6 |
@@ -101,9 +105,18 @@ Reviewer: `quality-performance` on every PR above.
 - **`ApiError` lacks a `conflict` constant** (used by `user.create` 409) — add when the dashboard matches on it (P3.1).
 - **Owner actions**: install the Renovate GitHub App (Dependabot version updates are now off for gradle/maven/github-actions); provide `RESEND_API_KEY` + a verified `MAIL_FROM` and set `mail_provider = "resend"` in `envs/qa.tfvars` when real invite emails are wanted; the 15 open Dependabot PRs (#2–#16, incl. Spring Boot 4 and Flyway 13 majors) are left for P6.4.
 
+## Carried over from phase 2
+
+- `HomeService` still emits the English literal "Untitled lesson" as a `lessonTitle` param — omit it and let the catalogue own the fallback (P3.1/P3.2).
+- `flags.sh` assertion (c) is SKIPPED until a callable route carries `@FeatureFlag` (P4.0 makes it a real 404/200 check automatically).
+- Seed logos are `placehold.co` placeholders — switch to an upload route when one exists (phase 5+).
+- `isolation.sh`'s `json()` helper has the jq `//` null trap (booleans/nulls); `flags.sh` reads them via node — align in the next test package.
+- Workers sharing `~/.m2`: `:shared-api:publishToMavenLocal` from one worktree can overwrite another's mid-run (`NoSuchMethodError` on `quest.api.*`) — re-publish and re-run; a per-worktree Maven repo is a possible infra improvement.
+- Sign-in rate limiter per instance; `GET /lessons/{id}` without `childId`; token font gaps — unchanged from phase 1.
+
 ## Status
 
-**Phase 1: done 2026-09-16.** QA runs `f7aa181`. Phase 2 started (P2.1 in progress).
+**Phase 1: done 2026-09-16.** **Phase 2: done 2026-09-16** (server flags/themes/platform settings, app join-school/theme/gates, e2e, docs). QA runs `cb49991`; both QA schools themed. Phase 3 in progress (P3.0 merged; P3.1, P3.4a, P3.4 running).
 
 | Pkg | Branch / PR | State | Notes |
 |---|---|---|---|
@@ -119,3 +132,11 @@ Reviewer: `quality-performance` on every PR above.
 | P1.9 | #36 | merged, on QA (`f7aa181`) | one review item (uniform 404 body) fixed; 121 server tests |
 | P1.7 | #37 | merged | two review items (PATH in fenced blocks, workflow count) fixed |
 | P1.10 | #38 | merged, on QA | env applied; `RESEND_API_KEY` container created, not wired until a version exists |
+| P2.1 | #41 | merged, on QA | review: theme `logoUrl`/`appName` validation + two N+1s → fixed; 158 tests |
+| P2.2 | #45 | merged, on QA | review: `levels.three` gate leaked via the finish screen → closed at all three doors; 51 deterministic screenshots |
+| P2.3 | #42 | merged | review: restore trap trusted PUT status → now read-back based; 34/0/1 local + QA |
+| P2.5 | #46 | merged | QA schools themed (AN green / GV navy); contrast parity with `Contrast.java` verified |
+| P2.4 | #47 | merged | runbook flags/themes/platform settings; matrix 44 × 74 verified cell-by-cell |
+| P2.6 | #48 | merged | PLATFORM_NAME dropped from Terraform/deploy README; QA plan: no changes |
+| #43 | #43 | merged | unplanned: shellcheck for `e2e/` in CI |
+| P3.0 | #44 | merged, on QA | review: unbounded teacher Home, prose in payload, `schoolName` null, dead overload → fixed; 218 tests; 71 OpenAPI paths |

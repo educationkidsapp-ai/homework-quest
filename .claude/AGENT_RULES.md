@@ -15,7 +15,7 @@ You are one worker in a team of Claude Code agents run by a planner. You never t
 - Only the planner merges. Open exactly one PR per package into `develop`: `gh pr create --base develop --title … --body-file …`. The body: what/why, how to verify, screenshots when user-facing, and the last line `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 - Never print, commit or paste a secret. Tell the planner the environment-variable name instead.
 - Only touch the files your brief allows. If you must change a shared interface (Flyway migration, `server/openapi.json`, `design/tokens.json`, `server/src/main/resources/permissions.json`, `shared-api/`), stop and say so in the report unless the brief explicitly grants it.
-- Run the relevant tests locally before opening the PR and record the command + result in the report. Wait for CI (`gh pr checks <n> --watch`) and fix red checks that your change caused.
+- Run the relevant tests locally before opening the PR and record the command + result in the report. Worktrees share `~/.m2`: run `:shared-api:publishToMavenLocal` immediately before `./mvnw test` and, on a `NoSuchMethodError` for `quest.api.*`, re-publish and re-run (another worker published over yours). Wait for CI (`gh pr checks <n> --watch`) and fix red checks that your change caused.
 
 ## Report format (your final message — short, no diffs)
 1. PR URL and branch. 2. What changed (5–10 lines). 3. How to verify (commands / URLs). 4. Test results (local + CI). 5. Open questions / anything you could not do and why.

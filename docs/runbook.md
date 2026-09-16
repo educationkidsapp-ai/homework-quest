@@ -1,7 +1,8 @@
 # Runbook
 
-Operating the platform as it stands on `develop` (phase 1: tenancy, roles, dashboard accounts, the Angular workspace).
-Feature flags, themes and the Angular screens are phases 2–3 and are not described here.
+Operating the platform as it stands on `develop` (phase 1: tenancy, roles, dashboard accounts, the Angular workspace;
+phase 2: feature flags, school themes, platform settings, and the app that reads all three). The Angular dashboard
+screens for flags and themes are phase 3 and are not described here — today those routes are driven with `curl`.
 
 Commands were run against a local server on the in-memory H2 profile unless the line says **needs QA credentials**.
 Secrets appear by name only; nothing here prints a value.
@@ -10,8 +11,11 @@ Secrets appear by name only; nothing here prints a value.
 - [Tenancy model](#tenancy-model)
 - [Roles and permissions](#roles-and-permissions)
 - [Dashboard accounts](#dashboard-accounts)
+- [Feature flags](#feature-flags)
+- [School themes](#school-themes)
+- [Platform settings](#platform-settings)
 - [Environment variables](#environment-variables)
-- [Seeding two schools and checking isolation](#seeding-two-schools-and-checking-isolation)
+- [Seeding two schools, isolation, flags and themes](#seeding-two-schools-isolation-flags-and-themes)
 - [Design tokens](#design-tokens)
 - [CI](#ci)
 - [Rollback](#rollback)
@@ -139,14 +143,15 @@ package.
 
 ### The matrix
 
-Generated from `permissions.json` on `develop` (`96d208c`). `✓` = granted; the last column counts the endpoints the
+Generated from `permissions.json` on `develop` (`152f2c8`). `✓` = granted; the last column counts the endpoints the
 key guards.
 
 | Permission | ADMIN | TEACHER | MANAGERIAL | PARENT | PUBLIC | Endpoints |
 |---|---|---|---|---|---|---|
 | `health.read` | · | · | · | · | ✓ | 1 |
 | `panel.read` | · | · | · | · | ✓ | 3 |
-| `media.read` | · | · | · | · | ✓ | 2 |
+| `media.page.read` | ✓ | ✓ | ✓ | ✓ | · | 1 |
+| `media.child.read` | ✓ | ✓ | ✓ | ✓ | · | 1 |
 | `auth.signIn` | · | · | · | · | ✓ | 2 |
 | `auth.refresh` | · | · | · | · | ✓ | 1 |
 | `auth.signOut` | · | · | · | · | ✓ | 1 |
@@ -174,11 +179,21 @@ key guards.
 | `user.read` | ✓ | · | ✓ | · | · | 1 |
 | `user.write` | ✓ | · | ✓ | · | · | 2 |
 | `user.invite` | ✓ | · | ✓ | · | · | 1 |
+| `user.create` | ✓ | · | · | · | · | 1 |
 | `user.impersonate` | ✓ | · | · | · | · | 1 |
 | `me.read` | ✓ | ✓ | ✓ | · | · | 1 |
 | `me.permissions` | ✓ | ✓ | ✓ | · | · | 1 |
+| `school.flags` | · | · | · | · | ✓ | 1 |
+| `school.theme` | · | · | · | · | ✓ | 1 |
+| `platform.read` | · | · | · | · | ✓ | 1 |
+| `platform.manage` | ✓ | · | · | · | · | 1 |
+| `platform.write` | ✓ | · | · | · | · | 1 |
+| `flag.read` | ✓ | · | ✓ | · | · | 2 |
+| `flag.write` | ✓ | · | · | · | · | 2 |
+| `theme.read` | ✓ | ✓ | ✓ | · | · | 1 |
+| `theme.write` | ✓ | · | · | · | · | 1 |
 
-33 permissions over 62 endpoints. An ADMIN token holds 18 keys.
+44 permissions over 74 endpoints. An ADMIN token holds 27 keys.
 
 Two rules the matrix does not show, enforced in `TenantGuard` because a service reached from a job or another service
 has to refuse just the same:
@@ -256,17 +271,15 @@ Both lines above are from a verified local run. The consequence for operators: *
 `RESEND_API_KEY` are set, nobody can complete an invite or a password reset in QA** — the link never reaches anyone.
 The only account whose password can be chosen directly is the platform ADMIN, from `ADMIN_EMAIL` / `ADMIN_PASSWORD` at
 start-up (`AdminSeed` re-applies them on every boot). See
-[Seeding two schools](#seeding-two-schools-and-checking-isolation) for how the e2e seed works around this.
+[Seeding two schools](#seeding-two-schools-isolation-flags-and-themes) for how the e2e seed works around this.
 
-> **In review** (P1.9, PR #36, not on `develop` yet): `POST /admin/schools/{id}/users` — ADMIN-only direct creation of
-> an active account with a chosen password and `mustChangePassword`, which removes the need for email to stand up a
-> staff account; and media authorisation, which takes `/media/pages/**` and `/media/child/**` off `permitAll` so a
-> token is required and every request is resolved back to its lesson's or child's school (refusals are 404, never
-> 403). Both sections here describe `develop` as it stands and will need a pass once it merges.
+**The way round it** (P1.9, on `develop`): `POST /admin/schools/{id}/users` creates an active account directly, with a
+chosen password and `mustChangePassword`, ADMIN only (`user.create`). That is how `e2e/seed/seed.mjs` stands staff
+accounts up without email.
 
 Links are built from `DASHBOARD_URL` (falling back to `PUBLIC_URL`) as `<base>/panel/accept-invite?token=…` and
-`<base>/panel/reset-password?token=…`; subjects carry the platform name (`PLATFORM_NAME`, default
-"Schools Dashboard").
+`<base>/panel/reset-password?token=…`; subjects carry the platform name, read from the `platform_settings` row (see
+[Platform settings](#platform-settings)) — there is no env var for it.
 
 ### View as (impersonation)
 
@@ -290,6 +303,253 @@ mustChangePassword}` — byte-for-byte what that client decodes, with **no** `re
 with `ignoreUnknownKeys = false`, so no field may be added), and a long 12-hour token because it cannot refresh. It
 retires with `webAdmin/` in phase 3. New clients use `POST /auth/sign-in`.
 
+## Feature flags
+
+Every feature of §6 is behind a flag. `feature_flags` defines the 14 of them platform-wide, `school_feature_flags`
+holds the overrides a school has actually been given, and `flag_audit` records who flipped what. All three are created
+and seeded by `V5__flags_themes.sql`; the same 14 keys and defaults are `DEFAULT_FLAGS` in `shared-api`
+(`quest/api/ContentApi.kt`), which is what the app falls back to before its first sync.
+
+`schools.feature_flags_json` (added in V4) stays **unused** — the normalised table is the only truth.
+
+### The 14 keys
+
+| Key | Seeded default | Stage | What it gates |
+|---|---|---|---|
+| `lessons.pdf` | on | ga | new lesson from a PDF |
+| `lessons.slides` | on | ga | new lesson from PowerPoint slides |
+| `lessons.images` | on | ga | new lesson from photos of the workbook |
+| `lessons.manual` | on | ga | new lesson from typed questions |
+| `levels.three` | on | ga | the Challenge path; off caps a lesson at level 2 |
+| `retell.recording` | on | ga | children record themselves retelling the story |
+| `openAnswer.drawing` | on | ga | children answer by drawing |
+| `parentPanel.arabic` | on | ga | the Arabic parent panel and the language toggle |
+| `stickers.treasureChest` | on | ga | the streak treasure chest in the sticker book |
+| `certificates` | on | ga | certificates when a child finishes a skill |
+| `complaints` | **off** | internal | parents send complaints from the app (phase 5) |
+| `announcements` | **off** | internal | teachers post announcements to a class (phase 4) |
+| `teacherQuestions` | **off** | internal | teachers send questions to their students (phase 4) |
+| `progress.weeklyEmail` | **off** | internal | weekly progress email to parents |
+
+On for what ships today, off for what phases 4–6 still have to build — so the migration switches nothing off that a
+school already uses.
+
+**The effective value** of a flag for a school is that school's row in `school_feature_flags`, and the flag's
+`default_on` when it has none. A new school therefore inherits the defaults without a row being written, and a new
+flag reaches every school the moment its definition is seeded. A caller with no school at all — the platform ADMIN who
+sent no `X-School-Id`, an anonymous request — reads the defaults. `FeatureFlags` caches the set for 60 seconds per
+school and drops it on a write, so on more than one Cloud Run instance another instance's flip is visible within that
+minute.
+
+**Off means 404.** `@FeatureFlag("key")` on a controller class or a single handler is enforced by
+`FeatureFlagInterceptor`, which throws the *same* body an unknown path gets — `{"code":"not_found","message":"No such
+endpoint."}` — so a school cannot tell a feature it does not have from one that was never built. A handler's own
+annotation *replaces* its controller's rather than adding to it. Whose flags decide: a dashboard user's token school
+(or the one an ADMIN picked with `X-School-Id`); a parent's child's school on `/children/{id}/**` and her **first**
+child's school on every other parent route; nobody → the defaults.
+
+Nothing on `develop` carries `@FeatureFlag` yet: the phase-1 controllers predate the flags and the flag, theme and
+platform-settings controllers are infrastructure (a flag that could switch off the endpoint which switches flags has
+no way back on). P3.0 and P4.0 annotate the routes they add.
+
+### Reading and flipping them
+
+The three sections below share these three variables; `$API` is the local H2 server from
+[Seeding two schools](#seeding-two-schools-isolation-flags-and-themes), or the QA API (**needs QA credentials**).
+
+```bash
+API=http://127.0.0.1:8089
+SCHOOL=$(jq -r .schools.A.id e2e/.seed.json)          # school A of the e2e fixture (Al Noor, ALNOOR)
+TOKEN=$(curl -s -X POST "$API/auth/sign-in" -H 'Content-Type: application/json' \
+  -d '{"email":"admin@quest.local","password":"…"}' | jq -r .token)
+
+curl -s "$API/schools/$SCHOOL/flags"                  # public: all 14 as {key: boolean}, ETag + max-age=300
+curl -s "$API/admin/flags" -H "Authorization: Bearer $TOKEN"          # definitions + a row per visible school
+curl -s "$API/admin/flags/audit?limit=5" -H "Authorization: Bearer $TOKEN"
+
+curl -s -X PUT "$API/admin/schools/$SCHOOL/flags/certificates" -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"enabled":false}'          # one cell; answers the school's whole set
+curl -s -X PUT "$API/admin/flags/certificates/all" -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"enabled":true}'           # the whole column
+```
+
+Verified locally: the public read answered 14 keys (10 on, 4 off, exactly the table above); flipping `certificates`
+off for A answered `false` on the very next public fetch and left school B `true`; the audit gained one row naming the
+flag, the school and `admin@quest.local`. The column action leaves **one** row with `school_id` null — that null is
+what "for all schools" means; the trail is append-only and nothing removes it.
+
+`flag.read` is ADMIN + MANAGERIAL (a MANAGERIAL caller sees every definition but only her own school's row);
+`flag.write` is ADMIN. A teacher's `PUT` is 403.
+
+### In the app
+
+`SchoolSession` fetches the school's flags alongside its theme **on launch and every six hours**
+(`SYNC_INTERVAL_MILLIS` in `SchoolThemeHost.kt`), caches them in `SettingsStore` and restores the cached set before the
+first frame. A failed refresh, a 304 or an offline launch all keep what the device has, and anything the fetch does not
+name falls back to `DEFAULT_FLAGS` — so a slow network never hides a feature that ships today.
+
+`FeatureGate("stickers.treasureChest") { … }` composes its content only when the flag is on; off means the content is
+**never composed** — no placeholder, no message. `GateFallback` sends a route that was gated off while it was open back
+where it came from, and `LevelGate` is the single door for `levels.three`. Gated today: the treasure chest, retell
+recording, open-answer drawing, the Arabic parent panel, certificates and level 3.
+
+**Two gates keep a new screen or controller from shipping without a flag:**
+
+```bash
+./gradlew :shared:checkFeatureGates      # "12 screens, 6 pre-existing exemptions, none missing a flag"
+```
+
+- `:shared:checkFeatureGates` (hung off `:shared:desktopTest`, so CI's App job runs it) fails when a `*Screen.kt`
+  under `feature/*/presentation/` has neither a `FeatureGate(` / `featureEnabled(` reference nor a
+  `// hq-flag: none (<reason>)` line. Today's six ungated screens are allow-listed in `shared/build.gradle.kts`, and
+  the check *also* fails when an allow-listed screen grows a gate — the list can only shrink.
+- `FeatureFlagCoverageTest` (server) fails when a `@RestController` added after P2.1 carries no `@FeatureFlag` on the
+  class or on every handler, and when an annotation names a key `FlagKeys.ALL` does not have. Its two exemption lists —
+  the eleven phase-1 controllers and the three infrastructure ones — are closed; a third test fails if a name on either
+  list stops matching a real controller, so a rename cannot silently exempt anything.
+
+Adding a flag is a migration plus `FlagKeys`: both are the `backend` worker's files.
+
+## School themes
+
+Each school has one theme JSON in `schools.theme_json`, edited by ADMIN and read by both front-ends. A school without
+one is shown the platform-wide default (`platform_settings.default_theme_json`), and without that the theme the server
+builds at start-up from `design/tokens.json` — so no school ever renders without colours.
+
+```json
+{ "logoUrl": null, "appName": null,
+  "primary": "#FFFFFF", "primaryInk": "#201E1D", "accent": "#CC2A0F",
+  "ground": "#F3F2F2", "softBorder": "#D9D6D2", "mascotColor": "#598FB8",
+  "worldPalettes": { "math":    { "primary": "#6FC3FF", "deep": "#3F9BE0", "soft": "#EAF4FF", "ink": "#201E1D" },
+                     "english": { "primary": "#B69CFF", "deep": "#7E63D8", "soft": "#F1ECFF", "ink": "#201E1D" } },
+  "fontChoice": "nunito" }
+```
+
+That is the shipped default, as `GET /schools/by-code/ALNOOR` returns it for a school that has not been themed.
+`worldPalettes` has exactly the two worlds `math` and `english`.
+
+### What a save is validated against
+
+`PUT /admin/schools/{id}/theme` (`theme.write`, ADMIN) normalises every colour to upper-case `#RRGGBB` and measures six
+pairs **in this order**, refusing on the first failure with a 400 naming the pair and both ratios:
+
+| # | Pair | Bar | Why |
+|---|---|---|---|
+| 1 | `primaryInk` on `primary` | 4.5:1 | text on the brand surface |
+| 2 | `primaryInk` on `ground` | 4.5:1 | the same ink on the page |
+| 3 | `accent` on `ground` | 4.5:1 | the colour of an action |
+| 4 | `mascotColor` on `ground` | **3:1** | Pip is a graphic, not text (WCAG 1.4.11) |
+| 5 | `math.ink` on `math.soft` | 4.5:1 | text on that world |
+| 6 | `english.ink` on `english.soft` | 4.5:1 | text on that world |
+
+`primaryInk` is measured on **both** `primary` and `ground`, which is what makes `primary` a light brand surface rather
+than a saturated fill: white ink over a dark navy `primary` only validates when `ground` goes dark with it.
+
+The message form, both verified locally:
+
+```
+{"code":"bad_request","message":"primaryInk on primary is 3.8:1, needs 4.5:1"}
+{"code":"bad_request","message":"mascotColor on ground is 1.6:1, needs 3.0:1"}
+```
+
+(The first is the brand red `#EC3013` as text on `#F3F2F2`; the second is the tokens' mascot blue `#7EC8FF`. Both are
+why the defaults are the darkened variants.)
+
+The two free-text fields are checked before any colour, in `SafeText`:
+
+| Field | Rule | Limit |
+|---|---|---|
+| `logoUrl` | must start `https://` — not `http://`, and no `javascript:` or `data:`; no control characters; blank = unset | 2000 characters |
+| `appName` | trimmed, no control characters; blank = unset | 60 characters |
+
+Both are served by public routes and land in an `img src`, a page title and a mail subject, so neither is taken on
+trust. Verified refusals: `{"logoUrl":"javascript:alert(1)"}` answers *"logoUrl must be an https:// URL"*, a 61-character
+`appName` answers *"appName size must be between 0 and 60"*, and a `worldPalettes` key other than the two worlds
+answers *"worldPalettes has no world science; it is math and english"*. A refused save changes nothing.
+
+### Reading a theme
+
+```bash
+curl -s "$API/schools/$SCHOOL/theme"                                          # public
+ETAG=$(curl -s -D - -o /dev/null "$API/schools/$SCHOOL/theme" | awk '/[Ee][Tt]ag:/{print $2}' | tr -d '\r')
+curl -s -o /dev/null -w '%{http_code}\n' -H "If-None-Match: $ETAG" "$API/schools/$SCHOOL/theme"   # 304
+
+curl -s "$API/admin/schools/$SCHOOL/theme" -H "Authorization: Bearer $TOKEN"  # theme.read; another school is 404
+```
+
+Verified: the public read carried `ETag: "e8216b635af7c32b87b7c9cdfee68013"` and `Cache-Control: max-age=300, public`,
+and the conditional request answered `304`. The ETag is the first 32 hex characters of the body's SHA-256, so it
+changes exactly when the theme does; weak validators (`W/"…"`) and comma-separated lists are honoured.
+`GET /schools/{id}/flags` behaves identically. Five minutes is the whole staleness budget: a theme save or a flag flip
+reaches a client within that, with no rebuild and no redeploy.
+
+A `theme.read` caller who is not ADMIN gets **404** for another school, not 403 — the same rule as everywhere else in
+§2.
+
+### How the app applies it
+
+`SchoolSession` caches the theme JSON and its ETag per school and restores it **before the first frame**, so a themed
+app never flashes the default palette. `schoolThemeOverrides` maps the JSON onto `ThemeOverrides`, and the app root
+cross-fades between two of them over **300 ms** (`Motion.themeTransitionMillis`), role by role — a school that
+overrides three colours animates only those three. The roles follow the fields' jobs, not their names: `accent` is the
+filled action (`primary`/`secondary`), `primary` + `primaryInk` are the brand surface and its ink
+(`surface`/`onSurface`), `ground` is the page, `softBorder` the rules. The label on an accent fill is chosen by
+luminance, because that is the one pair the server never measures.
+
+Applied: the school's logo in the world-map header (its monogram until the image arrives), the two subject worlds from
+`worldPalettes.math` / `.english`, and Pip in `mascotColor`. The four avatar swatches keep their own colours.
+
+**`fontChoice` is carried but not honoured.** `baloo` and `fredoka` are not shipped as font resources, so all three
+values resolve to the bundled Nunito. The key is still stored and returned, so shipping a face is the only work left.
+
+### Joining a school
+
+`code` is the six-character A–Z/0–9 join code printed for parents. In Add child, typing the sixth character looks it up:
+
+```bash
+curl -s "$API/schools/by-code/ALNOOR"
+# {"name":"Al Noor School","logoUrl":null,"curriculumOptions":["british","american"],"gradeOptions":[1,2,3],"theme":{…}}
+```
+
+Public (no token), and it carries the **theme** so the app can run its colour transition without a second request. The
+school's name and logo fade in and a separate *Join this school* tap confirms it; the theme applies immediately, before
+the child exists, so the rest of the form is already in the school's colours, and the curriculum and grade choosers
+narrow to `curriculumOptions` / `gradeOptions`. Backing out fades the colours away again. On save,
+`CreateChildRequest.schoolCode` goes to the server and **the server** decides which school id the child lands in. An
+unknown code is a 404 and shows *"We couldn't find that school code."* A parent with no code fills the form as before.
+
+## Platform settings
+
+§A: the product's own name, short name and logo are a row in `platform_settings` (id `default`, seeded
+`Schools Dashboard` / `Schools` by `V5__flags_themes.sql`), not a constant and not an env var.
+
+```bash
+curl -s "$API/platform-settings"
+# {"name":"Schools Dashboard","shortName":"Schools","logoUrl":null,"supportEmail":null,"defaultTheme":null}
+
+curl -s "$API/admin/platform-settings" -H "Authorization: Bearer $TOKEN"      # platform.manage; every field
+curl -s -X PUT "$API/admin/platform-settings" -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"QA Dashboard"}'            # platform.write, ADMIN
+```
+
+`GET /platform-settings` is public — the sign-in page and the app need it before anyone has a token — and is
+deliberately **not** cacheable: a rename has to reach the browser title, the sign-in heading and the footer on the next
+page load, not within five minutes. The PUT writes only the fields that are present; a `defaultTheme` in the body goes
+through the same §3 contrast validation. The row is cached 60 seconds in the server and dropped on a write.
+
+**Name resolution, everywhere:** the selected school's `theme.appName` → the platform's `name` → the value seeded in
+the migration. `GET /me` answers the resolved `platformName`, the app resolves the same order for its own title, and
+mail subjects take the platform name. Verified locally: `GET /platform-settings` answered `Schools Dashboard` and
+`GET /me.platformName` answered the same for an ADMIN, who has no school.
+
+`ProductNameTest` fails the build if the literal `Homework Quest` or `Schools Dashboard` appears anywhere under
+`server/src/main` — including a comment or a model prompt — outside `V5__flags_themes.sql`. That migration is where the
+name enters the system; everything else asks `PlatformSettingsService`.
+
+**There is no `PLATFORM_NAME` any more.** P2.1 deleted the `quest.platform-name` property: an env var that silently
+beat the Admin's own setting would be a second source of truth. `infra/terraform/main.tf` still sets the variable on
+Cloud Run and `deploy/README.md` still lists it; both are inert and are the `infra` worker's to remove.
+
 ## Environment variables
 
 Names only — never paste a value into a PR, a commit, a log or a chat. Values live in `.env` locally (git-ignored;
@@ -306,7 +566,6 @@ Names only — never paste a value into a PR, a commit, a log or a chat. Values 
 | `RESEND_API_KEY` | QA, prod | required when `MAIL_PROVIDER=resend`; empty falls back to the log mailer with an error line |
 | `MAIL_FROM` | QA, prod | the verified sender; default `no-reply@localhost` |
 | `DASHBOARD_URL` | QA, prod | origin the dashboard is served from; blank falls back to `PUBLIC_URL` |
-| `PLATFORM_NAME` | QA, prod | blank = the seeded default "Schools Dashboard" (§A); phase 2 moves it into `platform_settings` |
 | `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL`, `DEEPSEEK_VISION_MODEL`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MAX_TOKENS` | every environment | `LLM_PROVIDER=deepseek` |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | optional | `LLM_PROVIDER=anthropic` |
 | `LLM_PROVIDER` | every environment | `deepseek` \| `anthropic` \| `fake` |
@@ -322,14 +581,22 @@ environment must set it** — Terraform does, from `random_password.jwt`.
 
 Terraform wires `DB_PASSWORD`, `ADMIN_JWT_SECRET`, `DEEPSEEK_API_KEY` and `ADMIN_PASSWORD` into Cloud Run as required
 secrets, plus `ANTHROPIC_API_KEY` and `FIREBASE_CREDENTIALS` once a value exists. `MAIL_PROVIDER`, `RESEND_API_KEY`,
-`MAIL_FROM`, `DASHBOARD_URL` and `PLATFORM_NAME` are **not wired into Terraform yet** — QA therefore runs the log
-mailer, builds links from `PUBLIC_URL`, and shows the seeded platform name. Adding them is an `infra` package
-(phase 5's `infra/mail-push` covers the mail three).
+`MAIL_FROM` and `DASHBOARD_URL` have Terraform variables but no value in QA, so QA runs the log mailer and builds
+links from `PUBLIC_URL`. Setting them is an `infra` package (phase 5's `infra/mail-push` covers the mail three).
 
-## Seeding two schools and checking isolation
+`infra/terraform/main.tf` also still sets a `PLATFORM_NAME` variable on the container. The server ignores it — the
+product name is a database row (see [Platform settings](#platform-settings)) — and removing it is an `infra` change.
 
-`e2e/` holds the fixture and the isolation assertions — two Node-and-bash scripts, no dependencies beyond Node 22,
+## Seeding two schools, isolation, flags and themes
+
+`e2e/` holds the fixture and the assertions over it — three Node-and-bash scripts, no dependencies beyond Node 22,
 `curl` and optionally `jq`. Full detail in [e2e/README.md](../e2e/README.md).
+
+| Script | What it does |
+|---|---|
+| `seed/seed.mjs` | creates the two-school fixture and writes the ids to `e2e/.seed.json`; idempotent |
+| `isolation.sh` | §2 / §10 cross-school isolation over the API |
+| `flags.sh` | §4 flags, §3 themes and §A platform settings; flips state and puts it back |
 
 | | School A | School B |
 |---|---|---|
@@ -349,6 +616,7 @@ export PATH="$JAVA_HOME/bin:$PATH"   # `java` must be 21: JAVA_HOME alone only s
 cd server && ./mvnw -q package -DskipTests
 SPRING_PROFILES_ACTIVE=h2 ADMIN_EMAIL=admin@quest.local ADMIN_PASSWORD='<throwaway>' \
   LLM_PROVIDER=fake PORT=8089 java -jar target/server.jar &
+cd ..                       # the two lines above leave the shell in server/; the scripts are run from the repo root
 
 export E2E_BASE_URL=http://127.0.0.1:8089
 export E2E_ADMIN_EMAIL=admin@quest.local
@@ -356,6 +624,7 @@ export E2E_ADMIN_PASSWORD='<the same throwaway>'
 export E2E_STAFF_PASSWORD='<anything ≥ 10 chars>'
 node e2e/seed/seed.mjs      # idempotent; writes ids to e2e/.seed.json
 e2e/isolation.sh            # one PASS / FAIL / BLOCKED line per assertion
+e2e/flags.sh                # same conventions; restores everything it flips
 ```
 
 Against QA (**needs QA credentials**): set `E2E_BASE_URL` to the QA API, take `E2E_ADMIN_PASSWORD` from the
@@ -364,8 +633,8 @@ parents through Firebase Identity Toolkit in `homework-quest-qa`, with the web k
 `androidApp/src/qa/google-services.json`. Delete those two Firebase accounts when the fixture is no longer wanted.
 Wake QA first if it is asleep.
 
-Exit codes for both scripts: `0` everything held, `1` a failure or an unexpected response, `2` complete as far as the
-API allows (each `BLOCKED` line says why).
+Exit codes for all three scripts: `0` everything held, `1` a failure or an unexpected response, `2` complete as far as
+the API allows (each `BLOCKED` line says why).
 
 **Why a run can end in `2`.** Staff passwords. `seed.mjs` tries, in order: signing in with `E2E_STAFF_PASSWORD`;
 `POST /admin/schools/{id}/users` when the target's OpenAPI document lists it; then an invite, *if* the response carries
@@ -376,6 +645,32 @@ the two that need a write.
 
 The isolation assertions mirror `IsolationTest` over HTTP: a teacher of A gets 404 for B's lessons, children and
 media; the header switcher behaves as the table above; a parent never reaches another school's lesson.
+
+### `e2e/flags.sh`
+
+Eight groups of assertions over the same fixture: the 14 seeded defaults and their ETag; ADMIN flipping `certificates`
+off for school A and school B staying untouched; the audit row that flip leaves; the route a flag guards answering 404
+for A and 200 for B; the flip back on with no restart; `PUT /admin/flags/{key}/all` moving both schools and leaving
+**one** audit row with `schoolId` null; a teacher's write being 403 while a managerial caller sees every definition but
+only her own school's row; the two theme refusals, a valid theme, its public ETag and its 304; and the platform-name
+round trip through `GET /me.platformName` and `GET /platform-settings`.
+
+`certificates` is the flag it flips: it is `default_on` and guards no route yet, so the flip is observable and
+harmless. **The route-is-404 assertion is `SKIPPED` today** — nothing on `develop` carries `@FeatureFlag`. The script
+decides that from `/v3/api-docs` rather than from the source, so the skip turns into a `FAIL` naming the new route the
+moment P3.0 or P4.0 publishes a flagged path; that is the cue to assert the 404 here.
+
+**Everything it changes it puts back, and it proves the restore landed.** A trap on `EXIT`, `INT` and `TERM` restores
+`certificates` for both schools, writes school A's theme back exactly as `GET /admin/schools/{A}/theme` answered at the
+start, and sets the platform name back. Each restore write is then **read back and compared**: a read-back that agrees
+is at most a `note` line, a read-back that disagrees is a `FAIL restore …` naming the thing, what it reads and what it
+should read, and forces a non-zero exit whatever the assertions said. The closing "are back as they were" sentence is
+printed only when every read-back agreed — so an interrupted run leaves no drift, and `isolation.sh` passes
+immediately afterwards.
+
+Two things it cannot take back, both by design: the `flag_audit` rows, which are append-only (that trail is the point
+of the audit assertion), and a school that had **no** `theme_json`, which ends holding an explicit copy of the theme it
+was already being shown — there is no `DELETE` for a theme and the rendered result is identical.
 
 ## Design tokens
 
@@ -410,8 +705,13 @@ workflow of its own ([deploy/README.md](../deploy/README.md) has the deploy ones
 | `server` | `cd server && ./mvnw test` — H2, plus PostgreSQL 16 through Testcontainers |
 | `app` | `:shared:desktopTest` (architecture, journey, screenshots), Android QA debug APK, the Wasm admin panel |
 | `dashboard` | lint, Vitest, `pnpm build --configuration=qa`, and the tokens + fonts drift checks |
+| `scripts` | `bash -n` and `shellcheck -S warning` over `e2e/*.sh` |
 | `ios` | simulator build + full-cycle UI test — only on `main` or a PR labelled `ios` (macOS minutes) |
 | `ci` | the aggregate status check the deploy workflows and branch rules wait for |
+
+The **`scripts` job** exists because the e2e shell scripts need a live server and a seeded fixture, so CI cannot run
+them: it catches syntax errors and shellcheck warnings instead. `shellcheck` ships on `ubuntu-latest`, no suppressions
+are expected, and `bash -n` is run one file at a time (it takes a single script; the rest would become its `$1`).
 
 The **`dashboard` job** is path-filtered *inside* the job (`dashboard/**`, `design/tokens.json`,
 `.github/workflows/ci.yml`) rather than with a workflow-level `paths:`, so the `ci` aggregate always exists as a status

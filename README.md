@@ -28,6 +28,10 @@ lessons, and a backend that analyses each slide deck **once** and publishes it t
 6. **Parents** (PIN) see the calendar, progress bands in words (never percentages), weak skills (review islands appear),
    recordings and drawings, and the parent panel in English + Arabic.
 
+Every step runs inside one school: a parent joins with a six-character code, the app wears that school's theme and
+sees only the features its feature flags switch on — both fetched on launch and every six hours, with no rebuild per
+school.
+
 ## Repository
 
 ```
@@ -35,15 +39,18 @@ shared-api/   KMP contract for app, server and admin: ContentApi / AdminApi, DTO
               ParentPanel, MapResponse), the four JSON schemas + SchemaValidator, MapAssembler (§7), CacheKeys (§4), seeds.
               Targets: jvm (published to ~/.m2 for the server), android, ios, wasmJs, js
 shared-ui/    Design system + every stop composable, pot/journey widgets, tracing. No DB, no platform services → reused by the web admin
-shared/       The app: MVI features (auth, children, content, map, journey, rewards, parent), SQLDelight, Koin, Ktor
+shared/       The app: MVI features (auth, children, content, map, journey, rewards, parent, school), SQLDelight, Koin,
+              Ktor. `school` is the join code, the runtime theme override and the FeatureGate every screen sits inside
 androidApp/   desktopApp/   iosApp/       entry points (Android · desktop runner · SwiftUI host)
 dashboard/    Angular 22 workspace (pnpm, standalone + signals, strict TS): the ui component library, motion system,
               EN/AR, Vitest + Playwright. Replaces webAdmin/ in phase 3; the two run side by side until then
 webAdmin/     Compose for Web admin panel (wasmJs + js), RemoteAdminApi, MVI features (auth, lessons, editor, reports)
 server/       Spring Boot 3 (Java 21, Maven): auth · tenancy · schools · users · children · content · analysis · admin ·
-              files; Flyway; H2 profile; permissions.json is the one permission matrix
+              files · flags · platform (per-school feature flags, themes and the product's own name, all database rows
+              read through public cached routes); Flyway; H2 profile; permissions.json is the one permission matrix
 design/       tokens.json — the single token source the Angular dashboard and shared-ui both generate from
-e2e/          Cross-cutting scripts: the two-school QA seed and the cross-school isolation assertions
+e2e/          Cross-cutting scripts: the two-school QA seed, the cross-school isolation assertions, and the flag,
+              theme and platform-settings round trip
 docs/         plan.md (work packages) · runbook.md (operating the platform) · prompts/ · design.md · screenshots/
 infra/        Terraform (per-environment GCP project), bootstrap.sh, secrets.sh, firebase-auth.sh, env.sh — see deploy/README.md
 Dockerfile · docker-compose.yml · .github/workflows/{ci,deploy-qa,deploy-production,rollback,migration-check}.yml
@@ -96,12 +103,17 @@ cd dashboard && corepack pnpm install && pnpm start   # Angular, http://localhos
 ### Tests
 
 ```bash
-./gradlew :shared-api:jvmTest :shared:desktopTest      # schemas, scoring, map rule; architecture; 45 screenshot tests
+./gradlew :shared-api:jvmTest :shared:desktopTest      # schemas, scoring, map rule; architecture; 51 screenshot tests
 ./gradlew :shared-ui:checkTokens                      # Tokens.kt / Theme.kt against design/tokens.json
-cd server && ./mvnw test                              # 107 tests: parent flow, admin pipeline + cache, tenancy isolation,
-                                                      # auth + permissions, OpenAPI contract (Testcontainers needs Docker)
+./gradlew :shared:checkFeatureGates                   # every screen sits inside a FeatureGate (runs with desktopTest)
+cd server && ./mvnw test                              # 158 tests: parent flow, admin pipeline + cache, tenancy isolation,
+                                                      # auth + permissions, flags + themes, OpenAPI contract
+                                                      # (Testcontainers needs Docker)
 cd dashboard && pnpm lint && pnpm test                # ESLint (incl. the local hq rules) + Vitest
 ```
+
+`.github/workflows/ci.yml` still says "45 screenshots" in the App job's step name; the count is 51. The workflow is the
+`infra` worker's file.
 
 ## Prompts
 
@@ -115,14 +127,18 @@ anything else is retried once with the validator's errors.
 
 `develop` → **QA** (`homework-quest-qa`), `main` → **production** (`homework-quest-prod`): separate GCP projects (Firebase Auth only),
 Cloud SQL, buckets, keys, Spring profiles (`qa` / `prod`) and Android flavors (`qa` / `prod`). Terraform in `infra/terraform`,
-six GitHub Actions workflows (CI, QA deploy with APK link on the PR, production promotion with a no-traffic canary, rollback,
-migration check, Dependabot). Everything is driven with `gh` — see [deploy/README.md](deploy/README.md).
+five GitHub Actions workflows (CI, QA deploy with APK link on the PR, production promotion with a no-traffic canary, rollback,
+migration check) plus Dependabot, which is `.github/dependabot.yml` rather than a workflow of its own. Everything is driven
+with `gh` — see [deploy/README.md](deploy/README.md).
 
 Each environment serves **many schools**. A school is a tenant with its own join code, curricula, grades and users;
 every tenant row carries `school_id` and is filtered in the server from the caller's JWT. Dashboard users are `ADMIN`
 (the platform owner, across every school, with an `X-School-Id` switcher), `TEACHER` and `MANAGERIAL` (one school
-each); parents stay in Firebase Auth. Existing data lives in the default school `HQ0001`. Operating it — sleep/wake,
-accounts and invites, the permission matrix, seeding two schools, rollback — is [docs/runbook.md](docs/runbook.md).
+each); parents stay in Firebase Auth. Existing data lives in the default school `HQ0001`. Each school also has its own
+**theme** (colours, logo and display name, validated for contrast when Admin saves it) and its own **feature flags** —
+14 keys whose effective value is the school's override, else the platform default; a flag that is off makes its
+endpoint a 404 and its screen never compose. Operating it — sleep/wake, accounts and invites, the permission matrix,
+flags, themes, platform settings, seeding two schools, rollback — is [docs/runbook.md](docs/runbook.md).
 
 ## Still needed from the school / project owner
 
