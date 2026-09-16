@@ -271,7 +271,7 @@ Both lines above are from a verified local run. The consequence for operators: *
 `RESEND_API_KEY` are set, nobody can complete an invite or a password reset in QA** — the link never reaches anyone.
 The only account whose password can be chosen directly is the platform ADMIN, from `ADMIN_EMAIL` / `ADMIN_PASSWORD` at
 start-up (`AdminSeed` re-applies them on every boot). See
-[Seeding two schools](#seeding-two-schools-and-checking-isolation) for how the e2e seed works around this.
+[Seeding two schools](#seeding-two-schools-isolation-flags-and-themes) for how the e2e seed works around this.
 
 **The way round it** (P1.9, on `develop`): `POST /admin/schools/{id}/users` creates an active account directly, with a
 chosen password and `mustChangePassword`, ADMIN only (`user.create`). That is how `e2e/seed/seed.mjs` stands staff
