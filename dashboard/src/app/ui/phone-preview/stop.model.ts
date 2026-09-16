@@ -6,9 +6,11 @@
  * hand back kotlinx-serialization output verbatim, because a sealed hierarchy with a `type`
  * discriminator is not something springdoc can describe. The generated services are therefore the
  * only thing that speaks HTTP (`hq/no-raw-http` still holds — nothing here injects `HttpClient`),
- * and this file is the shape their payloads actually have. `pnpm schemas` copies the JSON Schemas
- * the server validates against into `src/assets/schemas/` and fails on drift, so the shape below
- * cannot quietly diverge from the contract without a red build.
+ * and this file is the shape their payloads actually have. `stop.model.drift.spec.ts` reads
+ * `shared-api/src/commonMain/resources/schemas/Play.schema.json` directly (the schema the server
+ * validates against) and asserts its 22 `type` discriminators and each variant's required
+ * property names match `STOP_TYPES` and the interfaces below, so this file cannot quietly
+ * diverge from the contract without a red test.
  *
  * It lives under `ui/phone-preview/` rather than under `features/lessons/` because the preview is
  * what renders it, and a `ui/` component may not import from a feature.
