@@ -35,7 +35,8 @@ quest:
   public-url: ${PUBLIC_URL:http://localhost:8080}
   dashboard-url: ${DASHBOARD_URL:}          # origin the dashboard is served from; blank falls back to public-url
   # The product's name is not configured here (§A): it is the `platform_settings` row seeded by V5, edited by Admin.
-  panel-dir: ${PANEL_DIR:}   # admin panel bundle served at /panel/ (the Docker image sets it)
+  panel-dir: ${PANEL_DIR:}   # legacy webAdmin bundle served at /panel/ (the Docker image sets it); retired in P3.6
+  dashboard-dir: ${DASHBOARD_DIR:}   # Angular dashboard bundle served at /dashboard/ (D10); blank = 404, logged once at startup
   cors-origins: ${CORS_ORIGINS:http://localhost:8081,http://localhost:5173}
   auth:
     fake: ${FAKE_AUTH:false}
