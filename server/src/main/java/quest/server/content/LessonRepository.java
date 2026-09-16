@@ -26,6 +26,9 @@ public interface LessonRepository extends JpaRepository<Entities.LessonEntity, S
     /** Every published lesson of the given classes — the §2 map, assembled from Classes rather than from a Course. */
     List<Entities.LessonEntity> findByClassIdInAndStatusOrderByDateAsc(Collection<String> classIds, String status);
 
+    /** One class's month, published or not: §6 screen 12's calendar shows what is planned as well as what is live. */
+    List<Entities.LessonEntity> findByClassIdAndDateBetweenOrderByDateAsc(String classId, LocalDate from, LocalDate to);
+
     /**
      * Look a lesson up through a query, not `em.find`: Hibernate filters do not apply to `find`, so a `findById` would
      * hand a scoped caller a lesson of another school. Everything user-facing goes through here.

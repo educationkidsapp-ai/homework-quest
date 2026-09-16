@@ -38,6 +38,8 @@ public class SecurityConfig {
                 // §6 screens 19–20: "my own school", with no school id in the path. Dashboard roles only; which of
                 // them may read what is the `@PreAuthorize` on each route, as everywhere else.
                 .requestMatchers("/school/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
+                // §6 screens 11-16: the same shape, for the teacher's own profile, classes, students and questions.
+                .requestMatchers("/teacher/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 .requestMatchers("/admin/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 .requestMatchers("/children/**", "/lessons/**").hasRole("PARENT")
                 .requestMatchers("/media/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL")

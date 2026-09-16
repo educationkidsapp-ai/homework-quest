@@ -76,10 +76,18 @@ public class SchoolController {
      * 204 when the domain belongs to no school or to several — see {@link SchoolService#logoByEmail}, which is where
      * that rule and the reason for it live. Rate-limited in its own bucket so it cannot be swept and so throttling it
      * never uses up a real sign-in's attempts.
+     *
+     * <p><strong>POST, with the address in the body</strong> (P4.0, from the #52 review), even though it reads
+     * rather than writes. A query string is the one part of a request that is logged everywhere by default — the
+     * access log, the load balancer, any forward proxy, the browser's own history — and the value here is a named
+     * person's email address, typed on a page nobody has signed in to yet. The body is logged by none of those. The
+     * `GET` form this replaces is gone rather than deprecated: nothing shipped calls it (`webAdmin` never did, and
+     * the dashboard's sign-in page moves to the POST), so there is no window to keep open.
      */
-    @GetMapping(value = "/schools/logo", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = "/schools/logo", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("permitAll")
-    public ResponseEntity<SchoolDto.SchoolLogo> schoolLogo(@RequestParam(required = false) String email, HttpServletRequest request) {
+    public ResponseEntity<SchoolDto.SchoolLogo> schoolLogo(@RequestBody SchoolDto.SchoolLogoRequest body, HttpServletRequest request) {
+        String email = body == null ? null : body.email();
         limiter.probe("schools.logo", email, AuthController.clientIp(request));
         var logo = schools.logoByEmail(email);
         return logo == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(logo);

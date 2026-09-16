@@ -38,6 +38,13 @@ public final class DashboardDto {
 
     public record MePermissions(String role, List<String> permissions, boolean readOnly) {}
 
+    /**
+     * `PATCH /me`: the three things any dashboard user may change about herself. Only the fields that are present
+     * are written. Everything else about an account — role, status, school, email — is somebody else's to change
+     * (`PATCH /admin/users/{id}`), and a TEACHER's teaching profile is `PUT /teacher/profile`.
+     */
+    public record UpdateMeRequest(@Size(max = 120) String displayName, String photoUrl, String language) {}
+
     public static DashboardUser of(Entities.UserEntity u, String impersonatedBy) { return of(u, impersonatedBy, null, null); }
 
     /** `schoolName` saves the Admin's cross-school Users list (§6 screen 6) a second request per row. */

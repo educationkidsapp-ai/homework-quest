@@ -52,11 +52,17 @@ class FeatureFlagCoverageTest {
      *       files; there is no feature behind it to switch off, and a flag that could 404 the page is the one flag
      *       nobody could ever turn back on, since the screen that edits flags is inside that bundle. Flags gate
      *       what the dashboard <em>shows</em>, route by route, in the API each screen calls.</li>
+     *   <li>{@code TeacherController} (P4.0) — a teacher's profile is what decides which lessons she may publish at
+     *       all (`TenantGuard.lessonCreator` reads it), the chooser options are the only way to submit a lesson the
+     *       server will accept, and her lessons and her students are the job rather than an addition to it. A flag
+     *       over them would leave a TEACHER signed in with nothing she can do. The two parts of her dashboard that
+     *       <em>are</em> features carry real flags: {@code TeacherQuestionController} is `teacherQuestions` and
+     *       {@code AnnouncementController} is `announcements`, both on the class so the parent half is gated too.</li>
      * </ul>
      */
     private static final Set<String> INFRASTRUCTURE = Set.of(
             "FlagController", "ThemeController", "PlatformSettingsController",
-            "HomeController", "DashboardDataController", "DashboardController");
+            "HomeController", "DashboardDataController", "DashboardController", "TeacherController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import quest.server.ApiTestSupport;
 import quest.server.auth.Entities.UserEntity;
 import quest.server.auth.UserRepository;
@@ -56,8 +57,7 @@ class SchoolLogoTest extends ApiTestSupport {
     }
 
     @Test void an_address_of_a_school_answers_its_name_and_logo() throws Exception {
-        var body = json(mvc.perform(get("/schools/logo").param("email", "anyone@logo-noor.test"))
-                .andExpect(status().isOk()).andReturn());
+        var body = json(mvc.perform(lookup("anyone@logo-noor.test")).andExpect(status().isOk()).andReturn());
         assertThat(body.get("name").asText()).isEqualTo("Al Noor");
         assertThat(body.get("logoUrl").asText()).isEqualTo(LOGO);
     }
@@ -66,7 +66,7 @@ class SchoolLogoTest extends ApiTestSupport {
         assertThat(name("SARA@LOGO-NOOR.TEST")).isEqualTo("Al Noor");
         assertThat(name(" sara@logo-noor.test ")).isEqualTo("Al Noor");
         // A school with no theme of its own still has a name; the logo is simply absent.
-        var valley = json(mvc.perform(get("/schools/logo").param("email", "x@logo-valley.test")).andExpect(status().isOk()).andReturn());
+        var valley = json(mvc.perform(lookup("x@logo-valley.test")).andExpect(status().isOk()).andReturn());
         assertThat(valley.get("name").asText()).isEqualTo("Green Valley");
     }
 
@@ -86,15 +86,16 @@ class SchoolLogoTest extends ApiTestSupport {
         noContent("sara@");
         noContent("@logo-noor.test");
         noContent("sara@localhost");                                            // no dot: not a domain
-        mvc.perform(get("/schools/logo")).andExpect(status().isNoContent());    // no parameter at all
+        mvc.perform(post("/schools/logo").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isNoContent());                             // no address in the body at all
     }
 
     @Test void the_route_is_public_and_carries_nothing_else_about_the_school() throws Exception {
-        var body = mvc.perform(get("/schools/logo").param("email", "sara@logo-noor.test"))
+        var body = mvc.perform(lookup("sara@logo-noor.test"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(body).as("no join code, no id, no user list").doesNotContain("LOGO01").doesNotContain("logo-noor")
                 .doesNotContain("sara@");
-        assertThat(json(mvc.perform(get("/schools/logo").param("email", "sara@logo-noor.test")).andReturn()).size())
+        assertThat(json(mvc.perform(lookup("sara@logo-noor.test")).andReturn()).size())
                 .as("name and logoUrl, and nothing more").isEqualTo(2);
     }
 
@@ -106,29 +107,44 @@ class SchoolLogoTest extends ApiTestSupport {
     @Test void a_flood_of_lookups_for_one_address_is_throttled() throws Exception {
         int allowed = 0;
         for (int i = 0; i < 15; i++) {
-            int status = mvc.perform(get("/schools/logo").param("email", "flood@logo-noor.test")).andReturn().getResponse().getStatus();
+            int status = mvc.perform(lookup("flood@logo-noor.test")).andReturn().getResponse().getStatus();
             if (status == 429) break;
             assertThat(status).as("attempt %d", i).isEqualTo(200);
             allowed++;
         }
         assertThat(allowed).as("a handful, then throttled").isBetween(1, 12);
-        mvc.perform(get("/schools/logo").param("email", "flood@logo-noor.test")).andExpect(status().isTooManyRequests());
+        mvc.perform(lookup("flood@logo-noor.test")).andExpect(status().isTooManyRequests());
         // Another address is untouched: the bucket is per address, and it is not sign-in's.
-        mvc.perform(get("/schools/logo").param("email", "sara@logo-noor.test")).andExpect(status().isOk());
+        mvc.perform(lookup("sara@logo-noor.test")).andExpect(status().isOk());
         mvc.perform(post("/auth/sign-in").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"flood@logo-noor.test\",\"password\":\"whatever-it-is\"}")).andExpect(status().isUnauthorized());
     }
 
     // ---------------------------------------------------------------- helpers
 
+    /**
+     * `POST /schools/logo` with the address in the body. It is not a query parameter on purpose: a query string is
+     * logged by the access log, the load balancer, every forward proxy and the browser's history, and this value is
+     * a named person's email typed before anyone has signed in.
+     */
+    private MockHttpServletRequestBuilder lookup(String email) {
+        return post("/schools/logo").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.createObjectNode().put("email", email).toString());
+    }
+
     private String name(String email) throws Exception {
-        return json(mvc.perform(get("/schools/logo").param("email", email)).andExpect(status().isOk()).andReturn())
-                .get("name").asText();
+        return json(mvc.perform(lookup(email)).andExpect(status().isOk()).andReturn()).get("name").asText();
     }
 
     private void noContent(String email) throws Exception {
-        var result = mvc.perform(get("/schools/logo").param("email", email)).andExpect(status().isNoContent()).andReturn();
+        var result = mvc.perform(lookup(email)).andExpect(status().isNoContent()).andReturn();
         assertThat(result.getResponse().getContentAsString()).isEmpty();
+    }
+
+    /** The address must never reach the URL: the route answers the body form and nothing else. */
+    @Test void the_old_query_string_form_is_gone() throws Exception {
+        mvc.perform(get("/schools/logo").param("email", "sara@logo-noor.test"))
+                .andExpect(status().isMethodNotAllowed());
     }
 
     private SchoolEntity school(String id, String name, String code) {

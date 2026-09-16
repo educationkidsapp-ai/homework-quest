@@ -112,7 +112,7 @@ public class HomeService {
                         + " WHERE l.status IN ('error', 'needs_review')" + (schoolId == null ? "" : " AND l.school_id = :schoolId")
                         + " ORDER BY l.updated_at DESC", scope).setMaxResults(MAX_ROWS))) {
             var params = new LinkedHashMap<String, String>();
-            params.put("lessonTitle", title(Reports.text(row[1])));
+            putTitle(params, Reports.text(row[1]));
             params.put("schoolName", Reports.text(row[3]));
             if (Reports.text(row[4]) != null) params.put("errorCode", Reports.text(row[4]));
             needsYou.add(new HomeDto.NeedsYouItem("lesson." + Reports.text(row[2]), Reports.text(row[0]),
@@ -188,7 +188,7 @@ public class HomeService {
                     "SELECT l.id, l.title, l.error_code FROM lessons l WHERE l.school_id = :schoolId"
                             + " AND l.class_id IN (:classIds) AND l.status = 'error' ORDER BY l.updated_at DESC", scope).setMaxResults(MAX_ROWS))) {
                 var params = new LinkedHashMap<String, String>();
-                params.put("lessonTitle", title(Reports.text(row[1])));
+                putTitle(params, Reports.text(row[1]));
                 if (Reports.text(row[2]) != null) params.put("errorCode", Reports.text(row[2]));
                 needsYou.add(new HomeDto.NeedsYouItem("lesson.error", Reports.text(row[0]), Map.copyOf(params),
                         "/teacher/lessons/" + Reports.text(row[0])));
@@ -306,7 +306,15 @@ public class HomeService {
         return Reports.number(Reports.bind(em, sql, parameters).getSingleResult());
     }
 
-    private static String title(String value) { return value == null || value.isBlank() ? "Untitled lesson" : value; }
+    /**
+     * A lesson with no title yet contributes <em>no</em> `lessonTitle` param at all, rather than an English
+     * "Untitled lesson" the dashboard would print untranslated into an Arabic page. `NeedsYouItem.params` carries
+     * data, not prose (see its doc), so the missing-title wording belongs to the dashboard's own catalogue —
+     * `home.needs.lesson.error` resolves a variant without the title when the param is absent.
+     */
+    private static void putTitle(Map<String, String> params, String value) {
+        if (value != null && !value.isBlank()) params.put("lessonTitle", value);
+    }
 
     private static LocalDateTime startOfWeek(LocalDate today) { return midnight(Reports.weekOf(today)); }
 

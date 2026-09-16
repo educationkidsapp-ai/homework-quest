@@ -99,9 +99,13 @@ public class AdminLessonService {
      */
     public List<AdminLesson> list(LessonFilter f) {
         String schoolId = f.getSchoolId() == null || f.getSchoolId().isBlank() ? null : f.getSchoolId().trim();
+        String classId = f.getClassId() == null || f.getClassId().isBlank() ? null : f.getClassId().trim();
         var rows = lessons.findAllByOrderByDateDescCreatedAtDesc().stream().filter(l -> {
             var course = Course.Companion.parse(l.getCourseId());
             if (schoolId != null && !schoolId.equals(l.getSchoolId())) return false;
+            // §6 screen 12 "her lessons only, by class": the rows are already scoped to the caller's school, so a
+            // class of another school simply matches nothing rather than widening what she can see.
+            if (classId != null && !classId.equals(l.getClassId())) return false;
             if (f.getCurriculum() != null && course.getCurriculum() != f.getCurriculum()) return false;
             if (f.getGrade() != null && course.getGrade() != f.getGrade()) return false;
             if (f.getSubject() != null && !l.getSubject().equals(f.getSubject().name().toLowerCase())) return false;
