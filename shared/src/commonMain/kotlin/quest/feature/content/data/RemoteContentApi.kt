@@ -9,6 +9,7 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
@@ -18,6 +19,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
@@ -26,6 +28,7 @@ import quest.api.ApiException
 import quest.api.AuthProvider
 import quest.api.ContentApi
 import quest.api.UploadFile
+import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
@@ -34,13 +37,17 @@ import quest.api.dto.CreateChildRequest
 import quest.api.dto.MapResponse
 import quest.api.dto.MediaKind
 import quest.api.dto.MediaRef
+import quest.api.dto.PlatformSettings
 import quest.api.dto.ProgressResponse
 import quest.api.dto.PublishedLesson
+import quest.api.dto.SchoolTheme
 import quest.api.dto.UpdateChildRequest
 import quest.api.validation.SchemaValidator
+import quest.feature.content.domain.SchoolApi
+import quest.feature.content.domain.ThemeFetch
 
 /** The real implementation: Spring Boot API over HTTP with the Firebase ID token on every request. */
-class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvider, engineClient: HttpClient) : ContentApi {
+class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvider, engineClient: HttpClient) : ContentApi, SchoolApi {
     private val client = engineClient.config {
         install(ContentNegotiation) { json(SchemaValidator.json) }
         install(HttpTimeout) { requestTimeoutMillis = 60_000 }
@@ -65,6 +72,30 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
         }
     }
     override suspend fun progress(childId: String): ProgressResponse = call { client.get("$baseUrl/children/$childId/progress") { authed() } }
+
+    // ---- §2 join school, §3 theme, §4 flags, §A platform settings. All four routes are public: no bearer token,
+    // because the parent types a school code before the child (and sometimes before the account) exists.
+    override suspend fun schoolByCode(code: String): JoinSchoolInfo =
+        call { client.get("$baseUrl/schools/by-code/${code.trim().uppercase()}") }
+
+    override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> = call { client.get("$baseUrl/schools/$schoolId/flags") }
+
+    override suspend fun schoolTheme(schoolId: String): SchoolTheme = call { client.get("$baseUrl/schools/$schoolId/theme") }
+
+    override suspend fun schoolTheme(schoolId: String, ifNoneMatch: String?): ThemeFetch {
+        val response = try {
+            client.get("$baseUrl/schools/$schoolId/theme") { if (!ifNoneMatch.isNullOrBlank()) header(HttpHeaders.IfNoneMatch, ifNoneMatch) }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: Exception) {
+            throw ApiException(ApiError(ApiError.NETWORK, e.message ?: "network"), e)
+        }
+        if (response.status == HttpStatusCode.NotModified) return ThemeFetch(theme = null, etag = ifNoneMatch, notModified = true)
+        if (!response.status.isSuccess()) throw response.toException()
+        return ThemeFetch(response.body(), response.headers[HttpHeaders.ETag] ?: ifNoneMatch)
+    }
+
+    override suspend fun platformSettings(): PlatformSettings = call { client.get("$baseUrl/platform-settings") }
 
     private suspend inline fun <reified T> call(block: () -> HttpResponse): T {
         val response = try { block() } catch (e: ApiException) { throw e } catch (e: Exception) { throw ApiException(ApiError(ApiError.NETWORK, e.message ?: "network"), e) }

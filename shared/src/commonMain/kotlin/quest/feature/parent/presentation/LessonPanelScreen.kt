@@ -73,7 +73,7 @@ fun LessonPanelScreen(lesson: PublishedLesson, s: Strings, media: List<StopMedia
         lesson.plays.forEach { play ->
             androidx.compose.foundation.layout.Row(Modifier.padding(top = Dimens.s8), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("${s.level} ${play.level}", style = MaterialTheme.typography.titleMedium, color = Palette.parentInkSoft, modifier = Modifier.weight(1f))
-                if (play.level in unlocked) Chip("✓", Palette.mint) else Chip(s.unlockLevel, Palette.parentAccentSoft) { onUnlock(play.level) }
+                if (play.level in unlocked) Chip("✓", Palette.mint) else Chip(s.unlockLevel) { onUnlock(play.level) }
             }
             play.stops.forEach { stop ->
                 ParentCard(Modifier.padding(top = Dimens.s8)) {

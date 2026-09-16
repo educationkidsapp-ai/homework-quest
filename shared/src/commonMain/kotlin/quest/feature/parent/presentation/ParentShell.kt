@@ -39,6 +39,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import quest.feature.parent.domain.ParentRepository
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.FeatureGate
+import quest.feature.school.presentation.featureEnabled
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
 import quest.ui.design.ParentTheme
@@ -48,7 +51,10 @@ import quest.ui.design.ParentTheme
 fun ParentShell(title: (Strings) -> String, onBack: (() -> Unit)?, content: @Composable (Strings) -> Unit) {
     val parent: ParentRepository = koinInject()
     val language by parent.language.collectAsStateWithLifecycle()
-    val strings = Strings.forLanguage(language)
+    // §4 `parentPanel.arabic`: a school without it has an English-only parent mode — no toggle, and a parent who set
+    // Arabic before the flag was turned off is put back into English rather than stranded in a language with no way out.
+    val arabic = featureEnabled(Flags.PARENT_PANEL_ARABIC)
+    val strings = if (arabic) Strings.forLanguage(language) else Strings.en
     val scope = rememberCoroutineScope()
     ParentTheme(rtl = strings.isRtl) {
         CompositionLocalProvider(LocalStrings provides strings) {
@@ -60,7 +66,7 @@ fun ParentShell(title: (Strings) -> String, onBack: (() -> Unit)?, content: @Com
                         }
                     } else Spacer(Modifier.width(Dimens.s8))
                     Text(title(strings), style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk, modifier = Modifier.weight(1f).padding(start = Dimens.s8))
-                    LanguageToggle(language) { code -> scope.launch { parent.setLanguage(code) } }
+                    FeatureGate(Flags.PARENT_PANEL_ARABIC) { LanguageToggle(language) { code -> scope.launch { parent.setLanguage(code) } } }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) { content(strings) }
             }
@@ -73,10 +79,11 @@ private fun LanguageToggle(current: String, onChange: (String) -> Unit) {
     Row(Modifier.border(1.dp, Palette.parentLine, RectangleShape).padding(3.dp).semantics { contentDescription = "Language" }) {
         listOf("en" to "EN", "ar" to "ع").forEach { (code, label) ->
             val on = code == current
+            // The selected half carries the school's brand surface and its ink — the pair the server measures.
             Box(
-                Modifier.background(if (on) Palette.parentAccent else Color.Transparent, RectangleShape)
+                Modifier.background(if (on) MaterialTheme.colorScheme.primary else Color.Transparent, RectangleShape)
                     .clickable(role = Role.Button) { onChange(code) }.padding(horizontal = 12.dp, vertical = 6.dp),
-            ) { Text(label, style = MaterialTheme.typography.labelLarge, color = if (on) Color.White else Palette.parentInkSoft) }
+            ) { Text(label, style = MaterialTheme.typography.labelLarge, color = if (on) MaterialTheme.colorScheme.onPrimary else Palette.parentInkSoft) }
         }
     }
 }
@@ -84,7 +91,7 @@ private fun LanguageToggle(current: String, onChange: (String) -> Unit) {
 @Composable
 fun ParentCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Column(
-        modifier.fillMaxWidth().background(Palette.parentSurface, RectangleShape).border(1.dp, Palette.parentLine, RectangleShape)
+        modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, RectangleShape).border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .padding(Dimens.s16),
     ) { content() }
@@ -94,19 +101,19 @@ fun ParentCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, con
 fun ParentButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = true, enabled: Boolean = true, icon: String? = null) {
     Box(
         modifier.fillMaxWidth().heightIn(min = 52.dp).alpha(if (enabled) 1f else 0.5f)
-            .background(if (primary) Palette.parentAccent else Palette.parentAccentSoft, RectangleShape)
+            .background(if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer, RectangleShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = Dimens.s16, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             if (icon != null) { Text(icon, style = MaterialTheme.typography.titleLarge); Spacer(Modifier.width(Dimens.s8)) }
-            Text(text, style = MaterialTheme.typography.labelLarge, color = if (primary) Color.White else Palette.parentInk)
+            Text(text, style = MaterialTheme.typography.labelLarge, color = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer)
         }
     }
 }
 
 @Composable
-fun Chip(text: String, color: Color, modifier: Modifier = Modifier, selected: Boolean = true, onClick: (() -> Unit)? = null) {
+fun Chip(text: String, color: Color = MaterialTheme.colorScheme.primaryContainer, modifier: Modifier = Modifier, selected: Boolean = true, onClick: (() -> Unit)? = null) {
     Box(
         modifier.background(if (selected) color else Color.Transparent, RectangleShape).border(1.dp, color, RectangleShape)
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)

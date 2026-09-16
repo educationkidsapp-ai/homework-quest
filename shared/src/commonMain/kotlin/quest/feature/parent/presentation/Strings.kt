@@ -33,6 +33,11 @@ data class Strings(
     val supported: String = "Supported", val challengeIdeas: String = "Challenge", val tipsPerStop: String = "Tips for each stop", val played: String = "Played", val notPlayed: String = "Not played yet", val playRecording: String = "Play the recording",
     val deleteChild: String = "Delete this child", val deleteChildBody: String = "Removes the child, their progress, recordings and drawings from this device and the server.", val deleteChildConfirm: String = "Yes, delete",
     val weakSkills: String = "Needs another look", val noWeakSkills: String = "Nothing to review right now — great!", val streak: String = "Day streak", val stickers: String = "Stickers",
+    // §2 join school (P2.2)
+    val schoolCode: String = "School code", val schoolCodeHint: String = "The 6-letter code from your child's school. Leave it empty if you do not have one.",
+    val schoolCodePlaceholder: String = "ABC123", val schoolNotFound: String = "We couldn't find that school code.",
+    val joinSchool: String = "Join this school", val joinedSchool: String = "Joined", val changeSchool: String = "Use a different code",
+    val schoolCurriculumNote: String = "Your school sets the curriculum and grades below.",
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -96,6 +101,10 @@ data class Strings(
             supported = "دعم", challengeIdeas = "تحدٍّ", tipsPerStop = "نصائح لكل محطة", played = "لُعب", notPlayed = "لم يُلعب بعد", playRecording = "تشغيل التسجيل",
             deleteChild = "حذف هذا الطفل", deleteChildBody = "يزيل الطفل وتقدّمه وتسجيلاته ورسوماته من هذا الجهاز ومن الخادم.", deleteChildConfirm = "نعم، احذف",
             weakSkills = "يحتاج مراجعة", noWeakSkills = "لا شيء للمراجعة الآن — رائع!", streak = "أيام متتالية", stickers = "الملصقات",
+            schoolCode = "رمز المدرسة", schoolCodeHint = "الرمز المكوّن من 6 أحرف من مدرسة طفلك. اتركه فارغًا إن لم يكن لديك رمز.",
+            schoolCodePlaceholder = "ABC123", schoolNotFound = "لم نعثر على رمز المدرسة هذا.",
+            joinSchool = "الانضمام إلى هذه المدرسة", joinedSchool = "تم الانضمام", changeSchool = "استخدم رمزًا آخر",
+            schoolCurriculumNote = "مدرستك تحدّد المنهج والصفوف أدناه.",
             accuracyWords = mapOf("almost every time" to "في كل مرة تقريبًا", "most of the time" to "في معظم الأحيان", "more than half the time" to "أكثر من نصف المرات", "some of the time" to "أحيانًا", "not yet" to "ليس بعد"),
             weekdays = listOf("ن", "ث", "ر", "خ", "ج", "س", "ح"),
             months = listOf("يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"),

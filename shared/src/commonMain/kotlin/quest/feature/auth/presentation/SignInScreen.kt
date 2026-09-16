@@ -29,6 +29,7 @@ import quest.core.mvi.MviViewModel
 import quest.feature.parent.presentation.ParentButton
 import quest.feature.parent.presentation.ParentShell
 import quest.feature.parent.presentation.Strings
+import quest.feature.school.presentation.LocalSchoolBranding
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
 import quest.ui.design.Pip
@@ -74,7 +75,8 @@ fun SignInScreen(state: SignInContract.State, s: Strings, dispatch: (SignInContr
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s24), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(Dimens.s24))
         Pip(PipPose.WAVING, Dimens.pipMedium)
-        Text("Homework Quest", style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk)
+        // §A: the school's `appName` if it has one, else the platform's name, else what the app shipped with.
+        Text(LocalSchoolBranding.current.appName, style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk)
         Text(s.signInBody, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft)
         Spacer(Modifier.height(Dimens.s24))
         OutlinedTextField(state.email, { dispatch(SignInContract.Intent.Email(it)) }, Modifier.fillMaxWidth(), label = { Text(s.email) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))

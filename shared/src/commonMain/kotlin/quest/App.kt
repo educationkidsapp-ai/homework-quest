@@ -28,6 +28,11 @@ import quest.feature.map.presentation.WorldMapRoute
 import quest.feature.parent.presentation.parentGraph
 import quest.feature.rewards.presentation.StickerBookRoute
 import quest.feature.rewards.presentation.TreasureChestRoute
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.FeatureGate
+import quest.feature.school.presentation.GateFallback
+import quest.feature.school.presentation.LevelGate
+import quest.feature.school.presentation.SchoolThemeHost
 import quest.ui.design.ChildTheme
 
 /** Root of the shared UI. Koin must already be started by the platform entry point. */
@@ -41,7 +46,8 @@ fun App() {
         if (!ready) { ChildTheme { LoadingView("Waking Pip up…") }; return@KoinContext }
         val nav = rememberNavController()
         val start: Any = if (auth.state.value is AuthState.SignedIn) Routes.WorldMap else Routes.SignIn
-        QuestNavHost(nav, start)
+        // Everything below sees the joined school's colours, name, logo and feature flags (§3, §4).
+        SchoolThemeHost { QuestNavHost(nav, start) }
     }
 }
 
@@ -68,10 +74,15 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
         composable<Routes.Journey> { entry ->
             val r = entry.toRoute<Routes.Journey>()
             ChildTheme {
-                JourneyRoute(r.lessonId, r.level, r.variant,
-                    onOpenStop = { id, level, variant, index -> nav.navigate(Routes.StopPlayer(id, level, variant, index)) },
-                    onComplete = { id, level, variant -> nav.navigate(Routes.LessonComplete(id, level, variant)) },
-                    onParentPanel = { nav.navigate(Routes.ParentPin(it)) }, onBack = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } })
+                // §4 `levels.three`: the route is the last door into the Challenge path. A child who reaches it any
+                // other way — a deep link, a back stack from before the flag was turned off — lands on the map
+                // instead of a level whose own selector would not even list it.
+                LevelGate(r.level, onRefused = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } }) {
+                    JourneyRoute(r.lessonId, r.level, r.variant,
+                        onOpenStop = { id, level, variant, index -> nav.navigate(Routes.StopPlayer(id, level, variant, index)) },
+                        onComplete = { id, level, variant -> nav.navigate(Routes.LessonComplete(id, level, variant)) },
+                        onParentPanel = { nav.navigate(Routes.ParentPin(it)) }, onBack = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } })
+                }
             }
         }
         composable<Routes.StopPlayer> { entry ->
@@ -93,7 +104,12 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
             }
         }
         composable<Routes.StickerBook> { ChildTheme { StickerBookRoute(onBack = { nav.popBackStack() }) } }
-        composable<Routes.TreasureChest> { ChildTheme { TreasureChestRoute(onBack = { nav.popBackStack() }) } }
+        composable<Routes.TreasureChest> {
+            ChildTheme {
+                FeatureGate(Flags.TREASURE_CHEST) { TreasureChestRoute(onBack = { nav.popBackStack() }) }
+                GateFallback(Flags.TREASURE_CHEST) { nav.popBackStack() }
+            }
+        }
         parentGraph(nav)
     }
 }

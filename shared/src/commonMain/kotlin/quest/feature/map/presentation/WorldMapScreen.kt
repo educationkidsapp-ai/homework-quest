@@ -53,7 +53,12 @@ import quest.core.platform.Speaker
 import quest.feature.map.presentation.MapContract.Effect
 import quest.feature.map.presentation.MapContract.Intent
 import quest.feature.map.presentation.MapContract.State
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.FeatureGate
+import quest.feature.school.presentation.LocalSchoolBranding
+import quest.feature.school.presentation.SchoolLogo
 import quest.ui.design.Dimens
+import quest.ui.design.LocalThemeOverrides
 import quest.ui.design.Palette
 import quest.ui.design.Pip
 import quest.ui.design.PipPose
@@ -61,6 +66,7 @@ import quest.ui.design.ReadAloudButton
 import quest.ui.design.RoundIconButton
 import quest.ui.design.SpeechBubble
 import quest.ui.design.StarRow
+import quest.ui.design.animationsEnabled
 
 @Composable
 fun WorldMapRoute(onSwitchChild: () -> Unit, onOpenLesson: (String, Int, Int) -> Unit, onStickers: () -> Unit, onChest: () -> Unit, onGrownUps: () -> Unit, onNeedsChild: () -> Unit) {
@@ -89,9 +95,13 @@ fun WorldMapScreen(state: State, dispatch: (Intent) -> Unit, onStickers: () -> U
                 RoundIconButton(onSwitchChild, "Switch child") { Pip(PipPose.IDLE, 44.dp, animated = false, color = state.child?.avatarColor ?: "sky") }
                 Spacer(Modifier.width(Dimens.s8))
                 RoundIconButton(onStickers, "Sticker book") { Text("🌟", fontSize = 26.sp) }
-                Spacer(Modifier.width(Dimens.s8))
-                RoundIconButton(onChest, "Treasure chest") { Text("🎁", fontSize = 26.sp) }
+                // The chest only exists for schools that bought it (§4); off, the child never learns there was one.
+                FeatureGate(Flags.TREASURE_CHEST) {
+                    Spacer(Modifier.width(Dimens.s8))
+                    RoundIconButton(onChest, "Treasure chest") { Text("🎁", fontSize = 26.sp) }
+                }
                 Spacer(Modifier.weight(1f))
+                SchoolMark()
                 if (state.streakDays > 0) { Text("🔥 ${state.streakDays}", style = MaterialTheme.typography.labelLarge, color = Palette.white, modifier = Modifier.semantics { contentDescription = "${state.streakDays} day streak" }); Spacer(Modifier.width(Dimens.s12)) }
                 ReadAloudButton({ dispatch(Intent.ReadAloud) })
             }
@@ -102,6 +112,24 @@ fun WorldMapScreen(state: State, dispatch: (Intent) -> Unit, onStickers: () -> U
                 modifier = Modifier.padding(bottom = Dimens.s12).size(width = 140.dp, height = Dimens.minTarget).clickable(role = Role.Button, onClick = onGrownUps).semantics { contentDescription = "Grown-ups" })
         }
     }
+}
+
+/**
+ * The school's logo in the map header (§3). Nothing is drawn for a child in the default school, so the unthemed app
+ * looks exactly as it did. The mark sits on the school's `primary` surface with its `primaryInk` on top — the one pair
+ * the server guarantees is legible together.
+ */
+@Composable
+private fun SchoolMark() {
+    val branding = LocalSchoolBranding.current
+    val name = branding.schoolName ?: return
+    val overrides = LocalThemeOverrides.current
+    SchoolLogo(
+        branding.logoUrl, name, size = 44.dp,
+        background = overrides.primary ?: Palette.cream,
+        ink = overrides.primaryInk ?: Palette.ink,
+    )
+    Spacer(Modifier.width(Dimens.s12))
 }
 
 @Composable
@@ -135,17 +163,20 @@ private fun IslandList(state: State, dispatch: (Intent) -> Unit) {
 
 @Composable
 private fun IslandView(island: Island, onClick: () -> Unit) {
-    val glow = if (quest.ui.design.Motion.reduced) 1f else {
+    val glow = if (!animationsEnabled()) 1f else {
         val transition = rememberInfiniteTransition(label = "glow")
         transition.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse), label = "scale").value
     }
     val today = island.state == IslandState.TODAY
+    // A school's `worldPalettes.math` / `.english` recolour the two subject worlds; everything else — locked, done,
+    // review — stays the design's own, because those three colours *mean* something a school may not redefine.
+    val worlds = LocalThemeOverrides.current.worldPalettes
     val ground = when {
         island.kind == IslandKind.LOCKED -> Palette.night
         island.state == IslandState.DONE -> Palette.mint
         island.kind == IslandKind.REVIEW -> Palette.peach
-        island.subject == Subject.MATH -> Palette.sand
-        else -> Palette.lavender
+        island.subject == Subject.MATH -> worlds.math ?: Palette.sand
+        else -> worlds.english ?: Palette.lavender
     }
     val width = if (island.kind == IslandKind.REVIEW) 150.dp else 200.dp
     val description = when (island.kind) {

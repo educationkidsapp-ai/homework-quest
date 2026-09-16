@@ -5,6 +5,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -101,19 +102,50 @@ class TokensDriftTest {
         assertEquals(scheme.surfaceVariant, withEmpty.surfaceVariant)
         assertEquals(scheme.outline, withEmpty.outline)
         assertEquals(Palette.parentAccent, scheme.primary)
+        assertEquals(Palette.white, scheme.onPrimary)
+        assertEquals(Palette.parentAccentSoft, scheme.primaryContainer)
+        assertEquals(Palette.parentSurface, scheme.surface)
+        assertEquals(Palette.parentInk, scheme.onSurface)
         assertEquals(Palette.parentBg, scheme.background)
         assertEquals(Palette.parentLine, scheme.outline)
     }
 
+    /** §3's three brand colours land on the Material roles their *job* implies, not the ones their names suggest. */
     @Test
     fun overridesReplaceTheirRole() {
-        val red = Color(0xFF123456)
-        val scheme = parentScheme(ThemeOverrides(primary = red, ground = red, softBorder = red, accent = red, primaryInk = red))
-        assertEquals(red, scheme.primary)
-        assertEquals(red, scheme.onPrimary)
-        assertEquals(red, scheme.secondary)
-        assertEquals(red, scheme.background)
-        assertEquals(red, scheme.outline)
+        val accent = Color(0xFF1F6B4A)
+        val brand = Color(0xFFE7F2EC)
+        val brandInk = Color(0xFF13301F)
+        val ground = Color(0xFFF4F7F4)
+        val border = Color(0xFFC9DCD1)
+        val scheme = parentScheme(ThemeOverrides(primary = brand, primaryInk = brandInk, accent = accent, ground = ground, softBorder = border))
+        assertEquals(accent, scheme.primary, "a filled action carries `accent`")
+        assertEquals(accent, scheme.secondary, "and so does a selection border")
+        assertEquals(brand, scheme.surface, "`primary` is the light brand surface")
+        assertEquals(brandInk, scheme.onSurface, "carrying the ink the server measured against it")
+        assertEquals(ground, scheme.background)
+        assertEquals(border, scheme.outline)
+    }
+
+    /** The label on an accent-filled button is chosen by luminance, because the server never measures that pair. */
+    @Test
+    fun theInkOnAnAccentFillFollowsItsLuminance() {
+        assertEquals(Palette.white, inkOn(Color(0xFF1F6B4A)))
+        assertEquals(Palette.parentInk, inkOn(Color(0xFFF2C75C)))
+        assertEquals(Palette.white, parentScheme(ThemeOverrides(accent = Color(0xFF1F6B4A))).onPrimary)
+        assertEquals(Palette.parentInk, parentScheme(ThemeOverrides(accent = Color(0xFFF2C75C))).onPrimary)
+    }
+
+    /** The soft container is derived from the accent, so a school without one keeps the token's own soft red. */
+    @Test
+    fun theSoftContainerIsTheAccentOverTheGround() {
+        assertEquals(Palette.parentAccentSoft, parentScheme(ThemeOverrides()).primaryContainer)
+        val tinted = softAccentOf(Color(0xFF1F6B4A), Color(0xFFFFFFFF))!!
+        assertTrue(tinted.luminance() > 0.7f, "a 12 % tint of a dark accent on white is still a light surface")
+        assertEquals(tinted, parentScheme(ThemeOverrides(softAccent = tinted)).primaryContainer)
+        // The token's own pair is close to the same relationship, which is why one formula serves both.
+        val tokenSoft = softAccentOf(Palette.parentAccent, Palette.parentBg)!!
+        assertTrue((tokenSoft.luminance() - Palette.parentAccentSoft.luminance()) < 0.06f, "the derived tint is in the token's family")
     }
 
     // ---- the generated set itself -------------------------------------------------------------------------------

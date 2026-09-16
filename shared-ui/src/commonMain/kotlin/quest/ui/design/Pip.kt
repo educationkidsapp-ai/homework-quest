@@ -36,8 +36,8 @@ enum class PipPose { IDLE, WAVING, THINKING, CELEBRATING, SLEEPING }
  * composable renders on every platform. See docs/design.md §5.
  */
 @Composable
-fun Pip(pose: PipPose, size: Dp = Dimens.pipMedium, modifier: Modifier = Modifier, animated: Boolean = true, color: String = "sky") {
-    if (Motion.reduced || !animated) { PipBody(pose, size, modifier, color, bounce = 0.5f, eyeOpen = 1f); return }
+fun Pip(pose: PipPose, size: Dp = Dimens.pipMedium, modifier: Modifier = Modifier, animated: Boolean = true, color: String = AvatarColors.MASCOT) {
+    if (!animationsEnabled() || !animated) { PipBody(pose, size, modifier, color, bounce = 0.5f, eyeOpen = 1f); return }
     val transition = rememberInfiniteTransition(label = "pip")
     val bounce by transition.animateFloat(
         initialValue = 0f, targetValue = 1f, label = "bounce",
@@ -53,6 +53,8 @@ fun Pip(pose: PipPose, size: Dp = Dimens.pipMedium, modifier: Modifier = Modifie
 @Composable
 private fun PipBody(pose: PipPose, size: Dp, modifier: Modifier, color: String, bounce: Float, eyeOpen: Float) {
     val b = bounce
+    // The school's mascotColor, when there is one, recolours the mascot Pip only (never a child's avatar swatch).
+    val mascot = LocalThemeOverrides.current.mascotColor
     Box(modifier.size(size).semantics { contentDescription = "Pip ${pose.name.lowercase()}" }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size)) {
             val w = this.size.width
@@ -62,7 +64,7 @@ private fun PipBody(pose: PipPose, size: Dp, modifier: Modifier, color: String, 
                 PipPose.SLEEPING -> h * 0.02f * b
                 else -> -h * 0.02f * b
             }
-            translate(top = yOffset) { drawPip(pose, w, h, b, eyeOpen, AvatarColors.body(color), AvatarColors.bodyDark(color)) }
+            translate(top = yOffset) { drawPip(pose, w, h, b, eyeOpen, AvatarColors.body(color, mascot), AvatarColors.bodyDark(color, mascot)) }
         }
         if (pose == PipPose.SLEEPING) {
             Text("z z", color = Palette.ink, fontSize = (size.value * 0.16f).sp, modifier = Modifier.align(Alignment.TopEnd))

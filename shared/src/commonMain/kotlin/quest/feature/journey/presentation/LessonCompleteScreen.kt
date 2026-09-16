@@ -38,6 +38,9 @@ import quest.feature.content.domain.JourneyRepository
 import quest.feature.content.domain.LessonRepository
 import quest.feature.rewards.domain.AwardStickerUseCase
 import quest.feature.rewards.domain.UpdateStreakUseCase
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.FeatureGate
+import quest.feature.school.presentation.featureEnabled
 import quest.ui.design.BigButton
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
@@ -101,8 +104,12 @@ fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContr
             Pip(PipPose.CELEBRATING, Dimens.pipMedium)
             Text(lesson.theme.servedText, style = MaterialTheme.typography.bodyLarge, color = Palette.ink, textAlign = TextAlign.Center)
             Spacer(Modifier.height(Dimens.s12))
-            Certificate(state.childName, lesson.title, state.level, state.stars, state.starsTotal, "${Today.date()}")
-            Spacer(Modifier.height(Dimens.s16))
+            // §4 `certificates`: off, the pot is still served and the sticker still arrives — only the certificate
+            // is absent, because a school that does not issue them must never show one.
+            FeatureGate(Flags.CERTIFICATES) {
+                Certificate(state.childName, lesson.title, state.level, state.stars, state.starsTotal, "${Today.date()}")
+                Spacer(Modifier.height(Dimens.s16))
+            }
             state.stickerKey?.let { key ->
                 Column(Modifier.background(Palette.cream, MaterialTheme.shapes.extraLarge).padding(Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("New sticker!", style = MaterialTheme.typography.titleLarge, color = Palette.ink)
@@ -112,7 +119,17 @@ fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContr
             Spacer(Modifier.height(Dimens.s16))
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s12)) {
                 BigButton("Again", onClick = onAgain, modifier = Modifier.weight(1f), emoji = "🔁", compact = true)
-                BigButton(if (state.level < 3) "Next level" else "Stickers", onClick = if (state.level < 3) onNextLevel else onStickers, modifier = Modifier.weight(1f), emoji = "🚀", color = Palette.lavender, compact = true, enabled = state.level >= 3 || state.nextLevelUnlocked)
+                // §4 `levels.three`: the last level a school sells is where "Next level" stops being offered. Without
+                // the flag that is level 2, so finishing it offers stickers — the child is never sent to a Challenge
+                // path their school does not have, and `Routes.Journey` refuses it too if they arrive some other way.
+                val top = Flags.topLevel(featureEnabled(Flags.LEVEL_THREE))
+                val hasNext = state.level < top
+                BigButton(
+                    if (hasNext) "Next level" else "Stickers",
+                    onClick = if (hasNext) onNextLevel else onStickers,
+                    modifier = Modifier.weight(1f), emoji = "🚀", color = Palette.lavender, compact = true,
+                    enabled = !hasNext || state.nextLevelUnlocked,
+                )
             }
             Spacer(Modifier.height(Dimens.s12))
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s12)) {

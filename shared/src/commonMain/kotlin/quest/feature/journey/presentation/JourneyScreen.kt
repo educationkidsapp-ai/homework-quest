@@ -30,6 +30,8 @@ import quest.core.platform.Speaker
 import quest.feature.journey.presentation.JourneyContract.Effect
 import quest.feature.journey.presentation.JourneyContract.Intent
 import quest.feature.journey.presentation.JourneyContract.State
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.featureEnabled
 import quest.ui.design.BackButton
 import quest.ui.design.BigButton
 import quest.ui.design.Dimens
@@ -75,7 +77,9 @@ fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onParentPanel: () ->
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(state.lesson?.title ?: "", style = MaterialTheme.typography.headlineMedium, color = Palette.ink, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = Dimens.s16))
             Spacer(Modifier.height(Dimens.s8))
-            LevelSelector(unlocked = state.levelsUnlocked, completed = state.completedLevels, current = state.level, onSelect = { dispatch(Intent.SelectLevel(it)) })
+            // §4 `levels.three`: off, the Challenge path is not offered at all.
+            val levels = Flags.levels(featureEnabled(Flags.LEVEL_THREE))
+            LevelSelector(unlocked = state.levelsUnlocked, completed = state.completedLevels, current = state.level, onSelect = { dispatch(Intent.SelectLevel(it)) }, levels = levels)
             Spacer(Modifier.height(Dimens.s12))
             JourneyPath(stops = state.stops, states = state.nodeStates, stars = state.stops.map { state.stopStars[it.id] }, onTap = { dispatch(Intent.TapStop(it)) })
             Spacer(Modifier.height(Dimens.s16))

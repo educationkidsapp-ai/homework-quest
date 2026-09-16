@@ -47,6 +47,8 @@ import quest.feature.journey.presentation.PlayerContract.Effect
 import quest.feature.journey.presentation.PlayerContract.Intent
 import quest.feature.journey.presentation.PlayerContract.Phase
 import quest.feature.journey.presentation.PlayerContract.State
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.featureEnabled
 import quest.ui.design.BackButton
 import quest.ui.design.BigButton
 import quest.ui.design.Dimens
@@ -79,7 +81,15 @@ fun StopPlayerRoute(lessonId: String, level: Int, variant: Int, index: Int, onFi
     val media = rememberStopMedia()
     val images: quest.feature.journey.data.LessonImages = org.koin.compose.koinInject()
     val imageLoader = androidx.compose.runtime.remember(state.lesson?.id, state.lesson?.version) { images.loaderFor(state.lesson) }
-    androidx.compose.runtime.CompositionLocalProvider(LocalStopMedia provides media, quest.ui.stops.LocalStopImageLoader provides imageLoader) { StopPlayerScreen(state, vm::dispatch, onBack) }
+    // §4: two of the stop's parts are per-school. A school without `retell.recording` gets a recorder that reports
+    // itself unavailable, which is exactly how an app with no microphone behaves — the controls are simply not drawn —
+    // and one without `openAnswer.drawing` gets no drawing pad. Neither ever produces an error for the child.
+    val recording = featureEnabled(Flags.RETELL_RECORDING)
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalStopMedia provides if (recording) media else quest.ui.stops.NoStopMedia,
+        quest.ui.stops.LocalDrawingEnabled provides featureEnabled(Flags.OPEN_ANSWER_DRAWING),
+        quest.ui.stops.LocalStopImageLoader provides imageLoader,
+    ) { StopPlayerScreen(state, vm::dispatch, onBack) }
 }
 
 @Composable
@@ -119,7 +129,7 @@ private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.padding(horizontal = Dimens.s16), verticalAlignment = Alignment.CenterVertically) {
-                Pip(PipPose.IDLE, Dimens.pipSmall, color = "sky")
+                Pip(PipPose.IDLE, Dimens.pipSmall)
                 Spacer(Modifier.padding(Dimens.s4))
                 SpeechBubble(stop.speak, Modifier.weight(1f))
             }
