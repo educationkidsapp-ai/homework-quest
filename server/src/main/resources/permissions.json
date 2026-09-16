@@ -35,6 +35,7 @@
     "user.impersonate": ["ADMIN"],
     "me.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
     "me.permissions": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "me.update": ["ADMIN", "TEACHER", "MANAGERIAL"],
 
     "school.flags": ["PUBLIC"],
     "school.theme": ["PUBLIC"],
@@ -53,7 +54,20 @@
     "usage.platform": ["ADMIN"],
     "billing.read": ["ADMIN"],
     "teacher.read": ["ADMIN", "MANAGERIAL"],
-    "school.logo": ["PUBLIC"]
+    "school.logo": ["PUBLIC"],
+
+    "teacher.profile": ["TEACHER"],
+    "teacher.profile.manage": ["ADMIN"],
+    "teacher.options": ["TEACHER"],
+    "question.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "question.write": ["ADMIN", "TEACHER"],
+    "question.send": ["ADMIN", "TEACHER"],
+    "announcement.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "announcement.write": ["ADMIN", "TEACHER"],
+    "student.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "child.teacherQuestion.read": ["PARENT"],
+    "child.teacherQuestion.answer": ["PARENT"],
+    "child.announcement.read": ["PARENT"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -72,6 +86,7 @@
     { "method": "POST", "path": "/auth/change-password", "permission": "auth.changePassword" },
 
     { "method": "GET", "path": "/me", "permission": "me.read" },
+    { "method": "PATCH", "path": "/me", "permission": "me.update" },
     { "method": "GET", "path": "/me/permissions", "permission": "me.permissions" },
     { "method": "GET", "path": "/me/home", "permission": "me.home" },
 
@@ -80,12 +95,15 @@
     { "method": "PATCH", "path": "/children/{id}", "permission": "child.write" },
     { "method": "DELETE", "path": "/children/{id}", "permission": "child.write" },
     { "method": "GET", "path": "/children/{id}/map", "permission": "child.read" },
+    { "method": "GET", "path": "/children/{id}/announcements", "permission": "child.announcement.read" },
+    { "method": "GET", "path": "/children/{id}/teacher-questions/{questionId}", "permission": "child.teacherQuestion.read" },
+    { "method": "POST", "path": "/children/{id}/teacher-questions/{questionId}/answers", "permission": "child.teacherQuestion.answer" },
     { "method": "GET", "path": "/children/{id}/progress", "permission": "child.read" },
     { "method": "POST", "path": "/children/{id}/attempts", "permission": "child.play" },
     { "method": "POST", "path": "/children/{id}/stops/{stopId}/media", "permission": "child.play" },
     { "method": "GET", "path": "/lessons/{id}", "permission": "lesson.play" },
     { "method": "GET", "path": "/schools/by-code/{code}", "permission": "school.join" },
-    { "method": "GET", "path": "/schools/logo", "permission": "school.logo" },
+    { "method": "POST", "path": "/schools/logo", "permission": "school.logo" },
     { "method": "GET", "path": "/schools/{id}/flags", "permission": "school.flags" },
     { "method": "GET", "path": "/schools/{id}/theme", "permission": "school.theme" },
     { "method": "GET", "path": "/platform-settings", "permission": "platform.read" },
@@ -150,6 +168,25 @@
     { "method": "GET", "path": "/admin/users", "permission": "user.read" },
     { "method": "PATCH", "path": "/admin/users/{id}", "permission": "user.write" },
     { "method": "POST", "path": "/admin/users/{id}/reset-password", "permission": "user.write" },
-    { "method": "POST", "path": "/admin/users/{id}/impersonate", "permission": "user.impersonate" }
+    { "method": "POST", "path": "/admin/users/{id}/impersonate", "permission": "user.impersonate" },
+    { "method": "GET", "path": "/admin/users/{id}/teacher-profile", "permission": "teacher.profile.manage" },
+    { "method": "PUT", "path": "/admin/users/{id}/teacher-profile", "permission": "teacher.profile.manage" },
+
+    { "method": "GET", "path": "/teacher/profile", "permission": "teacher.profile" },
+    { "method": "PUT", "path": "/teacher/profile", "permission": "teacher.profile" },
+    { "method": "GET", "path": "/teacher/options", "permission": "teacher.options" },
+    { "method": "GET", "path": "/teacher/classes/{classId}/calendar", "permission": "calendar.read" },
+    { "method": "GET", "path": "/teacher/classes/{classId}/students", "permission": "student.read" },
+    { "method": "GET", "path": "/teacher/students/{childId}/timeline", "permission": "student.read" },
+
+    { "method": "GET", "path": "/teacher/questions", "permission": "question.read" },
+    { "method": "POST", "path": "/teacher/questions", "permission": "question.write" },
+    { "method": "PUT", "path": "/teacher/questions/{id}", "permission": "question.write" },
+    { "method": "POST", "path": "/teacher/questions/{id}/send", "permission": "question.send" },
+    { "method": "GET", "path": "/teacher/questions/{id}/results", "permission": "question.read" },
+
+    { "method": "GET", "path": "/teacher/announcements", "permission": "announcement.read" },
+    { "method": "POST", "path": "/teacher/announcements", "permission": "announcement.write" },
+    { "method": "DELETE", "path": "/teacher/announcements/{id}", "permission": "announcement.write" }
   ]
 }

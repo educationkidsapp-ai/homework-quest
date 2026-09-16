@@ -11,6 +11,9 @@ import quest.api.dto.MapResponse
 import quest.api.dto.MediaKind
 import quest.api.dto.MediaRef
 import quest.api.dto.ProgressResponse
+import quest.api.dashboard.ParentAnnouncement
+import quest.api.dashboard.TeacherAnswerUpload
+import quest.api.dashboard.TeacherQuestionPlay
 import quest.api.dto.PublishedLesson
 import quest.api.dto.SchoolTheme
 import quest.api.dto.UpdateChildRequest
@@ -48,6 +51,35 @@ interface ContentApi {
 
     /** `GET /schools/{id}/theme` — public, cached, ETagged (§3). */
     suspend fun schoolTheme(schoolId: String): SchoolTheme = SchoolTheme()
+
+    // ---- P4.0: the teacher's question island and the announcements card (§6 "Mobile app additions")
+
+    /**
+     * `GET /children/{id}/teacher-questions/{questionId}` — the stops behind a `MapResponse.teacherIslands` entry,
+     * shaped like a `Play` so the existing stop player can run them ([TeacherQuestionPlay.asPlay]).
+     *
+     * Behind the `teacherQuestions` flag: 404 while it is off for the child's school, which is indistinguishable
+     * from a question that does not exist. The island is only ever on the map when the flag is on, so the app
+     * reaches this route only for questions it was told about.
+     */
+    suspend fun teacherQuestion(childId: String, questionId: String): TeacherQuestionPlay =
+        throw NotImplementedError("teacherQuestion needs a backend")
+
+    /**
+     * `POST /children/{id}/teacher-questions/{questionId}/answers` — a batch, like [uploadAttempts], idempotent on
+     * (question, child, stop). Answers the number of rows it accepted.
+     */
+    suspend fun uploadTeacherAnswers(childId: String, questionId: String, answers: List<TeacherAnswerUpload>): AttemptAck =
+        AttemptAck(0)
+
+    /**
+     * `GET /children/{id}/announcements` — the live notes from the teachers of the child's classes, newest first.
+     * Behind the `announcements` flag; 404 while it is off, and an empty list when the school has posted none.
+     *
+     * Defaulted to empty so `FakeContentApi` and every test double keep compiling: an app with no backend simply
+     * shows no announcements card.
+     */
+    suspend fun announcements(childId: String): List<ParentAnnouncement> = emptyList()
 }
 
 /**

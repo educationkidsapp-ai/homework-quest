@@ -7,6 +7,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -68,6 +69,21 @@ public class AuthController {
         var principal = require(caller);
         var user = auth.require(principal.userId());
         // The platform ADMIN has no school, and an immutable `Map` refuses even to be *asked* about a null key.
+        String schoolName = user.getSchoolId() == null ? null
+                : schools.namesOf(java.util.List.of(user.getSchoolId())).get(user.getSchoolId());
+        return DashboardDto.of(user, principal.impersonatedBy(), themes.displayName(user.getSchoolId()), schoolName);
+    }
+
+    /**
+     * §6: a dashboard user changes her own name, photo and language here — and nothing else about her account.
+     * Answers the same `DashboardUser` `GET /me` does, so the shell can re-render from the response.
+     */
+    @PatchMapping(value = "/me", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('me.update')")
+    public DashboardDto.DashboardUser updateMe(@AuthenticationPrincipal Principals.User caller,
+                                               @RequestBody @Valid DashboardDto.UpdateMeRequest body) {
+        var principal = require(caller);
+        var user = auth.updateSelf(principal.userId(), body);
         String schoolName = user.getSchoolId() == null ? null
                 : schools.namesOf(java.util.List.of(user.getSchoolId())).get(user.getSchoolId());
         return DashboardDto.of(user, principal.impersonatedBy(), themes.displayName(user.getSchoolId()), schoolName);

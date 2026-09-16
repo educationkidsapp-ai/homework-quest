@@ -65,8 +65,11 @@ interface AdminApi {
  * `GET /admin/lessons` filters; an absent field does not filter. [schoolId] is the Admin's All-lessons school column
  * (§6 screen 8) and is ignored for a scoped caller in the sense that matters: her rows are already filtered to her
  * own school, so naming another one answers an empty list rather than that school's lessons.
+ *
+ * [classId] is §6 screen 12's "her lessons only, by class": it narrows to one Class, and a class of another school
+ * narrows to nothing for the same reason [schoolId] does.
  */
-@Serializable data class LessonFilter(val curriculum: Curriculum? = null, val grade: Int? = null, val subject: Subject? = null, val from: LocalDate? = null, val to: LocalDate? = null, val schoolId: String? = null)
+@Serializable data class LessonFilter(val curriculum: Curriculum? = null, val grade: Int? = null, val subject: Subject? = null, val from: LocalDate? = null, val to: LocalDate? = null, val schoolId: String? = null, val classId: String? = null)
 /** Where a lesson's content came from. Uploads are classified from their files; `manual` lessons are written in the panel. */
 @Serializable enum class LessonSource { @SerialName("pdf") PDF, @SerialName("slides") SLIDES, @SerialName("images") IMAGES, @SerialName("manual") MANUAL }
 @Serializable data class CreateLessonRequest(val curriculum: Curriculum, val grade: Int, val subject: Subject, val date: LocalDate, val notes: String? = null, val practiceLength: Int = 7, val source: LessonSource? = null, val title: String? = null)

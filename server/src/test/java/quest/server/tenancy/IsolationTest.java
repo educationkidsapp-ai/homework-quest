@@ -61,6 +61,7 @@ class IsolationTest extends ApiTestSupport {
     private static final String A = "school-a", B = "school-b";
     private static final String LESSON_A = "lesson-of-a", LESSON_B = "lesson-of-b";
     private static final String TEACHER_NO_SCHOOL = "teacher-schoolless", MANAGER_NO_SCHOOL = "manager-schoolless";
+    private static final String CLASS_A = A + ":british:1:math", CLASS_B = B + ":british:1:math";
     private static final String PANEL = "{\"objectives\":{\"en\":[\"Count\"],\"ar\":[\"Count\"]},\"supported\":[],\"challenge\":[],\"stopTips\":[],\"modelAnswers\":[]}";
     private static final LocalDate DATE_A = LocalDate.of(2027, 4, 7), DATE_B = LocalDate.of(2027, 4, 9);
 
@@ -164,7 +165,12 @@ class IsolationTest extends ApiTestSupport {
                         Arguments.of("GET", "/admin/schools/" + A + "/billing"),
                         Arguments.of("GET", "/admin/usage/platform"),
                         Arguments.of("GET", "/school/usage"),
-                        Arguments.of("GET", "/school/teachers")),
+                        Arguments.of("GET", "/school/teachers"),
+                        // P4.0
+                        Arguments.of("GET", "/teacher/profile"),
+                        Arguments.of("GET", "/teacher/options"),
+                        Arguments.of("GET", "/teacher/classes/" + CLASS_A + "/calendar?year=2027&month=4"),
+                        Arguments.of("GET", "/teacher/classes/" + CLASS_A + "/students")),
                 routesOfAnotherSchool());
     }
 
@@ -357,6 +363,50 @@ class IsolationTest extends ApiTestSupport {
         assertThat(map.toString()).doesNotContain(LESSON_B).doesNotContain(seeded.getId());
     }
 
+    // ---------------------------------------------------------------- P4.0: the teacher's own routes
+
+    /**
+     * Every route P4.0 adds, from the other school's side: teacher A of school A asking about school B's class,
+     * child or question gets a 404 (the row is not hers to see) or a 403 (the permission is not hers at all) —
+     * never a row of B's. Both features are switched on for both schools first, so a 404 here is isolation rather
+     * than a flag that happened to be off.
+     */
+    static Stream<Arguments> teacherRoutesOfAnotherSchool() {
+        return Stream.of(
+                Arguments.of("GET", "/teacher/classes/" + CLASS_B + "/calendar?year=2027&month=4"),
+                Arguments.of("GET", "/teacher/classes/" + CLASS_B + "/students"),
+                Arguments.of("QUESTION", "/teacher/questions"),
+                Arguments.of("ANNOUNCEMENT", "/teacher/announcements"),
+                Arguments.of("GET", "/admin/users/teacher-b/teacher-profile"));
+    }
+
+    @ParameterizedTest(name = "{0} {1} of another school is refused for teacher A")
+    @MethodSource("teacherRoutesOfAnotherSchool")
+    void a_teacher_route_of_another_school_is_refused(String method, String path) throws Exception {
+        var adminToken = adminToken();
+        for (String school : List.of(A, B)) for (String key : List.of("teacherQuestions", "announcements"))
+            mvc.perform(put("/admin/schools/" + school + "/flags/" + key).header("Authorization", "Bearer " + adminToken)
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":true}")).andExpect(status().isOk());
+
+        var token = jwt.issue("teacher-a", "teacher@alpha.test", "TEACHER", A).token();
+        var result = mvc.perform(requestFor(method, path).header("Authorization", "Bearer " + token)).andReturn();
+        assertThat(result.getResponse().getStatus()).as("%s %s as teacher A", method, path).isIn(403, 404);
+        assertThat(result.getResponse().getContentAsString()).doesNotContain(LESSON_B).doesNotContain("Beta School").doesNotContain(CLASS_B);
+    }
+
+    /** And the same the other way: teacher B never reads A's class, child or media. */
+    @Test void a_teacher_of_b_reads_nothing_of_a() throws Exception {
+        var tokenB = jwt.issue("teacher-b", "teacher@beta.test", "TEACHER", B).token();
+        var childA = parentPost("/children", "{\"name\":\"Amal\",\"avatarColor\":\"sky\",\"curriculum\":\"british\",\"grade\":1,\"schoolCode\":\"SCHLAA\"}").get("id").asText();
+
+        mvc.perform(get("/teacher/classes/" + CLASS_A + "/students").header("Authorization", "Bearer " + tokenB)).andExpect(status().isNotFound());
+        mvc.perform(get("/teacher/students/" + childA + "/timeline").header("Authorization", "Bearer " + tokenB)).andExpect(status().isNotFound());
+        mvc.perform(get("/teacher/classes/" + CLASS_A + "/calendar?year=2027&month=4").header("Authorization", "Bearer " + tokenB)).andExpect(status().isNotFound());
+
+        // …while her own school's class answers, so the 404s above are isolation and not a broken route
+        mvc.perform(get("/teacher/classes/" + CLASS_B + "/students").header("Authorization", "Bearer " + tokenB)).andExpect(status().isOk());
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private JsonNode adminList(String token, String schoolId) throws Exception {
@@ -383,6 +433,10 @@ class IsolationTest extends ApiTestSupport {
             case "TEXT" -> post(path).contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"A lesson about counting to ten together.\"}");
             case "PANEL" -> put(path).contentType(MediaType.APPLICATION_JSON).content(PANEL);
             case "CLASS" -> post(path).contentType(MediaType.APPLICATION_JSON).content("{\"curriculum\":\"british\",\"grade\":1,\"subject\":\"english\"}");
+            case "QUESTION" -> post(path).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"title\":\"Q\",\"stops\":[],\"classIds\":[\"" + CLASS_B + "\"],\"from\":\"2027-04-01\",\"to\":\"2027-04-30\"}");
+            case "ANNOUNCEMENT" -> post(path).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"classId\":\"" + CLASS_B + "\",\"bodyEn\":\"Not mine\"}");
             case "PATCH_CLASS" -> org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(path)
                     .contentType(MediaType.APPLICATION_JSON).content("{\"clearTeacher\":true}");
             case "DELETE" -> delete(path);
@@ -414,7 +468,7 @@ class IsolationTest extends ApiTestSupport {
         return lessonService.create(new CreateLessonRequest(curriculum, grade, subject, kdate(DATE_A), null, 7, LessonSource.MANUAL, "Teacher lesson"), null).getId();
     }
 
-    private static LessonFilter filter() { return new LessonFilter(null, null, null, null, null, null); }
+    private static LessonFilter filter() { return new LessonFilter(null, null, null, null, null, null, null); }
     private static kotlinx.datetime.LocalDate kdate(LocalDate d) { return new kotlinx.datetime.LocalDate(d.getYear(), d.getMonthValue(), d.getDayOfMonth()); }
 
     private void school(String id, String name, String code) {

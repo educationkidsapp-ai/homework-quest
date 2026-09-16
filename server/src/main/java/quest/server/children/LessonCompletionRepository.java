@@ -10,4 +10,7 @@ public interface LessonCompletionRepository extends JpaRepository<Entities.Lesso
     /** Every completion of a set of lessons — one query for a whole usage report, grouped by lesson in Java. */
     List<Entities.LessonCompletionEntity> findByLessonIdIn(Collection<String> lessonIds);
     long countDistinctChildIdByLessonId(String lessonId);
+
+    /** Every completion of a whole class of children — the "level reached" column of §6 screen 15, in one statement. */
+    List<Entities.LessonCompletionEntity> findByChildIdIn(Collection<String> childIds);
 }

@@ -49,11 +49,11 @@ public class AdminLessonController {
     @GetMapping(value = "/admin/lessons", produces = MediaType.APPLICATION_JSON_VALUE)
     public String listLessons(@RequestParam(required = false) String curriculum, @RequestParam(required = false) Integer grade, @RequestParam(required = false) String subject,
                        @RequestParam(required = false) String from, @RequestParam(required = false) String to,
-                       @RequestParam(required = false) String schoolId) {
+                       @RequestParam(required = false) String schoolId, @RequestParam(required = false) String classId) {
         try {
             var filter = new LessonFilter(curriculum == null ? null : Curriculum.valueOf(curriculum.toUpperCase()), grade, subject == null ? null : Subject.valueOf(subject.toUpperCase()),
                     from == null ? null : kotlinx.datetime.LocalDate.Companion.parse(from, kotlinx.datetime.LocalDate.Formats.INSTANCE.getISO()), to == null ? null : kotlinx.datetime.LocalDate.Companion.parse(to, kotlinx.datetime.LocalDate.Formats.INSTANCE.getISO()),
-                    schoolId);
+                    schoolId, classId);
             return json.encodeShared(service.list(filter), BuiltinSerializersKt.ListSerializer(AdminLesson.Companion.serializer()));
         } catch (IllegalArgumentException e) { throw ApiException.badRequest("bad filter: " + e.getMessage()); }
     }

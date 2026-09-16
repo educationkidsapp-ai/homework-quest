@@ -47,11 +47,17 @@ class FeatureFlagCoverageTest {
      *   <li>{@code DashboardDataController} — classes are §2's unit of publishing and usage is how a school is run.
      *       Neither is a feature a tenant can be without, and gating them would hide the School page that shows
      *       which flags a school has.</li>
+     *   <li>{@code TeacherController} (P4.0) — a teacher's profile is what decides which lessons she may publish at
+     *       all (`TenantGuard.lessonCreator` reads it), the chooser options are the only way to submit a lesson the
+     *       server will accept, and her lessons and her students are the job rather than an addition to it. A flag
+     *       over them would leave a TEACHER signed in with nothing she can do. The two parts of her dashboard that
+     *       <em>are</em> features carry real flags: {@code TeacherQuestionController} is `teacherQuestions` and
+     *       {@code AnnouncementController} is `announcements`, both on the class so the parent half is gated too.</li>
      * </ul>
      */
     private static final Set<String> INFRASTRUCTURE = Set.of(
             "FlagController", "ThemeController", "PlatformSettingsController",
-            "HomeController", "DashboardDataController");
+            "HomeController", "DashboardDataController", "TeacherController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

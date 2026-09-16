@@ -26,7 +26,35 @@ data class PublishedLesson(
     fun play(level: Int, variant: Int = 0): Play? = if (variant == 1 && level == 1) this.variant else plays.firstOrNull { it.level == level }
 }
 
-/** `GET /children/{id}/map` (`MapResponse.schema.json`). */
+/**
+ * A "From your teacher" island (§6 screen 14, "Mobile app additions"): one per question of a teacher of the child's
+ * class whose date window contains today. [answered] is how many of [stopsCount] the child has already done, so the
+ * island can show "3 of 5" and the app can resume rather than restart.
+ *
+ * The stops themselves are `GET /children/{id}/teacher-questions/{questionId}`; this carries only what the island
+ * draws. Both are behind the `teacherQuestions` flag and are 404 while it is off for the child's school.
+ */
+@Serializable
+data class TeacherIsland(
+    val questionId: String,
+    val teacherName: String,
+    val teacherPhotoUrl: String? = null,
+    val title: String,
+    val from: LocalDate,
+    val to: LocalDate,
+    val stopsCount: Int = 0,
+    val answered: Int = 0,
+)
+
+/**
+ * `GET /children/{id}/map` (`MapResponse.schema.json`).
+ *
+ * [teacherIslands] is null rather than an empty list when there are none, and the shared codec's `explicitNulls =
+ * false` then leaves the field out of the JSON altogether — which is what keeps a map the §7 assembler produced
+ * valid against `MapResponse.schema.json`, whose root is `additionalProperties: false`. Read it as
+ * `teacherIslands.orEmpty()`. Adding the property to that schema is the follow-up that lets it be a plain
+ * `emptyList()` default like every other list here.
+ */
 @Serializable
 data class MapResponse(
     val childId: String,
@@ -35,6 +63,7 @@ data class MapResponse(
     val to: LocalDate,
     val today: LocalDate,
     val islands: List<Island>,
+    val teacherIslands: List<TeacherIsland>? = null,
 )
 
 @Serializable

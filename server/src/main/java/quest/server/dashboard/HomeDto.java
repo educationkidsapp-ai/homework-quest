@@ -15,7 +15,10 @@ import java.util.Map;
  *
  * <h2>The contract P3.1 implements</h2>
  * Every `key` resolves as {@code home.card.<key>} and every `kind` as {@code home.needs.<kind>}; `params` are
- * interpolated into it. `params` values are strings because that is what an ICU message takes — counts are decimal,
+ * interpolated into it. A param marked {@code ?} may be absent, and absent is not empty: {@code lessonTitle} is
+ * left out for a lesson that has no title yet, because the server has no wording of its own to put there and an
+ * English "Untitled lesson" would be printed verbatim into an Arabic page — the catalogue resolves a variant that
+ * reads without it. `params` values are strings because that is what an ICU message takes — counts are decimal,
  * dates are ISO {@code yyyy-MM-dd}. Unknown keys must render as nothing rather than as the raw id: a later phase will
  * add rows this dashboard build has no string for.
  *
@@ -30,8 +33,8 @@ import java.util.Map;
  * <table>
  *   <caption>"What needs you" rows</caption>
  *   <tr><th>kind</th><th>targetId</th><th>params</th></tr>
- *   <tr><td>{@code lesson.error}</td><td>lesson id</td><td>{@code lessonTitle}, {@code errorCode}?, {@code schoolName}? (Admin)</td></tr>
- *   <tr><td>{@code lesson.needs_review}</td><td>lesson id</td><td>{@code lessonTitle}, {@code schoolName}? (Admin)</td></tr>
+ *   <tr><td>{@code lesson.error}</td><td>lesson id</td><td>{@code lessonTitle}?, {@code errorCode}?, {@code schoolName}? (Admin)</td></tr>
+ *   <tr><td>{@code lesson.needs_review}</td><td>lesson id</td><td>{@code lessonTitle}?, {@code schoolName}? (Admin)</td></tr>
  *   <tr><td>{@code school.noTeacher}</td><td>school id</td><td>{@code schoolName}</td></tr>
  *   <tr><td>{@code user.staleInvite}</td><td>user id</td><td>{@code email}, {@code role}, {@code days}</td></tr>
  *   <tr><td>{@code class.noLessonToday}</td><td>class id</td><td>{@code curriculum}, {@code grade}, {@code subject}, {@code date}</td></tr>
