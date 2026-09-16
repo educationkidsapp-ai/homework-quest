@@ -63,7 +63,8 @@ jobs:
     # status check. No Gradle/Maven setup here and no Java toolchain: this job caches pnpm only, and on a PR that does
     # not touch the dashboard every step after the filter is skipped, so it costs ~10 s of runner time.
     # Playwright (`pnpm e2e`, styleguide screenshots) is deliberately NOT part of CI: it needs browser downloads and a
-    # deployed target, and runs against QA after the deploy in phase 3 (P3.x), not on every PR.
+    # deployed target, and runs against QA after the deploy in phase 3 (P3.x), not on every PR. The plain shell
+    # scripts under e2e/ are only linted (see the `scripts` job), never run.
     name: Dashboard (lint, unit tests, build)
     runs-on: ubuntu-latest
     permissions:
@@ -123,6 +124,18 @@ jobs:
         if: steps.changes.outputs.dashboard == 'true'
         with: { name: dashboard-dist, path: dashboard/dist, retention-days: 1 }
 
+  scripts:
+    # The e2e shell scripts (e2e/isolation.sh, e2e/flags.sh, ...) run against a live server, so CI cannot execute them;
+    # this catches syntax errors and shellcheck warnings before a human does. shellcheck ships on ubuntu-latest.
+    name: Shell scripts (bash -n, shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check (bash -n takes one script; the rest would become its $1)
+        run: for f in e2e/*.sh; do bash -n "$f"; done
+      - name: shellcheck (warning and above; no suppressions expected)
+        run: shellcheck -S warning e2e/*.sh
+
   ios:
     # macOS minutes are expensive: runs on PRs labelled `ios` and on every push to main.
     name: iOS (simulator build + full-cycle UI test)
@@ -142,12 +155,12 @@ jobs:
   # The status check the deploy workflows and the (Pro-only) branch rules wait for.
   ci:
     name: ci
-    needs: [contract, server, app, dashboard]
+    needs: [contract, server, app, dashboard, scripts]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "contract=${{ needs.contract.result }} server=${{ needs.server.result }} app=${{ needs.app.result }} dashboard=${{ needs.dashboard.result }}"
-          [ "${{ needs.contract.result }}" = success ] && [ "${{ needs.server.result }}" = success ] && [ "${{ needs.app.result }}" = success ] || exit 1
+          echo "contract=${{ needs.contract.result }} server=${{ needs.server.result }} app=${{ needs.app.result }} dashboard=${{ needs.dashboard.result }} scripts=${{ needs.scripts.result }}"
+          [ "${{ needs.contract.result }}" = success ] && [ "${{ needs.server.result }}" = success ] && [ "${{ needs.app.result }}" = success ] && [ "${{ needs.scripts.result }}" = success ] || exit 1
           # the dashboard job is path-filtered, so `skipped` (nothing under dashboard/ changed) counts as success
           case "${{ needs.dashboard.result }}" in success|skipped) ;; *) exit 1 ;; esac
