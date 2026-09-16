@@ -25,6 +25,7 @@ jobs:
   guard:
     name: Guard
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       sha: ${{ steps.pick.outputs.sha }}
     steps:
@@ -44,6 +45,7 @@ jobs:
     name: Promote QA image → production registry
     needs: guard
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: production
     outputs:
       digest: ${{ steps.copy.outputs.digest }}
@@ -74,6 +76,7 @@ jobs:
     name: Terraform apply (production)
     needs: promote
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -103,6 +106,7 @@ jobs:
     name: Canary (no traffic) → smoke test → 100 %
     needs: [guard, promote, infra]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: production
       url: ${{ vars.API_URL }}
@@ -144,6 +148,7 @@ jobs:
     name: Production APK + GitHub release
     needs: [guard, promote, canary]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: production
     steps:
       - uses: actions/checkout@v4

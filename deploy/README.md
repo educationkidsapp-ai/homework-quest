@@ -93,16 +93,18 @@ infra/env.sh qa wake      # starts it again (~1–2 min); the API is back as soo
 infra/env.sh qa status
 ```
 
-## The six workflows
+## The seven workflows
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | every PR / push to `develop`, `main` | contract tests → server tests (H2 + Postgres via Testcontainers) → app tests, screenshots, Android QA APK, Wasm admin. iOS full-cycle UI test on `main` or PRs labelled `ios`. Status check `ci`. |
-| `deploy-qa.yml` | merge to `develop` | build image once (server + admin panel at `/panel/`, tag = SHA) → `terraform apply` (QA) → `gcloud run deploy` → smoke test → signed QA APK (workflow artifact) → comment with API / admin / APK links on the merged PR |
+| `ci.yml` | every PR / push to `develop`, `main` | a ten-second `changes` job decides what the diff needs, then contract tests → server tests (H2 first, Testcontainers second) → app tests, screenshots, Android QA **debug** APK, Wasm admin → dashboard → shell scripts → Terraform/actionlint. Status check `ci`, where a filtered-out job counts as a pass. No macOS. |
+| `ios.yml` | push to `develop` / `main` / a `v*` tag that touches the app, or `gh workflow run ios.yml` | the only macOS runner: Kotlin/Native compile for the simulator target + the full-cycle UI test |
+| `deploy-qa.yml` | merge to `develop` | build image once (server + admin panel at `/panel/`, tag = SHA) → `terraform apply` (QA) → `gcloud run deploy` → smoke test → Playwright against the deployed QA → signed QA APK (workflow artifact) → comment with API / admin / APK links on the merged PR |
 | `deploy-production.yml` | manual (`gh workflow run deploy-production.yml -f confirm=deploy`) from `main` | promotes the **same QA image by digest** (no rebuild) → `terraform apply` (prod) → Cloud Run revision with **no traffic** (`canary` tag) → smoke tests on the canary URL → 100 % traffic → production APK attached to a GitHub release `vYYYY.MM.DD-<sha>` |
 | `rollback.yml` | manual (`gh workflow run rollback.yml -f environment=production`) | shifts traffic back to the previous (or a named) revision, no build |
 | `migration-check.yml` | PRs touching `server/src/main/resources/db/migration/**` | applied migrations unchanged, new ones additive (no DROP/RENAME), apply on Postgres 16 on top of `develop`'s schema, JPA `validate` boots |
-| `dependabot.yml` | weekly | Gradle, Maven, Actions, Terraform updates, labelled `dependencies` |
+| `actions-cost.yml` | 06:00 UTC Monday, or on demand | minutes per workflow for the last seven days as a job summary; opens an issue labelled `infra` when the projected month is over 1,500 of the free plan's 2,000 minutes |
+| `dependabot.yml` | weekly | Terraform updates, labelled `dependencies` (Renovate owns the rest — see `renovate.json`) |
 
 Watching from the terminal:
 

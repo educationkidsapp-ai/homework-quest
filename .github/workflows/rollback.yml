@@ -23,6 +23,7 @@ permissions:
 jobs:
   rollback:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: ${{ inputs.environment }}
       url: ${{ vars.API_URL }}

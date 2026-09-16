@@ -1,0 +1,61 @@
+name: Actions cost
+
+# Monday morning: how many Actions minutes the last seven days cost, per workflow, as a job summary — and an issue
+# when the projected month is over the free plan's 2,000 minutes. One Linux minute a week to watch the bill.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # 06:00 UTC Monday, before the Renovate PRs land
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Days to report on
+        default: "7"
+      budget:
+        description: Minutes per month above which an issue is opened
+        default: "1500"
+
+concurrency:
+  group: actions-cost
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  report:
+    name: Minutes per workflow
+    # Never on a fork: the schedule would run there too, and the issue would be opened on the wrong repository.
+    if: github.repository == 'educationkidsapp-ai/homework-quest'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect
+        id: cost
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DAYS: ${{ inputs.days || '7' }}
+          BUDGET: ${{ inputs.budget || '1500' }}
+        run: ./.github/scripts/actions-cost.sh
+      - name: Open an issue when the projection is over budget
+        if: steps.cost.outputs.over_budget == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROJECTED: ${{ steps.cost.outputs.projected }}
+          BUDGET: ${{ inputs.budget || '1500' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Actions minutes: projected ${PROJECTED}/month is over ${BUDGET}"
+          # One open issue at a time — a second week over budget comments on the first instead of opening another.
+          existing=$(gh issue list --state open --label infra --search "Actions minutes in:title" --json number --jq '.[0].number // empty')
+          body="The last seven days project to **${PROJECTED} minutes** a month against a ${BUDGET}-minute budget (the
+          free plan allows 2,000). The per-workflow table is in the job summary: ${RUN_URL}
+
+          Where the minutes usually go, and what to do about it, is the CI section of docs/runbook.md."
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --label infra --body "$body"
+          fi

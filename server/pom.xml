@@ -34,6 +34,15 @@
     <testcontainers.version>1.21.3</testcontainers.version>
     <archunit.version>1.4.1</archunit.version>
     <jacoco.version>0.8.13</jacoco.version>
+    <!--
+      The test suite is split by JUnit tag so CI can report the fast half first (P-CI):
+        ./mvnw test -Dtest.excludedGroups=postgres   unit + slice tests, H2 only, no Docker
+        ./mvnw test -Dtest.groups=postgres           the Testcontainers tests (PostgresContainerSupport)
+      Both properties are empty by default, so a plain `./mvnw test` still runs everything — which is what
+      this Mac does, where the Docker-backed half skips itself.
+    -->
+    <test.groups/>
+    <test.excludedGroups/>
   </properties>
 
   <dependencies>
@@ -97,6 +106,14 @@
     <finalName>server</finalName>
     <plugins>
       <plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin>
+      <!-- Tag selection for the split above; both properties are blank by default, and surefire ignores a blank one. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <groups>${test.groups}</groups>
+          <excludedGroups>${test.excludedGroups}</excludedGroups>
+        </configuration>
+      </plugin>
       <!-- Coverage for `./mvnw test`: exec during the test run, HTML + XML report in target/site/jacoco. -->
       <plugin>
         <groupId>org.jacoco</groupId><artifactId>jacoco-maven-plugin</artifactId><version>${jacoco.version}</version>

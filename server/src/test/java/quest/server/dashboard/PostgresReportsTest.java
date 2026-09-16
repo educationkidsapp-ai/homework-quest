@@ -7,15 +7,10 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import quest.server.PostgresContainerSupport;
 import quest.server.auth.Entities.UserEntity;
 import quest.server.auth.Principals;
 import quest.server.auth.UserRepository;
@@ -38,20 +33,12 @@ import quest.server.tenancy.TenantContext;
  * <p>It asserts that the statements <em>run and shape an answer</em>, not what the numbers are: the figures are
  * `HomeTest`, `SchoolDataTest` and `UsageQueryCountTest`'s job, and repeating them here would only be a second place
  * to update. Skipped without Docker (this Mac), so CI is where it earns its keep.
+ *
+ * <p>The container and the {@code @SpringBootTest} properties come from {@link PostgresContainerSupport}: it and
+ * `PostgresRepositoryTest` share one PostgreSQL and one Spring context, so the fixtures here must stay additive —
+ * every assertion below is a "contains" or a "greater than or equal", never an exact total.
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(properties = {"quest.auth.fake=true", "quest.llm.provider=fake",
-        "quest.auth.jwt-secret=test-secret-test-secret-test-secret-test-secret", "spring.profiles.active=h2"})
-class PostgresReportsTest {
-    @Container static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
-
-    @DynamicPropertySource static void props(DynamicPropertyRegistry r) {
-        r.add("spring.datasource.url", postgres::getJdbcUrl);
-        r.add("spring.datasource.username", postgres::getUsername);
-        r.add("spring.datasource.password", postgres::getPassword);
-        r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-    }
-
+class PostgresReportsTest extends PostgresContainerSupport {
     private static final String SCHOOL = "pg-school", TEACHER = "pg-teacher", MANAGER = "pg-manager";
 
     @Autowired HomeService home;
