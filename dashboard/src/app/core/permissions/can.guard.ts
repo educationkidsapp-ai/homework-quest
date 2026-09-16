@@ -7,16 +7,20 @@ import { PermissionService } from './permission.service';
 /**
  * `canGuard('user.write')` — the route counterpart of `*hqCan`.
  *
- * Waits for `GET /me/permissions` rather than reading a half-loaded set, then sends a
- * refusal to `/no-access`: unlike a flag, a missing permission *is* about this person, and
- * the page says whose account it is and who can change it.
+ * Waits for `PermissionService.ready` — not for `loading`, which is still false in the tick
+ * before the request starts, and would bounce a legitimate person off their own bookmark on a
+ * cold start. Then a refusal goes to `/no-access`: unlike a flag, a missing permission *is*
+ * about this person, so the page names the account and says who can change it.
+ *
+ * Applied by `core/nav/area.routes.ts` to every screen that declares a permission, from the
+ * same table the rail is built from — so the door and the handle cannot disagree.
  */
 export function canGuard(permission: string): CanActivateFn {
   return () => {
     const permissions = inject(PermissionService);
     const router = inject(Router);
-    return toObservable(permissions.loading).pipe(
-      filter((loading) => !loading),
+    return toObservable(permissions.ready).pipe(
+      filter(Boolean),
       take(1),
       map(() => (permissions.can(permission) ? true : router.createUrlTree(['/no-access']))),
     );

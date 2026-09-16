@@ -109,6 +109,34 @@ describe('interceptors', () => {
     expect(band.current()).toBeNull();
   });
 
+  /**
+   * The scenario the single-flight design is actually about, and the one the unit spec for
+   * `AuthService.refresh` cannot reach: a Home whose requests all 401 together. Five refreshes
+   * would rotate the refresh token five times, and the server treats a replayed one as theft.
+   */
+  it('refreshes once for a whole screen whose requests all 401 at the same moment', async () => {
+    session.set({ token: 'stale', refreshToken: 'refresh-1' });
+    const paths = ['/me/home', '/me/permissions', '/schools/s/flags', '/schools/s/theme', '/admin/schools'];
+    const answered = Promise.all(
+      paths.map((path) => new Promise((resolve) => http.get(path).subscribe(resolve))),
+    );
+
+    for (const path of paths) backend.expectOne(path).flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    const refreshes = backend.match('/auth/refresh');
+    expect(refreshes).toHaveLength(1);
+    refreshes[0]?.flush({ token: 'access-2', refreshToken: 'refresh-2' });
+
+    for (const path of paths) {
+      const replay = backend.expectOne(path);
+      expect(replay.request.headers.get('Authorization')).toBe('Bearer access-2');
+      replay.flush({ ok: path });
+    }
+
+    expect(await answered).toEqual(paths.map((path) => ({ ok: path })));
+    expect(band.current()).toBeNull();
+  });
+
   it('gives up after one retry and sends the person to sign in', async () => {
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     session.set({ token: 'stale', refreshToken: 'refresh-1' });

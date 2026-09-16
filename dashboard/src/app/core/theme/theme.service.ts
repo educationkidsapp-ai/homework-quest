@@ -11,7 +11,7 @@ import { PlatformService } from '../platform/platform.service';
  *
  * §3: "the theme service maps the JSON onto the CSS custom properties from `tokens.json`
  * (`--hq-primary`, `--hq-accent`, …) on the root element, so every component re-themes
- * instantly". Only these seven map; the rest of the token set (sizes, spacing, motion, the
+ * instantly". Only these six map; the rest of the token set (sizes, spacing, motion, the
  * type scale) is the design system and is not a school's to change — a school picks colours,
  * not a layout.
  *

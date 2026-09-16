@@ -1,3 +1,4 @@
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import {
   DOCUMENT,
   ChangeDetectionStrategy,
@@ -26,13 +27,19 @@ interface Spotlight {
  * overlay colour: the box itself stays transparent, so the element underneath is lit and
  * everything else is dimmed, with no clip-path and no second overlay element to keep in step.
  *
+ * It says `aria-modal="true"`, so it has to behave like one: `cdkTrapFocus` with
+ * `cdkTrapFocusAutoCapture` moves focus into the bubble when a step opens and keeps Tab inside
+ * it, and returns focus where it came from when the tour ends. Without that, the promise in the
+ * attribute is false — Tab walks the page behind a spotlight that says it is modal, and a
+ * screen-reader user is never told the tour is there at all.
+ *
  * Esc closes it, like every other overlay in the dashboard. The target is found by
  * `data-hq-tour="…"`; when a step's target is not on screen (a nav item a flag hides, say)
  * the bubble simply centres itself rather than pointing at nothing.
  */
 @Component({
   selector: 'hq-tour',
-  imports: [TranslocoPipe, ButtonComponent],
+  imports: [CdkTrapFocus, TranslocoPipe, ButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(document:keydown.escape)': 'skip()' },
   template: `
@@ -50,11 +57,17 @@ interface Spotlight {
         } @else {
           <div class="tour__scrim" aria-hidden="true"></div>
         }
-        <div class="tour__bubble" [style.top.px]="bubbleTop()" [style.left.px]="bubbleLeft()">
+        <div
+          class="tour__bubble"
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
+          [style.top.px]="bubbleTop()"
+          [style.left.px]="bubbleLeft()"
+        >
           <p class="tour__step">
             {{ 'tour.step' | transloco: { index: tour.position().index, total: tour.position().total } }}
           </p>
-          <h2 class="tour__title">{{ step.titleKey | transloco }}</h2>
+          <h2 class="tour__title" tabindex="-1" cdkFocusInitial>{{ step.titleKey | transloco }}</h2>
           <p class="tour__body">{{ step.bodyKey | transloco }}</p>
           <div class="tour__actions">
             <hq-button variant="quiet" (pressed)="skip()">{{ 'tour.skip' | transloco }}</hq-button>

@@ -81,8 +81,7 @@ function serveFile(relative, request, response) {
   const file = isFile ? path : join(DIST, 'index.html');
   const type = TYPES[extname(file)] ?? 'application/octet-stream';
 
-  const gzip =
-    COMPRESSIBLE.has(extname(file)) && /\bgzip\b/.test(request.headers['accept-encoding'] ?? '');
+  const gzip = COMPRESSIBLE.has(extname(file)) && /\bgzip\b/.test(request.headers['accept-encoding'] ?? '');
 
   response.writeHead(200, {
     'content-type': type,

@@ -182,6 +182,78 @@ test('a teacher is offered nothing that belongs to the Admin', async ({ page }) 
   await expect(page).toHaveURL(/\/dashboard\/teacher$/);
 });
 
+/**
+ * The hole the review found: the rail hid `/admin/users` from a teacher and the route let her
+ * in by typing the URL. Rail and router now come from one table, so both doors are the same
+ * door — and these are the exact addresses the review named.
+ */
+test('a permission-gated URL refuses a teacher who types it', async ({ page }) => {
+  await signIn(page, TEACHER);
+  await expect(page.getByRole('heading', { name: /^Hello,/ })).toBeVisible();
+
+  for (const url of ['admin/users', 'admin/settings', 'admin/flags', 'admin/usage']) {
+    await page.goto(url);
+    // `roleGuard` turns the area away first; either way she never reaches the screen.
+    await expect(page).toHaveURL(/\/dashboard\/(teacher|no-access)$/);
+  }
+});
+
+test('a permission-gated URL inside the right area refuses too, and says why', async ({ page }) => {
+  // A Managerial user is in her own area for /management/**, so the role guard lets her past
+  // and the permission guard is the only thing standing between her and a screen she may not
+  // open. Complaints is flag-gated (off in the seed), which is a different answer again.
+  await signIn(page, MANAGER);
+  await expect(page.getByRole('heading', { name: /^Hello,/ })).toBeVisible();
+
+  await page.goto('management/complaints');
+  await expect(page).toHaveURL(/\/dashboard\/not-found$/);
+  await expect(page.getByRole('heading', { name: 'Nothing here' })).toBeVisible();
+});
+
+test('a cold start on a guarded bookmark is let through, not bounced', async ({ page }) => {
+  await signIn(page, ADMIN);
+  await page.goto('admin/users');
+  await expect(page).toHaveURL(/\/dashboard\/admin\/users$/);
+
+  // The real test: reload that URL, so every guard runs before any answer has arrived.
+  await page.reload();
+  await expect(page).toHaveURL(/\/dashboard\/admin\/users$/);
+  await expect(page.getByRole('heading', { name: 'Coming soon' })).toBeVisible();
+});
+
+test('the tour is modal in fact, not just in its attributes', async ({ page }) => {
+  await page.evaluate(() => localStorage.clear());
+  await page.goto('sign-in');
+  await page.getByLabel('Email').fill(TEACHER.email);
+  await page.getByLabel('Password').fill(TEACHER.password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  // Focus starts on the step's title, so a screen reader reads the step it is on.
+  await expect(dialog.locator('h2')).toBeFocused();
+
+  // And Tab stays inside: four presses cannot reach the rail behind the spotlight.
+  for (let press = 0; press < 4; press++) await page.keyboard.press('Tab');
+  expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+});
+
+test('a route change moves focus to the new screen and announces it', async ({ page }) => {
+  await signIn(page, ADMIN);
+  await expect(page.getByRole('heading', { name: /^Hello,/ })).toBeVisible();
+
+  await page.getByRole('navigation').getByRole('link', { name: 'Users' }).click();
+  await expect(page).toHaveURL(/\/dashboard\/admin\/users$/);
+
+  // Focus is on the new screen's heading, not left on the link that was clicked.
+  await expect(page.locator('main h1')).toBeFocused();
+  // …and the title reached the live region, so the change is perceivable without a page load.
+  await expect(page.locator('[aria-live]')).toContainText('Coming soon');
+});
+
 test('? opens the shortcut sheet and Esc closes it', async ({ page }) => {
   await signIn(page, MANAGER);
   await expect(page.getByRole('heading', { name: /^Hello,/ })).toBeVisible();

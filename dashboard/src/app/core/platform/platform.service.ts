@@ -41,9 +41,6 @@ export class PlatformService {
   /** The name to show right now: the school in scope overrides the platform. */
   readonly displayName = computed(() => this.auth.user()?.platformName || this.platformName());
 
-  /** The school's logo when there is one, else the platform's. */
-  readonly logoUrl = computed(() => this.platformLogoUrl());
-
   constructor() {
     // The browser tab is the one place the name has to appear whatever screen is open.
     effect(() => {

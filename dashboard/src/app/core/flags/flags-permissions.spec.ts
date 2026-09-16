@@ -88,13 +88,51 @@ describe('feature flags and permissions', () => {
 
   it('takes every write away in a View-as session, and leaves the reads', async () => {
     TestBed.configureTestingModule({ providers });
-    await signIn({ permissions: ['lesson.publish', 'lesson.read', 'me.home'], flags: {}, readOnly: true });
+    await signIn({
+      permissions: ['lesson.publish', 'lesson.read', 'me.home', 'usage.platform', 'usage.school'],
+      flags: {},
+      readOnly: true,
+    });
     const permissions = TestBed.inject(PermissionService);
 
     expect(permissions.readOnly()).toBe(true);
     expect(permissions.can('lesson.publish')).toBe(false);
     expect(permissions.can('lesson.read')).toBe(true);
     expect(permissions.can('me.home')).toBe(true);
+    // Both usage screens are GET-only, so View-as keeps them — losing "School usage" while
+    // viewing as a Managerial user would remove most of the reason to view as one.
+    expect(permissions.can('usage.platform')).toBe(true);
+    expect(permissions.can('usage.school')).toBe(true);
+  });
+
+  it('holds a permission-guarded route open until the answer arrives, rather than refusing it', async () => {
+    TestBed.configureTestingModule({ providers });
+    const backend = TestBed.inject(HttpTestingController);
+    TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+    TestBed.inject(AuthService).loadMe().subscribe();
+    backend.expectOne('/me').flush(TEACHER_USER);
+
+    // A cold start on a bookmark: the guard runs before /me/permissions has answered.
+    let settled: unknown = 'pending';
+    void run(canGuard('lesson.read')).then((result) => (settled = result));
+    TestBed.tick();
+    await Promise.resolve();
+
+    // It must still be waiting — `loading` is false in this gap, and reading `can()` here
+    // would bounce a legitimate person to /no-access on every cold start.
+    expect(settled).toBe('pending');
+
+    backend
+      .expectOne('/me/permissions')
+      .flush({ role: 'TEACHER', permissions: ['lesson.read'], readOnly: false });
+    // `toObservable` republishes through an effect, so the value needs a tick to reach the
+    // guard and the guard's promise a microtask to settle.
+    for (let turn = 0; turn < 3; turn++) {
+      TestBed.tick();
+      await Promise.resolve();
+    }
+
+    expect(settled).toBe(true);
   });
 
   it('treats an unknown flag as off', async () => {

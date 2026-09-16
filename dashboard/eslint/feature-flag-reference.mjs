@@ -13,7 +13,14 @@
  * Applied to `src/app/features/ ** /*.routes.ts` and every `*.page.ts`. The features folder
  * is empty in P1.0 on purpose: the rule is in place before the first feature lands in P3.
  */
-const FLAG_REFERENCES = ['featureGuard(', 'hqFeature'];
+/**
+ * `areaRoutes(` counts because it *is* the flag reference: it builds a role's routes from the
+ * one table in `core/nav/screens.ts`, attaching `featureGuard` to every screen that declares a
+ * flag. A route file that delegates to it has said where its gating lives — and cannot drift
+ * from the rail, which is built from the same rows. Re-listing the guards beside it would be
+ * the drift this rule exists to prevent.
+ */
+const FLAG_REFERENCES = ['featureGuard(', 'hqFeature', 'areaRoutes('];
 const ALLOW_LIST = /\/\*\s*hq-flag:\s*none\s*\(shell\)/;
 
 /** @type {import('eslint').Rule.RuleModule} */

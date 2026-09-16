@@ -41,18 +41,18 @@ never printed — a missing one fails with the variable's name, not its value.
 
 ## What it proves
 
-| Test | What would break without it |
-|---|---|
-| sign-in is branded from `PlatformSettings` | a product name baked into the bundle (§A) |
-| the bundle runs clean under the API's CSP | an inline script or `onload=` handler leaving the page unstyled |
-| one login per role lands on its Home | the role guards and the `/` redirect |
-| a wrong password is a band, in place | a 401 read as "your session expired" and a bounce |
-| EN/AR flips `dir` without a reload | a cached English sentence in a `computed()` (§6) |
-| the Admin rail carries every §6 screen | a nav item gated on a permission the role does not hold |
-| the switcher scopes every screen | `X-School-Id` not reaching the API, or the Home not re-reading |
-| a teacher is offered nothing of the Admin's | the rail, and the URL behind it |
-| `?` opens the sheet, Esc closes it | the keyboard contract (§7) |
-| the screenshot set | the RTL mirror, silently |
+| Test                                        | What would break without it                                     |
+| ------------------------------------------- | --------------------------------------------------------------- |
+| sign-in is branded from `PlatformSettings`  | a product name baked into the bundle (§A)                       |
+| the bundle runs clean under the API's CSP   | an inline script or `onload=` handler leaving the page unstyled |
+| one login per role lands on its Home        | the role guards and the `/` redirect                            |
+| a wrong password is a band, in place        | a 401 read as "your session expired" and a bounce               |
+| EN/AR flips `dir` without a reload          | a cached English sentence in a `computed()` (§6)                |
+| the Admin rail carries every §6 screen      | a nav item gated on a permission the role does not hold         |
+| the switcher scopes every screen            | `X-School-Id` not reaching the API, or the Home not re-reading  |
+| a teacher is offered nothing of the Admin's | the rail, and the URL behind it                                 |
+| `?` opens the sheet, Esc closes it          | the keyboard contract (§7)                                      |
+| the screenshot set                          | the RTL mirror, silently                                        |
 
 Screenshots land in `docs/screenshots/dashboard-p3.1/` (1366 × 768, EN and AR) and are committed.
 

@@ -7,7 +7,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { filter, map } from 'rxjs/operators';
-import { STUB_PHASE } from '../../core/nav/nav-items';
+import { phaseOf } from '../../core/nav/screens';
 import { EmptyStateComponent, PageComponent } from '../../ui';
 
 /**
@@ -45,7 +45,7 @@ export class StubPage {
   );
 
   protected readonly message = computed(() => {
-    const phase = STUB_PHASE[this.url()];
+    const phase = phaseOf(this.url());
     return phase === undefined
       ? this.transloco.translate('stub.soon')
       : this.transloco.translate('stub.phase', { phase });

@@ -21,7 +21,8 @@
     "gen:api": "node tools/gen-api.mjs",
     "postinstall": "node tools/gen-api.mjs",
     "e2e:local": "playwright test --config=playwright.local.config.ts",
-    "budget": "node tools/budget.mjs"
+    "budget": "node tools/budget.mjs",
+    "gen:permissions": "node tools/gen-permissions.mjs"
   },
   "dependencies": {
     "@angular/cdk": "22.1.6",

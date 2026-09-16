@@ -10,6 +10,10 @@ import { PlatformService } from '../../core/platform/platform.service';
  * rather than a default, because a default is a product name in the code and the whole point
  * is that there is not one.
  *
+ * The panel is a `<main>` landmark, not a div: these five screens have no nav and no header,
+ * so without it the page has no landmark at all and "skip to content" has nowhere to go
+ * (Lighthouse's `landmark-one-main`).
+ *
  * The logo slot is projected so the sign-in page can swap in the school's logo once the email
  * identifies one, while the other three screens keep the platform's.
  */
@@ -19,7 +23,7 @@ import { PlatformService } from '../../core/platform/platform.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="auth">
-      <div class="auth__panel">
+      <main class="auth__panel">
         <div class="auth__logo">
           <ng-content select="[auth-logo]">
             @if (platform.platformLogoUrl(); as logo) {
@@ -34,7 +38,7 @@ import { PlatformService } from '../../core/platform/platform.service';
         <h1 class="auth__title">{{ title() }}</h1>
 
         <div class="auth__body"><ng-content /></div>
-      </div>
+      </main>
 
       <footer class="auth__footer">
         <p>{{ footer() }}</p>

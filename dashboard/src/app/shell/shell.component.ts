@@ -1,6 +1,15 @@
 /* hq-flag: none (shell) — the frame every screen sits in. It is what shows a flag-gated
    item or hides it; gating the frame itself would leave a school with no dashboard. */
-import { DOCUMENT, ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { LiveAnnouncer } from '@angular/cdk/a11y';
+import {
+  DOCUMENT,
+  ChangeDetectionStrategy,
+  Component,
+  afterRenderEffect,
+  computed,
+  effect,
+  inject,
+} from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -17,7 +26,7 @@ import { AuthService } from '../core/auth/auth.service';
 import { BandService } from '../core/band/band.service';
 import { FlagService } from '../core/flags/flag.service';
 import { activeLang } from '../core/i18n/active-lang';
-import { NAV } from '../core/nav/nav-items';
+import { navScreens } from '../core/nav/screens';
 import { PermissionService } from '../core/permissions/permission.service';
 import { TourComponent } from '../core/tour/tour.component';
 import { TourService } from '../core/tour/tour.service';
@@ -36,8 +45,11 @@ import { ShellHeaderComponent } from './shell-header.component';
  * holding a search box of its own, so a screen with a filter gets the shortcut and a screen
  * without one is not given a box that does nothing.
  *
- * **The band is cleared on navigation.** A failure belongs to the screen it happened on;
- * carrying it to the next one would be a toast with extra steps.
+ * **The band is cleared on navigation**, and focus moves to the new screen's heading while
+ * `LiveAnnouncer` reads it. A failure belongs to the screen it happened on; carrying it to the
+ * next one would be a toast with extra steps. And a router outlet that swaps its contents
+ * leaves focus on the link that was clicked — so a screen-reader user hears nothing at all and
+ * the next Tab continues from the rail rather than from the page they just opened.
  */
 @Component({
   selector: 'hq-shell',
@@ -81,7 +93,7 @@ import { ShellHeaderComponent } from './shell-header.component';
           </div>
         }
 
-        <main class="shell__content"><router-outlet /></main>
+        <main class="shell__content" tabindex="-1"><router-outlet /></main>
 
         @if (undo.offer(); as offer) {
           <hq-undo-strip
@@ -147,6 +159,7 @@ export class ShellComponent {
   private readonly permissions = inject(PermissionService);
   private readonly tour = inject(TourService);
   private readonly transloco = inject(TranslocoService);
+  private readonly announcer = inject(LiveAnnouncer);
   /** The rail's labels are built in a computed, so they need the language as a dependency. */
   private readonly lang = activeLang();
 
@@ -167,10 +180,14 @@ export class ShellComponent {
     this.lang();
     const role = this.auth.role();
     if (role === null) return [];
-    return NAV[role]
-      .filter((item) => (item.flag ? this.flags.isOn(item.flag) : true))
-      .filter((item) => (item.permission ? this.permissions.can(item.permission) : true))
-      .map((item) => ({ id: item.id, label: this.transloco.translate(item.labelKey), link: item.link }));
+    return navScreens(role)
+      .filter(({ screen }) => (screen.flag ? this.flags.isOn(screen.flag) : true))
+      .filter(({ screen }) => (screen.permission ? this.permissions.can(screen.permission) : true))
+      .map(({ screen, link }) => ({
+        id: screen.id,
+        label: this.transloco.translate<string>(screen.labelKey ?? ''),
+        link,
+      }));
   });
 
   /** The longest matching link wins, so `/teacher/lessons/new` does not light "My lessons". */
@@ -201,6 +218,18 @@ export class ShellComponent {
       this.url();
       this.band.dismiss();
     });
+
+    // After the new screen has rendered, not before: the heading it moves to does not exist
+    // until then. The first paint is skipped — landing on a page is not "the page changed".
+    let first = true;
+    afterRenderEffect(() => {
+      this.url();
+      if (first) {
+        first = false;
+        return;
+      }
+      this.focusScreen();
+    });
     // First sign-in for this role in this browser gets the four-step tour.
     effect(() => {
       const role = this.auth.role();
@@ -210,6 +239,24 @@ export class ShellComponent {
 
   protected signOut(): void {
     this.auth.signOut().subscribe(() => void this.router.navigate(['/sign-in']));
+  }
+
+  /**
+   * Moves focus to the new screen's heading and announces it.
+   *
+   * The `h1` when there is one, because that is the screen's name and a screen reader will
+   * read it on focus; the `<main>` landmark otherwise, so focus is at least inside the new
+   * content. `LiveAnnouncer` says the title out loud for anyone whose focus did not move
+   * visibly — the two together are what make a route change perceivable without a page load.
+   */
+  private focusScreen(): void {
+    const main = this.doc.querySelector<HTMLElement>('main.shell__content');
+    const heading = main?.querySelector<HTMLElement>('h1') ?? main;
+    if (!heading) return;
+    if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1');
+    heading.focus({ preventScroll: true });
+    const title = heading.textContent?.trim();
+    if (title) void this.announcer.announce(title, 'polite');
   }
 
   /** `/` focuses the screen's search field, when the screen has one. */
