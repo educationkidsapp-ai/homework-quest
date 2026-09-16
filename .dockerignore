@@ -17,3 +17,5 @@ data
 dashboard/node_modules
 dashboard/dist
 dashboard/.angular
+# generated inside the image by `pnpm install` (postinstall → gen:api); never copy a local one in
+dashboard/src/app/api/generated

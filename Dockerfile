@@ -19,21 +19,25 @@ RUN --mount=type=cache,target=/root/.m2 \
     mkdir -p /root/.m2/repository && cp -r /contract/quest /root/.m2/repository/ && \
     cd server && ./mvnw -q -B package -DskipTests && cp target/server.jar /server.jar
 
-# ---- stage 3: the Angular dashboard (pnpm, no JDK and no Android SDK) → static bundle served by the API at /dashboard/ ----
-# Independent of stages 1–2, so BuildKit runs it in parallel with the JVM build.
+# ---- stage 3: the Angular dashboard (pnpm, no Android SDK) → static bundle served by the API at /dashboard/ ----
+# Independent of stages 1–2, so BuildKit runs it in parallel with the JVM build. A headless JRE is needed because
+# `postinstall` runs `pnpm gen:api` → openapi-generator-cli, which is a Java program (dashboard/tools/gen-api.mjs).
 FROM node:22-alpine AS dashboard
 WORKDIR /src/dashboard
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=1
-RUN corepack enable
-# manifest + lockfile first: the install layer is reused whenever only dashboard sources change
+RUN corepack enable && apk add --no-cache 'openjdk17-jre-headless=~17'
+# Everything `pnpm install` needs before the sources: the manifest and lockfile, the scripts `postinstall` runs, and
+# the contract it generates the API client from — gen-api.mjs resolves it as dashboard/../server/openapi.json, so it
+# has to land at /src/server/openapi.json. The install layer is then reused whenever only dashboard sources change.
 COPY dashboard/package.json dashboard/pnpm-lock.yaml ./
+COPY dashboard/tools ./tools
+COPY server/openapi.json /src/server/openapi.json
 RUN --mount=type=cache,target=/pnpm-store \
     corepack pnpm install --frozen-lockfile --store-dir /pnpm-store
-# design/tokens.json is only read by `pnpm tokens`; src/styles/_tokens.generated.scss is committed, so the
-# build itself needs nothing outside dashboard/ (CI's `pnpm tokens --check` guards the drift).
+# design/tokens.json is only read by `pnpm tokens`; src/styles/_tokens.generated.scss is committed, so the build
+# itself needs nothing outside dashboard/ (CI's `pnpm tokens --check` guards the drift). The generated client written
+# by postinstall lives in src/app/api/generated, which .dockerignore excludes so this COPY cannot bring a stale one.
 COPY dashboard ./
-# P3.1 adds the real generator; --if-present keeps this working while tools/gen-api.mjs is a no-op placeholder
-RUN corepack pnpm run --if-present gen:api
 # D11: one bundle serves QA and production — the image always builds the `production` configuration and the
 # environment-specific values come from the API at runtime, so promoting the image by digest stays honest.
 ARG DASHBOARD_CONFIG=production
@@ -51,7 +55,7 @@ COPY --from=build /server.jar /app/server.jar
 # docker build, served at /panel/. P3.6 retires webAdmin/ and this COPY together with it.
 COPY server/panel /app/panel
 # the Angular dashboard, served at /dashboard/ (DASHBOARD_DIR below)
-COPY --from=dashboard /src/dashboard/dist/dashboard/browser /app/dashboard
+COPY --from=dashboard /src/dashboard/dist/browser /app/dashboard
 RUN mkdir -p /app/data && chown -R quest:quest /app
 USER quest
 ARG APP_VERSION=dev

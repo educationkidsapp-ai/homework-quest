@@ -85,9 +85,10 @@ use the dashboard origin and everything else stays as it is.
 
 ## How the dashboard gets into the image
 
-`Dockerfile` stage `dashboard` (`node:22-alpine`, no JDK and no Android SDK) runs `pnpm install --frozen-lockfile`
-(pnpm store on a BuildKit cache mount) and `pnpm build --configuration=$DASHBOARD_CONFIG`, then the runtime stage copies
-`dashboard/dist/dashboard/browser` to `/app/dashboard` and sets `DASHBOARD_DIR=/app/dashboard` — so the directory is
+`Dockerfile` stage `dashboard` (`node:22-alpine` plus a headless JRE, because `postinstall` → `pnpm gen:api` runs the
+Java openapi-generator over `server/openapi.json`) runs `pnpm install --frozen-lockfile` (pnpm store on a BuildKit cache
+mount) and `pnpm build --configuration=$DASHBOARD_CONFIG`, then the runtime stage copies
+`dashboard/dist/browser` to `/app/dashboard` and sets `DASHBOARD_DIR=/app/dashboard` — so the directory is
 baked into the image and Terraform deliberately does **not** set it (`terraform plan` stays clean after a deploy).
 Per **D11** the build-arg defaults to `production` and no workflow overrides it: one bundle serves QA and production, and
 the environment-specific values come from the API at runtime, so promoting the image by digest stays honest.
