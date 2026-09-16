@@ -61,6 +61,13 @@ abstract class DashboardTestSupport extends ApiTestSupport {
 
     static LocalDate today() { return LocalDate.now(ZoneOffset.UTC); }
 
+    /**
+     * Noon UTC on a given day. Every figure here is bucketed by UTC day or ISO week, so an attempt seeded as
+     * "three hours ago" lands in yesterday's bucket or today's depending on the hour the suite happens to run —
+     * which is a flake that only appears at 04:00. Seed the day you mean, at a fixed point inside it.
+     */
+    static Instant noon(LocalDate day) { return day.atTime(12, 0).toInstant(ZoneOffset.UTC); }
+
     // ---------------------------------------------------------------- tokens
 
     String token(String userId, String role, String schoolId) {

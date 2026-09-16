@@ -48,8 +48,10 @@ class SchoolDataTest extends DashboardTestSupport {
         lessonWithSkill("data-a-3", A, MATHS_A, "british", 1, "math", day, "Adding to ten");
 
         var child = child("Sara", "DATAAA", "british", 1);
-        attempt(child, "data-a-3", stopId("data-a-3"), true, Instant.now().minus(2, ChronoUnit.HOURS));
-        attempt(child, "data-a-3", stopId("data-a-3"), false, Instant.now().minus(1, ChronoUnit.HOURS));
+        // Both today, at a fixed point inside the day: the plays series is bucketed by UTC day, so "an hour ago"
+        // would fall into yesterday's bucket whenever the suite runs just after midnight.
+        attempt(child, "data-a-3", stopId("data-a-3"), true, noon(day));
+        attempt(child, "data-a-3", stopId("data-a-3"), false, noon(day).plusSeconds(60));
     }
 
     @AfterEach void clean() { removeSeed(); }

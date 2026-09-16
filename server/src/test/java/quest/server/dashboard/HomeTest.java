@@ -44,10 +44,11 @@ class HomeTest extends DashboardTestSupport {
         lesson("home-english-review", A, ENGLISH, "british", 1, "english", today().minusDays(1), "needs_review", null, 0);
 
         childId = child("Rana", "HOMEAA", "british", 1);
-        // Three first tries, two of them wrong: enough for a band, and a weak one.
-        attempt(childId, "home-maths-today", stopId("home-maths-today"), false, Instant.now().minus(3, ChronoUnit.HOURS));
-        attempt(childId, "home-maths-today", stopId("home-maths-today"), false, Instant.now().minus(2, ChronoUnit.HOURS));
-        attempt(childId, "home-maths-today", stopId("home-maths-today"), true, Instant.now().minus(30, ChronoUnit.HOURS));
+        // Three first tries, two of them wrong: enough for a band, and a weak one. One lands yesterday (which the
+        // teacher's Home counts) and two today (which this week's active families counts, Mondays included).
+        attempt(childId, "home-maths-today", stopId("home-maths-today"), false, noon(today().minusDays(1)));
+        attempt(childId, "home-maths-today", stopId("home-maths-today"), false, noon(today()));
+        attempt(childId, "home-maths-today", stopId("home-maths-today"), true, noon(today()).plusSeconds(60));
     }
 
     @AfterEach void clean() { removeSeed(); }
