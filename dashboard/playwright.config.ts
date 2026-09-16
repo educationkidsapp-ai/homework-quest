@@ -14,7 +14,7 @@ export default defineConfig({
   workers: process.env['CI'] ? 1 : undefined,
   reporter: process.env['CI'] ? [['github'], ['list']] : [['list']],
   use: {
-    baseURL: 'http://localhost:4200/panel/',
+    baseURL: 'http://localhost:4200/dashboard/',
     viewport: { width: 1366, height: 768 },
     trace: 'on-first-retry',
   },
@@ -23,7 +23,7 @@ export default defineConfig({
     // `npx ng` rather than `pnpm start`: Playwright spawns through /bin/sh, which does not
     // have corepack's pnpm shim on PATH in every environment (including this repo's CI image).
     command: 'npx ng serve --port 4200',
-    url: 'http://localhost:4200/panel/styleguide',
+    url: 'http://localhost:4200/dashboard/styleguide',
     reuseExistingServer: !process.env['CI'],
     timeout: 180_000,
   },

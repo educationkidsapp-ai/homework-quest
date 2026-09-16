@@ -68,3 +68,37 @@ describe('hq/feature-flag-reference', () => {
     expect(lint(code, 'feature-flag-reference', 'sign-in.page.ts')).toHaveLength(0);
   });
 });
+
+describe('hq/no-raw-http', () => {
+  const IMPORT = `import { HttpClient } from '@angular/common/http';`;
+
+  it('fails on HttpClient imported into a feature', () => {
+    const messages = lint(IMPORT, 'no-raw-http', 'src/app/features/home/home.page.ts');
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.message).toContain('generated service');
+  });
+
+  it('fails on HttpClient injected into a service', () => {
+    const code = `const http = inject(HttpClient);`;
+
+    expect(lint(code, 'no-raw-http', 'src/app/core/theme/theme.service.ts')).toHaveLength(1);
+  });
+
+  it('passes inside the generated client and the interceptors', () => {
+    expect(lint(IMPORT, 'no-raw-http', 'src/app/api/api-error.ts')).toHaveLength(0);
+    expect(lint(IMPORT, 'no-raw-http', 'src/app/core/http/auth.interceptor.ts')).toHaveLength(0);
+    // The Transloco loader fetches a file out of the bundle, not the API.
+    expect(lint(IMPORT, 'no-raw-http', 'src/app/core/i18n/transloco-loader.ts')).toHaveLength(0);
+  });
+
+  it('passes in a spec — that is how an interceptor is tested', () => {
+    expect(lint(IMPORT, 'no-raw-http', 'src/app/core/http/interceptors.spec.ts')).toHaveLength(0);
+  });
+
+  it('leaves the other HTTP symbols alone', () => {
+    const code = `import { HttpErrorResponse, HttpContext } from '@angular/common/http';`;
+
+    expect(lint(code, 'no-raw-http', 'src/app/features/home/home.page.ts')).toHaveLength(0);
+  });
+});

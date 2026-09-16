@@ -1,20 +1,186 @@
 {
-  "ui": {
-    "loading": "Loading",
-    "optional": "optional",
-    "dismiss": "Dismiss",
-    "undo": "Undo",
-    "close": "Close",
-    "actions": "Actions",
-    "table": {
-      "actions": "Actions"
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "displayName": "Your name",
+    "passwordHint": "At least {{min}} characters.",
+    "passwordTooShort": "Use at least {{min}} characters.",
+    "backToSignIn": "Back to sign in",
+    "support": "Get help",
+    "signIn": {
+      "title": "Sign in",
+      "action": "Sign in",
+      "failedTitle": "Could not sign in"
     },
-    "step": {
-      "pending": "pending",
-      "running": "in progress",
-      "done": "done",
-      "error": "failed"
+    "forgot": {
+      "link": "Forgot your password?",
+      "title": "Reset your password",
+      "lede": "Enter your email and we will send you a link.",
+      "action": "Send the link",
+      "sent": "If that address has an account, the link is on its way. It is valid for one hour."
+    },
+    "reset": {
+      "title": "Choose a new password",
+      "action": "Save the password",
+      "failedTitle": "Could not reset the password"
+    },
+    "invite": {
+      "title": "Accept your invitation",
+      "lede": "You have been invited to {{school}} as {{role}}.",
+      "action": "Create the account",
+      "loading": "Checking the invitation",
+      "failedTitle": "Could not accept the invitation",
+      "deadTitle": "That link no longer works",
+      "dead": "Invitations are valid for seven days and can be used once. Ask your school to send a new one."
+    },
+    "change": {
+      "title": "Change your password",
+      "action": "Save the password",
+      "forced": "Choose your own password before you carry on.",
+      "failedTitle": "Could not change the password"
     }
+  },
+  "band": {
+    "failed": "That did not work",
+    "signedOut": "Signed out",
+    "notAllowed": "Not allowed",
+    "sessionExpired": "That session has expired. Sign in again.",
+    "unreachable": "Could not reach the server. Check your connection and try again.",
+    "level": {
+      "GOING_WELL": "Going well",
+      "GETTING_THERE": "Getting there",
+      "NEEDS_ANOTHER_LOOK": "Needs another look"
+    }
+  },
+  "curriculum": {
+    "american": "American",
+    "british": "British"
+  },
+  "errors": {
+    "goHome": "Go to your home",
+    "notFound": {
+      "title": "Nothing here",
+      "body": "That address does not exist, or the feature behind it is switched off for this school."
+    },
+    "noAccess": {
+      "title": "No access",
+      "body": "Your account may not open that. Ask your school administrator if you think it should."
+    }
+  },
+  "home": {
+    "greeting": "Hello, {{name}}",
+    "loading": "Loading your home",
+    "cardsLabel": "This week in numbers",
+    "needsYou": "What needs you",
+    "allClear": "Nothing needs you right now.",
+    "classes": "Your classes",
+    "noClasses": "No classes yet — your school adds you to one and it appears here.",
+    "classTitle": "{{curriculum}} · Grade {{grade}} · {{subject}}",
+    "todayPublished": "Today's lesson is published",
+    "todayMissing": "No lesson for today",
+    "addToday": "Add today's lesson",
+    "weakSkills": "Weakest skills",
+    "card": {
+      "schools": "Schools",
+      "children": "Children",
+      "lessonsThisWeek": "Lessons this week",
+      "playedYesterday": "Played yesterday",
+      "needsReview": "Waiting for review",
+      "activeFamilies": "Active families",
+      "teachers": "Teachers"
+    },
+    "needs": {
+      "lesson": {
+        "error": "{{lessonTitle}} failed to build",
+        "needs_review": "{{lessonTitle}} is waiting for your review"
+      },
+      "school": {
+        "noTeacher": "{{schoolName}} has no teacher yet"
+      },
+      "user": {
+        "staleInvite": "{{email}} has not accepted their invitation in {{days}} days"
+      },
+      "class": {
+        "noLessonToday": "No lesson for {{curriculum}} Grade {{grade}} {{subject}} on {{date}}"
+      },
+      "skill": {
+        "weak": "Your classes are struggling with {{skillName}}"
+      },
+      "teacher": {
+        "quiet": "{{teacherName}} has published nothing for {{days}} days"
+      }
+    }
+  },
+  "nav": {
+    "brand": "Dashboard",
+    "label": {
+      "ADMIN": "Admin",
+      "TEACHER": "Teacher",
+      "MANAGERIAL": "Management"
+    },
+    "home": "Home",
+    "schools": "Schools",
+    "users": "Users",
+    "flags": "Feature flags",
+    "allLessons": "All lessons",
+    "platformUsage": "Platform usage",
+    "platformSettings": "Platform settings",
+    "myLessons": "My lessons",
+    "newLesson": "New lesson",
+    "myStudents": "My students",
+    "questions": "Questions to students",
+    "announcements": "Announcements",
+    "complaints": "Complaints",
+    "schoolUsage": "School usage",
+    "teachers": "Teachers"
+  },
+  "profile": {
+    "title": "Your profile",
+    "details": "Your details",
+    "photoUrl": "Photo URL",
+    "role": "Role",
+    "language": "Language",
+    "languageHint": "Applies straight away, in this browser.",
+    "managedByAdmin": "Your school administrator changes this.",
+    "security": "Password",
+    "passwordHint": "Passwords are at least 10 characters and are never shown.",
+    "help": "Help"
+  },
+  "role": {
+    "ADMIN": "Admin",
+    "TEACHER": "Teacher",
+    "MANAGERIAL": "Management"
+  },
+  "shell": {
+    "signOut": "Sign out",
+    "showMeAround": "Show me around",
+    "viewingAs": "You are viewing as {{name}} — this view is read-only.",
+    "language": {
+      "en": "English",
+      "ar": "العربية"
+    },
+    "switcher": {
+      "label": "School",
+      "all": "All schools"
+    },
+    "profile": {
+      "label": "Your account",
+      "open": "Profile"
+    }
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "search": "Focus search",
+    "help": "Show this sheet",
+    "close": "Close the sheet or cancel",
+    "submit": "Run the page's primary action"
+  },
+  "stub": {
+    "title": "Coming soon",
+    "phase": "This screen arrives in phase {{phase}}. The menu item is here so you know it is coming.",
+    "soon": "This screen is not built yet."
   },
   "styleguide": {
     "title": "Component styleguide",
@@ -182,6 +348,80 @@
       "shake": "Shake",
       "replay": "Replay",
       "body": "Every animation goes through one switch. With reduced motion on, each of these becomes an instant cross-fade."
+    }
+  },
+  "subject": {
+    "math": "Math",
+    "english": "English",
+    "science": "Science"
+  },
+  "tour": {
+    "step": "Step {{index}} of {{total}}",
+    "next": "Next",
+    "done": "Got it",
+    "skip": "Skip",
+    "profile": {
+      "title": "Your account lives here",
+      "body": "Switch between English and Arabic, sign out, or run this tour again from \"Show me around\"."
+    },
+    "needsYou": {
+      "title": "What needs you",
+      "body": "Anything waiting on a person appears here, newest first. Each row takes you straight to it."
+    },
+    "admin": {
+      "nav": {
+        "title": "Everything, in one list",
+        "body": "Schools, users, feature flags, lessons and usage across the whole platform."
+      },
+      "switcher": {
+        "title": "One school at a time",
+        "body": "Pick a school here and every screen narrows to it. \"All schools\" puts it back."
+      },
+      "cards": {
+        "title": "The three numbers",
+        "body": "Schools, children and lessons published this week — for the platform, or for the school you picked."
+      }
+    },
+    "teacher": {
+      "nav": {
+        "title": "Your school only",
+        "body": "Your lessons, your students, and the questions you send them."
+      },
+      "cards": {
+        "title": "How yesterday went",
+        "body": "Who played, what you published this week, and what is still waiting for your review."
+      },
+      "classes": {
+        "title": "Your classes",
+        "body": "Each card shows whether today's lesson is published. One tap adds the missing one."
+      }
+    },
+    "management": {
+      "nav": {
+        "title": "Your school",
+        "body": "Complaints from parents, how much the school is using, and your teachers."
+      },
+      "cards": {
+        "title": "The three numbers",
+        "body": "Children, families active this week, and teachers."
+      }
+    }
+  },
+  "ui": {
+    "loading": "Loading",
+    "optional": "optional",
+    "dismiss": "Dismiss",
+    "undo": "Undo",
+    "close": "Close",
+    "actions": "Actions",
+    "table": {
+      "actions": "Actions"
+    },
+    "step": {
+      "pending": "pending",
+      "running": "in progress",
+      "done": "done",
+      "error": "failed"
     }
   }
 }
