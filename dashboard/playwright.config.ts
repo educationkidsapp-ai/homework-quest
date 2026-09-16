@@ -9,8 +9,9 @@ import { defineConfig, devices } from '@playwright/test';
  * which `deploy-qa.yml` runs after the QA deploy. The dashboard is served by the API at
  * `<origin>/panel/`, and no dev server is started.
  */
+const path = '/panel/'; // where the API serves the dashboard — one place, so both targets move together
 const deployed = process.env['E2E_BASE_URL'];
-const baseURL = deployed ? new URL('/panel/', deployed).href : 'http://localhost:4200/panel/';
+const baseURL = deployed ? new URL(path, deployed).href : `http://localhost:4200${path}`;
 
 export default defineConfig({
   testDir: './e2e',
@@ -32,7 +33,7 @@ export default defineConfig({
         // `npx ng` rather than `pnpm start`: Playwright spawns through /bin/sh, which does not
         // have corepack's pnpm shim on PATH in every environment (including this repo's CI image).
         command: 'npx ng serve --port 4200',
-        url: 'http://localhost:4200/panel/styleguide',
+        url: `http://localhost:4200${path}styleguide`,
         reuseExistingServer: !process.env['CI'],
         timeout: 180_000,
       },
