@@ -1,0 +1,187 @@
+// The child-mode half of the palette, type and shape scales (`docs/design.md` §2–§4).
+//
+// Seven of the child constants — cream, sand, night, peach, the child ink pair and sunDeep —
+// have no `--hq-*` token, and adding them to `design/tokens.json` breaks `shared-ui`'s
+// `TokensDriftTest` (another package's file). They are declared here, in one place, **pending a
+// tokens package that covers child mode**; every other child colour maps onto the token it
+// already has, so the Theme tab's runtime override of `--hq-world-*`, `--hq-mascot-*` and
+// `--hq-color-band-*` flows straight through this file into the preview with no rebuild.
+//
+// The same applies to the child sizes and type steps: the parent scale in the generated tokens is
+// a 44 px / 17 px system, the child app is a 64 px / 22 px one. Declared once, here, for now.
+//
+// This file emits no CSS of its own — it is mixins only, so a component may `@use` it without
+// duplicating anything into its scoped stylesheet.
+
+@use 'mixins' as m;
+
+/// Declares every `--hq-child-*` property. Included on the `:host` of the two entry components
+/// (`hq-phone-preview`, `hq-stop-preview`); custom properties inherit, so every component inside
+/// them reads the same values.
+@mixin child-tokens {
+  // --- pending tokens: the child-mode constants of §2 -----------------------
+  --hq-child-cream: #fff8ec;
+  --hq-child-sand: #f6e3b4;
+  --hq-child-night: #2d3561;
+  --hq-child-peach: #ffd9c2;
+  --hq-child-ink: #1f2a44;
+  --hq-child-ink-soft: #5b6b8c;
+  --hq-child-sun-deep: #f0a400;
+
+  // --- mapped onto the tokens that already exist ---------------------------
+  --hq-child-sky: var(--hq-world-math-soft);
+  --hq-child-sea: var(--hq-world-math-primary);
+  --hq-child-sea-deep: var(--hq-world-math-deep);
+  --hq-child-lavender: var(--hq-world-english-primary);
+  --hq-child-coral: var(--hq-mascot-color-scarf);
+  --hq-child-mint: var(--hq-color-band-good);
+  --hq-child-sun: var(--hq-color-band-mid);
+  --hq-child-pip: var(--hq-mascot-color-body);
+  --hq-child-pip-dark: var(--hq-mascot-color-body-dark);
+
+  // The world palette. English is the default; `world-math` swaps it per subject.
+  --hq-child-world: var(--hq-world-english-primary);
+  --hq-child-world-deep: var(--hq-world-english-deep);
+  --hq-child-world-soft: var(--hq-world-english-soft);
+
+  // --- shape and size (§4) -------------------------------------------------
+  --hq-child-touch: 64px;
+  --hq-child-tile-inline: 176px;
+  --hq-child-tile-block: 100px;
+  --hq-child-radius-tile: 24px;
+  --hq-child-radius-card: 28px;
+  --hq-child-radius-sheet: 32px;
+  --hq-child-radius-chip: 999px;
+  --hq-child-rule: 4px;
+
+  // --- illustration cards (§9) --------------------------------------------
+  --hq-child-illus-xs: 44px;
+  --hq-child-illus-sm: 56px;
+  --hq-child-illus-md: 84px;
+  --hq-child-illus-lg: 120px;
+  --hq-child-illus-xl: 180px;
+  --hq-child-tint-1: #d6ecff;
+  --hq-child-tint-2: #eff7e6;
+  --hq-child-tint-3: #ffe8d6;
+  --hq-child-tint-4: #ffeff4;
+  --hq-child-tint-5: #fff7cc;
+  --hq-child-tint-6: #f1e8ff;
+  --hq-child-tint-7: #e0f5ff;
+
+  // --- Pip (§5) ------------------------------------------------------------
+  --hq-child-pip-sm: 96px;
+  --hq-child-pip-md: 140px;
+  --hq-child-pip-lg: 200px;
+
+  // --- type (§3) -----------------------------------------------------------
+  --hq-child-font: Nunito, 'Varela Round', var(--hq-font-family-latin);
+  --hq-child-display: 40px;
+  --hq-child-display-line: 48px;
+  --hq-child-title: 28px;
+  --hq-child-title-line: 34px;
+  --hq-child-body: 22px;
+  --hq-child-body-line: 30px;
+  --hq-child-label: 18px;
+  --hq-child-label-line: 24px;
+}
+
+/// The math world. Applied to whatever element carries `[data-subject='math']`.
+@mixin world-math {
+  --hq-child-world: var(--hq-world-math-primary);
+  --hq-child-world-deep: var(--hq-world-math-deep);
+  --hq-child-world-soft: var(--hq-world-math-soft);
+}
+
+/// Every child screen sits on the sky ground, in the rounded face, ink on light.
+@mixin child-surface {
+  font-family: var(--hq-child-font);
+  font-size: var(--hq-child-body);
+  line-height: var(--hq-child-body-line);
+  color: var(--hq-child-ink);
+  background: var(--hq-child-sky);
+}
+
+@mixin child-display {
+  font-size: var(--hq-child-display);
+  line-height: var(--hq-child-display-line);
+  font-weight: 700;
+}
+
+@mixin child-title {
+  font-size: var(--hq-child-title);
+  line-height: var(--hq-child-title-line);
+  font-weight: 700;
+}
+
+@mixin child-label {
+  font-size: var(--hq-child-label);
+  line-height: var(--hq-child-label-line);
+  font-weight: 700;
+}
+
+/// One instruction, one short sentence, centred (§7).
+@mixin child-prompt {
+  @include child-title;
+
+  margin: 0;
+  padding-inline: var(--hq-space-16);
+  text-align: center;
+}
+
+/// The cream card behind most child content.
+@mixin child-card {
+  box-sizing: border-box;
+  inline-size: 100%;
+  padding: var(--hq-space-16);
+  background: var(--hq-child-cream);
+  border: none;
+  border-radius: var(--hq-child-radius-card);
+  color: var(--hq-child-ink);
+  font-family: inherit;
+  text-align: start;
+}
+
+/// Anything the child taps: never smaller than 64 px (§7).
+@mixin child-target {
+  min-inline-size: var(--hq-child-touch);
+  min-block-size: var(--hq-child-touch);
+  cursor: pointer;
+  font-family: inherit;
+  @include m.focus-ring(var(--hq-child-sun-deep));
+}
+
+/// A wrong answer dims its tile and disables it. It is never removed (§7).
+@mixin child-dimmed {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/// The seven illustration tints as `.tint-1` … `.tint-7`, for a component that tints a whole area
+/// (a page picture, a group of counted objects) the way an illustration card tints itself.
+@mixin child-tints {
+  @for $i from 1 through 7 {
+    .tint-#{$i} {
+      background: var(--hq-child-tint-#{$i});
+    }
+  }
+}
+
+/// Vertical stack — the one layout child screens use.
+@mixin child-stack($gap: var(--hq-space-12)) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $gap;
+  inline-size: 100%;
+}
+
+/// Keyframe animations go through this so `prefers-reduced-motion` collapses them to nothing.
+@mixin child-animation($value) {
+  animation: $value;
+
+  @include m.reduced-motion {
+    animation-duration: 0ms;
+    animation-delay: 0ms;
+    animation-iteration-count: 1;
+  }
+}
