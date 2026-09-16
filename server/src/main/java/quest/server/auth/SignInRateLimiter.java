@@ -56,7 +56,7 @@ public class SignInRateLimiter {
     public void recordSuccess(String email, String ip) { failures.remove(key(email, ip)); failures.remove(key(email, null)); }
 
     /**
-     * A public lookup that must not become a way to sweep the user table — `GET /schools/logo?email=` (§6 screen 1) —
+     * A public lookup that must not become a way to sweep the user table — `POST /schools/logo` (§6 screen 1) —
      * throttled with the same window as sign-in but in a bucket of its own, named by {@code label}.
      *
      * <p>Two differences from {@link #check}. <em>Every</em> call counts, not only the failures: the point is to stop

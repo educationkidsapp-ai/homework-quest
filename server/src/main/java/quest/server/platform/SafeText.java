@@ -18,12 +18,16 @@ import quest.server.config.ApiException;
  *
  * Both are size-capped here as well as with `@Size`, because `@Valid` only reaches the top-level body: a theme
  * arriving as `UpdatePlatformSettingsRequest.defaultTheme` is validated by {@link ThemeService#validated} alone.
+ *
+ * <p>Public since P4.0: a teacher's `photoUrl` reaches the same places a school's logo does — an `img src` in the
+ * dashboard and in the app's teacher island — so it is checked by exactly this rule rather than by a second one
+ * that could drift from it.
  */
-final class SafeText {
+public final class SafeText {
     /** Long enough for a signed storage URL, short enough that the public theme body stays small. */
-    static final int MAX_URL = 2000;
+    public static final int MAX_URL = 2000;
     /** A school's display name, a page title's worth. */
-    static final int MAX_NAME = 60;
+    public static final int MAX_NAME = 60;
     /** The longest address RFC 5321 allows (64 local + @ + 255 domain, minus the pair of path brackets). */
     static final int MAX_EMAIL = 254;
 
@@ -42,7 +46,7 @@ final class SafeText {
      * {@link #MAX_URL}, free of control characters, of whitespace, and of the {@link #URL_FORBIDDEN} characters that
      * would let it break out of the `img src` attribute it is rendered into.
      */
-    static String httpsUrl(String value, String field) {
+    public static String httpsUrl(String value, String field) {
         if (value == null || value.isBlank()) return null;
         String trimmed = value.trim();
         if (trimmed.length() > MAX_URL) throw ApiException.badRequest(field + " must be at most " + MAX_URL + " characters, not " + trimmed.length());
@@ -58,7 +62,7 @@ final class SafeText {
     }
 
     /** A blank value means "not set" and answers null; anything else is trimmed, capped and free of control characters. */
-    static String plainText(String value, String field, int max) {
+    public static String plainText(String value, String field, int max) {
         if (value == null || value.isBlank()) return null;
         String trimmed = value.trim();
         if (trimmed.length() > max) throw ApiException.badRequest(field + " must be at most " + max + " characters, not " + trimmed.length());

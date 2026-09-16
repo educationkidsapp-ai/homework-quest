@@ -13,9 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.HandlerMapping;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
@@ -23,28 +21,25 @@ import java.util.concurrent.TimeUnit;
  * Serves the admin panel (the Compose-for-Web bundle) from the same origin as the API, under /panel/.
  * The Docker image puts the bundle in PANEL_DIR; with no bundle (local runs) the route answers 404.
  * Assets are content-hashed by webpack, so they get a long cache; index.html never does.
+ * The path resolution itself lives in {@link StaticBundle}, shared with {@link DashboardController} (`/dashboard/`).
  */
 @RestController
 @Hidden   // a static SPA bundle, not an API: `/panel/**` is no valid OpenAPI path template and the generated client must not see it
 @Tag(name = "Panel", description = "The admin panel bundle")
 public class AdminPanelController {
-    private final Path dir;
+    private final StaticBundle bundle;
 
     public AdminPanelController(@Value("${quest.panel-dir:}") String panelDir) {
-        this.dir = panelDir == null || panelDir.isBlank() ? null : Path.of(panelDir).toAbsolutePath().normalize();
+        this.bundle = new StaticBundle(panelDir, "panel");
     }
 
     @PreAuthorize("permitAll")
     @GetMapping({"/panel", "/panel/", "/panel/**"})
     public ResponseEntity<Resource> panel(HttpServletRequest request) {
-        if (dir == null || !Files.isDirectory(dir)) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        String path = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
-        String rel = path == null ? "" : path.replaceFirst("^/panel/?", "");
-        Path file = dir.resolve(rel).normalize();
-        if (!file.startsWith(dir)) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        boolean asset = !rel.isEmpty() && Files.isRegularFile(file);
-        if (!asset) file = dir.resolve("index.html"); // the panel routes in memory; any other path is the app shell
-        if (!Files.isRegularFile(file)) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        var resolved = bundle.resolve(request);   // the panel routes in memory; any path with no file behind it is the app shell
+        if (resolved == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        Path file = resolved.file();
+        boolean asset = resolved.asset();
         String name = file.getFileName().toString();
         MediaType type = name.endsWith(".wasm") ? MediaType.parseMediaType("application/wasm")
                 : name.endsWith(".js") ? MediaType.parseMediaType("text/javascript;charset=UTF-8")

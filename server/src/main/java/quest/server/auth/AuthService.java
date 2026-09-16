@@ -125,6 +125,30 @@ public class AuthService {
 
     public Entities.UserEntity require(String userId) { return users.findById(userId).orElseThrow(() -> ApiException.notFound("user")); }
 
+    /**
+     * `PATCH /me` (§6): a user's own display name, photo and language, and nothing else — role, status, school and
+     * email are somebody else's to change. `photoUrl` goes through the same `SafeText` rule a school's logo does:
+     * it is rendered into an `img src` by the dashboard and by the app's teacher island, so only `https://` is
+     * accepted. An impersonated session never reaches here — `ReadOnlyGuard` refuses every write on a "View as…"
+     * token before the handler runs.
+     */
+    @Transactional
+    public Entities.UserEntity updateSelf(String userId, DashboardDto.UpdateMeRequest request) {
+        var user = require(userId);
+        if (request.displayName() != null) user.setDisplayName(quest.server.platform.SafeText.plainText(request.displayName(), "displayName", 120));
+        if (request.photoUrl() != null) user.setPhotoUrl(quest.server.platform.SafeText.httpsUrl(request.photoUrl(), "photoUrl"));
+        if (request.language() != null) user.setLanguage(language(request.language()));
+        user.setUpdatedAt(java.time.Instant.now());
+        return users.save(user);
+    }
+
+    /** The two languages §6 ships: the dashboard has an EN and an AR catalogue and nothing else to fall back to. */
+    private static String language(String value) {
+        String lower = value.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!java.util.List.of("en", "ar").contains(lower)) throw ApiException.badRequest("language must be en or ar");
+        return lower;
+    }
+
     /** Counted the way the DTOs' `@Size(min = …)` counts it, and on the value that is actually stored. */
     public static void requireStrong(String password) {
         if (password == null || password.length() < DashboardDto.MIN_PASSWORD)

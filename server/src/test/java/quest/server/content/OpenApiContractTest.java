@@ -36,6 +36,23 @@ class OpenApiContractTest extends ApiTestSupport {
             "/admin/schools/{id}/classes", "/admin/schools/{id}/classes/{classId}",
             "/admin/schools/{id}/usage", "/admin/schools/{id}/billing",
             "/admin/usage/platform", "/school/usage", "/school/teachers");
+    /**
+     * P4.0: §5's teacher profile and §6 screens 12-16, plus the two app routes the teacher's features add.
+     * `/teacher/questions/**` and `/teacher/announcements/**` (and their `/children/**` halves) are behind the
+     * `teacherQuestions` and `announcements` flags at run time; they are still in `server/openapi.json`, because the
+     * document describes the API the server can serve, not what one school has switched on.
+     */
+    static final List<String> TEACHER_API = List.of(
+            "/teacher/profile", "/teacher/options",
+            "/admin/users/{id}/teacher-profile",
+            "/teacher/classes/{classId}/calendar", "/teacher/classes/{classId}/students",
+            "/teacher/students/{childId}/timeline",
+            "/teacher/questions", "/teacher/questions/{id}", "/teacher/questions/{id}/send",
+            "/teacher/questions/{id}/results",
+            "/teacher/announcements", "/teacher/announcements/{id}",
+            "/children/{id}/announcements",
+            "/children/{id}/teacher-questions/{questionId}", "/children/{id}/teacher-questions/{questionId}/answers");
+
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings", "/schools/logo");
 
@@ -46,6 +63,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(ADMIN_API);
         assertThat(paths).containsAll(DASHBOARD_API);
         assertThat(paths).containsAll(DASHBOARD_DATA_API);
+        assertThat(paths).containsAll(TEACHER_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
     }

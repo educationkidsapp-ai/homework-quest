@@ -215,6 +215,17 @@ data class InviteInfo(val email: String, val role: Role, val schoolName: String?
 
 @Serializable data class AcceptInviteRequest(val password: String, val displayName: String? = null)
 
+/**
+ * `PATCH /me`: the three things any dashboard user may change about herself, only the present ones written.
+ * Everything else about an account — role, status, school, email — is somebody else's to change
+ * ([UpdateUserRequest]), and a teacher's teaching profile is [UpdateTeacherProfileRequest].
+ *
+ * [photoUrl] must be an `https://` URL: it is rendered into an `img src` by the dashboard and by the app's teacher
+ * island. [language] is `en` or `ar` — the two catalogues §6 ships.
+ */
+@Serializable
+data class UpdateMeRequest(val displayName: String? = null, val photoUrl: String? = null, val language: String? = null)
+
 /** `GET /me/permissions`: the keys of `permissions.json` the caller's role holds. */
 @Serializable
 data class MePermissions(val role: Role, val permissions: List<String> = emptyList(), val readOnly: Boolean = false)
@@ -246,6 +257,8 @@ interface DashboardApi {
 
     // ---- the caller
     suspend fun me(): DashboardUser
+    /** Her own display name, photo and language; answers the same shape [me] does. */
+    suspend fun updateMe(request: UpdateMeRequest): DashboardUser
     suspend fun myPermissions(): MePermissions
 
     // ---- schools (Admin)
@@ -318,8 +331,51 @@ interface DashboardApi {
     /** §6 screen 4: the New school wizard's submit — school, theme, flags and the first Managerial user in one go. */
     suspend fun createSchoolWithWizard(request: SchoolWizardRequest): SchoolWizardResponse
 
-    /** Public (§6 screen 1): the logo to fade in once the person has typed their address. 204 when nothing matches. */
-    suspend fun schoolLogoByEmail(email: String): SchoolLogo?
+    /**
+     * Public (§6 screen 1): the logo to fade in once the person has typed their address. 204 when nothing matches.
+     * `POST /schools/logo` with the address in the body — see [SchoolLogo] for why it is not a query parameter.
+     */
+    suspend fun schoolLogoByEmail(request: SchoolLogoRequest): SchoolLogo?
+
+    // ---- P4.0: the Teacher's own screens (§5, §6 screens 11–16). `Teacher.kt` holds the types.
+
+    /** §5: the caller's own teacher profile. TEACHER only — an Admin uses [teacherProfileOf]. */
+    suspend fun myTeacherProfile(): TeacherProfile
+    suspend fun saveMyTeacherProfile(request: UpdateTeacherProfileRequest): TeacherProfile
+
+    /** §6 screen 13: what the New lesson chooser may offer this teacher, and nothing else. */
+    suspend fun teacherOptions(): TeacherOptions
+
+    /** ADMIN: read and write any teacher's profile, from the Users screen (§6 screen 6). */
+    suspend fun teacherProfileOf(userId: String): TeacherProfile
+    suspend fun saveTeacherProfileOf(userId: String, request: UpdateTeacherProfileRequest): TeacherProfile
+
+    /** §6 screen 12: the class's month, with the days that have no lesson flagged as gaps. */
+    suspend fun classCalendar(classId: String, year: Int, month: Int): ClassCalendar
+
+    // ---- Questions to students (§6 screen 14). Every route here is 404 while `teacherQuestions` is off.
+
+    /** Her questions, newest first, each with its results summary. */
+    suspend fun teacherQuestions(): List<TeacherQuestion>
+    suspend fun createTeacherQuestion(request: CreateTeacherQuestionRequest): TeacherQuestion
+    /** 409 once the question has been sent: the stops a child has already answered are not rewritten. */
+    suspend fun updateTeacherQuestion(questionId: String, request: UpdateTeacherQuestionRequest): TeacherQuestion
+    /** Validates the stops against the shared schema, stamps `sentAt`; 409 if it was already sent. */
+    suspend fun sendTeacherQuestion(questionId: String): TeacherQuestion
+    suspend fun teacherQuestionResults(questionId: String): TeacherQuestionResults
+
+    // ---- Announcements (§6 screen 16). 404 while `announcements` is off.
+
+    suspend fun teacherAnnouncements(): List<Announcement>
+    suspend fun createAnnouncement(request: CreateAnnouncementRequest): Announcement
+    suspend fun deleteAnnouncement(announcementId: String)
+
+    // ---- My students (§6 screen 15)
+
+    /** Per child of one of her classes: stars this week, level reached, weak skills, when they last played. */
+    suspend fun classStudents(classId: String): List<ClassStudent>
+    /** What one child played in the window, and the retells and drawings she saved. */
+    suspend fun studentTimeline(childId: String, from: String? = null, to: String? = null): StudentTimeline
 }
 
 /** `PUT /admin/platform-settings` (§A): only the fields that are present are written. */
@@ -370,6 +426,11 @@ data class HomeCard(val key: String, val value: Long)
  *
  * The only [params] values that are not themselves message ids are the ones that *are* the data — a school's name, a
  * lesson's title, a person's name, a skill's name. Those are what the school typed, and not the server's to translate.
+ *
+ * A param listed above can be **absent**, and absent is not the same as empty: `lessonTitle` is left out entirely
+ * for a lesson that has no title yet, because the server has no wording of its own to put there — an English
+ * "Untitled lesson" would be printed verbatim into an Arabic page. The catalogue owns the fallback:
+ * `home.needs.<kind>` should resolve a variant that reads without the param when it is missing.
  */
 @Serializable
 data class NeedsYouItem(
@@ -571,9 +632,17 @@ data class TeacherSummary(
 )
 
 /**
- * `GET /schools/logo?email=` (§6 screen 1): the logo and name of the school the address already belongs to, and
- * nothing else. It answers only when the domain belongs to exactly one school, so a shared domain (`gmail.com`)
- * tells a caller nothing, and it is rate-limited like sign-in.
+ * `POST /schools/logo` (§6 screen 1): the logo and name of the school the address already belongs to, and nothing
+ * else. It answers only when the domain belongs to exactly one school, so a shared domain (`gmail.com`) tells a
+ * caller nothing, and it is rate-limited like sign-in.
+ *
+ * It is a POST although it reads: the address is a named person's, typed before anyone has signed in, and a query
+ * string is logged by the access log, the load balancer, every forward proxy and the browser's own history. The
+ * body is logged by none of those.
  */
 @Serializable
 data class SchoolLogo(val name: String, val logoUrl: String? = null)
+
+/** The body of `POST /schools/logo`. A blank address answers 204, exactly as a domain no school owns does. */
+@Serializable
+data class SchoolLogoRequest(val email: String)

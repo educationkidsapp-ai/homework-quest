@@ -56,8 +56,16 @@ public final class SchoolDto {
                                        ThemeDto.SchoolTheme theme, Map<String, Boolean> flags) {}
 
     /**
-     * `GET /schools/logo?email=` (§6 screen 1). Deliberately two fields: the sign-in page needs a name and a picture,
+     * `POST /schools/logo` (§6 screen 1). Deliberately two fields: the sign-in page needs a name and a picture,
      * and a caller who guesses an address learns nothing it did not already know.
      */
     public record SchoolLogo(String name, String logoUrl) {}
+
+    /**
+     * The body of `POST /schools/logo`. The address travels in the body rather than in a query string because it is
+     * a named person's email typed before anyone has signed in, and a query string is logged by the access log, the
+     * load balancer, every forward proxy and the browser's history. A blank or absent address answers 204, exactly
+     * as a domain no school owns does.
+     */
+    public record SchoolLogoRequest(String email) {}
 }

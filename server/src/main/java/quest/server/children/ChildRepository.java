@@ -20,6 +20,15 @@ public interface ChildRepository extends JpaRepository<Entities.ChildEntity, Str
     long countByCurriculumAndGradeAndDeletedAtIsNull(String curriculum, int grade);
 
     /**
+     * The live children of a school, and of one course of it — §2's "a child belongs to a school + curriculum +
+     * grade", which is how a Class's students are found (a child does not belong to a subject). P4.0's My students,
+     * teacher questions and announcements all start here, and `school_id` is named explicitly because the parent
+     * side of those features carries no tenant scope at all.
+     */
+    List<Entities.ChildEntity> findBySchoolIdAndDeletedAtIsNullOrderByNameAsc(String schoolId);
+    List<Entities.ChildEntity> findBySchoolIdAndCurriculumAndGradeAndDeletedAtIsNullOrderByNameAsc(String schoolId, String curriculum, int grade);
+
+    /**
      * `[curriculum, grade, live children]` for every course at once — one query instead of one per course, and scoped
      * by the `school` filter like every other read here.
      */
