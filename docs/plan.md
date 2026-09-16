@@ -9,7 +9,7 @@ Every package: ≤ 1 day, one owner, one branch `<owner>/<package>`, one PR into
 
 | # | Decision | Why |
 |---|---|---|
-| D1 | Angular **latest stable** as installed by `ng new` (22.x in Sept 2026) rather than the literal "20" | the prompt says "Angular 20 (latest stable)"; latest stable wins, and the reviewer requires latest stable minors anyway |
+| D1 | Angular **latest stable** as installed by `ng new` — **22.1.6** (zoneless; `@angular/animations` is deprecated in v22, so the motion triggers are CSS-class directives with the same names/timings; `@angular/cdk` deferred to phase 3) rather than the literal "20" | the prompt says "Angular 20 (latest stable)"; latest stable wins, and the reviewer requires latest stable minors anyway |
 | D2 ⚠ | The dashboard bundle is served by the API container at `<api>/panel/` (content-hashed assets immutable, `index.html` no-cache, SPA fallback) — **not Firebase Hosting** | the owner removed Firebase Hosting on 2026-09-14 ("keep Firebase auth only"); the API already serves the panel. Cost is the same (free tier either way); trade-off: first paint waits on a Cloud Run cold start when QA has scaled to zero. Owner can reverse this in one infra package |
 | D3 | The product prompt is committed verbatim as `docs/prompts/schools-dashboard.md` (the "prompt §N" inputs below refer to it). `docs/dev-prompt.md` does not exist in the repo (the README notes the original prompt was never received; `docs/design.md` is a stand-in). The Archivo / 2px / red system referenced as "design.md parent mode" lives in `shared-ui/.../Tokens.kt` (`Palette.parent*`, `AdminTokens`) and becomes `design/tokens.json` | contract-first: one file both front-ends generate from |
 | D4 | File ownership beyond the table in the prompt: `shared-api/` → `backend` (contract-first); `design/tokens.json` → created by `dashboard` in P1.0, consumed by `mobile`; `Dockerfile`, `scripts/`, `settings.gradle.kts`, `.nvmrc`, `renovate.json` → `infra` (P1.0 may create `.nvmrc`; the reviewer edits `renovate.json` only inside its deps package); `shared-ui/`, `desktopApp/` → `mobile`; `e2e/` and `docs/screenshots/` → `test`; `docs/plan.md` and `docs/prompts/` → planner (read-only for every worker) | avoids two agents in one file |
@@ -31,6 +31,9 @@ Every package: ≤ 1 day, one owner, one branch `<owner>/<package>`, one PR into
 | P1.5 `mobile/tokens-pipeline` | mobile | P1.0 (`design/tokens.json`) | Gradle task generating `DesignTokens.kt` from `design/tokens.json`; `Palette.parent*`/`AdminTokens` read from it; `:shared-ui:checkTokens` drift task wired into CI's app job (via infra follow-up if needed) | `./gradlew :shared-ui:checkTokens :shared:desktopTest` green; screenshot tests unchanged | P1.0 |
 | P1.6 `test/qa-seed-two-schools` | test | P1.2, P1.3 | `e2e/seed/seed.mjs` (idempotent; two schools, every role, classes, children, one published lesson per class) and `e2e/isolation.sh` (curl with the teacher tokens); `e2e/README.md` | seed runs against local H2 and QA; isolation script exits 0; the QA links in the report show both schools | P1.2, P1.3 |
 | P1.7 `docs/phase1` | docs | merged P1.x | `docs/runbook.md` (roles, invites, school switcher header, seeding, sleep/wake), README section update | commands verified | P1.6 |
+| P1.8 `mobile/media-auth` | mobile | reviewers' findings on P1.2/P1.3 | app sends the Firebase bearer on `/media/pages/**` (`AuthedRequests`), seeded shuffles in `MultiStops` | `LessonImagesTest`; screenshots 08/09 deterministic | P1.3 |
+| P1.9 `backend/media-cache-users` | backend | P1.6 defect D1, reviewers' notes | `/media/**` authenticated and school-scoped (uniform 404), `POST /admin/schools/{id}/users` (ADMIN, `user.create`), `GET /admin/cache` scoped, reports N+1 removed, BCrypt 12 | `MediaAuthorizationTest`, `CreateUserTest`, `ReportsQueryCountTest` | P1.8 |
+| P1.10 `infra/mail-env` | infra | P1.3 env var names | Terraform env `MAIL_PROVIDER`/`MAIL_FROM`/`DASHBOARD_URL`/`PLATFORM_NAME`, `RESEND_API_KEY` optional secret, workflows + bootstrap, README "Auth email" | `terraform validate`; plan 2/1/0 on QA | P1.3 |
 
 Reviewer: `quality-performance` on every PR above.
 
@@ -87,8 +90,32 @@ Reviewer: `quality-performance` on every PR above.
 | P6.3 `docs/final` | docs | merged everything | `docs/dev-prompt.md` reconciled, README, runbook | no drift between docs and code (spot-checked by the reviewer) | P6.2 |
 | P6.4 `quality-performance/deps` | quality-performance | lockfiles, `renovate.json` | weekly dependency update PR (manifests + lockfiles only — the one case where the reviewer edits other owners' files) + `docs/quality.md` | full CI green | recurring |
 
+## Carried over from phase 1 (not blocking; folded into later packages)
+
+- **Test hygiene** (backend, into P2.1): `TenancyContractTest` asserts over every lesson row and passes only because of run order; scope it to the seeded lessons or make the other classes clean up.
+- **Screenshot determinism** (mobile, into P2.2): `02b-world-map-empty` and `03-journey` still vary between runs because of `rememberInfiniteTransition` (`WorldMapScreen.kt`, `Pip.kt`); freeze under test.
+- **Token gaps** (dashboard + mobile, a small tokens package before P3.1): `font.label-*` (14 px) matches no Kotlin label step (15/12 px); `letter-spacing-label` 0.02em vs 0.14em; no tokens for description/navItem/cardTitle/mono and the parent Material steps; `space.*` deliberately unmapped in Kotlin.
+- **Sign-in rate limiter is per instance** (Cloud Run may run several) — a shared store or Cloud Armor is a later infra/backend package.
+- **`GET /lessons/{id}` without `childId`** still serves any published lesson to any authenticated parent (content is public-by-id, cached per version in the app) — decide in phase 2 with the flags work.
+- **`webAdmin/RemoteAdminApi.imageBytes` comment** still says media is public — goes away with P3.6. **README** still says "six GitHub Actions workflows" (five + Dependabot) — fix in P2.4.
+- **`ApiError` lacks a `conflict` constant** (used by `user.create` 409) — add when the dashboard matches on it (P3.1).
+- **Owner actions**: install the Renovate GitHub App (Dependabot version updates are now off for gradle/maven/github-actions); provide `RESEND_API_KEY` + a verified `MAIL_FROM` and set `mail_provider = "resend"` in `envs/qa.tfvars` when real invite emails are wanted; the 15 open Dependabot PRs (#2–#16, incl. Spring Boot 4 and Flyway 13 majors) are left for P6.4.
+
 ## Status
+
+**Phase 1: done 2026-09-16.** QA runs `f7aa181`. Phase 2 started (P2.1 in progress).
 
 | Pkg | Branch / PR | State | Notes |
 |---|---|---|---|
-| setup | `planner/setup` | in review | agent definitions + this plan |
+| setup | #26, #28 | merged | agent definitions + this plan |
+| P1.1 | #27 | merged, on QA | V4 migration applied on Cloud SQL; `admin_users` kept (additive-migration rule) |
+| P1.0 | #29 | merged | Angular 22.1.6; 82 kB gzipped initial; Lighthouse 100/93 |
+| P1.4 | #32 | merged | `dashboard` CI job 1m07s; Renovate config (app not installed yet) |
+| P1.5 | #33 | merged | 43 tokens mapped + drift-asserted; screenshots unchanged |
+| P1.2 | #30 | merged, on QA | review found fail-open scope for school-less staff → fixed (fail closed, 85 tests) |
+| P1.3 | #31 | merged, on QA | review found 5 blockers (XFF rate-limit bypass, unscoped school list, weak coverage test, reset reviving disabled accounts, timing enumeration) → all fixed (107 tests) |
+| P1.8 | #34 | merged | app sends bearer on media; seeded shuffles |
+| P1.6 | #35, #39 | merged; **QA acceptance green** | seed exit 0 on QA; isolation 16 PASS / 0 FAIL ×2 with real teacher/managerial sessions; QA fixture: Al Noor `ALNOOR` (`5c5bc15a-0e3b-4d87-b3a2-d04f7bc267e2`), Green Valley `GREENV` (`f20151c4-719f-4ee8-9034-16b9e0bead8f`); staff/parent passwords live only in the planner session scratchpad `qa-e2e.env` — reset the accounts if lost |
+| P1.9 | #36 | merged, on QA (`f7aa181`) | one review item (uniform 404 body) fixed; 121 server tests |
+| P1.7 | #37 | merged | two review items (PATH in fenced blocks, workflow count) fixed |
+| P1.10 | #38 | merged, on QA | env applied; `RESEND_API_KEY` container created, not wired until a version exists |
