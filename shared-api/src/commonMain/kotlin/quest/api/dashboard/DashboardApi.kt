@@ -3,6 +3,8 @@ package quest.api.dashboard
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import quest.api.dto.Curriculum
+import quest.api.dto.PlatformSettings
+import quest.api.dto.SchoolTheme
 import quest.api.dto.Subject
 
 /**
@@ -25,7 +27,11 @@ enum class UserStatus { @SerialName("active") ACTIVE, @SerialName("disabled") DI
 @Serializable
 enum class SchoolStatus { @SerialName("active") ACTIVE, @SerialName("suspended") SUSPENDED }
 
-/** One tenant. `theme` and `featureFlags` are raw JSON strings until the flags/themes package (P2.1) types them. */
+/**
+ * One tenant. `theme` is the raw `schools.theme_json`; the typed theme is `GET /schools/{id}/theme`
+ * ([SchoolTheme]). `featureFlags` is the unused `schools.feature_flags_json` column kept from P1.1 — since P2.1 the
+ * per-school overrides live in `school_feature_flags` and are read through `GET /schools/{id}/flags`.
+ */
 @Serializable
 data class School(
     val id: String,
@@ -51,13 +57,17 @@ data class SchoolSummary(
     val lessons: Int = 0,
 )
 
-/** What a parent sees after typing a school code, before confirming (§2). */
+/**
+ * What a parent sees after typing a school code, before confirming (§2). [theme] travels with it so the confirm
+ * step can run its colour transition without a second request (§3).
+ */
 @Serializable
 data class JoinSchoolInfo(
     val name: String,
     val logoUrl: String? = null,
     val curriculumOptions: List<Curriculum> = emptyList(),
     val gradeOptions: List<Int> = emptyList(),
+    val theme: SchoolTheme? = null,
 )
 
 /** Per school: (curriculum, grade, subject) with the teacher who owns it. Replaces the global `Course` for publishing. */
@@ -88,6 +98,11 @@ data class DashboardUser(
     val createdAt: Long = 0,
     /** Set on `GET /me` while an Admin is viewing the dashboard as this user (§5 "View as…"); the id of that Admin. */
     val impersonatedBy: String? = null,
+    /**
+     * `GET /me` only: what to call the product for this user (§A) — the school's `theme.appName`, else the platform's
+     * name, else the name seeded by `V5__flags_themes.sql`. The dashboard's title, heading and footer read it.
+     */
+    val platformName: String? = null,
 )
 
 /** The public half of a teacher account: what the teacher island and the school page show. */
@@ -250,4 +265,32 @@ interface DashboardApi {
 
     /** Public: what a parent sees after typing a school code in Add child. */
     suspend fun schoolByCode(code: String): JoinSchoolInfo
+
+    // ---- feature flags (§4). `flag.read` is ADMIN and MANAGERIAL (her own school's row), `flag.write` is ADMIN.
+    /** The definitions and a row per school the caller may see. */
+    suspend fun flags(): FlagMatrix
+    /** One cell of the matrix; answers with the school's whole flag set. */
+    suspend fun setSchoolFlag(schoolId: String, key: String, request: UpdateFlagRequest): Map<String, Boolean>
+    /** §4's "enable for all / disable for all" on a column; one audit row with `schoolId` null records it. */
+    suspend fun setFlagEverywhere(key: String, request: UpdateFlagRequest): FlagMatrix
+    /** Who flipped what and when, newest first. */
+    suspend fun flagAudit(limit: Int = 50): List<FlagAuditEntry>
+
+    // ---- themes (§3) and platform settings (§A)
+    suspend fun schoolTheme(schoolId: String): SchoolTheme
+    /** 400 `bad_request` naming the failing pair and its ratio when a text/background pair is below 4.5:1. */
+    suspend fun saveSchoolTheme(schoolId: String, theme: SchoolTheme): SchoolTheme
+    /** Every field, the platform-wide default theme included. */
+    suspend fun platformSettings(): PlatformSettings
+    suspend fun savePlatformSettings(request: UpdatePlatformSettingsRequest): PlatformSettings
 }
+
+/** `PUT /admin/platform-settings` (§A): only the fields that are present are written. */
+@Serializable
+data class UpdatePlatformSettingsRequest(
+    val name: String? = null,
+    val shortName: String? = null,
+    val logoUrl: String? = null,
+    val supportEmail: String? = null,
+    val defaultTheme: SchoolTheme? = null,
+)

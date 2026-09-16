@@ -8,17 +8,26 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import quest.server.flags.FeatureFlagInterceptor;
 import quest.server.tenancy.TenantInterceptor;
 
 /** CORS for the web admin panel (Firebase Hosting / localhost dev server), and the per-request tenant scope. */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
-    private final TenantInterceptor tenantInterceptor;
-    public WebConfig(TenantInterceptor tenantInterceptor) { this.tenantInterceptor = tenantInterceptor; }
+    private final TenantInterceptor tenantInterceptor; private final FeatureFlagInterceptor featureFlagInterceptor;
+    public WebConfig(TenantInterceptor tenantInterceptor, FeatureFlagInterceptor featureFlagInterceptor) {
+        this.tenantInterceptor = tenantInterceptor; this.featureFlagInterceptor = featureFlagInterceptor;
+    }
 
-    /** Resolves `X-School-Id` once per request, before any handler or transaction (404 unknown, 403 another school). */
+    /**
+     * The tenant scope first — `X-School-Id` once per request, before any handler or transaction (404 unknown, 403
+     * another school) — then §4's flag gate, which needs that scope to know whose flags to read.
+     */
     @Override
-    public void addInterceptors(InterceptorRegistry registry) { registry.addInterceptor(tenantInterceptor); }
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(tenantInterceptor);
+        registry.addInterceptor(featureFlagInterceptor);
+    }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource(@org.springframework.beans.factory.annotation.Value("${quest.cors-origins:http://localhost:8081,http://localhost:8080}") String origins) {

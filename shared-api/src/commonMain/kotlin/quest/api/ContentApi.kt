@@ -12,6 +12,7 @@ import quest.api.dto.MediaKind
 import quest.api.dto.MediaRef
 import quest.api.dto.ProgressResponse
 import quest.api.dto.PublishedLesson
+import quest.api.dto.SchoolTheme
 import quest.api.dto.UpdateChildRequest
 
 /**
@@ -34,7 +35,41 @@ interface ContentApi {
     suspend fun uploadAttempts(childId: String, attempts: List<AttemptUpload>): AttemptAck
     suspend fun uploadStopMedia(childId: String, stopId: String, media: UploadFile, kind: MediaKind): MediaRef
     suspend fun progress(childId: String): ProgressResponse
+
+    /**
+     * `GET /schools/{id}/flags` — public, cached, ETagged; the app calls it on launch and every six hours (§4).
+     * All 14 keys, with the value this school sees.
+     *
+     * Both this and [schoolTheme] have a default body returning the platform defaults, so an implementation that
+     * predates P2.2 — `FakeContentApi`, and any test double — still compiles and behaves as an unthemed school with
+     * every shipped feature on. `RemoteContentApi` overrides them.
+     */
+    suspend fun schoolFlags(schoolId: String): Map<String, Boolean> = DEFAULT_FLAGS
+
+    /** `GET /schools/{id}/theme` — public, cached, ETagged (§3). */
+    suspend fun schoolTheme(schoolId: String): SchoolTheme = SchoolTheme()
 }
+
+/**
+ * What [ContentApi.schoolFlags] answers without a backend: the `default_on` of the 14 §4 flags as
+ * `V5__flags_themes.sql` seeds them — on for what ships today, off for what is not built yet.
+ */
+val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
+    "lessons.pdf" to true,
+    "lessons.slides" to true,
+    "lessons.images" to true,
+    "lessons.manual" to true,
+    "levels.three" to true,
+    "retell.recording" to true,
+    "openAnswer.drawing" to true,
+    "parentPanel.arabic" to true,
+    "complaints" to false,
+    "announcements" to false,
+    "teacherQuestions" to false,
+    "stickers.treasureChest" to true,
+    "progress.weeklyEmail" to false,
+    "certificates" to true,
+)
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */
 interface AuthProvider {

@@ -32,8 +32,14 @@ class TenancyContractTest extends ApiTestSupport {
         assertThat(schools.findByCodeIgnoreCase("hq0001")).isPresent();
     }
 
-    @Test void every_lesson_lives_in_a_class_of_the_default_school() {
-        assertThat(lessons.findAll()).isNotEmpty().allSatisfy(l -> {
+    /**
+     * The migrated rows, not every row: other test classes publish lessons into schools of their own, so asserting
+     * over `findAll()` only passed while this class happened to run before them. The seeded lessons are exactly the
+     * pre-tenancy content V4 moved into the default school, which is what P1.1 promised.
+     */
+    @Test void every_seeded_lesson_lives_in_a_class_of_the_default_school() {
+        var seeded = quest.api.samples.Seeds.INSTANCE.getLessons().stream().map(l -> lessons.findById(l.getId()).orElseThrow()).toList();
+        assertThat(seeded).isNotEmpty().allSatisfy(l -> {
             assertThat(l.getSchoolId()).isEqualTo("default");
             assertThat(classes.findById(l.getClassId()).orElseThrow().getSchoolId()).isEqualTo("default");
         });

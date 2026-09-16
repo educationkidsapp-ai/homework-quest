@@ -1,0 +1,81 @@
+package quest.server.platform;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import quest.server.auth.AuditService;
+import quest.server.auth.Principals;
+
+/**
+ * §A: nothing in the code base names the product. The name, short name, logo and support address come from the one
+ * `platform_settings` row, which `V5__flags_themes.sql` seeds, and Admin edits under Platform settings.
+ *
+ * <p>Read on every email subject and every `GET /me`, so the row is cached for {@value #CACHE_SECONDS} seconds and
+ * dropped the moment this instance writes it. A rename is therefore visible to the Admin who made it at once, and to
+ * another Cloud Run instance within the TTL.
+ */
+@Service
+public class PlatformSettingsService {
+    static final long CACHE_SECONDS = 60;
+
+    private record Cached(Entities.PlatformSettingsEntity row, long expiresAtNanos) {}
+
+    private final PlatformSettingsRepository repository; private final AuditService audit;
+    private final AtomicReference<Cached> cache = new AtomicReference<>();
+
+    public PlatformSettingsService(PlatformSettingsRepository repository, AuditService audit) {
+        this.repository = repository; this.audit = audit;
+    }
+
+    /** The platform's name (§A) — what an email subject and an unscoped `GET /me` show. */
+    public String name() { return row().getName(); }
+    public String shortName() { return row().getShortName(); }
+
+    /** `GET /platform-settings` (public): the three fields a browser needs, and nothing else. */
+    public PlatformDto.PlatformSettings publicSettings() {
+        var row = row();
+        return new PlatformDto.PlatformSettings(row.getName(), row.getShortName(), row.getLogoUrl(), null, null);
+    }
+
+    /** `GET /admin/platform-settings`: every field, including the platform-wide default theme. */
+    public PlatformDto.PlatformSettings settings(ThemeDto.SchoolTheme defaultTheme) {
+        var row = row();
+        return new PlatformDto.PlatformSettings(row.getName(), row.getShortName(), row.getLogoUrl(), row.getSupportEmail(), defaultTheme);
+    }
+
+    /** The Admin's platform-wide default theme as stored, or null when the design tokens' theme still applies. */
+    public String defaultThemeJson() { return row().getDefaultThemeJson(); }
+
+    @Transactional
+    public void update(Principals.User actor, PlatformDto.UpdatePlatformSettingsRequest request, String defaultThemeJson) {
+        var row = repository.findById(Entities.PlatformSettingsEntity.ID).orElseThrow(PlatformSettingsService::missing);
+        if (request.name() != null && !request.name().isBlank()) row.setName(request.name().trim());
+        if (request.shortName() != null && !request.shortName().isBlank()) row.setShortName(request.shortName().trim());
+        if (request.logoUrl() != null) row.setLogoUrl(request.logoUrl().isBlank() ? null : request.logoUrl().trim());
+        if (request.supportEmail() != null) row.setSupportEmail(request.supportEmail().isBlank() ? null : request.supportEmail().trim());
+        if (defaultThemeJson != null) row.setDefaultThemeJson(defaultThemeJson);
+        row.setUpdatedAt(Instant.now());
+        repository.save(row);
+        cache.set(null);
+        audit.record(actor == null ? null : actor.userId(), "platform.update", "platform", row.getId(), null,
+                Map.of("name", row.getName(), "shortName", row.getShortName()));
+    }
+
+    /** Drops the cached row; the next read goes to the database. */
+    public void invalidate() { cache.set(null); }
+
+    private Entities.PlatformSettingsEntity row() {
+        var cached = cache.get();
+        if (cached != null && System.nanoTime() < cached.expiresAtNanos()) return cached.row();
+        var row = repository.findById(Entities.PlatformSettingsEntity.ID).orElseThrow(PlatformSettingsService::missing);
+        cache.set(new Cached(row, System.nanoTime() + Duration.ofSeconds(CACHE_SECONDS).toNanos()));
+        return row;
+    }
+
+    private static IllegalStateException missing() {
+        return new IllegalStateException("platform_settings has no '" + Entities.PlatformSettingsEntity.ID + "' row — V5__flags_themes.sql seeds it");
+    }
+}

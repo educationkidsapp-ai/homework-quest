@@ -1,21 +1,19 @@
 package quest.server.mail;
 
 import org.springframework.stereotype.Component;
-import quest.server.config.QuestProperties;
+import quest.server.platform.PlatformSettingsService;
 
 /**
  * What the platform calls itself in an email subject. The mail code never spells the name out: it asks this bean,
- * which answers with `quest.platform-name` or, when that is unset, the seeded default from the config constant.
- * P2.1 turns it into a `platform_settings` row and only this class changes.
+ * which reads the one `platform_settings` row (§A) through {@link PlatformSettingsService}, cached for a minute
+ * there. Admin renames the platform under Platform settings and every subject follows; nothing in `src/main` holds
+ * the name as a literal, which is what `ProductNameTest` enforces.
  */
 @Component
 public class PlatformName {
-    private final String value;
-    public PlatformName(QuestProperties props) {
-        String configured = props.platformName();
-        this.value = configured == null || configured.isBlank() ? QuestProperties.SEEDED_PLATFORM_NAME : configured.trim();
-    }
+    private final PlatformSettingsService settings;
+    public PlatformName(PlatformSettingsService settings) { this.settings = settings; }
 
-    public String get() { return value; }
-    @Override public String toString() { return value; }
+    public String get() { return settings.name(); }
+    @Override public String toString() { return get(); }
 }

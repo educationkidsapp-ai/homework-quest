@@ -28,10 +28,16 @@ class TenantArchitectureTest {
      * `invites` and `audit_log` also carry a `school_id` and are still unfiltered: both are written and read by flows
      * that legitimately run outside a school scope — an invitation is opened and accepted by someone with no token at
      * all, and the platform ADMIN's audit trail spans every school. `users` left this list in P1.3.
+     *
+     * <p>P2.1 adds the two flag tables for the same reason: `GET /schools/{id}/flags` is public (the app reads it
+     * before anyone signs in), a parent's flags are resolved from her child's school with no dashboard scope at all,
+     * and the Admin matrix spans every school. Every read of them names its `school_id` explicitly and
+     * `FlagService.matrix` scopes a MANAGERIAL caller to her own school.
      * Remove an entry as soon as its entity is annotated.
      */
     private static final Set<String> PENDING = Set.of(
-            "quest.server.auth.Entities$InviteEntity", "quest.server.auth.Entities$AuditLogEntity");
+            "quest.server.auth.Entities$InviteEntity", "quest.server.auth.Entities$AuditLogEntity",
+            "quest.server.flags.Entities$SchoolFeatureFlagEntity", "quest.server.flags.Entities$FlagAuditEntity");
 
     @Test void every_tenant_entity_carries_the_school_filter() {
         classes().that().areAnnotatedWith(Entity.class).and(new com.tngtech.archunit.base.DescribedPredicate<JavaClass>("have a schoolId field") {

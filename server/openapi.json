@@ -135,6 +135,9 @@
           "photoUrl" : {
             "type" : "string"
           },
+          "platformName" : {
+            "type" : "string"
+          },
           "role" : {
             "type" : "string"
           },
@@ -143,6 +146,75 @@
           },
           "status" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FeatureFlagDefinition" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "defaultOn" : {
+            "type" : "boolean"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "rolloutStage" : {
+            "enum" : [ "internal", "beta", "ga" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FlagAuditEntry" : {
+        "properties" : {
+          "actorEmail" : {
+            "type" : "string"
+          },
+          "actorUserId" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "enabled" : {
+            "type" : "boolean"
+          },
+          "flagKey" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "schoolId" : {
+            "type" : "string"
+          },
+          "schoolName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FlagMatrix" : {
+        "properties" : {
+          "definitions" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FeatureFlagDefinition"
+            },
+            "type" : "array"
+          },
+          "schools" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SchoolFlags"
+            },
+            "type" : "array"
           }
         },
         "type" : "object"
@@ -227,6 +299,9 @@
           },
           "name" : {
             "type" : "string"
+          },
+          "theme" : {
+            "$ref" : "#/components/schemas/SchoolTheme"
           }
         },
         "type" : "object"
@@ -243,6 +318,26 @@
             "type" : "boolean"
           },
           "role" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PlatformSettings" : {
+        "properties" : {
+          "defaultTheme" : {
+            "$ref" : "#/components/schemas/SchoolTheme"
+          },
+          "logoUrl" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "shortName" : {
+            "type" : "string"
+          },
+          "supportEmail" : {
             "type" : "string"
           }
         },
@@ -313,6 +408,23 @@
         },
         "type" : "object"
       },
+      "SchoolFlags" : {
+        "properties" : {
+          "flags" : {
+            "additionalProperties" : {
+              "type" : "boolean"
+            },
+            "type" : "object"
+          },
+          "schoolId" : {
+            "type" : "string"
+          },
+          "schoolName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "SchoolSummary" : {
         "properties" : {
           "children" : {
@@ -338,6 +450,51 @@
           "teachers" : {
             "format" : "int32",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "SchoolTheme" : {
+        "properties" : {
+          "accent" : {
+            "example" : "#CC2A0F",
+            "type" : "string"
+          },
+          "appName" : {
+            "type" : "string"
+          },
+          "fontChoice" : {
+            "enum" : [ "baloo", "nunito", "fredoka" ],
+            "type" : "string"
+          },
+          "ground" : {
+            "example" : "#F3F2F2",
+            "type" : "string"
+          },
+          "logoUrl" : {
+            "type" : "string"
+          },
+          "mascotColor" : {
+            "example" : "#457192",
+            "type" : "string"
+          },
+          "primary" : {
+            "example" : "#FFFFFF",
+            "type" : "string"
+          },
+          "primaryInk" : {
+            "example" : "#201E1D",
+            "type" : "string"
+          },
+          "softBorder" : {
+            "example" : "#D9D6D2",
+            "type" : "string"
+          },
+          "worldPalettes" : {
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/WorldPalette"
+            },
+            "type" : "object"
           }
         },
         "type" : "object"
@@ -477,6 +634,41 @@
         },
         "type" : "object"
       },
+      "UpdateFlagRequest" : {
+        "properties" : {
+          "enabled" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "enabled" ],
+        "type" : "object"
+      },
+      "UpdatePlatformSettingsRequest" : {
+        "properties" : {
+          "defaultTheme" : {
+            "$ref" : "#/components/schemas/SchoolTheme"
+          },
+          "logoUrl" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "name" : {
+            "maxLength" : 120,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "shortName" : {
+            "maxLength" : 40,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "supportEmail" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "UpdateSchoolRequest" : {
         "properties" : {
           "curriculumOptions" : {
@@ -514,6 +706,23 @@
             "type" : "string"
           },
           "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "WorldPalette" : {
+        "properties" : {
+          "deep" : {
+            "type" : "string"
+          },
+          "ink" : {
+            "type" : "string"
+          },
+          "primary" : {
+            "type" : "string"
+          },
+          "soft" : {
             "type" : "string"
           }
         },
@@ -621,6 +830,91 @@
           }
         },
         "tags" : [ "Admin reports" ]
+      }
+    },
+    "/admin/flags" : {
+      "get" : {
+        "operationId" : "matrix",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlagMatrix"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Feature flags" ]
+      }
+    },
+    "/admin/flags/audit" : {
+      "get" : {
+        "operationId" : "audit",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/FlagAuditEntry"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Feature flags" ]
+      }
+    },
+    "/admin/flags/{key}/all" : {
+      "put" : {
+        "operationId" : "setFlagEverywhere",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateFlagRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlagMatrix"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Feature flags" ]
       }
     },
     "/admin/lessons" : {
@@ -1150,6 +1444,50 @@
         "tags" : [ "Admin lessons" ]
       }
     },
+    "/admin/platform-settings" : {
+      "get" : {
+        "operationId" : "adminPlatformSettings",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlatformSettings"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Platform settings" ]
+      },
+      "put" : {
+        "operationId" : "savePlatformSettings",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdatePlatformSettingsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlatformSettings"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Platform settings" ]
+      }
+    },
     "/admin/plays/{playId}/order" : {
       "put" : {
         "operationId" : "reorder",
@@ -1355,6 +1693,52 @@
         "tags" : [ "Schools" ]
       }
     },
+    "/admin/schools/{id}/flags/{key}" : {
+      "put" : {
+        "operationId" : "setSchoolFlag",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateFlagRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "additionalProperties" : {
+                    "type" : "boolean"
+                  },
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Feature flags" ]
+      }
+    },
     "/admin/schools/{id}/invites" : {
       "post" : {
         "operationId" : "createInvite",
@@ -1389,6 +1773,66 @@
           }
         },
         "tags" : [ "Dashboard users" ]
+      }
+    },
+    "/admin/schools/{id}/theme" : {
+      "get" : {
+        "operationId" : "adminSchoolTheme",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolTheme"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Themes" ]
+      },
+      "put" : {
+        "operationId" : "saveSchoolTheme",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SchoolTheme"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolTheme"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Themes" ]
       }
     },
     "/admin/schools/{id}/users" : {
@@ -2264,6 +2708,24 @@
         "tags" : [ "Media" ]
       }
     },
+    "/platform-settings" : {
+      "get" : {
+        "operationId" : "platformSettings",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlatformSettings"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Platform settings" ]
+      }
+    },
     "/schools/by-code/{code}" : {
       "get" : {
         "operationId" : "schoolByCode",
@@ -2289,20 +2751,98 @@
         },
         "tags" : [ "Schools" ]
       }
+    },
+    "/schools/{id}/flags" : {
+      "get" : {
+        "operationId" : "schoolFlags",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-None-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "additionalProperties" : {
+                    "type" : "boolean"
+                  },
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Feature flags" ]
+      }
+    },
+    "/schools/{id}/theme" : {
+      "get" : {
+        "operationId" : "schoolTheme",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-None-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolTheme"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Themes" ]
+      }
     }
   },
   "tags" : [ {
+    "description" : "The per-school feature matrix (§4)",
+    "name" : "Feature flags"
+  }, {
+    "description" : "Per-school white label (§3)",
+    "name" : "Themes"
+  }, {
+    "description" : "Dashboard accounts, invites and View as…",
+    "name" : "Dashboard users"
+  }, {
     "description" : "Page crops and child recordings",
     "name" : "Media"
+  }, {
+    "description" : "The platform's own name, logo and default theme (§A)",
+    "name" : "Platform settings"
   }, {
     "description" : "Liveness and version",
     "name" : "Health"
   }, {
     "description" : "Parent-owned children, map, attempts and progress",
     "name" : "Children"
-  }, {
-    "description" : "Dashboard accounts, invites and View as…",
-    "name" : "Dashboard users"
   }, {
     "description" : "Cache, usage and calendar",
     "name" : "Admin reports"

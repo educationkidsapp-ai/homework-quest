@@ -20,13 +20,17 @@ class OpenApiContractTest extends ApiTestSupport {
             "/admin/auth/sign-in", "/admin/lessons", "/admin/lessons/{id}", "/admin/lessons/{id}/files", "/admin/lessons/{id}/analyze", "/admin/lessons/{id}/skills",
             "/admin/stops/{stopId}", "/admin/stops/{stopId}/regenerate", "/admin/plays/{playId}/regenerate", "/admin/lessons/{id}/parent-panel",
             "/admin/lessons/{id}/publish", "/admin/lessons/{id}/unpublish", "/admin/cache", "/admin/usage", "/admin/calendar");
-    /** `quest.api.dashboard.DashboardApi` (P1.3): the Angular client is generated from exactly these. */
+    /** `quest.api.dashboard.DashboardApi` (P1.3, P2.1): the Angular client is generated from exactly these. */
     static final List<String> DASHBOARD_API = List.of(
             "/auth/sign-in", "/auth/refresh", "/auth/sign-out", "/auth/forgot-password", "/auth/reset-password", "/auth/change-password",
             "/me", "/me/permissions",
             "/admin/schools", "/admin/schools/{id}", "/admin/schools/{id}/invites", "/admin/schools/{id}/users",
             "/admin/users", "/admin/users/{id}", "/admin/users/{id}/reset-password", "/admin/users/{id}/impersonate",
-            "/invites/{token}", "/invites/{token}/accept", "/schools/by-code/{code}");
+            "/invites/{token}", "/invites/{token}/accept", "/schools/by-code/{code}",
+            "/admin/flags", "/admin/flags/audit", "/admin/flags/{key}/all", "/admin/schools/{id}/flags/{key}",
+            "/admin/schools/{id}/theme", "/admin/platform-settings");
+    /** Public and unauthenticated (§3, §4, §A): the app and the sign-in page read these before anyone has a token. */
+    static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings");
 
     @Test void every_shared_api_route_is_served() throws Exception {
         var doc = json(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn());
@@ -34,6 +38,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(CONTENT_API);
         assertThat(paths).containsAll(ADMIN_API);
         assertThat(paths).containsAll(DASHBOARD_API);
+        assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
     }
 }

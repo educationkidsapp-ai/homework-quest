@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import quest.server.config.ApiException;
+import quest.server.platform.ThemeService;
 
 /**
  * Dashboard auth (§5): sign-in with a short access token and a rotating refresh token, the three password flows,
@@ -20,8 +21,10 @@ import quest.server.config.ApiException;
 @RestController
 @Tag(name = "Auth", description = "Dashboard sign-in, sessions and passwords")
 public class AuthController {
-    private final AuthService auth; private final Permissions permissions;
-    public AuthController(AuthService auth, Permissions permissions) { this.auth = auth; this.permissions = permissions; }
+    private final AuthService auth; private final Permissions permissions; private final ThemeService themes;
+    public AuthController(AuthService auth, Permissions permissions, ThemeService themes) {
+        this.auth = auth; this.permissions = permissions; this.themes = themes;
+    }
 
     @PostMapping(value = "/auth/sign-in", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("permitAll")
@@ -57,11 +60,13 @@ public class AuthController {
         auth.changePassword(require(caller).userId(), body.currentPassword(), body.newPassword());
     }
 
+    /** `platformName` follows §A's order: the school's `theme.appName`, then the platform's name, then the seed. */
     @GetMapping(value = "/me", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('me.read')")
     public DashboardDto.DashboardUser me(@AuthenticationPrincipal Principals.User caller) {
         var principal = require(caller);
-        return DashboardDto.of(auth.require(principal.userId()), principal.impersonatedBy());
+        var user = auth.require(principal.userId());
+        return DashboardDto.of(user, principal.impersonatedBy(), themes.displayName(user.getSchoolId()));
     }
 
     /** The keys of `permissions.json` the caller's role holds; the dashboard hides what the server would refuse. */

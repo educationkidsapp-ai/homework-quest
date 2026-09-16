@@ -92,9 +92,14 @@ class PreAuthorizeCoverageTest {
         return List.of(declared);
     }
 
-    /** Every `@RestController` in the server, found the way ArchUnit finds classes (no Spring context needed). */
+    /**
+     * Every `@RestController` in the server, found the way ArchUnit finds classes (no Spring context needed).
+     * `DoNotIncludeTests` keeps `target/test-classes` out: a controller a test stands up in its own context (P2.1's
+     * flag probes) is not part of the API and has no row in `permissions.json` to be checked against.
+     */
     private List<Class<?>> controllers() {
-        JavaClasses classes = new ClassFileImporter().importPackages("quest.server");
+        JavaClasses classes = new ClassFileImporter()
+                .withImportOption(new com.tngtech.archunit.core.importer.ImportOption.DoNotIncludeTests()).importPackages("quest.server");
         var out = new LinkedHashSet<Class<?>>();
         classes.stream().filter(c -> c.isAnnotatedWith(RestController.class)).forEach(c -> out.add(c.reflect()));
         return List.copyOf(out);

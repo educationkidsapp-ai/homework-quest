@@ -34,7 +34,7 @@ quest:
   version: ${APP_VERSION:dev}
   public-url: ${PUBLIC_URL:http://localhost:8080}
   dashboard-url: ${DASHBOARD_URL:}          # origin the dashboard is served from; blank falls back to public-url
-  platform-name: ${PLATFORM_NAME:}          # blank = the seeded default in QuestProperties.SEEDED_PLATFORM_NAME
+  # The product's name is not configured here (§A): it is the `platform_settings` row seeded by V5, edited by Admin.
   panel-dir: ${PANEL_DIR:}   # admin panel bundle served at /panel/ (the Docker image sets it)
   cors-origins: ${CORS_ORIGINS:http://localhost:8081,http://localhost:5173}
   auth:

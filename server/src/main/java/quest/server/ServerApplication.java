@@ -5,7 +5,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.scheduling.annotation.EnableAsync;
 
-/** Homework Quest API — feature packages: auth, children, content, analysis, admin. All AI calls live in `analysis`. */
+/**
+ * The platform API — feature packages: auth, tenancy, flags, platform, children, content, analysis, admin. All AI
+ * calls live in `analysis`. The product's user-facing name is data, not a literal (§A); see `ProductNameTest`.
+ */
 @SpringBootApplication
 @ConfigurationPropertiesScan
 @EnableAsync

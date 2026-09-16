@@ -27,17 +27,23 @@ public final class DashboardDto {
     public record ResetPasswordRequest(@NotBlank String token, @NotBlank @Size(min = MIN_PASSWORD) String newPassword) {}
     public record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank @Size(min = MIN_PASSWORD) String newPassword) {}
 
-    /** `impersonatedBy` is set on `GET /me` only, while an Admin is viewing as this user. */
+    /**
+     * `impersonatedBy` is set on `GET /me` only, while an Admin is viewing as this user, and `platformName` there
+     * too: §A's resolution order — the school's `theme.appName`, else the platform's name, else the name seeded by
+     * `V5__flags_themes.sql`. It is what the dashboard puts in the title, the heading and the footer.
+     */
     public record DashboardUser(String id, String email, String role, String schoolId, String status, String displayName,
                                 String photoUrl, String language, boolean mustChangePassword, Long lastLoginAt, long createdAt,
-                                String impersonatedBy) {}
+                                String impersonatedBy, String platformName) {}
 
     public record MePermissions(String role, List<String> permissions, boolean readOnly) {}
 
-    public static DashboardUser of(Entities.UserEntity u, String impersonatedBy) {
+    public static DashboardUser of(Entities.UserEntity u, String impersonatedBy) { return of(u, impersonatedBy, null); }
+
+    public static DashboardUser of(Entities.UserEntity u, String impersonatedBy, String platformName) {
         return new DashboardUser(u.getId(), u.getEmail(), u.getRole(), u.getSchoolId(), u.getStatus(), u.getDisplayName(),
                 u.getPhotoUrl(), u.getLanguage(), u.isMustChangePassword(),
                 u.getLastLoginAt() == null ? null : u.getLastLoginAt().toEpochMilli(),
-                u.getCreatedAt() == null ? 0 : u.getCreatedAt().toEpochMilli(), impersonatedBy);
+                u.getCreatedAt() == null ? 0 : u.getCreatedAt().toEpochMilli(), impersonatedBy, platformName);
     }
 }
