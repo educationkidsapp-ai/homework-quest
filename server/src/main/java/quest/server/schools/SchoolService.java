@@ -48,7 +48,22 @@ public class SchoolService {
     /** No scope check: for callers that have already proved they may touch this school (invites, the by-code lookup). */
     public Entities.SchoolEntity require(String id) { return schools.findById(id).orElseThrow(() -> ApiException.notFound("school")); }
 
-    Entities.SchoolEntity requireVisible(Principals.User caller, String id) {
+    /**
+     * `id → name` for a set of schools, in one query. Names are not tenant data — every list that shows a school
+     * column (users, all lessons, the flag audit) needs them for rows it is already allowed to see, and looking each
+     * one up separately is a query per row.
+     */
+    public Map<String, String> namesOf(java.util.Collection<String> ids) {
+        // A `LinkedHashMap` even when empty: `users.school_id` is nullable (the platform ADMIN), and an immutable
+        // `Map` refuses even to be *asked* about a null key.
+        var out = new java.util.LinkedHashMap<String, String>();
+        if (ids == null || ids.isEmpty()) return out;
+        schools.findAllById(ids).forEach(s -> out.put(s.getId(), s.getName()));
+        return out;
+    }
+
+    /** The school row when the caller may see it at all: an Admin always, anyone else only their own. 404 otherwise. */
+    public Entities.SchoolEntity requireVisible(Principals.User caller, String id) {
         if (caller == null || (!caller.isAdmin() && !ownSchoolId(caller).equals(id))) throw ApiException.notFound("school");
         return require(id);
     }
@@ -142,10 +157,59 @@ public class SchoolService {
         return cleaned;
     }
 
-    SchoolDto.School toDto(Entities.SchoolEntity school) {
+    /**
+     * The Overview tab's four counts (§6 screen 5), native like {@link #summary} and for the same reason: they are
+     * per school and must not be re-scoped by the request's tenant filter, which an Admin looking at another school's
+     * page does not have. Four constant statements — the page is one school, not a list.
+     */
+    public SchoolDto.School toDto(Entities.SchoolEntity school) {
         return new SchoolDto.School(school.getId(), school.getName(), school.getCode(), curricula(school), grades(school),
                 school.getThemeJson(), school.getFeatureFlagsJson(), school.getStatus(),
-                school.getCreatedAt() == null ? 0 : school.getCreatedAt().toEpochMilli());
+                school.getCreatedAt() == null ? 0 : school.getCreatedAt().toEpochMilli(),
+                count("SELECT COUNT(*) FROM children WHERE school_id = :id AND deleted_at IS NULL", school.getId()),
+                count("SELECT COUNT(*) FROM users WHERE school_id = :id AND role = 'TEACHER' AND status <> 'disabled'", school.getId()),
+                count("SELECT COUNT(*) FROM lessons WHERE school_id = :id", school.getId()),
+                count("SELECT COUNT(*) FROM classes WHERE school_id = :id", school.getId()));
+    }
+
+    /**
+     * §6 screen 1: the logo and name of the school an address already belongs to, so the sign-in page can fade it in
+     * once the person has typed their email.
+     *
+     * <p>It answers <strong>only when the domain belongs to exactly one school</strong>. That is what keeps it from
+     * becoming an enumeration oracle: a shared domain (`gmail.com`, a group of schools on one MAT domain) matches
+     * several tenants and answers nothing, and a domain that matches none answers nothing either — so the only thing
+     * a caller can learn is the branding of a school the address they typed is already a member of. The route is
+     * rate-limited like sign-in ({@link quest.server.auth.SignInRateLimiter}) so it cannot be swept either.
+     *
+     * <p>The domain is matched natively and case-insensitively on `users.email`: `users` is a tenant table, and this
+     * runs with no scope at all (nobody is signed in), so the query names its own condition and returns ids only.
+     */
+    public SchoolDto.SchoolLogo logoByEmail(String email) {
+        String domain = domainOf(email);
+        if (domain == null) return null;
+        @SuppressWarnings("unchecked")
+        List<String> schoolIds = em.createNativeQuery("SELECT DISTINCT u.school_id FROM users u WHERE u.school_id IS NOT NULL AND LOWER(u.email) LIKE :suffix")
+                .setParameter("suffix", "%@" + domain).setMaxResults(2).getResultList();
+        if (schoolIds.size() != 1) return null;                                 // none, or a domain several schools share
+        var school = schools.findById(schoolIds.get(0)).filter(s -> "active".equals(s.getStatus())).orElse(null);
+        if (school == null) return null;
+        return new SchoolDto.SchoolLogo(school.getName(), themes.themeOf(school).logoUrl());
+    }
+
+    /**
+     * The part after the single `@`, lower-cased, or null when the value is not an address whose domain is safe to
+     * put in a `LIKE`. Only letters, digits, dots and hyphens are accepted, so `%` and `_` — the wildcards that would
+     * turn the lookup above into a sweep of every school — can never reach the pattern.
+     */
+    static String domainOf(String email) {
+        if (email == null) return null;
+        String trimmed = email.trim().toLowerCase(Locale.ROOT);
+        int at = trimmed.indexOf('@');
+        if (at <= 0 || at != trimmed.lastIndexOf('@') || at == trimmed.length() - 1) return null;
+        String domain = trimmed.substring(at + 1);
+        if (domain.length() > 255 || !domain.matches("[a-z0-9]([a-z0-9.-]*[a-z0-9])?") || !domain.contains(".")) return null;
+        return domain;
     }
 
     private List<String> curricula(Entities.SchoolEntity school) { return json.read(school.getCurriculumOptionsJson(), new TypeReference<List<String>>() {}); }

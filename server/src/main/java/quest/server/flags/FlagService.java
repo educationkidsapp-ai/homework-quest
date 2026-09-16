@@ -99,6 +99,27 @@ public class FlagService {
         return matrix(actor);
     }
 
+    /**
+     * Every cell of one school's row at once — the New school wizard's flag step (§6 screen 4), which arrives as a
+     * whole map rather than a toggle at a time. The same writes and the same audit row per key as {@link #set}; it
+     * exists so the wizard does not re-validate the school and re-read the effective set fourteen times, and so the
+     * whole wizard stays one transaction.
+     *
+     * <p>An empty or null map is a no-op, and an unknown key is a 400 before anything is written.
+     */
+    @Transactional
+    public Map<String, Boolean> setAll(Principals.User actor, String schoolId, Map<String, Boolean> values) {
+        var school = requireSchool(schoolId);
+        if (values == null || values.isEmpty()) return flags.effective(school.getId());
+        values.keySet().forEach(flags::definition);                     // refuse the whole map before writing any of it
+        values.forEach((key, enabled) -> {
+            write(school.getId(), key, Boolean.TRUE.equals(enabled), actor);
+            record(key, school.getId(), Boolean.TRUE.equals(enabled), actor);
+        });
+        flags.invalidate(school.getId());
+        return flags.effective(school.getId());
+    }
+
     /** `GET /admin/flags/audit?limit=`: newest first. */
     public List<FlagDto.FlagAuditEntry> audit(int limit) {
         int capped = Math.clamp(limit <= 0 ? DEFAULT_AUDIT_LIMIT : limit, 1, MAX_AUDIT_LIMIT);

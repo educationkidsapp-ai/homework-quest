@@ -22,8 +22,9 @@ import quest.server.platform.ThemeService;
 @Tag(name = "Auth", description = "Dashboard sign-in, sessions and passwords")
 public class AuthController {
     private final AuthService auth; private final Permissions permissions; private final ThemeService themes;
-    public AuthController(AuthService auth, Permissions permissions, ThemeService themes) {
-        this.auth = auth; this.permissions = permissions; this.themes = themes;
+    private final quest.server.schools.SchoolService schools;
+    public AuthController(AuthService auth, Permissions permissions, ThemeService themes, quest.server.schools.SchoolService schools) {
+        this.auth = auth; this.permissions = permissions; this.themes = themes; this.schools = schools;
     }
 
     @PostMapping(value = "/auth/sign-in", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -66,7 +67,10 @@ public class AuthController {
     public DashboardDto.DashboardUser me(@AuthenticationPrincipal Principals.User caller) {
         var principal = require(caller);
         var user = auth.require(principal.userId());
-        return DashboardDto.of(user, principal.impersonatedBy(), themes.displayName(user.getSchoolId()));
+        // The platform ADMIN has no school, and an immutable `Map` refuses even to be *asked* about a null key.
+        String schoolName = user.getSchoolId() == null ? null
+                : schools.namesOf(java.util.List.of(user.getSchoolId())).get(user.getSchoolId());
+        return DashboardDto.of(user, principal.impersonatedBy(), themes.displayName(user.getSchoolId()), schoolName);
     }
 
     /** The keys of `permissions.json` the caller's role holds; the dashboard hides what the server would refuse. */
@@ -90,7 +94,7 @@ public class AuthController {
      * (`server.tomcat.remoteip.internal-proxies`) and leaves the rightmost untrusted one — the address Cloud Run's front
      * end appended — in `getRemoteAddr()`. Entries a caller adds on the left are ignored.
      */
-    static String clientIp(HttpServletRequest request) {
+    public static String clientIp(HttpServletRequest request) {
         return request.getRemoteAddr() == null ? "" : request.getRemoteAddr();
     }
 }

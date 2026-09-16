@@ -17,6 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public interface ClassRepository extends JpaRepository<Entities.ClassEntity, String> {
     List<Entities.ClassEntity> findBySchoolId(String schoolId);
+    List<Entities.ClassEntity> findBySchoolIdOrderByCurriculumAscGradeAscSubjectAsc(String schoolId);
+    /** The classes one teacher owns — her Home (§6 screen 11) and the Teachers tab (§6 screen 20). */
+    List<Entities.ClassEntity> findBySchoolIdAndTeacherIdOrderByCurriculumAscGradeAscSubjectAsc(String schoolId, String teacherId);
     List<Entities.ClassEntity> findBySchoolIdAndCurriculumAndGrade(String schoolId, String curriculum, int grade);
     List<Entities.ClassEntity> findBySchoolIdAndCurriculumAndGradeAndSubject(String schoolId, String curriculum, int grade, String subject);
     Optional<Entities.ClassEntity> findFirstBySchoolIdAndCurriculumAndGradeAndSubjectOrderByCreatedAtAsc(String schoolId, String curriculum, int grade, String subject);

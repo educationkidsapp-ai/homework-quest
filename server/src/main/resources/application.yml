@@ -55,6 +55,9 @@ quest:
     from: ${MAIL_FROM:no-reply@localhost}
   llm:
     provider: ${LLM_PROVIDER:deepseek}
+    # USD per 1 000 tokens, used to turn `lessons.token_usage` into the Billing and Platform-cost figures. A blended
+    # input+output assumption for the DeepSeek chat model, not an invoice — set it to the rate your bill uses.
+    price-per-1k-tokens: ${LLM_PRICE_PER_1K_TOKENS:0.0004}
   anthropic:
     api-key: ${ANTHROPIC_API_KEY:}
     model: ${ANTHROPIC_MODEL:claude-opus-5}

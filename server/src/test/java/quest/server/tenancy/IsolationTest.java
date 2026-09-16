@@ -146,14 +146,94 @@ class IsolationTest extends ApiTestSupport {
 
     // ---------------------------------------------------------------- a principal with no school at all
 
-    /** The routes above plus the collection and report routes: nothing a school-less dashboard token may reach. */
+    /**
+     * The routes above plus the collection, report and P3.0 dashboard routes: nothing a school-less dashboard token
+     * may reach. The refusal comes from {@link TenantContext} through {@link TenantInterceptor}, before the handler,
+     * so it is 403 on all of them whatever each one would otherwise have answered.
+     */
     static Stream<Arguments> tenantRoutes() {
         return Stream.concat(
                 Stream.of(Arguments.of("GET", "/admin/lessons"),
                         Arguments.of("GET", "/admin/lessons/" + LESSON_A),
                         Arguments.of("GET", "/admin/usage"),
-                        Arguments.of("GET", "/admin/calendar?curriculum=british&grade=1&year=2027&month=4")),
+                        Arguments.of("GET", "/admin/calendar?curriculum=british&grade=1&year=2027&month=4"),
+                        // P3.0
+                        Arguments.of("GET", "/me/home"),
+                        Arguments.of("GET", "/admin/schools/" + A + "/classes"),
+                        Arguments.of("GET", "/admin/schools/" + A + "/usage"),
+                        Arguments.of("GET", "/admin/schools/" + A + "/billing"),
+                        Arguments.of("GET", "/admin/usage/platform"),
+                        Arguments.of("GET", "/school/usage"),
+                        Arguments.of("GET", "/school/teachers")),
                 routesOfAnotherSchool());
+    }
+
+    // ---------------------------------------------------------------- P3.0: the dashboard's own routes
+
+    /**
+     * Every route P3.0 adds, from the other school's side: a Teacher or Managerial user of A asking about B gets a
+     * 404 (the school is not hers to see) or a 403 (the permission is not hers at all) — never a row of B's.
+     */
+    static Stream<Arguments> dashboardRoutesOfAnotherSchool() {
+        return Stream.of(
+                Arguments.of("GET", "/admin/schools/" + B + "/classes"),
+                Arguments.of("GET", "/admin/schools/" + B + "/usage"),
+                Arguments.of("GET", "/admin/schools/" + B + "/billing"),
+                Arguments.of("PATCH_CLASS", "/admin/schools/" + B + "/classes/" + B + ":british:1:math"),
+                Arguments.of("CLASS", "/admin/schools/" + B + "/classes"),
+                Arguments.of("GET", "/admin/usage/platform"));
+    }
+
+    @ParameterizedTest(name = "{0} {1} of another school is refused for a teacher and a managerial user of A")
+    @MethodSource("dashboardRoutesOfAnotherSchool")
+    void a_dashboard_route_of_another_school_is_refused(String method, String path) throws Exception {
+        for (var principal : List.of(List.of("TEACHER", "teacher-a"), List.of("MANAGERIAL", "manager-a"))) {
+            var token = jwt.issue(principal.get(1), principal.get(1) + "@alpha.test", principal.get(0), A).token();
+            var result = mvc.perform(requestFor(method, path).header("Authorization", "Bearer " + token)).andReturn();
+            assertThat(result.getResponse().getStatus()).as("%s %s as %s", method, path, principal.get(0)).isIn(403, 404);
+            assertThat(result.getResponse().getContentAsString()).doesNotContain(LESSON_B).doesNotContain("Beta School");
+        }
+    }
+
+    @Test void the_home_and_the_school_routes_serve_the_callers_own_school_only() throws Exception {
+        var teacherA = jwt.issue("teacher-a", "teacher@alpha.test", "TEACHER", A).token();
+        var managerA = jwt.issue("manager-a", "manager@alpha.test", "MANAGERIAL", A).token();
+
+        var home = json(mvc.perform(get("/me/home").header("Authorization", "Bearer " + teacherA)).andExpect(status().isOk()).andReturn());
+        assertThat(home.get("schoolId").asText()).isEqualTo(A);
+        assertThat(home.toString()).doesNotContain(LESSON_B).doesNotContain("Beta School").doesNotContain(B);
+
+        // `/school/**` names no school at all, so there is nowhere for a Managerial user to ask for another one.
+        var usage = json(mvc.perform(get("/school/usage").header("Authorization", "Bearer " + managerA)).andExpect(status().isOk()).andReturn());
+        assertThat(usage.get("schoolId").asText()).isEqualTo(A);
+        mvc.perform(get("/school/usage").header("Authorization", "Bearer " + managerA).header(TenantContext.HEADER, B))
+                .andExpect(status().isForbidden());
+
+        var teachers = mvc.perform(get("/school/teachers").header("Authorization", "Bearer " + managerA))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(teachers).contains("teacher@alpha.test").doesNotContain("teacher@beta.test");
+
+        var classes = mvc.perform(get("/admin/schools/" + A + "/classes").header("Authorization", "Bearer " + teacherA))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(classes).contains(A).doesNotContain(B + ":");
+    }
+
+    @Test void the_all_lessons_school_filter_narrows_but_never_widens() throws Exception {
+        var token = adminToken();
+        // The Admin's school column, and the filter behind it.
+        var all = adminList(token, null);
+        assertThat(all).anySatisfy(l -> {
+            if (LESSON_A.equals(l.get("id").asText())) assertThat(l.get("schoolName").asText()).isEqualTo("Alpha Academy");
+        });
+        assertThat(lessonIdsFiltered(token, null, A)).contains(LESSON_A).doesNotContain(LESSON_B);
+
+        // A teacher of A naming B gets nothing, not B's lessons: her rows were filtered before the parameter was read.
+        var teacherA = jwt.issue("teacher-a", "teacher@alpha.test", "TEACHER", A).token();
+        var body = mvc.perform(get("/admin/lessons?schoolId=" + B).header("Authorization", "Bearer " + teacherA))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain(LESSON_B);
+        assertThat(mvc.perform(get("/admin/lessons?schoolId=" + A).header("Authorization", "Bearer " + teacherA))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).contains(LESSON_A);
     }
 
     @ParameterizedTest(name = "{0} {1} is 403 for a token with no school")
@@ -289,12 +369,22 @@ class IsolationTest extends ApiTestSupport {
         return out;
     }
 
+    private List<String> lessonIdsFiltered(String token, String schoolId, String filterSchoolId) throws Exception {
+        var out = new java.util.ArrayList<String>();
+        json(mvc.perform(scoped(get("/admin/lessons?schoolId=" + filterSchoolId), token, schoolId)).andExpect(status().isOk()).andReturn())
+                .forEach(l -> out.add(l.get("id").asText()));
+        return out;
+    }
+
     /** The request each row of the parameterised route lists stands for. */
     private static MockHttpServletRequestBuilder requestFor(String method, String path) {
         return switch (method) {
             case "GET" -> get(path);
             case "TEXT" -> post(path).contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"A lesson about counting to ten together.\"}");
             case "PANEL" -> put(path).contentType(MediaType.APPLICATION_JSON).content(PANEL);
+            case "CLASS" -> post(path).contentType(MediaType.APPLICATION_JSON).content("{\"curriculum\":\"british\",\"grade\":1,\"subject\":\"english\"}");
+            case "PATCH_CLASS" -> org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(path)
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"clearTeacher\":true}");
             case "DELETE" -> delete(path);
             case "MULTIPART" -> multipart(path).file(new MockMultipartFile("files", "s.pdf", "application/pdf", new byte[] {1}))
                     .file(new MockMultipartFile("file", "s.png", "image/png", new byte[] {1}));
@@ -324,7 +414,7 @@ class IsolationTest extends ApiTestSupport {
         return lessonService.create(new CreateLessonRequest(curriculum, grade, subject, kdate(DATE_A), null, 7, LessonSource.MANUAL, "Teacher lesson"), null).getId();
     }
 
-    private static LessonFilter filter() { return new LessonFilter(null, null, null, null, null); }
+    private static LessonFilter filter() { return new LessonFilter(null, null, null, null, null, null); }
     private static kotlinx.datetime.LocalDate kdate(LocalDate d) { return new kotlinx.datetime.LocalDate(d.getYear(), d.getMonthValue(), d.getDayOfMonth()); }
 
     private void school(String id, String name, String code) {

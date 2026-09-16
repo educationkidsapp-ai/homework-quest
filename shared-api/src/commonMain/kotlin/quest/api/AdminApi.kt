@@ -61,7 +61,12 @@ interface AdminApi {
     val displayName: String? = null, val mustChangePassword: Boolean = false,
 )
 @Serializable data class JobRef(val jobId: String, val status: LessonStatus)
-@Serializable data class LessonFilter(val curriculum: Curriculum? = null, val grade: Int? = null, val subject: Subject? = null, val from: LocalDate? = null, val to: LocalDate? = null)
+/**
+ * `GET /admin/lessons` filters; an absent field does not filter. [schoolId] is the Admin's All-lessons school column
+ * (§6 screen 8) and is ignored for a scoped caller in the sense that matters: her rows are already filtered to her
+ * own school, so naming another one answers an empty list rather than that school's lessons.
+ */
+@Serializable data class LessonFilter(val curriculum: Curriculum? = null, val grade: Int? = null, val subject: Subject? = null, val from: LocalDate? = null, val to: LocalDate? = null, val schoolId: String? = null)
 /** Where a lesson's content came from. Uploads are classified from their files; `manual` lessons are written in the panel. */
 @Serializable enum class LessonSource { @SerialName("pdf") PDF, @SerialName("slides") SLIDES, @SerialName("images") IMAGES, @SerialName("manual") MANUAL }
 @Serializable data class CreateLessonRequest(val curriculum: Curriculum, val grade: Int, val subject: Subject, val date: LocalDate, val notes: String? = null, val practiceLength: Int = 7, val source: LessonSource? = null, val title: String? = null)
@@ -95,6 +100,9 @@ data class AdminLesson(
     val steps: List<LessonStepInfo> = emptyList(), val currentStep: PipelineStep? = null,
     /** Page images and admin-attached pictures (`Stop.imageId` → url); full lesson only. */
     val images: List<quest.api.dto.PageImage> = emptyList(),
+    /** The school the lesson belongs to — the Admin's All-lessons school column (§6 screen 8). */
+    val schoolId: String? = null,
+    val schoolName: String? = null,
 )
 
 @Serializable data class CacheEntry(val fileHash: String, val curriculum: Curriculum, val grade: Int, val subject: Subject, val promptVersion: String, val tokenUsage: Long, val createdAt: Long, val hits: Int, val lessonIds: List<String>)

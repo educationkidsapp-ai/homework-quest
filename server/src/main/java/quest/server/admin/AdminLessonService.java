@@ -71,10 +71,11 @@ public class AdminLessonService {
     private final AnalysisCacheRepository analysisCache; private final LessonStore store; private final AnalysisService analysisService; private final GenerationService generation; private final LessonPipeline pipeline; private final LessonState state;
     private final FileStore files; private final Json json; private final PageImageRepository pageImages; private final String publicUrl; private final LessonSteps steps;
     private final TenantContext tenant; private final ClassService classes; private final TenantGuard guard;
+    private final quest.server.schools.SchoolService schools;
 
-    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, ClassService classes, TenantGuard guard) {
+    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, ClassService classes, TenantGuard guard, quest.server.schools.SchoolService schools) {
         this.lessons = lessons; this.sourceFiles = sourceFiles; this.skills = skills; this.plays = plays; this.stops = stops; this.panels = panels; this.analysisCache = analysisCache; this.store = store; this.analysisService = analysisService; this.generation = generation; this.pipeline = pipeline; this.state = state; this.files = files; this.json = json;
-        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.classes = classes; this.guard = guard;
+        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.classes = classes; this.guard = guard; this.schools = schools;
     }
 
     /**
@@ -87,16 +88,36 @@ public class AdminLessonService {
     /** The same lesson, for a caller who is about to change it: MANAGERIAL reads her school but writes nothing (§5). */
     private LessonEntity getForWrite(String id) { guard.requireLessonWrite(); return get(id); }
 
+    /**
+     * §6 screen 8, All lessons. The rows are already scoped — the tenant filter gives an Admin who picked a school,
+     * and every Teacher or Managerial caller, only that school's lessons — so `filter.schoolId` is a <em>narrowing</em>
+     * of what the caller may already see, never a way to reach past it: a Teacher of A naming B gets an empty list.
+     *
+     * <p>Each row carries its school's name so the Admin's school column needs no request per row. Four statements
+     * for the whole page whatever its length: the lessons, the schools they belong to, their source files and their
+     * pipeline ledgers. `UsageQueryCountTest` pins that.
+     */
     public List<AdminLesson> list(LessonFilter f) {
-        return lessons.findAllByOrderByDateDescCreatedAtDesc().stream().filter(l -> {
+        String schoolId = f.getSchoolId() == null || f.getSchoolId().isBlank() ? null : f.getSchoolId().trim();
+        var rows = lessons.findAllByOrderByDateDescCreatedAtDesc().stream().filter(l -> {
             var course = Course.Companion.parse(l.getCourseId());
+            if (schoolId != null && !schoolId.equals(l.getSchoolId())) return false;
             if (f.getCurriculum() != null && course.getCurriculum() != f.getCurriculum()) return false;
             if (f.getGrade() != null && course.getGrade() != f.getGrade()) return false;
             if (f.getSubject() != null && !l.getSubject().equals(f.getSubject().name().toLowerCase())) return false;
             if (f.getFrom() != null && l.getDate().isBefore(jdate(f.getFrom()))) return false;
             if (f.getTo() != null && l.getDate().isAfter(jdate(f.getTo()))) return false;
             return true;
-        }).map(l -> toAdmin(l, false)).toList();
+        }).toList();
+        if (rows.isEmpty()) return List.of();
+        var ids = rows.stream().map(LessonEntity::getId).toList();
+        var names = schools.namesOf(rows.stream().map(LessonEntity::getSchoolId).distinct().toList());
+        var filesByLesson = new java.util.LinkedHashMap<String, List<quest.server.content.Entities.SourceFileEntity>>();
+        for (var file : sourceFiles.findByLessonIdInOrderByLessonIdAscCreatedAtAsc(ids))
+            filesByLesson.computeIfAbsent(file.getLessonId(), k -> new ArrayList<>()).add(file);
+        var stepsByLesson = steps.listAll(ids);
+        return rows.stream().map(l -> toAdmin(l, false, names.get(l.getSchoolId()),
+                filesByLesson.getOrDefault(l.getId(), List.of()), stepsByLesson.getOrDefault(l.getId(), List.of()))).toList();
     }
 
     @Transactional
@@ -436,24 +457,39 @@ public class AdminLessonService {
     }
 
     // ---------------------------------------------------------------- DTO
+
+    /** One lesson: its school's name, its files and its ledger cost one lookup each, which is what a detail view can afford. */
     public AdminLesson toAdmin(LessonEntity l, boolean full) {
+        return toAdmin(l, full, schools.namesOf(List.of(l.getSchoolId())).get(l.getSchoolId()),
+                sourceFiles.findByLessonIdOrderByCreatedAt(l.getId()), steps.list(l.getId()));
+    }
+
+    /**
+     * The same, with the per-lesson rows handed in: the list path reads the files and the ledgers of every lesson in
+     * one query each, so §6 screen 8 — every lesson of every school — does not cost three statements per row.
+     */
+    AdminLesson toAdmin(LessonEntity l, boolean full, String schoolName,
+                        List<quest.server.content.Entities.SourceFileEntity> lessonFiles,
+                        List<quest.server.content.Entities.LessonStepEntity> lessonSteps) {
         var course = Course.Companion.parse(l.getCourseId());
         var status = LessonState.status(l);
-        var fileInfos = sourceFiles.findByLessonIdOrderByCreatedAt(l.getId()).stream().map(f -> new SourceFileInfo(f.getId(), f.getFileName(), f.getFileHash(), f.getPageCount(), f.isCacheHit(), f.getDeletedAt() != null)).toList();
+        var fileInfos = lessonFiles.stream().map(f -> new SourceFileInfo(f.getId(), f.getFileName(), f.getFileHash(), f.getPageCount(), f.isCacheHit(), f.getDeletedAt() != null)).toList();
         var error = l.getErrorCode() == null ? null : new ApiError(l.getErrorCode(), l.getErrorMessage() == null ? "" : l.getErrorMessage());
         var source = LessonSource.valueOf(l.getSource().toUpperCase());
-        if (full && !manual(l) && !sourceFiles.findByLessonIdOrderByCreatedAt(l.getId()).isEmpty()) pipeline.backfill(l.getId());
-        var stepInfos = steps.list(l.getId()).stream().map(s -> new LessonStepInfo(LessonSteps.parse(s.getStep()), StepStatus.valueOf(s.getStatus().toUpperCase()), s.getAttempt(), s.getErrorCode(), s.getErrorMessage(), s.getUpdatedAt().toEpochMilli())).toList();
+        if (full && !manual(l) && !lessonFiles.isEmpty()) { pipeline.backfill(l.getId()); lessonSteps = steps.list(l.getId()); }
+        var stepInfos = lessonSteps.stream().map(s -> new LessonStepInfo(LessonSteps.parse(s.getStep()), StepStatus.valueOf(s.getStatus().toUpperCase()), s.getAttempt(), s.getErrorCode(), s.getErrorMessage(), s.getUpdatedAt().toEpochMilli())).toList();
         var currentStep = l.getCurrentStep() == null ? null : LessonSteps.parse(l.getCurrentStep());
         if (!full) return new AdminLesson(l.getId(), course, Subject.valueOf(l.getSubject().toUpperCase()), kdate(l.getDate()), status, l.getVersion(), l.getNotes(), l.getTitle(), l.getTokenUsage(), l.getTokensSaved(),
-                fileInfos, null, List.of(), List.of(), null, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, stepInfos, currentStep, List.of());
+                fileInfos, null, List.of(), List.of(), null, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, stepInfos, currentStep, List.of(),
+                l.getSchoolId(), schoolName);
         SourceAnalysis analysis = l.getSourceHash() == null ? null : analysisCache.findById(CacheKeys.INSTANCE.analysisKey(l.getSourceHash())).map(c -> json.decodeShared(c.getAnalysisJson(), SourceAnalysis.Companion.serializer())).orElse(null);
         var skillDtos = skills.findByLessonIdOrderByPosition(l.getId()).stream().map(this::skill).toList();
         var playDtos = store.plays(l.getId()).stream().map(p -> new AdminPlay(p.getId(), p.getLevel(), p.getVariant(), store.play(p), p.getPromptVersion(), p.getGeneratedAt().toEpochMilli())).toList();
         var panel = panels.findById(l.getId()).map(p -> json.decodeShared(p.getPanelJson(), ParentPanel.Companion.serializer())).orElse(null);
         var images = pageImages.findByLessonIdOrderByPageNumber(l.getId()).stream().map(i -> new PageImage(i.getId(), publicUrl + "/media/pages/" + i.getId(), i.getWidth(), i.getHeight(), i.getDescription())).toList();
         return new AdminLesson(l.getId(), course, Subject.valueOf(l.getSubject().toUpperCase()), kdate(l.getDate()), status, l.getVersion(), l.getNotes(), l.getTitle(), l.getTokenUsage(), l.getTokensSaved(),
-                fileInfos, analysis, skillDtos, playDtos, panel, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, stepInfos, currentStep, images);
+                fileInfos, analysis, skillDtos, playDtos, panel, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, stepInfos, currentStep, images,
+                l.getSchoolId(), schoolName);
     }
 
     private ExtractedSkill skill(SkillEntity s) {

@@ -44,7 +44,16 @@
     "flag.read": ["ADMIN", "MANAGERIAL"],
     "flag.write": ["ADMIN"],
     "theme.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
-    "theme.write": ["ADMIN"]
+    "theme.write": ["ADMIN"],
+
+    "me.home": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "class.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "class.write": ["ADMIN"],
+    "usage.school": ["ADMIN", "MANAGERIAL"],
+    "usage.platform": ["ADMIN"],
+    "billing.read": ["ADMIN"],
+    "teacher.read": ["ADMIN", "MANAGERIAL"],
+    "school.logo": ["PUBLIC"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -64,6 +73,7 @@
 
     { "method": "GET", "path": "/me", "permission": "me.read" },
     { "method": "GET", "path": "/me/permissions", "permission": "me.permissions" },
+    { "method": "GET", "path": "/me/home", "permission": "me.home" },
 
     { "method": "GET", "path": "/children", "permission": "child.read" },
     { "method": "POST", "path": "/children", "permission": "child.write" },
@@ -75,6 +85,7 @@
     { "method": "POST", "path": "/children/{id}/stops/{stopId}/media", "permission": "child.play" },
     { "method": "GET", "path": "/lessons/{id}", "permission": "lesson.play" },
     { "method": "GET", "path": "/schools/by-code/{code}", "permission": "school.join" },
+    { "method": "GET", "path": "/schools/logo", "permission": "school.logo" },
     { "method": "GET", "path": "/schools/{id}/flags", "permission": "school.flags" },
     { "method": "GET", "path": "/schools/{id}/theme", "permission": "school.theme" },
     { "method": "GET", "path": "/platform-settings", "permission": "platform.read" },
@@ -112,8 +123,17 @@
 
     { "method": "GET", "path": "/admin/schools", "permission": "school.read" },
     { "method": "POST", "path": "/admin/schools", "permission": "school.write" },
+    { "method": "POST", "path": "/admin/schools/wizard", "permission": "school.write" },
     { "method": "GET", "path": "/admin/schools/{id}", "permission": "school.read" },
     { "method": "PATCH", "path": "/admin/schools/{id}", "permission": "school.write" },
+    { "method": "GET", "path": "/admin/schools/{id}/classes", "permission": "class.read" },
+    { "method": "POST", "path": "/admin/schools/{id}/classes", "permission": "class.write" },
+    { "method": "PATCH", "path": "/admin/schools/{id}/classes/{classId}", "permission": "class.write" },
+    { "method": "GET", "path": "/admin/schools/{id}/usage", "permission": "usage.school" },
+    { "method": "GET", "path": "/admin/schools/{id}/billing", "permission": "billing.read" },
+    { "method": "GET", "path": "/admin/usage/platform", "permission": "usage.platform" },
+    { "method": "GET", "path": "/school/usage", "permission": "usage.school" },
+    { "method": "GET", "path": "/school/teachers", "permission": "teacher.read" },
     { "method": "POST", "path": "/admin/schools/{id}/invites", "permission": "user.invite" },
     { "method": "POST", "path": "/admin/schools/{id}/users", "permission": "user.create" },
     { "method": "GET", "path": "/admin/schools/{id}/theme", "permission": "theme.read" },

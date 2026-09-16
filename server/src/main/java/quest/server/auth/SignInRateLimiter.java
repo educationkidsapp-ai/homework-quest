@@ -41,10 +41,40 @@ public class SignInRateLimiter {
     public void recordFailure(String email, String ip) {
         record(key(email, ip));
         record(key(email, null));
+        prune();
+    }
+
+    /**
+     * Drops buckets whose every entry has aged out, once the map is large enough for that to be worth doing. Called
+     * from every path that adds a key — {@link #recordFailure} and {@link #probe} — because a public route that
+     * only ever added would grow the map without bound even while the rate limit itself held.
+     */
+    private void prune() {
         if (failures.size() > 10_000) failures.values().removeIf(d -> { synchronized (d) { prune(d); return d.isEmpty(); } });
     }
 
     public void recordSuccess(String email, String ip) { failures.remove(key(email, ip)); failures.remove(key(email, null)); }
+
+    /**
+     * A public lookup that must not become a way to sweep the user table — `GET /schools/logo?email=` (§6 screen 1) —
+     * throttled with the same window as sign-in but in a bucket of its own, named by {@code label}.
+     *
+     * <p>Two differences from {@link #check}. <em>Every</em> call counts, not only the failures: the point is to stop
+     * a caller trying a thousand addresses, and most of those would "succeed" in returning 204. And the wide bucket
+     * is keyed on the address alone being absent — one per IP rather than per email — because a sweep is exactly the
+     * case where the email changes every time and the IP does not.
+     *
+     * <p>Its own bucket also means throttling a logo lookup can never use up a real sign-in's ten attempts.
+     */
+    public void probe(String label, String value, String ip) {
+        String narrow = label + "|" + key(value, ip);
+        String wide = label + "|*|" + (ip == null ? "*" : ip);
+        checkBucket(narrow, attempts);
+        checkBucket(wide, attempts * EMAIL_BUCKET_FACTOR);
+        record(narrow);
+        record(wide);
+        prune();
+    }
 
     private void checkBucket(String key, int allowed) {
         var recent = failures.get(key);

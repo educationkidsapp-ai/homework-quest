@@ -32,6 +32,27 @@
         "required" : [ "currentPassword", "newPassword" ],
         "type" : "object"
       },
+      "CreateClassRequest" : {
+        "properties" : {
+          "curriculum" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "subject" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "teacherId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "curriculum", "subject" ],
+        "type" : "object"
+      },
       "CreateInviteRequest" : {
         "properties" : {
           "email" : {
@@ -144,7 +165,22 @@
           "schoolId" : {
             "type" : "string"
           },
+          "schoolName" : {
+            "type" : "string"
+          },
           "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "DayCount" : {
+        "properties" : {
+          "count" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "date" : {
             "type" : "string"
           }
         },
@@ -227,6 +263,65 @@
           }
         },
         "required" : [ "email" ],
+        "type" : "object"
+      },
+      "HomeCard" : {
+        "properties" : {
+          "key" : {
+            "type" : "string"
+          },
+          "value" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "HomeResponse" : {
+        "properties" : {
+          "cards" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HomeCard"
+            },
+            "type" : "array"
+          },
+          "classes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TeacherClassInfo"
+            },
+            "type" : "array"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "needsYou" : {
+            "items" : {
+              "$ref" : "#/components/schemas/NeedsYouItem"
+            },
+            "type" : "array"
+          },
+          "platformName" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "schoolId" : {
+            "type" : "string"
+          },
+          "schoolLogoUrl" : {
+            "type" : "string"
+          },
+          "schoolName" : {
+            "type" : "string"
+          },
+          "weakSkills" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WeakSkill"
+            },
+            "type" : "array"
+          }
+        },
         "type" : "object"
       },
       "Invite" : {
@@ -323,6 +418,46 @@
         },
         "type" : "object"
       },
+      "MonthCost" : {
+        "properties" : {
+          "costUsd" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "month" : {
+            "type" : "string"
+          },
+          "tokens" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "tokensSaved" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "NeedsYouItem" : {
+        "properties" : {
+          "href" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "params" : {
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "type" : "object"
+          },
+          "targetId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "PlatformSettings" : {
         "properties" : {
           "defaultTheme" : {
@@ -339,6 +474,57 @@
           },
           "supportEmail" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PlatformUsage" : {
+        "properties" : {
+          "aiCalls" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "cacheHitRate" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "cacheHits" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "costPerSchool" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SchoolCost"
+            },
+            "type" : "array"
+          },
+          "from" : {
+            "type" : "string"
+          },
+          "playsPerDay" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DayCount"
+            },
+            "type" : "array"
+          },
+          "pricePer1kTokens" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "schools" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "to" : {
+            "type" : "string"
+          },
+          "totalCostUsd" : {
+            "format" : "double",
+            "type" : "number"
           }
         },
         "type" : "object"
@@ -370,6 +556,14 @@
       },
       "School" : {
         "properties" : {
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "code" : {
             "type" : "string"
           },
@@ -396,14 +590,112 @@
           "id" : {
             "type" : "string"
           },
+          "lessons" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "name" : {
             "type" : "string"
           },
           "status" : {
             "type" : "string"
           },
+          "teachers" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "theme" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SchoolBilling" : {
+        "properties" : {
+          "currency" : {
+            "type" : "string"
+          },
+          "months" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MonthCost"
+            },
+            "type" : "array"
+          },
+          "pricePer1kTokens" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "schoolId" : {
+            "type" : "string"
+          },
+          "schoolName" : {
+            "type" : "string"
+          },
+          "totalCostUsd" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "totalTokens" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "SchoolClass" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "schoolId" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "teacherId" : {
+            "type" : "string"
+          },
+          "teacherName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SchoolCost" : {
+        "properties" : {
+          "costUsd" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "lessons" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "schoolId" : {
+            "type" : "string"
+          },
+          "schoolName" : {
+            "type" : "string"
+          },
+          "tokens" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "tokensSaved" : {
+            "format" : "int64",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -420,6 +712,17 @@
             "type" : "string"
           },
           "schoolName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SchoolLogo" : {
+        "properties" : {
+          "logoUrl" : {
+            "type" : "string"
+          },
+          "name" : {
             "type" : "string"
           }
         },
@@ -499,6 +802,93 @@
               "$ref" : "#/components/schemas/WorldPalette"
             },
             "type" : "object"
+          }
+        },
+        "type" : "object"
+      },
+      "SchoolUsage" : {
+        "properties" : {
+          "activeFamilies" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "from" : {
+            "type" : "string"
+          },
+          "lessonsPublishedPerWeek" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WeekCount"
+            },
+            "type" : "array"
+          },
+          "playsPerDay" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DayCount"
+            },
+            "type" : "array"
+          },
+          "schoolId" : {
+            "type" : "string"
+          },
+          "schoolName" : {
+            "type" : "string"
+          },
+          "teacherConsistency" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TeacherConsistency"
+            },
+            "type" : "array"
+          },
+          "to" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SchoolWizardRequest" : {
+        "properties" : {
+          "flags" : {
+            "additionalProperties" : {
+              "type" : "boolean"
+            },
+            "type" : "object"
+          },
+          "manager" : {
+            "$ref" : "#/components/schemas/WizardManagerInput"
+          },
+          "school" : {
+            "$ref" : "#/components/schemas/CreateSchoolRequest"
+          },
+          "theme" : {
+            "$ref" : "#/components/schemas/SchoolTheme"
+          }
+        },
+        "required" : [ "manager", "school" ],
+        "type" : "object"
+      },
+      "SchoolWizardResponse" : {
+        "properties" : {
+          "flags" : {
+            "additionalProperties" : {
+              "type" : "boolean"
+            },
+            "type" : "object"
+          },
+          "invited" : {
+            "type" : "boolean"
+          },
+          "school" : {
+            "$ref" : "#/components/schemas/School"
+          },
+          "theme" : {
+            "$ref" : "#/components/schemas/SchoolTheme"
+          },
+          "user" : {
+            "$ref" : "#/components/schemas/DashboardUser"
           }
         },
         "type" : "object"
@@ -588,6 +978,57 @@
         },
         "type" : "object"
       },
+      "TeacherClassInfo" : {
+        "properties" : {
+          "classId" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "todayLessonId" : {
+            "type" : "string"
+          },
+          "todayStatus" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "TeacherConsistency" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "lastPublishedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "lessonsPublished" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "teacherId" : {
+            "type" : "string"
+          },
+          "weeks" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "weeksWithALesson" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "TeacherProfileInput" : {
         "properties" : {
           "bioAr" : {
@@ -623,6 +1064,56 @@
         },
         "type" : "object"
       },
+      "TeacherSummary" : {
+        "properties" : {
+          "classes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SchoolClass"
+            },
+            "type" : "array"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "grades" : {
+            "items" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "type" : "array"
+          },
+          "lastPublishedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "lessonsPublished" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "subjects" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "TokenPair" : {
         "properties" : {
           "expiresAt" : {
@@ -633,6 +1124,17 @@
             "type" : "string"
           },
           "token" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateClassRequest" : {
+        "properties" : {
+          "clearTeacher" : {
+            "type" : "boolean"
+          },
+          "teacherId" : {
             "type" : "string"
           }
         },
@@ -668,7 +1170,7 @@
             "type" : "string"
           },
           "supportEmail" : {
-            "maxLength" : 60,
+            "maxLength" : 254,
             "minLength" : 0,
             "type" : "string"
           }
@@ -715,6 +1217,50 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "WeakSkill" : {
+        "properties" : {
+          "band" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "skillId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "WeekCount" : {
+        "properties" : {
+          "count" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "week" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "WizardManagerInput" : {
+        "properties" : {
+          "displayName" : {
+            "maxLength" : 120,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "email" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "password" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "email" ],
         "type" : "object"
       },
       "WorldPalette" : {
@@ -958,6 +1504,13 @@
         }, {
           "in" : "query",
           "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "schoolId",
           "required" : false,
           "schema" : {
             "type" : "string"
@@ -1639,6 +2192,34 @@
         "tags" : [ "Schools" ]
       }
     },
+    "/admin/schools/wizard" : {
+      "post" : {
+        "operationId" : "createSchoolWithWizard",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SchoolWizardRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolWizardResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Schools" ]
+      }
+    },
     "/admin/schools/{id}" : {
       "get" : {
         "operationId" : "school",
@@ -1697,6 +2278,146 @@
           }
         },
         "tags" : [ "Schools" ]
+      }
+    },
+    "/admin/schools/{id}/billing" : {
+      "get" : {
+        "operationId" : "schoolBilling",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "months",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolBilling"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Dashboard data" ]
+      }
+    },
+    "/admin/schools/{id}/classes" : {
+      "get" : {
+        "operationId" : "schoolClasses",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/SchoolClass"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Dashboard data" ]
+      },
+      "post" : {
+        "operationId" : "createClass",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateClassRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolClass"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Dashboard data" ]
+      }
+    },
+    "/admin/schools/{id}/classes/{classId}" : {
+      "patch" : {
+        "operationId" : "updateClass",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateClassRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolClass"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Dashboard data" ]
       }
     },
     "/admin/schools/{id}/flags/{key}" : {
@@ -1841,6 +2562,46 @@
         "tags" : [ "Themes" ]
       }
     },
+    "/admin/schools/{id}/usage" : {
+      "get" : {
+        "operationId" : "schoolUsage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolUsage"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Dashboard data" ]
+      }
+    },
     "/admin/schools/{id}/users" : {
       "post" : {
         "operationId" : "createUser",
@@ -1972,6 +2733,39 @@
           }
         },
         "tags" : [ "Admin reports" ]
+      }
+    },
+    "/admin/usage/platform" : {
+      "get" : {
+        "operationId" : "platformUsage",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlatformUsage"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Dashboard data" ]
       }
     },
     "/admin/users" : {
@@ -2642,6 +3436,24 @@
         "tags" : [ "Auth" ]
       }
     },
+    "/me/home" : {
+      "get" : {
+        "operationId" : "home",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HomeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Home" ]
+      }
+    },
     "/me/permissions" : {
       "get" : {
         "operationId" : "myPermissions",
@@ -2732,6 +3544,60 @@
         "tags" : [ "Platform settings" ]
       }
     },
+    "/school/teachers" : {
+      "get" : {
+        "operationId" : "mySchoolTeachers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/TeacherSummary"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Dashboard data" ]
+      }
+    },
+    "/school/usage" : {
+      "get" : {
+        "operationId" : "mySchoolUsage",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolUsage"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Dashboard data" ]
+      }
+    },
     "/schools/by-code/{code}" : {
       "get" : {
         "operationId" : "schoolByCode",
@@ -2749,6 +3615,32 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/JoinSchoolInfo"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Schools" ]
+      }
+    },
+    "/schools/logo" : {
+      "get" : {
+        "operationId" : "schoolLogo",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "email",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolLogo"
                 }
               }
             },
@@ -2838,6 +3730,9 @@
     "description" : "Dashboard accounts, invites and View as…",
     "name" : "Dashboard users"
   }, {
+    "description" : "The role-specific dashboard home (§6 screen 2)",
+    "name" : "Home"
+  }, {
     "description" : "Page crops and child recordings",
     "name" : "Media"
   }, {
@@ -2852,6 +3747,9 @@
   }, {
     "description" : "Cache, usage and calendar",
     "name" : "Admin reports"
+  }, {
+    "description" : "Classes, school usage, billing, teachers and platform cost",
+    "name" : "Dashboard data"
   }, {
     "description" : "Dashboard sign-in",
     "name" : "Auth"

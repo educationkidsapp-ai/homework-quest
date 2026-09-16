@@ -29,8 +29,15 @@ class OpenApiContractTest extends ApiTestSupport {
             "/invites/{token}", "/invites/{token}/accept", "/schools/by-code/{code}",
             "/admin/flags", "/admin/flags/audit", "/admin/flags/{key}/all", "/admin/schools/{id}/flags/{key}",
             "/admin/schools/{id}/theme", "/admin/platform-settings");
-    /** Public and unauthenticated (§3, §4, §A): the app and the sign-in page read these before anyone has a token. */
-    static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings");
+    /** P3.0: what the Angular Homes, School page, usage screens and New school wizard call (§6 screens 2, 4–6, 10, 19–20). */
+    static final List<String> DASHBOARD_DATA_API = List.of(
+            "/me/home",
+            "/admin/schools/wizard",
+            "/admin/schools/{id}/classes", "/admin/schools/{id}/classes/{classId}",
+            "/admin/schools/{id}/usage", "/admin/schools/{id}/billing",
+            "/admin/usage/platform", "/school/usage", "/school/teachers");
+    /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
+    static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings", "/schools/logo");
 
     @Test void every_shared_api_route_is_served() throws Exception {
         var doc = json(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn());
@@ -38,6 +45,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(CONTENT_API);
         assertThat(paths).containsAll(ADMIN_API);
         assertThat(paths).containsAll(DASHBOARD_API);
+        assertThat(paths).containsAll(DASHBOARD_DATA_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
     }
