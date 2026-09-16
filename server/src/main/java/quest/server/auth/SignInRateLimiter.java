@@ -41,6 +41,15 @@ public class SignInRateLimiter {
     public void recordFailure(String email, String ip) {
         record(key(email, ip));
         record(key(email, null));
+        prune();
+    }
+
+    /**
+     * Drops buckets whose every entry has aged out, once the map is large enough for that to be worth doing. Called
+     * from every path that adds a key — {@link #recordFailure} and {@link #probe} — because a public route that
+     * only ever added would grow the map without bound even while the rate limit itself held.
+     */
+    private void prune() {
         if (failures.size() > 10_000) failures.values().removeIf(d -> { synchronized (d) { prune(d); return d.isEmpty(); } });
     }
 
@@ -64,6 +73,7 @@ public class SignInRateLimiter {
         checkBucket(wide, attempts * EMAIL_BUCKET_FACTOR);
         record(narrow);
         record(wide);
+        prune();
     }
 
     private void checkBucket(String key, int allowed) {

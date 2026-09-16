@@ -17,8 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public interface ChildRepository extends JpaRepository<Entities.ChildEntity, String> {
     List<Entities.ChildEntity> findByParentIdAndDeletedAtIsNullOrderByCreatedAt(String parentId);
-    /** Every live child the caller may see — scoped by the `school` filter, so it is one school's roll. */
-    List<Entities.ChildEntity> findByDeletedAtIsNullOrderByCreatedAt();
     long countByCurriculumAndGradeAndDeletedAtIsNull(String curriculum, int grade);
 
     /**

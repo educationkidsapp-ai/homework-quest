@@ -40,8 +40,6 @@ public final class DashboardDto {
 
     public static DashboardUser of(Entities.UserEntity u, String impersonatedBy) { return of(u, impersonatedBy, null, null); }
 
-    public static DashboardUser of(Entities.UserEntity u, String impersonatedBy, String platformName) { return of(u, impersonatedBy, platformName, null); }
-
     /** `schoolName` saves the Admin's cross-school Users list (§6 screen 6) a second request per row. */
     public static DashboardUser of(Entities.UserEntity u, String impersonatedBy, String platformName, String schoolName) {
         return new DashboardUser(u.getId(), u.getEmail(), u.getRole(), u.getSchoolId(), u.getStatus(), u.getDisplayName(),

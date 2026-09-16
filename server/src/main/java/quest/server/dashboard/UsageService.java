@@ -175,21 +175,22 @@ public class UsageService {
 
         double price = price();
         var costs = new ArrayList<SchoolDataDto.SchoolCost>();
-        double total = 0;
+        // Summed from the raw tokens and rounded once, not from the per-school figures which are already rounded to
+        // four decimals: adding rounded numbers drifts, and the total is the one an invoice is compared against.
+        long totalTokens = 0;
         for (var row : Reports.rows(Reports.bind(em,
                 "SELECT s.id, s.name, COALESCE(SUM(l.token_usage), 0) AS t, COALESCE(SUM(l.tokens_saved), 0) AS v, COUNT(l.id) AS n"
                         + " FROM schools s LEFT JOIN lessons l ON l.school_id = s.id"
                         + " AND l.created_at >= :windowFrom AND l.created_at < :windowEnd"
                         + " GROUP BY s.id, s.name ORDER BY s.name", scope))) {
             long tokens = Reports.number(row[2]);
-            double cost = Reports.cost(tokens, price);
-            total += cost;
+            totalTokens += tokens;
             costs.add(new SchoolDataDto.SchoolCost(Reports.text(row[0]), Reports.text(row[1]), tokens,
-                    Reports.number(row[3]), cost, (int) Reports.number(row[4])));
+                    Reports.number(row[3]), Reports.cost(tokens, price), (int) Reports.number(row[4])));
         }
 
         return new SchoolDataDto.PlatformUsage(window.from().toString(), window.to().toString(), schools, children,
-                playsPerDay, calls, hits, hitRate, price, List.copyOf(costs), Reports.round(total));
+                playsPerDay, calls, hits, hitRate, price, List.copyOf(costs), Reports.cost(totalTokens, price));
     }
 
     // ---------------------------------------------------------------- shaping

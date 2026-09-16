@@ -270,11 +270,9 @@
           "key" : {
             "type" : "string"
           },
-          "label" : {
-            "type" : "string"
-          },
           "value" : {
-            "type" : "string"
+            "format" : "int64",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -448,10 +446,13 @@
           "kind" : {
             "type" : "string"
           },
-          "subtitle" : {
-            "type" : "string"
+          "params" : {
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "type" : "object"
           },
-          "title" : {
+          "targetId" : {
             "type" : "string"
           }
         },

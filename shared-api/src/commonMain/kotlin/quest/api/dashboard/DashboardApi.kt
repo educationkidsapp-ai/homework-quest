@@ -336,16 +336,48 @@ data class UpdatePlatformSettingsRequest(
 // P3.0 `backend/dashboard-endpoints` — Homes, School page data, the wizard, platform usage and the sign-in logo.
 // ---------------------------------------------------------------------------------------------------------------
 
-/** One of the three big numbers a Home counts up on load (§6 screen 2). [value] is pre-formatted by the server. */
-@Serializable
-data class HomeCard(val key: String, val label: String, val value: String)
-
 /**
- * One row of a Home's "what needs you" list. [kind] is what the dashboard groups and icons by; [href] is the
- * dashboard route that does something about it, already carrying whatever the target screen needs preselected.
+ * One of the three big numbers a Home counts up on load (§6 screen 2).
+ *
+ * **No prose crosses this boundary.** §6 requires EN/AR to switch without a reload and the server has no
+ * `Accept-Language` — so [key] is a message id the dashboard's catalogue resolves (`home.card.<key>`) and [value] is
+ * the number, typed rather than pre-formatted because the count-up animation interpolates it and the digits are the
+ * browser's business.
+ *
+ * Keys by role: ADMIN `schools`, `children`, `lessonsThisWeek`; TEACHER `playedYesterday`, `lessonsThisWeek`,
+ * `needsReview`; MANAGERIAL `children`, `activeFamilies`, `teachers`.
  */
 @Serializable
-data class NeedsYouItem(val kind: String, val title: String, val subtitle: String? = null, val href: String? = null)
+data class HomeCard(val key: String, val value: Long)
+
+/**
+ * One row of a Home's "what needs you" list, as a message id and its values rather than a sentence (see [HomeCard]).
+ *
+ * [kind] resolves as `home.needs.<kind>` and is what the dashboard groups and icons by; [targetId] is the row's
+ * subject; [params] are interpolated into the message; [href] is the route that does something about it, already
+ * carrying whatever the target screen needs preselected. An unknown [kind] should render as nothing rather than as
+ * the raw id — a later phase will add rows an older dashboard build has no string for.
+ *
+ * | kind | targetId | params |
+ * |---|---|---|
+ * | `lesson.error` | lesson id | `lessonTitle`, `errorCode`?, `schoolName`? (Admin) |
+ * | `lesson.needs_review` | lesson id | `lessonTitle`, `schoolName`? (Admin) |
+ * | `school.noTeacher` | school id | `schoolName` |
+ * | `user.staleInvite` | user id | `email`, `role`, `days` |
+ * | `class.noLessonToday` | class id | `curriculum`, `grade`, `subject`, `date` |
+ * | `skill.weak` | skill id | `skillName`, `band` |
+ * | `teacher.quiet` | user id | `teacherName`, `days` |
+ *
+ * The only [params] values that are not themselves message ids are the ones that *are* the data — a school's name, a
+ * lesson's title, a person's name, a skill's name. Those are what the school typed, and not the server's to translate.
+ */
+@Serializable
+data class NeedsYouItem(
+    val kind: String,
+    val targetId: String? = null,
+    val params: Map<String, String> = emptyMap(),
+    val href: String? = null,
+)
 
 /** A teacher's class on her Home, with the state of today's lesson for it (§6 screen 11). */
 @Serializable

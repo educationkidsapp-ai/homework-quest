@@ -44,11 +44,14 @@ class HomeTest extends DashboardTestSupport {
         lesson("home-english-review", A, ENGLISH, "british", 1, "english", today().minusDays(1), "needs_review", null, 0);
 
         childId = child("Rana", "HOMEAA", "british", 1);
-        // Three first tries, two of them wrong: enough for a band, and a weak one. One lands yesterday (which the
-        // teacher's Home counts) and two today (which this week's active families counts, Mondays included).
+        // Five first tries — the minimum before a skill may be called weak — three of them wrong, so 0.4 bands as
+        // NEEDS_ANOTHER_LOOK. One lands yesterday (which the teacher's "played yesterday" counts) and four today
+        // (which "families active this week" counts, Mondays included).
         attempt(childId, "home-maths-today", stopId("home-maths-today"), false, noon(today().minusDays(1)));
         attempt(childId, "home-maths-today", stopId("home-maths-today"), false, noon(today()));
-        attempt(childId, "home-maths-today", stopId("home-maths-today"), true, noon(today()).plusSeconds(60));
+        attempt(childId, "home-maths-today", stopId("home-maths-today"), false, noon(today()).plusSeconds(60));
+        attempt(childId, "home-maths-today", stopId("home-maths-today"), true, noon(today()).plusSeconds(120));
+        attempt(childId, "home-maths-today", stopId("home-maths-today"), true, noon(today()).plusSeconds(180));
     }
 
     @AfterEach void clean() { removeSeed(); }
@@ -64,11 +67,18 @@ class HomeTest extends DashboardTestSupport {
         assertThat(home.get("schoolLogoUrl").isNull()).isTrue();
         assertThat(home.get("platformName").asText()).isNotBlank();
         assertThat(cardKeys(home)).containsExactly("schools", "children", "lessonsThisWeek");
+        assertThat(home.toString()).as("§6: EN/AR switches without a reload, so no English crosses this boundary")
+                .doesNotContain("Lessons published").doesNotContain("waiting for review").doesNotContain("Invited as");
         assertThat(home.get("classes").isNull()).as("classes are a teacher's, not an admin's").isTrue();
         assertThat(home.get("weakSkills").isNull()).isTrue();
 
         assertThat(kinds(home)).contains("lesson.error", "lesson.needs_review", "user.staleInvite");
-        assertThat(titles(home, "user.staleInvite")).contains("stale@home.test");
+        assertThat(params(home, "user.staleInvite", "email")).contains("stale@home.test");
+        assertThat(params(home, "user.staleInvite", "role")).contains("TEACHER");
+        assertThat(params(home, "user.staleInvite", "days")).contains("7");
+        assertThat(targets(home, "lesson.error")).contains("home-english-broken");
+        assertThat(params(home, "lesson.error", "schoolName")).contains("Home Academy");
+        assertThat(params(home, "lesson.error", "lessonTitle")).contains("Lesson home-english-broken");
         assertThat(hrefs(home, "lesson.error")).anySatisfy(href -> assertThat(href).isEqualTo("/admin/lessons/home-english-broken"));
     }
 
@@ -77,7 +87,7 @@ class HomeTest extends DashboardTestSupport {
                 .andExpect(status().isOk()).andReturn());
         assertThat(home.get("schoolId").asText()).isEqualTo(A);
         assertThat(home.get("schoolName").asText()).isEqualTo("Home Academy");
-        assertThat(card(home, "schools")).isEqualTo("1");
+        assertThat(card(home, "schools")).isEqualTo(1);
         assertThat(kinds(home)).as("a school with teachers is not a school without one").doesNotContain("school.noTeacher");
     }
 
@@ -90,8 +100,8 @@ class HomeTest extends DashboardTestSupport {
         assertThat(home.get("schoolId").asText()).isEqualTo(A);
         assertThat(home.get("schoolName").asText()).isEqualTo("Home Academy");
         assertThat(cardKeys(home)).containsExactly("playedYesterday", "lessonsThisWeek", "needsReview");
-        assertThat(card(home, "playedYesterday")).as("the child answered yesterday").isEqualTo("1");
-        assertThat(card(home, "needsReview")).isEqualTo("1");
+        assertThat(card(home, "playedYesterday")).as("the child answered yesterday").isEqualTo(1);
+        assertThat(card(home, "needsReview")).isEqualTo(1);
 
         var classes = home.get("classes");
         assertThat(ids(classes, "classId")).containsExactlyInAnyOrder(MATHS, ENGLISH);
@@ -109,6 +119,8 @@ class HomeTest extends DashboardTestSupport {
         assertThat(home.get("weakSkills").get(0).get("name").asText()).isEqualTo("Counting to twenty");
         assertThat(home.get("weakSkills").get(0).get("band").asText()).isEqualTo("NEEDS_ANOTHER_LOOK");
         assertThat(home.get("weakSkills").size()).as("§6 screen 11: three at most").isLessThanOrEqualTo(3);
+        assertThat(params(home, "skill.weak", "skillName")).containsExactly("Counting to twenty");
+        assertThat(params(home, "skill.weak", "band")).containsExactly("NEEDS_ANOTHER_LOOK");
     }
 
     /** In a school of its own, so the counts the other tests assert on school A stay the same whatever the run order. */
@@ -118,7 +130,7 @@ class HomeTest extends DashboardTestSupport {
         var home = json(mvc.perform(admin(get("/me/home"), token("home-teacher-idle", "TEACHER", "home-school-b"))).andExpect(status().isOk()).andReturn());
         assertThat(home.get("classes")).isEmpty();
         assertThat(home.get("weakSkills")).isEmpty();
-        assertThat(card(home, "playedYesterday")).isEqualTo("0");
+        assertThat(card(home, "playedYesterday")).isEqualTo(0);
     }
 
     // ---------------------------------------------------------------- MANAGERIAL
@@ -128,13 +140,14 @@ class HomeTest extends DashboardTestSupport {
 
         assertThat(home.get("role").asText()).isEqualTo("MANAGERIAL");
         assertThat(cardKeys(home)).containsExactly("children", "activeFamilies", "teachers");
-        assertThat(Integer.parseInt(card(home, "children"))).isGreaterThanOrEqualTo(1);
-        assertThat(card(home, "activeFamilies")).isEqualTo("1");
-        assertThat(card(home, "teachers")).as("two active teachers; the invited one is not counted").isEqualTo("2");
+        assertThat(card(home, "children")).isGreaterThanOrEqualTo(1);
+        assertThat(card(home, "activeFamilies")).isEqualTo(1);
+        assertThat(card(home, "teachers")).as("two active teachers; the invited one is not counted").isEqualTo(2);
 
         assertThat(kinds(home)).containsOnly("teacher.quiet");
-        assertThat(titles(home, "teacher.quiet")).contains("quiet@home.test")
+        assertThat(params(home, "teacher.quiet", "teacherName")).contains("quiet@home.test")
                 .as("the teacher who published today is not quiet").doesNotContain("teacher@home.test");
+        assertThat(params(home, "teacher.quiet", "days")).containsOnly("7");
 
         // Phase 5 has not happened yet, so the Home says nothing about complaints at all.
         assertThat(cardKeys(home)).doesNotContain("openComplaints");
@@ -150,16 +163,25 @@ class HomeTest extends DashboardTestSupport {
 
     private List<String> cardKeys(JsonNode home) { return ids(home.get("cards"), "key"); }
 
-    private String card(JsonNode home, String key) {
-        for (var c : home.get("cards")) if (key.equals(c.get("key").asText())) return c.get("value").asText();
+    private long card(JsonNode home, String key) {
+        for (var c : home.get("cards")) if (key.equals(c.get("key").asText())) return c.get("value").asLong();
         throw new AssertionError(key + " is not a card of " + home.get("cards"));
     }
 
     private List<String> kinds(JsonNode home) { return ids(home.get("needsYou"), "kind"); }
 
-    private List<String> titles(JsonNode home, String kind) { return field(home, kind, "title"); }
+    private List<String> targets(JsonNode home, String kind) { return field(home, kind, "targetId"); }
 
     private List<String> hrefs(JsonNode home, String kind) { return field(home, kind, "href"); }
+
+    /** The named interpolation value of every "needs you" row of that kind. */
+    private List<String> params(JsonNode home, String kind, String name) {
+        var out = new ArrayList<String>();
+        for (var item : home.get("needsYou"))
+            if (kind.equals(item.get("kind").asText()) && item.get("params").has(name))
+                out.add(item.get("params").get(name).asText());
+        return out;
+    }
 
     private List<String> field(JsonNode home, String kind, String name) {
         var out = new ArrayList<String>();

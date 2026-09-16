@@ -5,21 +5,17 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import quest.api.progress.Band;
+import quest.api.progress.ProgressBands;
 import quest.server.auth.Principals;
 import quest.server.auth.UserRepository;
-import quest.server.children.ChildRepository;
 import quest.server.children.ProgressService;
 import quest.server.config.ApiException;
-import quest.server.content.Entities.LessonEntity;
-import quest.server.content.LessonRepository;
 import quest.server.platform.ThemeService;
 import quest.server.tenancy.ClassRepository;
 import quest.server.tenancy.Entities.ClassEntity;
@@ -43,10 +39,10 @@ import quest.server.tenancy.TenantContext;
  *       dashboard cannot draw an empty inbox that does not exist yet.</li>
  * </ul>
  *
- * <p><strong>No N+1.</strong> Every figure is a grouped query over a whole table, never a query per class, child,
- * lesson or school; `HomeQueryCountTest` pins the statement count against a seed that grows. The weakest skills go
- * through {@link ProgressService#weakestSkills}, which reads one group's attempts, plays and skills in three queries
- * rather than running a child's progress report per child.
+ * <p><strong>Bounded in statements and in rows.</strong> Every figure is a grouped query, never a query per class,
+ * child, lesson or school, and every list is capped — `HomeQueryCountTest` pins the statement count against a seed
+ * that grows and `HomeRowVolumeTest` pins that growing it does not materialise more entities. The weakest-skills
+ * aggregate is the one that had to be rewritten for the second half of that; see {@link #weakestSkills}.
  *
  * <p>Timestamps are bound as UTC {@link LocalDateTime}s, not {@link java.time.Instant}s: the columns are
  * `TIMESTAMP` without a zone and `hibernate.jdbc.time_zone=UTC` is what wrote them, so a UTC wall time is exactly
@@ -60,18 +56,22 @@ public class HomeService {
     private static final int QUIET_TEACHER_DAYS = 7;
     /** §6 screen 11: "the three weakest skills across her classes". */
     private static final int WEAK_SKILLS = 3;
+    /** How far back the weakest-skills aggregate reads attempts: what her class is struggling with now. */
+    private static final int WEAK_SKILL_DAYS = 28;
+    /** …and how recently a lesson must have been published to be part of it. Roughly a term. */
+    private static final int RECENT_LESSON_DAYS = 90;
+    /** First tries a skill needs before it may be called weak, so one child's one wrong answer is not a headline. */
+    private static final int MIN_TRIES = 5;
     /** Lists on a Home are a glance, not a screen: the long tail belongs on All lessons / Users. */
     private static final int MAX_ROWS = 10;
 
     private final EntityManager em; private final TenantContext tenant; private final SchoolRepository schools;
-    private final ClassRepository classes; private final LessonRepository lessons; private final ChildRepository children;
-    private final UserRepository users; private final ProgressService progress; private final ThemeService themes;
+    private final ClassRepository classes; private final UserRepository users; private final ThemeService themes;
 
     public HomeService(EntityManager em, TenantContext tenant, SchoolRepository schools, ClassRepository classes,
-                       LessonRepository lessons, ChildRepository children, UserRepository users,
-                       ProgressService progress, ThemeService themes) {
-        this.em = em; this.tenant = tenant; this.schools = schools; this.classes = classes; this.lessons = lessons;
-        this.children = children; this.users = users; this.progress = progress; this.themes = themes;
+                       UserRepository users, ThemeService themes) {
+        this.em = em; this.tenant = tenant; this.schools = schools; this.classes = classes;
+        this.users = users; this.themes = themes;
     }
 
     @Transactional(readOnly = true)
@@ -108,32 +108,35 @@ public class HomeService {
 
         var needsYou = new ArrayList<HomeDto.NeedsYouItem>();
         for (var row : Reports.rows(Reports.bind(em,
-                "SELECT l.id, l.title, l.status, s.name FROM lessons l JOIN schools s ON s.id = l.school_id"
+                "SELECT l.id, l.title, l.status, s.name, l.error_code FROM lessons l JOIN schools s ON s.id = l.school_id"
                         + " WHERE l.status IN ('error', 'needs_review')" + (schoolId == null ? "" : " AND l.school_id = :schoolId")
                         + " ORDER BY l.updated_at DESC", scope).setMaxResults(MAX_ROWS))) {
-            String status = Reports.text(row[2]);
-            needsYou.add(new HomeDto.NeedsYouItem("lesson." + status, title(Reports.text(row[1])),
-                    Reports.text(row[3]) + " · " + ("error".equals(status) ? "failed" : "waiting for review"),
-                    "/admin/lessons/" + Reports.text(row[0])));
+            var params = new LinkedHashMap<String, String>();
+            params.put("lessonTitle", title(Reports.text(row[1])));
+            params.put("schoolName", Reports.text(row[3]));
+            if (Reports.text(row[4]) != null) params.put("errorCode", Reports.text(row[4]));
+            needsYou.add(new HomeDto.NeedsYouItem("lesson." + Reports.text(row[2]), Reports.text(row[0]),
+                    Map.copyOf(params), "/admin/lessons/" + Reports.text(row[0])));
         }
         if (schoolId == null)
             for (var row : Reports.rows(Reports.bind(em,
                     "SELECT s.id, s.name FROM schools s WHERE NOT EXISTS ("
                             + "SELECT 1 FROM users u WHERE u.school_id = s.id AND u.role = 'TEACHER' AND u.status <> 'disabled')"
                             + " ORDER BY s.name", Map.of()).setMaxResults(MAX_ROWS)))
-                needsYou.add(new HomeDto.NeedsYouItem("school.noTeacher", Reports.text(row[1]),
-                        "No teacher yet", "/admin/schools/" + Reports.text(row[0]) + "/users"));
+                needsYou.add(new HomeDto.NeedsYouItem("school.noTeacher", Reports.text(row[0]),
+                        Map.of("schoolName", Reports.text(row[1])), "/admin/schools/" + Reports.text(row[0]) + "/users"));
         for (var row : Reports.rows(Reports.bind(em,
                 "SELECT u.id, u.email, u.role FROM users u WHERE u.status = 'invited' AND u.created_at < :cutoff"
                         + (schoolId == null ? "" : " AND u.school_id = :schoolId") + " ORDER BY u.created_at", scope).setMaxResults(MAX_ROWS)))
-            needsYou.add(new HomeDto.NeedsYouItem("user.staleInvite", Reports.text(row[1]),
-                    "Invited as " + Reports.text(row[2]).toLowerCase(Locale.ROOT) + " over " + STALE_INVITE_DAYS + " days ago",
+            needsYou.add(new HomeDto.NeedsYouItem("user.staleInvite", Reports.text(row[0]),
+                    Map.of("email", Reports.text(row[1]), "role", Reports.text(row[2]),
+                            "days", String.valueOf(STALE_INVITE_DAYS)),
                     "/admin/users?status=invited"));
 
         var cards = List.of(
-                new HomeDto.HomeCard("schools", schoolId == null ? "Schools" : "School", String.valueOf(schoolCount)),
-                new HomeDto.HomeCard("children", "Children", String.valueOf(childCount)),
-                new HomeDto.HomeCard("lessonsThisWeek", "Lessons published this week", String.valueOf(publishedThisWeek)));
+                new HomeDto.HomeCard("schools", schoolCount),
+                new HomeDto.HomeCard("children", childCount),
+                new HomeDto.HomeCard("lessonsThisWeek", publishedThisWeek));
         return new HomeDto.HomeResponse("ADMIN", displayName, schoolId, schoolName, logoUrl, platformName,
                 cards, List.copyOf(needsYou), null, null);
     }
@@ -175,45 +178,93 @@ public class HomeService {
         var needsYou = new ArrayList<HomeDto.NeedsYouItem>();
         for (var info : classInfos)
             if (info.todayLessonId() == null)
-                needsYou.add(new HomeDto.NeedsYouItem("class.noLessonToday", label(info), "No lesson for today yet",
+                needsYou.add(new HomeDto.NeedsYouItem("class.noLessonToday", info.classId(),
+                        Map.of("curriculum", info.curriculum(), "grade", String.valueOf(info.grade()),
+                                "subject", info.subject(), "date", today.toString()),
                         "/teacher/lessons/new?classId=" + info.classId() + "&curriculum=" + info.curriculum()
                                 + "&grade=" + info.grade() + "&subject=" + info.subject() + "&date=" + today));
         if (!classIds.isEmpty())
             for (var row : Reports.rows(Reports.bind(em,
-                    "SELECT l.id, l.title, l.error_message FROM lessons l WHERE l.school_id = :schoolId"
-                            + " AND l.class_id IN (:classIds) AND l.status = 'error' ORDER BY l.updated_at DESC", scope).setMaxResults(MAX_ROWS)))
-                needsYou.add(new HomeDto.NeedsYouItem("lesson.error", title(Reports.text(row[1])),
-                        Reports.text(row[2]) == null ? "Failed" : Reports.text(row[2]), "/teacher/lessons/" + Reports.text(row[0])));
+                    "SELECT l.id, l.title, l.error_code FROM lessons l WHERE l.school_id = :schoolId"
+                            + " AND l.class_id IN (:classIds) AND l.status = 'error' ORDER BY l.updated_at DESC", scope).setMaxResults(MAX_ROWS))) {
+                var params = new LinkedHashMap<String, String>();
+                params.put("lessonTitle", title(Reports.text(row[1])));
+                if (Reports.text(row[2]) != null) params.put("errorCode", Reports.text(row[2]));
+                needsYou.add(new HomeDto.NeedsYouItem("lesson.error", Reports.text(row[0]), Map.copyOf(params),
+                        "/teacher/lessons/" + Reports.text(row[0])));
+            }
 
-        var weak = weakestSkills(mine, classIds);
+        // The three weakest are reported whatever their band, so the Home can show how the class is doing; only the
+        // ones that actually need another look become something that needs *her*.
+        var weak = weakestSkills(schoolId, classIds, today);
         for (var skill : weak)
-            needsYou.add(new HomeDto.NeedsYouItem("skill.weak", skill.name(), "Children need another look at this",
-                    "/teacher/students?skillId=" + skill.skillId()));
+            if (Band.NEEDS_ANOTHER_LOOK.name().equals(skill.band()))
+                needsYou.add(new HomeDto.NeedsYouItem("skill.weak", skill.skillId(),
+                        Map.of("skillName", skill.name(), "band", skill.band()),
+                        "/teacher/students?skillId=" + skill.skillId()));
 
         var cards = List.of(
-                new HomeDto.HomeCard("playedYesterday", "Children who played yesterday", String.valueOf(playedYesterday)),
-                new HomeDto.HomeCard("lessonsThisWeek", "Lessons published this week", String.valueOf(publishedThisWeek)),
-                new HomeDto.HomeCard("needsReview", "Lessons waiting for review", String.valueOf(openReviews)));
+                new HomeDto.HomeCard("playedYesterday", playedYesterday),
+                new HomeDto.HomeCard("lessonsThisWeek", publishedThisWeek),
+                new HomeDto.HomeCard("needsReview", openReviews));
         return new HomeDto.HomeResponse("TEACHER", displayName, schoolId, schoolName, logoUrl, platformName,
                 cards, List.copyOf(needsYou), classInfos, weak);
     }
 
     /**
-     * The three weakest skills over the children of a teacher's classes. The children are her school's live roll
-     * narrowed to the (curriculum, grade) pairs she teaches — §2's rule that a child belongs to a school plus a
-     * curriculum and a grade, read from the other end — and the lessons are those classes' published ones.
+     * The three skills her classes are weakest at, as <strong>one bounded aggregate</strong>.
+     *
+     * <p>This is the one figure on a Home that could grow without limit, and it is on the route `/` redirects every
+     * teacher to. An earlier shape loaded the school's whole roll, every published lesson of her classes and every
+     * attempt those children had ever made as JPA entities, to end up printing three names: constant in statements
+     * and linear in rows, which on a 600-child school a year in is hundreds of thousands of entities. So the whole
+     * thing is a single grouped query that windows both ends and returns at most {@value #WEAK_SKILLS} rows:
+     *
+     * <ul>
+     *   <li>attempts from the last {@value #WEAK_SKILL_DAYS} days — a teacher wants to know what her class is
+     *       struggling with <em>now</em>, not what last autumn's class found hard;</li>
+     *   <li>lessons published in the last {@value #RECENT_LESSON_DAYS} days — roughly a term;</li>
+     *   <li>at least {@value #MIN_TRIES} first tries before a skill may be called weak, so one child's one wrong
+     *       answer does not top the list and teach her to ignore the panel.</li>
+     * </ul>
+     *
+     * <p>Two deliberate differences from a child's own progress ({@link ProgressService}), which is unchanged and
+     * still the rule parents see. Accuracy is pooled over the date window rather than over
+     * {@link ProgressBands#WINDOW} attempts — "the last 14" is a recency rule for one child and means nothing once
+     * many children are pooled — and it counts practice stops (`stops.category = SINGLE`), not the single-answer
+     * questions nested inside an exit ticket, which have no `stops` row of their own to join to. The band
+     * thresholds are {@link ProgressBands}' own, so "needs another look" means the same thing on both screens.
      */
-    private List<HomeDto.WeakSkill> weakestSkills(List<ClassEntity> mine, List<String> classIds) {
+    private List<HomeDto.WeakSkill> weakestSkills(String schoolId, List<String> classIds, LocalDate today) {
         if (classIds.isEmpty()) return List.of();
-        Set<String> courses = new HashSet<>();
-        for (var k : mine) courses.add(k.getCurriculum().toLowerCase(Locale.ROOT) + "/" + k.getGrade());
-        var pupils = children.findByDeletedAtIsNullOrderByCreatedAt().stream()
-                .filter(c -> courses.contains(c.getCurriculum().toLowerCase(Locale.ROOT) + "/" + c.getGrade())).toList();
-        if (pupils.isEmpty()) return List.of();
-        List<LessonEntity> published = lessons.findByClassIdInAndStatusOrderByDateAsc(classIds, "published");
-        if (published.isEmpty()) return List.of();
-        return progress.weakestSkills(pupils, published, WEAK_SKILLS).stream()
-                .map(b -> new HomeDto.WeakSkill(b.skillId(), b.name(), b.band().name())).toList();
+        var scope = Map.<String, Object>of("schoolId", schoolId, "classIds", classIds,
+                "attemptsSince", midnight(today.minusDays(WEAK_SKILL_DAYS)),
+                "lessonsSince", midnight(today.minusDays(RECENT_LESSON_DAYS)));
+
+        var rows = Reports.rows(Reports.bind(em,
+                "SELECT sk.id, sk.name, COUNT(*) AS tries, SUM(CASE WHEN a.correct THEN 1 ELSE 0 END) AS correct"
+                        + " FROM attempts a"
+                        + " JOIN stops s ON s.id = a.stop_id"
+                        + " JOIN lessons l ON l.id = a.lesson_id"
+                        + " JOIN children ch ON ch.id = a.child_id"
+                        + " JOIN skills sk ON sk.lesson_id = l.id"
+                        + " WHERE l.school_id = :schoolId AND l.class_id IN (:classIds) AND l.status = 'published'"
+                        + " AND l.published_at >= :lessonsSince"
+                        + " AND ch.school_id = :schoolId AND ch.deleted_at IS NULL"
+                        + " AND sk.confirmed = TRUE AND UPPER(s.category) = 'SINGLE' AND a.attempt_number = 1"
+                        + " AND a.answered_at >= :attemptsSince"
+                        + " GROUP BY sk.id, sk.name"
+                        + " HAVING COUNT(*) >= " + MIN_TRIES
+                        + " ORDER BY (SUM(CASE WHEN a.correct THEN 1 ELSE 0 END) * 1.0) / COUNT(*) ASC, sk.name ASC",
+                scope).setMaxResults(WEAK_SKILLS));
+
+        var out = new ArrayList<HomeDto.WeakSkill>(rows.size());
+        for (var row : rows) {
+            double accuracy = (double) Reports.number(row[3]) / Reports.number(row[2]);
+            out.add(new HomeDto.WeakSkill(Reports.text(row[0]), Reports.text(row[1]),
+                    ProgressBands.INSTANCE.band(accuracy).name()));
+        }
+        return List.copyOf(out);
     }
 
     // ---------------------------------------------------------------- MANAGERIAL
@@ -236,14 +287,15 @@ public class HomeService {
                         + " AND u.status = 'active' AND NOT EXISTS (SELECT 1 FROM lessons l JOIN classes k ON k.id = l.class_id"
                         + " WHERE k.teacher_id = u.id AND l.school_id = :schoolId AND l.status = 'published' AND l.published_at >= :cutoff)"
                         + " ORDER BY u.email", scope).setMaxResults(MAX_ROWS)))
-            needsYou.add(new HomeDto.NeedsYouItem("teacher.quiet",
-                    Reports.text(row[1]) == null ? Reports.text(row[2]) : Reports.text(row[1]),
-                    "No lesson published in " + QUIET_TEACHER_DAYS + " days", "/management/teachers"));
+            needsYou.add(new HomeDto.NeedsYouItem("teacher.quiet", Reports.text(row[0]),
+                    Map.of("teacherName", Reports.text(row[1]) == null ? Reports.text(row[2]) : Reports.text(row[1]),
+                            "days", String.valueOf(QUIET_TEACHER_DAYS)),
+                    "/management/teachers"));
 
         var cards = List.of(
-                new HomeDto.HomeCard("children", "Children", String.valueOf(childCount)),
-                new HomeDto.HomeCard("activeFamilies", "Families active this week", String.valueOf(activeFamilies)),
-                new HomeDto.HomeCard("teachers", "Teachers", String.valueOf(teacherCount)));
+                new HomeDto.HomeCard("children", childCount),
+                new HomeDto.HomeCard("activeFamilies", activeFamilies),
+                new HomeDto.HomeCard("teachers", teacherCount));
         return new HomeDto.HomeResponse("MANAGERIAL", displayName, schoolId, schoolName, logoUrl, platformName,
                 cards, List.copyOf(needsYou), null, null);
     }
@@ -252,14 +304,6 @@ public class HomeService {
 
     private long one(String sql, Map<String, Object> parameters) {
         return Reports.number(Reports.bind(em, sql, parameters).getSingleResult());
-    }
-
-    private static String label(HomeDto.TeacherClassInfo info) {
-        return capitalise(info.curriculum()) + " · Grade " + info.grade() + " · " + capitalise(info.subject());
-    }
-
-    private static String capitalise(String value) {
-        return value == null || value.isEmpty() ? "" : Character.toUpperCase(value.charAt(0)) + value.substring(1);
     }
 
     private static String title(String value) { return value == null || value.isBlank() ? "Untitled lesson" : value; }

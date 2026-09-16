@@ -72,7 +72,7 @@ public class UserService {
         if ("TEACHER".equals(role)) profiles.save(user.getId(), request.teacherProfile());
 
         audit.record(caller.userId(), "user.create", "user", user.getId(), schoolId, Map.of("email", email, "role", role));
-        return DashboardDto.of(user, null);
+        return withSchoolName(user);
     }
 
     /**
@@ -118,7 +118,7 @@ public class UserService {
         users.save(user);
         audit.record(caller.userId(), "user.update", "user", user.getId(), user.getSchoolId(),
                 Map.of("status", user.getStatus(), "role", user.getRole()));
-        return DashboardDto.of(user, null);
+        return withSchoolName(user);
     }
 
     /** Only an active account: a reset link never revives a disabled one, and an invited one finishes through its invite. */
@@ -140,6 +140,15 @@ public class UserService {
         audit.record(caller.userId(), "user.impersonate", "user", user.getId(), user.getSchoolId(), Map.of("email", user.getEmail()));
         return new DashboardDto.SignInResponse(issued.token(), user.getEmail(), issued.expiresAt().toEpochMilli(), user.getRole(),
                 user.getSchoolId(), user.getDisplayName(), false, null);
+    }
+
+    /**
+     * One user with the name of their school, as every row of {@link #list} carries it: §6 screen 6 shows a school
+     * column, so the row the Admin has just created or edited must not lose its school name until a refetch.
+     */
+    private DashboardDto.DashboardUser withSchoolName(Entities.UserEntity user) {
+        return DashboardDto.of(user, null, null,
+                user.getSchoolId() == null ? null : schools.namesOf(List.of(user.getSchoolId())).get(user.getSchoolId()));
     }
 
     /** The row, if the caller is allowed to touch it at all: an Admin may, anyone else only inside their own school. */
