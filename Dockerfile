@@ -34,7 +34,9 @@ RUN --mount=type=cache,target=/pnpm-store \
 COPY dashboard ./
 # P3.1 adds the real generator; --if-present keeps this working while tools/gen-api.mjs is a no-op placeholder
 RUN corepack pnpm run --if-present gen:api
-ARG DASHBOARD_CONFIG=qa
+# D11: one bundle serves QA and production — the image always builds the `production` configuration and the
+# environment-specific values come from the API at runtime, so promoting the image by digest stays honest.
+ARG DASHBOARD_CONFIG=production
 RUN corepack pnpm build --configuration="$DASHBOARD_CONFIG"
 
 # ---- stage 4: Temurin 21 JRE + LibreOffice (PPTX → PDF) + fonts, non-root, listens on $PORT ----

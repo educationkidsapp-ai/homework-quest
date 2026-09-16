@@ -59,10 +59,7 @@ jobs:
             ${{ vars.IMAGE }}:develop
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # DASHBOARD_CONFIG picks the Angular configuration (src/environments/environment.qa.ts) baked into /app/dashboard
-          build-args: |
-            APP_VERSION=${{ env.TAG }}
-            DASHBOARD_CONFIG=qa
+          build-args: APP_VERSION=${{ env.TAG }}
 
   infra:
     name: Terraform apply (QA)
@@ -127,6 +124,10 @@ jobs:
     name: Lighthouse CI (dashboard sign-in)
     needs: deploy # skipped automatically when the deploy fails, so a broken deploy costs no Lighthouse minutes
     runs-on: ubuntu-latest
+    permissions:
+      # least privilege for the only third-party action in this workflow: no id-token (it must not be able to mint a
+      # GCP WIF token for the QA deployer) and no pull-requests write — the announce job posts the scores.
+      contents: read
     environment: qa
     outputs:
       performance: ${{ steps.scores.outputs.performance }}

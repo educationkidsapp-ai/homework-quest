@@ -4,16 +4,8 @@ name: Deploy production
 # no-traffic canary, smoke-tests the canary URL, then shifts 100 % of traffic and tags a GitHub release.
 # Gate (GitHub Free, private repo): manual dispatch from `main` only, with the word "deploy" typed in.
 #
-# ⚠ Dashboard configuration (P3.4). The Dockerfile bakes the Angular bundle with `--configuration=$DASHBOARD_CONFIG`
-# (build-arg, default `qa`; Deploy QA passes `qa`). Because production promotes QA's image *by digest* and never runs a
-# docker build, there is no place here to pass `DASHBOARD_CONFIG=production` — the promoted image necessarily carries the
-# QA bundle, which pins `firebaseProject: 'homework-quest-qa'` (dashboard/src/environments/environment.qa.ts) and keeps
-# the styleguide route. Before the first production deploy one of these has to happen (planner decision, tracked in
-# docs/plan.md; `homework-quest-prod` does not exist yet):
-#   a) the dashboard reads its environment from the API at runtime (e.g. /config), so one bundle serves both — then
-#      promotion by digest stays correct and DASHBOARD_CONFIG can go away; or
-#   b) this workflow builds and pushes its own image with `DASHBOARD_CONFIG=production` instead of promoting, which
-#      gives up "ship the exact artefact QA tested".
+# The dashboard needs nothing extra here: per D11 the image always builds the `production` Angular configuration and the
+# environment-specific values come from the API at runtime, so the bundle QA tested is the bundle production serves.
 # Environment variables: API_URL, IMAGE, QA_IMAGE, GCP_* and DASHBOARD_URL (= <api>/dashboard/, set by
 # infra/bootstrap.sh from `terraform output -raw dashboard_url`); uses below fall back to "<API_URL>/dashboard/".
 on:

@@ -88,15 +88,11 @@ use the dashboard origin and everything else stays as it is.
 `Dockerfile` stage `dashboard` (`node:22-alpine`, no JDK and no Android SDK) runs `pnpm install --frozen-lockfile`
 (pnpm store on a BuildKit cache mount) and `pnpm build --configuration=$DASHBOARD_CONFIG`, then the runtime stage copies
 `dashboard/dist/dashboard/browser` to `/app/dashboard` and sets `DASHBOARD_DIR=/app/dashboard` — so the directory is
-baked into the image and Terraform deliberately does **not** set it (`terraform plan` stays clean after a deploy). The
-`DASHBOARD_CONFIG` build-arg defaults to `qa`; `deploy-qa.yml` passes it explicitly. `webAdmin/`'s Wasm bundle is still
-staged by `scripts/build-panel.sh` into `server/panel` → `/app/panel` (`PANEL_DIR`) until P3.6 retires it.
-
-⚠ `deploy-production.yml` promotes QA's image *by digest* and never rebuilds, so it cannot pass
-`DASHBOARD_CONFIG=production`: the production container would serve the QA-configured bundle
-(`firebaseProject: homework-quest-qa`). Resolve this before the first production deploy — either make the dashboard read
-its environment from the API at runtime, or let production build its own image. See the header of
-`.github/workflows/deploy-production.yml`.
+baked into the image and Terraform deliberately does **not** set it (`terraform plan` stays clean after a deploy).
+Per **D11** the build-arg defaults to `production` and no workflow overrides it: one bundle serves QA and production, and
+the environment-specific values come from the API at runtime, so promoting the image by digest stays honest.
+`webAdmin/`'s Wasm bundle is still staged by `scripts/build-panel.sh` into `server/panel` → `/app/panel` (`PANEL_DIR`)
+until P3.6 retires it.
 
 GitHub variables used by the workflows come from `infra/bootstrap.sh`; the dashboard adds one:
 
