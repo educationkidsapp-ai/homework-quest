@@ -24,6 +24,9 @@ import quest.server.ApiTestSupport;
  * {@link StaticBundle}, and the legacy panel must keep working exactly as it did until P3.6 retires it.
  */
 class DashboardStaticTest extends ApiTestSupport {
+    /** Set by {@link #bundle()}; false (the filesystem refused symlinks) skips the symlink test. */
+    private static boolean SYMLINKS;
+
     private static final Path BUNDLE = bundle();
 
     @DynamicPropertySource static void bundleDir(DynamicPropertyRegistry registry) {
@@ -87,9 +90,45 @@ class DashboardStaticTest extends ApiTestSupport {
             assertThat(response.getStatus()).as("%s must not be served", escape).isBetween(400, 499);
             assertThat(response.getContentAsString()).as(escape).doesNotContain("not reachable through").doesNotContain("spring:");
         }
-        // a doubled slash is not a traversal: the container collapses it, so this is an unknown client route and gets the shell
+        // A doubled slash is not a traversal. MockMvc leaves `/dashboard//etc/passwd` to the handler, which treats it
+        // as an unknown client route and answers the shell; under real Tomcat the connector collapses it to
+        // `/etc/passwd` first, which is a 401 from `anyRequest().authenticated()`. Neither serves the file.
         mvc.perform(get("/dashboard//etc/passwd")).andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("<hq-root>")));
+    }
+
+    /**
+     * A symlink planted inside the bundle points outside it, and `normalize()` — being purely lexical — cannot see
+     * that, so the root and the candidate are both resolved with `toRealPath()` before they are compared. Defence in
+     * depth (it takes a link inside the image to exploit), but this is the one rule the two bundles share precisely
+     * because it must never be wrong.
+     */
+    @Test void a_symlink_inside_the_bundle_cannot_escape_it() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(SYMLINKS, "the filesystem does not allow symlinks");
+        for (String escape : new String[]{"/dashboard/pw-CCCCDDDD.js", "/dashboard/res/secret.txt", "/panel/pw-CCCCDDDD.js"}) {
+            var response = mvc.perform(get(escape)).andExpect(status().isNotFound()).andReturn().getResponse();
+            assertThat(response.getContentAsString()).as(escape).doesNotContain("not reachable through");
+        }
+        var bundle = new StaticBundle(BUNDLE.toString(), "dashboard");
+        assertThat(bundle.resolve(requestFor("/dashboard/pw-CCCCDDDD.js"))).as("the link itself").isNull();
+        assertThat(bundle.resolve(requestFor("/dashboard/res/secret.txt"))).as("through a linked directory").isNull();
+    }
+
+    /**
+     * The other half of the SPA fallback: it may not swallow a missing asset. A browser holding a stale `index.html`
+     * across a deploy asks for a chunk that is gone, and `200 text/html` turns a 404 a reload handler could act on
+     * into an opaque "failed to fetch dynamically imported module".
+     */
+    @Test void a_missing_asset_is_a_404_and_never_the_shell() throws Exception {
+        for (String gone : new String[]{"/dashboard/main-DEADBEEF.js", "/dashboard/chunk-GONE1234.js", "/dashboard/styles-00000000.css",
+                                        "/dashboard/assets/i18n/fr.json", "/dashboard/media/missing-ABCDEFGH.woff2", "/dashboard/nope.png"}) {
+            var response = mvc.perform(get(gone)).andExpect(status().isNotFound()).andReturn().getResponse();
+            assertThat(response.getContentAsString()).as("%s must not be answered with the shell", gone).doesNotContain("<hq-root>");
+        }
+        // ...while an extension-less path is still a client route and still gets the shell
+        for (String route : new String[]{"/dashboard/admin/schools", "/dashboard/accept-invite", "/dashboard/reset-password"})
+            mvc.perform(get(route)).andExpect(status().isOk())
+                    .andExpect(content().string(org.hamcrest.Matchers.containsString("<hq-root>")));
     }
 
     /**
@@ -120,12 +159,20 @@ class DashboardStaticTest extends ApiTestSupport {
                 .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-cache")));
     }
 
-    /** A miniature Angular 22 `dist/dashboard/browser`, plus a file one level up that traversal must never reach. */
+    /**
+     * A miniature Angular 22 `dist/dashboard/browser`, plus a file one level up that traversal must never reach and
+     * two symlinks that try to reach it anyway — one pretending to be a hashed chunk, one a linked directory.
+     */
     private static Path bundle() {
         try {
             Path root = Files.createTempDirectory("quest-dashboard-test");
             Files.writeString(root.resolve("secret.txt"), "not reachable through /dashboard/");
             Path dir = Files.createDirectory(root.resolve("browser"));
+            try {
+                Files.createSymbolicLink(dir.resolve("pw-CCCCDDDD.js"), root.resolve("secret.txt"));
+                Files.createSymbolicLink(dir.resolve("res"), root);
+                SYMLINKS = true;
+            } catch (java.io.IOException | UnsupportedOperationException e) { SYMLINKS = false; }
             Files.writeString(dir.resolve("index.html"), "<!doctype html><html><head><base href=\"/dashboard/\"></head><body><hq-root></hq-root></body></html>");
             Files.writeString(dir.resolve("favicon.ico"), "icon");
             Files.writeString(dir.resolve("manifest.webmanifest"), "{\"name\":\"dashboard\"}");
