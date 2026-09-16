@@ -695,38 +695,123 @@ is a shared interface — it is created and owned by the `dashboard` worker and 
 
 ## CI
 
-`.github/workflows/ci.yml` on every PR and push to `develop` / `main`. Five workflows in all — `ci`, `deploy-qa`,
-`deploy-production`, `rollback`, `migration-check` — plus Dependabot, which is `.github/dependabot.yml` rather than a
-workflow of its own ([deploy/README.md](../deploy/README.md) has the deploy ones).
+Seven workflows — `ci`, `ios`, `deploy-qa`, `deploy-production`, `rollback`, `migration-check`, `actions-cost` — plus
+Renovate and Dependabot, which are configuration files rather than workflows ([deploy/README.md](../deploy/README.md)
+has the deploy ones). The repository is private on the **GitHub Free** plan: 2,000 Actions minutes a month, a macOS
+minute billed as ten Linux minutes, a Windows minute as two, and every job rounded up to the whole minute.
 
-| Job | What it runs |
-|---|---|
-| `contract` | `:shared-api:jvmTest` + publishes the contract to `~/.m2` for the server job |
-| `server` | `cd server && ./mvnw test` — H2, plus PostgreSQL 16 through Testcontainers |
-| `app` | `:shared:desktopTest` (architecture, journey, screenshots), Android QA debug APK, the Wasm admin panel |
-| `dashboard` | lint, Vitest, `pnpm build --configuration=qa`, and the tokens + fonts drift checks |
-| `scripts` | `bash -n` and `shellcheck -S warning` over `e2e/*.sh` |
-| `ios` | simulator build + full-cycle UI test — only on `main` or a PR labelled `ios` (macOS minutes) |
-| `ci` | the aggregate status check the deploy workflows and branch rules wait for |
+`.github/workflows/ci.yml` runs on every pull request and on the push that lands it on `develop` or `main` — nothing
+else, so a branch is tested once per push, through its PR. Its first job, `changes` (ten seconds), reads the changed
+paths and decides which of the others run. A push to `develop` or `main` skips that filter and runs everything,
+because that run is what the deploy waits for.
+
+| Job | Triggered by | What it runs |
+|---|---|---|
+| `changes` | always | `dorny/paths-filter`; every other job is gated on its outputs |
+| `contract` | `shared-api/**` (or anything that triggers `server`/`app`) | `:shared-api:jvmTest` + publishes the contract to `~/.m2` for the server job |
+| `server` | `server/**`, `shared-api/**` | `./mvnw test` twice: `-Dtest.excludedGroups=postgres` (H2, reports first), then `-Dtest.groups=postgres` (Testcontainers) |
+| `app` | `shared/**`, `shared-ui/**`, `shared-api/**`, `androidApp/**`, `iosApp/**`, `desktopApp/**`, `webAdmin/**`, `design/tokens.json`, the Gradle files | common-metadata type-check (the iOS-facing sources), `:shared:desktopTest`, Android QA **debug** APK, the Wasm admin panel |
+| `dashboard` | `dashboard/**`, `design/tokens.json`, `server/openapi.json`, `permissions.json` | generated API client, lint, Vitest, `pnpm build --configuration=qa`, tokens + fonts drift |
+| `scripts` | `e2e/**` | `bash -n` and `shellcheck -S warning` over `e2e/*.sh` |
+| `infra` | `infra/**`, `deploy/**`, `scripts/**`, `.github/**`, `Dockerfile` | `terraform fmt -check` + `validate` (no backend, no credentials) and `actionlint` |
+| `docs` | nothing but documentation changed | the relative links in every `*.md` must resolve |
+| `ci` | always | the aggregate: the single required status check |
+
+`ci` is the only required check. It treats **`skipped` as a pass** — a job that was filtered out was not needed — and
+`failure`, `cancelled` and `timed_out` as failures, so a cancelled job never counts as a tested one. A change to
+`.github/workflows/ci.yml` itself is in every filter: editing CI runs all of CI.
+
+Three of the `dashboard` filter's paths are outside `dashboard/`, because the dashboard is **generated** from them:
+`server/openapi.json` (the API client, `pnpm gen:api`), `server/src/main/resources/permissions.json`
+(`permissions.generated.ts`) and `design/tokens.json` (`_tokens.generated.scss`). A server-only change to any of the
+three can break the Angular build with nothing under `dashboard/` having moved — which is how P4.0's `/schools/logo`
+signature reached the QA image build as a `TS2769` with no CI signal at all.
 
 The **`scripts` job** exists because the e2e shell scripts need a live server and a seeded fixture, so CI cannot run
 them: it catches syntax errors and shellcheck warnings instead. `shellcheck` ships on `ubuntu-latest`, no suppressions
 are expected, and `bash -n` is run one file at a time (it takes a single script; the rest would become its `$1`).
 
-The **`dashboard` job** is path-filtered *inside* the job (`dashboard/**`, `design/tokens.json`,
-`.github/workflows/ci.yml`) rather than with a workflow-level `paths:`, so the `ci` aggregate always exists as a status
-check; a PR that touches nothing under `dashboard/` skips every step after the filter and `skipped` counts as success.
-It caches pnpm only — no Java toolchain — and costs about ten seconds of runner time on an unrelated PR. Playwright is
-deliberately not in CI: it needs browser downloads and a deployed target, and runs against QA after the deploy in
-phase 3.
+**Playwright** does not run on pull requests. It needs a browser download and a deployed target, and it runs against
+the environment that was actually shipped: `deploy-qa.yml`'s `e2e` job, after the deploy, with `E2E_BASE_URL` set to
+`vars.API_URL` (`pnpm e2e:qa` — the same suite against `<API>/dashboard/`, two retries, no dev server; an empty
+`API_URL` fails the job rather than quietly starting a dev server on the runner). `deploy-qa.yml`'s `lighthouse` job
+measures the same deployment in parallel — performance and accessibility ≥ 90 from `.github/lighthouserc.json`, a hard
+gate, with the scores posted in the deploy comment.
 
 Node is pinned by `.nvmrc` (22); pnpm by `dashboard/package.json`'s `packageManager` field, enabled with corepack. The
 dev Mac runs Node 25, which only produces an engine warning.
 
+### What a PR costs
+
+Billed minutes, one job per line, measured over the twenty runs before the split (September 2026 numbers on a warm cache):
+
+| Job | Before | After |
+|---|--:|--:|
+| `app` (Gradle: screenshots, APK, Wasm) | 7–12 | 7–12, and only for `shared/**`, `androidApp/**`, `iosApp/**`, tokens |
+| `server` | 3 | 3, and only for `server/**` |
+| `contract` | 1 | 1 |
+| `dashboard` | 1 | 1, and only for `dashboard/**` |
+| `scripts`, `ci`, `changes`, `infra`, `docs` | 2 | 1–3 |
+| **A typical single-area PR** | **~16** | **~4–13** |
+| **A docs-only PR** | **~16** | **3** (`changes` + `docs` + `ci`) |
+
+The `app` job is where the minutes are: `:shared:desktopTest` renders 51 screenshots, and the Android APK and the
+Wasm panel are two more full Kotlin compilations. Everything else together is under five minutes.
+
+Caches, all keyed so a PR reads and only `develop` writes (`cache-read-only: ${{ github.ref != 'refs/heads/develop' }}`):
+
+- **Gradle** — `gradle/actions/setup-gradle`, dependencies and the build cache. `--no-daemon` is deliberately *not*
+  passed any more, so the three `./gradlew` invocations in the `app` job share one warm daemon.
+- **Maven** — `actions/setup-java` with `cache: maven`. `server/.mvn/maven.config` adds `--batch-mode`,
+  `--no-transfer-progress` and `-T1C` to every invocation, CI and local alike.
+- **pnpm** — `actions/setup-node` with `cache: pnpm`, keyed on `dashboard/pnpm-lock.yaml`.
+- **Docker** — `docker/build-push-action` with `cache-from: type=gha` / `cache-to: type=gha,mode=max` (deploy only;
+  PRs never build or push the image).
+- **Playwright browsers** — `~/.cache/ms-playwright`, keyed on the lockfile, in the QA e2e job.
+- **Terraform providers** — `TF_PLUGIN_CACHE_DIR`, keyed on `.terraform.lock.hcl`.
+
+The Android SDK is *not* cached: `ubuntu-latest` ships the platforms and build-tools this project needs, and a cache of
+`$ANDROID_HOME` would be slower to restore than the preinstalled copy. The Gradle **configuration cache** is off, and
+`gradle.properties` says why: two ad-hoc tasks (`:shared-ui:generateDesignTokens`, `:webAdmin:generateConfig`) capture
+their build script in a closure, which it cannot serialize.
+
+Every job has a `timeout-minutes` (30 for macOS and the image/APK builds, 10–20 for the rest) so a hung run cannot burn
+an afternoon, and both `ci.yml` and `migration-check.yml` cancel the previous run of the same ref when you push again.
+
+### iOS, on macOS, never on a PR
+
+`ios.yml` is the only workflow that touches a macOS runner. It runs on pushes to `develop` and `main` and on `v*` tags,
+and even then only when the push touched `iosApp/**`, `shared/**`, `shared-ui/**`, `shared-api/**` or the Gradle files —
+a ten-second Linux job makes that call before ten macOS minutes are spent. Pull requests instead type-check the
+iOS-facing sources on Linux (`:shared:compileCommonMainKotlinMetadata`): Kotlin/Native's Apple targets need a macOS
+host, so `:shared:compileKotlinIosSimulatorArm64` does not exist on a Linux runner at all.
+
+```bash
+gh workflow run ios.yml --ref <branch>   # on demand, before a risky iOS change lands
+gh run watch
+```
+
+### Watching the bill
+
+`actions-cost.yml` runs at 06:00 UTC every Monday (and on demand) and writes a per-workflow table of the last seven
+days to the run's job summary, projecting the month. Over 1,500 minutes it opens — or comments on — an issue labelled
+`infra`. It computes the minutes itself from each job's start and finish, rounded up and multiplied by the runner rate,
+because `/actions/runs/<id>/timing` answers `total_ms: 0` on this account.
+
+```bash
+gh workflow run actions-cost.yml -f days=30
+gh run view --job <id> --log | grep "Cache restored"   # did the caches hit?
+```
+
+**If Actions stops running altogether** — every run failing in seconds, or "the job was not started" — it is billing,
+not the workflows. On github.com: your avatar → **Settings** → **Billing and licensing** → **Spending limits**, and
+either raise the limit or clear the outstanding balance; Actions resumes on the next push, and nothing in the repo
+needs changing. The monthly free allowance also resets on the account's billing date.
+
 **Renovate** (`renovate.json`) groups minor and patch bumps into one weekly PR per ecosystem (dashboard npm, server
-maven, gradle, github-actions), keeps majors ungrouped and labelled `major`, and leaves Terraform to Dependabot so the
-two bots never open the same PR. It only runs once the **Renovate GitHub App is installed on the repository** — until
-then the file is inert and nothing opens those PRs.
+maven, gradle, github-actions) on `before 6am on monday`, keeps majors ungrouped and labelled `major`, and leaves
+Terraform to Dependabot so the two bots never open the same PR. It only runs once the **Renovate GitHub App is
+installed on the repository** — until then the file is inert and nothing opens those PRs.
 
 Watching a run:
 

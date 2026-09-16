@@ -1,5 +1,11 @@
 name: CI
 
+# Pull requests, and the push that lands them on `develop` (the deploy workflow waits for this run) or `main`.
+# No other branch triggers a run: a feature branch is tested through its PR, once per push, not twice.
+#
+# Every job below is gated on what the PR actually touches (the `changes` job) and `ci` — the single required status
+# check — treats a job that was never triggered as a pass. macOS never runs here: the iOS build is `ios.yml`, on
+# `develop`/`main`/tags only, because a macOS minute is billed at ten Linux minutes.
 on:
   pull_request:
     branches: [develop, main]
@@ -14,62 +20,160 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read # dorny/paths-filter lists the PR's changed files through the API instead of a deep fetch
+    outputs:
+      # On a push to develop/main nothing is filtered — that run gates a deploy, so everything runs.
+      contract: ${{ github.event_name != 'pull_request' || steps.f.outputs.contract == 'true' }}
+      server: ${{ github.event_name != 'pull_request' || steps.f.outputs.server == 'true' }}
+      mobile: ${{ github.event_name != 'pull_request' || steps.f.outputs.mobile == 'true' }}
+      dashboard: ${{ github.event_name != 'pull_request' || steps.f.outputs.dashboard == 'true' }}
+      infra: ${{ github.event_name != 'pull_request' || steps.f.outputs.infra == 'true' }}
+      scripts: ${{ github.event_name != 'pull_request' || steps.f.outputs.scripts == 'true' }}
+      # Anything that is not documentation. False ⇒ the PR is docs-only and the `docs` job below is the whole run.
+      code: >-
+        ${{ github.event_name != 'pull_request'
+        || steps.f.outputs.contract == 'true' || steps.f.outputs.server == 'true'
+        || steps.f.outputs.mobile == 'true' || steps.f.outputs.dashboard == 'true'
+        || steps.f.outputs.infra == 'true' || steps.f.outputs.scripts == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: f
+        if: github.event_name == 'pull_request'
+        with:
+          # `.github/workflows/ci.yml` is in every filter on purpose: a change to this file must be exercised by
+          # every job it describes, and it is a rare change.
+          filters: |
+            contract:
+              - 'shared-api/**'
+              - '.github/workflows/ci.yml'
+            server:
+              - 'server/**'
+              - 'shared-api/**'
+              - '.github/workflows/ci.yml'
+            mobile:
+              - 'shared/**'
+              - 'shared-ui/**'
+              - 'shared-api/**'
+              - 'androidApp/**'
+              - 'iosApp/**'
+              - 'desktopApp/**'
+              - 'webAdmin/**'
+              - 'design/tokens.json'
+              - 'gradle/**'
+              - 'gradlew'
+              - '*.gradle.kts'
+              - 'gradle.properties'
+              - '.github/workflows/ci.yml'
+            # Three of these live outside dashboard/ because the dashboard is *generated* from them and a change
+            # there breaks the Angular build with nothing under dashboard/ having moved:
+            #   server/openapi.json  → the API client (`pnpm gen:api`); P4.0 changed `/schools/logo` to take a body
+            #                          and `sign-in.page.ts` stopped compiling (TS2769) with no CI signal at all,
+            #                          because only the server jobs had run. The QA image build found it instead.
+            #   permissions.json     → src/app/core/permissions/permissions.generated.ts (`pnpm gen:permissions`),
+            #                          whose spec re-derives the matrix from the server's file and fails on drift.
+            #   design/tokens.json   → src/styles/_tokens.generated.scss (`pnpm tokens --check`).
+            dashboard:
+              - 'dashboard/**'
+              - 'design/tokens.json'
+              - 'server/openapi.json'
+              - 'server/src/main/resources/permissions.json'
+              - '.github/workflows/ci.yml'
+            infra:
+              - 'infra/**'
+              - 'deploy/**'
+              - 'scripts/**'
+              - '.github/**'
+              - 'Dockerfile'
+              - 'docker-compose.yml'
+            scripts:
+              - 'e2e/**'
+              - '.github/scripts/**'
+              - '.github/workflows/ci.yml'
+
   contract:
     name: Shared contract (schemas, scoring, map rule)
+    needs: changes
+    if: needs.changes.outputs.contract == 'true' || needs.changes.outputs.server == 'true' || needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21" }
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :shared-api:jvmTest :shared-api:publishToMavenLocal -Pquest.serverOnly=true --no-daemon
+        with:
+          # PRs read the Gradle build cache and the dependency cache; only `develop` writes them, so a hundred PR runs
+          # cannot evict each other's entries or race to save the same key.
+          cache-read-only: ${{ github.ref != 'refs/heads/develop' }}
+      - run: ./gradlew :shared-api:jvmTest :shared-api:publishToMavenLocal -Pquest.serverOnly=true
       - uses: actions/upload-artifact@v4
         with: { name: shared-api-m2, path: ~/.m2/repository/quest, retention-days: 1 }
 
   server:
     name: Server (H2 + PostgreSQL)
-    needs: contract
+    needs: [changes, contract]
+    if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21", cache: maven }
       - uses: actions/download-artifact@v4
         with: { name: shared-api-m2, path: ~/.m2/repository/quest }
-      - name: Tests (parent flow, admin pipeline + cache, OpenAPI contract, Testcontainers on Postgres 16)
-        run: cd server && ./mvnw -B -q test
+      # Two invocations so the fast half reports first: a broken unit test is visible in ~2 min instead of after the
+      # container half. `server/.mvn/maven.config` adds --batch-mode, --no-transfer-progress and -T1C.
+      - name: Unit and slice tests (H2, no Docker)
+        run: cd server && ./mvnw test -Dtest.excludedGroups=postgres
+      - name: Testcontainers tests (one PostgreSQL 16 for the whole tag, one Spring context)
+        run: cd server && ./mvnw test -Dtest.groups=postgres -Djacoco.skip=true
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: server-test-reports, path: server/target/surefire-reports/** }
 
   app:
     name: App (architecture, screenshots, Android QA APK, admin panel)
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "17" }
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/develop' }}
+      # The iOS-facing check that a Linux runner can do. Kotlin/Native's Apple targets need a macOS host — with
+      # `kotlin.native.ignoreDisabledTargets=true` they are not even created here — so what runs on a PR is the
+      # common metadata compilation, which type-checks every line of commonMain that iosMain builds on. The real
+      # `:shared:compileKotlinIosSimulatorArm64` and the simulator UI test are `ios.yml`, on macOS.
+      - name: iOS-facing sources type-check (common metadata, 1× Linux)
+        run: ./gradlew :shared-api:compileCommonMainKotlinMetadata :shared:compileCommonMainKotlinMetadata
       - name: Shared app tests (architecture rules, journey flow, 51 screenshots)
-        run: ./gradlew :shared:desktopTest --no-daemon
+        run: ./gradlew :shared:desktopTest
       - name: Android QA debug APK + admin panel (Wasm)
-        run: ./gradlew :androidApp:assembleQaDebug :webAdmin:wasmJsBrowserDistribution --no-daemon
+        run: ./gradlew :androidApp:assembleQaDebug :webAdmin:wasmJsBrowserDistribution
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: screenshots, path: shared/build/screenshots/**, retention-days: 7 }
 
   dashboard:
-    # Path-filtered inside the job (not with a workflow-level `paths:`) so the `ci` aggregate below always exists as a
-    # status check. No Gradle/Maven setup here and no Java toolchain: this job caches pnpm only, and on a PR that does
-    # not touch the dashboard every step after the filter is skipped, so it costs ~10 s of runner time.
-    # Playwright (`pnpm e2e`, styleguide screenshots) is deliberately NOT part of CI: it needs browser downloads and a
-    # deployed target, and runs against QA after the deploy in phase 3 (P3.x), not on every PR. The plain shell
-    # scripts under e2e/ are only linted (see the `scripts` job), never run.
+    # Playwright is deliberately not here: it needs browser downloads and a deployed target, and runs against QA
+    # after the deploy (`deploy-qa.yml`, the `e2e` job). The plain shell scripts under e2e/ are only linted, in the
+    # `scripts` job, never run.
     name: Dashboard (lint, unit tests, build)
+    needs: changes
+    if: needs.changes.outputs.dashboard == 'true'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read # dorny/paths-filter lists the PR's changed files through the API instead of a deep fetch
+    timeout-minutes: 20
     env:
       COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
     defaults:
@@ -77,16 +181,7 @@ jobs:
         working-directory: dashboard
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            dashboard:
-              - 'dashboard/**'
-              - 'design/tokens.json'
-              - '.github/workflows/ci.yml'
       - name: Enable corepack (pnpm version comes from dashboard/package.json "packageManager")
-        if: steps.changes.outputs.dashboard == 'true'
         run: |
           # --install-directory keeps the shims out of the root-owned /usr/local/bin (no sudo, survives setup-node);
           # `prepare --activate` reads the "packageManager": "pnpm@x.y.z" pin and makes that version the default, so the
@@ -97,75 +192,117 @@ jobs:
           echo "$RUNNER_TEMP/corepack" >> "$GITHUB_PATH"
       # after corepack, so setup-node's `cache: pnpm` finds the pinned pnpm and can read the store path
       - uses: actions/setup-node@v4
-        if: steps.changes.outputs.dashboard == 'true'
         with:
           node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: dashboard/pnpm-lock.yaml
       - name: Install
-        if: steps.changes.outputs.dashboard == 'true'
         run: corepack pnpm install --frozen-lockfile
       - name: Generated API client (openapi-generator over server/openapi.json)
-        # `--if-present` because tools/gen-api.mjs is still a placeholder on develop and P3.1 turns it into the real
-        # generator; there is no `postinstall`, so the client has to be generated explicitly before lint/test/build.
-        if: steps.changes.outputs.dashboard == 'true'
+        # P3.1's `postinstall` already generates it during the install above; this re-runs it explicitly so a lockfile
+        # cache hit that skips scripts can never leave lint/test/build compiling against a stale client.
         run: pnpm run --if-present gen:api
       - name: Design tokens must match design/tokens.json
-        if: steps.changes.outputs.dashboard == 'true'
         run: pnpm tokens --check
       - name: Subset fonts must match the TTFs in shared-ui
-        if: steps.changes.outputs.dashboard == 'true'
         run: node tools/fonts.mjs --check
       - name: Lint
-        if: steps.changes.outputs.dashboard == 'true'
         run: pnpm lint
       - name: Unit tests (Vitest)
-        if: steps.changes.outputs.dashboard == 'true'
         run: pnpm test
       - name: Build (QA configuration)
-        if: steps.changes.outputs.dashboard == 'true'
-        run: pnpm build --configuration=qa
+        run: pnpm build --configuration=qa --no-progress
       - uses: actions/upload-artifact@v4
-        if: steps.changes.outputs.dashboard == 'true'
         with: { name: dashboard-dist, path: dashboard/dist, retention-days: 1 }
 
   scripts:
     # The e2e shell scripts (e2e/isolation.sh, e2e/flags.sh, ...) run against a live server, so CI cannot execute them;
-    # this catches syntax errors and shellcheck warnings before a human does. shellcheck ships on ubuntu-latest.
+    # this catches syntax errors and shellcheck warnings before a human does. `.github/scripts/*.sh` are here too —
+    # actionlint shellchecks `run:` blocks, not files on disk, so nothing else would ever lint them.
     name: Shell scripts (bash -n, shellcheck)
+    needs: changes
+    if: needs.changes.outputs.scripts == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Syntax check (bash -n takes one script; the rest would become its $1)
-        run: for f in e2e/*.sh; do bash -n "$f"; done
+        run: for f in e2e/*.sh .github/scripts/*.sh; do bash -n "$f"; done
       - name: shellcheck (warning and above; no suppressions expected)
-        run: shellcheck -S warning e2e/*.sh
+        run: shellcheck -S warning e2e/*.sh .github/scripts/*.sh
 
-  ios:
-    # macOS minutes are expensive: runs on PRs labelled `ios` and on every push to main.
-    name: iOS (simulator build + full-cycle UI test)
-    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'ios')
-    runs-on: macos-14
+  infra:
+    # Terraform and the workflows are the one part of the repo nothing else compiles. `terraform validate` needs no
+    # credentials and no state (`-backend=false`), and actionlint runs shellcheck over every `run:` block.
+    name: Infra (actionlint, terraform fmt + validate)
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugins
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: "17" }
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Full cycle on the simulator
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_wrapper: false }
+      - uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.terraform-plugins
+          key: tf-plugins-${{ runner.os }}-${{ hashFiles('infra/terraform/.terraform.lock.hcl') }}
+          restore-keys: tf-plugins-${{ runner.os }}-
+      - name: terraform fmt + validate (no backend, no credentials)
+        working-directory: infra/terraform
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c 'import sys,json;d=json.load(sys.stdin);print(next(x["udid"] for r in d["devices"].values() for x in r if x["name"].startswith("iPhone")))')
-          xcrun simctl boot "$UDID" || true
-          xcodebuild test -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator -destination "platform=iOS Simulator,id=$UDID" -only-testing:iosAppUITests/JourneyUITests CODE_SIGNING_ALLOWED=NO -quiet
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate
+      - name: actionlint (workflow syntax, plus shellcheck over every `run:`)
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash -s -- 1.7.12
+          ./actionlint -color
+
+  docs:
+    # A docs-only PR still has to satisfy the `ci` required check. One job, no toolchain, no cache: it checks that the
+    # relative links between the markdown files resolve, which is the only thing that can actually rot in docs/.
+    name: Docs only (relative links)
+    needs: changes
+    if: needs.changes.outputs.code != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Relative markdown links must resolve
+        run: ./.github/scripts/check-doc-links.sh
 
   # The status check the deploy workflows and the (Pro-only) branch rules wait for.
   ci:
     name: ci
-    needs: [contract, server, app, dashboard, scripts]
+    needs: [changes, contract, server, app, dashboard, scripts, infra, docs]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - run: |
-          echo "contract=${{ needs.contract.result }} server=${{ needs.server.result }} app=${{ needs.app.result }} dashboard=${{ needs.dashboard.result }} scripts=${{ needs.scripts.result }}"
-          [ "${{ needs.contract.result }}" = success ] && [ "${{ needs.server.result }}" = success ] && [ "${{ needs.app.result }}" = success ] && [ "${{ needs.scripts.result }}" = success ] || exit 1
-          # the dashboard job is path-filtered, so `skipped` (nothing under dashboard/ changed) counts as success
-          case "${{ needs.dashboard.result }}" in success|skipped) ;; *) exit 1 ;; esac
+      - name: Every job that was triggered must have succeeded
+        env:
+          # `skipped` is a pass: the job was filtered out because the PR does not touch its area. `failure`,
+          # `cancelled` and `timed_out` are all failures — a cancelled job is not a tested one.
+          RESULTS: >-
+            changes=${{ needs.changes.result }}
+            contract=${{ needs.contract.result }}
+            server=${{ needs.server.result }}
+            app=${{ needs.app.result }}
+            dashboard=${{ needs.dashboard.result }}
+            scripts=${{ needs.scripts.result }}
+            infra=${{ needs.infra.result }}
+            docs=${{ needs.docs.result }}
+        run: |
+          echo "$RESULTS"
+          failed=0
+          for pair in $RESULTS; do
+            case "${pair#*=}" in
+              success | skipped) ;;
+              *) echo "::error::${pair%%=*} ${pair#*=}" ; failed=1 ;;
+            esac
+          done
+          exit "$failed"
