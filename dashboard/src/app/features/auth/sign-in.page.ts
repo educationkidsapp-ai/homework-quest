@@ -126,7 +126,7 @@ export class SignInPage {
   private readonly lookup = rxResource<SchoolLogo | null, string | undefined>({
     params: () => this.settledEmail() ?? undefined,
     stream: ({ params: email }) =>
-      this.schoolsApi.schoolLogo(email).pipe(
+      this.schoolsApi.schoolLogo({ email }).pipe(
         // 204 (no school for that domain) arrives as a null body; so does a failed lookup,
         // and both mean the same thing here: show the platform's logo.
         map((logo): SchoolLogo | null => logo ?? null),
