@@ -22,6 +22,9 @@ import quest.core.mvi.MviViewModel
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.domain.ParentRepository
 import quest.feature.parent.domain.ParentSettings
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.FeatureGate
+import quest.feature.school.presentation.LocalSchoolBranding
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
 
@@ -54,15 +57,19 @@ fun SettingsScreen(state: SettingsContract.State, s: Strings, dispatch: (Setting
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
         SectionTitle(s.childProfile)
         ParentButton(state.childName.ifBlank { s.childProfile }, { state.childId?.let(onEditChild) }, primary = false, icon = "🧒", enabled = state.childId != null)
-        SectionTitle(s.language)
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
-            Chip("English", Palette.parentAccentSoft, selected = state.settings.language == "en") { dispatch(SettingsContract.Intent.Language("en")) }
-            Chip("العربية", Palette.parentAccentSoft, selected = state.settings.language == "ar") { dispatch(SettingsContract.Intent.Language("ar")) }
+        // §4 `parentPanel.arabic`: with one language there is nothing to choose, so the whole section goes.
+        FeatureGate(Flags.PARENT_PANEL_ARABIC) {
+            SectionTitle(s.language)
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
+                Chip("English", selected = state.settings.language == "en") { dispatch(SettingsContract.Intent.Language("en")) }
+                Chip("العربية", selected = state.settings.language == "ar") { dispatch(SettingsContract.Intent.Language("ar")) }
+            }
         }
         SectionTitle(s.changePin)
         ParentButton(s.changePin, onChangePin, primary = false, icon = "🔒")
         SectionTitle(s.privacy)
         ParentCard { Text(s.privacyBody, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft) }
-        Text("${s.version} 0.2.0", style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft, modifier = Modifier.padding(vertical = Dimens.s16))
+        // §A: the school's own `appName` where the product's name is shown, falling back to the platform's.
+        Text("${LocalSchoolBranding.current.appName} · ${s.version} 0.2.0", style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft, modifier = Modifier.padding(vertical = Dimens.s16))
     }
 }

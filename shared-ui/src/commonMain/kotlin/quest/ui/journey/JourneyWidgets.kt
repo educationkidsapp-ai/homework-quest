@@ -102,10 +102,12 @@ fun stopKindLabel(stop: Stop): String = when (stop) {
 
 /** 1 · 2 · 3 selector; locked levels are asleep. */
 @Composable
-fun LevelSelector(unlocked: List<Int>, completed: List<Int>, current: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun LevelSelector(unlocked: List<Int>, completed: List<Int>, current: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, levels: List<Int> = listOf(1, 2, 3)) {
     val names = mapOf(1 to "Same as the book", 2 to "Think", 3 to "Challenge")
     Row(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
-        (1..3).forEach { lvl ->
+        // [levels] is normally all three; a school with `levels.three` off is shown two, and the Challenge path is
+        // simply not part of the journey rather than a locked door the child keeps tapping.
+        levels.forEach { lvl ->
             val open = lvl in unlocked
             Column(
                 Modifier.weight(1f).height(Dimens.minTarget + 8.dp)

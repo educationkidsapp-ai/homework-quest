@@ -14,6 +14,8 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.background
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
@@ -23,6 +25,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.Font
+import quest.api.dto.SchoolTheme
 import quest.ui.resources.Res
 import quest.ui.resources.archivo_variable
 import quest.ui.resources.ibmplexsansarabic_regular
@@ -38,8 +41,9 @@ val LocalThemeMode = staticCompositionLocalOf { ThemeMode.CHILD }
  * Field names mirror the theme JSON keys; every colour is nullable and `null` means "keep the token".
  * Nothing client-side validates them — the server rejects a theme whose contrast fails.
  *
- * Wiring the fetch, the 300 ms colour transition and the mascot/world-palette application is P2.2; for now the
- * default [ThemeOverrides] is empty, so [ParentTheme] renders exactly the token values.
+ * [schoolThemeOverrides] builds one from a [SchoolTheme]; the app's root animates between two of them over
+ * [Motion.themeTransitionMillis] and provides the result through [LocalThemeOverrides]. With the default, empty one
+ * every screen renders exactly the token values.
  */
 data class ThemeOverrides(
     val primary: Color? = null,
@@ -48,6 +52,13 @@ data class ThemeOverrides(
     val ground: Color? = null,
     val softBorder: Color? = null,
     val mascotColor: Color? = null,
+    /**
+     * The soft tint of [accent] — what `hq.color.accent-soft` is to `hq.color.accent`: chips, hover fills, the
+     * secondary button. A theme JSON has no such field (the server has no contrast pair to measure for it), so
+     * [softAccentOf] derives it; it is a field rather than a computed property so the root can cross-fade it like
+     * any other colour, and so the token's own soft red survives untouched when nothing is themed.
+     */
+    val softAccent: Color? = null,
     val worldPalettes: WorldPaletteOverrides = WorldPaletteOverrides(),
     /** The school's font family key; `null` keeps Archivo / IBM Plex Sans Arabic. */
     val fontChoice: String? = null,
@@ -55,16 +66,60 @@ data class ThemeOverrides(
     /** True when the school theme carries nothing — the default, and the only state phase 1 ever sees. */
     val isEmpty: Boolean
         get() = primary == null && primaryInk == null && accent == null && ground == null &&
-            softBorder == null && mascotColor == null && worldPalettes.isEmpty && fontChoice == null
+            softBorder == null && mascotColor == null && softAccent == null && worldPalettes.isEmpty && fontChoice == null
 }
+
+/** [accent] at 12 % over [ground] — the same relationship `hq.color.accent-soft` has to `hq.color.accent`. */
+fun softAccentOf(accent: Color?, ground: Color?): Color? =
+    accent?.copy(alpha = 0.12f)?.compositeOver(ground ?: Palette.parentBg)
 
 /** `theme.worldPalettes.math` / `.english` — the per-subject world colour a school may override. */
 data class WorldPaletteOverrides(val math: Color? = null, val english: Color? = null) {
     val isEmpty: Boolean get() = math == null && english == null
 }
 
-/** No overrides by default; P2.2 provides the school's theme around the app's root. */
+/** No overrides by default; the app's root provides the joined school's theme (P2.2). */
 val LocalThemeOverrides = compositionLocalOf { ThemeOverrides() }
+
+/**
+ * `#RRGGBB` / `#RGB` / `#RRGGBBAA` → [Color]; anything else (including null and blank) → null, so a value the server
+ * would never send simply leaves the token in place. Nothing else is validated here: the server rejects a theme whose
+ * contrast fails, and the app must not second-guess a theme it was given.
+ */
+fun parseThemeColor(value: String?): Color? {
+    val hex = value?.trim()?.removePrefix("#")?.takeIf { it.isNotEmpty() } ?: return null
+    if (!hex.all { it.isDigit() || it in "abcdefABCDEF" }) return null
+    val argb = when (hex.length) {
+        3 -> "FF" + hex.map { "$it$it" }.joinToString("")
+        6 -> "FF$hex"
+        8 -> hex.substring(6, 8) + hex.substring(0, 6)   // #RRGGBBAA → AARRGGBB
+        else -> return null
+    }
+    return Color(argb.toLong(16))
+}
+
+/**
+ * A school's theme (`GET /schools/{id}/theme`) as [ThemeOverrides]. Colours that are missing or malformed stay null,
+ * which every consumer reads as "keep the token", so a half-filled theme degrades one colour at a time.
+ *
+ * [SchoolTheme.fontChoice] only ever resolves to the bundled Nunito today: `baloo` and `fredoka` are not shipped as
+ * font resources, so they fall back to Nunito. The key is still carried in [ThemeOverrides.fontChoice] so the day the
+ * two faces are added to `composeResources/font/` the mapping is the only thing that has to change.
+ */
+fun schoolThemeOverrides(theme: SchoolTheme): ThemeOverrides = ThemeOverrides(
+    primary = parseThemeColor(theme.primary),
+    primaryInk = parseThemeColor(theme.primaryInk),
+    accent = parseThemeColor(theme.accent),
+    ground = parseThemeColor(theme.ground),
+    softBorder = parseThemeColor(theme.softBorder),
+    mascotColor = parseThemeColor(theme.mascotColor),
+    softAccent = softAccentOf(parseThemeColor(theme.accent), parseThemeColor(theme.ground)),
+    worldPalettes = WorldPaletteOverrides(
+        math = parseThemeColor(theme.worldPalettes["math"]?.primary),
+        english = parseThemeColor(theme.worldPalettes["english"]?.primary),
+    ),
+    fontChoice = theme.fontChoice.name.lowercase(),
+)
 
 @Composable
 fun childFontFamily(): FontFamily = FontFamily(
@@ -111,25 +166,49 @@ private fun childScheme(): ColorScheme = lightColorScheme(
 )
 
 /**
+ * Black or white, whichever reads on [background]. Used for the text on a fill a school chose: the server measures
+ * `primaryInk` against `primary` and `accent` against the ground, but never the label on an accent-filled button, so
+ * the app picks that one itself rather than assuming every school's accent is dark.
+ */
+fun inkOn(background: Color): Color = if (background.luminance() > 0.5f) Palette.parentInk else Palette.white
+
+/**
  * The parent/admin scheme. Colours come from [Palette] (generated from `design/tokens.json`); a school theme may
  * replace individual roles through [overrides] — with the default, empty [ThemeOverrides] the result is identical
- * to the token values.
+ * to the token values, which `TokensDriftTest` asserts.
+ *
+ * §3 gives the three brand colours distinct jobs, and the Material roles follow them rather than their names:
+ *  - `accent` is **the colour of an action** → [ColorScheme.primary] and [ColorScheme.secondary]: filled buttons,
+ *    selection borders, rules. The server holds it to 4.5:1 against the ground.
+ *  - `primary` is **a light brand surface** carrying `primaryInk` → [ColorScheme.surface]: cards, the logo tile.
+ *    That is the pair the server measures together, so it is the pair used together.
+ *  - `ground` is the page → [ColorScheme.background].
  */
-internal fun parentScheme(overrides: ThemeOverrides = ThemeOverrides()): ColorScheme = lightColorScheme(
-    primary = overrides.primary ?: Palette.parentAccent,
-    onPrimary = overrides.primaryInk ?: Palette.white,
-    primaryContainer = Palette.parentAccentSoft,
-    onPrimaryContainer = Palette.parentInk,
-    secondary = overrides.accent ?: Palette.lavender,
-    background = overrides.ground ?: Palette.parentBg,
-    onBackground = Palette.parentInk,
-    surface = Palette.parentSurface,
-    onSurface = Palette.parentInk,
-    surfaceVariant = overrides.ground ?: Palette.parentBg,
-    onSurfaceVariant = Palette.parentInkSoft,
-    outline = overrides.softBorder ?: Palette.parentLine,
-    error = Palette.coral,
-)
+internal fun parentScheme(overrides: ThemeOverrides = ThemeOverrides()): ColorScheme {
+    val accent = overrides.accent ?: Palette.parentAccent
+    return lightColorScheme(
+        primary = accent,
+        onPrimary = inkOn(accent),
+        primaryContainer = overrides.softAccent ?: Palette.parentAccentSoft,
+        onPrimaryContainer = Palette.parentInk,
+        secondary = accent,
+        onSecondary = inkOn(accent),
+        background = overrides.ground ?: Palette.parentBg,
+        onBackground = Palette.parentInk,
+        surface = overrides.primary ?: Palette.parentSurface,
+        onSurface = overrides.primaryInk ?: Palette.parentInk,
+        surfaceVariant = overrides.ground ?: Palette.parentBg,
+        onSurfaceVariant = Palette.parentInkSoft,
+        outline = overrides.softBorder ?: Palette.parentLine,
+        error = Palette.coral,
+    )
+}
+
+/**
+ * The parent/admin scheme [overrides] produces — [parentScheme] without the `internal`, so the app can assert what a
+ * school's theme does to each Material role without standing up a composition.
+ */
+fun parentThemeScheme(overrides: ThemeOverrides = ThemeOverrides()): ColorScheme = parentScheme(overrides)
 
 @Composable
 fun ChildTheme(content: @Composable () -> Unit) {

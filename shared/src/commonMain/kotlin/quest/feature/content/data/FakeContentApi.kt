@@ -8,22 +8,30 @@ import quest.api.ApiException
 import quest.api.AuthProvider
 import quest.api.AuthState
 import quest.api.ContentApi
+import quest.api.DEFAULT_FLAGS
 import quest.api.UploadFile
+import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
 import quest.api.dto.Child
 import quest.api.dto.CreateChildRequest
+import quest.api.dto.Curriculum
 import quest.api.dto.LessonCompletionInfo
 import quest.api.dto.MapResponse
 import quest.api.dto.MediaKind
 import quest.api.dto.MediaRef
+import quest.api.dto.PlatformSettings
 import quest.api.dto.ProgressResponse
 import quest.api.dto.PublishedLesson
+import quest.api.dto.SchoolTheme
 import quest.api.dto.SkillProgress
 import quest.api.dto.Stop
 import quest.api.dto.StopCategory
 import quest.api.dto.UpdateChildRequest
+import quest.api.dto.WorldPalette
+import quest.feature.content.domain.SchoolApi
+import quest.feature.content.domain.ThemeFetch
 import quest.api.map.MapAssembler
 import quest.api.progress.Band
 import quest.api.progress.ProgressBands
@@ -39,7 +47,7 @@ import quest.core.platform.Today
 /**
  * @param persisted attempts the app already uploaded in earlier sessions (the fake is in-memory; a real server keeps them).
  */
-class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Long = 350, private val persisted: suspend (String) -> List<AttemptUpload> = { emptyList() }, private val today: () -> LocalDate = { Today.date() }) : ContentApi {
+class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Long = 350, private val persisted: suspend (String) -> List<AttemptUpload> = { emptyList() }, private val today: () -> LocalDate = { Today.date() }) : ContentApi, SchoolApi {
     private val mutex = Mutex()
     private val children = mutableMapOf<String, MutableList<Child>>()          // uid → children
     private val attempts = mutableMapOf<String, MutableList<AttemptUpload>>()  // childId → attempts
@@ -51,7 +59,8 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
 
     override suspend fun createChild(request: CreateChildRequest): Child {
         net()
-        val child = Child(Ids.random(), request.name, request.avatarColor, request.curriculum, request.grade, request.languages)
+        val school = if (request.schoolCode?.trim()?.uppercase() == AL_NOOR_CODE) AL_NOOR_ID else "default"
+        val child = Child(Ids.random(), request.name, request.avatarColor, request.curriculum, request.grade, request.languages, schoolId = school)
         mutex.withLock { children.getOrPut(uid()) { mutableListOf() } += child }
         return child
     }
@@ -108,6 +117,28 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         return ProgressResponse(childId, skills, skills.filter { it.band == Band.NEEDS_ANOTHER_LOOK.name }.map { it.skillId }, 0, null, emptyList())
     }
 
+    // ---- §2 join school, §3 theme, §4 flags, §A platform settings -------------------------------------------------
+    // One fake school so the join flow is playable without a backend; every other code is a 404, exactly as the server
+    // answers it, and every other school id is the platform default (`DEFAULT_FLAGS` and the token theme).
+
+    override suspend fun schoolByCode(code: String): JoinSchoolInfo {
+        net()
+        if (code.trim().uppercase() != AL_NOOR_CODE) throw ApiException(ApiError(ApiError.NOT_FOUND, "No school with code $code"))
+        return alNoor
+    }
+
+    override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> { net(); return DEFAULT_FLAGS }
+
+    override suspend fun schoolTheme(schoolId: String): SchoolTheme { net(); return if (schoolId == AL_NOOR_ID) alNoorTheme else SchoolTheme() }
+
+    override suspend fun schoolTheme(schoolId: String, ifNoneMatch: String?): ThemeFetch {
+        val etag = "\"fake-$schoolId\""
+        if (ifNoneMatch == etag) { net(); return ThemeFetch(theme = null, etag = etag, notModified = true) }
+        return ThemeFetch(schoolTheme(schoolId), etag)
+    }
+
+    override suspend fun platformSettings(): PlatformSettings { net(); return platformDefaults }
+
     private suspend fun allAttempts(childId: String): List<AttemptUpload> {
         val mem = mutex.withLock { attempts[childId].orEmpty().toList() }
         val ids = mem.map { it.id }.toSet()
@@ -143,5 +174,43 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
 
     private suspend fun weakSkills(childId: String): List<Pair<String, String>> = skillBands(childId).filter { it.value.first == Band.NEEDS_ANOTHER_LOOK }.keys.map { id ->
         id to (Seeds.lessons.flatMap { it.skills }.firstOrNull { it.id == id }?.name ?: id)
+    }
+
+    companion object {
+        /** The one join code the fake answers; anything else is a 404, like the server. */
+        const val AL_NOOR_CODE = "ALNOOR"
+        const val AL_NOOR_ID = "al-noor"
+
+        /**
+         * Al Noor's colours, chosen the way the server's validator demands: [SchoolTheme.primary] is a light brand
+         * surface (dark ink reads on it), [SchoolTheme.accent] is dark enough to read on [SchoolTheme.ground], and
+         * `mascotColor` clears 3:1 on the ground. Nothing here is validated on the device — this is only the shape a
+         * themed school has, so the app can be exercised without a backend.
+         */
+        val alNoorTheme = SchoolTheme(
+            logoUrl = null,
+            appName = "Al Noor Quest",
+            primary = "#E7F2EC",
+            primaryInk = "#13301F",
+            accent = "#1F6B4A",
+            ground = "#F4F7F4",
+            softBorder = "#C9DCD1",
+            mascotColor = "#2E7D57",
+            worldPalettes = mapOf(
+                "math" to WorldPalette(primary = "#7FD1B9", deep = "#2E9E80", soft = "#E6F6F1", ink = "#12261F"),
+                "english" to WorldPalette(primary = "#F2C75C", deep = "#C08F1C", soft = "#FDF4DE", ink = "#2A2310"),
+            ),
+        )
+
+        val alNoor = JoinSchoolInfo(
+            name = "Al Noor School",
+            logoUrl = null,
+            curriculumOptions = listOf(Curriculum.BRITISH, Curriculum.AMERICAN),
+            gradeOptions = listOf(1, 2, 3),
+            theme = alNoorTheme,
+        )
+
+        /** What `GET /platform-settings` answers without a backend. */
+        val platformDefaults = PlatformSettings(name = "Homework Quest", shortName = "Quest")
     }
 }

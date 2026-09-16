@@ -13,6 +13,7 @@ import quest.feature.auth.presentation.SignInScreen
 import quest.feature.children.presentation.AddChildContract
 import quest.feature.children.presentation.AddChildScreen
 import quest.feature.children.presentation.ChildPickerScreen
+import quest.feature.content.data.FakeContentApi
 import quest.feature.parent.domain.CalendarDay
 import quest.feature.parent.domain.ParentSettings
 import quest.feature.parent.domain.SkillReport
@@ -29,7 +30,10 @@ import quest.feature.parent.presentation.ProgressScreen
 import quest.feature.parent.presentation.SettingsContract
 import quest.feature.parent.presentation.SettingsScreen
 import quest.feature.parent.presentation.Strings
+import quest.ui.design.LocalThemeOverrides
 import quest.ui.design.ParentTheme
+import quest.ui.design.ThemeOverrides
+import quest.ui.design.schoolThemeOverrides
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -38,13 +42,33 @@ class ParentScreensScreenshotTest {
     private val maya = Child("c1", "Maya", "sun", Curriculum.BRITISH, 1)
     private val omar = Child("c2", "Omar", "mint", Curriculum.AMERICAN, 2)
 
-    private fun shot(name: String, strings: Strings = Strings.en, content: @Composable (Strings) -> Unit) {
-        val f = Screenshots.render(name) { ParentTheme(rtl = strings.isRtl) { CompositionLocalProvider(LocalStrings provides strings) { content(strings) } } }
+    private fun shot(name: String, strings: Strings = Strings.en, overrides: ThemeOverrides = ThemeOverrides(), content: @Composable (Strings) -> Unit) {
+        val f = Screenshots.render(name) {
+            CompositionLocalProvider(LocalThemeOverrides provides overrides) {
+                ParentTheme(rtl = strings.isRtl) { CompositionLocalProvider(LocalStrings provides strings) { content(strings) } }
+            }
+        }
         assertTrue(f.length() > 1000)
     }
 
     @Test fun signIn() = shot("40-sign-in") { s -> SignInScreen(SignInContract.State(email = "parent@example.com"), s, {}) }
     @Test fun addChild() = shot("41-add-child") { s -> AddChildScreen(AddChildContract.State(name = "Maya", avatar = "sun", loaded = true), s, {}) }
+    /** §2: the code typed, the school found and confirmed, the form already in Al Noor's colours. */
+    @Test fun addChildJoinedSchool() = shot("41b-add-child-school", overrides = schoolThemeOverrides(FakeContentApi.alNoorTheme)) { s ->
+        AddChildScreen(
+            AddChildContract.State(
+                name = "Maya", avatar = "sun", loaded = true, grade = 2,
+                schoolCode = FakeContentApi.AL_NOOR_CODE, school = FakeContentApi.alNoor, joinStep = AddChildContract.JoinStep.CONFIRMED,
+            ),
+            s, {},
+        )
+    }
+
+    /** The red band a code no school has produces. */
+    @Test fun addChildUnknownSchoolCode() = shot("41c-add-child-bad-code") { s ->
+        AddChildScreen(AddChildContract.State(name = "Maya", avatar = "sun", loaded = true, schoolCode = "ZZZ999", schoolNotFound = true), s, {})
+    }
+
     @Test fun childPicker() = shot("42-child-picker") { s -> ChildPickerScreen(listOf(maya, omar), s, {}, {}) }
     @Test fun pin() = shot("43-pin") { s -> PinScreen(PinContract.State(PinContract.Mode.ENTER, "12"), {}, s) }
     @Test fun home() = shot("44-parent-home") { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya, omar), maya, listOf(CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), listOf("l2")))), s, {}, {}, {}, {}, {}, {}, {}) }

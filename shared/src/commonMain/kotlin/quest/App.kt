@@ -28,6 +28,10 @@ import quest.feature.map.presentation.WorldMapRoute
 import quest.feature.parent.presentation.parentGraph
 import quest.feature.rewards.presentation.StickerBookRoute
 import quest.feature.rewards.presentation.TreasureChestRoute
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.FeatureGate
+import quest.feature.school.presentation.GateFallback
+import quest.feature.school.presentation.SchoolThemeHost
 import quest.ui.design.ChildTheme
 
 /** Root of the shared UI. Koin must already be started by the platform entry point. */
@@ -41,7 +45,8 @@ fun App() {
         if (!ready) { ChildTheme { LoadingView("Waking Pip up…") }; return@KoinContext }
         val nav = rememberNavController()
         val start: Any = if (auth.state.value is AuthState.SignedIn) Routes.WorldMap else Routes.SignIn
-        QuestNavHost(nav, start)
+        // Everything below sees the joined school's colours, name, logo and feature flags (§3, §4).
+        SchoolThemeHost { QuestNavHost(nav, start) }
     }
 }
 
@@ -93,7 +98,12 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
             }
         }
         composable<Routes.StickerBook> { ChildTheme { StickerBookRoute(onBack = { nav.popBackStack() }) } }
-        composable<Routes.TreasureChest> { ChildTheme { TreasureChestRoute(onBack = { nav.popBackStack() }) } }
+        composable<Routes.TreasureChest> {
+            ChildTheme {
+                FeatureGate(Flags.TREASURE_CHEST) { TreasureChestRoute(onBack = { nav.popBackStack() }) }
+                GateFallback(Flags.TREASURE_CHEST) { nav.popBackStack() }
+            }
+        }
         parentGraph(nav)
     }
 }

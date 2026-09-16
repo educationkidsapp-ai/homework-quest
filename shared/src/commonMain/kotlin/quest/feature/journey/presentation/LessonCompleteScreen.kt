@@ -38,6 +38,8 @@ import quest.feature.content.domain.JourneyRepository
 import quest.feature.content.domain.LessonRepository
 import quest.feature.rewards.domain.AwardStickerUseCase
 import quest.feature.rewards.domain.UpdateStreakUseCase
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.FeatureGate
 import quest.ui.design.BigButton
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
@@ -101,8 +103,12 @@ fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContr
             Pip(PipPose.CELEBRATING, Dimens.pipMedium)
             Text(lesson.theme.servedText, style = MaterialTheme.typography.bodyLarge, color = Palette.ink, textAlign = TextAlign.Center)
             Spacer(Modifier.height(Dimens.s12))
-            Certificate(state.childName, lesson.title, state.level, state.stars, state.starsTotal, "${Today.date()}")
-            Spacer(Modifier.height(Dimens.s16))
+            // §4 `certificates`: off, the pot is still served and the sticker still arrives — only the certificate
+            // is absent, because a school that does not issue them must never show one.
+            FeatureGate(Flags.CERTIFICATES) {
+                Certificate(state.childName, lesson.title, state.level, state.stars, state.starsTotal, "${Today.date()}")
+                Spacer(Modifier.height(Dimens.s16))
+            }
             state.stickerKey?.let { key ->
                 Column(Modifier.background(Palette.cream, MaterialTheme.shapes.extraLarge).padding(Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("New sticker!", style = MaterialTheme.typography.titleLarge, color = Palette.ink)

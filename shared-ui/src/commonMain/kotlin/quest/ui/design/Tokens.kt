@@ -109,8 +109,23 @@ object Timing {
 /** Pip's four avatar colours (add-child screen). */
 object AvatarColors {
     val keys = listOf("sky", "sun", "mint", "lavender")
+
+    /**
+     * Pip as the mascot rather than as a child's avatar: the key a screen passes when Pip stands for the app, not for
+     * a child. A school theme's `mascotColor` recolours only this one, so the four avatar swatches keep their meaning.
+     * It is not in [keys] and falls through to the sky body, so an unthemed app looks exactly as before.
+     */
+    const val MASCOT = "mascot"
+
     fun body(key: String): Color = when (key) { "sun" -> Color(0xFFFFD35C); "mint" -> Color(0xFF7EE0BA); "lavender" -> Color(0xFFC3ADFF); else -> Color(0xFF7EC8FF) }
     fun bodyDark(key: String): Color = when (key) { "sun" -> Color(0xFFE8B31E); "mint" -> Color(0xFF4FC59A); "lavender" -> Color(0xFF9C7DF0); else -> Color(0xFF5AAEEB) }
+
+    /** [mascot] (the school's `mascotColor`) wins for [MASCOT] only; every avatar key keeps its own colour. */
+    fun body(key: String, mascot: Color?): Color = if (key == MASCOT && mascot != null) mascot else body(key)
+    fun bodyDark(key: String, mascot: Color?): Color = if (key == MASCOT && mascot != null) darken(mascot) else bodyDark(key)
+
+    /** The wings/outline shade of a body colour — the same step the four hand-picked pairs use. */
+    fun darken(c: Color, factor: Float = 0.82f): Color = Color(c.red * factor, c.green * factor, c.blue * factor, c.alpha)
 }
 
 object StickerKeys {

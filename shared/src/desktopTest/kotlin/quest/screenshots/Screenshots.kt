@@ -1,10 +1,12 @@
 package quest.screenshots
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.unit.Density
 import org.jetbrains.skia.EncodedImageFormat
+import quest.ui.design.LocalAnimationsEnabled
 import java.io.File
 
 /**
@@ -26,7 +28,11 @@ object Screenshots {
             density = Density(DENSITY),
         )
         try {
-            scene.setContent(content)
+            // Looping animations (Pip's bounce and blink, the today-island glow) read the host's animation clock,
+            // which on desktop is wall time rather than the frame times below — so the same screen rendered twice
+            // differed by whatever the clock happened to be. Frozen here, every frame is a function of `frames` alone
+            // and two runs of the suite produce byte-identical PNGs.
+            scene.setContent { CompositionLocalProvider(LocalAnimationsEnabled provides false) { content() } }
             var image = scene.render(0L)
             // Advance a few frames so LaunchedEffects, animations and sheets settle.
             for (i in 1..frames) image = scene.render(i * 400_000_000L)

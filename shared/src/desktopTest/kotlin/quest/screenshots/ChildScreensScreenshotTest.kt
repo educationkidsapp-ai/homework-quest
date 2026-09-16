@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import kotlinx.datetime.LocalDate
 import quest.api.dto.Child
@@ -20,6 +21,7 @@ import quest.api.dto.Subject
 import quest.api.samples.HotSoupSeed
 import quest.api.samples.MathSeed
 import quest.api.samples.PhonicsSeed
+import quest.feature.content.data.FakeContentApi
 import quest.feature.journey.presentation.CompleteContract
 import quest.feature.journey.presentation.JourneyContract
 import quest.feature.journey.presentation.JourneyScreen
@@ -32,9 +34,14 @@ import quest.feature.rewards.domain.Sticker
 import quest.feature.rewards.presentation.RewardsContract
 import quest.feature.rewards.presentation.StickerBookScreen
 import quest.feature.rewards.presentation.TreasureChestScreen
+import quest.feature.school.domain.SchoolBranding
+import quest.feature.school.presentation.LocalSchoolBranding
 import quest.ui.design.ChildTheme
 import quest.ui.design.Dimens
+import quest.ui.design.LocalThemeOverrides
 import quest.ui.design.Palette
+import quest.ui.design.ThemeOverrides
+import quest.ui.design.schoolThemeOverrides
 import quest.ui.stops.StopContent
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -44,8 +51,10 @@ class ChildScreensScreenshotTest {
     private val hot = HotSoupSeed.lesson
     private val child = Child("c", "Maya", "sun", Curriculum.BRITISH, 1)
 
-    private fun shot(name: String, content: @Composable () -> Unit) {
-        val f = Screenshots.render(name) { ChildTheme { content() } }
+    private fun shot(name: String, overrides: ThemeOverrides = ThemeOverrides(), branding: SchoolBranding = SchoolBranding(), content: @Composable () -> Unit) {
+        val f = Screenshots.render(name) {
+            CompositionLocalProvider(LocalThemeOverrides provides overrides, LocalSchoolBranding provides branding) { ChildTheme { content() } }
+        }
         assertTrue(f.length() > 1000, "screenshot $name is empty")
     }
 
@@ -65,6 +74,24 @@ class ChildScreensScreenshotTest {
             Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Still asleep"),
         )), {}, {}, {}, {})
     }
+    /**
+     * §3 white label: the same map under Al Noor's theme — the school mark in the header, the two subject worlds in
+     * its `worldPalettes`, Pip on the raft in its `mascotColor`. The logo itself is the monogram: screenshots never
+     * fetch, so what is drawn is the fallback every school has before its logo arrives.
+     */
+    @Test fun worldMapThemed() = shot(
+        "02c-world-map-themed",
+        overrides = schoolThemeOverrides(FakeContentApi.alNoorTheme),
+        branding = SchoolBranding(appName = "Al Noor Quest", schoolName = "Al Noor School"),
+    ) {
+        WorldMapScreen(MapContract.State(loading = false, child = child, streakDays = 2, islands = listOf(
+            Island("a", IslandKind.LESSON, LocalDate(2026, 9, 11), IslandState.DONE, "The sh sound", Subject.ENGLISH, "l1", 1, listOf(1, 2), listOf(1), 18, 21),
+            Island("b", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "Counting by 2s", Subject.MATH, "l2", 1, listOf(1)),
+            Island("c", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.WAITING, "Hot Soup for Mummy · Part 1", Subject.ENGLISH, "l3", 1, listOf(1)),
+            Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Still asleep"),
+        )), {}, {}, {}, {})
+    }
+
     @Test fun worldMapEmpty() = shot("02b-world-map-empty") { WorldMapScreen(MapContract.State(loading = false, child = child, islands = listOf(Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Still asleep"))), {}, {}, {}, {}) }
 
     @Test fun journey() = shot("03-journey") {

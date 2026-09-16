@@ -25,6 +25,7 @@ import quest.feature.content.data.RemoteContentApi
 import quest.feature.content.domain.JourneyRepository
 import quest.feature.content.domain.LessonRepository
 import quest.feature.content.domain.MapRepository
+import quest.feature.content.domain.SchoolApi
 import quest.feature.journey.presentation.JourneyViewModel
 import quest.feature.journey.presentation.LessonCompleteViewModel
 import quest.feature.journey.presentation.StopPlayerViewModel
@@ -45,6 +46,11 @@ import quest.feature.rewards.domain.AwardStickerUseCase
 import quest.feature.rewards.domain.RewardsRepository
 import quest.feature.rewards.domain.UpdateStreakUseCase
 import quest.feature.rewards.presentation.RewardsViewModel
+import quest.feature.school.data.HttpSchoolLogos
+import quest.feature.school.data.SchoolSessionImpl
+import quest.feature.school.domain.FlagStore
+import quest.feature.school.domain.SchoolLogoLoader
+import quest.feature.school.domain.SchoolSession
 import quest.ui.design.StickerKeys
 
 /** Which [ContentApi] sits behind the interface. Screens never know. */
@@ -75,7 +81,19 @@ val coreModule = module {
     single { Db(get()) }
     single { SettingsStore(get()) }
     single { quest.feature.journey.data.LessonImages(get()) }
-    single { AppInitializer(get(), get()) }
+    single { AppInitializer(get(), get(), get()) }
+}
+
+/**
+ * §2–§4: the school a child belongs to, its theme and its feature flags. [SchoolApi]'s three public routes are served
+ * by whichever [ContentApi] is bound — `FakeContentApi` and `RemoteContentApi` both implement it — so the join flow
+ * works with and without a backend.
+ */
+val schoolModule = module {
+    single<SchoolApi> { get<ContentApi>() as SchoolApi }
+    single<SchoolLogoLoader> { HttpSchoolLogos() }
+    single<SchoolSession> { SchoolSessionImpl(get(), get(), get()) }
+    single<FlagStore> { get<SchoolSession>() }
 }
 
 val contentModule = module {
@@ -85,7 +103,7 @@ val contentModule = module {
     single<MapRepository> { MapRepositoryImpl(get(), get(), get()) }
     factory { AddChildUseCase(get()) }
     viewModel { SignInViewModel(get()) }
-    viewModel { (editingId: String?) -> AddChildViewModel(editingId, get(), get()) }
+    viewModel { (editingId: String?) -> AddChildViewModel(editingId, get(), get(), get()) }
     viewModel { MapViewModel(get(), get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get()) }
@@ -112,4 +130,4 @@ val parentModule = module {
     viewModel { SettingsViewModel(get(), get()) }
 }
 
-fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), apiModule(config), coreModule, contentModule, rewardsModule, parentModule)
+fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule)

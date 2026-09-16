@@ -88,7 +88,7 @@ fun ParentHomeScreen(
                         Text(c.name, style = MaterialTheme.typography.titleLarge, color = Palette.parentInk)
                         Text("${if (c.curriculum == Curriculum.BRITISH) s.british else s.american} · ${s.grade} ${c.grade}", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft)
                     }
-                    if (selected) Chip("✓", Palette.parentAccentSoft)
+                    if (selected) Chip("✓")
                 }
             }
         }
@@ -101,7 +101,7 @@ fun ParentHomeScreen(
                 ParentCard(Modifier.padding(bottom = Dimens.s8), onClick = { onLessonPanel(id) }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(if (day.subjects.getOrNull(i) == quest.api.dto.Subject.MATH) "🔢 ${s.math}" else "📖 ${s.english}", style = MaterialTheme.typography.titleMedium, color = Palette.parentInk, modifier = Modifier.weight(1f))
-                        Chip(if (id in day.doneIds) s.played else s.notPlayed, if (id in day.doneIds) Palette.mint else Palette.parentAccentSoft)
+                        Chip(if (id in day.doneIds) s.played else s.notPlayed, if (id in day.doneIds) Palette.mint else MaterialTheme.colorScheme.primaryContainer)
                     }
                 }
             }

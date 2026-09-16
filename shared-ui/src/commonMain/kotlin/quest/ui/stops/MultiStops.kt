@@ -207,7 +207,7 @@ fun OpenAnswerStop(stop: Stop.OpenAnswer, onEvent: (StopEvent) -> Unit, modifier
     Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Dimens.s12)) {
         PromptText(stop.prompt)
         if (stop.mode != "draw") { Text("🗣️", fontSize = 56.sp); Text("Say your idea out loud.", style = MaterialTheme.typography.bodyLarge, color = Palette.inkSoft, textAlign = TextAlign.Center); RecorderControls(recorder) }
-        if (stop.mode != "speak") DrawingCanvas(onChange = { drawing = it })
+        if (stop.mode != "speak" && LocalDrawingEnabled.current) DrawingCanvas(onChange = { drawing = it })
         DoneButton(text = "I'm done!", enabled = !recorder.recording) { onEvent(StopEvent.Completed(StopScoring.OPEN, answer = if (drawing != null) "drawn" else "spoken", recording = recorder.bytes, drawing = drawing)) }
     }
 }
