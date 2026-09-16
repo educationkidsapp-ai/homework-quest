@@ -151,6 +151,8 @@ flag_keys() {
 BODY="$(mktemp)"
 HEAD="$(mktemp)"
 RC="$(mktemp)"
+# Replaced by `restore` once there is state to put back; until then an early exit still cleans up after itself.
+trap 'rm -f "$BODY" "$HEAD" "$RC"' EXIT
 
 req() {
   local method="$1" path="$2" token="${3:-}" school="${4:-}" body="${5:-}" header="${6:-}"
