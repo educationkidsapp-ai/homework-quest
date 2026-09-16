@@ -8,3 +8,5 @@ output "runtime_service_account" { value = google_service_account.runtime.email 
 output "sql_connection_name" { value = google_sql_database_instance.db.connection_name }
 output "bucket" { value = google_storage_bucket.files.name }
 output "admin_url" { value = "${local.api_url}/panel/" }
+# the Angular dashboard, served by the same container at /dashboard/ (D10); webAdmin/ keeps admin_url (/panel/) until P3.6
+output "dashboard_url" { value = "${local.api_url}/dashboard/" }

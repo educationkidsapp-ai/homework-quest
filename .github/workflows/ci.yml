@@ -105,6 +105,11 @@ jobs:
       - name: Install
         if: steps.changes.outputs.dashboard == 'true'
         run: corepack pnpm install --frozen-lockfile
+      - name: Generated API client (openapi-generator over server/openapi.json)
+        # `--if-present` because tools/gen-api.mjs is still a placeholder on develop and P3.1 turns it into the real
+        # generator; there is no `postinstall`, so the client has to be generated explicitly before lint/test/build.
+        if: steps.changes.outputs.dashboard == 'true'
+        run: pnpm run --if-present gen:api
       - name: Design tokens must match design/tokens.json
         if: steps.changes.outputs.dashboard == 'true'
         run: pnpm tokens --check
