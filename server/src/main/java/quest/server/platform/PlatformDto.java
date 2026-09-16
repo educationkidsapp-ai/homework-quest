@@ -14,8 +14,14 @@ public final class PlatformDto {
     public record PlatformSettings(String name, String shortName, String logoUrl, String supportEmail,
                                    ThemeDto.SchoolTheme defaultTheme) {}
 
-    /** Only the fields that are present are written; `defaultTheme` is validated like any school theme. */
-    public record UpdatePlatformSettingsRequest(@Size(max = 120) String name, @Size(max = 40) String shortName,
-                                                @Size(max = 2000) String logoUrl, @Email String supportEmail,
+    /**
+     * Only the fields that are present are written; `defaultTheme` is validated like any school theme, and the name,
+     * short name and logo go through {@link SafeText} exactly as a theme's `appName` and `logoUrl` do — the caps here
+     * describe the contract, that class enforces it.
+     */
+    public record UpdatePlatformSettingsRequest(@Size(max = SafeText.MAX_NAME) String name,
+                                                @Size(max = SafeText.MAX_NAME) String shortName,
+                                                @Size(max = SafeText.MAX_URL) String logoUrl,
+                                                @Email @Size(max = SafeText.MAX_NAME) String supportEmail,
                                                 ThemeDto.SchoolTheme defaultTheme) {}
 }

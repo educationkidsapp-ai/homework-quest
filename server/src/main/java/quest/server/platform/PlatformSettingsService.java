@@ -51,11 +51,18 @@ public class PlatformSettingsService {
 
     @Transactional
     public void update(Principals.User actor, PlatformDto.UpdatePlatformSettingsRequest request, String defaultThemeJson) {
+        // The same fields as a school theme's, with the same public reach (§A), so the same checks: `logoUrl` is
+        // served by the public route and rendered as an `img src`, and the name lands in every mail subject.
+        var name = SafeText.plainText(request.name(), "name", SafeText.MAX_NAME);
+        var shortName = SafeText.plainText(request.shortName(), "shortName", SafeText.MAX_NAME);
+        var logoUrl = SafeText.httpsUrl(request.logoUrl(), "logoUrl");
+        var supportEmail = SafeText.plainText(request.supportEmail(), "supportEmail", SafeText.MAX_NAME);
+
         var row = repository.findById(Entities.PlatformSettingsEntity.ID).orElseThrow(PlatformSettingsService::missing);
-        if (request.name() != null && !request.name().isBlank()) row.setName(request.name().trim());
-        if (request.shortName() != null && !request.shortName().isBlank()) row.setShortName(request.shortName().trim());
-        if (request.logoUrl() != null) row.setLogoUrl(request.logoUrl().isBlank() ? null : request.logoUrl().trim());
-        if (request.supportEmail() != null) row.setSupportEmail(request.supportEmail().isBlank() ? null : request.supportEmail().trim());
+        if (name != null) row.setName(name);
+        if (shortName != null) row.setShortName(shortName);
+        if (request.logoUrl() != null) row.setLogoUrl(logoUrl);
+        if (request.supportEmail() != null) row.setSupportEmail(supportEmail);
         if (defaultThemeJson != null) row.setDefaultThemeJson(defaultThemeJson);
         row.setUpdatedAt(Instant.now());
         repository.save(row);

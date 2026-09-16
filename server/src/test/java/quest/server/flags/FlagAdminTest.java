@@ -39,6 +39,19 @@ class FlagAdminTest extends ApiTestSupport {
                 assertThat(f.getRolloutStage()).isIn("internal", "beta", "ga"));
     }
 
+    /**
+     * shared-api's `DEFAULT_FLAGS` is what `ContentApi.schoolFlags` answers without a backend (a `FakeContentApi`,
+     * an offline app), so it has to be the seeded defaults — the same binding `DefaultThemeTest` puts on
+     * `SchoolTheme()`, and the only thing stopping the two copies drifting.
+     */
+    @Test void the_shared_api_defaults_are_the_seeded_defaults() {
+        var shared = quest.api.ContentApiKt.getDEFAULT_FLAGS();
+        var seeded = definitions.findAllByOrderByKeyAsc().stream()
+                .collect(java.util.stream.Collectors.toMap(Entities.FeatureFlagEntity::getKey, Entities.FeatureFlagEntity::isDefaultOn));
+        assertThat(shared).as("shared-api/src/commonMain/kotlin/quest/api/ContentApi.kt must match V5__flags_themes.sql")
+                .containsExactlyInAnyOrderEntriesOf(seeded);
+    }
+
     @Test void the_public_route_answers_all_fourteen_with_an_etag() throws Exception {
         var token = adminToken();
         String school = createSchool(token);

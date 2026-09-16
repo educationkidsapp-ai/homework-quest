@@ -1,10 +1,12 @@
 package quest.server.flags;
 
+import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -23,11 +25,11 @@ public class FlagService {
     public static final int MAX_AUDIT_LIMIT = 200;
 
     private final FeatureFlags flags; private final SchoolFlagRepository overrides; private final FlagAuditRepository audit;
-    private final SchoolRepository schools; private final UserRepository users;
+    private final SchoolRepository schools; private final UserRepository users; private final EntityManager em;
 
     public FlagService(FeatureFlags flags, SchoolFlagRepository overrides, FlagAuditRepository audit,
-                       SchoolRepository schools, UserRepository users) {
-        this.flags = flags; this.overrides = overrides; this.audit = audit; this.schools = schools; this.users = users;
+                       SchoolRepository schools, UserRepository users, EntityManager em) {
+        this.flags = flags; this.overrides = overrides; this.audit = audit; this.schools = schools; this.users = users; this.em = em;
     }
 
     /**
@@ -79,11 +81,19 @@ public class FlagService {
      * `PUT /admin/flags/{key}/all`: the column action. Every school gets an explicit row — leaving them to the
      * default would make a later change of `default_on` silently undo this — and the event is <em>one</em> audit
      * row with `school_id` null, which is what that null means (§4).
+     *
+     * <p>Two write statements whatever the number of tenants: one bulk update over the schools that already have a
+     * row, one `INSERT … SELECT` for the schools that had none. A read-modify-write per school was linear in the
+     * tenant count, which is the one number this endpoint is meant to be indifferent to.
      */
     @Transactional
     public FlagDto.FlagMatrix setForAll(Principals.User actor, String key, boolean enabled) {
         flags.definition(key);
-        for (var school : schools.findAll()) write(school.getId(), key, enabled, actor);
+        var now = Instant.now();
+        String actorId = actor == null ? null : actor.userId();
+        overrides.updateEverySchool(key, enabled, actorId, now);
+        overrides.insertMissingSchools(key, enabled, actorId, now);
+        em.clear();                                                     // the bulk statements bypassed the context
         record(key, null, enabled, actor);
         flags.invalidateAll();
         return matrix(actor);
@@ -95,12 +105,19 @@ public class FlagService {
         var rows = audit.findAllByOrderByCreatedAtDescIdDesc(PageRequest.of(0, capped));
         var schoolNames = new LinkedHashMap<String, String>();
         schools.findAll().forEach(s -> schoolNames.put(s.getId(), s.getName()));
+
+        // One lookup for the whole page, not one per row: the same Admin usually flipped most of them, and a
+        // `findById` per row outside a transaction is a query per row however few distinct people there are.
+        var actorIds = rows.stream().map(Entities.FlagAuditEntity::getActorUserId).filter(Objects::nonNull).distinct().toList();
+        var emails = new LinkedHashMap<String, String>();
+        if (!actorIds.isEmpty()) users.findAllById(actorIds).forEach(u -> emails.put(u.getId(), u.getEmail()));
+
         var out = new ArrayList<FlagDto.FlagAuditEntry>(rows.size());
         for (var row : rows) {
-            String email = row.getActorUserId() == null ? null : users.findById(row.getActorUserId()).map(u -> u.getEmail()).orElse(null);
             out.add(new FlagDto.FlagAuditEntry(row.getId(), row.getFlagKey(), row.getSchoolId(),
                     row.getSchoolId() == null ? null : schoolNames.get(row.getSchoolId()), row.isEnabled(),
-                    row.getActorUserId(), email, row.getCreatedAt() == null ? 0 : row.getCreatedAt().toEpochMilli()));
+                    row.getActorUserId(), emails.get(row.getActorUserId()),
+                    row.getCreatedAt() == null ? 0 : row.getCreatedAt().toEpochMilli()));
         }
         return out;
     }

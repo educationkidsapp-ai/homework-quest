@@ -3,6 +3,7 @@ package quest.server.platform;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import java.util.Locale;
 import java.util.Map;
 
@@ -39,10 +40,14 @@ public final class ThemeDto {
      *
      * <p>`primaryInk` is text on <em>both</em> `primary` and `ground`, so `primary` is a light brand surface rather
      * than a saturated fill; `accent` is the colour of an action and is measured on `ground`.
+     *
+     * <p>The `@Size` caps describe the contract to the generated clients; {@link SafeText} is what enforces them,
+     * along with https-only on the URL and no control characters in either — `@Valid` only reaches the top-level
+     * body, and a theme can also arrive nested in `UpdatePlatformSettingsRequest.defaultTheme`.
      */
     public record SchoolTheme(
-            String logoUrl,
-            String appName,
+            @Size(max = SafeText.MAX_URL) String logoUrl,
+            @Size(max = SafeText.MAX_NAME) String appName,
             @Schema(example = "#FFFFFF") String primary,
             @Schema(example = "#201E1D") String primaryInk,
             @Schema(example = "#CC2A0F") String accent,

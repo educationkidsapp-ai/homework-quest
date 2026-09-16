@@ -88,6 +88,11 @@ public class ThemeService {
      */
     public ThemeDto.SchoolTheme validated(ThemeDto.SchoolTheme requested) {
         if (requested == null) throw ApiException.badRequest("theme is required");
+        // The two free-text fields first: they are the ones the public theme route hands to an `img src` and a
+        // mail subject, and they are cheap to check. See SafeText.
+        String logoUrl = SafeText.httpsUrl(requested.logoUrl(), "logoUrl");
+        String appName = SafeText.plainText(requested.appName(), "appName", SafeText.MAX_NAME);
+
         String primary = colour(requested.primary(), "primary");
         String primaryInk = colour(requested.primaryInk(), "primaryInk");
         String accent = colour(requested.accent(), "accent");
@@ -122,8 +127,8 @@ public class ThemeService {
                         + ":1, needs " + Contrast.format(pair.minimum()) + ":1");
         }
 
-        return new ThemeDto.SchoolTheme(blankToNull(requested.logoUrl()), blankToNull(requested.appName()), primary, primaryInk,
-                accent, ground, softBorder, mascotColor, java.util.Collections.unmodifiableMap(worlds),
+        return new ThemeDto.SchoolTheme(logoUrl, appName, primary, primaryInk, accent, ground, softBorder, mascotColor,
+                java.util.Collections.unmodifiableMap(worlds),
                 requested.fontChoice() == null ? ThemeDto.FontChoice.NUNITO : requested.fontChoice());
     }
 
@@ -138,6 +143,4 @@ public class ThemeService {
         if (!Contrast.isHex(value)) throw ApiException.badRequest(field + " must be a colour like #RRGGBB, not " + (value == null ? "nothing" : value));
         return value.toUpperCase(Locale.ROOT);
     }
-
-    private static String blankToNull(String value) { return value == null || value.isBlank() ? null : value.trim(); }
 }

@@ -14,7 +14,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>The file is loaded from the classpath (`server/src/main/resources/design/tokens.json`) because the server's
  * Docker build context is `server/` alone and does not contain the repository's `design/` directory;
- * `DesignTokensDriftTest` fails the build when that copy and `design/tokens.json` differ.
+ * `DefaultThemeTest.the_shipped_tokens_are_the_repositorys_tokens` fails the build when that copy and
+ * `design/tokens.json` differ.
  *
  * <p>How the §3 theme fields map onto the tokens:
  * <ul>

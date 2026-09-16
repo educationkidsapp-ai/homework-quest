@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -112,6 +113,44 @@ class ThemeApiTest extends ApiTestSupport {
                 .isEqualTo("bad_request");
         assertThat(putTheme(token, school, goodTheme("X").replace("\"math\":", "\"science\":")).get("message").asText())
                 .isEqualTo("worldPalettes has no world science; it is math and english");
+    }
+
+    /**
+     * `logoUrl` is served by the public theme route and by `JoinSchoolInfo`, and both front-ends put it in an
+     * `img src`: a `javascript:` or `data:` value stored here would be XSS in the dashboard and the app.
+     */
+    @Test void a_logo_url_that_is_not_https_is_refused() throws Exception {
+        var token = adminToken();
+        String school = createSchool(token);
+
+        for (String hostile : List.of("javascript:alert(document.cookie)", "data:text/html;base64,PHNjcmlwdD4=",
+                "http://cdn.test/logo.png", " JavaScript:alert(1)")) {
+            var refused = putTheme(token, school, goodTheme("X").replace("https://cdn.test/al-noor.png", hostile));
+            assertThat(refused.get("code").asText()).isEqualTo("bad_request");
+            assertThat(refused.get("message").asText()).as(hostile).isEqualTo("logoUrl must be an https:// URL");
+        }
+        assertThat(json(mvc.perform(get("/schools/" + school + "/theme")).andReturn()).get("logoUrl").isNull())
+                .as("nothing hostile was stored").isTrue();
+    }
+
+    /** The public theme is cached for five minutes; an unbounded logo or name would be a payload on that route. */
+    @Test void an_oversized_logo_url_or_app_name_is_refused_and_the_public_body_stays_small() throws Exception {
+        var token = adminToken();
+        String school = createSchool(token);
+
+        // `@Size` on the body answers first here and `SafeText` behind it; either way it is a 400 naming the field
+        var longUrl = putTheme(token, school, goodTheme("X").replace("https://cdn.test/al-noor.png", "https://cdn.test/" + "a".repeat(200_000)));
+        assertThat(longUrl.get("message").asText()).startsWith("logoUrl");
+        var longName = putTheme(token, school, goodTheme("b".repeat(5_000)));
+        assertThat(longName.get("message").asText()).startsWith("appName");
+        // control characters would be header injection once appName reaches a mail subject
+        assertThat(putTheme(token, school, goodTheme("Al Noor\\nBcc: someone@evil.test")).get("message").asText())
+                .isEqualTo("appName must not contain control characters");
+
+        saveTheme(token, school, goodTheme("Al Noor Learning"));
+        var body = mvc.perform(get("/schools/" + school + "/theme")).andExpect(status().isOk()).andReturn()
+                .getResponse().getContentAsString();
+        assertThat(body.length()).as("a themed school's public body is a few hundred bytes, not a few hundred kilobytes").isLessThan(2_048);
     }
 
     @Test void the_theme_travels_with_the_join_code_and_the_admin_route_is_scoped() throws Exception {

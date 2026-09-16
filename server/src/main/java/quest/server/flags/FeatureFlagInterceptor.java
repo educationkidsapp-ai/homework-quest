@@ -29,6 +29,11 @@ import quest.server.tenancy.TenantContext;
  *       added first, which is the school the app shows her. A parent with no children yet reads the defaults;</li>
  *   <li>nobody (a public route): the defaults.</li>
  * </ul>
+ *
+ * <p>One flag decides a request: a handler's own {@link FeatureFlag} <em>replaces</em> its controller's rather than
+ * adding to it, so a route on a flagged class that names a second key is gated by the second key alone. Put the
+ * narrower key on the handler when that is what you mean; two gates on one route would need both keys checked, and
+ * nothing asks for that yet.
  */
 @Component
 public class FeatureFlagInterceptor implements HandlerInterceptor {

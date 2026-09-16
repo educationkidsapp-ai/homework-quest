@@ -461,6 +461,8 @@
             "type" : "string"
           },
           "appName" : {
+            "maxLength" : 60,
+            "minLength" : 0,
             "type" : "string"
           },
           "fontChoice" : {
@@ -472,6 +474,8 @@
             "type" : "string"
           },
           "logoUrl" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
             "type" : "string"
           },
           "mascotColor" : {
@@ -654,16 +658,18 @@
             "type" : "string"
           },
           "name" : {
-            "maxLength" : 120,
+            "maxLength" : 60,
             "minLength" : 0,
             "type" : "string"
           },
           "shortName" : {
-            "maxLength" : 40,
+            "maxLength" : 60,
             "minLength" : 0,
             "type" : "string"
           },
           "supportEmail" : {
+            "maxLength" : 60,
+            "minLength" : 0,
             "type" : "string"
           }
         },

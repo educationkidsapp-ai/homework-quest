@@ -3,9 +3,10 @@ package quest.server.flags;
 import java.util.List;
 
 /**
- * The 14 keys of §4, in the code so `@FeatureFlag("…")` can be checked against them and `FlagContractTest` can prove
- * the seed in `V5__flags_themes.sql` and this list agree. Adding a feature means a new key here <em>and</em> a new
- * additive migration that seeds it.
+ * The 14 keys of §4, in the code so `@FeatureFlag("…")` can be checked against them and
+ * `FlagAdminTest.the_fourteen_flags_are_seeded_exactly_as_the_code_lists_them` can prove the seed in
+ * `V5__flags_themes.sql` and this list agree. Adding a feature means a new key here <em>and</em> a new additive
+ * migration that seeds it.
  */
 public final class FlagKeys {
     private FlagKeys() {}

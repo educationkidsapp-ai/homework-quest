@@ -68,6 +68,40 @@ class PlatformSettingsTest extends ApiTestSupport {
         assertThat(settings.defaultThemeJson()).as("a refused theme is not stored").isNull();
     }
 
+    /** The platform logo has the same public reach as a school's, so it gets the same check. */
+    @Test void the_platform_logo_must_be_https_and_the_name_bounded() throws Exception {
+        var token = adminToken();
+        assertThat(json(mvc.perform(admin(put("/admin/platform-settings").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"logoUrl\":\"javascript:alert(1)\"}"), token)).andExpect(status().isBadRequest()).andReturn())
+                .get("message").asText()).isEqualTo("logoUrl must be an https:// URL");
+        assertThat(json(mvc.perform(admin(put("/admin/platform-settings").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"" + "n".repeat(5_000) + "\"}"), token)).andExpect(status().isBadRequest()).andReturn())
+                .get("message").asText()).startsWith("name");
+        assertThat(json(mvc.perform(get("/platform-settings")).andReturn()).get("name").asText()).isEqualTo(SEEDED_NAME);
+    }
+
+    /**
+     * `@Valid` only reaches the top-level body, so a theme arriving nested as `defaultTheme` is checked by
+     * `ThemeService.validated` alone — this is the path `@Size` does not cover, and where SafeText has to answer.
+     */
+    @Test void a_nested_default_theme_is_checked_by_the_service_not_by_bean_validation() throws Exception {
+        var token = adminToken();
+        String theme = "{\"logoUrl\":\"%s\",\"primary\":\"#FFFFFF\",\"primaryInk\":\"#1A1A1A\",\"accent\":\"#0B5D2E\","
+                + "\"ground\":\"#F4F4F2\",\"softBorder\":\"#D9D6D2\",\"mascotColor\":\"#2F5D7C\"}";
+
+        assertThat(json(mvc.perform(admin(put("/admin/platform-settings").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"defaultTheme\":" + theme.formatted("javascript:alert(1)") + "}"), token))
+                .andExpect(status().isBadRequest()).andReturn()).get("message").asText())
+                .isEqualTo("logoUrl must be an https:// URL");
+
+        assertThat(json(mvc.perform(admin(put("/admin/platform-settings").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"defaultTheme\":" + theme.formatted("https://cdn.test/" + "a".repeat(200_000)) + "}"), token))
+                .andExpect(status().isBadRequest()).andReturn()).get("message").asText())
+                .isEqualTo("logoUrl must be at most 2000 characters, not 200017");
+
+        assertThat(settings.defaultThemeJson()).as("neither was stored").isNull();
+    }
+
     @Test void me_resolves_the_school_app_name_then_the_platform_name() throws Exception {
         var token = adminToken();
         String school = createSchool(token);
