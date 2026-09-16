@@ -225,9 +225,9 @@ credential. A real school's logo is uploaded by its Admin. Both URLs are well in
 two are visibly different — the dark rectangle carries "AN" and "GV" respectively — so a screenshot set makes a
 cross-tenant theme leak obvious without reading ids.
 
-Both palettes were chosen dark-on-dark deliberately, for the same reason `flags.sh`'s test theme is: §3 measures
+Both palettes are light-on-dark deliberately, for the same reason `flags.sh`'s test theme is: §3 measures
 `primaryInk` on **both** `primary` and `ground`, so a dark brand surface forces a light ink, which forces a dark
-ground, which forces a light accent and mascot.
+ground, which in turn forces a light accent and a light mascot.
 
 **The seed computes the contrast itself and refuses to send a theme that would fail.** `assertThemeValid()` in
 `seed.mjs` restates the WCAG 2.2 §1.4.3 relative-luminance formula — the same arithmetic as the server's
@@ -243,7 +243,7 @@ ground, which forces a light accent and mascot.
 | `math.ink` on `math.soft` | 4.5:1 | 11.0:1 | 11.8:1 |
 | `english.ink` on `english.soft` | 4.5:1 | 11.4:1 | 13.1:1 |
 
-So a palette edited above the bar fails **locally, before a request goes out**, naming the pair and the ratio the way
+So a palette edited *below* a bar fails **locally, before a request goes out**, naming the pair and the ratio the way
 the server would:
 
 ```
