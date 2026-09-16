@@ -71,6 +71,14 @@ jobs:
               - '*.gradle.kts'
               - 'gradle.properties'
               - '.github/workflows/ci.yml'
+            # Three of these live outside dashboard/ because the dashboard is *generated* from them and a change
+            # there breaks the Angular build with nothing under dashboard/ having moved:
+            #   server/openapi.json  → the API client (`pnpm gen:api`); P4.0 changed `/schools/logo` to take a body
+            #                          and `sign-in.page.ts` stopped compiling (TS2769) with no CI signal at all,
+            #                          because only the server jobs had run. The QA image build found it instead.
+            #   permissions.json     → src/app/core/permissions/permissions.generated.ts (`pnpm gen:permissions`),
+            #                          whose spec re-derives the matrix from the server's file and fails on drift.
+            #   design/tokens.json   → src/styles/_tokens.generated.scss (`pnpm tokens --check`).
             dashboard:
               - 'dashboard/**'
               - 'design/tokens.json'

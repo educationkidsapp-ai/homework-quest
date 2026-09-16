@@ -711,7 +711,7 @@ because that run is what the deploy waits for.
 | `contract` | `shared-api/**` (or anything that triggers `server`/`app`) | `:shared-api:jvmTest` + publishes the contract to `~/.m2` for the server job |
 | `server` | `server/**`, `shared-api/**` | `./mvnw test` twice: `-Dtest.excludedGroups=postgres` (H2, reports first), then `-Dtest.groups=postgres` (Testcontainers) |
 | `app` | `shared/**`, `shared-ui/**`, `shared-api/**`, `androidApp/**`, `iosApp/**`, `desktopApp/**`, `webAdmin/**`, `design/tokens.json`, the Gradle files | common-metadata type-check (the iOS-facing sources), `:shared:desktopTest`, Android QA **debug** APK, the Wasm admin panel |
-| `dashboard` | `dashboard/**`, `design/tokens.json`, `server/openapi.json`, `permissions.json` | lint, Vitest, `pnpm build --configuration=qa`, tokens + fonts drift |
+| `dashboard` | `dashboard/**`, `design/tokens.json`, `server/openapi.json`, `permissions.json` | generated API client, lint, Vitest, `pnpm build --configuration=qa`, tokens + fonts drift |
 | `scripts` | `e2e/**` | `bash -n` and `shellcheck -S warning` over `e2e/*.sh` |
 | `infra` | `infra/**`, `deploy/**`, `scripts/**`, `.github/**`, `Dockerfile` | `terraform fmt -check` + `validate` (no backend, no credentials) and `actionlint` |
 | `docs` | nothing but documentation changed | the relative links in every `*.md` must resolve |
@@ -720,6 +720,12 @@ because that run is what the deploy waits for.
 `ci` is the only required check. It treats **`skipped` as a pass** — a job that was filtered out was not needed — and
 `failure`, `cancelled` and `timed_out` as failures, so a cancelled job never counts as a tested one. A change to
 `.github/workflows/ci.yml` itself is in every filter: editing CI runs all of CI.
+
+Three of the `dashboard` filter's paths are outside `dashboard/`, because the dashboard is **generated** from them:
+`server/openapi.json` (the API client, `pnpm gen:api`), `server/src/main/resources/permissions.json`
+(`permissions.generated.ts`) and `design/tokens.json` (`_tokens.generated.scss`). A server-only change to any of the
+three can break the Angular build with nothing under `dashboard/` having moved — which is how P4.0's `/schools/logo`
+signature reached the QA image build as a `TS2769` with no CI signal at all.
 
 The **`scripts` job** exists because the e2e shell scripts need a live server and a seeded fixture, so CI cannot run
 them: it catches syntax errors and shellcheck warnings instead. `shellcheck` ships on `ubuntu-latest`, no suppressions
