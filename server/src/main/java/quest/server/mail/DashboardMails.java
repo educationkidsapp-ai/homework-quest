@@ -5,7 +5,8 @@ import quest.server.config.QuestProperties;
 
 /**
  * The two transactional emails phase 1 sends: the invite link and the password-reset link. Subjects carry the
- * platform name from {@link PlatformName}; links are built from `quest.dashboard-url` (DASHBOARD_URL).
+ * platform name from {@link PlatformName}; links are built from `quest.dashboard-url` (DASHBOARD_URL) and point
+ * at the Angular dashboard's `/dashboard/` routes (D10).
  */
 @Service
 public class DashboardMails {
@@ -13,14 +14,15 @@ public class DashboardMails {
 
     public DashboardMails(Mailer mailer, PlatformName platform, QuestProperties props) {
         this.mailer = mailer; this.platform = platform;
-        // DASHBOARD_URL is the origin the dashboard is served from; it mounts at `/panel/` (D2), hence the links below.
+        // DASHBOARD_URL is the origin the dashboard is served from; the Angular dashboard mounts at `/dashboard/` (D10),
+        // so the links below carry that prefix. `webAdmin`'s `/panel/` keeps serving the old bundle until P3.6 retires it.
         String configured = props.dashboardUrl();
         String base = configured == null || configured.isBlank() ? (props.publicUrl() == null ? "" : props.publicUrl()) : configured;
         this.dashboardUrl = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
-    public String acceptInviteLink(String token) { return dashboardUrl + "/panel/accept-invite?token=" + token; }
-    public String resetPasswordLink(String token) { return dashboardUrl + "/panel/reset-password?token=" + token; }
+    public String acceptInviteLink(String token) { return dashboardUrl + "/dashboard/accept-invite?token=" + token; }
+    public String resetPasswordLink(String token) { return dashboardUrl + "/dashboard/reset-password?token=" + token; }
 
     public void sendInvite(String to, String schoolName, String role, String token) {
         String link = acceptInviteLink(token);

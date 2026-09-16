@@ -2,6 +2,7 @@
   "permissions": {
     "health.read": ["PUBLIC"],
     "panel.read": ["PUBLIC"],
+    "dashboard.read": ["PUBLIC"],
     "media.page.read": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL"],
     "media.child.read": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL"],
     "auth.signIn": ["PUBLIC"],
@@ -60,6 +61,9 @@
     { "method": "GET", "path": "/panel", "permission": "panel.read" },
     { "method": "GET", "path": "/panel/", "permission": "panel.read" },
     { "method": "GET", "path": "/panel/**", "permission": "panel.read" },
+    { "method": "GET", "path": "/dashboard", "permission": "dashboard.read" },
+    { "method": "GET", "path": "/dashboard/", "permission": "dashboard.read" },
+    { "method": "GET", "path": "/dashboard/**", "permission": "dashboard.read" },
     { "method": "GET", "path": "/media/pages/{id}", "permission": "media.page.read" },
     { "method": "GET", "path": "/media/child/{id}", "permission": "media.child.read" },
 

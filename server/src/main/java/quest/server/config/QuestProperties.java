@@ -7,10 +7,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * by `V5__flags_themes.sql`, is edited by Admin under Platform settings, and is read through
  * {@link quest.server.platform.PlatformSettingsService} — an environment variable that could silently win over the
  * Admin's own setting would be a second source of truth.
+ *
+ * <p>`dashboard-dir` (DASHBOARD_DIR) is where the built Angular bundle lives on disk; {@link DashboardController}
+ * serves it at `/dashboard/` (D10) and answers 404 while it is blank. `dashboard-url` is a different thing: the
+ * origin the invite and reset links in {@link quest.server.mail.DashboardMails} point at.
  */
 @ConfigurationProperties(prefix = "quest")
 public record QuestProperties(Auth auth, Llm llm, Anthropic anthropic, DeepSeek deepseek, Storage storage, Admin admin, Mail mail,
-                              String version, String publicUrl, String dashboardUrl) {
+                              String version, String publicUrl, String dashboardUrl, String dashboardDir) {
     /** fake=true accepts `Bearer fake-token-<uid>` (development without Firebase). */
     public record Auth(boolean fake, String firebaseCredentials, String jwtSecret, long jwtHours,
                        long accessMinutes, long refreshDays, long resetMinutes, long inviteDays, long impersonateMinutes,

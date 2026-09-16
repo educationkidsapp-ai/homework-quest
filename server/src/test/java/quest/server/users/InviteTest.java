@@ -43,7 +43,7 @@ class InviteTest extends ApiTestSupport {
         var mail = mailer.last();
         assertThat(mail.to()).isEqualTo(email);
         assertThat(mail.subject()).contains("Al Noor Primary");
-        assertThat(mail.text()).contains("/panel/accept-invite?token=");
+        assertThat(mail.text()).contains("/dashboard/accept-invite?token=");
         String link = mail.token();
 
         // the account exists but cannot be used until the link is accepted
