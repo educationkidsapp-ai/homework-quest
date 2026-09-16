@@ -6,6 +6,7 @@
  * GET or HEAD — which is exactly what a read-only "View as" session is refused.
  */
 export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
+  'announcement.write',
   'auth.changePassword',
   'auth.forgotPassword',
   'auth.refresh',
@@ -13,6 +14,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'auth.signIn',
   'auth.signOut',
   'child.play',
+  'child.teacherQuestion.answer',
   'child.write',
   'class.write',
   'flag.write',
@@ -20,10 +22,16 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'lesson.delete',
   'lesson.publish',
   'lesson.write',
+  'me.update',
   'platform.write',
   'play.write',
+  'question.send',
+  'question.write',
+  'school.logo',
   'school.write',
   'stop.write',
+  'teacher.profile',
+  'teacher.profile.manage',
   'theme.write',
   'user.create',
   'user.impersonate',
