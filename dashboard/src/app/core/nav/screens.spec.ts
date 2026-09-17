@@ -79,12 +79,13 @@ describe('the screen table', () => {
     expect(phaseOf('/admin/usage')).toBe(6);
     // Matched against the pattern, so a real id resolves.
     expect(phaseOf('/admin/schools/5c5bc15a-0e3b-4d87-b3a2-d04f7bc267e2')).toBe(3);
-    // The lesson detail route is still a stub (P3.2d); a query string does not change that.
-    expect(phaseOf('/teacher/lessons/l-1?notice=lessons.new.created')).toBe(3);
-    // The Homes and the new-lesson wizard (P3.2c) are built, and an address matching nothing
-    // has no phase.
+    // A still-stubbed detail route (school) stays stubbed with a query string on it.
+    expect(phaseOf('/admin/schools/5c5bc15a-0e3b-4d87-b3a2-d04f7bc267e2?tab=users')).toBe(3);
+    // The Homes, the new-lesson wizard (P3.2c) and the lesson review page (P3.2d) are built,
+    // and an address matching nothing has no phase.
     expect(phaseOf('/teacher')).toBeUndefined();
     expect(phaseOf('/teacher/lessons/new?classId=c-1')).toBeUndefined();
+    expect(phaseOf('/teacher/lessons/l-1?notice=lessons.new.created')).toBeUndefined();
     expect(phaseOf('/admin/nothing-here')).toBeUndefined();
   });
 });

@@ -24,10 +24,10 @@ import { BandComponent, EmptyStateComponent, PageComponent } from '../../ui';
  * those are different apologies.
  *
  * **`?notice=<translation key>`**: a screen that finishes here early — the new-lesson wizard
- * lands on `/…/lessons/:id`, a P3.1 stub until P3.2d builds the real review page — carries
- * what it wants said as a query param key, translated and shown as a notice band. The key,
- * not raw text: this is the one door every "arrived, now what" redirect can use without this
- * file knowing what any of them are for.
+ * lands on `/…/lessons/:id`, the P3.2d review page since it carries what it wants said as a
+ * query param key, translated and shown as a notice band, rather than this stub. The key, not
+ * raw text: this is the one door every "arrived, now what" redirect can use without this file
+ * knowing what any of them are for.
  */
 @Component({
   selector: 'hq-stub-page',

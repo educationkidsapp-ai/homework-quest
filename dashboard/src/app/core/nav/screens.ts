@@ -50,12 +50,12 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       { id: 'school-users', path: 'schools/:id/users', permission: 'user.read', phase: 3 },
       { id: 'users', path: 'users', labelKey: 'nav.users', permission: 'user.read', phase: 3 },
       { id: 'flags', path: 'flags', labelKey: 'nav.flags', permission: 'flag.read', phase: 3 },
-      // lessons (P3.2b/c): the list and the new-lesson wizard are built; the detail review
-      // page stays the P3.1 stub until P3.2d. `new-lesson` has no `labelKey` — it is a link
-      // the list's primary action and empty state open, not a rail item of its own.
+      // lessons (P3.2b/c/d): the list, the new-lesson wizard and the review page are all
+      // built. `new-lesson` and `lesson` have no `labelKey` — they are links the list's rows,
+      // primary action and empty state open, not rail items of their own.
       { id: 'lessons', path: 'lessons', labelKey: 'nav.allLessons', permission: 'lesson.read' },
       { id: 'new-lesson', path: 'lessons/new', permission: 'lesson.write' },
-      { id: 'lesson', path: 'lessons/:id', permission: 'lesson.read', phase: 3 },
+      { id: 'lesson', path: 'lessons/:id', permission: 'lesson.read' },
       { id: 'usage', path: 'usage', labelKey: 'nav.platformUsage', permission: 'usage.platform', phase: 6 },
       // `platform.manage`, not `platform.read`: reading the platform's name is PUBLIC (the
       // sign-in page needs it before anyone has signed in), so gating the Admin screen on it
@@ -81,7 +81,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.newLesson',
         permission: 'lesson.write',
       },
-      { id: 'lesson', path: 'lessons/:id', permission: 'lesson.read', phase: 3 },
+      { id: 'lesson', path: 'lessons/:id', permission: 'lesson.read' },
       // No permission yet: `child.read` in permissions.json belongs to PARENT, and the key for
       // a teacher reading her own students arrives with P4.0's endpoints. Gating on the
       // parent's key would hide the item from every teacher.

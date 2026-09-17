@@ -32,6 +32,7 @@ const ROUTES = {
   profile: ['hq-shell', 'hq-profile-page'],
   lessons: ['hq-shell', 'hq-lessons-page'],
   'new lesson': ['hq-shell', 'hq-new-lesson-page'],
+  lesson: ['hq-shell', 'hq-lesson-page'],
   'accept-invite': ['hq-accept-invite-page'],
 };
 

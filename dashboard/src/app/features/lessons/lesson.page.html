@@ -1,0 +1,321 @@
+@if (loading() && !lesson()) {
+  <hq-page [title]="'lessons.loading' | transloco">
+    <hq-skeleton [loading]="true" [lines]="8" height="var(--hq-size-row-height)" [label]="'lessons.loading' | transloco" />
+  </hq-page>
+} @else if (lesson(); as l) {
+  <hq-page [title]="pageTitle()" [subtitle]="subtitleLine()" [breadcrumbs]="breadcrumbs()">
+    <ng-container *hqCan="'lesson.delete'">
+      <div page-actions>
+        <button
+          type="button"
+          class="lesson__overflow-trigger"
+          [cdkMenuTriggerFor]="overflowMenu"
+          [attr.aria-label]="'lessons.rowActions' | transloco: { title: pageTitle() }"
+        >
+          ⋮
+        </button>
+      </div>
+
+      <ng-template #overflowMenu>
+        <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
+          <button type="button" cdkMenuItem class="menu__item menu__item--danger" (cdkMenuItemTriggered)="requestDelete()">
+            {{ 'lessons.delete' | transloco }}
+          </button>
+        </div>
+      </ng-template>
+    </ng-container>
+
+    <div class="lesson">
+      @if (notice(); as noticeText) {
+        <hq-band variant="notice" [open]="true" (dismissed)="notice.set(null)">{{ noticeText }}</hq-band>
+      }
+      @if (pendingAction()) {
+        <hq-band
+          variant="confirm"
+          [open]="true"
+          [title]="confirmTitle()"
+          [confirmLabel]="confirmLabel()"
+          (confirmed)="confirmPendingAction()"
+          (dismissed)="cancelPendingAction()"
+        >
+          {{ confirmMessage() }}
+        </hq-band>
+      }
+      <hq-undo-strip
+        [open]="undoOpen()"
+        [message]="'lessons.detail.unpublishedUndo' | transloco"
+        (undone)="undoUnpublish()"
+        (expired)="undoExpired()"
+      />
+
+      @if (stripSteps().length > 0) {
+        <hq-step-strip
+          [steps]="stripSteps()"
+          [label]="'lessons.detail.pipeline' | transloco"
+          [stateLabels]="stepStateLabels()"
+        />
+      }
+
+      @if (isErrorStatus()) {
+        <hq-band variant="error" [open]="true" [dismissible]="false">{{ stepErrorMessage() }}</hq-band>
+        <div class="lesson__actions">
+          <hq-button *hqCan="'lesson.write'" [disabled]="busy() !== null" (pressed)="retryContinue()">
+            {{ 'lessons.detail.retryContinue' | transloco }}
+          </hq-button>
+          <hq-button
+            *hqCan="'lesson.write'"
+            variant="secondary"
+            [disabled]="busy() !== null"
+            (pressed)="retryFailedStep()"
+          >
+            {{ 'lessons.detail.retryStepOnly' | transloco }}
+          </hq-button>
+          @if (canReplaceFile()) {
+            <hq-button *hqCan="'lesson.write'" variant="quiet" [disabled]="busy() !== null" (pressed)="startReplace()">
+              {{ 'lessons.detail.replaceFile' | transloco }}
+            </hq-button>
+          }
+        </div>
+      }
+
+      @if (busy(); as busyText) {
+        <p class="lesson__busy" role="status">{{ busyText }}</p>
+      }
+
+      @if (replacing()) {
+        <hq-card [title]="'lessons.detail.replaceFile' | transloco">
+          <div class="lesson__dropzone" (dragover)="onReplaceDragOver($event)" (drop)="onReplaceDrop($event)">
+            <label for="lesson-replace-input" class="lesson__dropzone-choose">
+              {{ 'lessons.new.dropzone.choose' | transloco }}
+            </label>
+            <input id="lesson-replace-input" class="hq-sr-only" type="file" multiple (change)="onReplaceInput($event)" />
+            <hq-button variant="quiet" (pressed)="cancelReplace()">{{ 'ui.dismiss' | transloco }}</hq-button>
+          </div>
+        </hq-card>
+      }
+
+      <hq-card [title]="'lessons.detail.files.title' | transloco">
+        <div card-actions class="lesson__files-actions">
+          @if (hasUndeletedFiles()) {
+            <hq-button *hqCan="'lesson.write'" variant="quiet" [disabled]="busy() !== null" (pressed)="deleteAllFiles()">
+              {{ 'lessons.detail.files.deleteAll' | transloco }}
+            </hq-button>
+          }
+          <ng-container *hqCan="'lesson.write'">
+            <label for="lesson-upload-more" class="lesson__upload-more">
+              {{ 'lessons.detail.files.uploadMore' | transloco }}
+            </label>
+            <input id="lesson-upload-more" class="hq-sr-only" type="file" multiple (change)="onUploadMoreInput($event)" />
+          </ng-container>
+        </div>
+        @if (files().length === 0) {
+          <p class="lesson__empty">{{ 'lessons.detail.files.empty' | transloco }}</p>
+        } @else {
+          <ul class="lesson__files">
+            @for (file of files(); track file.id) {
+              <li class="lesson__file" [class.lesson__file--deleted]="file.deleted">
+                <span class="lesson__file-name">{{ file.fileName }}</span>
+                <span class="lesson__file-meta">
+                  {{ 'lessons.detail.files.pages' | transloco: { count: file.pageCount } }}
+                  @if (file.cacheHit) {
+                    · {{ 'lessons.detail.files.cacheHit' | transloco }}
+                  }
+                  @if (file.deleted) {
+                    · {{ 'lessons.detail.files.deleted' | transloco }}
+                  }
+                </span>
+              </li>
+            }
+          </ul>
+        }
+      </hq-card>
+
+      @if (isNeedsReview()) {
+        <hq-card [title]="'lessons.detail.skills.title' | transloco">
+          @if (skillsError(); as err) {
+            <hq-band variant="error" [open]="true" (dismissed)="skillsError.set(null)">{{ err }}</hq-band>
+          }
+          <ul class="lesson__skills">
+            @for (row of skillRows(); track $index) {
+              <li class="lesson__skill-row">
+                <hq-checkbox
+                  [label]="'lessons.detail.skills.keep' | transloco"
+                  [checked]="row.keep"
+                  (checkedChange)="setSkillKeep($index, $event)"
+                />
+                <hq-input
+                  [label]="'lessons.detail.skills.name' | transloco"
+                  [value]="row.name"
+                  (valueChange)="setSkillName($index, $event)"
+                />
+                <hq-input
+                  [label]="'lessons.detail.skills.method' | transloco"
+                  [value]="row.method"
+                  (valueChange)="setSkillMethod($index, $event)"
+                />
+                <hq-select
+                  [label]="'lessons.detail.skills.subject' | transloco"
+                  [options]="subjectOptions()"
+                  [value]="row.subject"
+                  (valueChange)="setSkillSubject($index, $event)"
+                />
+                @if (row.candidates.length > 0) {
+                  <div class="lesson__skill-candidates">
+                    @if (row.question; as question) {
+                      <p class="lesson__skill-question">{{ question }}</p>
+                    }
+                    @for (candidate of row.candidates; track candidate) {
+                      <span class="lesson__chip">{{ candidate }}</span>
+                    }
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+          <div class="lesson__skill-actions">
+            <hq-button *hqCan="'lesson.write'" variant="quiet" (pressed)="addSkillRow()">
+              {{ 'lessons.detail.skills.add' | transloco }}
+            </hq-button>
+            <hq-button *hqCan="'lesson.write'" [disabled]="busy() !== null" (pressed)="confirmSkills()">
+              {{ 'lessons.detail.skills.confirm' | transloco }}
+            </hq-button>
+          </div>
+        </hq-card>
+      }
+
+      @if (l.plays.length > 0) {
+        <hq-card [title]="'lessons.detail.plays.title' | transloco">
+          <hq-tabs
+            [tabs]="playTabs()"
+            [selected]="playTab()"
+            (selectedChange)="selectPlayTab($event)"
+            [label]="'lessons.detail.plays.tabsLabel' | transloco"
+          />
+          <div class="lesson__play">
+            <div class="lesson__stop-list" role="listbox" [attr.aria-label]="'lessons.detail.plays.stopList' | transloco">
+              @if (currentPlay(); as play) {
+                @if (play.stops.length === 0) {
+                  <p class="lesson__empty">{{ 'lessons.detail.plays.empty' | transloco }}</p>
+                } @else {
+                  @for (stop of play.stops; track stop.id; let i = $index) {
+                    <button
+                      #stopBtn
+                      type="button"
+                      role="option"
+                      class="lesson__stop-item"
+                      [class.lesson__stop-item--selected]="stop.id === selectedStopId()"
+                      [attr.aria-selected]="stop.id === selectedStopId()"
+                      [attr.tabindex]="stop.id === selectedStopId() ? 0 : -1"
+                      (click)="selectStop(stop.id)"
+                      (keydown)="onStopListKeydown($event, i)"
+                    >
+                      <span class="lesson__stop-pos">{{ i + 1 }}</span>
+                      <span class="lesson__stop-title">{{ stop.title }}</span>
+                      <span class="lesson__stop-type">{{ stop.type }}</span>
+                    </button>
+                  }
+                }
+                <hq-button
+                  *hqCan="'play.write'"
+                  variant="quiet"
+                  [disabled]="busy() !== null"
+                  (pressed)="requestRegeneratePlay()"
+                >
+                  {{ 'lessons.detail.plays.regeneratePlay' | transloco }}
+                </hq-button>
+              } @else {
+                <p class="lesson__empty">{{ 'lessons.detail.plays.empty' | transloco }}</p>
+              }
+            </div>
+            <div class="lesson__preview">
+              <hq-phone-preview
+                [stop]="selectedStop()"
+                [images]="l.images"
+                [subject]="previewSubject()"
+                [theme]="currentPlay()?.theme ?? null"
+                [label]="'lessons.detail.plays.previewLabel' | transloco"
+                [caption]="selectedStop()?.title ?? null"
+              />
+              @if (selectedStop()) {
+                <hq-button
+                  *hqCan="'stop.write'"
+                  variant="quiet"
+                  [disabled]="busy() !== null"
+                  (pressed)="requestRegenerateStop()"
+                >
+                  {{ 'lessons.detail.plays.regenerateStop' | transloco }}
+                </hq-button>
+              }
+            </div>
+          </div>
+        </hq-card>
+      }
+
+      @if (l.parentPanel; as panel) {
+        <hq-card [title]="'lessons.detail.panel.title' | transloco">
+          <section class="lesson__panel-block">
+            <h3 class="lesson__panel-heading">{{ 'lessons.detail.panel.objectives' | transloco }}</h3>
+            <ul class="lesson__panel-list">
+              @for (obj of panel.objectives.en; track $index) {
+                <li>{{ obj }} <span class="lesson__panel-ar" dir="rtl">{{ panel.objectives.ar[$index] }}</span></li>
+              }
+            </ul>
+          </section>
+          <section class="lesson__panel-block">
+            <h3 class="lesson__panel-heading">{{ 'lessons.detail.panel.supported' | transloco }}</h3>
+            <ul class="lesson__panel-list">
+              @for (item of panel.supported; track $index) {
+                <li>{{ item.en }} <span class="lesson__panel-ar" dir="rtl">{{ item.ar }}</span></li>
+              }
+            </ul>
+          </section>
+          <section class="lesson__panel-block">
+            <h3 class="lesson__panel-heading">{{ 'lessons.detail.panel.challenge' | transloco }}</h3>
+            <ul class="lesson__panel-list">
+              @for (item of panel.challenge; track $index) {
+                <li>{{ item.en }} <span class="lesson__panel-ar" dir="rtl">{{ item.ar }}</span></li>
+              }
+            </ul>
+          </section>
+          @if (panel.stopTips.length > 0) {
+            <section class="lesson__panel-block">
+              <h3 class="lesson__panel-heading">{{ 'lessons.detail.panel.stopTips' | transloco }}</h3>
+              <ul class="lesson__panel-list">
+                @for (tip of panel.stopTips; track tip.stopId) {
+                  <li>{{ tip.en }} <span class="lesson__panel-ar" dir="rtl">{{ tip.ar }}</span></li>
+                }
+              </ul>
+            </section>
+          }
+          @if (panel.modelAnswers.length > 0) {
+            <section class="lesson__panel-block">
+              <h3 class="lesson__panel-heading">{{ 'lessons.detail.panel.modelAnswers' | transloco }}</h3>
+              <ul class="lesson__panel-list">
+                @for (answer of panel.modelAnswers; track answer.stopId) {
+                  <li>{{ answer.en }}</li>
+                }
+              </ul>
+            </section>
+          }
+        </hq-card>
+      }
+    </div>
+
+    <div page-footer>
+      @if (isPublished()) {
+        <hq-button *hqCan="'lesson.publish'" variant="secondary" [disabled]="busy() !== null" (pressed)="unpublish()">
+          {{ 'lessons.detail.unpublish' | transloco }}
+        </hq-button>
+      } @else {
+        <hq-button
+          *hqCan="'lesson.publish'"
+          [disabled]="!canPublish()"
+          [reason]="publishReason()"
+          (pressed)="requestPublish()"
+        >
+          {{ 'lessons.detail.publish' | transloco }}
+        </hq-button>
+      }
+    </div>
+  </hq-page>
+}
