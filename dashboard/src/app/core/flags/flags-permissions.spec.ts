@@ -62,7 +62,9 @@ async function signIn({ flags, permissions, readOnly = false }: Session): Promis
   TestBed.inject(PermissionService).all();
   TestBed.tick();
 
-  backend.expectOne('/schools/school-a/flags').flush({ schoolId: 'school-a', flags });
+  // The real endpoint answers the flat map itself, not a `{ schoolId, flags }` envelope —
+  // see the comment on `FlagService.mapFor`.
+  backend.expectOne('/schools/school-a/flags').flush(flags);
   backend.expectOne('/me/permissions').flush({ role: 'TEACHER', permissions, readOnly });
   // A resource applies a delivered value on the microtask queue, so one synchronous tick is
   // not enough: let the queue drain, then tick again to settle the graph.

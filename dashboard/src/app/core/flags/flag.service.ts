@@ -2,7 +2,7 @@ import { Injectable, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
-import { FeatureFlagsApi, SchoolFlags } from '../../api';
+import { FeatureFlagsApi } from '../../api';
 import { AuthService } from '../auth/auth.service';
 
 /** The 14 keys of §4, mirroring `quest.server.flags.FlagKeys`. */
@@ -72,31 +72,34 @@ export class FlagService {
     this.resource.reload();
   }
 
-  /** The flag map for one school, or the platform defaults when the scope is "All schools". */
+  /**
+   * The flag map for one school, or the platform defaults when the scope is "All schools".
+   *
+   * `GET /schools/{id}/flags` answers the flat map itself (`{"lessons.pdf": true, …}`), not a
+   * `SchoolFlags` envelope with a `.flags` property — that shape is `FlagMatrix.schools[]`'s,
+   * a different response entirely. Reading `.flags` off the flat map is `undefined`, which
+   * this service's own "failed read → {}" fallback then swallowed, so every school-scoped
+   * session read every flag as off with no error to show for it. `SchoolFlags`'s fields are
+   * all optional, which is why nothing here caught the mismatch: any object satisfies it.
+   */
   private mapFor(schoolId: string | null): Observable<Record<string, boolean>> {
-    const source: Observable<SchoolFlags> =
+    const source: Observable<Record<string, boolean>> =
       schoolId === null ? this.platformDefaults() : this.flagsApi.schoolFlags(schoolId);
-    return source.pipe(
-      map((flags) => flags.flags ?? {}),
-      // A flag read that fails must not blank the dashboard: an empty map hides the flagged
-      // items and leaves the shell usable, which is the safe direction.
-      catchError(() => of<Record<string, boolean>>({})),
-    );
+    // A flag read that fails must not blank the dashboard: an empty map hides the flagged
+    // items and leaves the shell usable, which is the safe direction.
+    return source.pipe(catchError(() => of<Record<string, boolean>>({})));
   }
 
-  /**
-   * "All schools": the platform's own defaults, shaped like a school's flag map so the rest
-   * of the service cannot tell the difference.
-   */
-  private platformDefaults(): Observable<SchoolFlags> {
+  /** "All schools": the platform's own defaults, shaped like a school's flat flag map. */
+  private platformDefaults(): Observable<Record<string, boolean>> {
     return this.flagsApi.matrix().pipe(
-      map((matrix): SchoolFlags => {
+      map((matrix) => {
         const flags: Record<string, boolean> = {};
         for (const definition of matrix.definitions ?? [])
           if (definition.key) flags[definition.key] = definition.defaultOn === true;
-        return { flags };
+        return flags;
       }),
-      catchError(() => of<SchoolFlags>({ flags: {} })),
+      catchError(() => of<Record<string, boolean>>({})),
     );
   }
 }
