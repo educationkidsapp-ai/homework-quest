@@ -4,30 +4,26 @@
   </hq-page>
 } @else if (lesson(); as l) {
   <hq-page [title]="pageTitle()" [subtitle]="subtitleLine()" [breadcrumbs]="breadcrumbs()">
-    <div page-actions>
-      <button
-        type="button"
-        class="lesson__overflow-trigger"
-        [cdkMenuTriggerFor]="overflowMenu"
-        [attr.aria-label]="'lessons.rowActions' | transloco: { title: pageTitle() }"
-      >
-        ⋮
-      </button>
-    </div>
-
-    <ng-template #overflowMenu>
-      <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
+    <ng-container *hqCan="'lesson.delete'">
+      <div page-actions>
         <button
           type="button"
-          cdkMenuItem
-          class="menu__item menu__item--danger"
-          *hqCan="'lesson.delete'"
-          (cdkMenuItemTriggered)="requestDelete()"
+          class="lesson__overflow-trigger"
+          [cdkMenuTriggerFor]="overflowMenu"
+          [attr.aria-label]="'lessons.rowActions' | transloco: { title: pageTitle() }"
         >
-          {{ 'lessons.delete' | transloco }}
+          ⋮
         </button>
       </div>
-    </ng-template>
+
+      <ng-template #overflowMenu>
+        <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
+          <button type="button" cdkMenuItem class="menu__item menu__item--danger" (cdkMenuItemTriggered)="requestDelete()">
+            {{ 'lessons.delete' | transloco }}
+          </button>
+        </div>
+      </ng-template>
+    </ng-container>
 
     <div class="lesson">
       @if (notice(); as noticeText) {
@@ -105,10 +101,12 @@
               {{ 'lessons.detail.files.deleteAll' | transloco }}
             </hq-button>
           }
-          <label *hqCan="'lesson.write'" for="lesson-upload-more" class="lesson__upload-more">
-            {{ 'lessons.detail.files.uploadMore' | transloco }}
-          </label>
-          <input id="lesson-upload-more" class="hq-sr-only" type="file" multiple (change)="onUploadMoreInput($event)" />
+          <ng-container *hqCan="'lesson.write'">
+            <label for="lesson-upload-more" class="lesson__upload-more">
+              {{ 'lessons.detail.files.uploadMore' | transloco }}
+            </label>
+            <input id="lesson-upload-more" class="hq-sr-only" type="file" multiple (change)="onUploadMoreInput($event)" />
+          </ng-container>
         </div>
         @if (files().length === 0) {
           <p class="lesson__empty">{{ 'lessons.detail.files.empty' | transloco }}</p>
@@ -194,7 +192,7 @@
             [label]="'lessons.detail.plays.tabsLabel' | transloco"
           />
           <div class="lesson__play">
-            <div class="lesson__stop-list">
+            <div class="lesson__stop-list" role="listbox" [attr.aria-label]="'lessons.detail.plays.stopList' | transloco">
               @if (currentPlay(); as play) {
                 @if (play.stops.length === 0) {
                   <p class="lesson__empty">{{ 'lessons.detail.plays.empty' | transloco }}</p>
@@ -203,8 +201,11 @@
                     <button
                       #stopBtn
                       type="button"
+                      role="option"
                       class="lesson__stop-item"
                       [class.lesson__stop-item--selected]="stop.id === selectedStopId()"
+                      [attr.aria-selected]="stop.id === selectedStopId()"
+                      [attr.tabindex]="stop.id === selectedStopId() ? 0 : -1"
                       (click)="selectStop(stop.id)"
                       (keydown)="onStopListKeydown($event, i)"
                     >

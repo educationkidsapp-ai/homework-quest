@@ -7,7 +7,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../../api';
-import { ADMIN_USER } from '../../../testing/fixtures';
+import { ADMIN_USER, MANAGERIAL_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
@@ -18,6 +18,9 @@ const ADMIN_PERMISSIONS = {
   permissions: ['lesson.read', 'lesson.write', 'lesson.publish', 'lesson.delete', 'play.write', 'stop.write'],
   readOnly: false,
 };
+
+/** A viewer with `lesson.read` only — every write control is denied. */
+const READ_ONLY_PERMISSIONS = { role: 'MANAGERIAL', permissions: ['lesson.read'], readOnly: false };
 
 /** A minimal, contract-shaped `AdminLesson` — the fields every test needs, varied per case. */
 const BASE_LESSON = {
@@ -66,6 +69,15 @@ function providersFor(id: string, notice?: string): (Provider | EnvironmentProvi
  * So it is the *first* request the backend sees, not the last.
  */
 async function renderLesson(lesson: object, notice?: string) {
+  return renderLessonAs(lesson, ADMIN_USER, ADMIN_PERMISSIONS, notice);
+}
+
+async function renderLessonAs(
+  lesson: object,
+  user: typeof ADMIN_USER,
+  permissions: typeof ADMIN_PERMISSIONS,
+  notice?: string,
+) {
   const rendered = await renderHq(LessonPage, { providers: providersFor('l-1', notice) });
   const backend = TestBed.inject(HttpTestingController);
 
@@ -74,9 +86,9 @@ async function renderLesson(lesson: object, notice?: string) {
 
   TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
   TestBed.inject(AuthService).loadMe().subscribe();
-  backend.expectOne('/me').flush(ADMIN_USER);
+  backend.expectOne('/me').flush(user);
   TestBed.tick();
-  backend.expectOne('/me/permissions').flush(ADMIN_PERMISSIONS);
+  backend.expectOne('/me/permissions').flush(permissions);
   await Promise.resolve();
 
   return { rendered, backend };
@@ -198,6 +210,18 @@ describe('Lesson', () => {
   });
 
   it('switches the play tab and selects a stop, driving the pinned preview', async () => {
+    const stop = (id: string, title: string) => ({
+      id,
+      type: 'choice',
+      title,
+      speak: '',
+      ingredient: { emoji: '🥕', name: 'carrot' },
+      parentTip: { en: '', ar: '' },
+      hint: '',
+      question: '',
+      options: [],
+      correctOptionId: '',
+    });
     await renderLesson({
       ...BASE_LESSON,
       status: 'review',
@@ -213,16 +237,27 @@ describe('Lesson', () => {
             level: 1,
             variant: 0,
             theme: { potName: 'Soup', dishName: 'Stew', potEmoji: '🍲', servedText: 'Served!' },
-            stops: [
-              { id: 'st-1', type: 'choice', title: 'Pick the bigger number', speak: '', ingredient: { emoji: '🥕', name: 'carrot' }, parentTip: { en: '', ar: '' }, hint: '', question: '', options: [], correctOptionId: '' },
-            ],
+            stops: [stop('st-1', 'Pick the bigger number'), stop('st-2', 'What number is missing')],
           },
         },
       ],
     });
 
+    // The listbox pattern (`ui/tabs/tabs.component.ts`'s roving tabindex, applied to the stop
+    // list): `aria-selected` and `tabindex` follow the selection, not just a CSS class.
     expect(screen.getAllByText('Pick the bigger number').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: /Pick the bigger number/ })).toHaveClass('lesson__stop-item--selected');
+    const first = screen.getByRole('option', { name: /Pick the bigger number/ });
+    const second = screen.getByRole('option', { name: /What number is missing/ });
+    expect(first).toHaveAttribute('aria-selected', 'true');
+    expect(first).toHaveAttribute('tabindex', '0');
+    expect(second).toHaveAttribute('aria-selected', 'false');
+    expect(second).toHaveAttribute('tabindex', '-1');
+
+    await userEvent.click(second);
+    expect(first).toHaveAttribute('aria-selected', 'false');
+    expect(first).toHaveAttribute('tabindex', '-1');
+    expect(second).toHaveAttribute('aria-selected', 'true');
+    expect(second).toHaveAttribute('tabindex', '0');
   });
 
   it('publishes behind a confirm band and shows the notice after', async () => {
@@ -288,12 +323,23 @@ describe('Lesson', () => {
   it('deletes the lesson from the overflow menu behind a confirm band', async () => {
     const { backend } = await renderLesson(BASE_LESSON);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Actions for Adding to ten' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Adding to ten' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
     const band = screen.getByRole('alert');
     await userEvent.click(within(band).getByRole('button', { name: 'Delete' }));
 
     backend.expectOne((req) => req.url === '/admin/lessons/l-1' && req.method === 'DELETE').flush(null);
     await waitFor(() => expect(screen.queryByText('Delete this lesson?')).not.toBeInTheDocument());
+  });
+
+  it('gives a viewer without lesson.write no way to reach the file input, hidden or not', async () => {
+    await renderLessonAs(BASE_LESSON, MANAGERIAL_USER, READ_ONLY_PERMISSIONS);
+
+    // The label `*hqCan` was already hiding; the regression was the `<input type="file">`
+    // sitting outside that guard, reachable via `hq-sr-only` even with no visible button.
+    await screen.findByText('Files');
+    expect(screen.queryByText('Upload more')).not.toBeInTheDocument();
+    expect(document.querySelector('#lesson-upload-more')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Actions for Adding to ten' })).not.toBeInTheDocument();
   });
 });

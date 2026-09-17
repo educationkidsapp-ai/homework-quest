@@ -309,7 +309,8 @@
         "empty": "This level has no stops yet.",
         "regeneratePlay": "Regenerate this level",
         "regenerateStop": "Regenerate this stop",
-        "previewLabel": "Child app preview"
+        "previewLabel": "Child app preview",
+        "stopList": "Stops"
       },
       "panel": {
         "title": "Parent panel",

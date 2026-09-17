@@ -361,12 +361,19 @@ export class LessonPage {
     return SUBJECTS.map((subject) => ({ value: subject, label: this.translateOrEmpty(`subject.${subject}`) || subject }));
   });
 
-  private skillRowsForLessonId: string | null = null;
+  /** The status this lesson had the *previous* time this ran — not just its id — so a second
+   *  pass through `needs_review` in the same page lifetime (a retry on the skills step that
+   *  re-extracts) reseeds instead of posting stale skill ids back to the server. */
+  private previousLessonStatus: AdminLessonStatusEnum | null = null;
 
   private seedSkillRowsIfNeeded(): void {
     const lesson = this.lesson();
-    if (!lesson || !this.isNeedsReview() || this.skillRowsForLessonId === lesson.id) return;
-    this.skillRowsForLessonId = lesson.id;
+    if (!lesson) return;
+    const enteringNeedsReview =
+      lesson.status === AdminLessonStatusEnum.NEEDS_REVIEW &&
+      this.previousLessonStatus !== AdminLessonStatusEnum.NEEDS_REVIEW;
+    this.previousLessonStatus = lesson.status;
+    if (!enteringNeedsReview) return;
     this.skillRows.set(
       lesson.skills.map((skill) => ({
         id: skill.id,
@@ -473,16 +480,32 @@ export class LessonPage {
     this.selectedStopId.set(stops.some((stop) => stop.id === this.selectedStopId()) ? this.selectedStopId() : (first?.id ?? null));
   }
 
+  /** The listbox pattern (`ui/tabs/tabs.component.ts`'s roving-tabindex arrows, plus Home/End). */
   protected onStopListKeydown(event: KeyboardEvent, index: number): void {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     const stops = this.currentPlay()?.stops ?? [];
     if (stops.length === 0) return;
+    const next = this.nextStopIndex(event.key, index, stops.length);
+    if (next === null) return;
     event.preventDefault();
-    const next = event.key === 'ArrowDown' ? (index + 1) % stops.length : (index - 1 + stops.length) % stops.length;
     const stop = stops[next];
     if (!stop) return;
     this.selectedStopId.set(stop.id);
     this.stopButtons().at(next)?.nativeElement.focus();
+  }
+
+  private nextStopIndex(key: string, current: number, length: number): number | null {
+    switch (key) {
+      case 'ArrowDown':
+        return (current + 1) % length;
+      case 'ArrowUp':
+        return (current - 1 + length) % length;
+      case 'Home':
+        return 0;
+      case 'End':
+        return length - 1;
+      default:
+        return null;
+    }
   }
 
   protected readonly previewSubject = computed<'math' | 'english'>(() =>
@@ -653,7 +676,14 @@ export class LessonPage {
     this.undoOpen.set(false);
     const lesson = this.lesson();
     if (!lesson) return;
-    this.lessonsApi.publish(lesson.id).subscribe({ next: (updated) => this.lessonRes.update(() => updated) });
+    this.busy.set(this.t('lessons.detail.busy.publishing'));
+    this.lessonsApi.publish(lesson.id).subscribe({
+      next: (updated) => {
+        this.busy.set(null);
+        this.lessonRes.update(() => updated);
+      },
+      error: () => this.busy.set(null),
+    });
   }
 
   protected undoExpired(): void {
