@@ -29,4 +29,21 @@ describe('hq-select', () => {
 
     expect(screen.getByRole('option', { name: 'IB' })).toBeDisabled();
   });
+
+  it('stays on the placeholder — not the first real option — until something is chosen', async () => {
+    // Regression: a `disabled` placeholder option is deselected by the browser the moment a
+    // second render pass applies it, and the `<select>` falls back to its first *enabled*
+    // option — "Math" would show pre-selected while `value()` was still `''`. See the comment
+    // on the placeholder `<option>` in select.component.ts.
+    const subjects: readonly SelectOption[] = [
+      { value: 'math', label: 'Math' },
+      { value: 'english', label: 'English' },
+    ];
+    const { fixture } = await renderHq(SelectComponent, {
+      inputs: { label: 'Subject', options: subjects, placeholder: 'Choose a subject', value: '' },
+    });
+    fixture.detectChanges();
+
+    expect(screen.getByLabelText('Subject')).toHaveValue('');
+  });
 });

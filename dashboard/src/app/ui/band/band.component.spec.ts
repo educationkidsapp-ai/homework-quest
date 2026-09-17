@@ -15,6 +15,17 @@ describe('hq-band', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Publishing failed');
   });
 
+  it('actually hides — not just out of the accessibility tree — when closed', async () => {
+    // The band's own `.band { display: flex }` rule out-cascades the `hidden` attribute's
+    // UA-level `display: none` (regression: the band stayed visually laid out while closed).
+    const { container, rerender } = await renderHq(BandComponent, { inputs: { open: true, title: 'x' } });
+    const band = container.querySelector('.band') as HTMLElement;
+    expect(getComputedStyle(band).display).not.toBe('none');
+
+    await rerender({ inputs: { open: false, title: 'x' } });
+    expect(getComputedStyle(band).display).toBe('none');
+  });
+
   it('is an alert for errors and a status for notices', async () => {
     const { rerender } = await renderHq(BandComponent, {
       inputs: { open: true, variant: 'error', title: 'Publishing failed' },

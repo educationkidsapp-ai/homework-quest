@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
+import type { CalendarDayInfo } from '../../api';
 import { activeLang } from '../../core/i18n/active-lang';
 import { SkeletonComponent } from '../../ui';
-import { type CalendarDay, type Curriculum, isSchoolDay } from './lessons.models';
+import { type Curriculum, isSchoolDay } from './lessons.models';
 
 interface Cell {
   readonly date: Date;
@@ -190,7 +191,7 @@ export class LessonsCalendarComponent {
   readonly grade = input.required<number>();
   readonly year = input.required<number>();
   readonly month = input.required<number>();
-  readonly days = input<readonly CalendarDay[]>([]);
+  readonly days = input<readonly CalendarDayInfo[]>([]);
   readonly loading = input(false);
 
   readonly monthChange = output<{ year: number; month: number }>();

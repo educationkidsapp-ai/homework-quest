@@ -1,22 +1,37 @@
 /**
- * The lesson pipeline's shapes, hand-written rather than imported from `../../api`.
+ * The lesson pipeline's shapes.
  *
- * `AdminLessonController` and `AdminReportsController` return their bodies as a pre-serialized
- * `String` (`json.encodeShared(...)`) with `produces = application/json` — valid JSON on the
- * wire, but `OpenApiExportTest` records the schema as a bare `string` because that is the
- * method's Java return type. `pnpm gen:api` therefore types `listLessons`, `retry`,
- * `deleteFailed` and `AdminReportsApi.calendar` as `Observable<string>`, while the interceptor
- * pipeline still parses the response as JSON (`Accept: application/json` selects
- * `responseType: 'json'` regardless of the declared schema) — so the value that actually
- * arrives is the object below, not a string. This file names that object so the page does not
- * scatter `as unknown as …` casts with no shape to point at; the cast still happens once per
- * call site. Fixing the export is a `backend` package (typing the controller methods'
- * response), not a dashboard one. There is no generated `AdminLesson` model to import either,
- * for the same reason — the shapes below are hand-copied from `AdminApi.kt`.
+ * P3.0b typed every response `AdminLessonController` and `AdminReportsController` return
+ * (`AdminLesson`, `JobRef`, `CalendarResponse`, …) properly in `server/openapi.json`, so
+ * `pnpm gen:api` now generates real models for them under `api/generated/model/` — the
+ * `Observable<string>` + hand-cast shapes this file used to carry are gone. Screens read
+ * `AdminLesson` and friends straight from `'../../api'`.
+ *
+ * What is **not** fixed yet: `POST /admin/lessons`' body is still exported as a bare
+ * `string` schema (`AdminLessonController.createLesson` takes the pre-serialized JSON the
+ * same way the read side used to answer it), so `CreateLessonRequest` and `LessonSource`
+ * have no generated model to import. They are hand-copied from `AdminApi.kt` below, same as
+ * before — fixing the request side is a `backend` package, not a dashboard one.
  */
+import {
+  type AdminLesson,
+  AdminLessonStatusEnum,
+  type JobRefStatusEnum,
+  LessonStepInfoStatusEnum,
+} from '../../api';
 
+/**
+ * Plain string-literal unions, not the generated enums.
+ *
+ * The generator gives every response shape carrying a "curriculum" or a "status" its own
+ * enum type (`AdminLessonStatusEnum`, `JobRefStatusEnum`, `CourseCurriculumEnum`, …), all
+ * with the same members but nominally distinct — TypeScript will not assign one into a field
+ * typed by another without a cast. A plain union matching the wire values is assignable
+ * *from* every one of those enums (they are all subtypes of it), so it is what lets a
+ * `JobRef.status` and an `AdminLesson.status` sit in the same `LessonStatus`-typed variable.
+ */
 export type Curriculum = 'american' | 'british';
-export type Subject = 'math' | 'english' | 'science';
+export type Subject = 'math' | 'english';
 export type LessonStatus =
   | 'draft'
   | 'uploading'
@@ -38,59 +53,58 @@ export type PipelineStep =
   | 'panel';
 export type StepStatus = 'pending' | 'running' | 'done' | 'error';
 
-export interface LessonStepInfo {
-  readonly step: PipelineStep;
-  readonly status: StepStatus;
-}
+/** Where a lesson's content came from — no generated model; see the file header. */
+export type LessonSource = 'pdf' | 'slides' | 'images' | 'manual';
 
-/** `AdminLesson` (`shared-api/.../AdminApi.kt`) — the fields this screen reads. */
-export interface AdminLessonRow {
-  readonly id: string;
-  readonly course: { readonly curriculum: Curriculum; readonly grade: number };
+/** `POST /admin/lessons`'s body (`CreateLessonRequest` in `AdminApi.kt`) — hand-typed; see the file header. */
+export interface CreateLessonRequest {
+  readonly curriculum: Curriculum;
+  readonly grade: number;
   readonly subject: Subject;
   readonly date: string;
-  readonly status: LessonStatus;
-  readonly title?: string | null;
-  readonly steps?: readonly LessonStepInfo[];
-  readonly currentStep?: PipelineStep | null;
-  readonly schoolId?: string | null;
-  readonly schoolName?: string | null;
+  readonly practiceLength?: number;
+  readonly source?: LessonSource;
+  readonly title?: string;
 }
 
-/** `JobRef` — what `retry` answers with: the status the pipeline is in right after the call. */
-export interface JobRef {
-  readonly jobId: string;
-  readonly status: LessonStatus;
+/** `CreateLessonRequest`'s body goes over the wire pre-serialized — see the file header. */
+export function createLessonBody(request: CreateLessonRequest): string {
+  return JSON.stringify(request);
+}
+
+/**
+ * `JobRef.status` and `AdminLesson.status` are two separately generated string enums with
+ * identical members (the same `LessonStatus` on the Kotlin side), but the generator gives
+ * each response shape its own enum type, and TypeScript treats generated enums as nominal —
+ * so a job's status does not type-check where a lesson's is expected without this cast.
+ */
+export function jobStatusAsLessonStatus(status: JobRefStatusEnum): AdminLessonStatusEnum {
+  return status as string as AdminLessonStatusEnum;
 }
 
 /** `Course.all`: two curricula, three grades each — the whole space, fixed by the contract. */
 export const CURRICULA: readonly Curriculum[] = ['american', 'british'];
 export const GRADES: readonly number[] = [1, 2, 3];
+export const SUBJECTS: readonly Subject[] = ['math', 'english'];
+
+export function isCurriculum(value: unknown): value is Curriculum {
+  return value === 'american' || value === 'british';
+}
+
+export function isSubject(value: unknown): value is Subject {
+  return value === 'math' || value === 'english';
+}
 
 /** `!LessonStatus.isTerminal` for exactly the three that are mid-pipeline. */
-const RUNNING: ReadonlySet<LessonStatus> = new Set(['uploading', 'analyzing', 'generating']);
+const RUNNING: ReadonlySet<string> = new Set(['uploading', 'analyzing', 'generating']);
 export function isRunningStatus(status: LessonStatus): boolean {
   return RUNNING.has(status);
 }
 
 /** The step a row's row failed at, for "Error at: …" — the current one, or the first errored. */
-export function errorStepOf(lesson: AdminLessonRow): PipelineStep | null {
+export function errorStepOf(lesson: AdminLesson): PipelineStep | null {
   if (lesson.currentStep) return lesson.currentStep;
-  return lesson.steps?.find((step) => step.status === 'error')?.step ?? null;
-}
-
-export function asLessonRows(raw: unknown): readonly AdminLessonRow[] {
-  return (raw as readonly AdminLessonRow[] | undefined) ?? [];
-}
-
-export function asJobRef(raw: unknown): JobRef {
-  return raw as JobRef;
-}
-
-/** `deleteFailed`'s body is `{"deleted": n}`, built by hand rather than through the serializer. */
-export function asDeletedCount(raw: unknown): number {
-  const value = (raw as { deleted?: unknown } | undefined)?.deleted;
-  return typeof value === 'number' ? value : 0;
+  return lesson.steps.find((step) => step.status === LessonStepInfoStatusEnum.ERROR)?.step ?? null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -113,7 +127,7 @@ export function readStoredCourse(userId: string): CourseSelection | null {
     const parsed: unknown = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && 'curriculum' in parsed && 'grade' in parsed) {
       const { curriculum, grade } = parsed as Record<string, unknown>;
-      if ((curriculum === 'american' || curriculum === 'british') && typeof grade === 'number') {
+      if (isCurriculum(curriculum) && typeof grade === 'number') {
         return { curriculum, grade };
       }
     }
@@ -132,30 +146,13 @@ export function writeStoredCourse(userId: string, selection: CourseSelection): v
 }
 
 // ---------------------------------------------------------------------------------------------
-// The calendar: `GET /admin/calendar` (`CalendarResponse`) has no gap or school-day flag — it
-// lists only the days a lesson already covers. The per-class `GET
+// The calendar gap: `GET /admin/calendar` (`CalendarResponse`, now generated) has no gap or
+// school-day flag — it lists only the days a lesson already covers. The per-class `GET
 // /teacher/classes/{id}/calendar` does carry `schoolDay`/`gap`, but needs a class id this
 // screen's curriculum+grade chooser does not resolve to one of (a course can be several
 // classes, one per subject). So the gap here is computed the same way `ClassCalendarDay`
 // documents it: Sunday–Thursday, not after today, nothing published that day.
 // ---------------------------------------------------------------------------------------------
-
-export interface CalendarDay {
-  readonly date: string;
-  readonly math: boolean;
-  readonly english: boolean;
-}
-
-export interface CalendarResponse {
-  readonly course: { readonly curriculum: Curriculum; readonly grade: number };
-  readonly year: number;
-  readonly month: number;
-  readonly days: readonly CalendarDay[];
-}
-
-export function asCalendar(raw: unknown): CalendarResponse {
-  return raw as CalendarResponse;
-}
 
 /** Gulf week: Friday (5) and Saturday (6) are not school days. Matches `TeacherCalendarService`. */
 export function isSchoolDay(date: Date): boolean {

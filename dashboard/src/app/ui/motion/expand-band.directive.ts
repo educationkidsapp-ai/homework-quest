@@ -30,6 +30,12 @@ export class ExpandBandDirective {
 
       const element = this.host.nativeElement;
       element.hidden = !open;
+      // `hidden` is a *normal*-priority UA rule; any author rule of equal or lower specificity
+      // that sets `display` on the same element — `.band { display: flex }` here — wins the
+      // cascade over it regardless of source order, so the band stayed laid out (and visible)
+      // while `hidden` was true. An inline style always wins over a stylesheet rule (short of
+      // `!important`), so it is the one override that cannot be quietly out-cascaded again.
+      element.style.display = open ? '' : 'none';
       // The first render must not animate, or every page load flashes its bands open.
       if (first || !changed || !open) return;
 

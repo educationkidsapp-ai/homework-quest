@@ -48,6 +48,7 @@
     "notAllowed": "Not allowed",
     "sessionExpired": "That session has expired. Sign in again.",
     "unreachable": "Could not reach the server. Check your connection and try again.",
+    "flagsRefreshFailed": "Feature settings could not be refreshed.",
     "level": {
       "GOING_WELL": "Going well",
       "GETTING_THERE": "Getting there",
@@ -183,6 +184,66 @@
       "prevMonth": "Previous month",
       "nextMonth": "Next month",
       "gap": "No lesson"
+    },
+    "new": {
+      "title": "New lesson",
+      "subtitle": "Pick the course, then the day and what the lesson is made from.",
+      "pickSchool": "Pick a school in the header to start a lesson.",
+      "course": "Course",
+      "subject": "Subject",
+      "subjectPlaceholder": "Choose a subject",
+      "lesson": "Lesson",
+      "date": "Lesson day",
+      "titleField": "Title",
+      "titlePlaceholder": "The model names it otherwise",
+      "practiceLength": "Practice length",
+      "practiceLengthOption": "{{count}} stops",
+      "content": "Content",
+      "source": {
+        "pdf": { "title": "Upload a PDF", "hint": "A worksheet or a lesson PDF" },
+        "slides": { "title": "Upload slides", "hint": "A PPTX presentation" },
+        "images": { "title": "Upload photos", "hint": "Photos of a worksheet or the board" },
+        "manual": { "title": "Write it yourself", "hint": "An empty lesson, stop by stop" }
+      },
+      "manualHint": "You get an empty Level 1: add stops of any type, then write Levels 2 and 3 — or let the model write them from a short text.",
+      "dropzone": {
+        "pdf": "Drop a PDF here",
+        "slides": "Drop a PPTX here",
+        "images": "Drop PNG or JPG photos here",
+        "or": "or",
+        "choose": "Choose files"
+      },
+      "remove": "Remove",
+      "fileRemoveLabel": "Remove {{name}}",
+      "fileRejected": "{{name}} was skipped — {{reason}}",
+      "fileTooLarge": "{{name}} is larger than 25 MB and was not added.",
+      "tooManyFiles": "Up to 10 files at a time.",
+      "totalTooLarge": "{{name}} would put this upload over 100 MB and was not added.",
+      "reasonPdf": "only a PDF here",
+      "reasonSlides": "only a PPTX here",
+      "reasonImages": "only PNG or JPG photos here",
+      "reason": {
+        "chooseCourse": "Choose a curriculum, grade and subject to continue.",
+        "fixDate": "Pick a valid lesson day.",
+        "chooseSource": "Choose how to add the content.",
+        "addFile": "Add at least one file."
+      },
+      "createDefault": "Create the lesson",
+      "create": {
+        "pdf": "Create and read the PDF",
+        "slides": "Create and read the slides",
+        "images": "Create and read the photos",
+        "manual": "Create and write the questions"
+      },
+      "busy": {
+        "creating": "Creating the lesson…",
+        "uploading": "Uploading the lesson's files…",
+        "analyzing": "Starting to read the pages…"
+      },
+      "created": "Lesson created — its pipeline starts now.",
+      "createdManual": "Lesson created — write its questions below.",
+      "rollback": "The upload failed, so the draft lesson was removed: {{message}}",
+      "rollbackFailed": "The upload failed ({{message}}) and the draft lesson could not be removed. Delete it from the list."
     }
   },
   "nav": {

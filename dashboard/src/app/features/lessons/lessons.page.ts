@@ -5,8 +5,14 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { rxResource } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { map } from 'rxjs/operators';
-import { AdminLessonsApi, AdminReportsApi, TeacherApi } from '../../api';
+import {
+  type AdminLesson,
+  AdminLessonsApi,
+  AdminLessonStatusEnum,
+  AdminReportsApi,
+  type CalendarResponse,
+  TeacherApi,
+} from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
@@ -26,18 +32,13 @@ import {
 } from '../../ui';
 import { LessonsCalendarComponent } from './lessons-calendar.component';
 import {
-  type AdminLessonRow,
-  type CalendarResponse,
   type Curriculum,
   CURRICULA,
   GRADES,
   type LessonStatus,
-  asCalendar,
-  asDeletedCount,
-  asJobRef,
-  asLessonRows,
   errorStepOf,
   isRunningStatus,
+  jobStatusAsLessonStatus,
   readStoredCourse,
   writeStoredCourse,
 } from './lessons.models';
@@ -50,7 +51,7 @@ interface LessonRowView {
   readonly status: LessonStatus;
   readonly errorLabel: string | null;
   readonly schoolName: string;
-  readonly source: AdminLessonRow;
+  readonly source: AdminLesson;
 }
 
 type ConfirmMode = 'row' | 'all-failed' | null;
@@ -184,27 +185,27 @@ export class LessonsPage {
     return `${course}|${schoolId}`;
   });
 
-  protected readonly lessons = rxResource<readonly AdminLessonRow[], string | undefined>({
+  protected readonly lessons = rxResource<readonly AdminLesson[], string | undefined>({
     params: () => this.listParams(),
     stream: ({ params }) => {
       const [course, schoolId] = params.split('|');
       const [curriculum, gradeText] = (course ?? '').split('/');
-      return this.lessonsApi
-        .listLessons(
-          curriculum ?? '',
-          Number(gradeText ?? ''),
-          undefined,
-          undefined,
-          undefined,
-          schoolId || undefined,
-        )
-        .pipe(map((raw) => asLessonRows(raw)));
+      return this.lessonsApi.listLessons(
+        curriculum ?? '',
+        Number(gradeText ?? ''),
+        undefined,
+        undefined,
+        undefined,
+        schoolId || undefined,
+      );
     },
     defaultValue: [],
   });
 
   protected readonly hasRunning = computed(() => this.lessons.value().some((row) => isRunningStatus(row.status)));
-  protected readonly hasFailed = computed(() => this.lessons.value().some((row) => row.status === 'error'));
+  protected readonly hasFailed = computed(() =>
+    this.lessons.value().some((row) => row.status === AdminLessonStatusEnum.ERROR),
+  );
 
   protected readonly filterText = signal('');
 
@@ -254,9 +255,7 @@ export class LessonsPage {
       const [course, yearMonth] = params.split('|');
       const [curriculum, gradeText] = (course ?? '').split('/');
       const [year, month] = (yearMonth ?? '').split('-').map(Number);
-      return this.reportsApi
-        .calendar(curriculum ?? '', Number(gradeText ?? ''), year ?? 0, month ?? 0)
-        .pipe(map((raw) => asCalendar(raw)));
+      return this.reportsApi.calendar(curriculum ?? '', Number(gradeText ?? ''), year ?? 0, month ?? 0);
     },
     defaultValue: null,
   });
@@ -268,13 +267,15 @@ export class LessonsPage {
 
   // ---- retry (optimistic) ---------------------------------------------------------------
 
-  protected retry(row: AdminLessonRow): void {
+  protected retry(row: AdminLesson): void {
     const previousStatus = row.status;
-    this.lessons.update((rows) => rows.map((r) => (r.id === row.id ? { ...r, status: 'uploading' } : r)));
+    this.lessons.update((rows) =>
+      rows.map((r) => (r.id === row.id ? { ...r, status: AdminLessonStatusEnum.UPLOADING } : r)),
+    );
     this.lessonsApi.retry(row.id).subscribe({
-      next: (raw) => {
-        const job = asJobRef(raw);
-        this.lessons.update((rows) => rows.map((r) => (r.id === row.id ? { ...r, status: job.status } : r)));
+      next: (job) => {
+        const status = jobStatusAsLessonStatus(job.status);
+        this.lessons.update((rows) => rows.map((r) => (r.id === row.id ? { ...r, status } : r)));
       },
       error: () => {
         this.lessons.update((rows) => rows.map((r) => (r.id === row.id ? { ...r, status: previousStatus } : r)));
@@ -284,8 +285,8 @@ export class LessonsPage {
 
   // ---- delete, one row or every failed one — both confirm with a red band ----------------
 
-  protected readonly menuRow = signal<AdminLessonRow | null>(null);
-  protected readonly pendingDelete = signal<AdminLessonRow | null>(null);
+  protected readonly menuRow = signal<AdminLesson | null>(null);
+  protected readonly pendingDelete = signal<AdminLesson | null>(null);
   protected readonly pendingDeleteAllFailed = signal(false);
 
   protected readonly confirmMode = computed<ConfirmMode>(() => {
@@ -319,7 +320,7 @@ export class LessonsPage {
     return this.t(mode === 'all-failed' ? 'lessons.deleteAllFailedConfirm.confirm' : 'lessons.deleteConfirm.confirm');
   });
 
-  protected requestDelete(row: AdminLessonRow | null): void {
+  protected requestDelete(row: AdminLesson | null): void {
     if (row) this.pendingDelete.set(row);
   }
 
@@ -330,8 +331,8 @@ export class LessonsPage {
   protected confirmPending(): void {
     if (this.confirmMode() === 'all-failed') {
       this.lessonsApi.deleteFailed().subscribe({
-        next: (raw) => {
-          if (asDeletedCount(raw) > 0) this.lessons.reload();
+        next: (result) => {
+          if ((result.deleted ?? 0) > 0) this.lessons.reload();
           this.pendingDeleteAllFailed.set(false);
         },
         error: () => this.pendingDeleteAllFailed.set(false),
@@ -393,8 +394,8 @@ export class LessonsPage {
 
   protected trackRow = (row: LessonRowView): string => row.id;
 
-  private toRowView(row: AdminLessonRow): LessonRowView {
-    const step = row.status === 'error' ? errorStepOf(row) : null;
+  private toRowView(row: AdminLesson): LessonRowView {
+    const step = row.status === AdminLessonStatusEnum.ERROR ? errorStepOf(row) : null;
     return {
       id: row.id,
       title: row.title || this.t('lessons.untitled'),
@@ -407,7 +408,7 @@ export class LessonsPage {
     };
   }
 
-  private classLabel(row: AdminLessonRow): string {
+  private classLabel(row: AdminLesson): string {
     return this.t('lessons.classLabel', {
       curriculum: this.translateOrEmpty(`curriculum.${row.course.curriculum}`) || row.course.curriculum,
       grade: row.course.grade,

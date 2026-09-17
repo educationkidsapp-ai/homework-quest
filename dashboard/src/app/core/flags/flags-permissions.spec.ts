@@ -1,6 +1,12 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ChangeDetectionStrategy, Component, EnvironmentProviders, Provider } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  EnvironmentProviders,
+  Provider,
+  importProvidersFrom,
+} from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
@@ -8,7 +14,7 @@ import { firstValueFrom, isObservable } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../../api';
 import { TEACHER_USER } from '../../../testing/fixtures';
-import { renderHq } from '../../../testing/render';
+import { renderHq, translocoTesting } from '../../../testing/render';
 import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
 import { CanDirective } from '../permissions/can.directive';
@@ -37,6 +43,8 @@ const providers: (Provider | EnvironmentProviders)[] = [
   provideRouter([]),
   // Same origin, as in the built bundle.
   { provide: BASE_PATH, useValue: '' },
+  // FlagService translates its own "could not refresh" band message.
+  importProvidersFrom(translocoTesting()),
 ];
 
 interface Session {
@@ -62,7 +70,9 @@ async function signIn({ flags, permissions, readOnly = false }: Session): Promis
   TestBed.inject(PermissionService).all();
   TestBed.tick();
 
-  backend.expectOne('/schools/school-a/flags').flush({ schoolId: 'school-a', flags });
+  // The real endpoint answers the flat map itself, not a `{ schoolId, flags }` envelope —
+  // see the comment on `FlagService.mapFor`.
+  backend.expectOne('/schools/school-a/flags').flush(flags);
   backend.expectOne('/me/permissions').flush({ role: 'TEACHER', permissions, readOnly });
   // A resource applies a delivered value on the microtask queue, so one synchronous tick is
   // not enough: let the queue drain, then tick again to settle the graph.

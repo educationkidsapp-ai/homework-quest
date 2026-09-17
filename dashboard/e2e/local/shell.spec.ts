@@ -152,19 +152,27 @@ test('the Admin rail carries every screen §6 gives the Admin', async ({ page })
 });
 
 test('the Admin school switcher scopes every screen to one school', async ({ page }) => {
+  // The switcher's own list comes from this call (`shell-header.component.ts`'s `schools`
+  // resource) — reading its length here, rather than assuming a fixed seed of two schools,
+  // is what lets this pass against QA's seed too (`default` plus whatever else exists there).
+  const schoolsResponse = page.waitForResponse(
+    (res) => /\/admin\/schools(\?|$)/.test(res.url()) && res.request().method() === 'GET',
+  );
   await signIn(page, ADMIN);
+  const schoolCount = ((await (await schoolsResponse).json()) as unknown[]).length;
+
   await expect(page.getByRole('button', { name: 'School' })).toHaveText('All schools');
 
   await page.getByRole('button', { name: 'School' }).click();
   await page.getByRole('menuitem', { name: /Al Noor School/ }).click();
 
   await expect(page.getByRole('button', { name: 'School' })).toHaveText(/Al Noor School/);
-  // `GET /me/home` answers for the school in scope: one school, not two.
+  // `GET /me/home` answers for the school in scope: one school, not the platform total.
   await expect(cards(page).locator('hq-card').first()).toContainText('1');
 
   await page.getByRole('button', { name: 'School' }).click();
   await page.getByRole('menuitem', { name: 'All schools' }).click();
-  await expect(cards(page).locator('hq-card').first()).toContainText('2');
+  await expect(cards(page).locator('hq-card').first()).toContainText(String(schoolCount));
 });
 
 test('a teacher is offered nothing that belongs to the Admin', async ({ page }) => {

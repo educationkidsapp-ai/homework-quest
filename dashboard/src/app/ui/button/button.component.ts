@@ -4,6 +4,8 @@ import { TranslocoPipe } from '@jsverse/transloco';
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'quiet';
 export type ButtonType = 'button' | 'submit' | 'reset';
 
+let nextReasonId = 0;
+
 /**
  * The only button in the system. 44 px tall, square, one red accent.
  *
@@ -23,6 +25,8 @@ export type ButtonType = 'button' | 'submit' | 'reset';
       [attr.type]="type()"
       [disabled]="disabled() || loading()"
       [attr.aria-busy]="loading() ? 'true' : null"
+      [attr.title]="reason()"
+      [attr.aria-describedby]="reason() ? reasonId : null"
       (click)="pressed.emit($event)"
     >
       @if (loading()) {
@@ -31,6 +35,9 @@ export type ButtonType = 'button' | 'submit' | 'reset';
       }
       <span class="btn__label"><ng-content /></span>
     </button>
+    @if (reason(); as reasonText) {
+      <span class="hq-sr-only" [id]="reasonId">{{ reasonText }}</span>
+    }
   `,
   styles: `
     @use 'mixins' as m;
@@ -135,6 +142,14 @@ export class ButtonComponent {
   readonly loading = input(false);
   /** Fills the width of its container — used by the sticky footer on narrow screens. */
   readonly block = input(false);
+  /**
+   * Why the button is disabled — a native tooltip on hover, and read out on focus via
+   * `aria-describedby` (a screen-reader user tabbing to a disabled button gets no `title`
+   * hover, so the description is what makes "disabled until valid" followable by keyboard).
+   */
+  readonly reason = input<string | null>(null);
+
+  protected readonly reasonId = `hq-btn-reason-${nextReasonId++}`;
 
   readonly pressed = output<MouseEvent>();
 }

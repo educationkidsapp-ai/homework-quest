@@ -1,14 +1,15 @@
 /* hq-flag: none (shell) — the placeholder behind a nav item whose screen is a later package.
    The item that leads here is flag- and permission-filtered by the shell; gating the
    placeholder as well would hide the promise instead of keeping it. */
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { filter, map } from 'rxjs/operators';
+import { activeLang } from '../../core/i18n/active-lang';
 import { phaseOf } from '../../core/nav/screens';
-import { EmptyStateComponent, PageComponent } from '../../ui';
+import { BandComponent, EmptyStateComponent, PageComponent } from '../../ui';
 
 /**
  * A screen a later package builds.
@@ -21,20 +22,33 @@ import { EmptyStateComponent, PageComponent } from '../../ui';
  *
  * It is not a 404. A 404 says the person is wrong; this says the product is not finished, and
  * those are different apologies.
+ *
+ * **`?notice=<translation key>`**: a screen that finishes here early — the new-lesson wizard
+ * lands on `/…/lessons/:id`, a P3.1 stub until P3.2d builds the real review page — carries
+ * what it wants said as a query param key, translated and shown as a notice band. The key,
+ * not raw text: this is the one door every "arrived, now what" redirect can use without this
+ * file knowing what any of them are for.
  */
 @Component({
   selector: 'hq-stub-page',
-  imports: [PageComponent, EmptyStateComponent, TranslocoPipe],
+  imports: [PageComponent, EmptyStateComponent, BandComponent, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-page [title]="'stub.title' | transloco">
+      @if (noticeText(); as notice) {
+        <hq-band variant="notice" [open]="noticeOpen()" (dismissed)="noticeOpen.set(false)">
+          {{ notice }}
+        </hq-band>
+      }
       <hq-empty-state [message]="message()" />
     </hq-page>
   `,
 })
 export class StubPage {
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly transloco = inject(TranslocoService);
+  private readonly lang = activeLang();
 
   private readonly url = toSignal(
     this.router.events.pipe(
@@ -44,7 +58,22 @@ export class StubPage {
     { initialValue: this.router.url.split('?')[0] ?? '' },
   );
 
+  private readonly queryParamMap = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
+
+  protected readonly noticeOpen = signal(true);
+
+  protected readonly noticeText = computed(() => {
+    this.lang();
+    const key = this.queryParamMap().get('notice');
+    if (!key) return null;
+    const text = this.transloco.translate<string>(key);
+    return text === key ? null : text;
+  });
+
   protected readonly message = computed(() => {
+    this.lang();
     const phase = phaseOf(this.url());
     return phase === undefined
       ? this.transloco.translate('stub.soon')

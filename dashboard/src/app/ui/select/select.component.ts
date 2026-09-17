@@ -25,17 +25,28 @@ export interface SelectOption<T extends string = string> {
         <select
           class="field__control"
           [id]="id"
-          [value]="value()"
           [disabled]="disabled()"
           [attr.name]="name()"
           [attr.aria-describedby]="hint() ? id + '-hint' : null"
           (change)="onChange($event)"
         >
           @if (placeholder(); as placeholderText) {
-            <option value="" disabled>{{ placeholderText }}</option>
+            <!--
+              [selected] on the option, not [value] on the select: the select element's own
+              value write can land before the @for block below has inserted the option it
+              needs to match — options and the current value often change in the same tick, a
+              course chooser going from "nothing loaded" to "one option, picked for you" being
+              exactly that — and a write that finds nothing to select is never retried once the
+              expression driving it stops changing. Binding selected on each option instead
+              ties the selection to the same creation/update pass as the option itself, so
+              there is nothing to race. Also not the disabled attribute here: a select whose
+              selected option becomes disabled falls back to the first enabled one instead,
+              silently — a field could show "Math" pre-selected while the value stayed empty.
+            -->
+            <option value="" [selected]="value() === ''">{{ placeholderText }}</option>
           }
           @for (option of options(); track option.value) {
-            <option [value]="option.value" [disabled]="option.disabled ?? false">
+            <option [value]="option.value" [selected]="option.value === value()" [disabled]="option.disabled ?? false">
               {{ option.label }}
             </option>
           }

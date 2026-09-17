@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from '../../core/auth/auth.service';
+import { activeLang } from '../../core/i18n/active-lang';
 import { LANGUAGES, LanguageService, type Language } from '../../core/i18n/language.service';
 import { TourService } from '../../core/tour/tour.service';
 import {
@@ -100,6 +101,7 @@ import {
 export class ProfilePage {
   private readonly tour = inject(TourService);
   private readonly transloco = inject(TranslocoService);
+  private readonly lang = activeLang();
 
   protected readonly auth = inject(AuthService);
   protected readonly language = inject(LanguageService);
@@ -107,13 +109,15 @@ export class ProfilePage {
   protected readonly displayName = computed(() => this.auth.user()?.displayName ?? '');
   protected readonly photoUrl = computed(() => this.auth.user()?.photoUrl ?? '');
   protected readonly roleLabel = computed(() => {
+    this.lang();
     const role = this.auth.role();
     return role === null ? '' : this.transloco.translate(`role.${role}`);
   });
 
-  protected readonly languageOptions = computed<readonly SelectOption<Language>[]>(() =>
-    LANGUAGES.map((value) => ({ value, label: this.transloco.translate(`shell.language.${value}`) })),
-  );
+  protected readonly languageOptions = computed<readonly SelectOption<Language>[]>(() => {
+    this.lang();
+    return LANGUAGES.map((value) => ({ value, label: this.transloco.translate(`shell.language.${value}`) }));
+  });
 
   protected setLanguage(value: Language | ''): void {
     if (value !== '') this.language.use(value);
