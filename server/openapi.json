@@ -1826,8 +1826,6 @@
               }, {
                 "$ref" : "#/components/schemas/SelectAll"
               }, {
-                "$ref" : "#/components/schemas/SingleAnswer"
-              }, {
                 "$ref" : "#/components/schemas/StoryPieces"
               }, {
                 "$ref" : "#/components/schemas/Trace"
@@ -2574,22 +2572,13 @@
           "$ref" : "#/components/schemas/Stop"
         }, {
           "properties" : {
-            "correctId" : {
-              "type" : "string"
-            },
             "hint" : {
               "type" : "string"
-            },
-            "optionIds" : {
-              "items" : {
-                "type" : "string"
-              },
-              "type" : "array"
             }
           },
           "type" : "object"
         } ],
-        "required" : [ "category", "correctId", "hint", "id", "ingredient", "optionIds", "parentTip", "speak", "title", "type" ]
+        "required" : [ "hint", "id", "ingredient", "parentTip", "speak", "title", "type" ]
       },
       "SkillProgress" : {
         "properties" : {
@@ -3295,8 +3284,6 @@
                 "$ref" : "#/components/schemas/Retell"
               }, {
                 "$ref" : "#/components/schemas/SelectAll"
-              }, {
-                "$ref" : "#/components/schemas/SingleAnswer"
               }, {
                 "$ref" : "#/components/schemas/StoryPieces"
               }, {

@@ -4,9 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import quest.api.dto.Stop;
 import quest.server.ApiTestSupport;
 
 /**
@@ -66,5 +71,56 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(TEACHER_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
+    }
+
+    /**
+     * P3.0b: `Stop` is the one shape springdoc builds by reflecting over the bean rather than from the codec, so it is
+     * checked against the sealed hierarchy itself. A caller can receive exactly the concrete subtypes — an abstract
+     * rung (`Stop.SingleAnswer`) is a rung, never a body — and no schema in the hierarchy may demand a field the codec
+     * does not write, because a computed Kotlin property (`category`, `correctId`, `optionIds`) is a bean getter and
+     * not a serialised element.
+     */
+    @Test void the_stop_union_is_the_concrete_subtypes_and_requires_only_serialised_fields() throws Exception {
+        var schemas = json(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn()).get("components").get("schemas");
+        List<Class<?>> hierarchy = new ArrayList<>(); collect(Stop.class, hierarchy);
+        List<String> concrete = hierarchy.stream().filter(this::isConcrete).map(Class::getSimpleName).sorted().toList();
+
+        List<String> variants = new ArrayList<>();
+        schemas.get("Play").get("properties").get("stops").get("items").get("oneOf")
+                .forEach(v -> variants.add(v.get("$ref").asText().substring(v.get("$ref").asText().lastIndexOf('/') + 1)));
+        assertThat(variants.stream().sorted().toList()).as("`Play.stops` is every concrete Stop and nothing else").isEqualTo(concrete);
+
+        hierarchy.add(Stop.class);
+        for (Class<?> type : hierarchy) {
+            var schema = schemas.get(type.getSimpleName());
+            if (schema == null || schema.get("required") == null) continue;
+            List<String> required = new ArrayList<>(); schema.get("required").forEach(name -> required.add(name.asText()));
+            assertThat(serialisedFields(type)).as(type.getSimpleName() + " requires a field the codec never writes").containsAll(required);
+        }
+    }
+
+    private void collect(Class<?> root, List<Class<?>> out) {
+        if (root.getPermittedSubclasses() == null) return;
+        for (Class<?> sub : root.getPermittedSubclasses()) { out.add(sub); collect(sub, out); }
+    }
+
+    private boolean isConcrete(Class<?> type) { return !type.isInterface() && !Modifier.isAbstract(type.getModifiers()); }
+
+    /** What the codec writes: a concrete class's own elements, a rung's shared ones — plus the `type` discriminator. */
+    private Set<String> serialisedFields(Class<?> type) {
+        Set<String> names = new HashSet<>(List.of("type"));
+        if (isConcrete(type)) { names.addAll(elements(type)); return names; }
+        List<Class<?>> subtypes = new ArrayList<>(); collect(type, subtypes);
+        Set<String> shared = null;
+        for (Class<?> sub : subtypes) { if (!isConcrete(sub)) continue; var own = elements(sub); if (shared == null) shared = own; else shared.retainAll(own); }
+        names.addAll(shared == null ? Set.of() : shared);
+        return names;
+    }
+
+    private Set<String> elements(Class<?> type) {
+        var descriptor = kotlinx.serialization.SerializersKt.serializer(type).getDescriptor();
+        Set<String> out = new LinkedHashSet<>();
+        for (int i = 0; i < descriptor.getElementsCount(); i++) out.add(descriptor.getElementName(i));
+        return out;
     }
 }
