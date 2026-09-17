@@ -34,10 +34,10 @@ export function areaRoutes(role: Role): Routes {
 }
 
 /**
- * The Home is the one screen of an area that exists from P1.0; `lessons` (P3.2b) and
- * `new-lesson` (P3.2c) are next — both serve `/admin/**` and `/teacher/**` from one
- * component, keyed by `id` rather than by path. Everything else is the stub until its phase
- * lands, and the stub reads the phase back out of the same table.
+ * The Home is the one screen of an area that exists from P1.0; `lessons` (P3.2b), `new-lesson`
+ * (P3.2c) and `lesson` (P3.2d) are next — all three serve `/admin/**` and `/teacher/**` from
+ * one component, keyed by `id` rather than by path. Everything else is the stub until its
+ * phase lands, and the stub reads the phase back out of the same table.
  */
 function componentFor(screen: Screen) {
   if (screen.path === '') return import('../../features/home/home.page').then((m) => m.HomePage);
@@ -45,6 +45,7 @@ function componentFor(screen: Screen) {
   if (screen.id === 'new-lesson') {
     return import('../../features/lessons/new-lesson.page').then((m) => m.NewLessonPage);
   }
+  if (screen.id === 'lesson') return import('../../features/lessons/lesson.page').then((m) => m.LessonPage);
   return import('../../features/stub/stub.page').then((m) => m.StubPage);
 }
 

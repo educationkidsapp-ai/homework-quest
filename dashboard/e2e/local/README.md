@@ -39,6 +39,31 @@ Accounts come from the seed: `admin@quest.local`, `teacher.a@alnoor.test` (Ms Sa
 British Grade 1–2 Math) and `manager.a@alnoor.test`. Passwords are read from the environment and
 never printed — a missing one fails with the variable's name, not its value.
 
+### Injecting a pipeline failure (`lesson-retry.spec.ts`)
+
+`LessonPipeline.java` has a test hook: `-Dquest.pipeline.fail-once-at=<step>` fails that step
+the first time it runs for each lesson, so "Retry and continue" has something real to retry
+past. It needs its own server (the happy-path suite's server was not started this way), so run
+it as a second pass:
+
+```bash
+# same jar, one JVM property added, a fresh port so both servers can be up at once
+SPRING_PROFILES_ACTIVE=h2 LLM_PROVIDER=fake PORT=18081 \
+  PUBLIC_URL=http://localhost:18081 DASHBOARD_URL=http://localhost:4300 \
+  java -Dquest.pipeline.fail-once-at=generate_L2 -jar server/target/server.jar &
+
+E2E_BASE_URL=http://localhost:18081 E2E_ADMIN_EMAIL="$ADMIN_EMAIL" \
+  E2E_ADMIN_PASSWORD="$ADMIN_PASSWORD" E2E_STAFF_PASSWORD='<throwaway>' \
+  E2E_PARENT_PASSWORD='<throwaway>' node e2e/seed/seed.mjs
+
+HQ_API=http://localhost:18081 E2E_FAIL_ONCE_AT=1 \
+  E2E_ADMIN_EMAIL="$ADMIN_EMAIL" E2E_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+  pnpm e2e:local --grep 'injected failure'
+```
+
+Every other test in the suite skips this file (`E2E_FAIL_ONCE_AT` unset), since a server that
+fails `generate_L2` once per lesson would make the happy-path run flaky.
+
 ## What it proves
 
 | Test                                        | What would break without it                                     |
@@ -54,7 +79,12 @@ never printed — a missing one fails with the variable's name, not its value.
 | `?` opens the sheet, Esc closes it          | the keyboard contract (§7)                                      |
 | the screenshot set                          | the RTL mirror, silently                                        |
 
-Screenshots land in `docs/screenshots/dashboard-p3.1/` (1366 × 768, EN and AR) and are committed.
+`lesson-review.spec.ts` (P3.2d) carries a PDF lesson through skills confirmation, the three
+levels + Again, the pinned phone preview and publish; `lesson-retry.spec.ts` proves a failed
+step actually retries past its failure (see above).
+
+Screenshots land in `docs/screenshots/dashboard-p3.1/` and `docs/screenshots/dashboard-p3.2d/`
+(1366 × 768, EN and AR) and are committed.
 
 ## The static server
 

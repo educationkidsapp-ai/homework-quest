@@ -200,10 +200,22 @@
       "practiceLengthOption": "{{count}} stops",
       "content": "Content",
       "source": {
-        "pdf": { "title": "Upload a PDF", "hint": "A worksheet or a lesson PDF" },
-        "slides": { "title": "Upload slides", "hint": "A PPTX presentation" },
-        "images": { "title": "Upload photos", "hint": "Photos of a worksheet or the board" },
-        "manual": { "title": "Write it yourself", "hint": "An empty lesson, stop by stop" }
+        "pdf": {
+          "title": "Upload a PDF",
+          "hint": "A worksheet or a lesson PDF"
+        },
+        "slides": {
+          "title": "Upload slides",
+          "hint": "A PPTX presentation"
+        },
+        "images": {
+          "title": "Upload photos",
+          "hint": "Photos of a worksheet or the board"
+        },
+        "manual": {
+          "title": "Write it yourself",
+          "hint": "An empty lesson, stop by stop"
+        }
       },
       "manualHint": "You get an empty Level 1: add stops of any type, then write Levels 2 and 3 — or let the model write them from a short text.",
       "dropzone": {
@@ -244,6 +256,92 @@
       "createdManual": "Lesson created — write its questions below.",
       "rollback": "The upload failed, so the draft lesson was removed: {{message}}",
       "rollbackFailed": "The upload failed ({{message}}) and the draft lesson could not be removed. Delete it from the list."
+    },
+    "detail": {
+      "stepState": {
+        "pending": "Not started",
+        "running": "Running",
+        "done": "Done",
+        "error": "Failed"
+      },
+      "pipeline": "Lesson pipeline",
+      "retryContinue": "Retry and continue",
+      "retryStepOnly": "Retry this step only",
+      "replaceFile": "Replace file",
+      "busy": {
+        "retrying": "Retrying from the failed step…",
+        "retryingStep": "Retrying {{step}}…",
+        "removingFiles": "Removing the files…",
+        "confirmingSkills": "Writing the three levels…",
+        "regeneratingPlay": "Rewriting this level…",
+        "regeneratingStop": "Asking the model for a new version…",
+        "publishing": "Publishing…",
+        "unpublishing": "Unpublishing…"
+      },
+      "files": {
+        "title": "Files",
+        "uploadMore": "Upload more",
+        "deleteAll": "Delete uploaded files",
+        "empty": "No files uploaded.",
+        "pages": "{{count}} pages",
+        "cacheHit": "cached",
+        "deleted": "deleted"
+      },
+      "skills": {
+        "title": "Skills",
+        "keep": "Keep",
+        "name": "Name",
+        "method": "Method",
+        "subject": "Subject",
+        "add": "Add a skill",
+        "confirm": "Make the quest",
+        "keepAtLeastOne": "Keep at least one skill."
+      },
+      "playTab": {
+        "L1": "Level 1",
+        "L2": "Level 2",
+        "L3": "Level 3",
+        "Again": "Again"
+      },
+      "plays": {
+        "title": "Levels",
+        "tabsLabel": "Lesson levels",
+        "empty": "This level has no stops yet.",
+        "regeneratePlay": "Regenerate this level",
+        "regenerateStop": "Regenerate this stop",
+        "previewLabel": "Child app preview"
+      },
+      "panel": {
+        "title": "Parent panel",
+        "objectives": "What they'll learn",
+        "supported": "Supported skills",
+        "challenge": "A challenge to try",
+        "stopTips": "Stop tips",
+        "modelAnswers": "Model answers"
+      },
+      "publish": "Publish",
+      "unpublish": "Unpublish",
+      "unpublishedUndo": "Lesson unpublished.",
+      "publishedNotice": "Published — every child on the course sees the island on its day.",
+      "publishReason": {
+        "notReady": "The lesson has to be ready to review before it can publish.",
+        "incomplete": "Every level, the Again variant and the parent panel have to be ready."
+      },
+      "publishConfirm": {
+        "title": "Publish this lesson?",
+        "message": "{{title}} will be visible to every child on the course.",
+        "confirm": "Publish"
+      },
+      "regeneratePlayConfirm": {
+        "title": "Regenerate this level?",
+        "message": "This replaces every stop in the level with a new version and cannot be undone.",
+        "confirm": "Regenerate"
+      },
+      "regenerateStopConfirm": {
+        "title": "Regenerate this stop?",
+        "message": "This replaces {{title}} with a new version and cannot be undone.",
+        "confirm": "Regenerate"
+      }
     }
   },
   "nav": {

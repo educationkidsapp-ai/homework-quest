@@ -57,8 +57,8 @@ test('teacher A creates a manual lesson and lands on the lesson route', async ({
   await expect(create).toBeEnabled();
   await create.click();
 
-  // The lesson detail page is the P3.1 stub until P3.2d; landing there, off /lessons/new, with
-  // the notice band from the wizard, is what this test can prove today.
+  // The lesson review page is P3.2d's; landing there, off /lessons/new, with the notice band
+  // from the wizard, is what this test can prove without waiting out the pipeline.
   await expect(page).toHaveURL(/\/teacher\/lessons\/(?!new\b)[^/?]+/);
   await expect(page.getByText('Lesson created — write its questions below.')).toBeVisible();
 });
@@ -88,8 +88,10 @@ test('an admin creates a PDF lesson and it appears in the list as running or nee
 
   // Back on the list, the row this just created (no title given) is mid-pipeline or already
   // waiting on the admin (the fake LLM provider finishes fast) — never still "Draft", which
-  // would mean the upload or analyze call never fired.
-  await page.getByRole('navigation').getByRole('link', { name: 'All lessons' }).click();
+  // would mean the upload or analyze call never fired. `getByRole('navigation')` alone is
+  // ambiguous here — the P3.2d review page this just landed on has its own breadcrumb `nav`,
+  // with an "All lessons" link of its own.
+  await page.getByRole('navigation', { name: 'Admin' }).getByRole('link', { name: 'All lessons' }).click();
   await page.locator('select').nth(0).selectOption({ value: 'british' });
   await page.locator('select').nth(1).selectOption({ value: '1' });
   const row = page.getByRole('row').filter({ hasText: 'Untitled lesson' }).first();

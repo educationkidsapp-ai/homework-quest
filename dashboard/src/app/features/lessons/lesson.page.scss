@@ -1,0 +1,250 @@
+@use 'mixins' as m;
+
+:host {
+  display: block;
+}
+
+.lesson {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-24);
+}
+
+.lesson__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-8);
+}
+
+.lesson__busy {
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-font-label-size);
+}
+
+.lesson__empty {
+  color: var(--hq-color-ink-soft);
+}
+
+.lesson__overflow-trigger {
+  min-inline-size: var(--hq-size-touch-target);
+  min-block-size: var(--hq-size-touch-target);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  @include m.hover-tint;
+  @include m.focus-ring;
+}
+
+// Rendered into the CDK overlay container — see the matching note in `lessons.page.scss`.
+.menu {
+  min-inline-size: var(--hq-size-course-card);
+  background: var(--hq-color-surface);
+  border: var(--hq-size-rule) solid var(--hq-color-line);
+  box-shadow: var(--hq-shadow-dialog);
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: var(--hq-size-touch-target);
+  padding-inline: var(--hq-space-16);
+  background: none;
+  border: 0;
+  color: var(--hq-color-ink);
+  text-align: start;
+  cursor: pointer;
+  @include m.hover-tint;
+  @include m.focus-ring;
+}
+
+.menu__item--danger {
+  color: var(--hq-color-accent-strong);
+}
+
+.lesson__dropzone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hq-space-16);
+  padding: var(--hq-space-32);
+  text-align: center;
+  background: var(--hq-color-bg);
+  @include m.drag-lift;
+}
+
+// Shared by the replace-file dropzone's "Choose files" and the files card's "Upload more" —
+// both are a `<label for>` standing in for the file input's own button.
+.lesson__dropzone-choose,
+.lesson__upload-more {
+  padding: var(--hq-space-8) var(--hq-space-16);
+  border: var(--hq-size-rule) solid var(--hq-color-ink);
+  cursor: pointer;
+  @include m.hover-tint;
+}
+
+.lesson__files-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-12);
+}
+
+.lesson__files {
+  border-block-start: var(--hq-size-rule) solid var(--hq-color-line);
+}
+
+.lesson__file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hq-space-12);
+  min-block-size: var(--hq-size-row-height);
+  padding-block: var(--hq-space-8);
+  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+}
+
+.lesson__file--deleted {
+  color: var(--hq-color-ink-soft);
+  text-decoration: line-through;
+}
+
+.lesson__file-name {
+  font-weight: var(--hq-font-label-weight);
+}
+
+.lesson__file-meta {
+  font-size: var(--hq-font-label-size);
+  color: var(--hq-color-ink-soft);
+}
+
+.lesson__skills {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-16);
+}
+
+.lesson__skill-row {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr 1fr;
+  align-items: end;
+  gap: var(--hq-space-12);
+  padding-block-end: var(--hq-space-16);
+  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+}
+
+.lesson__skill-candidates {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hq-space-8);
+}
+
+.lesson__skill-question {
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-font-label-size);
+}
+
+.lesson__chip {
+  padding: var(--hq-space-4) var(--hq-space-8);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-line);
+  font-size: var(--hq-font-label-size);
+}
+
+.lesson__skill-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-block-start: var(--hq-space-16);
+}
+
+.lesson__play {
+  display: flex;
+  gap: var(--hq-space-24);
+  align-items: flex-start;
+  margin-block-start: var(--hq-space-16);
+}
+
+.lesson__stop-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-8);
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.lesson__stop-item {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-12);
+  min-block-size: var(--hq-size-row-height);
+  padding-inline: var(--hq-space-12);
+  background: none;
+  border: var(--hq-size-rule) solid var(--hq-color-line);
+  text-align: start;
+  cursor: pointer;
+  @include m.hover-tint;
+  @include m.focus-ring;
+}
+
+.lesson__stop-item--selected {
+  border-color: var(--hq-color-ink);
+  background: var(--hq-color-accent-soft);
+}
+
+.lesson__stop-pos {
+  flex: none;
+  color: var(--hq-color-ink-soft);
+}
+
+.lesson__stop-title {
+  flex: 1;
+  font-weight: var(--hq-font-label-weight);
+}
+
+.lesson__stop-type {
+  flex: none;
+  font-size: var(--hq-font-label-size);
+  color: var(--hq-color-ink-soft);
+}
+
+// Pinned end-side; RTL flips `.lesson__play`'s flex direction with it automatically because
+// this is a logical `position: sticky`, not a hand-picked left/right offset.
+.lesson__preview {
+  position: sticky;
+  inset-block-start: var(--hq-space-24);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--hq-space-12);
+  flex: none;
+}
+
+.lesson__panel-block {
+  padding-block-end: var(--hq-space-16);
+  margin-block-end: var(--hq-space-16);
+  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+
+  &:last-child {
+    border-block-end: 0;
+    margin-block-end: 0;
+    padding-block-end: 0;
+  }
+}
+
+.lesson__panel-heading {
+  @include m.label;
+
+  margin-block-end: var(--hq-space-8);
+  color: var(--hq-color-ink-soft);
+}
+
+.lesson__panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-4);
+}
+
+.lesson__panel-ar {
+  color: var(--hq-color-ink-soft);
+}

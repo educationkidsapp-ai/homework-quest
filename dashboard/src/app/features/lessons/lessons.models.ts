@@ -72,6 +72,18 @@ export function createLessonBody(request: CreateLessonRequest): string {
   return JSON.stringify(request);
 }
 
+/** `POST /admin/lessons/{id}/skills`'s body (`ConfirmedSkill` in `AdminApi.kt`) — same reason. */
+export interface ConfirmedSkillRequest {
+  readonly id?: string;
+  readonly name: string;
+  readonly subject: Subject;
+  readonly method?: string;
+}
+
+export function confirmSkillsBody(skills: readonly ConfirmedSkillRequest[]): string {
+  return JSON.stringify(skills);
+}
+
 /**
  * `JobRef.status` and `AdminLesson.status` are two separately generated string enums with
  * identical members (the same `LessonStatus` on the Kotlin side), but the generator gives
