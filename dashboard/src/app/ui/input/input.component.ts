@@ -4,7 +4,7 @@ import { ShakeDirective } from '../motion';
 
 let nextId = 0;
 
-export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 'tel' | 'url';
+export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 'tel' | 'url' | 'date';
 
 /**
  * A labelled text field: 17 px text, 2 px rule, hint and error below.

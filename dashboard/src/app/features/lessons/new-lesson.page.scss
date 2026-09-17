@@ -1,0 +1,121 @@
+@use 'mixins' as m;
+
+:host {
+  display: block;
+}
+
+.busy-text {
+  margin-block-start: calc(var(--hq-space-8) * -1);
+  color: var(--hq-color-ink-soft);
+}
+
+.chooser,
+.lesson-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--hq-space-16);
+}
+
+.sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--hq-space-12);
+}
+
+.source-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-4);
+  padding: var(--hq-space-16);
+  text-align: start;
+  cursor: pointer;
+  @include m.surface;
+  @include m.hover-tint;
+  @include m.focus-ring;
+  @include m.motion-safe('border-color, border-width');
+
+  &:disabled {
+    cursor: not-allowed;
+    color: var(--hq-color-disabled);
+  }
+}
+
+.source-card--selected {
+  border-width: var(--hq-size-selected-border);
+  border-color: var(--hq-color-accent);
+}
+
+.source-card__title {
+  font-weight: var(--hq-font-label-weight);
+}
+
+.source-card__hint {
+  font-size: var(--hq-font-label-size);
+  color: var(--hq-color-ink-soft);
+}
+
+.source-note {
+  margin-block-start: var(--hq-space-16);
+  color: var(--hq-color-ink-soft);
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hq-space-8);
+  margin-block-start: var(--hq-space-16);
+  padding: var(--hq-space-32);
+  text-align: center;
+  background: var(--hq-color-bg);
+  @include m.drag-lift;
+}
+
+.dropzone__title {
+  font-weight: var(--hq-font-label-weight);
+}
+
+.dropzone__or {
+  font-size: var(--hq-font-label-size);
+  color: var(--hq-color-ink-soft);
+}
+
+.file-list {
+  margin-block-start: var(--hq-space-16);
+  border-block-start: var(--hq-size-rule) solid var(--hq-color-line);
+}
+
+.file-list__row {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-12);
+  padding-block: var(--hq-space-8);
+  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+}
+
+.file-list__name {
+  flex: 1;
+  font-weight: var(--hq-font-label-weight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-list__size {
+  flex: none;
+  font-size: var(--hq-font-label-size);
+  color: var(--hq-color-ink-soft);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hq-space-16);
+  inline-size: 100%;
+}
+
+.footer__note {
+  color: var(--hq-color-ink-soft);
+}

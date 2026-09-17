@@ -34,14 +34,17 @@ export function areaRoutes(role: Role): Routes {
 }
 
 /**
- * The Home is the one screen of an area that exists from P1.0; `lessons` (P3.2b) is the second
- * one — the list serves both `/admin/lessons` and `/teacher/lessons`, so it is keyed by `id`
- * rather than by path. Everything else is the stub until its phase lands, and the stub reads
- * the phase back out of the same table.
+ * The Home is the one screen of an area that exists from P1.0; `lessons` (P3.2b) and
+ * `new-lesson` (P3.2c) are next — both serve `/admin/**` and `/teacher/**` from one
+ * component, keyed by `id` rather than by path. Everything else is the stub until its phase
+ * lands, and the stub reads the phase back out of the same table.
  */
 function componentFor(screen: Screen) {
   if (screen.path === '') return import('../../features/home/home.page').then((m) => m.HomePage);
   if (screen.id === 'lessons') return import('../../features/lessons/lessons.page').then((m) => m.LessonsPage);
+  if (screen.id === 'new-lesson') {
+    return import('../../features/lessons/new-lesson.page').then((m) => m.NewLessonPage);
+  }
   return import('../../features/stub/stub.page').then((m) => m.StubPage);
 }
 

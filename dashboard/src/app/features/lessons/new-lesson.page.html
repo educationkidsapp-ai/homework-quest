@@ -1,0 +1,156 @@
+<hq-page [title]="'lessons.new.title' | transloco" [subtitle]="'lessons.new.subtitle' | transloco">
+  @if (pickSchool()) {
+    <hq-empty-state [message]="'lessons.new.pickSchool' | transloco" />
+  } @else {
+    <hq-band [open]="error() !== null" [title]="'band.failed' | transloco" (dismissed)="error.set(null)">
+      {{ error() }}
+    </hq-band>
+
+    @if (busy(); as busyText) {
+      <hq-progress-bar [value]="null" [label]="busyText" />
+      <p class="busy-text" role="status">{{ busyText }}</p>
+    }
+
+    <hq-card [eyebrow]="'lessons.new.course' | transloco">
+      @if (optionsLoading()) {
+        <hq-skeleton [loading]="true" [lines]="3" [label]="'lessons.loading' | transloco" />
+      } @else {
+        <div class="chooser">
+          <hq-select
+            [label]="'lessons.chooser.curriculum' | transloco"
+            [options]="curriculumOptions()"
+            [value]="curriculumValue()"
+            [placeholder]="'lessons.chooser.curriculumPlaceholder' | transloco"
+            [disabled]="busy() !== null"
+            (valueChange)="onCurriculumChange($event)"
+          />
+          <hq-select
+            [label]="'lessons.chooser.grade' | transloco"
+            [options]="gradeOptions()"
+            [value]="gradeValue()"
+            [placeholder]="'lessons.chooser.gradePlaceholder' | transloco"
+            [disabled]="busy() !== null"
+            (valueChange)="onGradeChange($event)"
+          />
+          <hq-select
+            [label]="'lessons.new.subject' | transloco"
+            [options]="subjectOptions()"
+            [value]="subjectValue()"
+            [placeholder]="'lessons.new.subjectPlaceholder' | transloco"
+            [disabled]="busy() !== null"
+            (valueChange)="onSubjectChange($event)"
+          />
+        </div>
+      }
+    </hq-card>
+
+    @if (step1Valid()) {
+      <hq-card [eyebrow]="'lessons.new.lesson' | transloco">
+        <div class="lesson-fields">
+          <hq-input
+            type="date"
+            [label]="'lessons.new.date' | transloco"
+            [value]="date()"
+            [required]="true"
+            [disabled]="busy() !== null"
+            (valueChange)="date.set($event)"
+          />
+          <hq-input
+            [label]="'lessons.new.titleField' | transloco"
+            [value]="title()"
+            [placeholder]="'lessons.new.titlePlaceholder' | transloco"
+            [disabled]="busy() !== null"
+            (valueChange)="title.set($event)"
+          />
+          <hq-select
+            [label]="'lessons.new.practiceLength' | transloco"
+            [options]="practiceLengthOptions()"
+            [value]="practiceLengthValue()"
+            [disabled]="busy() !== null"
+            (valueChange)="onPracticeLengthChange($event)"
+          />
+        </div>
+      </hq-card>
+
+      <hq-card [eyebrow]="'lessons.new.content' | transloco">
+        <div class="sources">
+          @for (card of sourceCards(); track card.id) {
+            <button
+              *hqFeature="card.flag"
+              type="button"
+              class="source-card"
+              [class.source-card--selected]="source() === card.id"
+              [attr.aria-pressed]="source() === card.id"
+              [disabled]="busy() !== null"
+              (click)="selectSource(card.id)"
+            >
+              <span class="source-card__title">{{ card.title }}</span>
+              <span class="source-card__hint">{{ card.hint }}</span>
+            </button>
+          }
+        </div>
+
+        @if (source() === 'manual') {
+          <p class="source-note">{{ 'lessons.new.manualHint' | transloco }}</p>
+        } @else if (source() === 'pdf' || source() === 'slides' || source() === 'images') {
+          <div
+            class="dropzone"
+            [class.is-drag-over]="dragging()"
+            (dragover)="onDragOver($event)"
+            (dragleave)="onDragLeave()"
+            (drop)="onDrop($event)"
+          >
+            <p class="dropzone__title">{{ dropzoneTitle() }}</p>
+            <p class="dropzone__or">{{ 'lessons.new.dropzone.or' | transloco }}</p>
+            <input
+              #fileInput
+              type="file"
+              class="hq-sr-only"
+              [attr.accept]="acceptFor()"
+              [attr.aria-label]="dropzoneTitle()"
+              [multiple]="source() === 'images'"
+              [disabled]="busy() !== null"
+              (change)="onFileInput($event)"
+            />
+            <hq-button variant="secondary" [disabled]="busy() !== null" (pressed)="fileInput.click()">
+              {{ 'lessons.new.dropzone.choose' | transloco }}
+            </hq-button>
+          </div>
+
+          @if (files().length > 0) {
+            <ul class="file-list">
+              @for (file of files(); track file.name; let i = $index) {
+                <li class="file-list__row">
+                  <span class="file-list__name">{{ file.name }}</span>
+                  <span class="file-list__size">{{ formatFileSize(file.size) }}</span>
+                  <hq-button
+                    variant="quiet"
+                    [disabled]="busy() !== null"
+                    [attr.aria-label]="'lessons.new.fileRemoveLabel' | transloco: { name: file.name }"
+                    (pressed)="removeFile(i)"
+                  >
+                    {{ 'lessons.new.remove' | transloco }}
+                  </hq-button>
+                </li>
+              }
+            </ul>
+          }
+        }
+      </hq-card>
+    }
+  }
+
+  @if (!pickSchool()) {
+    <div page-footer class="footer">
+      <p class="footer__note">{{ primaryReason() }}</p>
+      <hq-button
+        variant="primary"
+        [disabled]="!ready()"
+        [reason]="ready() ? null : primaryReason()"
+        (pressed)="create()"
+      >
+        {{ primaryLabel() }}
+      </hq-button>
+    </div>
+  }
+</hq-page>
