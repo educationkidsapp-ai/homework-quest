@@ -389,17 +389,6 @@ export class LessonsPage {
       const timer = setInterval(() => this.lessons.reload(), POLL_MS);
       onCleanup(() => clearInterval(timer));
     });
-
-    // The Admin's `?schoolId=` follows the shell's switcher, so the URL can be bookmarked.
-    effect(() => {
-      if (!this.isAdmin()) return;
-      const schoolId = this.auth.effectiveSchoolId();
-      void this.router.navigate([], {
-        queryParams: { schoolId: schoolId ?? null },
-        queryParamsHandling: 'merge',
-        replaceUrl: true,
-      });
-    });
   }
 
   protected trackRow = (row: LessonRowView): string => row.id;

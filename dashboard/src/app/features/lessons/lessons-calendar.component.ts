@@ -50,32 +50,38 @@ interface Cell {
         <hq-skeleton [loading]="true" [lines]="5" [label]="'lessons.loading' | transloco" />
       } @else {
         <div class="calendar__grid" role="grid" [attr.aria-label]="monthLabel()">
-          @for (weekday of weekdays(); track weekday) {
-            <div class="calendar__weekday" role="columnheader">{{ weekday }}</div>
-          }
-          @for (cell of cells(); track cell.iso) {
-            <div
-              class="calendar__cell"
-              role="gridcell"
-              [attr.data-date]="cell.iso"
-              [class.calendar__cell--outside]="!cell.inMonth"
-              [class.calendar__cell--gap]="cell.gap"
-            >
-              <span class="calendar__day">{{ cell.date.getDate() }}</span>
-              @if (cell.math || cell.english) {
-                <span class="calendar__dots" aria-hidden="true">
-                  @if (cell.math) {
-                    <span class="calendar__dot calendar__dot--math"></span>
+          <div class="calendar__row" role="row">
+            @for (weekday of weekdays(); track weekday) {
+              <div class="calendar__weekday" role="columnheader">{{ weekday }}</div>
+            }
+          </div>
+          @for (week of weeks(); track $index) {
+            <div class="calendar__row" role="row">
+              @for (cell of week; track cell.iso) {
+                <div
+                  class="calendar__cell"
+                  role="gridcell"
+                  [attr.data-date]="cell.iso"
+                  [class.calendar__cell--outside]="!cell.inMonth"
+                  [class.calendar__cell--gap]="cell.gap"
+                >
+                  <span class="calendar__day">{{ cell.date.getUTCDate() }}</span>
+                  @if (cell.math || cell.english) {
+                    <span class="calendar__dots" aria-hidden="true">
+                      @if (cell.math) {
+                        <span class="calendar__dot calendar__dot--math"></span>
+                      }
+                      @if (cell.english) {
+                        <span class="calendar__dot calendar__dot--english"></span>
+                      }
+                    </span>
+                    <span class="hq-sr-only">
+                      {{ (cell.math ? 'subject.math' : 'subject.english') | transloco }}
+                    </span>
+                  } @else if (cell.gap) {
+                    <span class="calendar__gap-label">{{ 'lessons.calendar.gap' | transloco }}</span>
                   }
-                  @if (cell.english) {
-                    <span class="calendar__dot calendar__dot--english"></span>
-                  }
-                </span>
-                <span class="hq-sr-only">
-                  {{ (cell.math ? 'subject.math' : 'subject.english') | transloco }}
-                </span>
-              } @else if (cell.gap) {
-                <span class="calendar__gap-label">{{ 'lessons.calendar.gap' | transloco }}</span>
+                </div>
               }
             </div>
           }
@@ -120,6 +126,12 @@ interface Cell {
       gap: var(--hq-size-rule-thin);
       background: var(--hq-color-rule);
       border: var(--hq-size-rule) solid var(--hq-color-line);
+    }
+
+    // A real ARIA row between the grid and its cells, without breaking the grid's own column
+    // tracks: its children lay out as if this element were not there.
+    .calendar__row {
+      display: contents;
     }
 
     .calendar__weekday {
@@ -219,6 +231,14 @@ export class LessonsCalendarComponent {
       const gap = inMonth && !entry && isSchoolDay(date) && date.getTime() <= today.getTime();
       return { date, iso, inMonth, math: entry?.math ?? false, english: entry?.english ?? false, gap };
     });
+  });
+
+  /** `cells()` in weeks of 7, so the template can give each one a real ARIA `row`. */
+  protected readonly weeks = computed<readonly (readonly Cell[])[]>(() => {
+    const all = this.cells();
+    const rows: Cell[][] = [];
+    for (let index = 0; index < all.length; index += 7) rows.push(all.slice(index, index + 7));
+    return rows;
   });
 
   protected shift(delta: number): void {
