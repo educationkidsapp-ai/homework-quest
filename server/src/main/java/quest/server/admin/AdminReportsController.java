@@ -1,5 +1,9 @@
 package quest.server.admin;
 
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -78,6 +82,7 @@ public class AdminReportsController {
      */
     @PreAuthorize("@permit.has('cache.read')")
     @GetMapping(value = "/admin/cache", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = CacheEntry.class))))
     public String cache() {
         boolean scoped = tenant.schoolId() != null;
         Map<String, List<String>> lessonsByHash = new HashMap<>();
@@ -100,6 +105,7 @@ public class AdminReportsController {
 
     @PreAuthorize("@permit.has('usage.read')")
     @GetMapping(value = "/admin/usage", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = UsageResponse.class)))
     public String usage() {
         Map<String, Long> childrenByCourse = new HashMap<>();
         for (Object[] row : children.countByCourse()) childrenByCourse.put(row[0] + "/" + row[1], ((Number) row[2]).longValue());
@@ -128,6 +134,7 @@ public class AdminReportsController {
 
     @PreAuthorize("@permit.has('calendar.read')")
     @GetMapping(value = "/admin/calendar", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = CalendarResponse.class)))
     public String calendar(@RequestParam String curriculum, @RequestParam int grade, @RequestParam int year, @RequestParam int month) {
         Course course;
         try { course = new Course(Curriculum.valueOf(curriculum.toUpperCase()), grade); } catch (IllegalArgumentException e) { throw ApiException.badRequest("bad curriculum"); }

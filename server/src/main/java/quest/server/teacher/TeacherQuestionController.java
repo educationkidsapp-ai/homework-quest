@@ -1,5 +1,8 @@
 package quest.server.teacher;
 
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -91,6 +94,7 @@ public class TeacherQuestionController {
     /** The stops behind a `MapResponse.teacherIslands` entry, shaped like a play the existing player can run. */
     @GetMapping(value = "/children/{id}/teacher-questions/{questionId}", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('child.teacherQuestion.read')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = TeacherQuestionPlay.class)))
     public String childTeacherQuestion(@AuthenticationPrincipal Principals.Parent parent,
                                        @PathVariable String id, @PathVariable String questionId) {
         var child = childService.owned(id, parent);
@@ -101,6 +105,7 @@ public class TeacherQuestionController {
     @PostMapping(value = "/children/{id}/teacher-questions/{questionId}/answers",
             consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('child.teacherQuestion.answer')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AttemptAck.class)))
     public String childTeacherAnswers(@AuthenticationPrincipal Principals.Parent parent,
                                       @PathVariable String id, @PathVariable String questionId, @RequestBody String body) {
         var child = childService.owned(id, parent);

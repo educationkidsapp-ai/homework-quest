@@ -1,5 +1,9 @@
 package quest.server.teacher;
 
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -67,6 +71,7 @@ public class AnnouncementController {
     /** The live notes of the classes this child sits in, newest first; encoded with the shared codec like `ContentApi`. */
     @GetMapping(value = "/children/{id}/announcements", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('child.announcement.read')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ParentAnnouncement.class))))
     public String childAnnouncements(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) {
         var child = childService.owned(id, parent);
         return json.encodeShared(announcements.forChild(child),

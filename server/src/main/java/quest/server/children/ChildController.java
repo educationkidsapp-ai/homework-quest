@@ -6,6 +6,10 @@ import java.util.List;
 import java.util.UUID;
 import kotlinx.serialization.builtins.BuiltinSerializersKt;
 import org.springframework.http.HttpStatus;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -51,6 +55,7 @@ public class ChildController {
 
     @PreAuthorize("@permit.has('child.read')")
     @GetMapping(value = "/children", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = Child.class))))
     public String listChildren(@AuthenticationPrincipal Principals.Parent parent) {
         return json.encodeShared(childService.list(parent), BuiltinSerializersKt.ListSerializer(Child.Companion.serializer()));
     }
@@ -58,6 +63,7 @@ public class ChildController {
     @PreAuthorize("@permit.has('child.write')")
     @PostMapping(value = "/children", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
+    @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Child.class)))
     public String createChild(@AuthenticationPrincipal Principals.Parent parent, @RequestBody String body) {
         var req = decode(body, CreateChildRequest.Companion.serializer());
         return json.encodeShared(childService.create(parent, req), Child.Companion.serializer());
@@ -65,6 +71,7 @@ public class ChildController {
 
     @PreAuthorize("@permit.has('child.write')")
     @PatchMapping(value = "/children/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Child.class)))
     public String updateChild(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestBody String body) {
         var req = decode(body, UpdateChildRequest.Companion.serializer());
         return json.encodeShared(childService.update(parent, id, req), Child.Companion.serializer());
@@ -77,6 +84,7 @@ public class ChildController {
 
     @PreAuthorize("@permit.has('child.read')")
     @GetMapping(value = "/children/{id}/map", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MapResponse.class)))
     public String childMap(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestParam String from, @RequestParam String to, @RequestParam(required = false) String today) {
         var child = childService.owned(id, parent);
         LocalDate f, t, d;
@@ -87,6 +95,7 @@ public class ChildController {
 
     @PreAuthorize("@permit.has('child.play')")
     @PostMapping(value = "/children/{id}/attempts", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AttemptAck.class)))
     public String uploadAttempts(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @RequestBody String body) {
         var child = childService.owned(id, parent);
         List<AttemptUpload> uploads = decode(body, BuiltinSerializersKt.ListSerializer(AttemptUpload.Companion.serializer()));
@@ -96,6 +105,7 @@ public class ChildController {
 
     @PreAuthorize("@permit.has('child.play')")
     @PostMapping(value = "/children/{id}/stops/{stopId}/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MediaRef.class)))
     public String uploadChildMedia(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @PathVariable String stopId, @RequestParam("kind") String kind, @RequestPart("file") MultipartFile file) throws java.io.IOException {
         var child = childService.owned(id, parent);
         MediaKind mk;
@@ -114,6 +124,7 @@ public class ChildController {
 
     @PreAuthorize("@permit.has('child.read')")
     @GetMapping(value = "/children/{id}/progress", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ProgressResponse.class)))
     public String childProgress(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) {
         var child = childService.owned(id, parent);
         return json.encodeShared(progressService.progress(child), ProgressResponse.Companion.serializer());
