@@ -1,5 +1,10 @@
 package quest.server.admin;
 
+import io.swagger.v3.oas.annotations.StringToClassMapItem;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,6 +52,7 @@ public class AdminLessonController {
 
     @PreAuthorize("@permit.has('lesson.read')")
     @GetMapping(value = "/admin/lessons", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = AdminLesson.class))))
     public String listLessons(@RequestParam(required = false) String curriculum, @RequestParam(required = false) Integer grade, @RequestParam(required = false) String subject,
                        @RequestParam(required = false) String from, @RequestParam(required = false) String to,
                        @RequestParam(required = false) String schoolId, @RequestParam(required = false) String classId) {
@@ -61,16 +67,19 @@ public class AdminLessonController {
     @PreAuthorize("@permit.has('lesson.write')")
     @PostMapping(value = "/admin/lessons", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
+    @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AdminLesson.class)))
     public String createLesson(@RequestBody String body, @AuthenticationPrincipal Principals.User admin) {
         return json.encodeShared(service.create(decode(body, CreateLessonRequest.Companion.serializer()), admin), AdminLesson.Companion.serializer());
     }
 
     @PreAuthorize("@permit.has('lesson.read')")
     @GetMapping(value = "/admin/lessons/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AdminLesson.class)))
     public String getLesson(@PathVariable String id) { return json.encodeShared(service.toAdmin(service.get(id), true), AdminLesson.Companion.serializer()); }
 
     @PreAuthorize("@permit.has('lesson.write')")
     @PostMapping(value = "/admin/lessons/{id}/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = JobRef.class)))
     public String uploadFiles(@PathVariable String id, @RequestPart("files") List<MultipartFile> files) throws IOException {
         if (files == null || files.isEmpty()) throw ApiException.badRequest("No files.");
         if (files.size() > 10) throw ApiException.badRequest("At most 10 files per lesson.");
@@ -81,10 +90,12 @@ public class AdminLessonController {
 
     @PreAuthorize("@permit.has('lesson.write')")
     @PostMapping(value = "/admin/lessons/{id}/analyze", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = JobRef.class)))
     public String analyze(@PathVariable String id) { return job(id, service.analyze(id)); }
 
     @PreAuthorize("@permit.has('lesson.write')")
     @PostMapping(value = "/admin/lessons/{id}/skills", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = JobRef.class)))
     public String confirmSkills(@PathVariable String id, @RequestBody String body) {
         List<ConfirmedSkill> skills = decode(body, BuiltinSerializersKt.ListSerializer(ConfirmedSkill.Companion.serializer()));
         return job(id, service.confirmSkills(id, skills));
@@ -92,6 +103,7 @@ public class AdminLessonController {
 
     @PreAuthorize("@permit.has('stop.write')")
     @PutMapping(value = "/admin/stops/{stopId}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Stop.class)))
     public String updateStop(@PathVariable String stopId, @RequestBody String body) {
         return json.encodeShared(service.updateStop(stopId, decode(body, Stop.Companion.serializer())), Stop.Companion.serializer());
     }
@@ -99,6 +111,7 @@ public class AdminLessonController {
     // ---- manual authoring
     @PreAuthorize("@permit.has('play.write')")
     @PostMapping(value = "/admin/lessons/{id}/plays", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = quest.api.AdminPlay.class)))
     public String createPlay(@PathVariable String id, @RequestBody String body) {
         var req = decode(body, quest.api.CreatePlayRequest.Companion.serializer());
         return json.encodeShared(service.createPlay(id, req.getLevel(), req.getVariant()), quest.api.AdminPlay.Companion.serializer());
@@ -106,6 +119,7 @@ public class AdminLessonController {
 
     @PreAuthorize("@permit.has('stop.write')")
     @PostMapping(value = "/admin/plays/{playId}/stops", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Stop.class)))
     public String addStop(@PathVariable String playId, @RequestBody String body) {
         return json.encodeShared(service.addStop(playId, decode(body, Stop.Companion.serializer())), Stop.Companion.serializer());
     }
@@ -116,6 +130,7 @@ public class AdminLessonController {
 
     @PreAuthorize("@permit.has('play.write')")
     @PutMapping(value = "/admin/plays/{playId}/order", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Play.class)))
     public String reorder(@PathVariable String playId, @RequestBody String body) {
         var req = decode(body, quest.api.ReorderRequest.Companion.serializer());
         return json.encodeShared(service.reorderStops(playId, req.getStopIds()), Play.Companion.serializer());
@@ -123,12 +138,14 @@ public class AdminLessonController {
 
     @PreAuthorize("@permit.has('lesson.write')")
     @PostMapping(value = "/admin/lessons/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = quest.api.LessonImage.class)))
     public String uploadImage(@PathVariable String id, @RequestPart("file") MultipartFile file) throws IOException {
         return json.encodeShared(service.uploadImage(id, file.getOriginalFilename(), file.getContentType(), file.getBytes()), quest.api.LessonImage.Companion.serializer());
     }
 
     @PreAuthorize("@permit.has('lesson.write')")
     @PostMapping(value = "/admin/lessons/{id}/generate-from-text", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = JobRef.class)))
     public String generateFromText(@PathVariable String id, @RequestBody String body) {
         var req = decode(body, quest.api.GenerateFromTextRequest.Companion.serializer());
         return job(id, service.generateFromText(id, req.getText()));
@@ -136,24 +153,29 @@ public class AdminLessonController {
 
     @PreAuthorize("@permit.has('stop.write')")
     @PostMapping(value = "/admin/stops/{stopId}/regenerate", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Stop.class)))
     public String regenerateStop(@PathVariable String stopId) { return json.encodeShared(service.regenerateStop(stopId), Stop.Companion.serializer()); }
 
     @PreAuthorize("@permit.has('play.write')")
     @PostMapping(value = "/admin/plays/{playId}/regenerate", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Play.class)))
     public String regeneratePlay(@PathVariable String playId) { return json.encodeShared(service.regeneratePlay(playId), Play.Companion.serializer()); }
 
     @PreAuthorize("@permit.has('lesson.write')")
     @PutMapping(value = "/admin/lessons/{id}/parent-panel", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ParentPanel.class)))
     public String updatePanel(@PathVariable String id, @RequestBody String body) {
         return json.encodeShared(service.updatePanel(id, decode(body, ParentPanel.Companion.serializer())), ParentPanel.Companion.serializer());
     }
 
     @PreAuthorize("@permit.has('lesson.publish')")
     @PostMapping(value = "/admin/lessons/{id}/publish", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AdminLesson.class)))
     public String publish(@PathVariable String id) { return json.encodeShared(service.publish(id), AdminLesson.Companion.serializer()); }
 
     @PreAuthorize("@permit.has('lesson.publish')")
     @PostMapping(value = "/admin/lessons/{id}/unpublish", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AdminLesson.class)))
     public String unpublish(@PathVariable String id) { return json.encodeShared(service.unpublish(id), AdminLesson.Companion.serializer()); }
 
     @PreAuthorize("@permit.has('lesson.write')")
@@ -163,14 +185,17 @@ public class AdminLessonController {
 
     @PreAuthorize("@permit.has('lesson.write')")
     @PostMapping(value = "/admin/lessons/{id}/retry", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = JobRef.class)))
     public String retry(@PathVariable String id) { return job(id, service.retry(id)); }
 
     @PreAuthorize("@permit.has('lesson.write')")
     @PostMapping(value = "/admin/lessons/{id}/steps/{step}/retry", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = JobRef.class)))
     public String retryStep(@PathVariable String id, @PathVariable String step) { return job(id, service.retryStep(id, quest.server.analysis.LessonSteps.parse(step))); }
 
     @PreAuthorize("@permit.has('lesson.delete')")
     @DeleteMapping(value = "/admin/lessons/failed", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(type = "object", properties = @StringToClassMapItem(key = "deleted", value = Integer.class))))
     public String deleteFailed() { return "{\"deleted\":" + service.deleteFailed() + "}"; }
 
     @PreAuthorize("@permit.has('lesson.delete')")

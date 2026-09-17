@@ -1,5 +1,8 @@
 package quest.server.content;
 
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.concurrent.TimeUnit;
 import org.springframework.http.CacheControl;
@@ -24,6 +27,7 @@ public class LessonController {
 
     @PreAuthorize("@permit.has('lesson.play')")
     @GetMapping(value = "/lessons/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = quest.api.dto.PublishedLesson.class)))
     public ResponseEntity<String> lesson(@PathVariable String id, @RequestParam(required = false) Integer version, @RequestParam(required = false) String childId, @AuthenticationPrincipal Principals.Parent parent) {
         var lesson = lessons.findById(id).filter(l -> "published".equals(l.getStatus())).orElseThrow(() -> ApiException.notFound("lesson"));
         if (childId != null) {

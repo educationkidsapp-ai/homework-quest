@@ -17,6 +17,181 @@
         "required" : [ "password" ],
         "type" : "object"
       },
+      "AdminLesson" : {
+        "properties" : {
+          "analysis" : {
+            "$ref" : "#/components/schemas/SourceAnalysis"
+          },
+          "course" : {
+            "$ref" : "#/components/schemas/Course"
+          },
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "currentStep" : {
+            "enum" : [ "upload", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel" ],
+            "type" : "string"
+          },
+          "date" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "error" : {
+            "$ref" : "#/components/schemas/ApiError"
+          },
+          "files" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SourceFileInfo"
+            },
+            "type" : "array"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "images" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PageImage"
+            },
+            "type" : "array"
+          },
+          "notes" : {
+            "type" : "string"
+          },
+          "parentPanel" : {
+            "$ref" : "#/components/schemas/ParentPanel"
+          },
+          "plays" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AdminPlay"
+            },
+            "type" : "array"
+          },
+          "publishedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "schoolId" : {
+            "type" : "string"
+          },
+          "schoolName" : {
+            "type" : "string"
+          },
+          "skills" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ExtractedSkill"
+            },
+            "type" : "array"
+          },
+          "source" : {
+            "enum" : [ "pdf", "slides", "images", "manual" ],
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "draft", "uploading", "analyzing", "needs_review", "generating", "review", "published", "error", "paused" ],
+            "type" : "string"
+          },
+          "steps" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LessonStepInfo"
+            },
+            "type" : "array"
+          },
+          "subject" : {
+            "enum" : [ "math", "english" ],
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "tokenUsage" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "tokensSaved" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "version" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "course", "createdAt", "date", "files", "id", "images", "plays", "skills", "source", "status", "steps", "subject", "tokenUsage", "tokensSaved", "version" ],
+        "type" : "object"
+      },
+      "AdminPlay" : {
+        "properties" : {
+          "generatedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "level" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "play" : {
+            "$ref" : "#/components/schemas/Play"
+          },
+          "promptVersion" : {
+            "type" : "string"
+          },
+          "variant" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "generatedAt", "id", "level", "play", "promptVersion", "variant" ],
+        "type" : "object"
+      },
+      "AnalysedEvent" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "text" ],
+        "type" : "object"
+      },
+      "AnalysedPage" : {
+        "properties" : {
+          "childText" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "illustrationKeys" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "keepImage" : {
+            "type" : "boolean"
+          },
+          "number" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pictureDescription" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "childText", "illustrationKeys", "keepImage", "number", "pictureDescription" ],
+        "type" : "object"
+      },
       "Announcement" : {
         "properties" : {
           "bodyAr" : {
@@ -65,6 +240,140 @@
         },
         "type" : "object"
       },
+      "ApiError" : {
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "message" ],
+        "type" : "object"
+      },
+      "AttemptAck" : {
+        "properties" : {
+          "accepted" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "accepted" ],
+        "type" : "object"
+      },
+      "Bilingual" : {
+        "properties" : {
+          "ar" : {
+            "type" : "string"
+          },
+          "en" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "ar", "en" ],
+        "type" : "object"
+      },
+      "BilingualList" : {
+        "properties" : {
+          "ar" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "en" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "ar", "en" ],
+        "type" : "object"
+      },
+      "CacheEntry" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "curriculum" : {
+            "enum" : [ "american", "british" ],
+            "type" : "string"
+          },
+          "fileHash" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "hits" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lessonIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "promptVersion" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "enum" : [ "math", "english" ],
+            "type" : "string"
+          },
+          "tokenUsage" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "createdAt", "curriculum", "fileHash", "grade", "hits", "lessonIds", "promptVersion", "subject", "tokenUsage" ],
+        "type" : "object"
+      },
+      "CalendarDayInfo" : {
+        "properties" : {
+          "date" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "english" : {
+            "type" : "boolean"
+          },
+          "math" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "date", "english", "math" ],
+        "type" : "object"
+      },
+      "CalendarResponse" : {
+        "properties" : {
+          "course" : {
+            "$ref" : "#/components/schemas/Course"
+          },
+          "days" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CalendarDayInfo"
+            },
+            "type" : "array"
+          },
+          "month" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "year" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "course", "days", "month", "year" ],
+        "type" : "object"
+      },
       "ChangePasswordRequest" : {
         "properties" : {
           "currentPassword" : {
@@ -79,6 +388,60 @@
         },
         "required" : [ "currentPassword", "newPassword" ],
         "type" : "object"
+      },
+      "Child" : {
+        "properties" : {
+          "avatarColor" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "enum" : [ "american", "british" ],
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "languages" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "schoolId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "avatarColor", "curriculum", "grade", "id", "languages", "name", "schoolId" ],
+        "type" : "object"
+      },
+      "Choice" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/SingleAnswer"
+        }, {
+          "properties" : {
+            "correctOptionId" : {
+              "type" : "string"
+            },
+            "options" : {
+              "items" : {
+                "$ref" : "#/components/schemas/Tile"
+              },
+              "type" : "array"
+            },
+            "question" : {
+              "type" : "string"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "correctOptionId", "hint", "id", "ingredient", "options", "parentTip", "question", "speak", "title", "type" ]
       },
       "ClassCalendar" : {
         "properties" : {
@@ -166,6 +529,95 @@
             "type" : "array"
           }
         },
+        "type" : "object"
+      },
+      "Compare" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/SingleAnswer"
+        }, {
+          "properties" : {
+            "correctOptionId" : {
+              "type" : "string"
+            },
+            "left" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "numberLine" : {
+              "$ref" : "#/components/schemas/NumberLine"
+            },
+            "options" : {
+              "items" : {
+                "$ref" : "#/components/schemas/Option"
+              },
+              "type" : "array"
+            },
+            "right" : {
+              "format" : "int32",
+              "type" : "integer"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "correctOptionId", "hint", "id", "ingredient", "left", "numberLine", "options", "parentTip", "right", "speak", "title", "type" ]
+      },
+      "Count" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/SingleAnswer"
+        }, {
+          "properties" : {
+            "correctOptionId" : {
+              "type" : "string"
+            },
+            "groupSizes" : {
+              "items" : {
+                "format" : "int32",
+                "type" : "integer"
+              },
+              "type" : "array"
+            },
+            "numberLine" : {
+              "$ref" : "#/components/schemas/NumberLine"
+            },
+            "objectKey" : {
+              "type" : "string"
+            },
+            "options" : {
+              "items" : {
+                "$ref" : "#/components/schemas/Option"
+              },
+              "type" : "array"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "correctOptionId", "groupSizes", "hint", "id", "ingredient", "numberLine", "objectKey", "options", "parentTip", "speak", "title", "type" ]
+      },
+      "Course" : {
+        "properties" : {
+          "curriculum" : {
+            "enum" : [ "american", "british" ],
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "curriculum", "grade" ],
+        "type" : "object"
+      },
+      "CourseUsage" : {
+        "properties" : {
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "course" : {
+            "$ref" : "#/components/schemas/Course"
+          }
+        },
+        "required" : [ "children", "course" ],
         "type" : "object"
       },
       "CreateAnnouncementRequest" : {
@@ -372,6 +824,92 @@
         },
         "type" : "object"
       },
+      "ExitTicket" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        } ],
+        "required" : [ "id", "ingredient", "parentTip", "speak", "title", "type" ]
+      },
+      "Explain" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "explanation" : {
+              "type" : "string"
+            },
+            "skillId" : {
+              "type" : "string"
+            },
+            "workedExamples" : {
+              "items" : {
+                "$ref" : "#/components/schemas/WorkedExample"
+              },
+              "type" : "array"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "explanation", "id", "ingredient", "parentTip", "skillId", "speak", "title", "type", "workedExamples" ]
+      },
+      "ExtractedSkill" : {
+        "properties" : {
+          "confidence" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "examples" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "method" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "slideNumbers" : {
+            "items" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "type" : "array"
+          },
+          "subject" : {
+            "enum" : [ "math", "english" ],
+            "type" : "string"
+          },
+          "unsure" : {
+            "$ref" : "#/components/schemas/Unsure"
+          }
+        },
+        "required" : [ "confidence", "examples", "id", "method", "name", "slideNumbers", "subject" ],
+        "type" : "object"
+      },
+      "Fact" : {
+        "properties" : {
+          "falseTwin" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "trueStatement" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "falseTwin", "id", "trueStatement" ],
+        "type" : "object"
+      },
       "FeatureFlagDefinition" : {
         "properties" : {
           "createdAt" : {
@@ -510,6 +1048,46 @@
         },
         "type" : "object"
       },
+      "Hotspot" : {
+        "properties" : {
+          "h" : {
+            "format" : "float",
+            "type" : "number"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "w" : {
+            "format" : "float",
+            "type" : "number"
+          },
+          "x" : {
+            "format" : "float",
+            "type" : "number"
+          },
+          "y" : {
+            "format" : "float",
+            "type" : "number"
+          }
+        },
+        "required" : [ "h", "id", "label", "w", "x", "y" ],
+        "type" : "object"
+      },
+      "Ingredient" : {
+        "properties" : {
+          "emoji" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "emoji", "name" ],
+        "type" : "object"
+      },
       "Invite" : {
         "properties" : {
           "acceptedAt" : {
@@ -560,6 +1138,83 @@
         },
         "type" : "object"
       },
+      "Island" : {
+        "properties" : {
+          "completedLevels" : {
+            "items" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "type" : "array"
+          },
+          "date" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "enum" : [ "lesson", "review", "locked" ],
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "lessonVersion" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "levelsUnlocked" : {
+            "items" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "type" : "array"
+          },
+          "playId" : {
+            "type" : "string"
+          },
+          "skillId" : {
+            "type" : "string"
+          },
+          "starsEarned" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "starsTotal" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "state" : {
+            "enum" : [ "done", "waiting", "today", "locked" ],
+            "type" : "string"
+          },
+          "subject" : {
+            "enum" : [ "math", "english" ],
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "date", "id", "kind", "state", "title" ],
+        "type" : "object"
+      },
+      "JobRef" : {
+        "properties" : {
+          "jobId" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "draft", "uploading", "analyzing", "needs_review", "generating", "review", "published", "error", "paused" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "jobId", "status" ],
+        "type" : "object"
+      },
       "JoinSchoolInfo" : {
         "properties" : {
           "curriculumOptions" : {
@@ -588,6 +1243,147 @@
         "type" : "object"
       },
       "JsonNode" : { },
+      "LessonImage" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "url" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "url" ],
+        "type" : "object"
+      },
+      "LessonStepInfo" : {
+        "properties" : {
+          "attempt" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "errorCode" : {
+            "type" : "string"
+          },
+          "errorMessage" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "pending", "running", "done", "error" ],
+            "type" : "string"
+          },
+          "step" : {
+            "enum" : [ "upload", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel" ],
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "attempt", "status", "step", "updatedAt" ],
+        "type" : "object"
+      },
+      "LessonUsage" : {
+        "properties" : {
+          "completed" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "course" : {
+            "$ref" : "#/components/schemas/Course"
+          },
+          "date" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "played" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "completed", "course", "date", "lessonId", "played", "title" ],
+        "type" : "object"
+      },
+      "MapResponse" : {
+        "properties" : {
+          "childId" : {
+            "type" : "string"
+          },
+          "course" : {
+            "$ref" : "#/components/schemas/Course"
+          },
+          "from" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "islands" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Island"
+            },
+            "type" : "array"
+          },
+          "teacherIslands" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TeacherIsland"
+            },
+            "type" : "array"
+          },
+          "to" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "today" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [ "childId", "course", "from", "islands", "to", "today" ],
+        "type" : "object"
+      },
+      "Match" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "pairs" : {
+              "items" : {
+                "$ref" : "#/components/schemas/MatchPair"
+              },
+              "type" : "array"
+            },
+            "prompt" : {
+              "type" : "string"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "id", "ingredient", "pairs", "parentTip", "prompt", "speak", "title", "type" ]
+      },
+      "MatchPair" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "left" : {
+            "$ref" : "#/components/schemas/Tile"
+          },
+          "right" : {
+            "$ref" : "#/components/schemas/Tile"
+          }
+        },
+        "required" : [ "id", "left", "right" ],
+        "type" : "object"
+      },
       "MePermissions" : {
         "properties" : {
           "permissions" : {
@@ -603,6 +1399,34 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "MediaRef" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "enum" : [ "recording", "drawing" ],
+            "type" : "string"
+          },
+          "url" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "kind", "url" ],
+        "type" : "object"
+      },
+      "ModelAnswer" : {
+        "properties" : {
+          "en" : {
+            "type" : "string"
+          },
+          "stopId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "en", "stopId" ],
         "type" : "object"
       },
       "MonthCost" : {
@@ -625,6 +1449,63 @@
         },
         "type" : "object"
       },
+      "Move" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "actions" : {
+              "items" : {
+                "$ref" : "#/components/schemas/MoveAction"
+              },
+              "type" : "array"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "actions", "id", "ingredient", "parentTip", "speak", "title", "type" ]
+      },
+      "MoveAction" : {
+        "properties" : {
+          "emoji" : {
+            "type" : "string"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "emoji", "text" ],
+        "type" : "object"
+      },
+      "MultiSelect" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "correctIds" : {
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "options" : {
+              "items" : {
+                "$ref" : "#/components/schemas/Tile"
+              },
+              "type" : "array"
+            },
+            "pick" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "prompt" : {
+              "type" : "string"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "correctIds", "id", "ingredient", "options", "parentTip", "pick", "prompt", "speak", "title", "type" ]
+      },
       "NeedsYouItem" : {
         "properties" : {
           "href" : {
@@ -643,6 +1524,199 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "NumberLine" : {
+        "properties" : {
+          "from" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "highlight" : {
+            "items" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "type" : "array"
+          },
+          "step" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "to" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "from", "highlight", "step", "to" ],
+        "type" : "object"
+      },
+      "OpenAnswer" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "mode" : {
+              "type" : "string"
+            },
+            "modelAnswer" : {
+              "type" : "string"
+            },
+            "prompt" : {
+              "type" : "string"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "id", "ingredient", "mode", "modelAnswer", "parentTip", "prompt", "speak", "title", "type" ]
+      },
+      "Option" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "label" ],
+        "type" : "object"
+      },
+      "Order" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "correctOrder" : {
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "items" : {
+              "items" : {
+                "$ref" : "#/components/schemas/OrderItem"
+              },
+              "type" : "array"
+            },
+            "prompt" : {
+              "type" : "string"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "correctOrder", "id", "ingredient", "items", "parentTip", "prompt", "speak", "title", "type" ]
+      },
+      "OrderItem" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "illustrationKey" : {
+            "type" : "string"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "text" ],
+        "type" : "object"
+      },
+      "PageImage" : {
+        "properties" : {
+          "description" : {
+            "type" : "string"
+          },
+          "height" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "url" : {
+            "type" : "string"
+          },
+          "width" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "description", "height", "id", "url", "width" ],
+        "type" : "object"
+      },
+      "ParentAnnouncement" : {
+        "properties" : {
+          "bodyAr" : {
+            "type" : "string"
+          },
+          "bodyEn" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "publishedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "teacherName" : {
+            "type" : "string"
+          },
+          "teacherPhotoUrl" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "bodyEn", "id", "publishedAt" ],
+        "type" : "object"
+      },
+      "ParentPanel" : {
+        "properties" : {
+          "challenge" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Bilingual"
+            },
+            "type" : "array"
+          },
+          "modelAnswers" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ModelAnswer"
+            },
+            "type" : "array"
+          },
+          "objectives" : {
+            "$ref" : "#/components/schemas/BilingualList"
+          },
+          "stopTips" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StopTip"
+            },
+            "type" : "array"
+          },
+          "supported" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Bilingual"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "challenge", "modelAnswers", "objectives", "stopTips", "supported" ],
+        "type" : "object"
+      },
+      "PictureOption" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "illustrationKey" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "illustrationKey" ],
         "type" : "object"
       },
       "PlatformSettings" : {
@@ -716,6 +1790,229 @@
         },
         "type" : "object"
       },
+      "Play" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "enum" : [ "story", "informational", "math", "phonics", "vocabulary", "mixed" ],
+            "type" : "string"
+          },
+          "level" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "stops" : {
+            "items" : {
+              "oneOf" : [ {
+                "$ref" : "#/components/schemas/ExitTicket"
+              }, {
+                "$ref" : "#/components/schemas/Explain"
+              }, {
+                "$ref" : "#/components/schemas/Match"
+              }, {
+                "$ref" : "#/components/schemas/Move"
+              }, {
+                "$ref" : "#/components/schemas/MultiSelect"
+              }, {
+                "$ref" : "#/components/schemas/OpenAnswer"
+              }, {
+                "$ref" : "#/components/schemas/Order"
+              }, {
+                "$ref" : "#/components/schemas/ReadPage"
+              }, {
+                "$ref" : "#/components/schemas/Retell"
+              }, {
+                "$ref" : "#/components/schemas/SelectAll"
+              }, {
+                "$ref" : "#/components/schemas/StoryPieces"
+              }, {
+                "$ref" : "#/components/schemas/Trace"
+              }, {
+                "$ref" : "#/components/schemas/WordCards"
+              }, {
+                "$ref" : "#/components/schemas/WriteSentence"
+              }, {
+                "$ref" : "#/components/schemas/Choice"
+              }, {
+                "$ref" : "#/components/schemas/Compare"
+              }, {
+                "$ref" : "#/components/schemas/Count"
+              }, {
+                "$ref" : "#/components/schemas/ReadTap"
+              }, {
+                "$ref" : "#/components/schemas/Sequence"
+              }, {
+                "$ref" : "#/components/schemas/Sound"
+              }, {
+                "$ref" : "#/components/schemas/TrueFalse"
+              }, {
+                "$ref" : "#/components/schemas/Word"
+              } ]
+            },
+            "type" : "array"
+          },
+          "theme" : {
+            "$ref" : "#/components/schemas/Theme"
+          },
+          "variant" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "kind", "level", "stops", "theme", "variant" ],
+        "type" : "object"
+      },
+      "ProgressResponse" : {
+        "properties" : {
+          "childId" : {
+            "type" : "string"
+          },
+          "lastPlayedDate" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "skills" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SkillProgress"
+            },
+            "type" : "array"
+          },
+          "stickers" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "streakDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "weakSkillIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "childId", "skills", "stickers", "streakDays", "weakSkillIds" ],
+        "type" : "object"
+      },
+      "PublishedLesson" : {
+        "properties" : {
+          "course" : {
+            "$ref" : "#/components/schemas/Course"
+          },
+          "date" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "enum" : [ "story", "informational", "math", "phonics", "vocabulary", "mixed" ],
+            "type" : "string"
+          },
+          "pageImages" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PageImage"
+            },
+            "type" : "array"
+          },
+          "parentPanel" : {
+            "$ref" : "#/components/schemas/ParentPanel"
+          },
+          "plays" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Play"
+            },
+            "type" : "array"
+          },
+          "skills" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SkillRef"
+            },
+            "type" : "array"
+          },
+          "subject" : {
+            "enum" : [ "math", "english" ],
+            "type" : "string"
+          },
+          "theme" : {
+            "$ref" : "#/components/schemas/Theme"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "variant" : {
+            "$ref" : "#/components/schemas/Play"
+          },
+          "version" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "course", "date", "id", "kind", "pageImages", "parentPanel", "plays", "skills", "subject", "theme", "title", "variant", "version" ],
+        "type" : "object"
+      },
+      "ReadPage" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "illustrationKey" : {
+              "type" : "string"
+            },
+            "pageImageId" : {
+              "type" : "string"
+            },
+            "pageNumber" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "pictureDescription" : {
+              "type" : "string"
+            },
+            "sentences" : {
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "tapTask" : {
+              "$ref" : "#/components/schemas/TapTask"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "id", "ingredient", "pageNumber", "parentTip", "sentences", "speak", "title", "type" ]
+      },
+      "ReadTap" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/SingleAnswer"
+        }, {
+          "properties" : {
+            "correctOptionId" : {
+              "type" : "string"
+            },
+            "options" : {
+              "items" : {
+                "$ref" : "#/components/schemas/PictureOption"
+              },
+              "type" : "array"
+            },
+            "word" : {
+              "type" : "string"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "correctOptionId", "hint", "id", "ingredient", "options", "parentTip", "speak", "title", "type", "word" ]
+      },
       "RefreshRequest" : {
         "properties" : {
           "refreshToken" : {
@@ -739,6 +2036,49 @@
           }
         },
         "required" : [ "newPassword", "token" ],
+        "type" : "object"
+      },
+      "Retell" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "cues" : {
+              "items" : {
+                "$ref" : "#/components/schemas/RetellCue"
+              },
+              "type" : "array"
+            },
+            "modelAnswer" : {
+              "type" : "string"
+            },
+            "prompt" : {
+              "type" : "string"
+            },
+            "record" : {
+              "type" : "boolean"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "cues", "id", "ingredient", "modelAnswer", "parentTip", "prompt", "record", "speak", "title", "type" ]
+      },
+      "RetellCue" : {
+        "properties" : {
+          "cue" : {
+            "type" : "string"
+          },
+          "illustrationKey" : {
+            "type" : "string"
+          },
+          "pageImageId" : {
+            "type" : "string"
+          },
+          "stage" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "cue", "stage" ],
         "type" : "object"
       },
       "School" : {
@@ -1088,6 +2428,60 @@
         },
         "type" : "object"
       },
+      "SelectAll" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "correctIds" : {
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "options" : {
+              "items" : {
+                "$ref" : "#/components/schemas/Tile"
+              },
+              "type" : "array"
+            },
+            "prompt" : {
+              "type" : "string"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "correctIds", "id", "ingredient", "options", "parentTip", "prompt", "speak", "title", "type" ]
+      },
+      "Sequence" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/SingleAnswer"
+        }, {
+          "properties" : {
+            "chips" : {
+              "items" : {
+                "format" : "int32",
+                "type" : "integer"
+              },
+              "type" : "array"
+            },
+            "correctOptionId" : {
+              "type" : "string"
+            },
+            "numberLine" : {
+              "$ref" : "#/components/schemas/NumberLine"
+            },
+            "options" : {
+              "items" : {
+                "$ref" : "#/components/schemas/Option"
+              },
+              "type" : "array"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "chips", "correctOptionId", "hint", "id", "ingredient", "numberLine", "options", "parentTip", "speak", "title", "type" ]
+      },
       "Session" : {
         "properties" : {
           "displayName" : {
@@ -1171,6 +2565,290 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "SingleAnswer" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "hint" : {
+              "type" : "string"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "hint", "id", "ingredient", "parentTip", "speak", "title", "type" ]
+      },
+      "SkillProgress" : {
+        "properties" : {
+          "attempts" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "band" : {
+            "type" : "string"
+          },
+          "firstTryAccuracyWords" : {
+            "type" : "string"
+          },
+          "lastPractised" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "skillId" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "enum" : [ "math", "english" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "attempts", "name", "skillId", "subject" ],
+        "type" : "object"
+      },
+      "SkillRef" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "method" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "enum" : [ "math", "english" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "method", "name", "subject" ],
+        "type" : "object"
+      },
+      "Sound" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/SingleAnswer"
+        }, {
+          "properties" : {
+            "correctOptionId" : {
+              "type" : "string"
+            },
+            "illustrationKey" : {
+              "type" : "string"
+            },
+            "options" : {
+              "items" : {
+                "$ref" : "#/components/schemas/Option"
+              },
+              "type" : "array"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "correctOptionId", "hint", "id", "illustrationKey", "ingredient", "options", "parentTip", "speak", "title", "type" ]
+      },
+      "SourceAnalysis" : {
+        "properties" : {
+          "events" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AnalysedEvent"
+            },
+            "type" : "array"
+          },
+          "facts" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Fact"
+            },
+            "type" : "array"
+          },
+          "kind" : {
+            "enum" : [ "story", "informational", "math", "phonics", "vocabulary", "mixed" ],
+            "type" : "string"
+          },
+          "objectives" : {
+            "$ref" : "#/components/schemas/BilingualList"
+          },
+          "pages" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AnalysedPage"
+            },
+            "type" : "array"
+          },
+          "skills" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ExtractedSkill"
+            },
+            "type" : "array"
+          },
+          "storyPieces" : {
+            "$ref" : "#/components/schemas/StoryPiecesInfo"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "vocabulary" : {
+            "items" : {
+              "$ref" : "#/components/schemas/VocabularyItem"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "events", "facts", "kind", "objectives", "pages", "skills", "title", "vocabulary" ],
+        "type" : "object"
+      },
+      "SourceFileInfo" : {
+        "properties" : {
+          "cacheHit" : {
+            "type" : "boolean"
+          },
+          "deleted" : {
+            "type" : "boolean"
+          },
+          "fileHash" : {
+            "type" : "string"
+          },
+          "fileName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "pageCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "cacheHit", "deleted", "fileHash", "fileName", "id", "pageCount" ],
+        "type" : "object"
+      },
+      "Stop" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "imageId" : {
+            "type" : "string"
+          },
+          "ingredient" : {
+            "$ref" : "#/components/schemas/Ingredient"
+          },
+          "parentTip" : {
+            "$ref" : "#/components/schemas/Bilingual"
+          },
+          "speak" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "ingredient", "parentTip", "speak", "title", "type" ],
+        "type" : "object"
+      },
+      "StopAccuracy" : {
+        "properties" : {
+          "attempts" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "firstTryCorrect" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "stopId" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "attempts", "firstTryCorrect", "lessonId", "stopId", "title", "type" ],
+        "type" : "object"
+      },
+      "StopTip" : {
+        "properties" : {
+          "ar" : {
+            "type" : "string"
+          },
+          "en" : {
+            "type" : "string"
+          },
+          "stopId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "ar", "en", "stopId" ],
+        "type" : "object"
+      },
+      "StoryCard" : {
+        "properties" : {
+          "answer" : {
+            "type" : "string"
+          },
+          "definition" : {
+            "type" : "string"
+          },
+          "piece" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "answer", "definition", "piece" ],
+        "type" : "object"
+      },
+      "StoryPieces" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "cards" : {
+              "items" : {
+                "$ref" : "#/components/schemas/StoryCard"
+              },
+              "type" : "array"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "cards", "id", "ingredient", "parentTip", "speak", "title", "type" ]
+      },
+      "StoryPiecesInfo" : {
+        "properties" : {
+          "characters" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "genre" : {
+            "type" : "string"
+          },
+          "problem" : {
+            "type" : "string"
+          },
+          "resolution" : {
+            "type" : "string"
+          },
+          "setting" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "characters", "genre", "problem", "resolution", "setting", "title" ],
         "type" : "object"
       },
       "StudentMedia" : {
@@ -1266,6 +2944,27 @@
         },
         "type" : "object"
       },
+      "TapTask" : {
+        "properties" : {
+          "correctIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "hotspots" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Hotspot"
+            },
+            "type" : "array"
+          },
+          "prompt" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "correctIds", "hotspots", "prompt" ],
+        "type" : "object"
+      },
       "TeacherClassInfo" : {
         "properties" : {
           "classId" : {
@@ -1315,6 +3014,42 @@
             "type" : "integer"
           }
         },
+        "type" : "object"
+      },
+      "TeacherIsland" : {
+        "properties" : {
+          "answered" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "from" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "questionId" : {
+            "type" : "string"
+          },
+          "stopsCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "teacherName" : {
+            "type" : "string"
+          },
+          "teacherPhotoUrl" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "to" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [ "answered", "from", "questionId", "stopsCount", "teacherName", "title", "to" ],
         "type" : "object"
       },
       "TeacherOptions" : {
@@ -1504,6 +3239,104 @@
         },
         "type" : "object"
       },
+      "TeacherQuestionPlay" : {
+        "properties" : {
+          "answeredStopIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "from" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "level" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "questionId" : {
+            "type" : "string"
+          },
+          "stops" : {
+            "items" : {
+              "oneOf" : [ {
+                "$ref" : "#/components/schemas/ExitTicket"
+              }, {
+                "$ref" : "#/components/schemas/Explain"
+              }, {
+                "$ref" : "#/components/schemas/Match"
+              }, {
+                "$ref" : "#/components/schemas/Move"
+              }, {
+                "$ref" : "#/components/schemas/MultiSelect"
+              }, {
+                "$ref" : "#/components/schemas/OpenAnswer"
+              }, {
+                "$ref" : "#/components/schemas/Order"
+              }, {
+                "$ref" : "#/components/schemas/ReadPage"
+              }, {
+                "$ref" : "#/components/schemas/Retell"
+              }, {
+                "$ref" : "#/components/schemas/SelectAll"
+              }, {
+                "$ref" : "#/components/schemas/StoryPieces"
+              }, {
+                "$ref" : "#/components/schemas/Trace"
+              }, {
+                "$ref" : "#/components/schemas/WordCards"
+              }, {
+                "$ref" : "#/components/schemas/WriteSentence"
+              }, {
+                "$ref" : "#/components/schemas/Choice"
+              }, {
+                "$ref" : "#/components/schemas/Compare"
+              }, {
+                "$ref" : "#/components/schemas/Count"
+              }, {
+                "$ref" : "#/components/schemas/ReadTap"
+              }, {
+                "$ref" : "#/components/schemas/Sequence"
+              }, {
+                "$ref" : "#/components/schemas/Sound"
+              }, {
+                "$ref" : "#/components/schemas/TrueFalse"
+              }, {
+                "$ref" : "#/components/schemas/Word"
+              } ]
+            },
+            "type" : "array"
+          },
+          "teacherName" : {
+            "type" : "string"
+          },
+          "teacherPhotoUrl" : {
+            "type" : "string"
+          },
+          "theme" : {
+            "$ref" : "#/components/schemas/Theme"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "to" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "variant" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "answeredStopIds", "from", "kind", "level", "questionId", "stops", "teacherName", "theme", "title", "to", "variant" ],
+        "type" : "object"
+      },
       "TeacherQuestionResults" : {
         "properties" : {
           "children" : {
@@ -1603,6 +3436,42 @@
         },
         "type" : "object"
       },
+      "Theme" : {
+        "properties" : {
+          "dishName" : {
+            "type" : "string"
+          },
+          "potEmoji" : {
+            "type" : "string"
+          },
+          "potName" : {
+            "type" : "string"
+          },
+          "servedText" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "dishName", "potEmoji", "potName", "servedText" ],
+        "type" : "object"
+      },
+      "Tile" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "illustrationKey" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "pageImageId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id" ],
+        "type" : "object"
+      },
       "TokenPair" : {
         "properties" : {
           "expiresAt" : {
@@ -1616,6 +3485,53 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "Trace" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "hint" : {
+              "type" : "string"
+            },
+            "text" : {
+              "type" : "string"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "hint", "id", "ingredient", "parentTip", "speak", "text", "title", "type" ]
+      },
+      "TrueFalse" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/SingleAnswer"
+        }, {
+          "properties" : {
+            "answer" : {
+              "type" : "boolean"
+            },
+            "statement" : {
+              "type" : "string"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "answer", "hint", "id", "ingredient", "parentTip", "speak", "statement", "title", "type" ]
+      },
+      "Unsure" : {
+        "properties" : {
+          "candidates" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "question" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "candidates", "question" ],
         "type" : "object"
       },
       "UpdateClassRequest" : {
@@ -1788,6 +3704,48 @@
         },
         "type" : "object"
       },
+      "UsageResponse" : {
+        "properties" : {
+          "courses" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CourseUsage"
+            },
+            "type" : "array"
+          },
+          "lessons" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LessonUsage"
+            },
+            "type" : "array"
+          },
+          "stops" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StopAccuracy"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "courses", "lessons", "stops" ],
+        "type" : "object"
+      },
+      "VocabularyItem" : {
+        "properties" : {
+          "illustrationKey" : {
+            "type" : "string"
+          },
+          "meaning" : {
+            "type" : "string"
+          },
+          "sentence" : {
+            "type" : "string"
+          },
+          "word" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "illustrationKey", "meaning", "sentence", "word" ],
+        "type" : "object"
+      },
       "WeakSkill" : {
         "properties" : {
           "band" : {
@@ -1832,6 +3790,80 @@
         "required" : [ "email" ],
         "type" : "object"
       },
+      "Word" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/SingleAnswer"
+        }, {
+          "properties" : {
+            "correctOptionId" : {
+              "type" : "string"
+            },
+            "options" : {
+              "items" : {
+                "$ref" : "#/components/schemas/Option"
+              },
+              "type" : "array"
+            },
+            "spokenWord" : {
+              "type" : "string"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "correctOptionId", "hint", "id", "ingredient", "options", "parentTip", "speak", "spokenWord", "title", "type" ]
+      },
+      "WordCard" : {
+        "properties" : {
+          "illustrationKey" : {
+            "type" : "string"
+          },
+          "meaning" : {
+            "type" : "string"
+          },
+          "sentence" : {
+            "type" : "string"
+          },
+          "word" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "illustrationKey", "meaning", "sentence", "word" ],
+        "type" : "object"
+      },
+      "WordCards" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "words" : {
+              "items" : {
+                "$ref" : "#/components/schemas/WordCard"
+              },
+              "type" : "array"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "id", "ingredient", "parentTip", "speak", "title", "type", "words" ]
+      },
+      "WorkedExample" : {
+        "properties" : {
+          "answer" : {
+            "type" : "string"
+          },
+          "prompt" : {
+            "type" : "string"
+          },
+          "steps" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "answer", "prompt", "steps" ],
+        "type" : "object"
+      },
       "WorldPalette" : {
         "properties" : {
           "deep" : {
@@ -1848,6 +3880,31 @@
           }
         },
         "type" : "object"
+      },
+      "WriteSentence" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/Stop"
+        }, {
+          "properties" : {
+            "answer" : {
+              "type" : "string"
+            },
+            "frame" : {
+              "type" : "string"
+            },
+            "free" : {
+              "type" : "boolean"
+            },
+            "options" : {
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            }
+          },
+          "type" : "object"
+        } ],
+        "required" : [ "answer", "frame", "free", "id", "ingredient", "parentTip", "speak", "title", "type" ]
       }
     }
   },
@@ -1893,7 +3950,10 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "items" : {
+                    "$ref" : "#/components/schemas/CacheEntry"
+                  },
+                  "type" : "array"
                 }
               }
             },
@@ -1943,7 +4003,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/CalendarResponse"
                 }
               }
             },
@@ -2097,7 +4157,10 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminLesson"
+                  },
+                  "type" : "array"
                 }
               }
             },
@@ -2123,7 +4186,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/AdminLesson"
                 }
               }
             },
@@ -2141,7 +4204,13 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "properties" : {
+                    "deleted" : {
+                      "format" : "int32",
+                      "type" : "integer"
+                    }
+                  },
+                  "type" : "object"
                 }
               }
             },
@@ -2184,7 +4253,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/AdminLesson"
                 }
               }
             },
@@ -2210,7 +4279,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/JobRef"
                 }
               }
             },
@@ -2272,7 +4341,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/JobRef"
                 }
               }
             },
@@ -2308,7 +4377,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/JobRef"
                 }
               }
             },
@@ -2350,7 +4419,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/LessonImage"
                 }
               }
             },
@@ -2386,7 +4455,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/ParentPanel"
                 }
               }
             },
@@ -2422,7 +4491,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/AdminPlay"
                 }
               }
             },
@@ -2448,7 +4517,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/AdminLesson"
                 }
               }
             },
@@ -2474,7 +4543,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/JobRef"
                 }
               }
             },
@@ -2510,7 +4579,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/JobRef"
                 }
               }
             },
@@ -2543,7 +4612,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/JobRef"
                 }
               }
             },
@@ -2569,7 +4638,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/AdminLesson"
                 }
               }
             },
@@ -2649,7 +4718,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/Play"
                 }
               }
             },
@@ -2675,7 +4744,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/Play"
                 }
               }
             },
@@ -2711,7 +4780,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/Stop"
                 }
               }
             },
@@ -3257,7 +5326,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/Stop"
                 }
               }
             },
@@ -3283,7 +5352,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/Stop"
                 }
               }
             },
@@ -3301,7 +5370,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/UsageResponse"
                 }
               }
             },
@@ -3676,7 +5745,10 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "items" : {
+                    "$ref" : "#/components/schemas/Child"
+                  },
+                  "type" : "array"
                 }
               }
             },
@@ -3702,7 +5774,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/Child"
                 }
               }
             },
@@ -3755,7 +5827,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/Child"
                 }
               }
             },
@@ -3781,7 +5853,10 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "items" : {
+                    "$ref" : "#/components/schemas/ParentAnnouncement"
+                  },
+                  "type" : "array"
                 }
               }
             },
@@ -3817,7 +5892,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/AttemptAck"
                 }
               }
             },
@@ -3864,7 +5939,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/MapResponse"
                 }
               }
             },
@@ -3890,7 +5965,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/ProgressResponse"
                 }
               }
             },
@@ -3946,7 +6021,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/MediaRef"
                 }
               }
             },
@@ -3979,7 +6054,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/TeacherQuestionPlay"
                 }
               }
             },
@@ -4022,7 +6097,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/AttemptAck"
                 }
               }
             },
@@ -4146,7 +6221,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "string"
+                  "$ref" : "#/components/schemas/PublishedLesson"
                 }
               }
             },
