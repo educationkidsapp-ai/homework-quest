@@ -113,6 +113,78 @@
       }
     }
   },
+  "lessons": {
+    "chooser": {
+      "curriculum": "Curriculum",
+      "curriculumPlaceholder": "Choose a curriculum",
+      "grade": "Grade",
+      "gradePlaceholder": "Choose a grade",
+      "gradeOption": "Grade {{grade}}",
+      "prompt": "Choose a curriculum and grade to see its lessons.",
+      "summary": "{{curriculum}} · Grade {{grade}}"
+    },
+    "filter": {
+      "label": "Filter by title",
+      "placeholder": "Filter by title"
+    },
+    "view": {
+      "label": "List or calendar",
+      "list": "List",
+      "calendar": "Calendar"
+    },
+    "table": {
+      "title": "Lesson",
+      "class": "Class",
+      "date": "Date",
+      "status": "Status",
+      "school": "School"
+    },
+    "classLabel": "{{curriculum}} · Grade {{grade}} · {{subject}}",
+    "untitled": "Untitled lesson",
+    "loading": "Loading lessons",
+    "empty": "No lessons match — add the first one for this class.",
+    "status": {
+      "draft": "Draft",
+      "uploading": "Uploading",
+      "analyzing": "Reading the pages",
+      "needs_review": "Needs review",
+      "generating": "Generating",
+      "review": "Ready to review",
+      "published": "Published",
+      "error": "Failed",
+      "paused": "Paused"
+    },
+    "errorAt": "Error at: {{step}}",
+    "step": {
+      "upload": "upload",
+      "analyze": "analyze",
+      "skills": "skills",
+      "generate_L1": "generate L1",
+      "generate_L2": "generate L2",
+      "generate_L3": "generate L3",
+      "generate_again": "generate Again",
+      "panel": "parent panel"
+    },
+    "retry": "Retry",
+    "rowActions": "Actions for {{title}}",
+    "delete": "Delete",
+    "deleteAllFailed": "Delete all failed",
+    "deleteConfirm": {
+      "title": "Delete this lesson?",
+      "message": "This removes {{title}} and cannot be undone.",
+      "confirm": "Delete"
+    },
+    "deleteAllFailedConfirm": {
+      "title": "Delete all failed lessons?",
+      "message": "This removes every lesson stuck at Failed and cannot be undone.",
+      "confirm": "Delete all failed"
+    },
+    "calendar": {
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month",
+      "gap": "No lesson"
+    }
+  },
   "nav": {
     "brand": "Dashboard",
     "label": {

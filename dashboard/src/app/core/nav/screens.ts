@@ -50,7 +50,11 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       { id: 'school-users', path: 'schools/:id/users', permission: 'user.read', phase: 3 },
       { id: 'users', path: 'users', labelKey: 'nav.users', permission: 'user.read', phase: 3 },
       { id: 'flags', path: 'flags', labelKey: 'nav.flags', permission: 'flag.read', phase: 3 },
-      { id: 'lessons', path: 'lessons', labelKey: 'nav.allLessons', permission: 'lesson.read', phase: 3 },
+      // lessons (P3.2b): the list is built; the wizard and the detail review page stay the
+      // P3.1 stub until P3.2c/d. `new-lesson` has no `labelKey` — it is a link the list's
+      // primary action and empty state open, not a rail item of its own.
+      { id: 'lessons', path: 'lessons', labelKey: 'nav.allLessons', permission: 'lesson.read' },
+      { id: 'new-lesson', path: 'lessons/new', permission: 'lesson.write', phase: 3 },
       { id: 'lesson', path: 'lessons/:id', permission: 'lesson.read', phase: 3 },
       { id: 'usage', path: 'usage', labelKey: 'nav.platformUsage', permission: 'usage.platform', phase: 6 },
       // `platform.manage`, not `platform.read`: reading the platform's name is PUBLIC (the
@@ -69,7 +73,8 @@ export const AREAS: Readonly<Record<Role, Area>> = {
     base: '/teacher',
     screens: [
       { id: 'home', path: '', labelKey: 'nav.home' },
-      { id: 'lessons', path: 'lessons', labelKey: 'nav.myLessons', permission: 'lesson.read', phase: 3 },
+      // lessons (P3.2b): see the matching comment in the ADMIN area above.
+      { id: 'lessons', path: 'lessons', labelKey: 'nav.myLessons', permission: 'lesson.read' },
       {
         id: 'new-lesson',
         path: 'lessons/new',
