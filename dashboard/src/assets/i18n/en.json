@@ -48,6 +48,7 @@
     "notAllowed": "Not allowed",
     "sessionExpired": "That session has expired. Sign in again.",
     "unreachable": "Could not reach the server. Check your connection and try again.",
+    "flagsRefreshFailed": "Feature settings could not be refreshed.",
     "level": {
       "GOING_WELL": "Going well",
       "GETTING_THERE": "Getting there",

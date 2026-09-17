@@ -1,6 +1,12 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ChangeDetectionStrategy, Component, EnvironmentProviders, Provider } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  EnvironmentProviders,
+  Provider,
+  importProvidersFrom,
+} from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
@@ -8,7 +14,7 @@ import { firstValueFrom, isObservable } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../../api';
 import { TEACHER_USER } from '../../../testing/fixtures';
-import { renderHq } from '../../../testing/render';
+import { renderHq, translocoTesting } from '../../../testing/render';
 import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
 import { CanDirective } from '../permissions/can.directive';
@@ -37,6 +43,8 @@ const providers: (Provider | EnvironmentProviders)[] = [
   provideRouter([]),
   // Same origin, as in the built bundle.
   { provide: BASE_PATH, useValue: '' },
+  // FlagService translates its own "could not refresh" band message.
+  importProvidersFrom(translocoTesting()),
 ];
 
 interface Session {

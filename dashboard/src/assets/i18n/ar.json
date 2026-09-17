@@ -48,6 +48,7 @@
     "notAllowed": "غير مسموح",
     "sessionExpired": "انتهت الجلسة. سجّل الدخول مرة أخرى.",
     "unreachable": "تعذّر الوصول إلى الخادم. تحقّق من اتصالك وحاول مجددًا.",
+    "flagsRefreshFailed": "تعذّر تحديث إعدادات الميزات.",
     "level": {
       "GOING_WELL": "يسير جيدًا",
       "GETTING_THERE": "في الطريق",

@@ -1,9 +1,12 @@
 import { Injectable, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
+import { TranslocoService } from '@jsverse/transloco';
 import { Observable, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, map, tap } from 'rxjs/operators';
 import { FeatureFlagsApi } from '../../api';
 import { AuthService } from '../auth/auth.service';
+import { BandService } from '../band/band.service';
+import { DEFAULT_FLAGS } from './flags.defaults';
 
 /** The 14 keys of §4, mirroring `quest.server.flags.FlagKeys`. */
 export const FLAGS = {
@@ -25,6 +28,33 @@ export const FLAGS = {
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];
 
+const STORAGE_PREFIX = 'hq.flags.';
+
+function storageKey(schoolId: string | null): string {
+  return `${STORAGE_PREFIX}${schoolId ?? 'platform'}`;
+}
+
+/** The last map this browser fetched successfully for this scope, or `null` if there is none. */
+function readLastKnown(schoolId: string | null): Record<string, boolean> | null {
+  try {
+    const raw = localStorage.getItem(storageKey(schoolId));
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    return parsed as Record<string, boolean>;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastKnown(schoolId: string | null, flags: Record<string, boolean>): void {
+  try {
+    localStorage.setItem(storageKey(schoolId), JSON.stringify(flags));
+  } catch {
+    // Private browsing / a full quota: the cache just stops helping, silently.
+  }
+}
+
 /**
  * Which features this school has, from `GET /schools/{id}/flags`.
  *
@@ -43,11 +73,19 @@ export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];
 export class FlagService {
   private readonly flagsApi = inject(FeatureFlagsApi);
   private readonly auth = inject(AuthService);
+  private readonly band = inject(BandService);
+  private readonly transloco = inject(TranslocoService);
+
+  /** Set only while the band on screen is the one this service put there — never dismiss someone else's. */
+  private bandIsOurs = false;
 
   private readonly resource = rxResource<Record<string, boolean>, string | null | undefined>({
     params: () => (this.auth.signedIn() ? this.auth.effectiveSchoolId() : undefined),
     stream: ({ params: schoolId }) => this.mapFor(schoolId),
-    defaultValue: {},
+    // Seeded from whatever this scope last fetched successfully, so a cold start with a slow
+    // or briefly unreachable network shows the last real answer rather than a flash of "every
+    // feature off" while the first request is in flight.
+    defaultValue: readLastKnown(this.auth.effectiveSchoolId()) ?? {},
   });
 
   readonly loading = this.resource.isLoading;
@@ -77,17 +115,35 @@ export class FlagService {
    *
    * `GET /schools/{id}/flags` answers the flat map itself (`{"lessons.pdf": true, …}`), not a
    * `SchoolFlags` envelope with a `.flags` property — that shape is `FlagMatrix.schools[]`'s,
-   * a different response entirely. Reading `.flags` off the flat map is `undefined`, which
-   * this service's own "failed read → {}" fallback then swallowed, so every school-scoped
-   * session read every flag as off with no error to show for it. `SchoolFlags`'s fields are
-   * all optional, which is why nothing here caught the mismatch: any object satisfies it.
+   * a different response entirely. Reading `.flags` off the flat map used to be `undefined`,
+   * silently swallowed into an empty map, so every school-scoped session read every flag as
+   * off with no error to show for it.
+   *
+   * A failed read must not go to an empty map either — that is the same failure, just from a
+   * different cause. It falls back to the last map this browser fetched for this scope, or
+   * `DEFAULT_FLAGS` when there is none, and says so with a quiet band rather than settling on
+   * stale or seeded data without a word.
    */
   private mapFor(schoolId: string | null): Observable<Record<string, boolean>> {
     const source: Observable<Record<string, boolean>> =
       schoolId === null ? this.platformDefaults() : this.flagsApi.schoolFlags(schoolId);
-    // A flag read that fails must not blank the dashboard: an empty map hides the flagged
-    // items and leaves the shell usable, which is the safe direction.
-    return source.pipe(catchError(() => of<Record<string, boolean>>({})));
+    return source.pipe(
+      tap((flags) => {
+        writeLastKnown(schoolId, flags);
+        if (this.bandIsOurs) {
+          this.band.dismiss();
+          this.bandIsOurs = false;
+        }
+      }),
+      catchError(() => {
+        this.band.show({
+          message: this.transloco.translate('band.flagsRefreshFailed'),
+          variant: 'notice',
+        });
+        this.bandIsOurs = true;
+        return of(readLastKnown(schoolId) ?? DEFAULT_FLAGS);
+      }),
+    );
   }
 
   /** "All schools": the platform's own defaults, shaped like a school's flat flag map. */
@@ -99,7 +155,6 @@ export class FlagService {
           if (definition.key) flags[definition.key] = definition.defaultOn === true;
         return flags;
       }),
-      catchError(() => of<Record<string, boolean>>({})),
     );
   }
 }

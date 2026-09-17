@@ -4,7 +4,8 @@ import { TranslocoTestingModule, TranslocoTestingOptions } from '@jsverse/transl
 import ar from '../assets/i18n/ar.json';
 import en from '../assets/i18n/en.json';
 
-function translocoTesting(options: TranslocoTestingOptions = {}) {
+/** Exported for specs that build their own `TestBed.configureTestingModule` (no `renderHq`). */
+export function translocoTesting(options: TranslocoTestingOptions = {}) {
   return TranslocoTestingModule.forRoot({
     langs: { en, ar },
     translocoConfig: { availableLangs: ['en', 'ar'], defaultLang: 'en', reRenderOnLangChange: true },
