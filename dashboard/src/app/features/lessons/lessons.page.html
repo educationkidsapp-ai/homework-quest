@@ -1,0 +1,158 @@
+<hq-page [title]="pageTitle()" [subtitle]="courseSubtitle()">
+  <div class="lessons">
+    <div class="lessons__chooser">
+      <hq-select
+        class="lessons__chooser-field"
+        [label]="'lessons.chooser.curriculum' | transloco"
+        [placeholder]="'lessons.chooser.curriculumPlaceholder' | transloco"
+        [options]="curriculumOptions()"
+        [value]="curriculum() ?? ''"
+        (valueChange)="onCurriculumChange($event)"
+      />
+      <hq-select
+        class="lessons__chooser-field"
+        [label]="'lessons.chooser.grade' | transloco"
+        [placeholder]="'lessons.chooser.gradePlaceholder' | transloco"
+        [options]="gradeOptions()"
+        [value]="gradeValue()"
+        [disabled]="!curriculum()"
+        (valueChange)="onGradeChange($event)"
+      />
+    </div>
+
+    @if (confirmMode()) {
+      <hq-band
+        class="lessons__confirm"
+        variant="confirm"
+        [open]="true"
+        [title]="confirmTitle()"
+        [confirmLabel]="confirmLabel()"
+        (confirmed)="confirmPending()"
+        (dismissed)="cancelPending()"
+      >
+        {{ confirmMessage() }}
+      </hq-band>
+    }
+
+    @if (courseKey()) {
+      <div class="lessons__toolbar">
+        <div data-hq-search>
+          <hq-input
+            [label]="'lessons.filter.label' | transloco"
+            [placeholder]="'lessons.filter.placeholder' | transloco"
+            [value]="filterText()"
+            (valueChange)="filterText.set($event)"
+          />
+        </div>
+
+        <hq-tabs
+          class="lessons__view-tabs"
+          [tabs]="viewTabs()"
+          [selected]="view()"
+          (selectedChange)="view.set($event)"
+          [label]="'lessons.view.label' | transloco"
+        />
+
+        @if (hasFailed()) {
+          <hq-button *hqCan="'lesson.delete'" variant="quiet" (pressed)="requestDeleteAllFailed()">
+            {{ 'lessons.deleteAllFailed' | transloco }}
+          </hq-button>
+        }
+      </div>
+
+      @if (view() === 'list') {
+        @if (lessons.isLoading()) {
+          <hq-skeleton [loading]="true" [lines]="6" height="var(--hq-size-row-height)" [label]="'lessons.loading' | transloco" />
+        } @else {
+          <hq-table
+            [rows]="rows()"
+            [columns]="columns()"
+            [cellTemplate]="cell"
+            [overflowTemplate]="overflow"
+            [trackBy]="trackRow"
+            [label]="pageTitle()"
+          >
+            <hq-empty-state
+              table-empty
+              [message]="'lessons.empty' | transloco"
+              [actionLabel]="'nav.newLesson' | transloco"
+              (action)="openNewLesson()"
+            />
+          </hq-table>
+        }
+      } @else {
+        <hq-lessons-calendar
+          [curriculum]="curriculum()!"
+          [grade]="grade()!"
+          [year]="calendarYear()"
+          [month]="calendarMonth()"
+          [days]="calendar.value()?.days ?? []"
+          [loading]="calendar.isLoading()"
+          (monthChange)="onMonthChange($event)"
+        />
+      }
+    }
+  </div>
+
+  <ng-template #cell let-row let-column="column">
+    @switch (column.key) {
+      @case ('title') {
+        <a [routerLink]="[basePath(), row.id]">{{ row.title }}</a>
+      }
+      @case ('classLabel') {
+        {{ row.classLabel }}
+      }
+      @case ('date') {
+        {{ row.date }}
+      }
+      @case ('schoolName') {
+        {{ row.schoolName }}
+      }
+      @case ('status') {
+        <div class="lessons__status">
+          <span class="lessons__status-word" [class.lessons__status-word--error]="row.status === 'error'">
+            {{ 'lessons.status.' + row.status | transloco }}
+          </span>
+          @if (row.status === 'error') {
+            <span class="lessons__error-at">{{ row.errorLabel }}</span>
+            <hq-button *hqCan="'lesson.write'" variant="quiet" (pressed)="retry(row.source)">
+              {{ 'lessons.retry' | transloco }}
+            </hq-button>
+          }
+        </div>
+      }
+    }
+  </ng-template>
+
+  <ng-template #overflow let-row>
+    <button
+      type="button"
+      class="lessons__overflow-trigger"
+      [cdkMenuTriggerFor]="rowMenu"
+      (click)="menuRow.set(row.source)"
+      [attr.aria-label]="'lessons.rowActions' | transloco: { title: row.title }"
+    >
+      ⋮
+    </button>
+  </ng-template>
+
+  <ng-template #rowMenu>
+    <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
+      <button
+        type="button"
+        cdkMenuItem
+        class="menu__item menu__item--danger"
+        *hqCan="'lesson.delete'"
+        (cdkMenuItemTriggered)="requestDelete(menuRow())"
+      >
+        {{ 'lessons.delete' | transloco }}
+      </button>
+    </div>
+  </ng-template>
+
+  <div page-footer>
+    <hq-button *hqCan="'lesson.write'" variant="primary" (pressed)="openNewLesson()">
+      {{ 'nav.newLesson' | transloco }}
+    </hq-button>
+  </div>
+</hq-page>

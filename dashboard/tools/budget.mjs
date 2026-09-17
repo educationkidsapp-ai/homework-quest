@@ -30,6 +30,7 @@ const ROUTES = {
   'teacher home': ['hq-shell', 'hq-home-page'],
   'management home': ['hq-shell', 'hq-home-page'],
   profile: ['hq-shell', 'hq-profile-page'],
+  lessons: ['hq-shell', 'hq-lessons-page'],
   'accept-invite': ['hq-accept-invite-page'],
 };
 

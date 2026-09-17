@@ -113,6 +113,78 @@
       }
     }
   },
+  "lessons": {
+    "chooser": {
+      "curriculum": "المنهج",
+      "curriculumPlaceholder": "اختر منهجًا",
+      "grade": "الصف",
+      "gradePlaceholder": "اختر صفًا",
+      "gradeOption": "الصف {{grade}}",
+      "prompt": "اختر منهجًا وصفًا لعرض دروسه.",
+      "summary": "{{curriculum}} · الصف {{grade}}"
+    },
+    "filter": {
+      "label": "تصفية حسب العنوان",
+      "placeholder": "تصفية حسب العنوان"
+    },
+    "view": {
+      "label": "قائمة أو تقويم",
+      "list": "قائمة",
+      "calendar": "تقويم"
+    },
+    "table": {
+      "title": "الدرس",
+      "class": "الفصل",
+      "date": "التاريخ",
+      "status": "الحالة",
+      "school": "المدرسة"
+    },
+    "classLabel": "{{curriculum}} · الصف {{grade}} · {{subject}}",
+    "untitled": "درس بلا عنوان",
+    "loading": "جارٍ تحميل الدروس",
+    "empty": "لا توجد دروس مطابقة — أضف أول درس لهذا الفصل.",
+    "status": {
+      "draft": "مسودة",
+      "uploading": "جارٍ الرفع",
+      "analyzing": "جارٍ قراءة الصفحات",
+      "needs_review": "بانتظار المراجعة",
+      "generating": "جارٍ التوليد",
+      "review": "جاهز للمراجعة",
+      "published": "منشور",
+      "error": "فشل",
+      "paused": "متوقف مؤقتًا"
+    },
+    "errorAt": "خطأ في: {{step}}",
+    "step": {
+      "upload": "الرفع",
+      "analyze": "التحليل",
+      "skills": "المهارات",
+      "generate_L1": "توليد المستوى 1",
+      "generate_L2": "توليد المستوى 2",
+      "generate_L3": "توليد المستوى 3",
+      "generate_again": "توليد متغيّر آخر",
+      "panel": "لوحة الأهل"
+    },
+    "retry": "إعادة المحاولة",
+    "rowActions": "إجراءات {{title}}",
+    "delete": "حذف",
+    "deleteAllFailed": "حذف كل الدروس الفاشلة",
+    "deleteConfirm": {
+      "title": "حذف هذا الدرس؟",
+      "message": "سيؤدي هذا إلى إزالة {{title}} ولا يمكن التراجع عنه.",
+      "confirm": "حذف"
+    },
+    "deleteAllFailedConfirm": {
+      "title": "حذف كل الدروس الفاشلة؟",
+      "message": "سيؤدي هذا إلى إزالة كل درس عالق عند فشل ولا يمكن التراجع عنه.",
+      "confirm": "حذف الكل"
+    },
+    "calendar": {
+      "prevMonth": "الشهر السابق",
+      "nextMonth": "الشهر التالي",
+      "gap": "لا يوجد درس"
+    }
+  },
   "nav": {
     "brand": "اللوحة",
     "label": {

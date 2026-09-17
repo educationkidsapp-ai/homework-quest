@@ -27,15 +27,22 @@ export function areaRoutes(role: Role): Routes {
       children: area.screens.map((screen) => ({
         path: screen.path,
         canActivate: gatesOf(screen),
-        // The Home is the one screen of an area that exists; everything else is the stub until
-        // its phase lands, and the stub reads the phase back out of the same table.
-        loadComponent: () =>
-          screen.path === ''
-            ? import('../../features/home/home.page').then((m) => m.HomePage)
-            : import('../../features/stub/stub.page').then((m) => m.StubPage),
+        loadComponent: () => componentFor(screen),
       })),
     },
   ];
+}
+
+/**
+ * The Home is the one screen of an area that exists from P1.0; `lessons` (P3.2b) is the second
+ * one — the list serves both `/admin/lessons` and `/teacher/lessons`, so it is keyed by `id`
+ * rather than by path. Everything else is the stub until its phase lands, and the stub reads
+ * the phase back out of the same table.
+ */
+function componentFor(screen: Screen) {
+  if (screen.path === '') return import('../../features/home/home.page').then((m) => m.HomePage);
+  if (screen.id === 'lessons') return import('../../features/lessons/lessons.page').then((m) => m.LessonsPage);
+  return import('../../features/stub/stub.page').then((m) => m.StubPage);
 }
 
 function gatesOf(screen: Screen): CanActivateFn[] {
