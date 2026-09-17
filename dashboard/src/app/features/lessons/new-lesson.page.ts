@@ -70,6 +70,12 @@ const ACCEPT: Record<Exclude<LessonSource, 'manual'>, string> = {
   images: '.png,.jpg,.jpeg,image/png,image/jpeg',
 };
 
+const MAX_FILES = 10;
+/** `multipart.max-file-size: 25MB` in `server/src/main/resources/application.yml`. */
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
+/** Headroom under `multipart.max-request-size: 120MB` for the rest of the multipart body. */
+const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+
 /**
  * New lesson (Admin + Teacher, §6 screen 13): course → date/title/length → source → upload.
  *
@@ -297,23 +303,58 @@ export class NewLessonPage {
     return `${bytes} B`;
   }
 
+  /**
+   * Validates by type, then per-file size, then the 10-file and 100 MB ceilings — each stage
+   * only sees what the one before it let through, and each rejection is named in the band
+   * rather than dropped without a word. Nothing here is a server-side guarantee: it mirrors
+   * `application.yml`'s `multipart.max-file-size`/`max-request-size` so the failure shows up
+   * here, in place, instead of as a 413 after the upload has already started.
+   */
   private addFiles(selected: readonly File[]): void {
     const source = this.source();
     if (!source || source === 'manual' || selected.length === 0) return;
-    const accepted = selected.filter((file) => acceptsFile(source, file.name));
-    const rejected = selected.filter((file) => !acceptsFile(source, file.name));
 
-    if (accepted.length > 0) {
-      this.files.update((files) => {
-        const merged = source === 'images' ? [...files, ...accepted] : accepted;
-        return merged.slice(0, 10);
-      });
+    const wrongType = selected.filter((file) => !acceptsFile(source, file.name));
+    const rightType = selected.filter((file) => acceptsFile(source, file.name));
+    const tooLarge = rightType.filter((file) => file.size > MAX_FILE_BYTES);
+    const sized = rightType.filter((file) => file.size <= MAX_FILE_BYTES);
+
+    const kept = source === 'images' ? this.files() : [];
+    const room = Math.max(0, MAX_FILES - kept.length);
+    const withinCount = sized.slice(0, room);
+    const overCount = sized.slice(room);
+
+    let runningTotal = kept.reduce((sum, file) => sum + file.size, 0);
+    const withinTotal: File[] = [];
+    const overTotal: File[] = [];
+    for (const file of withinCount) {
+      if (runningTotal + file.size > MAX_TOTAL_BYTES) {
+        overTotal.push(file);
+        continue;
+      }
+      runningTotal += file.size;
+      withinTotal.push(file);
     }
-    this.error.set(
-      rejected.length > 0
-        ? this.t('lessons.new.fileRejected', { name: rejected.map((f) => f.name).join(', '), reason: this.reasonFor(source) })
-        : null,
-    );
+
+    if (withinTotal.length > 0) this.files.set([...kept, ...withinTotal]);
+
+    const messages: string[] = [];
+    if (wrongType.length > 0) {
+      messages.push(
+        this.t('lessons.new.fileRejected', {
+          name: wrongType.map((f) => f.name).join(', '),
+          reason: this.reasonFor(source),
+        }),
+      );
+    }
+    if (tooLarge.length > 0) {
+      messages.push(this.t('lessons.new.fileTooLarge', { name: tooLarge.map((f) => f.name).join(', ') }));
+    }
+    if (overCount.length > 0) messages.push(this.t('lessons.new.tooManyFiles'));
+    if (overTotal.length > 0) {
+      messages.push(this.t('lessons.new.totalTooLarge', { name: overTotal.map((f) => f.name).join(', ') }));
+    }
+    this.error.set(messages.length > 0 ? messages.join(' ') : null);
   }
 
   private reasonFor(source: Exclude<LessonSource, 'manual'>): string {

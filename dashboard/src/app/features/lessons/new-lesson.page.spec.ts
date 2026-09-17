@@ -136,6 +136,35 @@ describe('New lesson', () => {
     expect(screen.queryByRole('button', { name: /Write it yourself/ })).not.toBeInTheDocument();
   });
 
+  // ---- file limits: 25 MB/file, 100 MB total, 10 files -----------------------------------
+
+  it('rejects a file over 25 MB by name, and does not add it', async () => {
+    const { backend } = await renderTeacher({ subjects: ['math'] });
+    await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
+
+    await userEvent.click(screen.getByRole('button', { name: /Upload a PDF/ }));
+    const huge = new File([new Uint8Array(26 * 1024 * 1024)], 'huge.pdf', { type: 'application/pdf' });
+    await userEvent.upload(screen.getByLabelText('Drop a PDF here'), huge);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('huge.pdf is larger than 25 MB and was not added.');
+    expect(screen.getByRole('button', { name: 'Create and read the PDF' })).toBeDisabled();
+  });
+
+  it('keeps only the first 10 images and says so, rather than silently dropping the rest', async () => {
+    const { backend } = await renderTeacher({ subjects: ['math'] });
+    await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
+
+    await userEvent.click(screen.getByRole('button', { name: /Upload photos/ }));
+    const photos = Array.from(
+      { length: 12 },
+      (_, i) => new File(['x'], `p${i}.png`, { type: 'image/png' }),
+    );
+    await userEvent.upload(screen.getByLabelText('Drop PNG or JPG photos here'), photos);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Up to 10 files at a time.');
+    expect(screen.getAllByRole('listitem')).toHaveLength(10);
+  });
+
   // ---- create → upload → analyze, with rollback --------------------------------------------
 
   it('creates a lesson, uploads its file, starts analysis, and lands on the lesson route', async () => {
