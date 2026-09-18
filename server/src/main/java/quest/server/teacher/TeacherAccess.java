@@ -41,6 +41,18 @@ public class TeacherAccess {
         return section;
     }
 
+    /**
+     * The subject a class's screens are about: the caller's own assignment on it, else the section's first — since
+     * V7 a section's subjects live on `teaching_assignments`, so `classes.subject` is null for every section the
+     * Admin API created and could not name the calendar's subject any more.
+     */
+    public String subjectOf(Principals.User caller, ClassEntity section) { return scope.subjectOf(caller, section); }
+
+    /** Every teaching assignment the caller holds — the (class, subject) pairs everything of hers is derived from. */
+    public List<quest.server.tenancy.Entities.TeachingAssignmentEntity> assignmentsOf(Principals.User caller) {
+        return scope.assignmentsOf(caller);
+    }
+
     /** Every class the caller may write into, for validating a list of class ids in one pass. */
     public List<ClassEntity> ownedClasses(Principals.User caller) { return scope.classesOf(caller); }
 

@@ -40,7 +40,9 @@ class TeacherCalendarTest extends TeacherTestSupport {
         teacher(TEACHER_A, A, "a@tc.test", "Ms Sara", "[\"math\"]", "british", "[1,2]");
         teacher(TEACHER_A2, A, "a2@tc.test", "Ms Dana", "[\"english\"]", "british", "[3]");
         teacher(TEACHER_B, B, "b@tc.test", "Ms Lina", "[\"math\"]", "british", "[1]");
-        klass(CLASS_A1, A, "british", 1, "math", TEACHER_A);
+        var sectionA1 = klass(CLASS_A1, A, "british", 1, "math", TEACHER_A, "1A");
+        // A section the Admin API would have made: named, with its subject on the teaching assignment only.
+        sectionA1.setSubject(null); classes.save(sectionA1);
         klass(CLASS_A2, A, "british", 2, "math", TEACHER_A);
         klass(CLASS_OTHER, A, "british", 3, "english", TEACHER_A2);
         klass(CLASS_B1, B, "british", 1, "math", TEACHER_B);
@@ -58,13 +60,17 @@ class TeacherCalendarTest extends TeacherTestSupport {
     @Test void the_month_shows_every_day_with_its_lesson_and_its_status() throws Exception {
         var month = april(teacherToken, CLASS_A1);
         assertThat(month.get("classId").asText()).isEqualTo(CLASS_A1);
+        assertThat(month.get("className").asText()).isEqualTo("1A");
         assertThat(month.get("curriculum").asText()).isEqualTo("british");
         assertThat(month.get("grade").asInt()).isEqualTo(1);
+        // the subject comes from her teaching assignment: `classes.subject` is null for every V7 section
         assertThat(month.get("subject").asText()).isEqualTo("math");
         assertThat(month.get("days")).hasSize(30);
 
         var thursday = day(month, THURSDAY);
         assertThat(thursday.get("lessonId").asText()).isEqualTo("tc-lesson-thu");
+        assertThat(thursday.get("title").asText()).as("a day names its lesson without a request per day")
+                .isEqualTo("Lesson tc-lesson-thu");
         assertThat(thursday.get("status").asText()).isEqualTo("published");
         assertThat(thursday.get("schoolDay").asBoolean()).isTrue();
         assertThat(thursday.get("gap").asBoolean()).isFalse();

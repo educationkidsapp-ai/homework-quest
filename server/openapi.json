@@ -492,6 +492,9 @@
           "classId" : {
             "type" : "string"
           },
+          "className" : {
+            "type" : "string"
+          },
           "curriculum" : {
             "type" : "string"
           },
@@ -544,6 +547,9 @@
           "status" : {
             "type" : "string"
           },
+          "title" : {
+            "type" : "string"
+          },
           "type" : {
             "type" : "string"
           }
@@ -587,6 +593,12 @@
             "type" : "string"
           },
           "childId" : {
+            "type" : "string"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
             "type" : "string"
           },
           "lastPlayed" : {

@@ -48,8 +48,8 @@ import quest.server.tenancy.Entities.ClassEntity;
  *
  * <p><strong>Scope.</strong> The class is resolved through {@link TeacherAccess} — another school's is a 404 (the
  * `school` filter never returns it), another teacher's is a 403 — and the children are then read by that class's
- * `school_id` and course, never by a parameter. The timeline goes through {@link ChildService#scoped}, the one gate
- * every child-owned row already sits behind.
+ * own id, never by a parameter and never by its grade. The timeline goes through {@link ChildService#scoped}, the
+ * one gate every child-owned row already sits behind.
  */
 @Service
 public class TeacherStudentService {
@@ -79,8 +79,10 @@ public class TeacherStudentService {
 
     public List<TeacherDto.ClassStudent> students(Principals.User caller, String classId) {
         var klass = access.readableClass(caller, classId);
-        var roster = children.findBySchoolIdAndCurriculumAndGradeAndDeletedAtIsNullOrderByNameAsc(
-                klass.getSchoolId(), klass.getCurriculum(), klass.getGrade());
+        // The section's own roster, not its grade's: `1A` and `1B` are two classes of British Grade 1, and a
+        // teacher of one of them must never read the other's children (N2.3b). `children.class_id` is the section,
+        // and it is read from the class this caller was just allowed to reach, never from a parameter.
+        var roster = children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(klass.getId());
         if (roster.isEmpty()) return List.of();
 
         var childIds = roster.stream().map(ChildEntity::getId).toList();
@@ -103,8 +105,8 @@ public class TeacherStudentService {
         var out = new ArrayList<TeacherDto.ClassStudent>(roster.size());
         for (var child : roster) {
             var mine = attemptsByChild.getOrDefault(child.getId(), List.of());
-            out.add(new TeacherDto.ClassStudent(child.getId(), child.getName(), child.getAvatarColor(),
-                    starsSince(mine, since), levelByChild.getOrDefault(child.getId(), 0),
+            out.add(new TeacherDto.ClassStudent(child.getId(), child.getName(), klass.getId(), klass.getName(),
+                    child.getAvatarColor(), starsSince(mine, since), levelByChild.getOrDefault(child.getId(), 0),
                     weakSkills(mine, lessonOrder, singleStops, skillsByLesson),
                     mine.stream().map(AttemptEntity::getAnsweredAt).max(Comparator.naturalOrder()).map(Instant::toEpochMilli).orElse(null)));
         }
@@ -171,16 +173,16 @@ public class TeacherStudentService {
      */
     /**
      * Through {@link quest.server.tenancy.TeacherScope}, not `classes.teacher_id`: V7 stopped writing that column,
-     * so the pre-V7 test this used refused every teacher created since. A child who sits in a section is reached
-     * through that section; one who joined with a school code and has none yet falls back to the grade she is in,
-     * which is the same rule {@link quest.server.children.SchoolLessons} applies to her map.
+     * so the pre-V7 test this used refused every teacher created since. The child is reached through her
+     * <em>section</em> and through nothing else (N2.3b): the grade fallback this used to fall back to handed a
+     * teacher of `1A` every child of British Grade 1, including `1B`'s, which is the rule
+     * {@link #students} was fixed for. A child who joined with a school code and sits in no section yet belongs to
+     * no teacher until Admin puts her on a roster; her school's MANAGERIAL and ADMIN users read her as before.
      */
     private void requireTeaches(Principals.User caller, ChildEntity child) {
         if (!access.isTeacher(caller)) return;
-        var mine = access.ownedClasses(caller);
         boolean teaches = child.getClassId() != null
-                ? mine.stream().anyMatch(k -> k.getId().equals(child.getClassId()))
-                : mine.stream().anyMatch(k -> k.getCurriculum().equalsIgnoreCase(child.getCurriculum()) && k.getGrade() == child.getGrade());
+                && access.ownedClasses(caller).stream().anyMatch(k -> k.getId().equals(child.getClassId()));
         if (!teaches) throw ApiException.forbidden("That child is not in one of your classes.");
     }
 

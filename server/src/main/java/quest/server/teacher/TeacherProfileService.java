@@ -3,8 +3,11 @@ package quest.server.teacher;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.TreeSet;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import quest.server.auth.Entities.TeacherEntity;
@@ -90,27 +93,42 @@ public class TeacherProfileService {
     // ---------------------------------------------------------------- the restricted chooser (§6 screen 13)
 
     /**
-     * `GET /teacher/options`: her curriculum, her grades, her subjects and the classes she owns — the only lesson
-     * the New lesson chooser may offer, because {@link quest.server.tenancy.TenantGuard#lessonCreator} refuses
-     * anything else with a 403 the moment she submits it.
+     * `GET /teacher/options`: the classes she is assigned to, and the curriculum, grades and subjects those
+     * assignments add up to — the only lesson the New lesson chooser may offer, because
+     * {@link quest.server.tenancy.TeacherScope#requireAssignment} refuses anything else with a 403 the moment she
+     * submits it.
      *
-     * <p>`complete` is false when the profile has no subjects, no curriculum or no grades: the dashboard shows the
-     * "ask your school to finish your profile" empty state rather than a chooser that cannot produce a valid lesson.
+     * <p><strong>Her assignments, never her profile alone (N2.3b).</strong> §1 of `docs/teacher-flow.md`: "the
+     * grades she teaches are not stored; they are derived from her assignments." A seeded teacher has an empty
+     * `grades_json` and two classes, and reading the profile answered her an empty chooser she could not use. The
+     * profile is now only the fallback for the one field a class cannot supply for itself — her curriculum, when
+     * she has no assignment yet.
+     *
+     * <p>`complete` is false when nothing has been assigned to her: the dashboard shows the "ask your school to
+     * finish your profile" empty state rather than a chooser that cannot produce a valid lesson.
      */
     public TeacherDto.TeacherOptions options(Principals.User caller) {
-        var profile = profiles.findById(caller.userId()).orElse(null);
-        List<String> subjects = profile == null ? List.of() : json.strings(profile.getSubjectsJson());
-        List<Integer> grades = profile == null ? List.<Integer>of() : json.read(profile.getGradesJson(), new TypeReference<List<Integer>>() {});
-        String curriculum = profile == null ? null : profile.getCurriculum();
         var name = users.findById(caller.userId()).map(UserEntity::getDisplayName).orElse(null);
-        // Through TeacherScope, not `classes.teacher_id`: V7 stopped writing that column, so the pre-V7 query this
-        // used answered an empty chooser for every teacher created since. Her classes are her assignments now.
-        var mine = access.ownedClasses(caller).stream()
-                .map(k -> new quest.server.dashboard.SchoolDataDto.SchoolClass(k.getId(), k.getSchoolId(), k.getCurriculum(), k.getGrade(),
-                        k.getSubject(), k.getTeacherId(), name, k.getCreatedAt().toEpochMilli()))
-                .toList();
+        var sections = new LinkedHashMap<String, ClassEntity>();
+        for (var section : access.ownedClasses(caller)) sections.put(section.getId(), section);
+        // One entry per (class, subject) she holds, which is what the chooser picks: the subject lives on the
+        // assignment since V7, so a section's own `subject` column is null for everything the Admin API created.
+        var mine = new ArrayList<quest.server.dashboard.SchoolDataDto.SchoolClass>();
+        var grades = new TreeSet<Integer>(); var subjects = new LinkedHashSet<String>(); var curricula = new LinkedHashSet<String>();
+        for (var assignment : access.assignmentsOf(caller)) {
+            var section = sections.get(assignment.getClassId());
+            if (section == null) continue;
+            grades.add(section.getGrade()); subjects.add(assignment.getSubject()); curricula.add(section.getCurriculum());
+            mine.add(new quest.server.dashboard.SchoolDataDto.SchoolClass(section.getId(), section.getSchoolId(),
+                    section.getCurriculum(), section.getGrade(), assignment.getSubject(), caller.userId(), name,
+                    section.getCreatedAt().toEpochMilli()));
+        }
+        var profile = profiles.findById(caller.userId()).orElse(null);
+        // `curriculum` is one field and a teacher may in principle be assigned across two: hers is the one her
+        // assignments agree on, and her profile's only while she has none.
+        String curriculum = curricula.size() == 1 ? curricula.iterator().next() : profile == null ? null : profile.getCurriculum();
         boolean complete = curriculum != null && !subjects.isEmpty() && !grades.isEmpty();
-        return new TeacherDto.TeacherOptions(curriculum, grades, subjects, mine, complete);
+        return new TeacherDto.TeacherOptions(curriculum, List.copyOf(grades), List.copyOf(subjects), List.copyOf(mine), complete);
     }
 
     /**

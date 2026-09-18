@@ -44,11 +44,16 @@ public final class TeacherDto {
      * school's own week ({@link quest.server.platform.SchoolCalendar}) rather than a Sunday–Thursday constant.
      * `status` is the week grid's coarse vocabulary — see {@link #DRAFT} — so one screen's words are every screen's.
      */
-    public record ClassCalendarDay(String date, String lessonId, String status, String type, int playedCount,
-                                   boolean schoolDay, boolean gap) {}
+    public record ClassCalendarDay(String date, String lessonId, String title, String status, String type,
+                                   int playedCount, boolean schoolDay, boolean gap) {}
 
-    public record ClassCalendar(String classId, String curriculum, int grade, String subject, int year, int month,
-                                List<ClassCalendarDay> days, int gaps) {}
+    /**
+     * The month, with the section named (N2.3b): `className` is `1A`, and `subject` is the one the caller teaches
+     * in it — a section carries its subjects on its teaching assignments since V7, so reading `classes.subject`
+     * answered null for every section the Admin API created. Null only for a section nobody teaches.
+     */
+    public record ClassCalendar(String classId, String className, String curriculum, int grade, String subject,
+                                int year, int month, List<ClassCalendarDay> days, int gaps) {}
 
 
     // ---------------------------------------------------------------- this week and my classes (N2.1, §4, §7)
@@ -144,8 +149,9 @@ public final class TeacherDto {
     /** A skill the child is weakest at, banded by `ProgressBands` — words, never a percentage. */
     public record WeakSkill(String skillId, String name, String band) {}
 
-    public record ClassStudent(String childId, String name, String avatarColor, int starsThisWeek, int levelReached,
-                               List<WeakSkill> weakSkills, Long lastPlayed) {}
+    /** `classId`/`className` are the section she sits in — the one in the path, never her whole grade (N2.3b). */
+    public record ClassStudent(String childId, String name, String classId, String className, String avatarColor,
+                               int starsThisWeek, int levelReached, List<WeakSkill> weakSkills, Long lastPlayed) {}
 
     public record StudentTimelineEntry(String kind, long at, String title, String lessonId, Integer level,
                                        Integer starsEarned, Integer starsTotal, String questionId, String stopId,

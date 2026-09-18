@@ -76,6 +76,8 @@ data class TeacherOptions(
 data class ClassCalendarDay(
     val date: LocalDate,
     val lessonId: String? = null,
+    /** The lesson's title, so a day cell can name what is on it without a request per day. */
+    val title: String? = null,
     val status: WeekLessonStatus? = null,
     val type: LessonType? = null,
     val playedCount: Int = 0,
@@ -86,13 +88,18 @@ data class ClassCalendarDay(
 /**
  * `GET /teacher/classes/{classId}/calendar?month=yyyy-MM` (§6 screen 12, `docs/teacher-flow.md` §7): the month,
  * with the gaps flagged. `?year=&month=<number>` is the P4.0 shape and keeps working.
+ *
+ * The header fields describe the section itself — [className] is `1A`, and [subject] is the subject the caller
+ * teaches in it, because a section since V7 carries its subjects on its teaching assignments rather than on the row
+ * (N2.3b). [subject] is null only for a section nobody teaches, which no teacher can reach.
  */
 @Serializable
 data class ClassCalendar(
     val classId: String,
+    val className: String,
     val curriculum: Curriculum,
     val grade: Int,
-    val subject: Subject,
+    val subject: Subject? = null,
     val year: Int,
     val month: Int,
     val days: List<ClassCalendarDay> = emptyList(),
@@ -219,6 +226,10 @@ data class Announcement(
 /**
  * One child in `GET /teacher/classes/{classId}/students`.
  *
+ * [classId] and [className] are the section she sits in, which is the section in the path and no other: the list is
+ * the roster of `1A`, never every child of British Grade 1 (N2.3b). They travel with the row so the dashboard can
+ * label a child without a second lookup.
+ *
  * [levelReached] is the highest level she has *completed* of any lesson of the class's school, 0 when none;
  * [weakSkills] are the `ProgressBands.NEEDS_ANOTHER_LOOK` bands, words rather than percentages, as everywhere else.
  */
@@ -226,6 +237,8 @@ data class Announcement(
 data class ClassStudent(
     val childId: String,
     val name: String,
+    val classId: String,
+    val className: String,
     val avatarColor: String = "sky",
     val starsThisWeek: Int = 0,
     val levelReached: Int = 0,
