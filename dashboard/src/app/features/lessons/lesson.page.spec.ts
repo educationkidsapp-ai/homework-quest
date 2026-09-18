@@ -425,7 +425,9 @@ describe('Lesson', () => {
     });
 
     await userEvent.click(await screen.findByRole('button', { name: 'Publish' }));
-    const band = screen.getByRole('alert');
+    // By its title, not "the one alert on the page": the stop editor's schema errors are
+    // announced the same way, and whether one has settled by now is a matter of timing.
+    const band = screen.getByRole('alert', { name: 'Publish this lesson?' });
     expect(within(band).getByText('Publish this lesson?')).toBeInTheDocument();
     await userEvent.click(within(band).getByRole('button', { name: 'Publish' }));
 
