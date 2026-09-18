@@ -34,18 +34,19 @@ class TeacherQueryCountTest extends TeacherTestSupport {
     @Autowired jakarta.persistence.EntityManagerFactory emf;
 
     private String adminToken, teacherToken, firstChild;
+    private quest.server.tenancy.Entities.ClassEntity section;
 
     @BeforeEach void seed() throws Exception {
         school(A, "Query Academy", "QCSCHA");
         teacher(TEACHER_A, A, "a@qc.test", "Ms Sara", "[\"math\"]", "british", "[1]");
-        klass(CLASS_A1, A, "british", 1, "math", TEACHER_A);
+        section = klass(CLASS_A1, A, "british", 1, "math", TEACHER_A);
         lessonWithSkill("qc-lesson-1", A, CLASS_A1, "british", 1, "math", LocalDate.now().minusDays(2), "Counting");
 
         adminToken = adminToken();
         setFlag(adminToken, A, FlagKeys.TEACHER_QUESTIONS, true);
         teacherToken = token(TEACHER_A, "TEACHER", A);
 
-        firstChild = child("Maya", "QCSCHA", "british", 1);
+        firstChild = child("Maya", "QCSCHA", section);
         attempt(firstChild, "qc-lesson-1", stopId("qc-lesson-1"), false, Instant.now().minus(2, ChronoUnit.HOURS));
         sendQuestion("First question");
     }
@@ -89,7 +90,7 @@ class TeacherQueryCountTest extends TeacherTestSupport {
     private void growChildren() throws Exception {
         lessonWithSkill("qc-lesson-2", A, CLASS_A1, "british", 1, "math", LocalDate.now().minusDays(3), "Adding");
         for (int i = 2; i <= 5; i++) {
-            var more = child("Child " + i, "QCSCHA", "british", 1);
+            var more = child("Child " + i, "QCSCHA", section);
             attempt(more, "qc-lesson-1", stopId("qc-lesson-1"), i % 2 == 0, Instant.now().minus(i, ChronoUnit.HOURS));
             attempt(more, "qc-lesson-2", stopId("qc-lesson-2"), i % 2 == 1, Instant.now().minus(i, ChronoUnit.HOURS));
         }

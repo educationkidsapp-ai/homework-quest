@@ -85,6 +85,33 @@ class TeacherProfileTest extends TeacherTestSupport {
         assertThat(refused.get("message").asText()).contains("You teach").contains("english");
     }
 
+    /**
+     * §1: "the grades she teaches are not stored; they are derived from her assignments." A seeded teacher has an
+     * empty `grades_json` and two classes, and before N2.3b the chooser read the profile and offered her nothing.
+     */
+    @Test void the_chooser_reads_her_assignments_and_not_her_profile() throws Exception {
+        String seeded = "tp-teacher-seeded";
+        teacher(seeded, A, "seeded@tp.test", "Ms Hala", "[]", null, "[]");
+        klass("tp-school-a:british:1:english", A, "british", 1, "english", seeded);
+        klass("tp-school-a:british:3:math", A, "british", 3, "math", seeded);
+
+        var options = json(mvc.perform(as(get("/teacher/options"), token(seeded, "TEACHER", A)))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(options.get("complete").asBoolean()).isTrue();
+        assertThat(options.get("curriculum").asText()).isEqualTo("british");
+        var grades = new java.util.ArrayList<Integer>();
+        options.get("grades").forEach(g -> grades.add(g.asInt()));
+        assertThat(grades).containsExactly(1, 3);
+        var subjects = new java.util.ArrayList<String>();
+        options.get("subjects").forEach(x -> subjects.add(x.asText()));
+        assertThat(subjects).containsExactlyInAnyOrder("english", "math");
+        assertThat(options.get("classes")).hasSize(2);
+        // the subject of each option is the assignment's, not the section row's (null since V7)
+        var offered = new java.util.ArrayList<String>();
+        options.get("classes").forEach(c -> offered.add(c.get("subject").asText()));
+        assertThat(offered).containsExactlyInAnyOrder("english", "math");
+    }
+
     @Test void a_teacher_with_an_empty_profile_is_told_it_is_incomplete() throws Exception {
         user("tp-teacher-blank", A, "blank@tp.test", "TEACHER");
         var options = json(mvc.perform(as(get("/teacher/options"), token("tp-teacher-blank", "TEACHER", A)))

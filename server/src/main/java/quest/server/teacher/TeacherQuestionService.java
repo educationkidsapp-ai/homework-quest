@@ -390,6 +390,12 @@ public class TeacherQuestionService {
      * The children a question is addressed to: those of the school whose (curriculum, grade) matches one of the
      * chosen classes — §2's rule, the one the map already uses. Any subject: a child does not belong to a subject.
      */
+    /**
+     * The children a question is put to: every child of the <em>courses</em> its classes belong to, so a question
+     * sent to `1A` also reaches `1B`. The same shape as {@link AnnouncementService#forChild} and the one N2.3b
+     * narrowed in `TeacherStudentService`; both are on the backlog together, because tightening them changes what a
+     * child's map already offers.
+     */
     private List<quest.server.children.Entities.ChildEntity> audience(Entities.TeacherQuestionEntity row,
                                                                       Map<String, ClassEntity> classesById,
                                                                       List<quest.server.children.Entities.ChildEntity> roster) {

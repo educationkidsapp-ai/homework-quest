@@ -202,6 +202,23 @@ abstract class TeacherTestSupport extends ApiTestSupport {
         return quest.server.analysis.StopIds.prefix(lessonId, level, variant) + "s1";
     }
 
+    /** A section with the name a school gives it ("1A"), for the tests where two sections share one grade. */
+    ClassEntity klass(String id, String schoolId, String curriculum, int grade, String subject, String teacherId, String name) {
+        var section = klass(id, schoolId, curriculum, grade, subject, teacherId);
+        section.setName(name);
+        return classes.save(section);
+    }
+
+    /**
+     * A child on one section's roster — `children.class_id`, which is what every "this class's children" query
+     * reads. A child created with a school code alone sits in no section and belongs to no teacher (N2.3b).
+     */
+    String child(String name, String schoolCode, ClassEntity section) throws Exception {
+        String id = child(name, schoolCode, section.getCurriculum(), section.getGrade());
+        childRows.findById(id).ifPresent(c -> { c.setClassId(section.getId()); childRows.save(c); });
+        return id;
+    }
+
     /** A child of a school, created through the parent API so its parent row and foreign keys are real. */
     String child(String name, String schoolCode, String curriculum, int grade) throws Exception {
         return parentPost("/children", "{\"name\":\"" + name + "\",\"avatarColor\":\"sun\",\"curriculum\":\"" + curriculum

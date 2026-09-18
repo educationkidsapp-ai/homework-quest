@@ -109,6 +109,12 @@ public class AnnouncementService {
      *
      * <p>Three statements: her classes, the live notes of them, and the teachers who wrote them. The school is the
      * child's own — a parent has no tenant scope, so naming it explicitly is the isolation.
+     *
+     * <p><strong>Its audience is a course, not a section.</strong> `findBySchoolIdAndCurriculumAndGrade` gathers
+     * every section of British Grade 1, so a note written for `1A` reaches `1B`'s children too — the same shape as
+     * {@link TeacherQuestionService#audience}, and the one N2.3b fixed in `TeacherStudentService`. Narrowing both to
+     * `children.class_id` changes what a parent's app already shows and is its own package on the backlog; it is
+     * deliberately not changed here.
      */
     public List<ParentAnnouncement> forChild(quest.server.children.Entities.ChildEntity child) {
         var hers = classes.findBySchoolIdAndCurriculumAndGrade(child.getSchoolId(), child.getCurriculum(), child.getGrade())
