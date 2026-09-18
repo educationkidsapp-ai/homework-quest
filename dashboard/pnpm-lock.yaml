@@ -31,6 +31,9 @@ importers:
       '@jsverse/transloco':
         specifier: ^8.4.0
         version: 8.4.0(@angular/core@22.1.6(@angular/compiler@22.1.6)(rxjs@7.8.2))(rxjs@7.8.2)(typescript@6.0.3)
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
       rxjs:
         specifier: ~7.8.0
         version: 7.8.2

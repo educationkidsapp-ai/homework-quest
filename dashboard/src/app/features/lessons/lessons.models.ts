@@ -84,6 +84,31 @@ export function confirmSkillsBody(skills: readonly ConfirmedSkillRequest[]): str
   return JSON.stringify(skills);
 }
 
+/** `POST /{admin,teacher}/plays/{playId}/stops` and `PUT …/stops/{stopId}`: the stop verbatim. */
+export function stopBody(stop: unknown): string {
+  return JSON.stringify(stop);
+}
+
+/** `PUT …/plays/{playId}/order`'s body (`ReorderRequest`) — a permutation of the play's stop ids. */
+export function reorderBody(stopIds: readonly string[]): string {
+  return JSON.stringify({ stopIds });
+}
+
+/** `POST /admin/lessons/{id}/plays`'s body (`CreatePlayRequest`). */
+export function createPlayBody(level: number, variant: number): string {
+  return JSON.stringify({ level, variant });
+}
+
+/** `POST …/lessons/{id}/generate-from-text`'s body (`GenerateFromTextRequest`). */
+export function generateFromTextBody(text: string): string {
+  return JSON.stringify({ text });
+}
+
+/** `PUT …/lessons/{id}/parent-panel`'s body — the whole `ParentPanel`, as the server returns it. */
+export function parentPanelBody(panel: unknown): string {
+  return JSON.stringify(panel);
+}
+
 /**
  * `JobRef.status` and `AdminLesson.status` are two separately generated string enums with
  * identical members (the same `LessonStatus` on the Kotlin side), but the generator gives

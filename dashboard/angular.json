@@ -3,7 +3,9 @@
   "version": 1,
   "cli": {
     "packageManager": "pnpm",
-    "schematicCollections": ["angular-eslint"]
+    "schematicCollections": [
+      "angular-eslint"
+    ]
   },
   "newProjectRoot": "projects",
   "projects": {
@@ -38,11 +40,19 @@
                 "output": "assets"
               }
             ],
-            "styles": ["node_modules/@angular/cdk/overlay-prebuilt.css", "src/styles.scss"],
+            "styles": [
+              "node_modules/@angular/cdk/overlay-prebuilt.css",
+              "src/styles.scss"
+            ],
             "stylePreprocessorOptions": {
-              "includePaths": ["src/styles"]
+              "includePaths": [
+                "src/styles"
+              ]
             },
-            "outputPath": "dist"
+            "outputPath": "dist",
+            "allowedCommonJsDependencies": [
+              "ajv/dist/runtime/ucs2length"
+            ]
           },
           "configurations": {
             "production": {
@@ -144,7 +154,9 @@
             "runner": "vitest",
             "tsConfig": "tsconfig.spec.json",
             "buildTarget": "::development",
-            "setupFiles": ["src/test-setup.ts"]
+            "setupFiles": [
+              "src/test-setup.ts"
+            ]
           }
         }
       }

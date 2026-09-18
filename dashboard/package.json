@@ -12,6 +12,7 @@
     "styleguide": "ng serve --open",
     "tokens": "node tools/tokens.mjs",
     "fonts": "node tools/fonts.mjs",
+    "schemas": "node tools/schemas.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "ng test",
@@ -20,7 +21,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "gen:api": "node tools/gen-api.mjs",
-    "postinstall": "node tools/gen-api.mjs",
+    "postinstall": "node tools/schemas.mjs && node tools/gen-api.mjs",
     "e2e:local": "playwright test --config=playwright.local.config.ts",
     "budget": "node tools/budget.mjs",
     "gen:permissions": "node tools/gen-permissions.mjs"
@@ -34,6 +35,7 @@
     "@angular/platform-browser": "^22.1.0",
     "@angular/router": "^22.1.0",
     "@jsverse/transloco": "^8.4.0",
+    "ajv": "^8.20.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

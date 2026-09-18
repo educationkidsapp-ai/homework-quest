@@ -48,3 +48,5 @@ Thumbs.db
 
 # Playwright traces and failure context
 /e2e/.output
+/src/app/features/lessons/stop-validators.generated.js
+/src/app/features/lessons/stop-validators.generated.d.ts

@@ -27,6 +27,8 @@ let nextReasonId = 0;
       [attr.aria-busy]="loading() ? 'true' : null"
       [attr.title]="reason()"
       [attr.aria-describedby]="reason() ? reasonId : null"
+      [attr.aria-haspopup]="menu() ? 'menu' : null"
+      [attr.aria-expanded]="menu() ? (expanded() ? 'true' : 'false') : null"
       (click)="pressed.emit($event)"
     >
       @if (loading()) {
@@ -148,6 +150,14 @@ export class ButtonComponent {
    * hover, so the description is what makes "disabled until valid" followable by keyboard).
    */
   readonly reason = input<string | null>(null);
+  /**
+   * This button opens a menu. CDK's `cdkMenuTriggerFor` puts its own `aria-haspopup` and
+   * `aria-expanded` on the *host* element, which is `<hq-button>` and not focusable — so the
+   * announcement never reaches the control a screen-reader user actually lands on. Setting
+   * `menu` (and binding `expanded` to the trigger's state) puts them where they belong.
+   */
+  readonly menu = input(false);
+  readonly expanded = input(false);
 
   protected readonly reasonId = `hq-btn-reason-${nextReasonId++}`;
 

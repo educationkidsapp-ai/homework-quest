@@ -5,6 +5,8 @@ import { ButtonComponent } from '../button/button.component';
 
 export type BandVariant = 'error' | 'confirm' | 'notice';
 
+let nextBandId = 0;
+
 /**
  * The band: this system's only way to say something went wrong or to ask "are you sure".
  *
@@ -22,10 +24,11 @@ export type BandVariant = 'error' | 'confirm' | 'notice';
       [class]="'band--' + variant()"
       [hqExpandBand]="open()"
       [attr.role]="variant() === 'notice' ? 'status' : 'alert'"
+      [attr.aria-labelledby]="title() ? titleId : null"
     >
       <div class="band__text">
         @if (title(); as titleText) {
-          <p class="band__title">{{ titleText }}</p>
+          <p class="band__title" [id]="titleId">{{ titleText }}</p>
         }
         <div class="band__message"><ng-content /></div>
       </div>
@@ -84,6 +87,9 @@ export type BandVariant = 'error' | 'confirm' | 'notice';
   `,
 })
 export class BandComponent {
+  /** Names the region by its own title, so one band on a page full of them is addressable. */
+  protected readonly titleId = `hq-band-${nextBandId++}`;
+
   readonly open = input.required<boolean>();
   readonly variant = input<BandVariant>('error');
   readonly title = input<string | null>(null);

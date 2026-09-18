@@ -2,6 +2,7 @@
 export { ButtonComponent, type ButtonVariant, type ButtonType } from './button/button.component';
 export { InputComponent, type InputType } from './input/input.component';
 export { SelectComponent, type SelectOption } from './select/select.component';
+export { TextareaComponent } from './textarea/textarea.component';
 export { CheckboxComponent } from './checkbox/checkbox.component';
 export { ToggleComponent } from './toggle/toggle.component';
 export { TableComponent, type TableColumn } from './table/table.component';
