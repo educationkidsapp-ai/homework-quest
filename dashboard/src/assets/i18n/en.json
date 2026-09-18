@@ -1,4 +1,129 @@
 {
+  "admin": {
+    "classes": {
+      "title": "Classes",
+      "subtitle": "Every section of the school, with the code parents type to join it.",
+      "loading": "Loading classes",
+      "empty": "No classes yet. Create the first one.",
+      "course": "{{curriculum}} · Grade {{grade}}",
+      "gradeOption": "Grade {{grade}}",
+      "teacherCount": "{{count}} assigned",
+      "active": "Active",
+      "inactive": "Inactive",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyCode": "the join code for {{name}}",
+      "printCard": "Print join-code card",
+      "regenerate": "Regenerate join code",
+      "deactivate": "Deactivate",
+      "activate": "Activate",
+      "rowActions": "Actions for {{name}}",
+      "filter": {
+        "label": "Find a class",
+        "placeholder": "1A",
+        "curriculum": "Curriculum",
+        "allCurricula": "All curricula"
+      },
+      "table": {
+        "name": "Class",
+        "course": "Course",
+        "joinCode": "Join code",
+        "children": "Children",
+        "teachers": "Teachers",
+        "status": "Status"
+      },
+      "create": {
+        "action": "Create class",
+        "title": "Create a class",
+        "confirm": "Create",
+        "reason": "Choose a curriculum and grade, and give the class a name.",
+        "curriculum": "Curriculum",
+        "curriculumPlaceholder": "Choose a curriculum",
+        "grade": "Grade",
+        "gradePlaceholder": "Choose a grade",
+        "name": "Class name",
+        "namePlaceholder": "1A",
+        "nameExample": "The grade and a letter, as in 1A.",
+        "nameHint": "Most class names are the grade and a letter, as in 1A."
+      },
+      "regenerateConfirm": {
+        "title": "Regenerate this join code?",
+        "message": "Every card printed for {{name}} stops working. Parents who have already joined stay joined.",
+        "confirm": "Regenerate"
+      },
+      "deactivateConfirm": {
+        "title": "Deactivate this class?",
+        "message": "{{name}} disappears from its teachers’ classes and stops accepting new parents.",
+        "confirm": "Deactivate"
+      },
+      "undo": {
+        "activated": "{{name}} is active again",
+        "deactivated": "{{name}} deactivated"
+      }
+    },
+    "teachers": {
+      "title": "Teachers",
+      "subtitle": "Who teaches here, and what each of them teaches.",
+      "loading": "Loading teachers",
+      "empty": "No teachers yet. Add the first one.",
+      "active": "Active",
+      "inactive": "Disabled",
+      "noAssignments": "None yet",
+      "deactivate": "Disable account",
+      "activate": "Enable account",
+      "rowActions": "Actions for {{name}}",
+      "filter": {
+        "label": "Find a teacher",
+        "placeholder": "Name or email"
+      },
+      "table": {
+        "name": "Name",
+        "email": "Email",
+        "subjects": "Subjects",
+        "curriculum": "Curriculum",
+        "assignments": "Teaches",
+        "status": "Status"
+      },
+      "form": {
+        "createAction": "Add teacher",
+        "createTitle": "Add a teacher",
+        "editAction": "Edit",
+        "editTitle": "Edit teacher",
+        "save": "Save",
+        "reason": "A full name, an email and at least one subject.",
+        "fullName": "Full name",
+        "email": "Email",
+        "emailFixed": "The sign-in email cannot be changed here.",
+        "subjects": "Subjects",
+        "curriculum": "Curriculum",
+        "curriculumPlaceholder": "Choose a curriculum",
+        "photoUrl": "Photo URL"
+      },
+      "password": {
+        "title": "Temporary password for {{name}}",
+        "note": "Copy it now and hand it over. It is shown once and cannot be read again — use Reset password to issue a new one.",
+        "copy": "Copy password",
+        "copied": "Copied",
+        "reset": "Reset password"
+      },
+      "assign": {
+        "action": "Assignments",
+        "title": "What {{name}} teaches",
+        "save": "Save assignments",
+        "taken": "Taught by {{name}}",
+        "none": "No classes match her curriculum and subjects yet."
+      },
+      "deactivateConfirm": {
+        "title": "Disable this account?",
+        "message": "{{name}} can no longer sign in. Her classes keep their lessons and she keeps her assignments.",
+        "confirm": "Disable"
+      },
+      "undo": {
+        "activated": "{{name}} can sign in again",
+        "deactivated": "{{name}} disabled"
+      }
+    }
+  },
   "auth": {
     "email": "Email",
     "password": "Password",
@@ -366,7 +491,8 @@
     "announcements": "Announcements",
     "complaints": "Complaints",
     "schoolUsage": "School usage",
-    "teachers": "Teachers"
+    "teachers": "Teachers",
+    "classes": "Classes"
   },
   "profile": {
     "title": "Your profile",
@@ -654,6 +780,7 @@
       "running": "in progress",
       "done": "done",
       "error": "failed"
-    }
+    },
+    "cancel": "Cancel"
   }
 }

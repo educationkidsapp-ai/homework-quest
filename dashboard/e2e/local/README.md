@@ -78,12 +78,23 @@ fails `generate_L2` once per lesson would make the happy-path run flaky.
 | a teacher is offered nothing of the Admin's | the rail, and the URL behind it                                 |
 | `?` opens the sheet, Esc closes it          | the keyboard contract (§7)                                      |
 | the screenshot set                          | the RTL mirror, silently                                        |
+| an Admin creates 1A/1B with distinct codes  | the Classes screen, and `POST /admin/classes` reaching a school |
+| a temporary password shows once, then goes  | a secret kept on screen for as long as the tab is open          |
+| a second Math teacher for 1A is refused     | N1.1's unique constraint never reaching the person (N1.2)       |
+
+`admin-classes-teachers.spec.ts` (N1.2) runs the Admin's half of `docs/teacher-flow.md` §10 step 1:
+classes, teachers, the one-time password and the assignment picker. It creates everything it needs
+through the screens and names the rows after the run, so it is safe to run twice against one H2
+database — and it does **not** need `e2e/seed/seed.mjs` to finish (that script fails at its lesson
+step since N1.1: publishing now requires an assignment, which `test/seed-one-school-e2e` fixes).
+Run it with `SEED_SCHOOL=false` unless you want the 30-class seed behind it.
 
 `lesson-review.spec.ts` (P3.2d) carries a PDF lesson through skills confirmation, the three
 levels + Again, the pinned phone preview and publish; `lesson-retry.spec.ts` proves a failed
 step actually retries past its failure (see above).
 
-Screenshots land in `docs/screenshots/dashboard-p3.1/` and `docs/screenshots/dashboard-p3.2d/`
+Screenshots land in `docs/screenshots/dashboard-p3.1/`, `docs/screenshots/dashboard-p3.2d/` and
+`docs/screenshots/dashboard-n1.2/`
 (1366 × 768, EN and AR) and are committed.
 
 ## The static server

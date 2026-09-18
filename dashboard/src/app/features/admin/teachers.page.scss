@@ -1,0 +1,116 @@
+@use 'mixins' as m;
+
+:host {
+  display: block;
+}
+
+.teachers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-24);
+}
+
+.teachers__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--hq-space-16);
+}
+
+.teachers__password-note {
+  margin: 0 0 var(--hq-space-8);
+}
+
+.teachers__password {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hq-space-12);
+  margin: 0;
+
+  code {
+    padding: var(--hq-space-8) var(--hq-space-12);
+    background: var(--hq-color-surface);
+    border: var(--hq-size-rule) solid var(--hq-color-line);
+    font-family: var(--hq-font-family-mono);
+    font-size: var(--hq-font-input-size);
+    letter-spacing: var(--hq-font-letter-spacing-label);
+  }
+}
+
+.teachers__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-4);
+}
+
+.teachers__chip {
+  padding: var(--hq-space-4) var(--hq-space-8);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-line);
+  font-size: var(--hq-font-label-size);
+  white-space: nowrap;
+}
+
+.teachers__none,
+.teachers__status {
+  color: var(--hq-color-ink-soft);
+}
+
+.teachers__status--off {
+  color: var(--hq-color-accent-strong);
+  font-weight: var(--hq-font-label-weight);
+}
+
+.teachers__subjects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-16);
+  margin: 0;
+  padding: var(--hq-space-16);
+  border: var(--hq-size-rule) solid var(--hq-color-line);
+}
+
+.teachers__legend {
+  padding-inline: var(--hq-space-8);
+  font-size: var(--hq-font-label-size);
+  font-weight: var(--hq-font-label-weight);
+  letter-spacing: var(--hq-font-letter-spacing-label);
+  text-transform: uppercase;
+}
+
+.teachers__overflow-trigger {
+  min-inline-size: var(--hq-size-touch-target);
+  min-block-size: var(--hq-size-touch-target);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  @include m.hover-tint;
+  @include m.focus-ring;
+}
+
+// Rendered into the CDK overlay container, but instantiated here (see `classes.page.scss`).
+.menu {
+  min-inline-size: var(--hq-size-course-card);
+  background: var(--hq-color-surface);
+  border: var(--hq-size-rule) solid var(--hq-color-line);
+  box-shadow: var(--hq-shadow-dialog);
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: var(--hq-size-touch-target);
+  padding-inline: var(--hq-space-16);
+  background: none;
+  border: 0;
+  color: var(--hq-color-ink);
+  text-align: start;
+  cursor: pointer;
+  @include m.hover-tint;
+  @include m.focus-ring;
+}
+
+.menu__item--danger {
+  color: var(--hq-color-accent-strong);
+}
