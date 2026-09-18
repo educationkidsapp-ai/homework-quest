@@ -120,6 +120,61 @@ Reviewer: `quality-performance` on every PR above.
 - **P-CI `infra/ci-cost`** = PR #54 (owner change request): macOS off PRs (`ios.yml`), path-filtered jobs, docs-only job, caches, Testcontainers singleton, Playwright after the QA deploy, weekly cost report; before = 16.7 billed min/run; after to be measured on its first green run.
 - 2026-09-16: card payments failed on the `educationkidsapp-ai` account, so the repo was made **public** on the owner's instruction to keep Actions free; **revert to private at the end of the programme** (`gh repo edit educationkidsapp-ai/homework-quest --visibility private --accept-visibility-change-consequences`). #49, #51, #52 merged on local reviewer verification while Actions was blocked.
 
+
+## Dashboard-first, one school (2026-09-18) — supersedes the phase order above
+
+Owner prompts: `docs/prompts/dashboard-first-one-school.md` (the build order), `docs/prompts/homework-quest-teacher-v1-prompt.md` (model, screens, gradebook §7, exams §8), `docs/teacher-flow.md` (the reference flow — code and briefs point here). Goal: **the whole dashboard for one school, teacher first, zero mobile work; the web player stands in for the app.**
+
+### Decisions
+
+| # | Decision | Why |
+|---|---|---|
+| D13 | One school in product terms: `multiSchool` flag (off) hides the Admin school screens and the switcher collapses to the user's school; the tenancy code (filter, `schoolId` on every table, JWT resolution) stays exactly as built. QA keeps its Al Noor / Green Valley fixture rows — they are the "second school proven on QA" of §10. A new ArchUnit rule forbids school-id literals in services/controllers/repositories; the allow-list is exactly `TenantContext.writeSchoolId()` (the D6 `default` fallback for Admin writes), the seed classes and `@Entity` column defaults. | prompt §1 |
+| D14 | Classes become **sections**: the existing `classes` table (school, curriculum, grade, subject, teacher) gains `name` ("1A"), `join_code`, `active`; `subject`/`teacher_id` stop being used: V7 runs `ALTER COLUMN subject DROP NOT NULL` (and `children.parent_id DROP NOT NULL`) — column relaxations are allowed by the additive rule; sibling sections keep `subject`/`teacher_id` NULL so the surviving `UNIQUE (school_id, curriculum, grade, subject, teacher_id)` never collides (NULLs are distinct on PG 16 and H2); new `teaching_assignments(teacher_id, class_id, subject)` UNIQUE(class_id, subject); `children.class_id` (parent_id nullable), `lessons.teacher_id`, `lessons.type` (homework/exam). Backfill: one section per existing (school, curriculum, grade) — "<grade>A" — lessons and children re-pointed, assignments derived from the old rows' `teacher_id`. `courses` stays, deprecated. | teacher-v1 §2 within the additive-migration rule |
+| D15 | Workers back on **Opus 5** (owner, 2026-09-18); Fable 5.1 plans. The rest of D12 stands: one agent at a time, small packages, quiet tooling, CI as the gate. | owner instruction |
+| D16 | No `shared/`, `androidApp/`, `iosApp/` changes in this build; `POST /children` and `GET /classes/lookup?code=` are added server-side so the app can adopt them later. The old P4.1/P4.2/P5.2 mobile packages are dropped from the queue. | prompt §1 |
+| D17 | The dashboard is on Angular 22 (D1) although the prompt says 20. | unchanged |
+
+### What already exists (reused as is)
+Tenancy + filter + roles (P1.x), auth with refresh/forced change/forgot password (P1.3), flags with `@FeatureFlag`/`*hqFeature`/`FlagService` (P2.1/P3.1), themes + platform settings (P2.1), typed OpenAPI client (P3.0b), dashboard shell/Homes/profile (P3.1), lessons list / new lesson / lesson page with step strip, skills, plays + phone preview, publish (P3.2b–d), 22 stop-type previews (P3.2a), teacher profile/options/questions/announcements/students (P4.0 — the questions/announcements routes stay behind their flags, hidden from this build's navigation).
+
+### Phases and packages (one agent at a time; owner `backend` = Opus, `dashboard` = Opus)
+
+| Pkg | Owner | Outputs | Acceptance | Depends on |
+|---|---|---|---|---|
+| **N1 Foundations** | | | | |
+| N1.1 `backend/sections-assignments` | backend | `V7__sections.sql` per D14 + backfill; `TeachingAssignment` entity + unique; `Child.classId` (+ `parentId` nullable), `Lesson.teacherId/type`; `TeacherScope` (assignment-scoped checks replacing the subject/grade rule) + ArchUnit "every `/teacher/**` handler calls it" + "no school-id literal"; Admin API: classes CRUD + `POST /admin/classes/{id}/join-code` + printable code-card PDF, teachers CRUD (temporary password returned once), `PUT /admin/teachers/{id}/assignments` (409 naming the current teacher), rosters `GET/POST/PATCH /admin/classes/{id}/children` + CSV/XLSX import with preview and duplicate detection; `GET /me` gains `assignments`; public `GET /classes/lookup?code=`; `POST /children` accepts `joinCode`; flags `multiSchool` (off), `webPlayer`, `gradebook`, `openStopMarking`, `exams`, `teacher.rosterEdit`, `join.byList`; platform settings gain `schoolWeek` (Sun–Thu) + `timezone`; seed loader for `qa` from `server/src/main/resources/seed/{classes,teachers,children}.csv` (30 classes, 40 teachers, 600 children) | tests: teacher B cannot read A's class (403), second Math teacher for 1A rejected with the current teacher's name, roster import preview + duplicates, join-code lookup; migration on H2 + PG; `openapi.json` regenerated | — |
+| N1.2 `dashboard/admin-classes-teachers-rosters` | dashboard | Admin screens: Classes (create, join code, print card, deactivate), Teachers (create with one-time password, subjects, curriculum, photo; assignment picker that blocks a taken class and names the teacher), Children rosters (per class, CSV/XLSX import preview), Platform settings (name, logo, school week, timezone); Schools/switcher hidden behind `multiSchool` | Playwright: Admin creates 1A/1B + Sara assigned to both; second Math teacher for 1A refused with the name; import a 3-row CSV | N1.1 |
+| N1.3 `test/seed-one-school-e2e` | test | seed run on QA (CSV loader), isolation e2e for assignments, screenshots | a seeded teacher signs in and sees only her assignments | N1.2 |
+| **N2 Teacher: lessons** | | | | |
+| N2.1 `backend/teacher-lessons-api` | backend | `GET /teacher/week?start=` (assignments × days, one query), `GET /teacher/classes`, `/classes/{id}/calendar`, `/classes/{id}/children`, `POST /teacher/lessons` (classId, subject, date, source), `PATCH …/{id}` (move date while unpublished), `POST …/{id}/copy`, `POST …/{id}/publish` `{classIds}` (server copies per class), `/unpublish`, `DELETE`, `analyzedBefore` on the lesson DTO; teacher-scoped pipeline routes (`/teacher/lessons/{id}/retry`, skills, stops) delegating to the existing services | tests incl. publish-to-siblings copies with separate results; p95 < 300 ms on `/teacher/week` and `/teacher/classes` with the seed | N1.1 |
+| N2.2 `dashboard/this-week` | dashboard | This week grid (rows = assignments, columns = school week), lesson/exam cards, `+` opens the editor pre-set, drag to move (same row) and drag to copy (sibling row), gap summary strip, prev/next/Today; teacher landing page + navigation `This week · My classes · [class] · Profile` only | Playwright: drag-move a draft; drag-copy to 1B; gap names class + day | N2.1 |
+| N2.3 `dashboard/my-classes-class-page` | dashboard | My classes cards; Class page tabs Calendar (month + results column) and Children (roster, add/edit under `teacher.rosterEdit`); Gradebook/Exams tabs stubbed | Playwright per teacher-flow §10 steps 2–3 | N2.1 |
+| N2.4 `dashboard/lesson-editor-complete` | dashboard | finish P3.2e (stop editor with schema validation, + Add stop, reorder, attach image, parent-panel editor), class+subject fixed in the editor, publish sheet with sibling classes, re-publish with version, delete draft/error, "Analyzed before · 0 tokens" badge, Preview-as-child button (opens the gallery until N3) | Playwright: teacher-flow §10 steps 3–4 | N2.1, N2.2 |
+| N2.5 `test/teacher-lessons-e2e` | test | e2e on QA: Sara uploads, reviews, publishes to 1A+1B, second upload costs 0 tokens | green on QA | N2.4 |
+| **N3 Web player** | | | | |
+| N3.1 `backend/test-parents-preview` | backend | test-parent accounts per class (`webPlayer` flag), preview attempts marked `previewOf=teacherId` and excluded from results, "record as real" toggle on QA, media upload via the existing endpoints, `previewOf` marker in `Attempt` | tests: preview attempts never in results | N2.1 |
+| N3.2 `dashboard/player-core` | dashboard | `/play/:lessonId?as=:childId` — frame, pot + ingredients, stars, wrong-answer sheet, level selector/unlocking, certificate, `speechSynthesis` read-aloud, attempts POSTed through the real endpoints; 11 stop types playable | Playwright: Hot Soup L1 end to end → attempts in Results ≤ 5 s | N3.1 |
+| N3.3 `dashboard/player-stops` | dashboard | the other 11 stop types incl. `MediaRecorder` retell, canvas drawing, trace; exam mode hooks | all 22 playable; child-mode rules asserted | N3.2 |
+| N3.4 `dashboard/player-gallery` | dashboard | `/player/gallery` — every stop type in every state | screenshots committed | N3.3 |
+| **N4 Gradebook, levels, exams** | | | | |
+| N4.1 `backend/scoring-marks-levels` | backend | `HomeworkScore` computation, `TeacherMark`, `ChildLevel` bands (`grading/Bands.java`), release flag, results/gradebook/child endpoints, CSV/XLSX exports (POI), `seed/attempts.csv` loader | hand-computed sample matches; gradebook query < 1 s on the seed | N3.1 |
+| N4.2 `dashboard/results-gradebook-child` | dashboard | Results page with marking + release, Gradebook tab (grid, bands, overrides, needs-marking filter, exports), Child page (band, trend, chart, comments, saved work) | Playwright per teacher-flow §10 steps 5–6 | N4.1 |
+| N4.3 `backend/exams` | backend | `Lesson.type=exam`, `ExamSettings`, window + single resumable attempt (409 on second), `ExamResult`, reopen per child, release modes, results/distribution/difficulty endpoints, CSV/XLSX, per-child PDF sheet | tests for window, single attempt, absent + reopen | N4.1 |
+| N4.4 `dashboard/exams` | dashboard | Exams tab, New exam settings, results page, release, exports; player exam mode (no hints, no numbers, resumable) | Playwright per teacher-flow §10 step 7 | N4.3, N3.3 |
+| N4.5 `test/gradebook-exams-e2e` | test | e2e on QA + p95/gradebook timing | green | N4.4 |
+| **N5 Admin full + Managerial** | | | | |
+| N5.1 `dashboard/admin-flags-users-usage` | dashboard | Feature flags (one column while `multiSchool` off), Users (reset, disable, View as + audit), Usage & cost, cache page, audit log | Admin flips `exams` off → tab + API gone within one refresh | N4.4 |
+| N5.2 `backend/complaints-staff-logged` | backend | complaints model + endpoints (§8 of the schools prompt) incl. "log on behalf of a parent", SLA digest, notifications via the mailer | round-trip tests with a simulated clock | N4.1 |
+| N5.3 `dashboard/managerial` | dashboard | Managerial Home, inbox + conversation, log a complaint, school usage, teachers read-only | Playwright: New → In progress → Resolved with SLA badges | N5.2 |
+| **N6 Polish, docs, production** | | | | |
+| N6.1 `dashboard/polish` | dashboard | motion pass, EN/AR pass, Lighthouse/perf budgets on every screen | recorded walkthrough per role | N5.3 |
+| N6.2 `test/final-e2e` | test | Playwright suites per role on QA; second-school proof (seed row + user; two teachers cannot see each other) | green | N6.1 |
+| N6.3 `docs/platform-docs` (P-DOCS, resumed) | docs | the seven area docs + index + `docs-links.yml`/`docs-review.yml` | reviewer spot-checks | N6.1 |
+| N6.4 `infra/production` | infra | `homework-quest-prod` project, `deploy-prod.yml` with owner approval, `v1.0.0`; repo back to private | first production deploy | N6.3 |
+
+Superseded: P3.2e (→ N2.4), P3.3 (→ N1.2 + N5.1), P3.5/P3.6 (→ N6.2 / after N6), P4.1/P4.2/P5.x/P6.x old numbering (mobile parts dropped per D16).
+
 ## Status
 
 **Phase 1: done 2026-09-16.** **Phase 2: done 2026-09-16** (server flags/themes/platform settings, app join-school/theme/gates, e2e, docs). QA runs `cb49991`; both QA schools themed. Phase 3 in progress (P3.0 merged; P3.1, P3.4a, P3.4 running).

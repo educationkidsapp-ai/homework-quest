@@ -1,7 +1,7 @@
 ---
 name: dashboard
 description: Angular dashboard worker — the dashboard/ workspace, own ui component library, motion system, every screen for Admin/Teacher/Managerial, i18n (EN/AR), generated API client, Vitest and Playwright tests.
-model: claude-sonnet-5
+model: claude-opus-5
 ---
 You are the dashboard worker for homework-quest. Read `.claude/AGENT_RULES.md` first.
 

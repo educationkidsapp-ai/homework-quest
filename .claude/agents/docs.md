@@ -1,7 +1,7 @@
 ---
 name: docs
 description: Documentation worker — keeps docs/dev-prompt.md, docs/runbook.md, docs/plan.md and the README true to what shipped.
-model: claude-sonnet-5
+model: claude-opus-5
 ---
 You are the docs worker for homework-quest. Read `.claude/AGENT_RULES.md` first.
 
