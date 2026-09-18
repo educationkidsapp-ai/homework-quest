@@ -108,12 +108,12 @@ public class TeacherWeekService {
         var classIds = assignments.stream().map(TeachingAssignmentEntity::getClassId).filter(sections::containsKey).distinct().toList();
         if (classIds.isEmpty()) return new Week(assignments, sections, Map.of(), Map.of(), Map.of());
 
-        var byKey = new HashMap<String, LessonEntity>();
+        var byKey = new HashMap<Cell, LessonEntity>();
         var lessonRows = lessons.findByClassIdInAndDateBetweenOrderByDateAsc(classIds, from, to);
         for (var lesson : lessonRows) {
             // Two lessons on one day for one subject is legal; the cell shows the published one, and the newest
             // otherwise, because that is the one she is working on.
-            String key = key(lesson.getClassId(), lesson.getSubject(), lesson.getDate());
+            var key = new Cell(lesson.getClassId(), lesson.getSubject(), lesson.getDate());
             var current = byKey.get(key);
             if (current == null || better(lesson, current)) byKey.put(key, lesson);
         }
@@ -126,8 +126,8 @@ public class TeacherWeekService {
     }
 
     private record Week(List<TeachingAssignmentEntity> assignments, Map<String, ClassEntity> sections,
-                        Map<String, LessonEntity> lessons, Map<String, Integer> sizes, Map<String, Integer> players) {
-        LessonEntity lesson(String classId, String subject, LocalDate date) { return lessons.get(key(classId, subject, date)); }
+                        Map<Cell, LessonEntity> lessons, Map<String, Integer> sizes, Map<String, Integer> players) {
+        LessonEntity lesson(String classId, String subject, LocalDate date) { return lessons.get(new Cell(classId, subject, date)); }
         int childrenIn(String classId) { return sizes.getOrDefault(classId, 0); }
         int playersOf(String lessonId) { return players.getOrDefault(lessonId, 0); }
         TeacherDto.WeekLesson card(LessonEntity l) {
@@ -136,7 +136,8 @@ public class TeacherWeekService {
         }
     }
 
-    private static String key(String classId, String subject, LocalDate date) { return classId + " " + subject + " " + date; }
+    /** One cell of the grid: a record rather than a joined string, so no separator has to be assumed safe. */
+    private record Cell(String classId, String subject, LocalDate date) {}
 
     /** §4's three words; see {@link TeacherDto#DRAFT}. */
     public static String status(LessonEntity lesson) {
