@@ -1,0 +1,81 @@
+@use 'mixins' as m;
+
+.my-classes__group {
+  margin-block-end: var(--hq-space-32);
+}
+
+.my-classes__grade {
+  @include m.label;
+  margin-block-end: var(--hq-space-8);
+  color: var(--hq-color-ink-soft);
+}
+
+.my-classes__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--hq-size-stop-list-width), 1fr));
+  gap: var(--hq-space-16);
+}
+
+.my-classes__title {
+  font-size: var(--hq-font-body-size);
+  font-weight: var(--hq-font-label-weight);
+}
+
+// The card's name is the link, and the whole card is its hit area: a 56 px row of text is a
+// harder target than a rectangle, and a real `<a>` keeps Tab, Enter and "open in a new tab".
+.my-classes__link {
+  color: var(--hq-color-ink);
+  text-decoration: none;
+  @include m.focus-ring;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+}
+
+.my-classes__card {
+  position: relative;
+  @include m.hover-tint;
+}
+
+.my-classes__today {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-8);
+  margin-block-start: var(--hq-space-12);
+}
+
+.my-classes__played,
+.my-classes__children {
+  font-size: var(--hq-font-label-size);
+  color: var(--hq-color-ink-soft);
+}
+
+.my-classes__children {
+  margin-block-start: var(--hq-space-4);
+}
+
+.my-classes__count {
+  font-size: var(--hq-font-body-size);
+  font-weight: var(--hq-font-label-weight);
+  color: var(--hq-color-ink);
+}
+
+// Above the card's own link overlay, so the one primary action wins the click.
+.my-classes__action {
+  position: relative;
+  z-index: var(--hq-z-sticky);
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--hq-size-touch-target);
+  margin-block-start: var(--hq-space-12);
+  padding-inline: var(--hq-space-16);
+  border: var(--hq-size-rule) solid var(--hq-color-ink);
+  background: var(--hq-color-accent);
+  color: var(--hq-color-on-accent);
+  font-weight: var(--hq-font-label-weight);
+  text-decoration: none;
+  @include m.focus-ring;
+}

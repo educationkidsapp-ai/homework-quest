@@ -1,0 +1,66 @@
+<hq-page [title]="'classes.title' | transloco" [subtitle]="'classes.subtitle' | transloco">
+  @if (classes.isLoading()) {
+    <hq-skeleton
+      [loading]="true"
+      [lines]="4"
+      height="var(--hq-size-course-card)"
+      [label]="'classes.loading' | transloco"
+    />
+  } @else if (!hasCards()) {
+    <hq-empty-state [message]="'classes.empty' | transloco" />
+  } @else {
+    @for (group of groups(); track group.grade) {
+      <section class="my-classes__group">
+        <h2 class="my-classes__grade">{{ gradeLabel(group.grade) }}</h2>
+        <div class="my-classes__cards" hqListStagger>
+          @for (card of group.items; track trackCard(card)) {
+            <hq-card class="my-classes__card">
+              <h3 class="my-classes__title">
+                <a class="my-classes__link" [routerLink]="classLink(card)" [queryParams]="classParams(card)">
+                  {{ cardTitle(card) }}
+                </a>
+              </h3>
+
+              <p class="my-classes__today">
+                <hq-status-square [status]="card.status" />
+                <span>
+                  {{ 'week.status.' + card.status | transloco }}
+                  @if (card.showsPlayed) {
+                    <span class="my-classes__played">
+                      {{
+                        'classes.playedToday'
+                          | transloco: { played: card.playedToday, total: card.childrenCount }
+                      }}
+                    </span>
+                  }
+                </span>
+              </p>
+
+              <p class="my-classes__children">
+                <span class="my-classes__count" [hqCountUp]="card.childrenCount">{{
+                  card.childrenCount
+                }}</span>
+                {{ 'classes.childrenCount' | transloco }}
+              </p>
+
+              <!--
+                One primary action per card, and only when today has nothing on it: a class that
+                is already handled does not need a button that would make a second lesson.
+              -->
+              @if (card.status === 'none') {
+                <a
+                  class="my-classes__action"
+                  [routerLink]="newLessonLink"
+                  [queryParams]="addTodayParams(card)"
+                >
+                  {{ 'classes.addToday' | transloco }}
+                  <span class="hq-sr-only">{{ cardTitle(card) }}</span>
+                </a>
+              }
+            </hq-card>
+          }
+        </div>
+      </section>
+    }
+  }
+</hq-page>

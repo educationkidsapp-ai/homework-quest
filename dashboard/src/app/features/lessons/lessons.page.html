@@ -34,6 +34,15 @@
       </hq-band>
     }
 
+    @if (classFilterLabel(); as onlyClass) {
+      <p class="lessons__class-filter">
+        {{ onlyClass }}
+        <hq-button variant="quiet" (pressed)="clearClassFilter()">
+          {{ 'lessons.filter.clearClass' | transloco }}
+        </hq-button>
+      </p>
+    }
+
     @if (courseKey()) {
       <div class="lessons__toolbar">
         <div data-hq-search>
@@ -62,7 +71,12 @@
 
       @if (view() === 'list') {
         @if (lessons.isLoading()) {
-          <hq-skeleton [loading]="true" [lines]="6" height="var(--hq-size-row-height)" [label]="'lessons.loading' | transloco" />
+          <hq-skeleton
+            [loading]="true"
+            [lines]="6"
+            height="var(--hq-size-row-height)"
+            [label]="'lessons.loading' | transloco"
+          />
         } @else {
           <hq-table
             [rows]="rows()"

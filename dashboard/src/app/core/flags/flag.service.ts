@@ -31,6 +31,9 @@ export const FLAGS = {
   progressWeeklyEmail: 'progress.weeklyEmail',
   certificates: 'certificates',
   multiSchool: 'multiSchool',
+  // N2.3: roster editing by the teacher herself. Off by default — most schools want the
+  // office to own who is in a class, and the ones that do not can turn it on per school.
+  teacherRosterEdit: 'teacher.rosterEdit',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

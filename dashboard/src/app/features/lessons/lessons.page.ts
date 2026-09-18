@@ -2,8 +2,8 @@
    not a flag: the lesson pipeline ships with the dashboard rather than behind a toggle. */
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { rxResource } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import { rxResource, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import {
   type AdminLesson,
@@ -37,6 +37,7 @@ import {
   GRADES,
   type LessonStatus,
   errorStepOf,
+  isCurriculum,
   isRunningStatus,
   jobStatusAsLessonStatus,
   readStoredCourse,
@@ -97,9 +98,14 @@ export class LessonsPage {
   private readonly reportsApi = inject(AdminReportsApi);
   private readonly teacherApi = inject(TeacherApi);
   private readonly auth = inject(AuthService);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
+
+  private readonly params = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
 
   private restoredForUser: string | null = null;
 
@@ -123,9 +129,22 @@ export class LessonsPage {
     return curriculum === 'american' || curriculum === 'british' ? [curriculum] : [];
   });
 
+  /**
+   * The grades she may choose from.
+   *
+   * `GET /teacher/options.grades` comes off her **teacher profile**, which the office fills in
+   * and the one-school seed leaves empty — so it is unioned with the grades of the classes she
+   * is actually assigned to, which the same response already carries. Without that a seeded
+   * teacher gets a Grade select with nothing in it, and "All lessons of this class" (N2.3) lands
+   * on a chooser that cannot be set to the class she came from.
+   */
   protected readonly availableGrades = computed<readonly number[]>(() => {
     if (this.isAdmin()) return GRADES;
-    return [...(this.teacherOptions.value()?.grades ?? [])].sort((a, b) => a - b);
+    const options = this.teacherOptions.value();
+    const assigned = (options?.classes ?? []).map((section) => section.grade ?? 0);
+    return [...new Set([...(options?.grades ?? []), ...assigned])]
+      .filter((grade) => grade > 0)
+      .sort((a, b) => a - b);
   });
 
   protected readonly curriculumOptions = computed<readonly SelectOption[]>(() => {
@@ -202,18 +221,55 @@ export class LessonsPage {
     defaultValue: [],
   });
 
-  protected readonly hasRunning = computed(() => this.lessons.value().some((row) => isRunningStatus(row.status)));
+  protected readonly hasRunning = computed(() =>
+    this.lessons.value().some((row) => isRunningStatus(row.status)),
+  );
   protected readonly hasFailed = computed(() =>
     this.lessons.value().some((row) => row.status === AdminLessonStatusEnum.ERROR),
   );
 
   protected readonly filterText = signal('');
 
+  /**
+   * `?classId=` — "All lessons of this class", the link N2.3's class page opens.
+   *
+   * Filtered here rather than at the endpoint because `GET /admin/lessons` takes a course, not a
+   * class, and the course is already narrowed to the one the chooser is on; adding a server
+   * parameter for a subset of a page we have in hand would be a round trip for nothing. The
+   * link carries `curriculum` and `grade` too, so the chooser lands on the right course first.
+   */
+  protected readonly classFilter = computed(() => this.params().get('classId'));
+
+  /**
+   * Her classes, fetched **only** while a class filter is on, to put a name on it.
+   *
+   * The lessons in hand would name it too — but a class with no lessons yet is exactly the one
+   * a teacher follows this link from, and "Showing only ." is not a sentence.
+   */
+  private readonly myClasses = rxResource({
+    params: () => (!this.isAdmin() && this.classFilter() ? true : undefined),
+    stream: () => this.teacherApi.myClasses(),
+    defaultValue: [],
+  });
+
+  protected readonly classFilterLabel = computed(() => {
+    this.lang();
+    const classId = this.classFilter();
+    if (!classId) return null;
+    const name =
+      this.myClasses.value().find((card) => card.classId === classId)?.className ??
+      this.lessons.value().find((row) => row.classId === classId)?.className ??
+      '';
+    return name ? this.t('lessons.filter.onlyClass', { class: name }) : null;
+  });
+
   protected readonly rows = computed<readonly LessonRowView[]>(() => {
     this.lang();
     const query = this.filterText().trim().toLowerCase();
+    const classId = this.classFilter();
     return this.lessons
       .value()
+      .filter((row) => !classId || row.classId === classId)
       .filter((row) => !query || (row.title ?? '').toLowerCase().includes(query))
       .map((row) => this.toRowView(row));
   });
@@ -278,7 +334,9 @@ export class LessonsPage {
         this.lessons.update((rows) => rows.map((r) => (r.id === row.id ? { ...r, status } : r)));
       },
       error: () => {
-        this.lessons.update((rows) => rows.map((r) => (r.id === row.id ? { ...r, status: previousStatus } : r)));
+        this.lessons.update((rows) =>
+          rows.map((r) => (r.id === row.id ? { ...r, status: previousStatus } : r)),
+        );
       },
     });
   }
@@ -301,7 +359,9 @@ export class LessonsPage {
     this.lang();
     const mode = this.confirmMode();
     if (mode === null) return '';
-    return this.t(mode === 'all-failed' ? 'lessons.deleteAllFailedConfirm.title' : 'lessons.deleteConfirm.title');
+    return this.t(
+      mode === 'all-failed' ? 'lessons.deleteAllFailedConfirm.title' : 'lessons.deleteConfirm.title',
+    );
   });
 
   protected readonly confirmMessage = computed(() => {
@@ -317,7 +377,9 @@ export class LessonsPage {
     this.lang();
     const mode = this.confirmMode();
     if (mode === null) return '';
-    return this.t(mode === 'all-failed' ? 'lessons.deleteAllFailedConfirm.confirm' : 'lessons.deleteConfirm.confirm');
+    return this.t(
+      mode === 'all-failed' ? 'lessons.deleteAllFailedConfirm.confirm' : 'lessons.deleteConfirm.confirm',
+    );
   });
 
   protected requestDelete(row: AdminLesson | null): void {
@@ -368,9 +430,15 @@ export class LessonsPage {
       if (!userId || userId === this.restoredForUser) return;
       if (!this.isAdmin() && this.teacherOptions.isLoading()) return;
       this.restoredForUser = userId;
-      const stored = readStoredCourse(userId);
+      // A link that names the course wins over what this browser last looked at: arriving from
+      // the class page on the wrong grade would show an empty list and look like a bug.
+      const linked = this.linkedCourse();
+      const stored = linked ?? readStoredCourse(userId);
       if (!stored) return;
-      if (this.availableCurricula().includes(stored.curriculum) && this.availableGrades().includes(stored.grade)) {
+      if (
+        this.availableCurricula().includes(stored.curriculum) &&
+        this.availableGrades().includes(stored.grade)
+      ) {
         this.curriculum.set(stored.curriculum);
         this.grade.set(stored.grade);
       }
@@ -389,6 +457,23 @@ export class LessonsPage {
       if (!this.hasRunning()) return;
       const timer = setInterval(() => this.lessons.reload(), POLL_MS);
       onCleanup(() => clearInterval(timer));
+    });
+  }
+
+  /** `?curriculum=&grade=` off the class page's link, when both are usable. */
+  private linkedCourse(): { curriculum: Curriculum; grade: number } | null {
+    const params = this.params();
+    const curriculum = params.get('curriculum');
+    const grade = Number(params.get('grade'));
+    if (!isCurriculum(curriculum) || !Number.isInteger(grade) || grade <= 0) return null;
+    return { curriculum, grade };
+  }
+
+  protected clearClassFilter(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { classId: null },
+      queryParamsHandling: 'merge',
     });
   }
 

@@ -141,10 +141,6 @@
   @include m.focus-ring;
 }
 
-.week__square--pending {
-  border-style: dashed;
-}
-
 .week__card-link {
   display: flex;
   flex: 1;
@@ -156,26 +152,6 @@
   text-decoration: none;
   @include m.hover-tint;
   @include m.focus-ring;
-}
-
-.week__square {
-  flex: none;
-  inline-size: var(--hq-space-12);
-  block-size: var(--hq-space-12);
-  border: var(--hq-size-rule-thin) solid var(--hq-color-ink);
-  background: var(--hq-color-surface);
-}
-
-.week__square--draft {
-  background: var(--hq-color-band-look);
-}
-
-.week__square--ready {
-  background: var(--hq-color-band-mid);
-}
-
-.week__square--published {
-  background: var(--hq-color-band-good);
 }
 
 .week__card-text {

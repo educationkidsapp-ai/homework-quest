@@ -45,8 +45,9 @@ export function areaRoutes(role: Role): Routes {
  * one component, keyed by `id` rather than by path. Everything else is the stub until its
  * phase lands, and the stub reads the phase back out of the same table.
  *
- * `teachers` is the one id two areas share and two different screens answer: the Admin's staff
- * list (N1.2) and the Managerial read-only one (N5), so it is keyed by role as well as by id.
+ * `teachers` and `classes` are the ids two areas share and two different screens answer: the
+ * Admin's staff list (N1.2) and the Managerial read-only one (N5); the Admin's sections table
+ * and the teacher's My classes (N2.3). Both are keyed by role as well as by id.
  */
 function componentFor(screen: Screen, role: Role) {
   if (screen.path === '') return import('../../features/home/home.page').then((m) => m.HomePage);
@@ -57,7 +58,11 @@ function componentFor(screen: Screen, role: Role) {
     return import('../../features/lessons/new-lesson.page').then((m) => m.NewLessonPage);
   }
   if (screen.id === 'lesson') return import('../../features/lessons/lesson.page').then((m) => m.LessonPage);
-  if (screen.id === 'classes') return import('../../features/admin/classes.page').then((m) => m.ClassesPage);
+  if (screen.id === 'classes')
+    return role === 'TEACHER'
+      ? import('../../features/classes/my-classes.page').then((m) => m.MyClassesPage)
+      : import('../../features/admin/classes.page').then((m) => m.ClassesPage);
+  if (screen.id === 'class') return import('../../features/classes/class.page').then((m) => m.ClassPage);
   if (screen.id === 'teachers' && role === 'ADMIN') {
     return import('../../features/admin/teachers.page').then((m) => m.TeachersPage);
   }

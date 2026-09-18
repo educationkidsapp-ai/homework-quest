@@ -39,6 +39,7 @@ import {
   PageComponent,
   SkeletonComponent,
 } from '../../ui';
+import { StatusSquareComponent } from './status-square.component';
 import {
   type DragSource,
   type GridCell,
@@ -99,6 +100,7 @@ interface CopyRequest {
     BandComponent,
     EmptyStateComponent,
     SkeletonComponent,
+    StatusSquareComponent,
     ListStaggerDirective,
     CdkDropListGroup,
     CdkDropList,

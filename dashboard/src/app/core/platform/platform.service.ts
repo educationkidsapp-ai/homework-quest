@@ -24,8 +24,17 @@ export class PlatformService {
   private readonly auth = inject(AuthService);
   private readonly doc = inject(DOCUMENT);
 
-  private readonly resource = rxResource<PlatformSettings, true>({
-    params: () => true,
+  /**
+   * Re-read when the signed-in account changes.
+   *
+   * `GET /platform-settings` is PUBLIC — the sign-in page is branded from it before anyone has
+   * signed in — but for an authenticated caller it now answers with the **school's** overrides
+   * (#70): its timezone and its school week. Fetching once would leave every screen holding the
+   * copy this browser read while signed out, and "today" in the platform's timezone is the wrong
+   * day to plan a lesson for in a school three hours away.
+   */
+  private readonly resource = rxResource<PlatformSettings, string>({
+    params: () => this.auth.user()?.id ?? '',
     stream: () => this.api.platformSettings().pipe(catchError(() => of<PlatformSettings>({}))),
     defaultValue: {},
   });

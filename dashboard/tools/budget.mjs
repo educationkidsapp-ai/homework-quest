@@ -33,6 +33,8 @@ const ROUTES = {
   profile: ['hq-shell', 'hq-profile-page'],
   lessons: ['hq-shell', 'hq-lessons-page'],
   classes: ['hq-shell', 'hq-classes-page'],
+  'my classes': ['hq-shell', 'hq-my-classes-page'],
+  'class page': ['hq-shell', 'hq-class-page'],
   teachers: ['hq-shell', 'hq-teachers-page'],
   'new lesson': ['hq-shell', 'hq-new-lesson-page'],
   lesson: ['hq-shell', 'hq-lesson-page'],

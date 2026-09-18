@@ -180,6 +180,80 @@
       "NEEDS_ANOTHER_LOOK": "يحتاج مراجعة"
     }
   },
+  "classes": {
+    "title": "فصولي",
+    "subtitle": "كل فصل تدرّسينه، حسب الصف.",
+    "loading": "جارٍ تحميل فصولك",
+    "empty": "لا توجد لديك فصول بعد. اطلبي من الإدارة إسناد فصل إليك.",
+    "playedToday": "· لعب {{played}} من {{total}}",
+    "childrenCount": "طفلاً",
+    "addToday": "أضيفي درس اليوم",
+    "allLessons": "كل دروس هذا الفصل",
+    "newLesson": "درس جديد",
+    "header": {
+      "subtitle": "{{curriculum}} · الصف {{grade}}"
+    },
+    "tabs": {
+      "label": "الفصل",
+      "calendar": "التقويم",
+      "children": "الأطفال",
+      "gradebook": "سجل الدرجات",
+      "exams": "الاختبارات",
+      "comingSoon": "قادم في N4."
+    },
+    "calendar": {
+      "prevMonth": "الشهر السابق",
+      "nextMonth": "الشهر التالي",
+      "loading": "جارٍ تحميل الشهر",
+      "gap": "فراغ",
+      "gapsCount": "{{count}} من أيام الدراسة هذا الشهر بلا درس.",
+      "played": "لعب {{count}}",
+      "addOn": "أضيفي درساً في {{day}}",
+      "lesson": "درس",
+      "type": {
+        "homework": "واجب",
+        "exam": "اختبار"
+      }
+    },
+    "children": {
+      "title": "الأطفال",
+      "loading": "جارٍ تحميل الفصل",
+      "empty": "لا يوجد أطفال في هذا الفصل بعد.",
+      "count": "{{count}} طفلاً",
+      "never": "لم يلعب بعد",
+      "noWeakSkills": "لا شيء",
+      "active": "نشط",
+      "inactive": "غير نشط",
+      "edit": "تعديل",
+      "editOf": "{{name}}",
+      "save": "حفظ",
+      "cancel": "إلغاء",
+      "activate": "تفعيل",
+      "deactivate": "إيقاف",
+      "table": {
+        "name": "الاسم",
+        "stars": "نجوم هذا الأسبوع",
+        "level": "المستوى المُنجَز",
+        "weakSkills": "المهارات الضعيفة",
+        "lastPlayed": "آخر لعب",
+        "actions": "إجراءات",
+        "parentEmail": "بريد ولي الأمر"
+      },
+      "add": {
+        "action": "إضافة طفل",
+        "title": "إضافة طفل",
+        "name": "الاسم",
+        "email": "بريد ولي الأمر",
+        "emailHint": "اختياري — تصل ولي الأمر دعوة لمتابعة تقدّمها.",
+        "confirm": "إضافة"
+      },
+      "undo": {
+        "renamed": "تم تحديث {{name}}.",
+        "activated": "تم تفعيل {{name}} من جديد.",
+        "deactivated": "تم إيقاف {{name}}."
+      }
+    }
+  },
   "curriculum": {
     "american": "أمريكي",
     "british": "بريطاني"
@@ -251,7 +325,9 @@
     },
     "filter": {
       "label": "تصفية حسب العنوان",
-      "placeholder": "تصفية حسب العنوان"
+      "placeholder": "تصفية حسب العنوان",
+      "onlyClass": "يعرض {{class}} فقط.",
+      "clearClass": "عرض الكل"
     },
     "view": {
       "label": "قائمة أو تقويم",

@@ -1,0 +1,136 @@
+<div class="children">
+  <div class="children__toolbar">
+    <p class="children__count">
+      {{ 'classes.children.count' | transloco: { count: rows().length } }}
+    </p>
+    <!-- Behind both gates: the school must have roster editing, and the account must hold the key. -->
+    <span *hqFeature="rosterFlag">
+      <span *hqCan="'roster.teacher'">
+        <hq-button variant="primary" (pressed)="openAdd()">
+          {{ 'classes.children.add.action' | transloco }}
+        </hq-button>
+      </span>
+    </span>
+  </div>
+
+  @if (loading()) {
+    <hq-skeleton
+      [loading]="true"
+      [lines]="6"
+      height="var(--hq-size-row-height)"
+      [label]="'classes.children.loading' | transloco"
+    />
+  } @else {
+    <hq-table
+      [rows]="rows()"
+      [columns]="columns()"
+      [cellTemplate]="cell"
+      [trackBy]="trackRow"
+      [label]="'classes.children.title' | transloco"
+    >
+      <hq-empty-state table-empty [message]="'classes.children.empty' | transloco" />
+    </hq-table>
+  }
+</div>
+
+<ng-template #cell let-row let-column="column">
+  @switch (column.key) {
+    @case ('name') {
+      @if (editing() === row.childId) {
+        <hq-input
+          [label]="'classes.children.add.name' | transloco"
+          [value]="draftName()"
+          (valueChange)="draftName.set($event)"
+        />
+      } @else {
+        {{ row.name }}
+        @if (row.active === false) {
+          <span class="children__status children__status--off">
+            {{ 'classes.children.inactive' | transloco }}
+          </span>
+        }
+      }
+    }
+    @case ('starsThisWeek') {
+      {{ row.starsThisWeek }}
+    }
+    @case ('levelReached') {
+      {{ row.levelReached }}
+    }
+    @case ('weakSkills') {
+      @if (row.weakSkills.length) {
+        <span class="children__chips">
+          @for (skill of row.weakSkills; track skill) {
+            <span class="children__chip">{{ skill }}</span>
+          }
+        </span>
+      } @else {
+        <span class="children__none">{{ 'classes.children.noWeakSkills' | transloco }}</span>
+      }
+    }
+    @case ('lastPlayed') {
+      {{ lastPlayedLabel(row) }}
+    }
+    @case ('parentEmail') {
+      @if (editing() === row.childId) {
+        <hq-input
+          type="email"
+          [label]="'classes.children.add.email' | transloco"
+          [value]="draftEmail()"
+          (valueChange)="draftEmail.set($event)"
+        />
+      } @else {
+        {{ row.parentEmail ?? '—' }}
+      }
+    }
+    @case ('childId') {
+      <span class="children__actions" *hqCan="'roster.teacher'">
+        @if (editing() === row.childId) {
+          <hq-button variant="primary" [loading]="saving()" (pressed)="saveEdit(row)">
+            {{ 'classes.children.save' | transloco }}
+          </hq-button>
+          <hq-button variant="quiet" (pressed)="cancelEdit()">
+            {{ 'classes.children.cancel' | transloco }}
+          </hq-button>
+        } @else {
+          <hq-button variant="quiet" (pressed)="startEdit(row)">
+            {{ 'classes.children.edit' | transloco }}
+            <span class="hq-sr-only">{{ 'classes.children.editOf' | transloco: { name: row.name } }}</span>
+          </hq-button>
+          <hq-button variant="quiet" (pressed)="toggleActive(row)">
+            {{
+              (row.active === false ? 'classes.children.activate' : 'classes.children.deactivate') | transloco
+            }}
+            <span class="hq-sr-only">{{ 'classes.children.editOf' | transloco: { name: row.name } }}</span>
+          </hq-button>
+        }
+      </span>
+    }
+  }
+</ng-template>
+
+<hq-dialog
+  [(open)]="addOpen"
+  [title]="'classes.children.add.title' | transloco"
+  [confirmLabel]="'classes.children.add.confirm' | transloco"
+  [confirmDisabled]="newName().trim().length === 0"
+  [loading]="adding()"
+  (confirmed)="confirmAdd()"
+>
+  <div class="children__form">
+    <hq-input
+      [label]="'classes.children.add.name' | transloco"
+      [required]="true"
+      [value]="newName()"
+      (valueChange)="newName.set($event)"
+    />
+    <hq-input
+      type="email"
+      autocomplete="email"
+      [label]="'classes.children.add.email' | transloco"
+      [hint]="'classes.children.add.emailHint' | transloco"
+      [value]="newEmail()"
+      (valueChange)="newEmail.set($event)"
+    />
+  </div>
+</hq-dialog>

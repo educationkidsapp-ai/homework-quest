@@ -1,0 +1,43 @@
+<hq-page [title]="title()" [subtitle]="subtitle()" [breadcrumbs]="breadcrumbs()">
+  <div class="class-page__actions">
+    <a class="class-page__link" [routerLink]="lessonsLink" [queryParams]="lessonsParams()">
+      {{ 'classes.allLessons' | transloco }}
+    </a>
+    <!-- One primary action on this screen: the lesson she came here to plan. -->
+    <a class="class-page__primary" [routerLink]="newLessonLink" [queryParams]="newLessonParams()">
+      {{ 'classes.newLesson' | transloco }}
+    </a>
+  </div>
+
+  <hq-tabs [tabs]="tabs()" [(selected)]="tab" [label]="'classes.tabs.label' | transloco" />
+
+  <div
+    id="hq-class-panel"
+    class="class-page__panel"
+    role="tabpanel"
+    [attr.aria-labelledby]="'hq-tab-' + tab()"
+  >
+    @switch (tab()) {
+      @case ('calendar') {
+        <hq-class-calendar
+          [classId]="classId()"
+          [curriculum]="curriculum()"
+          [grade]="grade()"
+          [subject]="subject()"
+          [year]="year()"
+          [month]="month()"
+          [cells]="cells()"
+          [gaps]="gaps()"
+          [loading]="calendar.isLoading()"
+          (monthShift)="shiftMonth($event)"
+        />
+      }
+      @case ('children') {
+        <hq-class-children [classId]="classId()" />
+      }
+      @default {
+        <hq-empty-state [message]="comingSoon()" />
+      }
+    }
+  </div>
+</hq-page>
