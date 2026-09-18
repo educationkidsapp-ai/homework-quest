@@ -145,6 +145,19 @@ public class TeacherScope {
         return mine.getFirst().getSubject();
     }
 
+    /**
+     * The subject a section's screens are about, for the routes that name a class and no subject and must answer
+     * even when nobody teaches it: the caller's own assignment on it, else the section's first assignment, else the
+     * pre-V7 `classes.subject`, else null. {@link #subjectOn} is the strict form, which refuses instead.
+     */
+    public String subjectOf(Principals.User caller, ClassEntity section) {
+        var mine = assignments.findByClassIdOrderBySubjectAsc(section.getId());
+        return mine.stream().filter(a -> a.getTeacherId().equals(caller == null ? null : caller.userId())).findFirst()
+                .or(() -> isTeacher(caller) ? java.util.Optional.empty() : mine.stream().findFirst())
+                .map(TeachingAssignmentEntity::getSubject)
+                .orElseGet(() -> section.getSubject() == null || section.getSubject().isBlank() ? null : section.getSubject());
+    }
+
     /** A section of the caller's school, or 404: a legacy pre-V7 row is not a section and is never reachable. */
     public ClassEntity section(String classId) {
         return classes.findOneById(classId).filter(ClassEntity::isSection).orElseThrow(() -> ApiException.notFound("class"));

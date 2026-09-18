@@ -58,6 +58,9 @@ const SCHOOLS = [
       grades: [1, 2],
     },
     managerial: { email: 'manager.a@alnoor.test', displayName: 'Mr Omar' },
+    // The section the teacher is assigned to and the lesson is dated into (V7 / N2.1): since N2.3b a teacher's
+    // lesson is created with `POST /teacher/lessons {classId, subject}`, so the class and the assignment come first.
+    section: { curriculum: 'british', grade: 1, name: '1A' },
     lesson: { curriculum: 'british', grade: 1, subject: 'math', date: DATE_A, title: 'Counting by 2s — Al Noor' },
     parent: { uid: 'e2e-parent-a', email: 'parent.a@alnoor.test' },
     child: { name: 'Aya', avatarColor: 'sky', curriculum: 'british', grade: 1 },
@@ -93,6 +96,7 @@ const SCHOOLS = [
       grades: [1],
     },
     managerial: { email: 'manager.b@greenvalley.test', displayName: 'Mrs Dina' },
+    section: { curriculum: 'british', grade: 1, name: '1A' },
     lesson: { curriculum: 'british', grade: 1, subject: 'english', date: DATE_B, title: 'The sh sound — Green Valley' },
     parent: { uid: 'e2e-parent-b', email: 'parent.b@greenvalley.test' },
     child: { name: 'Bilal', avatarColor: 'mint', curriculum: 'british', grade: 1 },
@@ -435,8 +439,44 @@ function tokenFromInvite(invite) {
   return null;
 }
 
+/**
+ * The section a teacher teaches in, by name inside its (curriculum, grade) — `1A` of British Grade 1. Idempotent:
+ * an existing section with that name is reused, because a join code may not be regenerated for free.
+ */
+async function ensureSection(token, school, spec) {
+  const list = await call('GET', `/admin/classes?curriculum=${spec.curriculum}&grade=${spec.grade}`, { token, schoolId: school.id });
+  const found = (Array.isArray(list) ? list : []).find((k) => k.name === spec.name);
+  if (found) {
+    note(`class ${school.code}: found ${spec.name}`);
+    return found;
+  }
+  const created = await call('POST', '/admin/classes', {
+    token,
+    schoolId: school.id,
+    body: { curriculum: spec.curriculum, grade: spec.grade, name: spec.name },
+    expect: [200, 201],
+  });
+  note(`class ${school.code}: created ${spec.name}`);
+  return created;
+}
+
+/**
+ * The teaching assignment that makes the section hers (`docs/teacher-flow.md` §2). `PUT` takes the complete set she
+ * should hold rather than a delta, so sending the one pair this fixture needs is idempotent on a re-run.
+ */
+async function ensureAssignment(token, school, teacher, section, subject) {
+  if (!teacher?.id) return null;
+  const held = await call('PUT', `/admin/teachers/${teacher.id}/assignments`, {
+    token,
+    schoolId: school.id,
+    body: { assignments: [{ classId: section.id, subject }] },
+  });
+  note(`assignment ${school.code}: ${teacher.email} teaches ${section.name} · ${subject}`);
+  return Array.isArray(held) ? held : [];
+}
+
 /** A published manual lesson: create → one play → two stops → publish (the sequence in server ManualLessonTest). */
-async function ensureLesson(adminTok, school, spec, teacher) {
+async function ensureLesson(adminTok, school, spec, teacher, section) {
   // The teacher's own token proves the §5 restriction (her subject, curriculum and grade); ADMIN + X-School-Id is the
   // fallback so the rest of the fixture still exists when staff could not be given a password.
   const asTeacher = Boolean(teacher && teacher.usable);
@@ -456,12 +496,21 @@ async function ensureLesson(adminTok, school, spec, teacher) {
     return { id: found.id, title: spec.title, status: 'published', createdBy: 'existing row' };
   }
 
-  const lesson = await call('POST', '/admin/lessons', {
-    token,
-    schoolId,
-    body: { curriculum: spec.curriculum, grade: spec.grade, subject: spec.subject, date: spec.date, source: 'manual', title: spec.title },
-    expect: [200, 201],
-  });
+  // A teacher creates her lesson on a class she is assigned to (N2.1/N2.3b); an ADMIN without a teacher token still
+  // has the course-shaped `/admin/lessons` route, which is what keeps the fixture complete on a target where staff
+  // could not be given a password.
+  const lesson = asTeacher
+    ? await call('POST', '/teacher/lessons', {
+      token,
+      body: { classId: section.id, subject: spec.subject, date: spec.date, source: 'manual', title: spec.title },
+      expect: [200, 201],
+    })
+    : await call('POST', '/admin/lessons', {
+      token,
+      schoolId,
+      body: { curriculum: spec.curriculum, grade: spec.grade, subject: spec.subject, date: spec.date, source: 'manual', title: spec.title },
+      expect: [200, 201],
+    });
   const playId = lesson.plays?.[0]?.id ?? (await call('POST', `/admin/lessons/${lesson.id}/plays`, { token, schoolId, body: { level: 1, variant: 0 } })).id;
 
   for (const stop of stopsFor(spec)) {
@@ -585,7 +634,9 @@ async function main() {
 
     const teacher = await ensureStaff(token, school.id, 'TEACHER', spec.teacher);
     const managerial = await ensureStaff(token, school.id, 'MANAGERIAL', spec.managerial);
-    const lesson = await ensureLesson(token, school, spec.lesson, teacher);
+    const section = await ensureSection(token, school, spec.section);
+    await ensureAssignment(token, school, teacher, section, spec.lesson.subject);
+    const lesson = await ensureLesson(token, school, spec.lesson, teacher, section);
 
     const parent = await parentToken(spec.parent);
     const child = await ensureChild(parent.token, spec.child, spec.code);
@@ -608,6 +659,7 @@ async function main() {
         applied: theme.applied,
       },
       teacher: { id: teacher.id, email: teacher.email, usable: teacher.usable, viewAsOnly: Boolean(teacher.viewAsOnly) },
+      section: { id: section.id, name: section.name, curriculum: section.curriculum, grade: section.grade, subject: spec.lesson.subject },
       managerial: { id: managerial.id, email: managerial.email, usable: managerial.usable, viewAsOnly: Boolean(managerial.viewAsOnly) },
       lesson: { id: lesson.id, title: lesson.title, status: lesson.status, createdBy: lesson.createdBy, ...spec.lesson },
       parent: { uid: spec.parent.uid, email: spec.parent.email, auth: PARENT_AUTH },
@@ -640,6 +692,7 @@ function summary(result) {
     rows.push([`  theme`, `"${s.theme.appName}"`, `primary ${s.theme.primary} accent ${s.theme.accent} ${s.theme.fontChoice}`,
       s.theme.applied ? 'applied' : 'already set']);
     rows.push([`  teacher`, s.teacher.email, s.teacher.usable ? 'signs in' : 'NO PASSWORD (View-as only)', s.teacher.id]);
+    rows.push([`  class`, s.section.name, `${s.section.curriculum}/${s.section.grade} · ${s.section.subject}`, s.section.id]);
     rows.push([`  managerial`, s.managerial.email, s.managerial.usable ? 'signs in' : 'NO PASSWORD (View-as only)', s.managerial.id]);
     rows.push([`  lesson`, s.lesson.title, `${s.lesson.curriculum}/${s.lesson.grade}/${s.lesson.subject} ${s.lesson.status}`, s.lesson.id]);
     rows.push([`  parent`, s.parent.email, s.parent.auth, s.parent.uid]);

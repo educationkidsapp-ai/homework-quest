@@ -3,6 +3,7 @@ package quest.server.platform;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.DayOfWeek;
@@ -26,6 +27,8 @@ import quest.server.ApiTestSupport;
 class PlatformSettingsWeekTest extends ApiTestSupport {
     @Autowired PlatformSettingsService settings;
     @Autowired SchoolCalendar calendar;
+    @Autowired quest.server.tenancy.SchoolRepository schools;
+    @Autowired quest.server.auth.AdminJwtService jwt;
 
     @AfterEach void restore() throws Exception {
         save("{\"schoolWeek\":[\"SUN\",\"MON\",\"TUE\",\"WED\",\"THU\"],\"timezone\":\"Asia/Riyadh\"}", status().isOk());
@@ -50,6 +53,62 @@ class PlatformSettingsWeekTest extends ApiTestSupport {
         // a school with no override of its own follows the platform
         assertThat(calendar.of(null).days()).hasSize(5).first().isEqualTo(DayOfWeek.MONDAY);
         assertThat(calendar.of(null).zone()).isEqualTo(ZoneId.of("Europe/London"));
+    }
+
+    /**
+     * N2.3b: the dashboard lays a teacher's week out with these two fields, so a signed-in caller has to be
+     * answered <em>her school's</em> week and zone rather than the platform's — the school override is the reason
+     * both fields are overridable at all, and reading the platform row would have drawn the wrong grid for a
+     * Monday–Friday school.
+     */
+    @Test void a_signed_in_caller_is_answered_her_own_schools_week_and_zone() throws Exception {
+        var school = overriddenSchool();
+
+        var hers = json(mvc.perform(get("/platform-settings")
+                .header("Authorization", "Bearer " + jwt.issue("psw-teacher", "psw@week.test", "TEACHER", school.getId()).token()))
+                .andExpect(status().isOk())
+                .andExpect(header().stringValues("Vary", org.hamcrest.Matchers.hasItem("Authorization")))
+                .andReturn());
+        assertThat(hers.get("schoolWeek").get(0).asText()).isEqualTo("MON");
+        assertThat(hers.get("timezone").asText()).isEqualTo("Europe/London");
+
+        // …while the sign-in page, which has no token and no school, still reads the platform's own
+        var anonymous = json(mvc.perform(get("/platform-settings")).andExpect(status().isOk()).andReturn());
+        assertThat(anonymous.get("schoolWeek").get(0).asText()).isEqualTo("SUN");
+        assertThat(anonymous.get("timezone").asText()).isEqualTo("Asia/Riyadh");
+    }
+
+    /**
+     * A platform ADMIN is scoped to a school only by `X-School-Id`. Without it she is scoped to none, and the
+     * answer is the platform row she is about to edit — not the default school's override, which is what
+     * `writeSchoolId()` would have invented for her.
+     */
+    @Test void an_admin_who_named_no_school_reads_the_platform_and_one_who_did_reads_that_school() throws Exception {
+        var school = overriddenSchool();
+        String token = adminToken();
+
+        var platform = json(mvc.perform(admin(get("/platform-settings"), token)).andExpect(status().isOk()).andReturn());
+        assertThat(platform.get("schoolWeek").get(0).asText()).isEqualTo("SUN");
+        assertThat(platform.get("timezone").asText()).isEqualTo("Asia/Riyadh");
+
+        var scoped = json(mvc.perform(admin(get("/platform-settings"), token).header("X-School-Id", school.getId()))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(scoped.get("schoolWeek").get(0).asText()).isEqualTo("MON");
+        assertThat(scoped.get("timezone").asText()).isEqualTo("Europe/London");
+    }
+
+    /** A school on a Monday–Friday week in London — the override the three callers above are measured against. */
+    private quest.server.tenancy.Entities.SchoolEntity overriddenSchool() {
+        var school = schools.findById("psw-school").orElseGet(() -> {
+            var s = new quest.server.tenancy.Entities.SchoolEntity();
+            s.setId("psw-school"); s.setName("Week Academy"); s.setCode("PSWSCH");
+            s.setCurriculumOptionsJson("[\"british\"]"); s.setGradeOptionsJson("[1]");
+            s.setStatus("active"); s.setCreatedAt(java.time.Instant.now());
+            return schools.save(s);
+        });
+        school.setSchoolWeekJson("[\"MON\",\"TUE\",\"WED\",\"THU\",\"FRI\"]");
+        school.setTimezone("Europe/London");
+        return schools.save(school);
     }
 
     @Test void a_week_that_names_no_day_and_a_zone_that_does_not_exist_are_refused() throws Exception {

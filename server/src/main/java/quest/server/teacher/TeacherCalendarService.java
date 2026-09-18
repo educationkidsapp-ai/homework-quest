@@ -24,6 +24,11 @@ import quest.server.platform.SchoolCalendar;
  *
  * <p>Three statements whatever the month holds: the class, its lessons in the window, and how many children have
  * played each of them.
+ *
+ * <p>The response names the section it is about — `className`, and the `subject` the caller teaches in it, which
+ * since V7 lives on a teaching assignment and not on `classes.subject` (N2.3b): a section the Admin API created
+ * has no subject on the row at all, so the field was null for every real class. Each day carries its lesson's
+ * `title` for the same reason: the month grid should not need a request per day to name what is on one.
  */
 @Service
 public class TeacherCalendarService {
@@ -68,11 +73,12 @@ public class TeacherCalendarService {
             boolean gap = schoolDay && lesson == null && !date.isAfter(today);
             if (gap) gaps++;
             days.add(new TeacherDto.ClassCalendarDay(date.toString(), lesson == null ? null : lesson.getId(),
+                    lesson == null ? null : lesson.getTitle(),
                     lesson == null ? null : TeacherWeekService.status(lesson), lesson == null ? null : lesson.getType(),
                     lesson == null ? 0 : players.getOrDefault(lesson.getId(), 0), schoolDay, gap));
         }
-        return new TeacherDto.ClassCalendar(klass.getId(), klass.getCurriculum(), klass.getGrade(), klass.getSubject(),
-                ym.getYear(), ym.getMonthValue(), List.copyOf(days), gaps);
+        return new TeacherDto.ClassCalendar(klass.getId(), klass.getName(), klass.getCurriculum(), klass.getGrade(),
+                access.subjectOf(caller, klass), ym.getYear(), ym.getMonthValue(), List.copyOf(days), gaps);
     }
 
     /** `2026-03`, or a month number with an optional year, or neither. */
