@@ -101,6 +101,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SEED_STAFF_PASSWORD: ${{ secrets.SEED_STAFF_PASSWORD }}
         run: |
           terraform init -backend-config=envs/prod.backend -input=false
           terraform apply -var-file=envs/prod.tfvars -auto-approve -input=false -target=google_secret_manager_secret.s
