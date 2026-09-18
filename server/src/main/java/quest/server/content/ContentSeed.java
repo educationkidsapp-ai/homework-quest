@@ -34,7 +34,7 @@ public class ContentSeed implements CommandLineRunner {
             e.setStatus("published"); e.setVersion(seed.getVersion()); e.setTitle(seed.getTitle()); e.setSourceHash("seed-" + seed.getId());
             e.setCreatedBy("seed"); e.setCreatedAt(Instant.now()); e.setUpdatedAt(Instant.now()); e.setPublishedAt(Instant.now());
             e.setSchoolId(TenantContext.DEFAULT_SCHOOL);
-            e.setClassId(classes.findOrCreate(TenantContext.DEFAULT_SCHOOL, seed.getCourse().getCurriculum().name().toLowerCase(), seed.getCourse().getGrade(), seed.getSubject().name().toLowerCase()).getId());
+            e.setClassId(classes.findOrCreateSection(TenantContext.DEFAULT_SCHOOL, seed.getCourse().getCurriculum().name().toLowerCase(), seed.getCourse().getGrade()).getId());
             lessons.save(e);
             int pos = 0;
             for (var s : seed.getSkills()) {

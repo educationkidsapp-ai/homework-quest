@@ -72,7 +72,12 @@ interface AdminApi {
 @Serializable data class LessonFilter(val curriculum: Curriculum? = null, val grade: Int? = null, val subject: Subject? = null, val from: LocalDate? = null, val to: LocalDate? = null, val schoolId: String? = null, val classId: String? = null)
 /** Where a lesson's content came from. Uploads are classified from their files; `manual` lessons are written in the panel. */
 @Serializable enum class LessonSource { @SerialName("pdf") PDF, @SerialName("slides") SLIDES, @SerialName("images") IMAGES, @SerialName("manual") MANUAL }
-@Serializable data class CreateLessonRequest(val curriculum: Curriculum, val grade: Int, val subject: Subject, val date: LocalDate, val notes: String? = null, val practiceLength: Int = 7, val source: LessonSource? = null, val title: String? = null)
+/**
+ * A new lesson. [classId] is the section it goes into (V7, D14) and is what the dashboard sends; when it is absent
+ * the server resolves the section itself — an ADMIN gets the school's section for that (curriculum, grade), and a
+ * TEACHER the one class her teaching assignments name for that subject, or 403 when she teaches none.
+ */
+@Serializable data class CreateLessonRequest(val curriculum: Curriculum, val grade: Int, val subject: Subject, val date: LocalDate, val notes: String? = null, val practiceLength: Int = 7, val source: LessonSource? = null, val title: String? = null, val classId: String? = null)
 @Serializable data class LessonImage(val id: String, val url: String)
 
 /** The pipeline every uploaded lesson goes through; each step is idempotent and cache-first, so a retry resumes where it failed. */

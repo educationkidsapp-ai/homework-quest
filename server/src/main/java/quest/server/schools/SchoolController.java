@@ -27,8 +27,10 @@ import quest.server.config.ApiException;
 @Tag(name = "Schools", description = "Tenants: cards, creation and settings")
 public class SchoolController {
     private final SchoolService schools; private final SchoolWizardService wizard; private final SignInRateLimiter limiter;
-    public SchoolController(SchoolService schools, SchoolWizardService wizard, SignInRateLimiter limiter) {
-        this.schools = schools; this.wizard = wizard; this.limiter = limiter;
+    private final quest.server.classes.SectionService sections;
+    public SchoolController(SchoolService schools, SchoolWizardService wizard, SignInRateLimiter limiter,
+                            quest.server.classes.SectionService sections) {
+        this.schools = schools; this.wizard = wizard; this.limiter = limiter; this.sections = sections;
     }
 
     /** An Admin gets every card; a Teacher or Managerial user gets the one school their token belongs to. */
@@ -70,6 +72,30 @@ public class SchoolController {
     @GetMapping(value = "/schools/by-code/{code}", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("permitAll")
     public SchoolDto.JoinSchoolInfo schoolByCode(@PathVariable String code) { return schools.byCode(code); }
+
+    /**
+     * Public (V7): the narrower join step — the code printed on a <strong>class</strong>'s card turns into that
+     * class, so the parent picks no curriculum and no grade at all (`docs/teacher-flow.md` §2). It lives here rather
+     * than with the Admin class routes because it is the sibling of `by-code` above: the two public things a parent
+     * types before she has an account.
+     *
+     * <p><strong>POST, with the code in the body</strong>, for the reason `/schools/logo` below is: a join code is a
+     * credential, and a query string is the one part of a request that is logged everywhere by default — the access
+     * log, the load balancer, any forward proxy, the browser's own history. The body is logged by none of those.
+     * `/schools/by-code/{code}` keeps its path parameter only because the app already ships calling it.
+     *
+     * <p>The answer carries the class, the course and the school's name and nothing else — no roster, no teacher, no
+     * school id. Unknown, disabled and retired codes are one uniform 404, and the route is rate-limited in a bucket
+     * of its own (`classes.lookup`) so a code space cannot be swept and so throttling it never uses up a real
+     * sign-in's attempts.
+     */
+    @PostMapping(value = "/classes/lookup", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("permitAll")
+    public quest.server.classes.ClassDto.ClassLookup classByJoinCode(@RequestBody @Valid quest.server.classes.ClassDto.ClassLookupRequest body,
+                                                                     HttpServletRequest request) {
+        limiter.probe("classes.lookup", null, AuthController.clientIp(request));
+        return sections.lookup(body == null ? null : body.code());
+    }
 
     /**
      * Public (§6 screen 1): the logo and name to fade in once the person has typed their address, and nothing more.

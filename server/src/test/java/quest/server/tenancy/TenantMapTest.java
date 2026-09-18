@@ -27,6 +27,7 @@ class TenantMapTest extends ApiTestSupport {
 
     @Autowired SchoolRepository schools;
     @Autowired ClassRepository classes;
+    @Autowired quest.server.tenancy.TeachingAssignmentRepository assignments;
     @Autowired quest.server.auth.UserRepository users;
     @Autowired jakarta.persistence.EntityManagerFactory emf;
 
@@ -66,6 +67,26 @@ class TenantMapTest extends ApiTestSupport {
         assertNoNPlusOne(child.get("id").asText(), 3);
     }
 
+    /**
+     * V7 (D14): once a child sits in a section (`children.class_id` — set by the join code, by the roster, or by the
+     * migration's backfill) the map is <em>that class's</em> published lessons, every subject and every teacher.
+     * The pre-V7 rule stays as the fallback for a child who has no section yet, which the test above exercises.
+     */
+    @Test void a_child_in_a_section_sees_that_sections_lessons_and_not_her_schools_other_classes() throws Exception {
+        var token = adminToken();
+        var english = publish(token, A, "english", "2027-07-02", "Story time in 1E");
+        var math = publish(token, A, "math", "2027-07-03", "Counting in 1M");
+
+        var englishClass = classes.findById(A + ":british:1:english").orElseThrow();
+        var child = parentPost("/children", "{\"name\":\"Rania\",\"avatarColor\":\"sun\",\"curriculum\":\"british\",\"grade\":1,"
+                + "\"joinCode\":\"" + englishClass.getJoinCode() + "\"}");
+
+        var map = parentGet("/children/" + child.get("id").asText() + "/map?from=2027-07-01&to=2027-07-10&today=2027-07-02");
+        var lessonIds = new ArrayList<String>();
+        map.get("islands").forEach(i -> { if (i.hasNonNull("lessonId")) lessonIds.add(i.get("lessonId").asText()); });
+        assertThat(lessonIds).contains(english).doesNotContain(math);
+    }
+
     /** The map costs the same number of statements whatever the number of lessons (Hibernate statistics). */
     private void assertNoNPlusOne(String childId, int lessons) throws Exception {
         var stats = emf.unwrap(org.hibernate.SessionFactory.class).getStatistics();
@@ -78,11 +99,16 @@ class TenantMapTest extends ApiTestSupport {
 
     // ---------------------------------------------------------------- helpers
 
-    /** Runs the real pipeline (sample LLM) for one school and returns the published lesson id. */
+    /**
+     * Runs the real pipeline (sample LLM) for one school and returns the published lesson id. The class is named
+     * explicitly: since V7 an Admin who names none gets the school's <em>first</em> section for that course, so
+     * without this both subjects would land in the same one and the test would prove nothing.
+     */
     private String publish(String token, String schoolId, String subject, String date, String title) throws Exception {
         byte[] pdf = AdminPipelineTest.pdf(title, "Mummy is in bed. She has a cold.", "Alan and Daddy make hot soup.");
         var id = json(mvc.perform(scoped(post("/admin/lessons"), token, schoolId).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"curriculum\":\"british\",\"grade\":1,\"subject\":\"" + subject + "\",\"date\":\"" + date + "\",\"title\":\"" + title + "\"}"))
+                .content("{\"curriculum\":\"british\",\"grade\":1,\"subject\":\"" + subject + "\",\"date\":\"" + date + "\",\"title\":\"" + title
+                        + "\",\"classId\":\"" + schoolId + ":british:1:" + subject + "\"}"))
                 .andExpect(status().isCreated()).andReturn()).get("id").asText();
         mvc.perform(scoped(multipart("/admin/lessons/" + id + "/files").file(new MockMultipartFile("files", "slides.pdf", "application/pdf", pdf)), token, schoolId)).andExpect(status().isOk());
         mvc.perform(scoped(post("/admin/lessons/" + id + "/analyze"), token, schoolId)).andExpect(status().isOk());
@@ -126,8 +152,6 @@ class TenantMapTest extends ApiTestSupport {
     private void klass(String schoolId, String subject, String teacherId) {
         String id = schoolId + ":british:1:" + subject;
         if (classes.existsById(id)) return;
-        var k = new Entities.ClassEntity();
-        k.setId(id); k.setSchoolId(schoolId); k.setCurriculum("british"); k.setGrade(1); k.setSubject(subject); k.setTeacherId(teacherId); k.setCreatedAt(Instant.now());
-        classes.save(k);
+        quest.server.ClassFixtures.section(classes, assignments, id, schoolId, "british", 1, subject, teacherId);
     }
 }

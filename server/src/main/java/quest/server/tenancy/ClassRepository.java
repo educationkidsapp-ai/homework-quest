@@ -25,6 +25,24 @@ public interface ClassRepository extends JpaRepository<Entities.ClassEntity, Str
     Optional<Entities.ClassEntity> findFirstBySchoolIdAndCurriculumAndGradeAndSubjectOrderByCreatedAtAsc(String schoolId, String curriculum, int grade, String subject);
     Optional<Entities.ClassEntity> findFirstBySchoolIdAndCurriculumAndGradeAndSubjectAndTeacherIdOrderByCreatedAtAsc(String schoolId, String curriculum, int grade, String subject, String teacherId);
 
+    // -------------------------------------------------------------- sections (V7)
+
+    /** The school's sections, newest schema only: a pre-V7 leftover has no `name` and is never listed. */
+    List<Entities.ClassEntity> findBySchoolIdAndNameIsNotNullOrderByCurriculumAscGradeAscNameAsc(String schoolId);
+    List<Entities.ClassEntity> findBySchoolIdAndCurriculumAndGradeAndNameIsNotNullOrderByNameAsc(String schoolId, String curriculum, int grade);
+    Optional<Entities.ClassEntity> findFirstBySchoolIdAndCurriculumAndGradeAndNameIgnoreCase(String schoolId, String curriculum, int grade, String name);
+
+    /**
+     * The public join-code lookup, and the only query here that names no school: a parent types a code before she
+     * belongs to anything, so the row is found across tenants and answers 404 unless it is an active section of an
+     * active school whose code is still enabled. `@Query` rather than a derived name so the filter, which is off for
+     * an unauthenticated request anyway, is not what the rule depends on.
+     */
+    @Query("select k from ClassEntity k where upper(k.joinCode) = upper(:code) and k.name is not null and k.active = true and k.joinCodeEnabled = true")
+    Optional<Entities.ClassEntity> findByJoinCode(@Param("code") String code);
+
+    boolean existsByJoinCodeIgnoreCase(String joinCode);
+
     /** Filters do not apply to `em.find`, so the scoped lookup goes through a query (see `ChildRepository.findOneById`). */
     @Query("select k from ClassEntity k where k.id = :id")
     Optional<Entities.ClassEntity> findOneById(@Param("id") String id);

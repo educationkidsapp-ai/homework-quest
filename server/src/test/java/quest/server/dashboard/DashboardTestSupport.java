@@ -46,6 +46,7 @@ import quest.server.tenancy.TenantContext;
 abstract class DashboardTestSupport extends ApiTestSupport {
     @Autowired SchoolRepository schools;
     @Autowired ClassRepository classes;
+    @Autowired quest.server.tenancy.TeachingAssignmentRepository assignments;
     @Autowired LessonRepository lessons;
     @Autowired UserRepository users;
     @Autowired TeacherRepository teacherProfiles;
@@ -127,13 +128,9 @@ abstract class DashboardTestSupport extends ApiTestSupport {
 
     static String slotSubject(int index) { return COURSE_SLOTS.get(index % COURSE_SLOTS.size())[1] == 0 ? "math" : "english"; }
 
+    /** A section (V7): named, with a join code, and with the teaching assignment that makes it the teacher's. */
     ClassEntity klass(String id, String schoolId, String curriculum, int grade, String subject, String teacherId) {
-        return classes.findById(id).orElseGet(() -> {
-            var k = new ClassEntity();
-            k.setId(id); k.setSchoolId(schoolId); k.setCurriculum(curriculum); k.setGrade(grade); k.setSubject(subject);
-            k.setTeacherId(teacherId); k.setCreatedAt(Instant.now());
-            return classes.save(k);
-        });
+        return quest.server.ClassFixtures.section(classes, assignments, id, schoolId, curriculum, grade, subject, teacherId);
     }
 
     LessonEntity lesson(String id, String schoolId, String classId, String curriculum, int grade, String subject,

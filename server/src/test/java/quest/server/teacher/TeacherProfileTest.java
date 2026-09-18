@@ -77,11 +77,12 @@ class TeacherProfileTest extends TeacherTestSupport {
         assertThat(options.toString()).contains(CLASS_A1).contains(CLASS_A2)
                 .as("a class she does not own is not hers to publish into").doesNotContain("british:3:english");
 
-        // and the server refuses exactly what the chooser does not offer (§5, `TenantGuard.lessonCreator`)
+        // and the server refuses exactly what the chooser does not offer — since V7 that is "not one of her teaching
+        // assignments" rather than "not in her profile's subjects" (D14, `TenantGuard.lessonTarget`).
         var refused = json(mvc.perform(as(post("/admin/lessons").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"curriculum\":\"british\",\"grade\":1,\"subject\":\"english\",\"date\":\"2027-05-04\",\"source\":\"manual\"}"),
                 teacherToken)).andExpect(status().isForbidden()).andReturn());
-        assertThat(refused.get("message").asText()).contains("subject:");
+        assertThat(refused.get("message").asText()).contains("You teach").contains("english");
     }
 
     @Test void a_teacher_with_an_empty_profile_is_told_it_is_incomplete() throws Exception {

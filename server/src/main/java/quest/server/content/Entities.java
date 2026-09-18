@@ -38,6 +38,9 @@ public final class Entities {
         @Column(name = "tokens_saved", nullable = false) private long tokensSaved;
         @Column(name = "error_code") private String errorCode; @Column(name = "error_message") private String errorMessage;
         @Column(name = "created_by") private String createdBy;
+        /** Since V7: the teacher who wrote it (§6 screen 12), and `homework` or `exam` (N4.3 fills the second). */
+        @Column(name = "teacher_id") private String teacherId;
+        @Column(nullable = false) private String type = "homework";
         @Column(name = "created_at", nullable = false) private Instant createdAt; @Column(name = "updated_at", nullable = false) private Instant updatedAt;
         @Column(name = "published_at") private Instant publishedAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
@@ -59,6 +62,8 @@ public final class Entities {
         public String getErrorCode() { return errorCode; } public void setErrorCode(String v) { errorCode = v; }
         public String getErrorMessage() { return errorMessage; } public void setErrorMessage(String v) { errorMessage = v; }
         public String getCreatedBy() { return createdBy; } public void setCreatedBy(String v) { createdBy = v; }
+        public String getTeacherId() { return teacherId; } public void setTeacherId(String v) { teacherId = v; }
+        public String getType() { return type; } public void setType(String v) { type = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
         public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }
         public Instant getPublishedAt() { return publishedAt; } public void setPublishedAt(Instant v) { publishedAt = v; }

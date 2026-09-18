@@ -58,11 +58,22 @@ class FeatureFlagCoverageTest {
      *       over them would leave a TEACHER signed in with nothing she can do. The two parts of her dashboard that
      *       <em>are</em> features carry real flags: {@code TeacherQuestionController} is `teacherQuestions` and
      *       {@code AnnouncementController} is `announcements`, both on the class so the parent half is gated too.</li>
+     *   <li>{@code ClassAdminController} (N1.1) — a class is §2's unit of publishing and its roster is who the
+     *       lessons are for. A flag over them leaves a school with no classes to teach, no way to create one and —
+     *       since the Classes screen is where join codes live — no way for a parent to arrive at all. The part of
+     *       the roster that <em>is</em> optional carries a real flag: {@code TeacherRosterController} is
+     *       `teacher.rosterEdit`.</li>
+     *   <li>{@code TeacherAdminController} (N1.1) — this is how a teacher comes to exist, and how one locked out of
+     *       her account gets back in. A flag that could switch it off is one nobody could switch back on without a
+     *       database session, which is the same argument that exempts {@code FlagController} itself.</li>
      * </ul>
+     *
+     * <p>Those two are the only N1.1 additions here; every other controller the package adds is flagged.
      */
     private static final Set<String> INFRASTRUCTURE = Set.of(
             "FlagController", "ThemeController", "PlatformSettingsController",
-            "HomeController", "DashboardDataController", "DashboardController", "TeacherController");
+            "HomeController", "DashboardDataController", "DashboardController", "TeacherController",
+            "ClassAdminController", "TeacherAdminController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

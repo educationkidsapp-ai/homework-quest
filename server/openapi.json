@@ -252,6 +252,31 @@
         "required" : [ "code", "message" ],
         "type" : "object"
       },
+      "AssignmentInput" : {
+        "properties" : {
+          "classId" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "subject" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "classId", "subject" ],
+        "type" : "object"
+      },
+      "AssignmentsRequest" : {
+        "properties" : {
+          "assignments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AssignmentInput"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "AttemptAck" : {
         "properties" : {
           "accepted" : {
@@ -499,6 +524,37 @@
         },
         "type" : "object"
       },
+      "ClassLookup" : {
+        "properties" : {
+          "classId" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "schoolName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ClassLookupRequest" : {
+        "properties" : {
+          "code" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "code" ],
+        "type" : "object"
+      },
       "ClassStudent" : {
         "properties" : {
           "avatarColor" : {
@@ -682,6 +738,22 @@
         "required" : [ "email", "role" ],
         "type" : "object"
       },
+      "CreateRosterChildRequest" : {
+        "properties" : {
+          "name" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "parentEmail" : {
+            "type" : "string"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "name" ],
+        "type" : "object"
+      },
       "CreateSchoolRequest" : {
         "properties" : {
           "code" : {
@@ -710,6 +782,24 @@
         "required" : [ "name" ],
         "type" : "object"
       },
+      "CreateSectionRequest" : {
+        "properties" : {
+          "curriculum" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "curriculum", "name" ],
+        "type" : "object"
+      },
       "CreateTeacherQuestionRequest" : {
         "properties" : {
           "classIds" : {
@@ -734,6 +824,32 @@
           }
         },
         "required" : [ "title" ],
+        "type" : "object"
+      },
+      "CreateTeacherRequest" : {
+        "properties" : {
+          "curriculum" : {
+            "type" : "string"
+          },
+          "email" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "fullName" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          },
+          "subjects" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "email", "fullName" ],
         "type" : "object"
       },
       "CreateUserRequest" : {
@@ -765,6 +881,12 @@
       },
       "DashboardUser" : {
         "properties" : {
+          "assignments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TeachingAssignment"
+            },
+            "type" : "array"
+          },
           "createdAt" : {
             "format" : "int64",
             "type" : "integer"
@@ -1074,6 +1196,65 @@
           }
         },
         "required" : [ "h", "id", "label", "w", "x", "y" ],
+        "type" : "object"
+      },
+      "ImportPreview" : {
+        "properties" : {
+          "dryRun" : {
+            "type" : "boolean"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ImportRow"
+            },
+            "type" : "array"
+          },
+          "summary" : {
+            "$ref" : "#/components/schemas/ImportSummary"
+          }
+        },
+        "type" : "object"
+      },
+      "ImportRow" : {
+        "properties" : {
+          "line" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "parentEmail" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ImportSummary" : {
+        "properties" : {
+          "added" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "duplicate" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "invalid" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
         "type" : "object"
       },
       "Ingredient" : {
@@ -2081,6 +2262,32 @@
         "required" : [ "cue", "stage" ],
         "type" : "object"
       },
+      "RosterChild" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "hasParent" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "parentEmail" : {
+            "type" : "string"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "School" : {
         "properties" : {
           "children" : {
@@ -2965,6 +3172,41 @@
         "required" : [ "correctIds", "hotspots", "prompt" ],
         "type" : "object"
       },
+      "TeacherAccount" : {
+        "properties" : {
+          "assignments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TeachingAssignment"
+            },
+            "type" : "array"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "subjects" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "TeacherClassInfo" : {
         "properties" : {
           "classId" : {
@@ -3012,6 +3254,17 @@
           "weeksWithALesson" : {
             "format" : "int32",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "TeacherCreated" : {
+        "properties" : {
+          "teacher" : {
+            "$ref" : "#/components/schemas/TeacherAccount"
+          },
+          "temporaryPassword" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -3436,6 +3689,44 @@
         },
         "type" : "object"
       },
+      "TeachingAssignment" : {
+        "properties" : {
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "teacherId" : {
+            "type" : "string"
+          },
+          "teacherName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "TemporaryPassword" : {
+        "properties" : {
+          "temporaryPassword" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "Theme" : {
         "properties" : {
           "dishName" : {
@@ -3598,6 +3889,26 @@
         },
         "type" : "object"
       },
+      "UpdateRosterChildRequest" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "parentEmail" : {
+            "type" : "string"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "UpdateSchoolRequest" : {
         "properties" : {
           "curriculumOptions" : {
@@ -3619,6 +3930,20 @@
             "type" : "string"
           },
           "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateSectionRequest" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "joinCodeEnabled" : {
+            "type" : "boolean"
+          },
+          "name" : {
             "type" : "string"
           }
         },
@@ -3684,6 +4009,29 @@
           },
           "to" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateTeacherRequest" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          },
+          "subjects" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
           }
         },
         "type" : "object"
@@ -4011,6 +4359,336 @@
           }
         },
         "tags" : [ "Admin reports" ]
+      }
+    },
+    "/admin/children/{id}" : {
+      "patch" : {
+        "operationId" : "updateChild_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateRosterChildRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RosterChild"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/classes" : {
+      "get" : {
+        "operationId" : "classes",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "curriculum",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "grade",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/SchoolClass"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
+      },
+      "post" : {
+        "operationId" : "createSection",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateSectionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolClass"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/classes/{id}" : {
+      "patch" : {
+        "operationId" : "updateSection",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateSectionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolClass"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/classes/{id}/assignments" : {
+      "get" : {
+        "operationId" : "classAssignments",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/TeachingAssignment"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/classes/{id}/children" : {
+      "get" : {
+        "operationId" : "classChildren",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/RosterChild"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
+      },
+      "post" : {
+        "operationId" : "addChild",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateRosterChildRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RosterChild"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/classes/{id}/children/import" : {
+      "post" : {
+        "operationId" : "importRoster",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "dryRun",
+          "required" : false,
+          "schema" : {
+            "default" : true,
+            "type" : "boolean"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ImportPreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/classes/{id}/join-card.pdf" : {
+      "get" : {
+        "operationId" : "joinCard",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/pdf" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/classes/{id}/join-code" : {
+      "post" : {
+        "operationId" : "regenerateJoinCode",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolClass"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
       }
     },
     "/admin/flags" : {
@@ -5362,6 +6040,154 @@
         "tags" : [ "Admin lessons" ]
       }
     },
+    "/admin/teachers" : {
+      "get" : {
+        "operationId" : "teachers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/TeacherAccount"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teachers" ]
+      },
+      "post" : {
+        "operationId" : "createTeacher",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateTeacherRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherCreated"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Teachers" ]
+      }
+    },
+    "/admin/teachers/{id}" : {
+      "patch" : {
+        "operationId" : "updateTeacher",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateTeacherRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherAccount"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teachers" ]
+      }
+    },
+    "/admin/teachers/{id}/assignments" : {
+      "put" : {
+        "operationId" : "setAssignments",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AssignmentsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/TeachingAssignment"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teachers" ]
+      }
+    },
+    "/admin/teachers/{id}/reset-password" : {
+      "post" : {
+        "operationId" : "resetTeacherPassword",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemporaryPassword"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teachers" ]
+      }
+    },
     "/admin/usage" : {
       "get" : {
         "operationId" : "usage",
@@ -6107,6 +6933,34 @@
         "tags" : [ "Teacher questions" ]
       }
     },
+    "/classes/lookup" : {
+      "post" : {
+        "operationId" : "classByJoinCode",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ClassLookupRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClassLookup"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Schools" ]
+      }
+    },
     "/health" : {
       "get" : {
         "operationId" : "health",
@@ -6668,6 +7522,112 @@
         "tags" : [ "Teacher" ]
       }
     },
+    "/teacher/classes/{classId}/children" : {
+      "get" : {
+        "operationId" : "myClassChildren",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/RosterChild"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher roster" ]
+      },
+      "post" : {
+        "operationId" : "addToMyClass",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateRosterChildRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RosterChild"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Teacher roster" ]
+      }
+    },
+    "/teacher/classes/{classId}/children/{childId}" : {
+      "patch" : {
+        "operationId" : "updateInMyClass",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "childId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateRosterChildRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RosterChild"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher roster" ]
+      }
+    },
     "/teacher/classes/{classId}/students" : {
       "get" : {
         "operationId" : "classStudents",
@@ -6936,6 +7896,9 @@
     }
   },
   "tags" : [ {
+    "description" : "Sections, join codes and class rosters",
+    "name" : "Classes"
+  }, {
     "description" : "Questions a teacher sends to her students, and the answers",
     "name" : "Teacher questions"
   }, {
@@ -6944,6 +7907,9 @@
   }, {
     "description" : "Per-school white label (§3)",
     "name" : "Themes"
+  }, {
+    "description" : "A teacher's own class rosters",
+    "name" : "Teacher roster"
   }, {
     "description" : "Dashboard accounts, invites and View as…",
     "name" : "Dashboard users"
@@ -6959,6 +7925,9 @@
   }, {
     "description" : "The platform's own name, logo and default theme (§A)",
     "name" : "Platform settings"
+  }, {
+    "description" : "Teacher accounts and teaching assignments",
+    "name" : "Teachers"
   }, {
     "description" : "Liveness and version",
     "name" : "Health"
