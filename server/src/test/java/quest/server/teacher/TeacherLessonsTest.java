@@ -153,6 +153,33 @@ class TeacherLessonsTest extends TeacherTestSupport {
         assertThat(again.get(1).get("version").asInt()).isEqualTo(2);
     }
 
+    /**
+     * The review's case. 1B is already holding a draft of its own, on the same day and in the same subject — a
+     * lesson the other half of a shared class is working on, or one this teacher wrote and has not finished.
+     * Publishing 1A's lesson to 1B must copy, not reach across and flip that draft live.
+     */
+    @Test void publishing_to_a_class_that_holds_an_unrelated_lesson_copies_and_leaves_it_alone() throws Exception {
+        var day = LocalDate.now();
+        readyLesson("tl-mine", SCHOOL, A, "british", 1, "math", day);
+        var stranger = lesson("tl-stranger", SCHOOL, B, "british", 1, "math", day, "draft");
+
+        var results = publish("tl-mine", "[\"" + B + "\"]");
+
+        assertThat(results).hasSize(1);
+        String copyId = results.get(0).get("lessonId").asText();
+        assertThat(copyId).isNotEqualTo("tl-stranger").isNotEqualTo("tl-mine");
+        assertThat(lessons.findOneById(copyId).orElseThrow().getCopiedFromLessonId()).isEqualTo("tl-mine");
+        assertThat(lessons.findOneById("tl-stranger").orElseThrow().getStatus())
+                .as("somebody else's draft is not this teacher's to publish").isEqualTo("draft");
+        assertThat(stranger.getVersion()).isEqualTo(lessons.findOneById("tl-stranger").orElseThrow().getVersion());
+
+        // and the second publish still finds its own copy rather than making another or taking the stranger
+        var again = publish("tl-mine", "[\"" + B + "\"]");
+        assertThat(again.get(0).get("lessonId").asText()).isEqualTo(copyId);
+        assertThat(again.get(0).get("version").asInt()).isEqualTo(2);
+        assertThat(lessons.findOneById("tl-stranger").orElseThrow().getStatus()).isEqualTo("draft");
+    }
+
     @Test void unpublishing_takes_it_back_to_ready_and_the_next_publish_bumps_the_version() throws Exception {
         readyLesson("tl-version", SCHOOL, A, "british", 1, "math", LocalDate.now());
         assertThat(publish("tl-version", "[\"" + A + "\"]").get(0).get("version").asInt()).isEqualTo(1);

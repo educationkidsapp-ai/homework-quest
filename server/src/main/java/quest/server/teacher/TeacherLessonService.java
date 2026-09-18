@@ -166,6 +166,10 @@ public class TeacherLessonService {
         // The hash travels with the copy so the editor's cache badge still reads "Analyzed before"; the copy spent
         // nothing, and what the original spent is what the copy saved.
         copy.setSourceHash(source.getSourceHash()); copy.setSource(source.getSource()); copy.setType(source.getType());
+        // V8: every copy hangs off the same root, so "the copy of this lesson in 1B" is an exact question however
+        // many times it is re-published and whether the publish was driven from the original or from a copy.
+        copy.setCopiedFromLessonId(source.lineageRoot());
+        copy.setAnalysisCacheHit(true);                          // a copy never called a model: the badge is true
         copy.setTokenUsage(0); copy.setTokensSaved(source.getTokenUsage() + source.getTokensSaved());
         copy.setTeacherId(scope.isTeacher(caller) ? caller.userId() : source.getTeacherId());
         copy.setCreatedBy(caller == null ? null : caller.email());
@@ -213,8 +217,10 @@ public class TeacherLessonService {
      * 1A's row and "publish to 1A and 1B" are the same request with different lists, and guessing would make one of
      * them wrong.
      *
-     * <p>A class that already holds this lesson's day and subject is published rather than copied into again, so a
-     * re-publish bumps that class's version instead of leaving a second card behind.
+     * <p>A re-publish must bump the version of <em>this lesson's</em> copy in each class rather than leave a second
+     * card behind — and must never touch anything else. The copy is found by lineage (V8's `copied_from_lesson_id`),
+     * not by day and subject: a class holding an unrelated draft of its own on the same day would otherwise be
+     * published live by a teacher who only asked to share her own lesson.
      */
     @Transactional
     public List<TeacherDto.PublishedCopy> publish(Principals.User caller, String id, List<String> classIds) {
@@ -228,7 +234,7 @@ public class TeacherLessonService {
             else {
                 var target = scope.requireAssignment(caller, classId, lesson.getSubject());
                 requireSibling(lesson, target);
-                targetId = existingIn(target.getId(), lesson).orElseGet(() -> copyInto(caller, lesson, target).getId());
+                targetId = copyIn(target.getId(), lesson).orElseGet(() -> copyInto(caller, lesson, target).getId());
             }
             results.add(new TeacherDto.PublishedCopy(classId, targetId, republish(targetId).getVersion()));
         }
@@ -243,9 +249,9 @@ public class TeacherLessonService {
         return admin.publish(lessonId);
     }
 
-    private java.util.Optional<String> existingIn(String classId, LessonEntity lesson) {
-        return lessons.findByClassIdAndSubjectAndDateOrderByCreatedAtAsc(classId, lesson.getSubject(), lesson.getDate())
-                .stream().map(LessonEntity::getId).findFirst();
+    /** This lesson's own member of that class — itself, or a copy of its root — and nothing else's. */
+    private java.util.Optional<String> copyIn(String classId, LessonEntity lesson) {
+        return lessons.findLineageIn(classId, lesson.lineageRoot()).stream().map(LessonEntity::getId).findFirst();
     }
 
     // ---------------------------------------------------------------- rules

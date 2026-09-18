@@ -485,10 +485,10 @@ public class AdminLessonService {
         if (full && !manual(l) && !lessonFiles.isEmpty()) { pipeline.backfill(l.getId()); lessonSteps = steps.list(l.getId()); }
         var stepInfos = lessonSteps.stream().map(s -> new LessonStepInfo(LessonSteps.parse(s.getStep()), StepStatus.valueOf(s.getStatus().toUpperCase()), s.getAttempt(), s.getErrorCode(), s.getErrorMessage(), s.getUpdatedAt().toEpochMilli())).toList();
         var currentStep = l.getCurrentStep() == null ? null : LessonSteps.parse(l.getCurrentStep());
-        // N2.1's editor badge, free of a query: a source file is flagged `cache_hit` when the analysis it needed was
-        // already in `analysis_cache`, and a copy carries its source's hash without ever having paid for one.
-        boolean analyzedBefore = lessonFiles.stream().anyMatch(quest.server.content.Entities.SourceFileEntity::isCacheHit)
-                || (lessonFiles.isEmpty() && l.getSourceHash() != null);
+        // N2.1's editor badge, free of a query and with one source of truth: `AnalysisService` records it beside the
+        // cache lookup that answers it (V8), so the text path and a copy are as truthful as an upload — and a
+        // hand-written lesson that paid for its own analysis says so rather than claiming a saving it never made.
+        boolean analyzedBefore = l.isAnalysisCacheHit();
         var type = quest.api.dashboard.LessonType.valueOf(l.getType().toUpperCase());
         if (!full) return new AdminLesson(l.getId(), course, Subject.valueOf(l.getSubject().toUpperCase()), kdate(l.getDate()), status, l.getVersion(), l.getNotes(), l.getTitle(), l.getTokenUsage(), l.getTokensSaved(),
                 fileInfos, null, List.of(), List.of(), null, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, stepInfos, currentStep, List.of(),

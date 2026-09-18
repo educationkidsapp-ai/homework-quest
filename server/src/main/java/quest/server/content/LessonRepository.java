@@ -31,12 +31,17 @@ public interface LessonRepository extends JpaRepository<Entities.LessonEntity, S
 
     /**
      * Every lesson of a teacher's classes inside a window — the whole of `GET /teacher/week` and `GET /teacher/classes`
-     * in one statement, however many assignments she holds (`TeacherWeekQueryCountTest` pins it).
+     * in one statement, however many assignments she holds (`TeacherWeekTest.the_week_costs_the_same_for_ten_assignments_as_for_one` pins it).
      */
     List<Entities.LessonEntity> findByClassIdInAndDateBetweenOrderByDateAsc(Collection<String> classIds, LocalDate from, LocalDate to);
 
-    /** One class's lessons on one day, for the duplicate a publish-to-siblings must reuse instead of copying again. */
-    List<Entities.LessonEntity> findByClassIdAndSubjectAndDateOrderByCreatedAtAsc(String classId, String subject, LocalDate date);
+    /**
+     * The members of one lesson's lineage that already sit in a class: the original itself, or a copy of it (V8's
+     * `copied_from_lesson_id`). This is what publish-to-siblings reuses instead of copying again — matching on day
+     * and subject instead would publish an unrelated draft the class happened to be holding.
+     */
+    @Query("select l from LessonEntity l where l.classId = :classId and (l.id = :root or l.copiedFromLessonId = :root) order by l.createdAt asc")
+    List<Entities.LessonEntity> findLineageIn(@Param("classId") String classId, @Param("root") String root);
 
     /**
      * Look a lesson up through a query, not `em.find`: Hibernate filters do not apply to `find`, so a `findById` would

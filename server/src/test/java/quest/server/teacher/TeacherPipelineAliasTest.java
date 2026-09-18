@@ -84,6 +84,35 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
         assertThat(again.get("tokensSaved").asLong()).isEqualTo(lesson.get("tokenUsage").asLong());
     }
 
+    /**
+     * The badge on the path that has no source files. A hand-written lesson types its text, and the first one to
+     * type a given text pays for the analysis — so it must say `analyzedBefore: false`, however tempting it is to
+     * infer the badge from "there are no files, so somebody else must have done the work". The second lesson with
+     * the same text is the cache hit the badge is actually for.
+     */
+    @Test void the_badge_is_false_for_the_first_typed_lesson_and_true_for_the_second() throws Exception {
+        String text = "Ben flies a red kite on a windy hill and it gets away from him.";
+
+        String first = typed(LocalDate.now().plusDays(2), text);
+        var one = teacherLesson(first);
+        assertThat(one.get("source").asText()).isEqualTo("manual");
+        assertThat(one.get("analyzedBefore").asBoolean()).as("the first lesson paid for this analysis").isFalse();
+        assertThat(one.get("tokenUsage").asLong()).isGreaterThan(0);
+
+        String second = typed(LocalDate.now().plusDays(3), text);
+        var two = teacherLesson(second);
+        assertThat(two.get("analyzedBefore").asBoolean()).isTrue();
+        assertThat(two.get("tokenUsage").asLong()).isZero();
+        assertThat(two.get("tokensSaved").asLong()).isEqualTo(one.get("tokenUsage").asLong());
+
+        // and a hand-written lesson that never analysed anything claims nothing
+        var blank = json(mvc.perform(as(post("/teacher/lessons").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"classId\":\"" + HERS + "\",\"subject\":\"english\",\"date\":\"" + LocalDate.now().plusDays(4)
+                        + "\",\"source\":\"manual\",\"title\":\"Empty\"}"), teacherToken))
+                .andExpect(status().isCreated()).andReturn());
+        assertThat(blank.get("analyzedBefore").asBoolean()).isFalse();
+    }
+
     @Test void every_alias_refuses_another_teachers_lesson() throws Exception {
         var hers = readyLesson("tp-hers", SCHOOL, HERS, "british", 1, "english", LocalDate.now());
         String stopId = stops.findByLessonId(hers.getId()).getFirst().getId();
@@ -150,6 +179,18 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
                 .put("subject", s.get("subject").asText()).put("method", s.get("method").asText());
         mvc.perform(as(put("/teacher/lessons/" + id + "/skills").contentType(MediaType.APPLICATION_JSON)
                 .content(skills.toString()), teacherToken)).andExpect(status().isOk());
+        await(id, "review");
+        return id;
+    }
+
+    /** A hand-written lesson whose stops are generated from typed text — the path with no source files. */
+    private String typed(LocalDate date, String text) throws Exception {
+        String id = json(mvc.perform(as(post("/teacher/lessons").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"classId\":\"" + HERS + "\",\"subject\":\"english\",\"date\":\"" + date
+                        + "\",\"source\":\"manual\",\"title\":\"Typed\"}"), teacherToken))
+                .andExpect(status().isCreated()).andReturn()).get("id").asText();
+        mvc.perform(as(post("/teacher/lessons/" + id + "/generate-from-text").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"text\":\"" + text + "\"}"), teacherToken)).andExpect(status().isOk());
         await(id, "review");
         return id;
     }

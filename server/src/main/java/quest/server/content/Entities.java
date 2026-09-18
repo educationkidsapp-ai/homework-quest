@@ -41,6 +41,9 @@ public final class Entities {
         /** Since V7: the teacher who wrote it (§6 screen 12), and `homework` or `exam` (N4.3 fills the second). */
         @Column(name = "teacher_id") private String teacherId;
         @Column(nullable = false) private String type = "homework";
+        /** V8: the lesson this one was copied from (§4's drag-to-copy), and whether its analysis came from the cache. */
+        @Column(name = "copied_from_lesson_id") private String copiedFromLessonId;
+        @Column(name = "analysis_cache_hit", nullable = false) private boolean analysisCacheHit;
         @Column(name = "created_at", nullable = false) private Instant createdAt; @Column(name = "updated_at", nullable = false) private Instant updatedAt;
         @Column(name = "published_at") private Instant publishedAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
@@ -64,6 +67,10 @@ public final class Entities {
         public String getCreatedBy() { return createdBy; } public void setCreatedBy(String v) { createdBy = v; }
         public String getTeacherId() { return teacherId; } public void setTeacherId(String v) { teacherId = v; }
         public String getType() { return type; } public void setType(String v) { type = v; }
+        public String getCopiedFromLessonId() { return copiedFromLessonId; } public void setCopiedFromLessonId(String v) { copiedFromLessonId = v; }
+        public boolean isAnalysisCacheHit() { return analysisCacheHit; } public void setAnalysisCacheHit(boolean v) { analysisCacheHit = v; }
+        /** The lesson every copy of this one hangs off: itself, unless it is already a copy. */
+        public String lineageRoot() { return copiedFromLessonId == null ? id : copiedFromLessonId; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
         public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }
         public Instant getPublishedAt() { return publishedAt; } public void setPublishedAt(Instant v) { publishedAt = v; }

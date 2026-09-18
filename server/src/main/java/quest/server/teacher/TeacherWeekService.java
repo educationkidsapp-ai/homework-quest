@@ -30,7 +30,7 @@ import quest.server.tenancy.TenantContext;
  * which is thirty-five for one teacher of seven classes and is what makes a grid feel broken. Everything here is
  * read in bulk instead: her assignments, the sections they name, the lessons of those sections inside the week, the
  * children in each of them, how many children have played each lesson, and the school's own week and timezone. The
- * count does not move between one assignment and ten, which `TeacherWeekQueryCountTest` asserts by measuring it.
+ * count does not move between one assignment and ten, which `TeacherWeekTest.the_week_costs_the_same_for_ten_assignments_as_for_one` asserts by measuring it.
  *
  * <p><strong>The week is the school's.</strong> Its days and its first day come from {@link SchoolCalendar}, so the
  * grid is Sunday–Thursday for the Gulf schools and whatever a Monday–Friday school configures for that one —

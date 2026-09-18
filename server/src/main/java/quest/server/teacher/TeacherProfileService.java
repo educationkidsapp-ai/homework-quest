@@ -15,9 +15,7 @@ import quest.server.auth.UserRepository;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
 import quest.server.platform.SafeText;
-import quest.server.tenancy.ClassRepository;
 import quest.server.tenancy.Entities.ClassEntity;
-import quest.server.tenancy.TenantContext;
 
 /**
  * §5's `Teacher(userId, displayName, photoUrl, subjects[], curriculum, grades[], bioAr?, bioEn?)` — the half of a
@@ -39,12 +37,11 @@ public class TeacherProfileService {
     /** A teacher's biography on the island and the school page; two paragraphs, not an essay. */
     private static final int MAX_BIO = 2000;
 
-    private final UserRepository users; private final TeacherRepository profiles; private final ClassRepository classes;
-    private final TenantContext tenant; private final Json json;
+    private final UserRepository users; private final TeacherRepository profiles; private final TeacherAccess access;
+    private final Json json;
 
-    public TeacherProfileService(UserRepository users, TeacherRepository profiles, ClassRepository classes,
-                                 TenantContext tenant, Json json) {
-        this.users = users; this.profiles = profiles; this.classes = classes; this.tenant = tenant; this.json = json;
+    public TeacherProfileService(UserRepository users, TeacherRepository profiles, TeacherAccess access, Json json) {
+        this.users = users; this.profiles = profiles; this.access = access; this.json = json;
     }
 
     // ---------------------------------------------------------------- read
@@ -106,7 +103,9 @@ public class TeacherProfileService {
         List<Integer> grades = profile == null ? List.<Integer>of() : json.read(profile.getGradesJson(), new TypeReference<List<Integer>>() {});
         String curriculum = profile == null ? null : profile.getCurriculum();
         var name = users.findById(caller.userId()).map(UserEntity::getDisplayName).orElse(null);
-        var mine = classes.findBySchoolIdAndTeacherIdOrderByCurriculumAscGradeAscSubjectAsc(tenant.writeSchoolId(), caller.userId()).stream()
+        // Through TeacherScope, not `classes.teacher_id`: V7 stopped writing that column, so the pre-V7 query this
+        // used answered an empty chooser for every teacher created since. Her classes are her assignments now.
+        var mine = access.ownedClasses(caller).stream()
                 .map(k -> new quest.server.dashboard.SchoolDataDto.SchoolClass(k.getId(), k.getSchoolId(), k.getCurriculum(), k.getGrade(),
                         k.getSubject(), k.getTeacherId(), name, k.getCreatedAt().toEpochMilli()))
                 .toList();
@@ -114,10 +113,11 @@ public class TeacherProfileService {
         return new TeacherDto.TeacherOptions(curriculum, grades, subjects, mine, complete);
     }
 
-    /** Every class of hers, for the Home and My lessons screens; used by the other services in this package too. */
-    public List<ClassEntity> myClasses(Principals.User caller) {
-        return classes.findBySchoolIdAndTeacherIdOrderByCurriculumAscGradeAscSubjectAsc(tenant.writeSchoolId(), caller.userId());
-    }
+    /**
+     * Every class of hers, for the Home and My lessons screens. Her assignments since V7 — `classes.teacher_id` is
+     * not written any more, so the query this used to run answered nothing for a teacher created after it.
+     */
+    public List<ClassEntity> myClasses(Principals.User caller) { return access.ownedClasses(caller); }
 
     // ---------------------------------------------------------------- helpers
 

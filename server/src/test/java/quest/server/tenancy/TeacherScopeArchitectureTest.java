@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import java.util.ArrayDeque;
@@ -61,6 +62,81 @@ class TeacherScopeArchitectureTest {
         assertThat(offenders)
                 .as("read `teaching_assignments` through TeacherScope, not straight from the repository")
                 .containsExactly("SectionService", "TeachingStaffService");
+    }
+
+    /**
+     * The class-level rule above cannot see which <em>handler</em> forgot the check: a controller keeps passing it
+     * as long as one of its methods still reaches {@link TeacherScope}. This is the same rule per handler.
+     *
+     * <p>Every method that serves a `/teacher/**` route must reach one of {@link #CHECKS} — the calls that actually
+     * narrow what the caller may touch — through the methods it calls. {@link TeacherScope#require} is deliberately
+     * <strong>not</strong> one of them: it turns a missing token into a 401 and says nothing about whose class,
+     * lesson or child is in the path, so a handler that calls only that is exactly the bug this catches. Dropping
+     * `teacherLessons.requireId(...)` from one alias and keeping `TeacherScope.require(caller)` fails here.
+     */
+    @Test void every_teacher_handler_reaches_a_scope_check() {
+        var missing = new ArrayList<String>();
+        int handlers = 0;
+        for (JavaClass controller : teacherControllers())
+            for (JavaMethod method : controller.getMethods()) {
+                if (!teacherRoute(controller, method)) continue;
+                handlers++;
+                if (EXEMPT.contains(controller.getSimpleName() + "#" + method.getName())) continue;
+                if (!reachesACheck(method)) missing.add(controller.getSimpleName() + "#" + method.getName());
+            }
+        assertThat(handlers).as("the sweep must actually find the /teacher/** handlers").isGreaterThan(20);
+        assertThat(missing)
+                .as("a /teacher/** handler must resolve the class, lesson or child it names through TeacherScope "
+                        + "(%s) — TeacherScope.require only checks that somebody is signed in", CHECKS)
+                .isEmpty();
+    }
+
+    /** The methods of {@link TeacherScope} that narrow what a caller reaches. `require` is not one of them. */
+    private static final Set<String> CHECKS =
+            Set.of("requireClass", "requireAssignment", "requireLesson", "assignmentsOf", "classesOf", "subjectOn", "section");
+
+    /**
+     * The handlers that name nothing but a row the caller owns, so there is no class to resolve: her own profile is
+     * reached by the user id in her token, and an announcement or a question carries `teacher_id` and is matched
+     * against that id in its own service (`AnnouncementService.delete`, `TeacherQuestionService.mine`). Every other
+     * `/teacher/**` handler names a class, a lesson, a stop, a play or a child, and each of those goes through a
+     * check. Adding a name here is the thing to argue about in review — the rule found two real V7 regressions the
+     * class-level one hid (`teacherOptions` and `studentTimeline` were both still reading `classes.teacher_id`),
+     * and an exemption is how that stops happening.
+     */
+    private static final Set<String> EXEMPT = Set.of(
+            "TeacherController#myTeacherProfile", "TeacherController#saveMyTeacherProfile",
+            "AnnouncementController#teacherAnnouncements", "AnnouncementController#deleteAnnouncement",
+            "TeacherQuestionController#teacherQuestions", "TeacherQuestionController#sendTeacherQuestion",
+            "TeacherQuestionController#teacherQuestionResults");
+
+    /** True when this method serves at least one route under `/teacher`. */
+    private static boolean teacherRoute(JavaClass controller, JavaMethod method) {
+        var reflected = method.reflect();
+        var mapping = AnnotatedElementUtils.findMergedAnnotation(reflected, RequestMapping.class);
+        if (mapping == null) return false;
+        var prefixes = paths(AnnotatedElementUtils.findMergedAnnotation(controller.reflect(), RequestMapping.class));
+        for (String prefix : prefixes.isEmpty() ? List.of("") : prefixes)
+            for (String path : paths(mapping)) if ((prefix + path).startsWith("/teacher")) return true;
+        return false;
+    }
+
+    /** Breadth-first over the call graph inside `quest.server`, looking for one of {@link #CHECKS}. */
+    private static boolean reachesACheck(JavaMethod from) {
+        Set<String> seen = new LinkedHashSet<>();
+        var queue = new ArrayDeque<JavaMethod>();
+        queue.add(from);
+        while (!queue.isEmpty()) {
+            var current = queue.poll();
+            if (!seen.add(current.getFullName())) continue;
+            if (current.getOwner().getName().equals(SCOPE) && CHECKS.contains(current.getName())) return true;
+            for (var call : current.getMethodCallsFromSelf()) {
+                var owner = call.getTargetOwner();
+                if (!owner.getPackageName().startsWith("quest.server")) continue;
+                call.getTarget().resolveMember().ifPresent(target -> { if (!seen.contains(target.getFullName())) queue.add(target); });
+            }
+        }
+        return false;
     }
 
     /** Every `@RestController` with at least one mapping under `/teacher`. */
