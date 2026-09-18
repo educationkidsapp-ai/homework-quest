@@ -19,6 +19,9 @@ const ADMIN_PERMISSIONS = {
   readOnly: false,
 };
 
+/** The stop editor validates asynchronously; CI's runner is slower than this Mac. */
+const VALIDATION_TIMEOUT = 10_000;
+
 const TEACHER_PERMISSIONS = {
   role: 'TEACHER',
   permissions: ['lesson.read', 'lesson.write', 'lesson.publish', 'play.write', 'stop.write'],
@@ -303,7 +306,11 @@ describe('Lesson', () => {
     const json: HTMLTextAreaElement = screen.getByLabelText(/The whole stop/);
     expect(JSON.parse(json.value)).toMatchObject({ title: 'Pick the biggest' });
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save the stop' })).toBeEnabled());
+    // Ajv and the schema load on demand behind a 250 ms debounce, so "valid" lands a few
+    // hundred milliseconds late — longer on a CI runner than on this Mac.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save the stop' })).toBeEnabled(), {
+      timeout: VALIDATION_TIMEOUT,
+    });
     await userEvent.click(screen.getByRole('button', { name: 'Save the stop' }));
 
     const request = backend.expectOne('/admin/stops/st-1');
@@ -321,7 +328,7 @@ describe('Lesson', () => {
     await userEvent.clear(json);
     await userEvent.paste(JSON.stringify(withoutQuestion, null, 2));
 
-    const error = await screen.findByRole('alert');
+    const error = await screen.findByRole('alert', {}, { timeout: VALIDATION_TIMEOUT });
     expect(error).toHaveTextContent('question');
     expect(error).not.toHaveTextContent('statement');
     expect(screen.getByRole('button', { name: 'Save the stop' })).toBeDisabled();
@@ -335,7 +342,9 @@ describe('Lesson', () => {
     await userEvent.clear(json);
     await userEvent.paste(JSON.stringify({ ...parsed, id: 'st-renamed' }, null, 2));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('The id cannot change');
+    expect(await screen.findByRole('alert', {}, { timeout: VALIDATION_TIMEOUT })).toHaveTextContent(
+      'The id cannot change',
+    );
     expect(screen.getByRole('button', { name: 'Save the stop' })).toBeDisabled();
   });
 
