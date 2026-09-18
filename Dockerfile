@@ -32,6 +32,9 @@ RUN corepack enable && apk add --no-cache 'openjdk17-jre-headless=~17'
 COPY dashboard/package.json dashboard/pnpm-lock.yaml ./
 COPY dashboard/tools ./tools
 COPY server/openapi.json /src/server/openapi.json
+# `postinstall` also runs `pnpm schemas` (tools/schemas.mjs), which precompiles shared-api's Play.schema.json into the
+# stop editor's validators (N2.4a) and resolves it as dashboard/../shared-api/src/commonMain/resources/schemas.
+COPY shared-api/src/commonMain/resources/schemas /src/shared-api/src/commonMain/resources/schemas
 RUN --mount=type=cache,target=/pnpm-store \
     corepack pnpm install --frozen-lockfile --store-dir /pnpm-store
 # design/tokens.json is only read by `pnpm tokens`; src/styles/_tokens.generated.scss is committed, so the build

@@ -19,3 +19,6 @@ dashboard/dist
 dashboard/.angular
 # generated inside the image by `pnpm install` (postinstall → gen:api); never copy a local one in
 dashboard/src/app/api/generated
+# generated inside the image by `pnpm install` (postinstall → pnpm schemas); never copy a local one in
+dashboard/src/app/features/lessons/stop-validators.generated.js
+dashboard/src/app/features/lessons/stop-validators.generated.d.ts
