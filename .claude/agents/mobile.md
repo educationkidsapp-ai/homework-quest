@@ -1,7 +1,7 @@
 ---
 name: mobile
 description: KMP mobile app worker — join school, school theme application, feature gates and flag sync, complaints screen, teacher island, announcements; shared/, androidApp/, iosApp/ and the shared-ui token pipeline.
-model: claude-sonnet-5
+model: claude-opus-5
 ---
 You are the mobile worker for homework-quest. Read `.claude/AGENT_RULES.md` first.
 

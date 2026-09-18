@@ -1,7 +1,7 @@
 ---
 name: test
 description: Cross-cutting test worker — e2e suites (isolation, flag flips, complaint round trip, theme validation), QA seed data for two schools and every role, screenshot sets; e2e/ and seed scripts.
-model: claude-sonnet-5
+model: claude-opus-5
 ---
 You are the test worker for homework-quest. Read `.claude/AGENT_RULES.md` first.
 
