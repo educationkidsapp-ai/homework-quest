@@ -143,7 +143,7 @@ public class TeachingStaffService {
             var section = sections.section(input.classId());
             String subject = SectionService.oneOf(input.subject(), SUBJECTS, "subject");
             sectionsById.put(section.getId(), section);
-            wanted.put(section.getId() + " " + subject, new ClassDto.AssignmentInput(section.getId(), subject));
+            wanted.put(section.getId() + "|" + subject, new ClassDto.AssignmentInput(section.getId(), subject));
         }
         for (var input : wanted.values()) {
             var taken = assignments.findByClassIdAndSubject(input.classId(), input.subject())
@@ -156,11 +156,11 @@ public class TeachingStaffService {
         var existing = assignments.findBySchoolIdAndTeacherIdOrderByClassIdAscSubjectAsc(schoolId, user.getId());
         var keep = new LinkedHashSet<String>();
         for (var row : existing) {
-            String key = row.getClassId() + " " + row.getSubject();
+            String key = row.getClassId() + "|" + row.getSubject();
             if (wanted.containsKey(key)) keep.add(key); else assignments.delete(row);
         }
         for (var input : wanted.values()) {
-            String key = input.classId() + " " + input.subject();
+            String key = input.classId() + "|" + input.subject();
             if (keep.contains(key)) continue;
             var row = new TeachingAssignmentEntity();
             row.setId(UUID.randomUUID().toString()); row.setSchoolId(schoolId); row.setTeacherId(user.getId());

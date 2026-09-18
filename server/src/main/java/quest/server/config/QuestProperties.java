@@ -14,7 +14,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "quest")
 public record QuestProperties(Auth auth, Llm llm, Anthropic anthropic, DeepSeek deepseek, Storage storage, Admin admin, Mail mail,
-                              String version, String publicUrl, String dashboardUrl, String dashboardDir) {
+                              Seed seed, String version, String publicUrl, String dashboardUrl, String dashboardDir) {
     /** fake=true accepts `Bearer fake-token-<uid>` (development without Firebase). */
     public record Auth(boolean fake, String firebaseCredentials, String jwtSecret, long jwtHours,
                        long accessMinutes, long refreshDays, long resetMinutes, long inviteDays, long impersonateMinutes,
@@ -42,4 +42,11 @@ public record QuestProperties(Auth auth, Llm llm, Anthropic anthropic, DeepSeek 
     public record Admin(String seedEmail, String seedPassword) {}
     /** provider: log (default) | resend. `api-key` is RESEND_API_KEY, `from` the verified sender. */
     public record Mail(String provider, String apiKey, String from) {}
+    /**
+     * `school` (SEED_SCHOOL) is what lets {@link quest.server.classes.SchoolSeed} load `resources/seed/*.csv` into the
+     * default school; it is off everywhere but `qa` and `h2`, and `prod` cannot switch it on because the seed is not a
+     * bean there. `staff-password` (SEED_STAFF_PASSWORD) is the one password the seeded teachers share so an e2e run
+     * can sign in as any of them — blank leaves each of them with her own one-time password, which nothing prints.
+     */
+    public record Seed(boolean school, String staffPassword) {}
 }

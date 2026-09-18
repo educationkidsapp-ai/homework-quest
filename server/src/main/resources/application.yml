@@ -76,6 +76,12 @@ quest:
   admin:
     seed-email: ${ADMIN_EMAIL:}
     seed-password: ${ADMIN_PASSWORD:}
+  seed:
+    # SchoolSeed: 30 classes / 40 teachers / 600 children from resources/seed/*.csv, into the default school. Off here,
+    # on in `qa` and `h2`; `prod` has no such bean at all. SEED_STAFF_PASSWORD is the one password the seeded teachers
+    # share (must_change_password cleared) so an e2e run can sign in as any of them; blank = per-teacher, unprintable.
+    school: ${SEED_SCHOOL:false}
+    staff-password: ${SEED_STAFF_PASSWORD:}
 
 logging.level:
   quest: INFO
@@ -100,6 +106,7 @@ quest:
   auth.fake: true
   cors-origins: "*"
   llm.provider: ${LLM_PROVIDER:fake}
+  seed.school: ${SEED_SCHOOL:true}
 
 ---
 spring.config.activate.on-profile: test
@@ -126,6 +133,7 @@ spring:
 quest:
   auth.fake: false
   storage.kind: gcs
+  seed.school: ${SEED_SCHOOL:true}
 logging.level:
   quest: DEBUG
 
