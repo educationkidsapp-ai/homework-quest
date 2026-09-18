@@ -62,7 +62,7 @@
           [label]="'lessons.view.label' | transloco"
         />
 
-        @if (hasFailed()) {
+        @if (hasFailed() && canDeleteFailed()) {
           <hq-button *hqCan="'lesson.delete'" variant="quiet" (pressed)="requestDeleteAllFailed()">
             {{ 'lessons.deleteAllFailed' | transloco }}
           </hq-button>

@@ -7,7 +7,6 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import {
   type AdminLesson,
-  AdminLessonsApi,
   AdminLessonStatusEnum,
   AdminReportsApi,
   type CalendarResponse,
@@ -30,6 +29,7 @@ import {
   type Tab,
   type TableColumn,
 } from '../../ui';
+import { LessonApiService } from './lesson-api.service';
 import { LessonsCalendarComponent } from './lessons-calendar.component';
 import {
   type Curriculum,
@@ -94,7 +94,7 @@ const POLL_MS = 2500;
   styleUrl: './lessons.page.scss',
 })
 export class LessonsPage {
-  private readonly lessonsApi = inject(AdminLessonsApi);
+  private readonly lessonsApi = inject(LessonApiService);
   private readonly reportsApi = inject(AdminReportsApi);
   private readonly teacherApi = inject(TeacherApi);
   private readonly auth = inject(AuthService);
@@ -111,6 +111,8 @@ export class LessonsPage {
 
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
   protected readonly basePath = computed(() => (this.isAdmin() ? '/admin/lessons' : '/teacher/lessons'));
+  /** "Delete all failed" is a tenant-wide sweep with no teacher alias — see `LessonApiService`. */
+  protected readonly canDeleteFailed = computed(() => this.lessonsApi.supportsDeleteFailed());
   protected readonly pageTitle = computed(() => {
     this.lang();
     return this.t(this.isAdmin() ? 'nav.allLessons' : 'nav.myLessons');
@@ -209,14 +211,11 @@ export class LessonsPage {
     stream: ({ params }) => {
       const [course, schoolId] = params.split('|');
       const [curriculum, gradeText] = (course ?? '').split('/');
-      return this.lessonsApi.listLessons(
-        curriculum ?? '',
-        Number(gradeText ?? ''),
-        undefined,
-        undefined,
-        undefined,
-        schoolId || undefined,
-      );
+      return this.lessonsApi.list({
+        curriculum: curriculum ?? '',
+        grade: Number(gradeText ?? ''),
+        schoolId: schoolId || undefined,
+      });
     },
     defaultValue: [],
   });

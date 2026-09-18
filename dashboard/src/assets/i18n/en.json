@@ -439,7 +439,8 @@
         "chooseCourse": "Choose a curriculum, grade and subject to continue.",
         "fixDate": "Pick a valid lesson day.",
         "chooseSource": "Choose how to add the content.",
-        "addFile": "Add at least one file."
+        "addFile": "Add at least one file.",
+        "chooseClass": "Choose a class to continue."
       },
       "createDefault": "Create the lesson",
       "create": {
@@ -456,7 +457,11 @@
       "created": "Lesson created — its pipeline starts now.",
       "createdManual": "Lesson created — write its questions below.",
       "rollback": "The upload failed, so the draft lesson was removed: {{message}}",
-      "rollbackFailed": "The upload failed ({{message}}) and the draft lesson could not be removed. Delete it from the list."
+      "rollbackFailed": "The upload failed ({{message}}) and the draft lesson could not be removed. Delete it from the list.",
+      "classField": "Class",
+      "classPlaceholder": "Choose a class",
+      "classOption": "{{class}} · {{subject}} · {{curriculum}}",
+      "noClasses": "You have no classes yet. The office assigns them."
     },
     "detail": {
       "stepState": {

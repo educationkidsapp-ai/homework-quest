@@ -96,7 +96,7 @@
 
       <hq-card [title]="'lessons.detail.files.title' | transloco">
         <div card-actions class="lesson__files-actions">
-          @if (hasUndeletedFiles() && canDeleteFiles()) {
+          @if (hasUndeletedFiles()) {
             <hq-button *hqCan="'lesson.write'" variant="quiet" [disabled]="busy() !== null" (pressed)="deleteAllFiles()">
               {{ 'lessons.detail.files.deleteAll' | transloco }}
             </hq-button>
@@ -258,7 +258,7 @@
               </div>
             } @else {
               <p class="lesson__empty">{{ 'lessons.detail.plays.noLevel' | transloco }}</p>
-              @if (missingPlay() && canCreateLevel()) {
+              @if (missingPlay()) {
                 <hq-button *hqCan="'play.write'" [disabled]="busy() !== null" (pressed)="createLevel()">
                   {{ 'lessons.detail.editor.createLevel' | transloco }}
                 </hq-button>

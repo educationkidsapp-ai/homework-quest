@@ -8,7 +8,6 @@ import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, injec
 import { rxResource } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { of } from 'rxjs';
 import {
   type AdminLesson,
   type AdminPlay,
@@ -328,10 +327,7 @@ export class LessonPage {
     const lesson = this.lesson();
     if (!lesson || files.length === 0) return;
     this.busy.set(this.t('lessons.detail.busy.removingFiles'));
-    // `DELETE /teacher/lessons/{id}/files` has no alias — a teacher's replace is an upload over
-    // the old file, which the pipeline re-analyzes anyway. See `LessonApiService`'s header.
-    const cleared = this.canDeleteFiles() ? this.api.deleteFiles(lesson.id) : of(null);
-    cleared.subscribe({
+    this.api.deleteFiles(lesson.id).subscribe({
       next: () => {
         this.busy.set(this.t('lessons.new.busy.uploading'));
         this.api.uploadFiles(lesson.id, files).subscribe({
@@ -355,7 +351,6 @@ export class LessonPage {
 
   // ---- files section ------------------------------------------------------------------------
 
-  protected readonly canDeleteFiles = computed(() => this.api.supportsFileDeletion());
   protected readonly files = computed(() => this.lesson()?.files ?? []);
   protected readonly hasUndeletedFiles = computed(() => this.files().some((file) => !file.deleted));
 
@@ -685,7 +680,6 @@ export class LessonPage {
   protected readonly isManual = computed(() => this.lesson()?.source === AdminLessonSourceEnum.MANUAL);
   /** A manual lesson never ran the pipeline, so its (empty) step strip says nothing worth space. */
   protected readonly showSteps = computed(() => !this.isManual() && this.stripSteps().length > 0);
-  protected readonly canCreateLevel = computed(() => this.api.supportsCreateLevel());
 
   /** The tab that is on screen but has no play behind it yet — what "Create level" would make. */
   protected readonly missingPlay = computed(() => {

@@ -109,9 +109,14 @@ async function renderLessonAs(
   return { rendered, backend };
 }
 
-/** An Admin reads `/admin/**`; everyone else reads the teacher aliases. */
+/**
+ * A teacher reads the `/teacher/**` aliases; everyone else reads `/admin/**`.
+ *
+ * MANAGERIAL is on the Admin side, not the teacher one: a manager holds no teaching
+ * assignment, so every `/teacher/**` read of hers would 404 — see `LessonApiService.isAdmin`.
+ */
 function lessonUrlFor(user: typeof ADMIN_USER): string {
-  return user.role === 'ADMIN' ? '/admin/lessons/l-1' : '/teacher/lessons/l-1';
+  return user.role === 'TEACHER' ? '/teacher/lessons/l-1' : '/admin/lessons/l-1';
 }
 
 /** A schema-valid `choice` stop, so the editor's live validation has something real to chew on. */

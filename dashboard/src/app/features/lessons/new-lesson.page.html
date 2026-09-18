@@ -14,6 +14,19 @@
     <hq-card [eyebrow]="'lessons.new.course' | transloco">
       @if (optionsLoading()) {
         <hq-skeleton [loading]="true" [lines]="3" [label]="'lessons.loading' | transloco" />
+      } @else if (noClasses()) {
+        <hq-empty-state [message]="'lessons.new.noClasses' | transloco" />
+      } @else if (!isAdmin()) {
+        <div class="chooser">
+          <hq-select
+            [label]="'lessons.new.classField' | transloco"
+            [options]="classOptions()"
+            [value]="classValue()"
+            [placeholder]="'lessons.new.classPlaceholder' | transloco"
+            [disabled]="busy() !== null || classFixed()"
+            (valueChange)="onClassChange($event)"
+          />
+        </div>
       } @else {
         <div class="chooser">
           <hq-select

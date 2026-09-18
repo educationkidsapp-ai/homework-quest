@@ -3,15 +3,29 @@ import { Observable, switchMap, throwError } from 'rxjs';
 import {
   type AdminLesson,
   type AdminPlay,
+  type DeleteFailed200Response,
   type JobRef,
   type LessonImage,
   type ParentPanel,
   type Play,
+  type PublishedCopy,
   type Stop,
   AdminLessonsApi,
   TeacherLessonsApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { type NewLessonRequest, createLessonBody } from './lessons.models';
+
+/** What both list endpoints narrow by. `schoolId` is Admin-only — a teacher has exactly one. */
+export interface LessonListFilters {
+  readonly curriculum?: string;
+  readonly grade?: number;
+  readonly subject?: string;
+  readonly from?: string;
+  readonly to?: string;
+  readonly classId?: string;
+  readonly schoolId?: string;
+}
 
 /**
  * One lesson-pipeline surface over the two the server publishes.
@@ -23,13 +37,17 @@ import { AuthService } from '../../core/auth/auth.service';
  * the same school — the isolation tests would have caught it the day the server tightened.
  * Everything here picks by `AuthService.role()` so the screens never have to.
  *
- * Two operations have no teacher alias, and this says so rather than hiding it:
- *   - `createPlay` (add L2/L3/Again to a manual lesson) — `/admin/lessons/{id}/plays` only;
- *     {@link supportsCreateLevel} is false for a teacher and the button is not rendered.
- *   - `deleteFiles` — `/admin/lessons/{id}/files` DELETE only; {@link supportsFileDeletion}
- *     gates "Remove all files", and a teacher replacing a file uploads over it instead.
- * Both are flagged for the planner: the server can add the aliases in a later package and only
- * these two flags flip.
+ * N2.4b closed the last two gaps this file used to carry flags for: `POST
+ * /teacher/lessons/{id}/plays` and `DELETE /teacher/lessons/{id}/files` now exist, so "Create
+ * this level" and "Remove all files" are simply rendered for a teacher and the `supports*`
+ * pair they hid behind is gone.
+ *
+ * What still has no teacher alias, and what this says rather than hides:
+ *   - {@link deleteFailed} ("Delete all failed") — `/admin/lessons/failed` only; the list
+ *     renders it behind {@link supportsDeleteFailed}.
+ *   - {@link publishToClasses} and {@link moveDate} are the mirror case: teacher-only, and
+ *     {@link supportsMoveDate} is what keeps the Admin screen from offering a date control
+ *     no endpoint would accept.
  *
  * Bodies are strings on purpose. Every lesson-content endpoint declares `"type": "string"` in
  * `server/openapi.json` (see `ui/phone-preview/stop.model.ts`'s header), so the generated
@@ -41,11 +59,63 @@ export class LessonApiService {
   private readonly teacher = inject(TeacherLessonsApi);
   private readonly auth = inject(AuthService);
 
-  readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
-  /** `POST /teacher/lessons/{id}/plays` does not exist — creating a level is ADMIN-only today. */
-  readonly supportsCreateLevel = computed(() => this.isAdmin());
-  /** `DELETE /teacher/lessons/{id}/files` does not exist — clearing files is ADMIN-only today. */
-  readonly supportsFileDeletion = computed(() => this.isAdmin());
+  /**
+   * MANAGERIAL reads lessons through the Admin routes too: `/teacher/**` is scoped to the
+   * caller's own assignments, and a manager has none — every one of her reads would 404.
+   */
+  readonly isAdmin = computed(() => this.auth.role() !== 'TEACHER');
+  /** `DELETE /admin/lessons/failed` has no teacher alias — it is a tenant-wide sweep. */
+  readonly supportsDeleteFailed = computed(() => this.isAdmin());
+
+  // ---- the list and the create --------------------------------------------------------------
+
+  list(filters: LessonListFilters): Observable<readonly AdminLesson[]> {
+    const { curriculum, grade, subject, from, to, classId, schoolId } = filters;
+    return this.isAdmin()
+      ? this.admin.listLessons(curriculum, grade, subject, from, to, schoolId, classId)
+      : this.teacher.listTeacherLessons(curriculum, grade, subject, from, to, classId);
+  }
+
+  /**
+   * A teacher's lesson belongs to a **section**, an Admin's to a **course**.
+   *
+   * `POST /teacher/lessons` takes a `classId` and nothing else would do: two Grade 1 British
+   * Math sections are two different lessons with two different result sets. `POST
+   * /admin/lessons` has no class at all — it is the tenant-wide authoring route — so the two
+   * branches take the two halves of {@link NewLessonRequest} and the caller supplies whichever
+   * its role needs. A teacher without a `classId` is a bug in the screen, not a request to
+   * fall back to the Admin route: that route would create a lesson no section owns.
+   */
+  create(request: NewLessonRequest): Observable<AdminLesson> {
+    if (!this.isAdmin()) {
+      if (!request.classId) return this.unsupported('create without a class');
+      return this.teacher.createTeacherLesson({
+        classId: request.classId,
+        subject: request.subject,
+        date: request.date,
+        source: request.source,
+        practiceLength: request.practiceLength,
+        title: request.title,
+        notes: request.notes,
+      });
+    }
+    return this.admin.createLesson(
+      createLessonBody({
+        curriculum: request.curriculum!,
+        grade: request.grade!,
+        subject: request.subject,
+        date: request.date,
+        practiceLength: request.practiceLength,
+        source: request.source === 'manual' ? 'manual' : undefined,
+        title: request.title,
+      }),
+    );
+  }
+
+  deleteFailed(): Observable<DeleteFailed200Response> {
+    if (!this.supportsDeleteFailed()) return this.unsupported('deleteFailed');
+    return this.admin.deleteFailed();
+  }
 
   // ---- the lesson ---------------------------------------------------------------------------
 
@@ -58,10 +128,33 @@ export class LessonApiService {
   }
 
   /**
-   * `classIds` is the teacher's sibling-class fan-out (N2.4b's publish sheet); empty means "her
-   * own class only", which is what the server defaults to. The admin route takes no classes at
-   * all, so both branches answer with the lesson as it now stands — the teacher one by reading
-   * it back, because its own response is the list of copies it made.
+   * Move an unpublished lesson to another day.
+   *
+   * `PATCH /teacher/lessons/{id}` is a teacher route only: an Admin's lesson is keyed by course
+   * and date together, so moving one is a different operation the Admin screens do not offer.
+   */
+  readonly supportsMoveDate = computed(() => !this.isAdmin());
+
+  moveDate(id: string, date: string): Observable<AdminLesson> {
+    if (!this.supportsMoveDate()) return this.unsupported('moveDate');
+    return this.teacher.moveTeacherLesson(id, { date });
+  }
+
+  /**
+   * The teacher's fan-out: her own class plus every sibling she ticked, each getting its own
+   * copy with its own results. `PublishedCopy[]` names them back, which is what the success
+   * band lists and links. The admin route publishes the one lesson and takes no classes, so
+   * {@link publish} stays for it.
+   */
+  publishToClasses(id: string, classIds: readonly string[]): Observable<readonly PublishedCopy[]> {
+    if (this.isAdmin()) return this.unsupported('publishToClasses');
+    return this.teacher.publishTeacherLesson(id, { classIds: [...classIds] });
+  }
+
+  /**
+   * Publish this lesson and answer with it as it now stands — what the Admin confirm and the
+   * teacher's Undo-unpublish both want. The teacher route answers with the copies it made,
+   * so this reads the lesson back; the sheet uses {@link publishToClasses} to see them.
    */
   publish(id: string, classIds: readonly string[] = []): Observable<AdminLesson> {
     if (this.isAdmin()) return this.admin.publish(id);
@@ -93,18 +186,21 @@ export class LessonApiService {
   }
 
   generateFromText(id: string, body: string): Observable<JobRef> {
-    return this.isAdmin() ? this.admin.generateFromText(id, body) : this.teacher.teacherGenerateFromText(id, body);
+    return this.isAdmin()
+      ? this.admin.generateFromText(id, body)
+      : this.teacher.teacherGenerateFromText(id, body);
   }
 
   // ---- files and images ---------------------------------------------------------------------
 
   uploadFiles(id: string, files: readonly File[]): Observable<JobRef> {
-    return this.isAdmin() ? this.admin.uploadFiles(id, [...files]) : this.teacher.teacherUploadFiles(id, [...files]);
+    return this.isAdmin()
+      ? this.admin.uploadFiles(id, [...files])
+      : this.teacher.teacherUploadFiles(id, [...files]);
   }
 
   deleteFiles(id: string): Observable<unknown> {
-    if (!this.supportsFileDeletion()) return this.unsupported('deleteFiles');
-    return this.admin.deleteFiles(id);
+    return this.isAdmin() ? this.admin.deleteFiles(id) : this.teacher.teacherDeleteFiles(id);
   }
 
   uploadImage(id: string, file: File): Observable<LessonImage> {
@@ -114,8 +210,9 @@ export class LessonApiService {
   // ---- plays and stops ----------------------------------------------------------------------
 
   createPlay(lessonId: string, body: string): Observable<AdminPlay> {
-    if (!this.supportsCreateLevel()) return this.unsupported('createPlay');
-    return this.admin.createPlay(lessonId, body);
+    return this.isAdmin()
+      ? this.admin.createPlay(lessonId, body)
+      : this.teacher.teacherCreatePlay(lessonId, body);
   }
 
   regeneratePlay(playId: string): Observable<Play> {
@@ -131,7 +228,9 @@ export class LessonApiService {
   }
 
   updateStop(stopId: string, body: string): Observable<Stop> {
-    return this.isAdmin() ? this.admin.updateStop(stopId, body) : this.teacher.teacherUpdateStop(stopId, body);
+    return this.isAdmin()
+      ? this.admin.updateStop(stopId, body)
+      : this.teacher.teacherUpdateStop(stopId, body);
   }
 
   deleteStop(stopId: string): Observable<unknown> {
@@ -149,6 +248,8 @@ export class LessonApiService {
   }
 
   private unsupported<T>(operation: string): Observable<T> {
-    return throwError(() => new Error(`${operation} has no /teacher alias — guard it with supports*.`));
+    return throwError(
+      () => new Error(`${operation} is not available for this role — guard it with supports*.`),
+    );
   }
 }

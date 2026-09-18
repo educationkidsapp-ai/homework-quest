@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../../api';
-import { ADMIN_USER, TEACHER_USER } from '../../../testing/fixtures';
+import { ADMIN_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { LessonApiService } from './lesson-api.service';
@@ -85,19 +85,94 @@ describe('LessonApiService', () => {
     backend.expectOne('/teacher/lessons/l-1');
   });
 
-  /** Two operations have no teacher alias — the façade says so instead of calling `/admin/**`. */
-  it('refuses the two ADMIN-only operations for a Teacher rather than falling back to /admin', () => {
+  /** The list and the create are the two the pages used to call `/admin/**` with directly. */
+  it('lists and creates through the route family of the signed-in role', () => {
     const { api, backend } = signIn(TEACHER_USER);
-    expect(api.supportsCreateLevel()).toBe(false);
-    expect(api.supportsFileDeletion()).toBe(false);
 
-    let createFailed = false;
-    api.createPlay('l-1', '{}').subscribe({ error: () => (createFailed = true) });
-    let deleteFailed = false;
-    api.deleteFiles('l-1').subscribe({ error: () => (deleteFailed = true) });
+    api.list({ curriculum: 'british', grade: 1, classId: 'c-1' }).subscribe();
+    const listed = backend.expectOne((r) => r.url === '/teacher/lessons');
+    expect(listed.request.params.get('grade')).toBe('1');
+    expect(listed.request.params.get('classId')).toBe('c-1');
 
-    expect(createFailed).toBe(true);
-    expect(deleteFailed).toBe(true);
-    backend.verify();
+    api
+      .create({ classId: 'c-1', subject: 'math', date: '2026-09-18', source: 'pdf', practiceLength: 7 })
+      .subscribe();
+    const created = backend.expectOne('/teacher/lessons');
+    expect(created.request.body).toEqual({
+      classId: 'c-1',
+      subject: 'math',
+      date: '2026-09-18',
+      source: 'pdf',
+      practiceLength: 7,
+    });
+  });
+
+  it('lists and creates through /admin/** for an Admin', () => {
+    const { api, backend } = signIn(ADMIN_USER);
+
+    api.list({ curriculum: 'british', grade: 1, schoolId: 's-1' }).subscribe();
+    const listed = backend.expectOne((r) => r.url === '/admin/lessons');
+    expect(listed.request.params.get('schoolId')).toBe('s-1');
+
+    api
+      .create({ curriculum: 'british', grade: 1, subject: 'math', date: '2026-09-18', source: 'manual' })
+      .subscribe();
+    const created = backend.expectOne('/admin/lessons');
+    expect(JSON.parse(created.request.body as string)).toEqual({
+      curriculum: 'british',
+      grade: 1,
+      subject: 'math',
+      date: '2026-09-18',
+      source: 'manual',
+    });
+  });
+
+  /**
+   * A manager holds no teaching assignment, so `/teacher/**` would 404 on every read of hers;
+   * she reads through the tenant-wide Admin routes and writes nothing (`*hqCan`).
+   */
+  it('reads through /admin/** for a MANAGERIAL account', () => {
+    const { api, backend } = signIn(MANAGERIAL_USER);
+
+    api.getLesson('l-1').subscribe();
+    backend.expectOne('/admin/lessons/l-1');
+    expect(api.isAdmin()).toBe(true);
+  });
+
+  /** The two the teacher route now serves — N2.4b's `plays` and `files` aliases. */
+  it('creates a level and clears the files through /teacher/** for a Teacher', () => {
+    const { api, backend } = signIn(TEACHER_USER);
+
+    api.createPlay('l-1', '{}').subscribe();
+    expect(backend.expectOne('/teacher/lessons/l-1/plays').request.method).toBe('POST');
+
+    api.deleteFiles('l-1').subscribe();
+    expect(backend.expectOne('/teacher/lessons/l-1/files').request.method).toBe('DELETE');
+  });
+
+  /** What still has no teacher alias says so instead of quietly calling `/admin/**`. */
+  it('refuses the Admin-only sweep and the teacher-only move for the wrong role', () => {
+    const teacher = signIn(TEACHER_USER);
+    expect(teacher.api.supportsDeleteFailed()).toBe(false);
+    let sweepFailed = false;
+    teacher.api.deleteFailed().subscribe({ error: () => (sweepFailed = true) });
+    expect(sweepFailed).toBe(true);
+
+    let noClass = false;
+    teacher.api
+      .create({ subject: 'math', date: '2026-09-18', source: 'pdf' })
+      .subscribe({ error: () => (noClass = true) });
+    expect(noClass).toBe(true);
+    teacher.backend.verify();
+  });
+
+  it('moves an unpublished lesson to another day, teacher-only', () => {
+    const { api, backend } = signIn(TEACHER_USER);
+
+    expect(api.supportsMoveDate()).toBe(true);
+    api.moveDate('l-1', '2026-09-21').subscribe();
+    const moved = backend.expectOne('/teacher/lessons/l-1');
+    expect(moved.request.method).toBe('PATCH');
+    expect(moved.request.body).toEqual({ date: '2026-09-21' });
   });
 });

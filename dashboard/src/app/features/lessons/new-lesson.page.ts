@@ -7,13 +7,11 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { Observable } from 'rxjs';
 import {
   type AdminLesson,
-  AdminLessonsApi,
   apiErrorOf,
   type School,
   SchoolsApi,
   TeacherApi,
   type TeacherClassCard,
-  TeacherLessonsApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
@@ -31,10 +29,9 @@ import {
   SkeletonComponent,
   type SelectOption,
 } from '../../ui';
+import { LessonApiService } from './lesson-api.service';
 import {
-  type CreateLessonRequest,
   type Curriculum,
-  createLessonBody,
   type LessonSource,
   type Subject,
   SUBJECTS,
@@ -55,6 +52,11 @@ interface SourceCardView {
   readonly flag: string;
   readonly title: string;
   readonly hint: string;
+}
+
+/** One teaching assignment: a class *and* the subject she teaches in it. */
+function assignmentKeyOf(card: TeacherClassCard): string {
+  return `${card.classId ?? ''}::${card.subject ?? ''}`;
 }
 
 function todayIso(): string {
@@ -118,8 +120,7 @@ const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
   styleUrl: './new-lesson.page.scss',
 })
 export class NewLessonPage {
-  private readonly lessonsApi = inject(AdminLessonsApi);
-  private readonly teacherLessonsApi = inject(TeacherLessonsApi);
+  private readonly lessonsApi = inject(LessonApiService);
   private readonly teacherApi = inject(TeacherApi);
   private readonly schoolsApi = inject(SchoolsApi);
   private readonly auth = inject(AuthService);
@@ -134,32 +135,77 @@ export class NewLessonPage {
 
   // ---- where the course options come from -------------------------------------------------
 
-  private readonly teacherOptions = rxResource({
-    params: () => (this.isAdmin() ? undefined : true),
-    stream: () => this.teacherApi.teacherOptions(),
-  });
-
   /**
    * N2.2: `?classId=` — This week's `+` knows which class's cell it came from, and a lesson
-   * created from there has to land in **that section**, not merely in the same course. So the
-   * card is read back from `GET /teacher/classes` (curriculum, grade and subject all come off
-   * it, and disagreeing query params lose to it) and the create goes to `POST /teacher/lessons`,
-   * which takes a `classId`. Without one, nothing changes: the Admin path and the teacher's own
-   * "New lesson" still create by course.
+   * created from there has to land in **that section**, not merely in the same course. The card
+   * is read back from `GET /teacher/classes` (curriculum, grade and subject all come off it, and
+   * disagreeing query params lose to it). N2.4b made that the teacher's only path: she always
+   * authors into a section, with or without the link, so the id is a preselect rather than the
+   * one way in.
    */
   private readonly classIdParam = signal<string | null>(this.route.snapshot.queryParamMap.get('classId'));
 
-  private readonly myClasses = rxResource<readonly TeacherClassCard[], string | null>({
-    params: () => (this.isAdmin() ? null : this.classIdParam()),
+  /**
+   * N2.4b: read for **every** teacher, not only the ones arriving with a `?classId=`.
+   *
+   * `POST /teacher/lessons` is now the only create a teacher makes, and it takes a section. So
+   * the section is the first thing she picks (§4: "Class and subject are fixed") and the course
+   * pickers are the Admin's alone — a teacher never sees a curriculum/grade pair that could
+   * describe two of her sections at once.
+   */
+  private readonly myClasses = rxResource<readonly TeacherClassCard[], boolean | undefined>({
+    params: () => (this.isAdmin() ? undefined : true),
     stream: () => this.teacherApi.myClasses(),
     defaultValue: [],
   });
 
-  /** The section the `+` came from, once it has been read back. */
+  /**
+   * The **assignment** she is authoring into, keyed by class *and* subject.
+   *
+   * `GET /teacher/classes` answers one card per assignment, so `1A · Math` and `1A · English`
+   * are two cards sharing a `classId`. Keying the select on the id alone would make them the
+   * same option and silently author English into the Math lesson.
+   */
+  protected readonly assignmentKey = signal<string | null>(null);
+
   protected readonly fixedClass = computed<TeacherClassCard | null>(() => {
+    const cards = this.myClasses.value();
+    const key = this.assignmentKey();
+    if (key !== null) return cards.find((card) => assignmentKeyOf(card) === key) ?? null;
     const id = this.classIdParam();
-    return id === null ? null : (this.myClasses.value().find((card) => card.classId === id) ?? null);
+    if (id === null) return null;
+    const subject = this.route.snapshot.queryParamMap.get('subject');
+    return (
+      cards.find((card) => card.classId === id && (!subject || card.subject === subject)) ??
+      cards.find((card) => card.classId === id) ??
+      null
+    );
   });
+
+  /** Her assignments, as the Class select's options — `1A · Math · British`. */
+  protected readonly classOptions = computed<readonly SelectOption[]>(() => {
+    this.lang();
+    return this.myClasses.value().map((card) => ({
+      value: assignmentKeyOf(card),
+      label: this.t('lessons.new.classOption', {
+        class: card.className ?? '',
+        subject: this.translateOrEmpty(`subject.${card.subject}`) || (card.subject ?? ''),
+        curriculum: this.translateOrEmpty(`curriculum.${card.curriculum}`) || (card.curriculum ?? ''),
+      }),
+    }));
+  });
+
+  /** The `+` fixed the section; she may not move the lesson to another one from here. */
+  protected readonly classFixed = computed(() => this.classIdParam() !== null);
+
+  protected readonly classValue = computed(() => {
+    const card = this.fixedClass();
+    return card ? assignmentKeyOf(card) : '';
+  });
+
+  protected onClassChange(value: string): void {
+    this.assignmentKey.set(value || null);
+  }
 
   private readonly adminSchool = rxResource<School | null, string | undefined>({
     params: () => (this.isAdmin() ? (this.auth.effectiveSchoolId() ?? undefined) : undefined),
@@ -168,38 +214,34 @@ export class NewLessonPage {
   });
 
   protected readonly optionsLoading = computed(() =>
-    this.isAdmin() ? this.adminSchool.isLoading() : this.teacherOptions.isLoading(),
+    this.isAdmin() ? this.adminSchool.isLoading() : this.myClasses.isLoading(),
   );
 
+  /** A teacher with no assignment at all cannot author anything — say so instead of an empty select. */
+  protected readonly noClasses = computed(() => !this.isAdmin() && this.myClasses.value().length === 0);
+
   /**
-   * With a `?classId=` the course is not a choice at all — it is whatever that section is
-   * (§4: "class and subject fixed in the editor"), so each picker is left holding the one value
-   * and the auto-select fills it. This is also what makes the `+` work today: `GET
-   * /teacher/options` answers `grades: []` for a seeded teacher, and a grade picker with no
-   * options can never be pre-set, however many grades the link names.
+   * The Admin's course pickers. A teacher has none: her course is the section she picked, and
+   * `GET /teacher/options` is not consulted at all any more — it answers `grades: []` for a
+   * seeded teacher, so a picker built from it could never be pre-set however many grades the
+   * link named, and it cannot tell 1A apart from 1B in the first place.
    */
   protected readonly availableCurricula = computed<readonly Curriculum[]>(() => {
     const fixed = this.fixedClass()?.curriculum;
     if (fixed !== undefined) return isCurriculum(fixed) ? [fixed] : [];
-    if (this.isAdmin()) return (this.adminSchool.value()?.curriculumOptions ?? []).filter(isCurriculum);
-    const curriculum = this.teacherOptions.value()?.curriculum;
-    return isCurriculum(curriculum) ? [curriculum] : [];
+    return (this.adminSchool.value()?.curriculumOptions ?? []).filter(isCurriculum);
   });
 
   protected readonly availableGrades = computed<readonly number[]>(() => {
     const fixed = this.fixedClass()?.grade;
     if (fixed !== undefined) return [fixed];
-    const grades = this.isAdmin()
-      ? this.adminSchool.value()?.gradeOptions
-      : this.teacherOptions.value()?.grades;
-    return [...(grades ?? [])].sort((a, b) => a - b);
+    return [...(this.adminSchool.value()?.gradeOptions ?? [])].sort((a, b) => a - b);
   });
 
   protected readonly availableSubjects = computed<readonly Subject[]>(() => {
     const fixed = this.fixedClass()?.subject;
     if (fixed !== undefined) return isSubject(fixed) ? [fixed] : [];
-    if (this.isAdmin()) return SUBJECTS;
-    return (this.teacherOptions.value()?.subjects ?? []).filter(isSubject);
+    return SUBJECTS;
   });
 
   protected readonly curriculumOptions = computed<readonly SelectOption[]>(() => {
@@ -270,8 +312,15 @@ export class NewLessonPage {
     if ((PRACTICE_LENGTHS as readonly number[]).includes(parsed)) this.practiceLength.set(parsed);
   }
 
-  protected readonly step1Valid = computed(
-    () => this.curriculum() !== null && this.grade() !== null && this.subject() !== null,
+  /**
+   * A teacher's course is her class; an Admin's is the trio. Both end with the same three
+   * signals set, so everything downstream — the date card, the source cards, `create()` — is
+   * one code path.
+   */
+  protected readonly step1Valid = computed(() =>
+    this.isAdmin()
+      ? this.curriculum() !== null && this.grade() !== null && this.subject() !== null
+      : this.fixedClass() !== null && this.subject() !== null,
   );
   protected readonly dateValid = computed(() => this.date() !== '');
   protected readonly ready = computed(
@@ -285,7 +334,9 @@ export class NewLessonPage {
 
   protected readonly primaryReason = computed(() => {
     this.lang();
-    if (!this.step1Valid()) return this.t('lessons.new.reason.chooseCourse');
+    if (!this.step1Valid()) {
+      return this.t(this.isAdmin() ? 'lessons.new.reason.chooseCourse' : 'lessons.new.reason.chooseClass');
+    }
     if (!this.dateValid()) return this.t('lessons.new.reason.fixDate');
     if (this.source() === null) return this.t('lessons.new.reason.chooseSource');
     if (this.source() !== 'manual' && this.files().length === 0) return this.t('lessons.new.reason.addFile');
@@ -438,35 +489,21 @@ export class NewLessonPage {
   }
 
   /**
-   * Two create endpoints, one form.
-   *
-   * With a `?classId=` (This week's `+`) the lesson belongs to one section, and `POST
-   * /teacher/lessons` is the only endpoint that can say so. Without one the course is all the
-   * caller knows, and `POST /admin/lessons` — which the teacher alias also serves — is right.
+   * One form, and `LessonApiService.create` picks the endpoint: a teacher authors into the
+   * section she picked, an Admin into the course. Both halves are filled in and the half the
+   * role does not send is dropped there rather than here.
    */
   private createLesson(source: LessonSource): Observable<AdminLesson> {
-    const classId = this.fixedClass()?.classId;
-    if (classId !== undefined) {
-      return this.teacherLessonsApi.createTeacherLesson({
-        classId,
-        subject: this.subject()!,
-        date: this.date(),
-        source,
-        practiceLength: this.practiceLength(),
-        title: this.title().trim() || undefined,
-      });
-    }
-
-    const request: CreateLessonRequest = {
-      curriculum: this.curriculum()!,
-      grade: this.grade()!,
+    return this.lessonsApi.create({
+      classId: this.fixedClass()?.classId,
+      curriculum: this.curriculum() ?? undefined,
+      grade: this.grade() ?? undefined,
       subject: this.subject()!,
       date: this.date(),
+      source,
       practiceLength: this.practiceLength(),
-      source: source === 'manual' ? 'manual' : undefined,
       title: this.title().trim() || undefined,
-    };
-    return this.lessonsApi.createLesson(createLessonBody(request));
+    });
   }
 
   private afterCreate(lesson: AdminLesson, source: LessonSource): void {
@@ -478,7 +515,7 @@ export class NewLessonPage {
       return;
     }
     this.busy.set(this.t('lessons.new.busy.uploading'));
-    this.lessonsApi.uploadFiles(lesson.id, [...this.files()]).subscribe({
+    this.lessonsApi.uploadFiles(lesson.id, this.files()).subscribe({
       next: () => this.startAnalyze(lesson.id),
       error: (err: unknown) => this.rollback(lesson.id, err),
     });
@@ -519,60 +556,47 @@ export class NewLessonPage {
   constructor() {
     effect(() => {
       if (this.preselected || this.pickSchool()) return;
-      if (this.isAdmin() ? this.adminSchool.isLoading() : this.teacherOptions.isLoading()) return;
+      if (this.isAdmin() ? this.adminSchool.isLoading() : this.myClasses.isLoading()) return;
       // A `?classId=` is the whole point of the preselect when it is there; applying the rest
       // first would flash a different class into the pickers and then correct itself.
-      if (this.classIdParam() !== null && this.myClasses.isLoading()) return;
       this.preselected = true;
       this.applyPreselect();
     });
+
+    // Picking another class re-fills the course the rest of the form reads off it.
+    effect(() => {
+      const card = this.fixedClass();
+      if (!card) return;
+      if (isCurriculum(card.curriculum)) this.curriculum.set(card.curriculum);
+      if (card.grade !== undefined) this.grade.set(card.grade);
+      if (isSubject(card.subject)) this.subject.set(card.subject);
+    });
   }
 
+  /**
+   * The link's query params, and then the section, which wins over the three of them that
+   * merely describe it: they are a convenience for the link, the class is the fact.
+   */
   private applyPreselect(): void {
     const params = this.route.snapshot.queryParamMap;
-    const curricula = this.availableCurricula();
-    const grades = this.availableGrades();
-    const subjects = this.availableSubjects();
-    const teacherOnly = !this.isAdmin();
 
-    const qCurriculum = params.get('curriculum');
-    const curriculum =
-      isCurriculum(qCurriculum) && curricula.includes(qCurriculum)
-        ? qCurriculum
-        : teacherOnly && curricula.length === 1
-          ? curricula[0]
-          : null;
-    if (curriculum) this.curriculum.set(curriculum);
-
-    const qGrade = params.get('grade');
-    const grade =
-      qGrade && grades.includes(Number(qGrade))
-        ? Number(qGrade)
-        : teacherOnly && grades.length === 1
-          ? (grades[0] ?? null)
-          : null;
-    if (grade !== null) this.grade.set(grade);
-
-    const qSubject = params.get('subject');
-    const subject =
-      isSubject(qSubject) && subjects.includes(qSubject)
-        ? qSubject
-        : teacherOnly && subjects.length === 1
-          ? subjects[0]
-          : null;
-    if (subject) this.subject.set(subject);
+    if (this.isAdmin()) {
+      const qCurriculum = params.get('curriculum');
+      if (isCurriculum(qCurriculum) && this.availableCurricula().includes(qCurriculum)) {
+        this.curriculum.set(qCurriculum);
+      }
+      const qGrade = Number(params.get('grade'));
+      if (this.availableGrades().includes(qGrade)) this.grade.set(qGrade);
+      const qSubject = params.get('subject');
+      if (isSubject(qSubject)) this.subject.set(qSubject);
+    } else if (this.classIdParam() === null) {
+      // No link: one assignment is chosen for her, several are a choice worth making.
+      const cards = this.myClasses.value();
+      if (cards.length === 1) this.assignmentKey.set(assignmentKeyOf(cards[0]!));
+    }
 
     const qDate = params.get('date');
     if (qDate && /^\d{4}-\d{2}-\d{2}$/.test(qDate)) this.date.set(qDate);
-
-    // The section wins over the three query params that describe it: they are a convenience for
-    // the link, the class is the fact.
-    const fixed = this.fixedClass();
-    if (fixed) {
-      if (isCurriculum(fixed.curriculum)) this.curriculum.set(fixed.curriculum);
-      if (fixed.grade !== undefined) this.grade.set(fixed.grade);
-      if (isSubject(fixed.subject)) this.subject.set(fixed.subject);
-    }
   }
 
   private t(key: string, params?: Record<string, unknown>): string {
