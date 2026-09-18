@@ -4,7 +4,17 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { rxResource } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { type AdminLesson, AdminLessonsApi, apiErrorOf, type School, SchoolsApi, TeacherApi } from '../../api';
+import { Observable } from 'rxjs';
+import {
+  type AdminLesson,
+  AdminLessonsApi,
+  apiErrorOf,
+  type School,
+  SchoolsApi,
+  TeacherApi,
+  type TeacherClassCard,
+  TeacherLessonsApi,
+} from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { FLAGS } from '../../core/flags/flag.service';
@@ -109,6 +119,7 @@ const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
 })
 export class NewLessonPage {
   private readonly lessonsApi = inject(AdminLessonsApi);
+  private readonly teacherLessonsApi = inject(TeacherLessonsApi);
   private readonly teacherApi = inject(TeacherApi);
   private readonly schoolsApi = inject(SchoolsApi);
   private readonly auth = inject(AuthService);
@@ -128,6 +139,28 @@ export class NewLessonPage {
     stream: () => this.teacherApi.teacherOptions(),
   });
 
+  /**
+   * N2.2: `?classId=` — This week's `+` knows which class's cell it came from, and a lesson
+   * created from there has to land in **that section**, not merely in the same course. So the
+   * card is read back from `GET /teacher/classes` (curriculum, grade and subject all come off
+   * it, and disagreeing query params lose to it) and the create goes to `POST /teacher/lessons`,
+   * which takes a `classId`. Without one, nothing changes: the Admin path and the teacher's own
+   * "New lesson" still create by course.
+   */
+  private readonly classIdParam = signal<string | null>(this.route.snapshot.queryParamMap.get('classId'));
+
+  private readonly myClasses = rxResource<readonly TeacherClassCard[], string | null>({
+    params: () => (this.isAdmin() ? null : this.classIdParam()),
+    stream: () => this.teacherApi.myClasses(),
+    defaultValue: [],
+  });
+
+  /** The section the `+` came from, once it has been read back. */
+  protected readonly fixedClass = computed<TeacherClassCard | null>(() => {
+    const id = this.classIdParam();
+    return id === null ? null : (this.myClasses.value().find((card) => card.classId === id) ?? null);
+  });
+
   private readonly adminSchool = rxResource<School | null, string | undefined>({
     params: () => (this.isAdmin() ? (this.auth.effectiveSchoolId() ?? undefined) : undefined),
     stream: ({ params: id }) => this.schoolsApi.school(id),
@@ -138,25 +171,43 @@ export class NewLessonPage {
     this.isAdmin() ? this.adminSchool.isLoading() : this.teacherOptions.isLoading(),
   );
 
+  /**
+   * With a `?classId=` the course is not a choice at all — it is whatever that section is
+   * (§4: "class and subject fixed in the editor"), so each picker is left holding the one value
+   * and the auto-select fills it. This is also what makes the `+` work today: `GET
+   * /teacher/options` answers `grades: []` for a seeded teacher, and a grade picker with no
+   * options can never be pre-set, however many grades the link names.
+   */
   protected readonly availableCurricula = computed<readonly Curriculum[]>(() => {
+    const fixed = this.fixedClass()?.curriculum;
+    if (fixed !== undefined) return isCurriculum(fixed) ? [fixed] : [];
     if (this.isAdmin()) return (this.adminSchool.value()?.curriculumOptions ?? []).filter(isCurriculum);
     const curriculum = this.teacherOptions.value()?.curriculum;
     return isCurriculum(curriculum) ? [curriculum] : [];
   });
 
   protected readonly availableGrades = computed<readonly number[]>(() => {
-    const grades = this.isAdmin() ? this.adminSchool.value()?.gradeOptions : this.teacherOptions.value()?.grades;
+    const fixed = this.fixedClass()?.grade;
+    if (fixed !== undefined) return [fixed];
+    const grades = this.isAdmin()
+      ? this.adminSchool.value()?.gradeOptions
+      : this.teacherOptions.value()?.grades;
     return [...(grades ?? [])].sort((a, b) => a - b);
   });
 
   protected readonly availableSubjects = computed<readonly Subject[]>(() => {
+    const fixed = this.fixedClass()?.subject;
+    if (fixed !== undefined) return isSubject(fixed) ? [fixed] : [];
     if (this.isAdmin()) return SUBJECTS;
     return (this.teacherOptions.value()?.subjects ?? []).filter(isSubject);
   });
 
   protected readonly curriculumOptions = computed<readonly SelectOption[]>(() => {
     this.lang();
-    return this.availableCurricula().map((c) => ({ value: c, label: this.translateOrEmpty(`curriculum.${c}`) || c }));
+    return this.availableCurricula().map((c) => ({
+      value: c,
+      label: this.translateOrEmpty(`curriculum.${c}`) || c,
+    }));
   });
 
   protected readonly gradeOptions = computed<readonly SelectOption[]>(() => {
@@ -169,12 +220,18 @@ export class NewLessonPage {
 
   protected readonly subjectOptions = computed<readonly SelectOption[]>(() => {
     this.lang();
-    return this.availableSubjects().map((s) => ({ value: s, label: this.translateOrEmpty(`subject.${s}`) || s }));
+    return this.availableSubjects().map((s) => ({
+      value: s,
+      label: this.translateOrEmpty(`subject.${s}`) || s,
+    }));
   });
 
   protected readonly practiceLengthOptions = computed<readonly SelectOption[]>(() => {
     this.lang();
-    return PRACTICE_LENGTHS.map((n) => ({ value: String(n), label: this.t('lessons.new.practiceLengthOption', { count: n }) }));
+    return PRACTICE_LENGTHS.map((n) => ({
+      value: String(n),
+      label: this.t('lessons.new.practiceLengthOption', { count: n }),
+    }));
   });
 
   // ---- the form ------------------------------------------------------------------------
@@ -358,7 +415,9 @@ export class NewLessonPage {
   }
 
   private reasonFor(source: Exclude<LessonSource, 'manual'>): string {
-    return this.t(`lessons.new.reason${source === 'pdf' ? 'Pdf' : source === 'slides' ? 'Slides' : 'Images'}`);
+    return this.t(
+      `lessons.new.reason${source === 'pdf' ? 'Pdf' : source === 'slides' ? 'Slides' : 'Images'}`,
+    );
   }
 
   // ---- create → upload → analyze, with rollback on failure --------------------------------
@@ -366,6 +425,37 @@ export class NewLessonPage {
   protected create(): void {
     const source = this.source();
     if (!this.ready() || !source) return;
+
+    this.error.set(null);
+    this.busy.set(this.t('lessons.new.busy.creating'));
+    this.createLesson(source).subscribe({
+      next: (lesson) => this.afterCreate(lesson, source),
+      error: (err: unknown) => {
+        this.busy.set(null);
+        this.error.set(apiErrorOf(err)?.message ?? this.t('band.unreachable'));
+      },
+    });
+  }
+
+  /**
+   * Two create endpoints, one form.
+   *
+   * With a `?classId=` (This week's `+`) the lesson belongs to one section, and `POST
+   * /teacher/lessons` is the only endpoint that can say so. Without one the course is all the
+   * caller knows, and `POST /admin/lessons` — which the teacher alias also serves — is right.
+   */
+  private createLesson(source: LessonSource): Observable<AdminLesson> {
+    const classId = this.fixedClass()?.classId;
+    if (classId !== undefined) {
+      return this.teacherLessonsApi.createTeacherLesson({
+        classId,
+        subject: this.subject()!,
+        date: this.date(),
+        source,
+        practiceLength: this.practiceLength(),
+        title: this.title().trim() || undefined,
+      });
+    }
 
     const request: CreateLessonRequest = {
       curriculum: this.curriculum()!,
@@ -376,22 +466,15 @@ export class NewLessonPage {
       source: source === 'manual' ? 'manual' : undefined,
       title: this.title().trim() || undefined,
     };
-
-    this.error.set(null);
-    this.busy.set(this.t('lessons.new.busy.creating'));
-    this.lessonsApi.createLesson(createLessonBody(request)).subscribe({
-      next: (lesson) => this.afterCreate(lesson, source),
-      error: (err: unknown) => {
-        this.busy.set(null);
-        this.error.set(apiErrorOf(err)?.message ?? this.t('band.unreachable'));
-      },
-    });
+    return this.lessonsApi.createLesson(createLessonBody(request));
   }
 
   private afterCreate(lesson: AdminLesson, source: LessonSource): void {
     if (source === 'manual') {
       this.busy.set(null);
-      void this.router.navigate([this.basePath(), lesson.id], { queryParams: { notice: 'lessons.new.createdManual' } });
+      void this.router.navigate([this.basePath(), lesson.id], {
+        queryParams: { notice: 'lessons.new.createdManual' },
+      });
       return;
     }
     this.busy.set(this.t('lessons.new.busy.uploading'));
@@ -406,7 +489,9 @@ export class NewLessonPage {
     this.lessonsApi.analyze(lessonId).subscribe({
       next: () => {
         this.busy.set(null);
-        void this.router.navigate([this.basePath(), lessonId], { queryParams: { notice: 'lessons.new.created' } });
+        void this.router.navigate([this.basePath(), lessonId], {
+          queryParams: { notice: 'lessons.new.created' },
+        });
       },
       error: (err: unknown) => this.rollback(lessonId, err),
     });
@@ -435,6 +520,9 @@ export class NewLessonPage {
     effect(() => {
       if (this.preselected || this.pickSchool()) return;
       if (this.isAdmin() ? this.adminSchool.isLoading() : this.teacherOptions.isLoading()) return;
+      // A `?classId=` is the whole point of the preselect when it is there; applying the rest
+      // first would flash a different class into the pickers and then correct itself.
+      if (this.classIdParam() !== null && this.myClasses.isLoading()) return;
       this.preselected = true;
       this.applyPreselect();
     });
@@ -467,11 +555,24 @@ export class NewLessonPage {
 
     const qSubject = params.get('subject');
     const subject =
-      isSubject(qSubject) && subjects.includes(qSubject) ? qSubject : teacherOnly && subjects.length === 1 ? subjects[0] : null;
+      isSubject(qSubject) && subjects.includes(qSubject)
+        ? qSubject
+        : teacherOnly && subjects.length === 1
+          ? subjects[0]
+          : null;
     if (subject) this.subject.set(subject);
 
     const qDate = params.get('date');
     if (qDate && /^\d{4}-\d{2}-\d{2}$/.test(qDate)) this.date.set(qDate);
+
+    // The section wins over the three query params that describe it: they are a convenience for
+    // the link, the class is the fact.
+    const fixed = this.fixedClass();
+    if (fixed) {
+      if (isCurriculum(fixed.curriculum)) this.curriculum.set(fixed.curriculum);
+      if (fixed.grade !== undefined) this.grade.set(fixed.grade);
+      if (isSubject(fixed.subject)) this.subject.set(fixed.subject);
+    }
   }
 
   private t(key: string, params?: Record<string, unknown>): string {

@@ -8,7 +8,13 @@ import { SessionStore } from './session.store';
 export type Role = 'ADMIN' | 'TEACHER' | 'MANAGERIAL';
 export type AuthStatus = 'unknown' | 'anonymous' | 'authenticated';
 
-/** Where `/` sends each role, and where the nav's items hang off. */
+/**
+ * Where `/` sends each role, and where the nav's items hang off.
+ *
+ * `/teacher` is kept as the Teacher's home rather than `/teacher/week`: the area's own `''` row
+ * redirects there (`core/nav/screens.ts`), so both `/` and `/teacher` land on This week and the
+ * redirect lives in one place instead of two that could drift.
+ */
 export const ROLE_HOME: Readonly<Record<Role, string>> = {
   ADMIN: '/admin',
   TEACHER: '/teacher',

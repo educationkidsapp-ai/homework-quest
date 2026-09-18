@@ -492,7 +492,9 @@
     "complaints": "Complaints",
     "schoolUsage": "School usage",
     "teachers": "Teachers",
-    "classes": "Classes"
+    "classes": "Classes",
+    "thisWeek": "This week",
+    "myClasses": "My classes"
   },
   "profile": {
     "title": "Your profile",
@@ -782,5 +784,55 @@
       "error": "failed"
     },
     "cancel": "Cancel"
+  },
+  "week": {
+    "title": "This week",
+    "subtitle": "Every class you teach, day by day. Drag a card to another day to move it, or onto a class of the same grade to copy it.",
+    "prev": "Previous week",
+    "next": "Next week",
+    "today": "Today",
+    "range": "{{from}} – {{to}}",
+    "classColumn": "Class",
+    "grade": "Grade {{grade}}",
+    "rowLabel": "{{class}} · {{subject}} · {{curriculum}}",
+    "cellLabel": "{{class}}, {{day}}",
+    "loading": "Loading your week",
+    "empty": "Ask your admin to assign you a class",
+    "played": "{{played}}/{{total}} played",
+    "addLesson": "Add a lesson for {{class}} on {{day}}",
+    "actions": "Actions for {{title}}",
+    "noSiblings": "No other class of the same grade and subject",
+    "occupied": "{{class}} already has a lesson on {{day}}.",
+    "status": {
+      "none": "No lesson yet",
+      "draft": "Draft",
+      "ready": "Ready",
+      "published": "Published"
+    },
+    "published": {
+      "reason": "Published lessons cannot be moved. Unpublish it first."
+    },
+    "exam": {
+      "ribbon": "Exam",
+      "window": "{{opens}} – {{closes}}"
+    },
+    "summary": {
+      "title": "This week at a glance",
+      "gap": "{{class}} has no lesson {{day}}",
+      "noGaps": "No gaps so far this week",
+      "examsClosing": "Exams closing this week: {{count}}",
+      "marksWaiting": "Open stops waiting for marks: {{count}}"
+    },
+    "copyConfirm": {
+      "title": "Copy this lesson?",
+      "message": "Copy “{{title}}” to {{class}} on {{day}}?",
+      "confirm": "Copy"
+    },
+    "undo": {
+      "moved": "“{{title}}” moved to {{day}}",
+      "copied": "“{{title}}” copied to {{class}}"
+    },
+    "moveToDay": "Move to {{day}}",
+    "copyToClass": "Copy to {{class}}"
   }
 }

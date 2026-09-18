@@ -1,0 +1,212 @@
+<hq-page [title]="'week.title' | transloco" [subtitle]="'week.subtitle' | transloco">
+  <div class="week">
+    @if (copyRequest()) {
+      <hq-band
+        variant="confirm"
+        [open]="true"
+        [title]="'week.copyConfirm.title' | transloco"
+        [confirmLabel]="'week.copyConfirm.confirm' | transloco"
+        (confirmed)="confirmCopy()"
+        (dismissed)="cancelCopy()"
+      >
+        {{ copyMessage() }}
+      </hq-band>
+    }
+
+    <div class="week__bar">
+      <div class="week__nav">
+        <hq-button variant="quiet" (pressed)="shift(-1)">{{ 'week.prev' | transloco }}</hq-button>
+        <hq-button variant="quiet" (pressed)="shift(1)">{{ 'week.next' | transloco }}</hq-button>
+      </div>
+      <p class="week__range">
+        {{ rangeLabel() }}
+        <span class="week__zone">{{ timezone() }}</span>
+      </p>
+    </div>
+
+    @if (week.isLoading()) {
+      <hq-skeleton
+        [loading]="true"
+        [lines]="5"
+        height="var(--hq-size-row-height)"
+        [label]="'week.loading' | transloco"
+      />
+    } @else if (!hasRows()) {
+      <hq-empty-state [message]="'week.empty' | transloco" />
+    } @else {
+      <div
+        class="week__grid"
+        role="grid"
+        cdkDropListGroup
+        tabindex="-1"
+        [attr.aria-label]="'week.title' | transloco"
+        [style.--hq-week-columns]="days().length"
+        (keydown)="onGridKeydown($event)"
+      >
+        <div class="week__head" role="row">
+          <div class="week__corner" role="columnheader">{{ 'week.classColumn' | transloco }}</div>
+          @for (day of days(); track day) {
+            <div class="week__day" role="columnheader">{{ dayLabel(day) }}</div>
+          }
+        </div>
+
+        @for (group of groups(); track group.grade) {
+          <div class="week__group" role="row">
+            <div class="week__group-label" role="rowheader" [attr.aria-colspan]="days().length + 1">
+              {{ 'week.grade' | transloco: { grade: group.grade } }}
+            </div>
+          </div>
+
+          @for (row of group.rows; track trackRow($index, row)) {
+            <div class="week__row" role="row" [class.week__row--disabled]="rowDisabled(row)">
+              <div class="week__row-label" role="rowheader">{{ rowLabel(row) }}</div>
+
+              @for (cell of row.cells; track cell.date) {
+                <div
+                  class="week__cell"
+                  role="gridcell"
+                  cdkDropList
+                  [cdkDropListData]="{ row: row, cell: cell }"
+                  [cdkDropListEnterPredicate]="allowDrop"
+                  (cdkDropListDropped)="dropped($event)"
+                >
+                  @if (cell.lesson; as lesson) {
+                    <div
+                      class="week__card"
+                      cdkDrag
+                      [cdkDragData]="{ row: row, cell: cell }"
+                      [cdkDragDisabled]="!cell.movable"
+                      (cdkDragStarted)="dragStarted(row, cell)"
+                      (cdkDragEnded)="dragEnded()"
+                      [attr.title]="cell.movable ? null : ('week.published.reason' | transloco)"
+                    >
+                      <a
+                        class="week__card-link"
+                        data-hq-cell
+                        [routerLink]="lessonLink(cell)"
+                        [attr.aria-label]="cellLabel(row, cell) + ' — ' + lesson.title"
+                      >
+                        <span
+                          class="week__square"
+                          [class]="'week__square--' + cell.status"
+                          aria-hidden="true"
+                        ></span>
+                        <span class="week__card-text">
+                          <span class="week__card-title">{{ lesson.title }}</span>
+                          <span class="week__card-meta">
+                            {{ 'week.status.' + cell.status | transloco }}
+                            @if (lesson.playedCount) {
+                              <span class="week__played">
+                                {{
+                                  'week.played'
+                                    | transloco: { played: lesson.playedCount, total: lesson.childrenCount }
+                                }}
+                              </span>
+                            }
+                          </span>
+                        </span>
+                      </a>
+
+                      @if (!cell.movable) {
+                        <span class="hq-sr-only">{{ 'week.published.reason' | transloco }}</span>
+                      }
+
+                      <button
+                        type="button"
+                        class="week__overflow"
+                        [cdkMenuTriggerFor]="cardMenu"
+                        (click)="menuCell.set({ row: row, cell: cell })"
+                        [attr.aria-label]="'week.actions' | transloco: { title: lesson.title }"
+                      >
+                        ⋮
+                      </button>
+                    </div>
+                  } @else if (cell.exam; as exam) {
+                    <div class="week__exam">
+                      <span class="week__ribbon">{{ 'week.exam.ribbon' | transloco }}</span>
+                      <a
+                        class="week__card-link"
+                        data-hq-cell
+                        [routerLink]="['/teacher/lessons', exam.lessonId]"
+                      >
+                        {{ 'week.exam.window' | transloco: { opens: exam.opensAt, closes: exam.closesAt } }}
+                      </a>
+                    </div>
+                  } @else {
+                    <a
+                      class="week__add"
+                      data-hq-cell
+                      [routerLink]="newLessonLink"
+                      [queryParams]="newLessonParams(row, cell)"
+                      [attr.aria-label]="
+                        'week.addLesson' | transloco: { class: row.className, day: dayName(cell.date) }
+                      "
+                    >
+                      +
+                    </a>
+                  }
+                </div>
+              }
+            </div>
+          }
+        }
+      </div>
+
+      <section class="week__summary" [attr.aria-label]="'week.summary.title' | transloco">
+        <h2 class="week__summary-title">{{ 'week.summary.title' | transloco }}</h2>
+        <ul class="week__summary-list" hqListStagger>
+          @for (gap of gaps(); track gap) {
+            <li class="week__summary-item week__summary-item--gap">{{ gap }}</li>
+          } @empty {
+            <li class="week__summary-item">{{ 'week.summary.noGaps' | transloco }}</li>
+          }
+          <li class="week__summary-item">
+            {{ 'week.summary.examsClosing' | transloco: { count: examsClosing() } }}
+          </li>
+          <li class="week__summary-item">
+            {{ 'week.summary.marksWaiting' | transloco: { count: marksWaiting() } }}
+          </li>
+        </ul>
+      </section>
+    }
+  </div>
+
+  <!--
+    Flat, not two submenus: the whole point of this menu is that a keyboard can do what the drag
+    does, and a submenu is one more thing to learn for a list that is never longer than six items.
+  -->
+  <ng-template #cardMenu>
+    <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
+      @for (target of moveTargets(); track target.date) {
+        <button
+          type="button"
+          cdkMenuItem
+          class="menu__item"
+          [cdkMenuItemDisabled]="target.taken"
+          [disabled]="target.taken"
+          (cdkMenuItemTriggered)="moveFromMenu(target.date)"
+        >
+          {{ 'week.moveToDay' | transloco: { day: dayName(target.date) } }}
+        </button>
+      } @empty {
+        <button type="button" cdkMenuItem class="menu__item" [cdkMenuItemDisabled]="true" disabled>
+          {{ 'week.published.reason' | transloco }}
+        </button>
+      }
+
+      @for (target of copyTargets(); track target.classId) {
+        <button type="button" cdkMenuItem class="menu__item" (cdkMenuItemTriggered)="copyFromMenu(target)">
+          {{ 'week.copyToClass' | transloco: { class: target.className } }}
+        </button>
+      } @empty {
+        <button type="button" cdkMenuItem class="menu__item" [cdkMenuItemDisabled]="true" disabled>
+          {{ 'week.noSiblings' | transloco }}
+        </button>
+      }
+    </div>
+  </ng-template>
+
+  <div page-footer>
+    <hq-button variant="primary" (pressed)="goToday()">{{ 'week.today' | transloco }}</hq-button>
+  </div>
+</hq-page>

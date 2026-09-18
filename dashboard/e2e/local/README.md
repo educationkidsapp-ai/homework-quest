@@ -97,6 +97,23 @@ Screenshots land in `docs/screenshots/dashboard-p3.1/`, `docs/screenshots/dashbo
 `docs/screenshots/dashboard-n1.2/`
 (1366 × 768, EN and AR) and are committed.
 
+`this-week.spec.ts` (N2.2) is the one suite that wants the **one-school seed**, so it needs its
+own server:
+
+```bash
+SPRING_PROFILES_ACTIVE=h2 SEED_SCHOOL=true SEED_STAFF_PASSWORD="$E2E_STAFF_PASSWORD" \
+  ADMIN_EMAIL="$E2E_ADMIN_EMAIL" ADMIN_PASSWORD="$E2E_ADMIN_PASSWORD" \
+  LLM_PROVIDER=fake PORT=18080 java -jar server/target/server.jar &
+
+cd dashboard && pnpm build --configuration=production && pnpm e2e:local this-week
+```
+
+It signs in as Sara Al Harbi (`seed/teachers.csv`) and, because no seeded teacher has two
+sections of the same grade *and* subject, creates one more Grade 1 British section through the
+Admin API in `beforeAll` and assigns it to her — the drag-to-copy rule needs a sibling row. It
+creates lessons, so **start it against a fresh H2**: a second run on the same database finds the
+week already full and has no empty cell left to press `+` on.
+
 ## The static server
 
 `serve.mjs` is deliberately small and deliberately not a dev server: hashed assets immutable,
