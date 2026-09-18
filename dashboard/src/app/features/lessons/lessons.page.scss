@@ -90,3 +90,12 @@
 .menu__item--danger {
   color: var(--hq-color-accent-strong);
 }
+
+.lessons__class-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-8);
+  margin-block-end: var(--hq-space-16);
+  font-size: var(--hq-font-label-size);
+  color: var(--hq-color-ink-soft);
+}

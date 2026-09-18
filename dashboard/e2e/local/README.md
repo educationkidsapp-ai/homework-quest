@@ -97,8 +97,9 @@ Screenshots land in `docs/screenshots/dashboard-p3.1/`, `docs/screenshots/dashbo
 `docs/screenshots/dashboard-n1.2/`
 (1366 × 768, EN and AR) and are committed.
 
-`this-week.spec.ts` (N2.2) is the one suite that wants the **one-school seed**, so it needs its
-own server:
+`this-week.spec.ts` (N2.2) and `my-classes.spec.ts` (N2.3) are the suites that want the
+**one-school seed**, so they need their own server (`pnpm e2e:local my-classes` for the second;
+its screenshots land in `docs/screenshots/dashboard-n2.3/`):
 
 ```bash
 SPRING_PROFILES_ACTIVE=h2 SEED_SCHOOL=true SEED_STAFF_PASSWORD="$E2E_STAFF_PASSWORD" \

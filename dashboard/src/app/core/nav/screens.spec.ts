@@ -79,10 +79,14 @@ describe('the screen table', () => {
    * left to the next person to re-add by habit.
    */
   it('gives a teacher exactly This week and My classes in the rail', () => {
-    expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual(['week', 'lessons']);
-    expect(navScreens('TEACHER').map(({ link }) => link)).toEqual(['/teacher/week', '/teacher/lessons']);
+    expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual(['week', 'classes']);
+    expect(navScreens('TEACHER').map(({ link }) => link)).toEqual(['/teacher/week', '/teacher/classes']);
     // The screens later phases fill keep their routes — a bookmark still resolves to the stub.
     expect(AREAS.TEACHER.screens.map((screen) => screen.path)).toContain('students');
+    // N2.3: the class page and the lessons list are routes, not rail items. §5 puts the class
+    // in the rail as a third item only while she is inside it, from `ClassContextService`.
+    expect(AREAS.TEACHER.screens.map((screen) => screen.path)).toContain('classes/:classId');
+    expect(AREAS.TEACHER.screens.find((screen) => screen.id === 'lessons')?.labelKey).toBeUndefined();
   });
 
   it('sends /teacher to This week rather than drawing a Home of its own', () => {

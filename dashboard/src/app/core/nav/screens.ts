@@ -110,10 +110,17 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       // Her Home *is* This week, so `/teacher` redirects rather than drawing a second landing.
       { id: 'home', path: '', redirectTo: 'week' },
       { id: 'week', path: 'week', labelKey: 'nav.thisWeek', permission: 'teacher.week' },
-      // `nav.myClasses` on the lessons list is the N2.2 stand-in: N2.3 builds the real My
-      // classes screen and takes the label with it. Her lessons stay one tap away from there
-      // rather than sitting in the rail twice under two names.
-      { id: 'lessons', path: 'lessons', labelKey: 'nav.myClasses', permission: 'lesson.read' },
+      // N2.3: the real My classes screen, and its class page. Both carry `teacher.week` —
+      // the key `GET /teacher/classes` itself is gated by; the calendar and the roster inside
+      // add `calendar.read`, `student.read` and `roster.teacher` at their own requests.
+      // The class page has no `labelKey`: §5 puts the class in the rail as a *third* item only
+      // while she is inside it, and that item is built from `ClassContextService`, not here.
+      { id: 'classes', path: 'classes', labelKey: 'nav.myClasses', permission: 'teacher.week' },
+      { id: 'class', path: 'classes/:classId', permission: 'teacher.week' },
+      // Her lessons lost their rail label with N2.3: §4's rail is This week · My classes, and
+      // the list is one tap away as "All lessons of this class". The route stays — a bookmark
+      // and `/teacher/lessons?classId=…` from the class page both have to resolve.
+      { id: 'lessons', path: 'lessons', permission: 'lesson.read' },
       { id: 'new-lesson', path: 'lessons/new', permission: 'lesson.write' },
       { id: 'lesson', path: 'lessons/:id', permission: 'lesson.read' },
       // No permission yet: `child.read` in permissions.json belongs to PARENT, and the key for

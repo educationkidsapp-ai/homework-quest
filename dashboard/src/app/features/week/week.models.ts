@@ -62,9 +62,23 @@ export interface DragSource {
   readonly lesson: WeekLesson;
 }
 
+/**
+ * A server status string in §4's four words.
+ *
+ * Anything the server sends that is not one of the three known words is read as `draft` when
+ * there is a lesson at all: a card drawn as "published" because a new status word arrived is a
+ * lie a teacher would act on, and "draft" is the reading that costs her nothing.
+ *
+ * Exported on its own so the class page's calendar (N2.3), whose day carries a bare `status`
+ * string rather than a `WeekLesson`, maps it with exactly this rule rather than a second copy.
+ */
+export function normaliseStatus(status: string | null | undefined, hasLesson: boolean): CellStatus {
+  const value = status ?? '';
+  return STATUSES.has(value) ? (value as CellStatus) : hasLesson ? 'draft' : 'none';
+}
+
 export function statusOf(lesson: WeekLesson | null | undefined): CellStatus {
-  const status = lesson?.status ?? '';
-  return STATUSES.has(status) ? (status as CellStatus) : lesson ? 'draft' : 'none';
+  return normaliseStatus(lesson?.status, lesson != null);
 }
 
 export function isMovable(lesson: WeekLesson | null | undefined): boolean {

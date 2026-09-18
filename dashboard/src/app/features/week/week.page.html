@@ -78,7 +78,7 @@
                       link would 404 and a drag would PATCH a lesson that does not exist.
                     -->
                     <span class="week__card week__card--pending" data-hq-cell tabindex="0" aria-busy="true">
-                      <span class="week__square week__square--pending" aria-hidden="true"></span>
+                      <hq-status-square [status]="cell.status" [pending]="true" />
                       <span class="week__card-text">
                         <span class="week__card-title">{{ cell.lesson?.title }}</span>
                         <span class="week__card-meta">{{ 'week.copying' | transloco }}</span>
@@ -100,11 +100,7 @@
                         [routerLink]="lessonLink(cell)"
                         [attr.aria-label]="cellLabel(row, cell) + ' — ' + lesson.title"
                       >
-                        <span
-                          class="week__square"
-                          [class]="'week__square--' + cell.status"
-                          aria-hidden="true"
-                        ></span>
+                        <hq-status-square [status]="cell.status" />
                         <span class="week__card-text">
                           <span class="week__card-title">{{ lesson.title }}</span>
                           <span class="week__card-meta">

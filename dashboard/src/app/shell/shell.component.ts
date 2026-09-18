@@ -26,6 +26,7 @@ import { AuthService } from '../core/auth/auth.service';
 import { BandService } from '../core/band/band.service';
 import { FlagService } from '../core/flags/flag.service';
 import { activeLang } from '../core/i18n/active-lang';
+import { ClassContextService } from '../core/nav/class-context.service';
 import { navScreens } from '../core/nav/screens';
 import { PermissionService } from '../core/permissions/permission.service';
 import { TourComponent } from '../core/tour/tour.component';
@@ -157,6 +158,7 @@ export class ShellComponent {
   private readonly router = inject(Router);
   private readonly flags = inject(FlagService);
   private readonly permissions = inject(PermissionService);
+  private readonly classContext = inject(ClassContextService);
   private readonly tour = inject(TourService);
   private readonly transloco = inject(TranslocoService);
   private readonly announcer = inject(LiveAnnouncer);
@@ -180,7 +182,7 @@ export class ShellComponent {
     this.lang();
     const role = this.auth.role();
     if (role === null) return [];
-    return navScreens(role)
+    const items = navScreens(role)
       .filter(({ screen }) => (screen.flag ? this.flags.isOn(screen.flag) : true))
       .filter(({ screen }) => (screen.permission ? this.permissions.can(screen.permission) : true))
       .map(({ screen, link }) => ({
@@ -188,6 +190,11 @@ export class ShellComponent {
         label: this.transloco.translate<string>(screen.labelKey ?? ''),
         link,
       }));
+    // `docs/teacher-flow.md` §5: the class she is inside joins the rail as a third item, and
+    // leaves with her. It is not a row in the table — the label is a class's name, which only
+    // the screen that fetched it knows — so the class page publishes it and the rail appends it.
+    const klass = this.classContext.current();
+    return klass ? [...items, { id: 'class', label: klass.label, link: klass.link }] : items;
   });
 
   /** The longest matching link wins, so `/teacher/lessons/new` does not light "My lessons". */

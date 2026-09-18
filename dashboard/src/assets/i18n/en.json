@@ -180,6 +180,80 @@
       "NEEDS_ANOTHER_LOOK": "Needs another look"
     }
   },
+  "classes": {
+    "title": "My classes",
+    "subtitle": "Every class you teach, by grade.",
+    "loading": "Loading your classes",
+    "empty": "You have no classes yet. Ask the office to assign you one.",
+    "playedToday": "· {{played}} of {{total}} played",
+    "childrenCount": "children",
+    "addToday": "Add today's lesson",
+    "allLessons": "All lessons of this class",
+    "newLesson": "New lesson",
+    "header": {
+      "subtitle": "{{curriculum}} · Grade {{grade}}"
+    },
+    "tabs": {
+      "label": "Class",
+      "calendar": "Calendar",
+      "children": "Children",
+      "gradebook": "Gradebook",
+      "exams": "Exams",
+      "comingSoon": "Coming in N4."
+    },
+    "calendar": {
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month",
+      "loading": "Loading the month",
+      "gap": "Gap",
+      "gapsCount": "{{count}} school days this month have no lesson.",
+      "played": "{{count}} played",
+      "addOn": "Add a lesson on {{day}}",
+      "lesson": "Lesson",
+      "type": {
+        "homework": "Homework",
+        "exam": "Exam"
+      }
+    },
+    "children": {
+      "title": "Children",
+      "loading": "Loading the class",
+      "empty": "No children in this class yet.",
+      "count": "{{count}} children",
+      "never": "Never",
+      "noWeakSkills": "None",
+      "active": "Active",
+      "inactive": "Inactive",
+      "edit": "Edit",
+      "editOf": "{{name}}",
+      "save": "Save",
+      "cancel": "Cancel",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "table": {
+        "name": "Name",
+        "stars": "Stars this week",
+        "level": "Level reached",
+        "weakSkills": "Weak skills",
+        "lastPlayed": "Last played",
+        "actions": "Actions",
+        "parentEmail": "Parent email"
+      },
+      "add": {
+        "action": "Add a child",
+        "title": "Add a child",
+        "name": "Name",
+        "email": "Parent's email",
+        "emailHint": "Optional — the parent gets an invite to follow her progress.",
+        "confirm": "Add"
+      },
+      "undo": {
+        "renamed": "{{name}} updated.",
+        "activated": "{{name}} is active again.",
+        "deactivated": "{{name}} was deactivated."
+      }
+    }
+  },
   "curriculum": {
     "american": "American",
     "british": "British"
@@ -251,7 +325,9 @@
     },
     "filter": {
       "label": "Filter by title",
-      "placeholder": "Filter by title"
+      "placeholder": "Filter by title",
+      "onlyClass": "Showing only {{class}}.",
+      "clearClass": "Show all"
     },
     "view": {
       "label": "List or calendar",
