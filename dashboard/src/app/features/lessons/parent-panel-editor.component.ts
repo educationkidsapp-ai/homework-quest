@@ -60,7 +60,7 @@ interface Draft {
           @for (row of rows(section); track $index) {
             <div class="panel__row">
               <hq-textarea
-                [label]="'lessons.detail.panel.rowEn' | transloco: { index: $index + 1 }"
+                [label]="'lessons.detail.panel.rowEn' | transloco: { index: $index + 1, section: sectionLabel(section) }"
                 [rows]="2"
                 dir="ltr"
                 [required]="true"
@@ -69,7 +69,7 @@ interface Draft {
                 [disabled]="disabled()"
               />
               <hq-textarea
-                [label]="'lessons.detail.panel.rowAr' | transloco: { index: $index + 1 }"
+                [label]="'lessons.detail.panel.rowAr' | transloco: { index: $index + 1, section: sectionLabel(section) }"
                 [rows]="2"
                 dir="rtl"
                 [required]="true"
@@ -236,6 +236,16 @@ export class ParentPanelEditorComponent {
   constructor() {
     effect(() => this.draft.set(this.server()));
     effect(() => this.dirtyChange.emit(this.dirty()));
+  }
+
+  /**
+   * The section's own heading, folded into every field's label: three sections each have an
+   * "English 1", and a screen reader reading the same name three times on one page is no label
+   * at all. It also makes each field addressable on its own in the e2e suite.
+   */
+  protected sectionLabel(section: PairSection): string {
+    this.lang();
+    return this.t(`lessons.detail.panel.${section}`);
   }
 
   protected rows(section: PairSection): readonly PairRow[] {

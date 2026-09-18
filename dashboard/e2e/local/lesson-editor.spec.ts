@@ -51,10 +51,10 @@ test.beforeAll(async () => {
   const token = ((await signIn.json()) as { token: string }).token;
 
   const classes = await api.get('/teacher/classes', { headers: { Authorization: `Bearer ${token}` } });
-  const rows = (await classes.json()) as { id: string; name: string; subject: string }[];
-  const mine = rows.find((row) => /1A British/i.test(row.name) && row.subject === 'math');
-  expect(mine, `no 1A British Math among ${rows.map((r) => r.name).join(', ')}`).toBeTruthy();
-  classId = mine!.id;
+  const rows = (await classes.json()) as { classId: string; className: string; subject: string }[];
+  const mine = rows.find((row) => /1A British/i.test(row.className) && row.subject === 'math');
+  expect(mine, `no 1A British Math among ${rows.map((r) => `${r.className}/${r.subject}`).join(', ')}`).toBeTruthy();
+  classId = mine!.classId;
   await api.dispose();
 });
 
@@ -92,11 +92,6 @@ function stopRows(page: Page): Locator {
 
 function editor(page: Page): Locator {
   return page.locator('hq-stop-editor');
-}
-
-/** One `<section>` of the parent-panel editor, by its heading. */
-function panelSection(page: Page, heading: string): Locator {
-  return page.locator('hq-parent-panel-editor section').filter({ has: page.getByRole('heading', { name: heading }) });
 }
 
 /** Adds one stop and waits for the list to grow — "+ Add stop" reloads the lesson behind it. */
@@ -256,13 +251,12 @@ test('she asks for the other levels, then edits the parent panel that comes with
 
   // The pipeline runs for real behind the fake provider; the page's own 2.5 s poll moves it on,
   // and the tabs for Levels 2 and 3 light up before the panel does.
-  await expect(page.getByRole('tab', { name: 'L2' })).toBeEnabled({ timeout: 120_000 });
+  await expect(page.getByRole('tab', { name: 'Level 2' })).toBeEnabled({ timeout: 120_000 });
   const panelSave = page.getByRole('button', { name: 'Save the parent panel' });
   await expect(panelSave).toBeVisible({ timeout: 60_000 });
 
-  // Scoped to the first section: "English 1" is the first row of objectives, of supported and
-  // of challenge, so an unscoped label would match three fields.
-  const objective = panelSection(page, "What they'll learn").getByLabel('English 1');
+  // Each panel field carries its section in the label, so the first objective is addressable.
+  const objective = page.getByLabel("What they'll learn 1 — English");
   await objective.fill(`Sort shapes by sides ${RUN}`);
   await expect(panelSave).toBeEnabled();
   await panelSave.click();
@@ -284,7 +278,9 @@ test('screenshots: the editor in English and in Arabic', async ({ page }) => {
   await expect(editor(page).getByLabel('The whole stop')).toBeVisible();
   await page.screenshot({ path: resolve(SHOTS, 'lesson-editor-en.png'), fullPage: true });
 
-  await page.getByRole('button', { name: /العربية|Arabic/ }).click();
+  // Through the account menu, the way a teacher switches — not by writing localStorage.
+  await page.getByRole('button', { name: /Sara/ }).click();
+  await page.getByRole('menuitem', { name: 'العربية' }).click();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await page.waitForTimeout(500);
   await page.screenshot({ path: resolve(SHOTS, 'lesson-editor-ar.png'), fullPage: true });
