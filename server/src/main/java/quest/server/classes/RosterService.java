@@ -120,7 +120,9 @@ public class RosterService {
                 duplicate++;
                 continue;
             }
-            if (!dryRun) insert(section, name, line.parentEmail(), null, position++);
+            // The address is stored the way a typed one is — trimmed and lower case — so the two paths cannot leave
+            // the same parent under two spellings for whatever later matches a child to an account by it.
+            if (!dryRun) insert(section, name, line.parentEmail() == null ? null : email(line.parentEmail()), null, position++);
             rows.add(new ClassDto.ImportRow(line.line(), name, line.parentEmail(), ClassDto.NEW, null));
             added++;
         }
