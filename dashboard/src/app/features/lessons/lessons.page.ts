@@ -51,6 +51,9 @@ interface LessonRowView {
   readonly date: string;
   readonly status: LessonStatus;
   readonly errorLabel: string | null;
+  /** "Analyzed before · 0 tokens" — the file's hash was a cache hit (teacher-flow Step 5). */
+  readonly analyzedBefore: boolean;
+  readonly analyzedBeforeTooltip: string;
   readonly schoolName: string;
   readonly source: AdminLesson;
 }
@@ -487,6 +490,8 @@ export class LessonsPage {
       date: this.formatDate(row.date),
       status: row.status,
       errorLabel: step ? this.t('lessons.errorAt', { step: this.t(`lessons.step.${step}`) }) : null,
+      analyzedBefore: row.analyzedBefore,
+      analyzedBeforeTooltip: this.t('lessons.analyzedBeforeTooltip', { tokens: row.tokensSaved }),
       schoolName: row.schoolName ?? '',
       source: row,
     };

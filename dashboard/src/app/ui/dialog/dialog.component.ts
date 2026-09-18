@@ -140,7 +140,10 @@ export class DialogComponent {
         if (typeof dialog.showModal === 'function') dialog.showModal();
         else dialog.open = true;
       } else if (dialog.open) {
-        dialog.close();
+        // Symmetrically: an engine without `showModal` has no `close` either, and throwing here
+        // would leave a dialog on screen that the signal already believes is shut.
+        if (typeof dialog.close === 'function') dialog.close();
+        else dialog.open = false;
       }
     });
   }

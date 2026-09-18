@@ -5,6 +5,7 @@
 } @else if (lesson(); as l) {
   <hq-page [title]="pageTitle()" [subtitle]="subtitleLine()" [breadcrumbs]="breadcrumbs()">
     <ng-container *hqCan="'lesson.delete'">
+      @if (canDelete()) {
       <div page-actions>
         <button
           type="button"
@@ -23,6 +24,7 @@
           </button>
         </div>
       </ng-template>
+      }
     </ng-container>
 
     <div class="lesson">
@@ -47,6 +49,38 @@
         (undone)="undoUnpublish()"
         (expired)="undoExpired()"
       />
+
+      @if (publishedCopies().length > 0) {
+        <hq-band variant="notice" [open]="true" (dismissed)="dismissPublishedCopies()">
+          <span>{{ 'lessons.detail.publishSheet.done' | transloco }}</span>
+          <ul class="lesson__copies">
+            @for (copy of publishedCopies(); track copy.id) {
+              <li><a [routerLink]="[basePath(), copy.id]">{{ copy.name }}</a></li>
+            }
+          </ul>
+        </hq-band>
+      }
+
+      <div class="lesson__facts">
+        <p class="lesson__fact">{{ classFact() }}</p>
+        @if (canMoveDate()) {
+          <hq-input
+            type="date"
+            [label]="'lessons.detail.moveDate' | transloco"
+            [required]="true"
+            [value]="dateValue()"
+            [disabled]="busy() !== null"
+            (valueChange)="moveDate($event)"
+          />
+        } @else {
+          <p class="lesson__fact">{{ dateLabel() }}</p>
+        }
+        @if (analyzedBefore()) {
+          <p class="lesson__badge" [title]="analyzedBeforeTooltip()">
+            {{ 'lessons.analyzedBefore' | transloco }}
+          </p>
+        }
+      </div>
 
       @if (showSteps()) {
         <hq-step-strip
@@ -336,6 +370,13 @@
     </div>
 
     <div page-footer>
+      @if (canPreview()) {
+        <!-- An anchor, not `hq-button`: it navigates, so middle-click, "open in new tab" and the
+             status bar all have to work. `.lesson__secondary` gives it the secondary button's box. -->
+        <a class="lesson__secondary" routerLink="/player/gallery" [queryParams]="previewQuery()">
+          {{ 'lessons.detail.previewAsChild' | transloco }}
+        </a>
+      }
       @if (isPublished()) {
         <hq-button *hqCan="'lesson.publish'" variant="secondary" [disabled]="busy() !== null" (pressed)="unpublish()">
           {{ 'lessons.detail.unpublish' | transloco }}
@@ -351,5 +392,32 @@
         </hq-button>
       }
     </div>
+
+    @if (usesPublishSheet()) {
+      <hq-dialog
+        [(open)]="publishSheetOpen"
+        [title]="publishSheetTitle()"
+        [confirmLabel]="'lessons.detail.publishSheet.confirm' | transloco"
+        (confirmed)="confirmPublishSheet()"
+      >
+        <p class="lesson__sheet-note">{{ 'lessons.detail.publishSheet.ownClass' | transloco }}</p>
+        @if (siblingsLoading()) {
+          <hq-skeleton [loading]="true" [lines]="2" [label]="'lessons.loading' | transloco" />
+        } @else if (siblingClasses().length === 0) {
+          <p class="lesson__sheet-note">{{ 'lessons.detail.publishSheet.noSiblings' | transloco }}</p>
+        } @else {
+          <fieldset class="lesson__siblings">
+            <legend class="lesson__sheet-note">{{ 'lessons.detail.publishSheet.also' | transloco }}</legend>
+            @for (sibling of siblingClasses(); track sibling.id) {
+              <hq-checkbox
+                [label]="sibling.name"
+                [checked]="isSiblingSelected(sibling.id)"
+                (checkedChange)="toggleSibling(sibling.id, $event)"
+              />
+            }
+          </fieldset>
+        }
+      </hq-dialog>
+    }
   </hq-page>
 }

@@ -6,16 +6,18 @@ import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, signal, viewChildren } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import {
   type AdminLesson,
   type AdminPlay,
   type ParentPanel,
+  type PublishedCopy,
   AdminLessonSourceEnum,
   AdminLessonStatusEnum,
   AdminLessonSubjectEnum,
   LessonStepInfoStatusEnum,
+  TeacherApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { activeLang } from '../../core/i18n/active-lang';
@@ -25,6 +27,7 @@ import {
   ButtonComponent,
   CardComponent,
   CheckboxComponent,
+  DialogComponent,
   InputComponent,
   type PipelineStep as StripStep,
   PageComponent,
@@ -116,6 +119,7 @@ interface TemplateGroupView {
     SelectComponent,
     InputComponent,
     CheckboxComponent,
+    DialogComponent,
     SkeletonComponent,
     PhonePreviewComponent,
     StopEditorComponent,
@@ -128,6 +132,7 @@ interface TemplateGroupView {
     CdkDropList,
     CdkDrag,
     CdkDragHandle,
+    RouterLink,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -136,6 +141,7 @@ interface TemplateGroupView {
 })
 export class LessonPage {
   private readonly api = inject(LessonApiService);
+  private readonly teacherApi = inject(TeacherApi);
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -220,9 +226,45 @@ export class LessonPage {
     const lesson = this.lesson();
     if (!lesson) return null;
     const parts = [this.classLabel(), this.dateLabel(), this.statusWord()];
+    // The version only means something once something was published under it: re-publishing
+    // after an edit mints a new one, and a parent looking at yesterday's copy has the old one.
+    if (lesson.publishedAt !== undefined && lesson.version > 0) {
+      parts.push(this.t('lessons.detail.version', { version: lesson.version }));
+    }
     if (this.isAdmin() && lesson.schoolName) parts.push(lesson.schoolName);
     return parts.filter((part) => part.length > 0).join(' · ');
   });
+
+  /**
+   * "Analyzed before · 0 tokens" (teacher-flow Step 5).
+   *
+   * The server hashes the source file, so the same worksheet analyzed by anybody in any school
+   * comes back instantly and costs nothing. Saying so is not a boast: it is why the step strip
+   * finished before she could read it, and the tooltip carries what it saved.
+   */
+  protected readonly analyzedBefore = computed(() => this.lesson()?.analyzedBefore === true);
+
+  protected readonly analyzedBeforeTooltip = computed(() => {
+    this.lang();
+    return this.t('lessons.analyzedBeforeTooltip', { tokens: this.lesson()?.tokensSaved ?? 0 });
+  });
+
+  /** Class and subject, as the fixed labels §4 calls for — never editable from the editor. */
+  protected readonly classFact = computed(() => {
+    this.lang();
+    const lesson = this.lesson();
+    if (!lesson) return '';
+    const subject = this.translateOrEmpty(`subject.${lesson.subject}`) || lesson.subject;
+    return lesson.className ? `${lesson.className} · ${subject}` : this.classLabel();
+  });
+
+  /** Preview as child opens the web player; N3 builds it, the route is a placeholder until then. */
+  protected readonly canPreview = computed(() => {
+    const status = this.lesson()?.status;
+    return status === AdminLessonStatusEnum.REVIEW || status === AdminLessonStatusEnum.PUBLISHED;
+  });
+
+  protected readonly previewQuery = computed(() => ({ lesson: this.lessonId }));
 
   // ---- step strip ---------------------------------------------------------------------------
 
@@ -773,6 +815,37 @@ export class LessonPage {
     return false;
   }
 
+  // ---- move the lesson to another day (teacher, unpublished) ---------------------------------
+
+  /**
+   * §8: a published lesson's day is fixed — children have already seen the island on it, and
+   * `PATCH /teacher/lessons/{id}` refuses the move server-side too. Unpublish first.
+   */
+  protected readonly canMoveDate = computed(
+    () => this.api.supportsMoveDate() && !this.isPublished() && this.lesson() !== null,
+  );
+
+  protected readonly dateValue = computed(() => this.lesson()?.date ?? '');
+
+  /** Optimistic: the date control is the only thing on screen that would lag behind a round trip. */
+  protected moveDate(date: string): void {
+    const lesson = this.lesson();
+    if (!lesson || !date || date === lesson.date) return;
+    const previous = lesson.date;
+    this.lessonRes.update((current) => (current ? { ...current, date } : current));
+    this.busy.set(this.t('lessons.detail.busy.movingDate'));
+    this.api.moveDate(lesson.id, date).subscribe({
+      next: (updated) => {
+        this.busy.set(null);
+        this.lessonRes.update(() => updated);
+      },
+      error: () => {
+        this.busy.set(null);
+        this.lessonRes.update((current) => (current ? { ...current, date: previous } : current));
+      },
+    });
+  }
+
   // ---- publish readiness ---------------------------------------------------------------------
 
   protected readonly publishReady = computed(() => {
@@ -789,6 +862,12 @@ export class LessonPage {
   protected readonly canPublish = computed(
     () => this.lesson()?.status === AdminLessonStatusEnum.REVIEW && this.publishReady() && this.busy() === null,
   );
+
+  /**
+   * §8: "draft and error lessons can be deleted". A published one is on children's islands and
+   * in their results; Unpublish is the way back, and it keeps the 10 s Undo.
+   */
+  protected readonly canDelete = computed(() => !this.isPublished() && this.lesson() !== null);
 
   protected readonly publishReason = computed(() => {
     this.lang();
@@ -839,8 +918,13 @@ export class LessonPage {
     return this.t('lessons.detail.regenerateStopConfirm.confirm');
   });
 
+  /**
+   * An Admin publishes the one lesson and gets the plain confirm band. A teacher gets the sheet
+   * (§8): her own class is always in, her sibling sections are the choice.
+   */
   protected requestPublish(): void {
-    this.pendingAction.set({ kind: 'publish' });
+    if (this.usesPublishSheet()) this.publishSheetOpen.set(true);
+    else this.pendingAction.set({ kind: 'publish' });
   }
 
   protected requestDelete(): void {
@@ -927,6 +1011,115 @@ export class LessonPage {
         this.lessonRes.update(() => previous);
       },
     });
+  }
+
+  // ---- the publish sheet: her class, plus the siblings she ticks (§8) -------------------------
+
+  protected readonly usesPublishSheet = computed(() => !this.api.isAdmin());
+  protected readonly publishSheetOpen = signal(false);
+
+  /**
+   * Her classes, read only while the sheet is open.
+   *
+   * Every lesson view would otherwise pay for a list only the sheet reads, and the sheet is
+   * opened once per lesson at most. The skeleton inside covers the round trip.
+   */
+  private readonly myClasses = rxResource({
+    params: () => (this.publishSheetOpen() && this.usesPublishSheet() ? true : undefined),
+    stream: () => this.teacherApi.myClasses(),
+    defaultValue: [],
+  });
+
+  protected readonly siblingsLoading = this.myClasses.isLoading;
+
+  /**
+   * A **sibling** is another of her sections in the same grade and the same subject — the ones
+   * this lesson would make sense in. Her own class is excluded because it is never a choice,
+   * and 2C · Math is excluded because a Grade 1 lesson is not a Grade 2 lesson.
+   */
+  protected readonly siblingClasses = computed(() => {
+    const lesson = this.lesson();
+    if (!lesson) return [];
+    return this.myClasses
+      .value()
+      .filter(
+        (card) =>
+          card.classId !== undefined &&
+          card.classId !== lesson.classId &&
+          card.grade === lesson.course.grade &&
+          card.subject === lesson.subject,
+      )
+      .map((card) => ({ id: card.classId!, name: card.className ?? card.classId! }));
+  });
+
+  private readonly selectedSiblings = signal<ReadonlySet<string>>(new Set());
+
+  protected isSiblingSelected(id: string): boolean {
+    return this.selectedSiblings().has(id);
+  }
+
+  protected toggleSibling(id: string, selected: boolean): void {
+    this.selectedSiblings.update((current) => {
+      const next = new Set(current);
+      if (selected) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  protected readonly publishSheetTitle = computed(() => {
+    this.lang();
+    const lesson = this.lesson();
+    if (!lesson) return '';
+    return this.t('lessons.detail.publishSheet.title', {
+      class: lesson.className ?? this.classFact(),
+      date: this.dateLabel(),
+    });
+  });
+
+  /** The success band: one line per copy, each linking to the lesson that class now has. */
+  protected readonly publishedCopies = signal<readonly { id: string; name: string }[]>([]);
+
+  protected dismissPublishedCopies(): void {
+    this.publishedCopies.set([]);
+  }
+
+  protected confirmPublishSheet(): void {
+    const lesson = this.lesson();
+    if (!lesson) return;
+    // Her own class is never a checkbox and never optional: "Publish to 1A" is the sheet's title.
+    const own = lesson.classId ? [lesson.classId] : [];
+    const classIds = [...own, ...this.selectedSiblings()];
+    const names = new Map(this.siblingClasses().map((sibling) => [sibling.id, sibling.name]));
+    if (lesson.classId) names.set(lesson.classId, lesson.className ?? lesson.classId);
+
+    this.publishSheetOpen.set(false);
+    this.busy.set(this.t('lessons.detail.busy.publishing'));
+    this.api.publishToClasses(lesson.id, classIds).subscribe({
+      next: (copies) => {
+        this.busy.set(null);
+        this.publishedCopies.set(this.toCopyLinks(copies, names));
+        this.selectedSiblings.set(new Set());
+        this.lessonRes.reload();
+      },
+      error: () => this.busy.set(null),
+    });
+  }
+
+  /**
+   * The server answers with the copies it made, and a copy for a class she cannot name is still
+   * worth linking — `PublishedCopy.classId` is the key, the name is the nicety.
+   */
+  private toCopyLinks(
+    copies: readonly PublishedCopy[],
+    names: ReadonlyMap<string, string>,
+  ): readonly { id: string; name: string }[] {
+    return copies
+      .filter((copy) => copy.lessonId !== undefined)
+      .map((copy) => ({
+        id: copy.lessonId!,
+        name: names.get(copy.classId ?? '') ?? (copy.classId ?? ''),
+      }));
   }
 
   // ---- unpublish: immediate, with a 10 s Undo strip ------------------------------------------

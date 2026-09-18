@@ -490,7 +490,8 @@
         "reordering": "Saving the new order…",
         "creatingLevel": "Creating the level…",
         "generating": "Writing the other levels…",
-        "savingPanel": "Saving the parent panel…"
+        "savingPanel": "Saving the parent panel…",
+        "movingDate": "Moving the lesson…"
       },
       "files": {
         "title": "Files",
@@ -638,8 +639,21 @@
         "openAnswer": "Open question",
         "writeSentence": "Finish the sentence",
         "exitTicket": "Exit ticket"
+      },
+      "version": "Version {{version}}",
+      "moveDate": "Lesson day",
+      "previewAsChild": "Preview as child",
+      "publishSheet": {
+        "title": "Publish to {{class}} on {{date}}",
+        "ownClass": "This lesson publishes to its own class.",
+        "also": "Also publish to",
+        "noSiblings": "You have no other class in this grade and subject.",
+        "confirm": "Publish",
+        "done": "Published. Each class has its own copy:"
       }
-    }
+    },
+    "analyzedBefore": "Analyzed before · 0 tokens",
+    "analyzedBeforeTooltip": "This file was analyzed before, so the result came back instantly and saved {{tokens}} tokens."
   },
   "nav": {
     "brand": "Dashboard",
@@ -1006,5 +1020,12 @@
     "moveToDay": "Move to {{day}}",
     "copyToClass": "Copy to {{class}}",
     "copying": "Copying…"
+  },
+  "player": {
+    "gallery": {
+      "title": "Preview as child",
+      "comingIn": "The web player arrives in N3. Until then, the lesson is ready and children will see it on its day.",
+      "back": "Back to the lesson"
+    }
   }
 }

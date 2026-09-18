@@ -529,6 +529,18 @@ export class WeekPage {
     });
   }
 
+  /**
+   * The lesson's own title, or the dashboard's own fallback when it has none.
+   *
+   * The server has a `"Untitled lesson"` of its own, but it is a server string in one language:
+   * nothing on screen may depend on it, or an Arabic week would carry one English card. An
+   * untitled lesson is ordinary here — a lesson is created before the analyzer names it.
+   */
+  protected titleOf(cell: GridCell): string {
+    this.lang();
+    return cell.lesson?.title?.trim() || this.t('lessons.untitled');
+  }
+
   protected cellLabel(row: GridRow, cell: GridCell): string {
     this.lang();
     return this.t('week.cellLabel', { class: row.className, day: this.dayName(cell.date) });
