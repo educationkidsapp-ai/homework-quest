@@ -589,6 +589,21 @@ product name is a database row (see [Platform settings](#platform-settings)) —
 
 ## Seeding two schools, isolation, flags and themes
 
+**The one-school seed (`SEED_SCHOOL`).** A school large enough to judge the dashboard by — 30 classes (British and
+American, grades 1–3, sections A–E), 40 teachers, 60 teaching assignments and 600 children — lives in
+`server/src/main/resources/seed/{classes,teachers,assignments,children}.csv` and is loaded by
+`quest.server.classes.SchoolSeed` into the default school on start-up. It goes in through the Admin services, so the
+rows carry real join codes, real one-time passwords and the one-teacher-per-subject-per-class rule; it is idempotent
+(a class is matched by curriculum + grade + name, a teacher by email, a child by her name in her class), so a re-run
+logs the counts and writes nothing, and a malformed CSV row stops the load naming its file and line. `SEED_SCHOOL`
+(default `false`, `true` in the `qa` and `h2` profiles, no such bean in `prod`) is the switch, and **Terraform should
+set `SEED_SCHOOL=true` on the QA Cloud Run service** so a fresh QA database fills itself. `SEED_STAFF_PASSWORD` is
+the one password every seeded teacher gets, with `must_change_password` cleared so an e2e run can sign in as any of
+them; leave it unset and each teacher keeps her own generated password, which nothing logs or prints — the start-up
+line says only that the variable is unset. The first load costs about 12 seconds (one bcrypt per teacher); later
+boots are instant. This school is separate from the Al Noor / Green Valley fixture below, which lives in its own two
+schools and is untouched by it.
+
 `e2e/` holds the fixture and the assertions over it — three Node-and-bash scripts, no dependencies beyond Node 22,
 `curl` and optionally `jq`. Full detail in [e2e/README.md](../e2e/README.md).
 
