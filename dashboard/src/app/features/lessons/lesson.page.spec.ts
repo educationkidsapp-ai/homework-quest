@@ -7,7 +7,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../../api';
-import { ADMIN_USER, MANAGERIAL_USER } from '../../../testing/fixtures';
+import { ADMIN_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
@@ -16,6 +16,12 @@ import { LessonPage } from './lesson.page';
 const ADMIN_PERMISSIONS = {
   role: 'ADMIN',
   permissions: ['lesson.read', 'lesson.write', 'lesson.publish', 'lesson.delete', 'play.write', 'stop.write'],
+  readOnly: false,
+};
+
+const TEACHER_PERMISSIONS = {
+  role: 'TEACHER',
+  permissions: ['lesson.read', 'lesson.write', 'lesson.publish', 'play.write', 'stop.write'],
   readOnly: false,
 };
 
@@ -64,9 +70,9 @@ function providersFor(id: string, notice?: string): (Provider | EnvironmentProvi
 /**
  * Signs an Admin in and flushes what every render asks for.
  *
- * Unlike the list page, `LessonPage`'s `getLesson` fetch has no course-chooser gate — it fires
- * the moment the component constructs, before the sign-in the render below has to do by hand.
- * So it is the *first* request the backend sees, not the last.
+ * Sign-in comes *first* since N2.4: the role picks which family of routes the page reads
+ * (`LessonApiService`), so `getLesson` waits for `/me` rather than guessing — an Admin's page
+ * must not open by asking `/teacher/lessons/{id}` and getting someone else's 404.
  */
 async function renderLesson(lesson: object, notice?: string) {
   return renderLessonAs(lesson, ADMIN_USER, ADMIN_PERMISSIONS, notice);
@@ -81,21 +87,76 @@ async function renderLessonAs(
   const rendered = await renderHq(LessonPage, { providers: providersFor('l-1', notice) });
   const backend = TestBed.inject(HttpTestingController);
 
-  backend.expectOne('/admin/lessons/l-1').flush(lesson);
-  await Promise.resolve();
-
   TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
   TestBed.inject(AuthService).loadMe().subscribe();
   backend.expectOne('/me').flush(user);
+  await Promise.resolve();
+  TestBed.tick();
+
+  // The lesson comes second and the permissions third: the fetch waits for the role, and
+  // `*hqCan` — which is what asks for `/me/permissions` — only exists once the page has a
+  // lesson to render instead of its skeleton.
+  backend.expectOne(lessonUrlFor(user)).flush(lesson);
+  await Promise.resolve();
   TestBed.tick();
   backend.expectOne('/me/permissions').flush(permissions);
   await Promise.resolve();
+  TestBed.tick();
 
   return { rendered, backend };
 }
 
+/** An Admin reads `/admin/**`; everyone else reads the teacher aliases. */
+function lessonUrlFor(user: typeof ADMIN_USER): string {
+  return user.role === 'ADMIN' ? '/admin/lessons/l-1' : '/teacher/lessons/l-1';
+}
+
+/** A schema-valid `choice` stop, so the editor's live validation has something real to chew on. */
+function choiceStop(id: string, title: string) {
+  return {
+    id,
+    type: 'choice',
+    title,
+    speak: 'Which one is right?',
+    ingredient: { emoji: '🥕', name: 'carrot' },
+    parentTip: { en: 'Read it together.', ar: 'اقرآها معًا.' },
+    hint: 'Think about the page.',
+    question: 'Which one is right?',
+    options: [
+      { id: 'a', label: 'First' },
+      { id: 'b', label: 'Second' },
+    ],
+    correctOptionId: 'a',
+  };
+}
+
+function lessonWithStops(extra: object = {}) {
+  return {
+    ...BASE_LESSON,
+    status: 'review',
+    plays: [
+      {
+        id: 'p-1',
+        level: 1,
+        variant: 0,
+        generatedAt: 0,
+        promptVersion: '1',
+        play: {
+          kind: 'math',
+          level: 1,
+          variant: 0,
+          theme: { potName: 'Soup', dishName: 'Stew', potEmoji: '🍲', servedText: 'Served!' },
+          stops: [choiceStop('st-1', 'Pick the bigger number'), choiceStop('st-2', 'What number is missing')],
+        },
+      },
+    ],
+    ...extra,
+  };
+}
+
 describe('Lesson', () => {
   beforeEach(() => localStorage.clear());
+
 
   it('renders the pipeline steps with their state, and the failed step\'s message in a band', async () => {
     await renderLesson({
@@ -210,38 +271,7 @@ describe('Lesson', () => {
   });
 
   it('switches the play tab and selects a stop, driving the pinned preview', async () => {
-    const stop = (id: string, title: string) => ({
-      id,
-      type: 'choice',
-      title,
-      speak: '',
-      ingredient: { emoji: '🥕', name: 'carrot' },
-      parentTip: { en: '', ar: '' },
-      hint: '',
-      question: '',
-      options: [],
-      correctOptionId: '',
-    });
-    await renderLesson({
-      ...BASE_LESSON,
-      status: 'review',
-      plays: [
-        {
-          id: 'p-1',
-          level: 1,
-          variant: 0,
-          generatedAt: 0,
-          promptVersion: '1',
-          play: {
-            kind: 'math',
-            level: 1,
-            variant: 0,
-            theme: { potName: 'Soup', dishName: 'Stew', potEmoji: '🍲', servedText: 'Served!' },
-            stops: [stop('st-1', 'Pick the bigger number'), stop('st-2', 'What number is missing')],
-          },
-        },
-      ],
-    });
+    await renderLesson(lessonWithStops());
 
     // The listbox pattern (`ui/tabs/tabs.component.ts`'s roving tabindex, applied to the stop
     // list): `aria-selected` and `tabindex` follow the selection, not just a CSS class.
@@ -258,6 +288,117 @@ describe('Lesson', () => {
     expect(first).toHaveAttribute('tabindex', '-1');
     expect(second).toHaveAttribute('aria-selected', 'true');
     expect(second).toHaveAttribute('tabindex', '0');
+  });
+
+  // ---- N2.4a: the stop editor, manual authoring and the parent panel ------------------------
+
+  it('saves the selected stop, quick field and JSON staying one document', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    const title = screen.getByLabelText(/^Title/);
+    await userEvent.clear(title);
+    await userEvent.type(title, 'Pick the biggest');
+
+    // The quick field rewrote the JSON, so the textarea is the thing that gets PUT.
+    const json: HTMLTextAreaElement = screen.getByLabelText(/The whole stop/);
+    expect(JSON.parse(json.value)).toMatchObject({ title: 'Pick the biggest' });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save the stop' })).toBeEnabled());
+    await userEvent.click(screen.getByRole('button', { name: 'Save the stop' }));
+
+    const request = backend.expectOne('/admin/stops/st-1');
+    expect(request.request.method).toBe('PUT');
+    expect(JSON.parse(request.request.body as string)).toMatchObject({ id: 'st-1', title: 'Pick the biggest' });
+  });
+
+  /** Only the declared type's branch is reported, and Save stays off until it passes. */
+  it('refuses to save a stop the schema would reject, naming the missing field only', async () => {
+    await renderLesson(lessonWithStops());
+
+    const json = screen.getByLabelText(/The whole stop/);
+    const { question, ...withoutQuestion } = JSON.parse((json as HTMLTextAreaElement).value) as Record<string, unknown>;
+    expect(question).toBeDefined();
+    await userEvent.clear(json);
+    await userEvent.paste(JSON.stringify(withoutQuestion, null, 2));
+
+    const error = await screen.findByRole('alert');
+    expect(error).toHaveTextContent('question');
+    expect(error).not.toHaveTextContent('statement');
+    expect(screen.getByRole('button', { name: 'Save the stop' })).toBeDisabled();
+  });
+
+  it('will not save a stop whose id was edited, because the server addresses it by that id', async () => {
+    await renderLesson(lessonWithStops());
+
+    const json = screen.getByLabelText(/The whole stop/);
+    const parsed = JSON.parse((json as HTMLTextAreaElement).value) as Record<string, unknown>;
+    await userEvent.clear(json);
+    await userEvent.paste(JSON.stringify({ ...parsed, id: 'st-renamed' }, null, 2));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The id cannot change');
+    expect(screen.getByRole('button', { name: 'Save the stop' })).toBeDisabled();
+  });
+
+  it('adds a stop from the grouped template menu', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    await userEvent.click(screen.getByRole('button', { name: '+ Add stop' }));
+    expect(screen.getByText('Several answers')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Match pairs' }));
+
+    const request = backend.expectOne('/admin/plays/p-1/stops');
+    expect(request.request.method).toBe('POST');
+    expect(JSON.parse(request.request.body as string) as { type: string }).toMatchObject({ type: 'match' });
+  });
+
+  it('deletes a stop only behind the red confirm band, and offers no Undo', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete this stop' }));
+    expect(screen.getByText(/goes for good/)).toBeInTheDocument();
+    backend.expectNone('/admin/stops/st-1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete the stop' }));
+    expect(backend.expectOne('/admin/stops/st-1').request.method).toBe('DELETE');
+    expect(screen.queryByRole('button', { name: /^Undo/ })).not.toBeInTheDocument();
+  });
+
+  /** Dragging is the gesture; the payload is the whole new order, which is what the server takes. */
+  it('posts the reordered stop ids when a row is dropped', async () => {
+    const { rendered, backend } = await renderLesson(lessonWithStops());
+    const page = rendered.fixture.componentInstance as unknown as {
+      dropStop(event: { previousIndex: number; currentIndex: number }): void;
+    };
+
+    page.dropStop({ previousIndex: 1, currentIndex: 0 });
+    const request = backend.expectOne('/admin/plays/p-1/order');
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body).toBe('{"stopIds":["st-2","st-1"]}');
+  });
+
+  it('skips the step strip for a manual lesson and offers "Generate the other levels" instead', async () => {
+    const { backend } = await renderLesson(
+      lessonWithStops({ source: 'manual', steps: [{ step: 'upload', status: 'done', attempt: 1, updatedAt: 0 }] }),
+    );
+
+    expect(screen.queryByRole('list', { name: /pipeline/i })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/What this lesson is about/), 'Adding to ten with number bonds.');
+    await userEvent.click(screen.getByRole('button', { name: 'Generate the levels' }));
+
+    const request = backend.expectOne('/admin/lessons/l-1/generate-from-text');
+    expect(request.request.body).toBe('{"text":"Adding to ten with number bonds."}');
+  });
+
+  it('a teacher reads and writes the /teacher aliases, never /admin', async () => {
+    const { backend } = await renderLessonAs(lessonWithStops(), TEACHER_USER, TEACHER_PERMISSIONS);
+
+    await userEvent.click(screen.getByRole('button', { name: '+ Add stop' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'True or false' }));
+
+    backend.expectOne('/teacher/plays/p-1/stops');
+    backend.expectNone('/admin/plays/p-1/stops');
+    // No teacher alias for clearing files, so the button that would 404 is simply not there.
+    expect(screen.queryByRole('button', { name: /Remove all/i })).not.toBeInTheDocument();
   });
 
   it('publishes behind a confirm band and shows the notice after', async () => {

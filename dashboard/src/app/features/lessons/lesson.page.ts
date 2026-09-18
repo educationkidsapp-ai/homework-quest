@@ -1,19 +1,21 @@
 /* hq-flag: none (shell) — gated by the `lesson.read`/`lesson.write`/`lesson.publish`/
    `lesson.delete`/`play.write`/`stop.write` permissions, not a flag: the lesson pipeline
    ships with the dashboard rather than behind a toggle (see `lessons.page.ts`'s header). */
+import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList } from '@angular/cdk/drag-drop';
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, signal, viewChildren } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { of } from 'rxjs';
 import {
   type AdminLesson,
   type AdminPlay,
+  type ParentPanel,
   AdminLessonSourceEnum,
   AdminLessonStatusEnum,
   AdminLessonSubjectEnum,
-  AdminLessonsApi,
   LessonStepInfoStatusEnum,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
@@ -31,21 +33,31 @@ import {
   SkeletonComponent,
   type StepState,
   StepStripComponent,
+  TextareaComponent,
   type Tab,
   TabsComponent,
   UndoStripComponent,
 } from '../../ui';
 import { type Play, type Stop, PhonePreviewComponent } from '../../ui/phone-preview';
+import { LessonApiService } from './lesson-api.service';
 import { toPreviewPlay } from './lesson-preview.mapper';
 import {
   type ConfirmedSkillRequest,
   type Subject,
   SUBJECTS,
   confirmSkillsBody,
+  createPlayBody,
   errorStepOf,
+  generateFromTextBody,
   isRunningStatus,
   jobStatusAsLessonStatus,
+  parentPanelBody,
+  reorderBody,
+  stopBody,
 } from './lessons.models';
+import { ParentPanelEditorComponent } from './parent-panel-editor.component';
+import { StopEditorComponent } from './stop-editor.component';
+import { STOP_TEMPLATES, STOP_TEMPLATE_GROUPS, type StopTemplateGroup, templatesByGroup } from './stop-templates';
 
 const POLL_MS = 2500;
 
@@ -71,7 +83,16 @@ type PendingAction =
   | { readonly kind: 'publish' }
   | { readonly kind: 'delete' }
   | { readonly kind: 'regeneratePlay'; readonly playId: string }
-  | { readonly kind: 'regenerateStop'; readonly stopId: string; readonly title: string };
+  | { readonly kind: 'regenerateStop'; readonly stopId: string; readonly title: string }
+  | { readonly kind: 'deleteStop'; readonly stopId: string; readonly title: string }
+  | { readonly kind: 'leave' };
+
+/** The "+ Add stop" menu, grouped exactly as `StopTemplates.kt` groups it. */
+interface TemplateGroupView {
+  readonly id: StopTemplateGroup;
+  readonly label: string;
+  readonly entries: readonly { readonly type: string; readonly label: string }[];
+}
 
 /**
  * One lesson through its pipeline (Admin + Teacher, §6 screens 8/13): the step strip, its
@@ -98,10 +119,16 @@ type PendingAction =
     CheckboxComponent,
     SkeletonComponent,
     PhonePreviewComponent,
+    StopEditorComponent,
+    ParentPanelEditorComponent,
+    TextareaComponent,
     CanDirective,
     CdkMenu,
     CdkMenuItem,
     CdkMenuTrigger,
+    CdkDropList,
+    CdkDrag,
+    CdkDragHandle,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -109,7 +136,7 @@ type PendingAction =
   styleUrl: './lesson.page.scss',
 })
 export class LessonPage {
-  private readonly lessonsApi = inject(AdminLessonsApi);
+  private readonly api = inject(LessonApiService);
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -122,13 +149,19 @@ export class LessonPage {
   protected readonly basePath = computed(() => (this.isAdmin() ? '/admin/lessons' : '/teacher/lessons'));
   protected readonly lessonId = this.route.snapshot.paramMap.get('id') ?? '';
 
-  private readonly lessonRes = rxResource<AdminLesson | null, string>({
-    params: () => this.lessonId,
-    stream: ({ params: id }) => this.lessonsApi.getLesson(id),
+  /**
+   * The role decides which family of routes this reads — `/admin/**` or `/teacher/**` — so the
+   * fetch waits for `/me` rather than guessing and asking the wrong one. `undefined` params keep
+   * the resource idle until then, which is why `loading` folds "the role is not known yet" in:
+   * without it a hard reload would flash the empty page before the request even started.
+   */
+  private readonly lessonRes = rxResource<AdminLesson | null, string | undefined>({
+    params: () => (this.auth.role() === null ? undefined : this.lessonId),
+    stream: ({ params: id }) => this.api.getLesson(id),
     defaultValue: null,
   });
   protected readonly lesson = this.lessonRes.value;
-  protected readonly loading = this.lessonRes.isLoading;
+  protected readonly loading = computed(() => this.lessonRes.isLoading() || this.auth.role() === null);
   /** A teacher's `GET` for someone else's lesson answers 404 (never 403 — see `error.interceptor.ts`). */
   protected readonly notFound = computed(() => {
     const error = this.lessonRes.error();
@@ -232,7 +265,7 @@ export class LessonPage {
     const previous = lesson.status;
     this.busy.set(this.t('lessons.detail.busy.retrying'));
     this.lessonRes.update((current) => (current ? { ...current, status: AdminLessonStatusEnum.UPLOADING } : current));
-    this.lessonsApi.retry(lesson.id).subscribe({
+    this.api.retry(lesson.id).subscribe({
       next: (job) => {
         this.busy.set(null);
         this.lessonRes.update((current) => (current ? { ...current, status: jobStatusAsLessonStatus(job.status) } : current));
@@ -252,7 +285,7 @@ export class LessonPage {
     const previous = lesson.status;
     this.busy.set(this.t('lessons.detail.busy.retryingStep', { step: this.t(`lessons.step.${step}`) }));
     this.lessonRes.update((current) => (current ? { ...current, status: AdminLessonStatusEnum.UPLOADING } : current));
-    this.lessonsApi.retryStep(lesson.id, step).subscribe({
+    this.api.retryStep(lesson.id, step).subscribe({
       next: (job) => {
         this.busy.set(null);
         this.lessonRes.update((current) => (current ? { ...current, status: jobStatusAsLessonStatus(job.status) } : current));
@@ -295,13 +328,16 @@ export class LessonPage {
     const lesson = this.lesson();
     if (!lesson || files.length === 0) return;
     this.busy.set(this.t('lessons.detail.busy.removingFiles'));
-    this.lessonsApi.deleteFiles(lesson.id).subscribe({
+    // `DELETE /teacher/lessons/{id}/files` has no alias — a teacher's replace is an upload over
+    // the old file, which the pipeline re-analyzes anyway. See `LessonApiService`'s header.
+    const cleared = this.canDeleteFiles() ? this.api.deleteFiles(lesson.id) : of(null);
+    cleared.subscribe({
       next: () => {
         this.busy.set(this.t('lessons.new.busy.uploading'));
-        this.lessonsApi.uploadFiles(lesson.id, [...files]).subscribe({
+        this.api.uploadFiles(lesson.id, files).subscribe({
           next: () => {
             this.busy.set(this.t('lessons.new.busy.analyzing'));
-            this.lessonsApi.analyze(lesson.id).subscribe({
+            this.api.analyze(lesson.id).subscribe({
               next: () => {
                 this.busy.set(null);
                 this.replacing.set(false);
@@ -319,6 +355,7 @@ export class LessonPage {
 
   // ---- files section ------------------------------------------------------------------------
 
+  protected readonly canDeleteFiles = computed(() => this.api.supportsFileDeletion());
   protected readonly files = computed(() => this.lesson()?.files ?? []);
   protected readonly hasUndeletedFiles = computed(() => this.files().some((file) => !file.deleted));
 
@@ -329,7 +366,7 @@ export class LessonPage {
     const lesson = this.lesson();
     if (!lesson || files.length === 0) return;
     this.busy.set(this.t('lessons.new.busy.uploading'));
-    this.lessonsApi.uploadFiles(lesson.id, files).subscribe({
+    this.api.uploadFiles(lesson.id, files).subscribe({
       next: () => {
         this.busy.set(null);
         this.lessonRes.reload();
@@ -342,7 +379,7 @@ export class LessonPage {
     const lesson = this.lesson();
     if (!lesson) return;
     this.busy.set(this.t('lessons.detail.busy.removingFiles'));
-    this.lessonsApi.deleteFiles(lesson.id).subscribe({
+    this.api.deleteFiles(lesson.id).subscribe({
       next: () => {
         this.busy.set(null);
         this.lessonRes.reload();
@@ -428,7 +465,7 @@ export class LessonPage {
       subject: row.subject,
       method: row.method.trim() || undefined,
     }));
-    this.lessonsApi.confirmSkills(lesson.id, confirmSkillsBody(body)).subscribe({
+    this.api.confirmSkills(lesson.id, confirmSkillsBody(body)).subscribe({
       next: () => {
         this.busy.set(null);
         this.lessonRes.reload();
@@ -512,6 +549,236 @@ export class LessonPage {
     this.lesson()?.subject === AdminLessonSubjectEnum.MATH ? 'math' : 'english',
   );
 
+  // ---- the stop editor: save, attach a picture, add, delete, reorder ------------------------
+
+  /** True while the JSON draft differs from the saved stop — the leave band asks about it. */
+  protected readonly stopDirty = signal(false);
+
+  protected onStopDirtyChange(dirty: boolean): void {
+    this.stopDirty.set(dirty);
+  }
+
+  protected saveStop(stop: Stop): void {
+    this.busy.set(this.t('lessons.detail.busy.savingStop'));
+    this.api.updateStop(stop.id, stopBody(stop)).subscribe({
+      next: () => {
+        this.busy.set(null);
+        this.stopDirty.set(false);
+        this.lessonRes.reload();
+      },
+      error: () => this.busy.set(null),
+    });
+  }
+
+  /**
+   * Uploading a picture and attaching it are two steps on the server: the image belongs to the
+   * lesson, the `imageId` to the stop. The upload only reloads the lesson so the new id appears
+   * in the editor's picker — choosing it is the teacher's, because an upload is not a decision
+   * about which stop shows it.
+   */
+  protected attachImage(file: File): void {
+    const lesson = this.lesson();
+    if (!lesson) return;
+    this.busy.set(this.t('lessons.detail.busy.uploadingImage'));
+    // The lesson is re-read rather than patched: `POST …/images` answers with `LessonImage`
+    // (`{id, url}`), while `AdminLesson.images` is `PageImage` — same picture, more fields, and
+    // the preview needs the ones the upload does not return.
+    this.api.uploadImage(lesson.id, file).subscribe({
+      next: () => {
+        this.busy.set(null);
+        this.notice.set(this.t('lessons.detail.editor.attached'));
+        this.lessonRes.reload();
+      },
+      error: () => this.busy.set(null),
+    });
+  }
+
+  protected readonly templateGroups = computed<readonly TemplateGroupView[]>(() => {
+    this.lang();
+    return STOP_TEMPLATE_GROUPS.map((group) => ({
+      id: group,
+      label: this.t(`lessons.detail.editor.group.${group}`),
+      entries: templatesByGroup(group).map((entry) => ({
+        type: entry.type,
+        label: this.t(`lessons.detail.stopType.${entry.type}`),
+      })),
+    }));
+  });
+
+  protected addStop(type: string): void {
+    const play = this.currentAdminPlay();
+    const template = STOP_TEMPLATES.find((entry) => entry.type === type);
+    if (!play || !template) return;
+    const stop = template.make(this.previewSubject());
+    this.busy.set(this.t('lessons.detail.busy.addingStop'));
+    this.api.addStop(play.id, stopBody(stop)).subscribe({
+      next: (added) => {
+        this.busy.set(null);
+        this.selectedStopId.set(added.id);
+        this.lessonRes.reload();
+      },
+      error: () => this.busy.set(null),
+    });
+  }
+
+  protected requestDeleteStop(): void {
+    const stop = this.selectedStop();
+    if (stop) this.pendingAction.set({ kind: 'deleteStop', stopId: stop.id, title: stop.title });
+  }
+
+  private doDeleteStop(stopId: string): void {
+    this.busy.set(this.t('lessons.detail.busy.deletingStop'));
+    this.api.deleteStop(stopId).subscribe({
+      next: () => {
+        this.busy.set(null);
+        // No Undo strip here: `POST …/plays/{id}/stops` assigns its own id, so re-adding the
+        // deleted JSON would make a *different* stop, and the parent panel's `stopTips` and
+        // `modelAnswers` still point at the old one. The red confirm band is the whole guard.
+        if (this.selectedStopId() === stopId) this.selectedStopId.set(null);
+        this.lessonRes.reload();
+      },
+      error: () => this.busy.set(null),
+    });
+  }
+
+  /** Drag settles over 250 ms (`--hq-duration-settle`); the new order posts once it lands. */
+  protected dropStop(event: CdkDragDrop<readonly Stop[]>): void {
+    const play = this.currentAdminPlay();
+    const stops = this.currentPlay()?.stops ?? [];
+    if (!play || event.previousIndex === event.currentIndex) return;
+    const ids = stops.map((stop) => stop.id);
+    const [moved] = ids.splice(event.previousIndex, 1);
+    if (moved === undefined) return;
+    ids.splice(event.currentIndex, 0, moved);
+
+    const previous = this.lesson();
+    this.reorderedIds.set(ids);
+    this.busy.set(this.t('lessons.detail.busy.reordering'));
+    this.api.reorder(play.id, reorderBody(ids)).subscribe({
+      next: () => {
+        this.busy.set(null);
+        this.reorderedIds.set(null);
+        this.lessonRes.reload();
+      },
+      error: () => {
+        // The list snaps back where it was: an optimistic order that the server refused is a
+        // lie about what a child will see.
+        this.busy.set(null);
+        this.reorderedIds.set(null);
+        this.lessonRes.update(() => previous);
+      },
+    });
+  }
+
+  /** The order shown while the `PUT` is in flight, so the row does not jump back and forth. */
+  private readonly reorderedIds = signal<readonly string[] | null>(null);
+
+  protected readonly orderedStops = computed<readonly Stop[]>(() => {
+    const stops = this.currentPlay()?.stops ?? [];
+    const ids = this.reorderedIds();
+    if (ids === null) return stops;
+    return ids.map((id) => stops.find((stop) => stop.id === id)).filter((stop): stop is Stop => stop !== undefined);
+  });
+
+  // ---- manual authoring: create a missing level, generate the rest from a note --------------
+
+  protected readonly isManual = computed(() => this.lesson()?.source === AdminLessonSourceEnum.MANUAL);
+  /** A manual lesson never ran the pipeline, so its (empty) step strip says nothing worth space. */
+  protected readonly showSteps = computed(() => !this.isManual() && this.stripSteps().length > 0);
+  protected readonly canCreateLevel = computed(() => this.api.supportsCreateLevel());
+
+  /** The tab that is on screen but has no play behind it yet — what "Create level" would make. */
+  protected readonly missingPlay = computed(() => {
+    const def = PLAY_TAB_DEFS.find((entry) => entry.id === this.playTab());
+    if (!def) return null;
+    const plays = this.lesson()?.plays ?? [];
+    return plays.some((play) => play.level === def.level && play.variant === def.variant) ? null : def;
+  });
+
+  protected createLevel(): void {
+    const lesson = this.lesson();
+    const def = this.missingPlay();
+    if (!lesson || !def) return;
+    this.busy.set(this.t('lessons.detail.busy.creatingLevel'));
+    this.api.createPlay(lesson.id, createPlayBody(def.level, def.variant)).subscribe({
+      next: () => {
+        this.busy.set(null);
+        this.lessonRes.reload();
+      },
+      error: () => this.busy.set(null),
+    });
+  }
+
+  protected readonly generateText = signal('');
+
+  protected readonly canGenerate = computed(
+    () => this.busy() === null && this.generateText().trim().length > 0,
+  );
+
+  /**
+   * "Generate the other levels" hands the pipeline a note instead of a file: the server queues
+   * the same generate steps, so the page falls into its usual polling (`isRunningStatus`) and
+   * the step strip comes back to life for a manual lesson too.
+   */
+  protected generateLevels(): void {
+    const lesson = this.lesson();
+    if (!lesson || !this.canGenerate()) return;
+    const text = this.generateText().trim();
+    this.busy.set(this.t('lessons.detail.busy.generating'));
+    this.api.generateFromText(lesson.id, generateFromTextBody(text)).subscribe({
+      next: (job) => {
+        this.busy.set(null);
+        this.generateText.set('');
+        this.lessonRes.update((current) =>
+          current ? { ...current, status: jobStatusAsLessonStatus(job.status) } : current,
+        );
+      },
+      error: () => this.busy.set(null),
+    });
+  }
+
+  // ---- the parent panel --------------------------------------------------------------------
+
+  protected readonly panelDirty = signal(false);
+
+  protected onPanelDirtyChange(dirty: boolean): void {
+    this.panelDirty.set(dirty);
+  }
+
+  protected savePanel(panel: ParentPanel): void {
+    const lesson = this.lesson();
+    if (!lesson) return;
+    this.busy.set(this.t('lessons.detail.busy.savingPanel'));
+    this.api.updatePanel(lesson.id, parentPanelBody(panel)).subscribe({
+      next: (saved) => {
+        this.busy.set(null);
+        this.panelDirty.set(false);
+        this.lessonRes.update((current) => (current ? { ...current, parentPanel: saved } : current));
+        this.notice.set(this.t('lessons.detail.panel.saved'));
+      },
+      error: () => this.busy.set(null),
+    });
+  }
+
+  // ---- leaving with unsaved work -------------------------------------------------------------
+
+  protected readonly hasUnsavedWork = computed(() => this.panelDirty() || this.stopDirty());
+  private leaveConfirmed = false;
+  private leaveTarget: string | null = null;
+
+  /**
+   * `lessonUnsavedGuard` calls this. Unsaved work puts the red band up and refuses the
+   * navigation once, remembering where it was headed; confirming the band arms `leaveConfirmed`
+   * and repeats that navigation, so "Leave anyway" goes where the teacher clicked rather than
+   * to the list. `window.confirm()` is never used — the system's answer is a band.
+   */
+  confirmLeave(target: string): boolean {
+    if (this.leaveConfirmed || !this.hasUnsavedWork()) return true;
+    this.leaveTarget = target;
+    this.pendingAction.set({ kind: 'leave' });
+    return false;
+  }
+
   // ---- publish readiness ---------------------------------------------------------------------
 
   protected readonly publishReady = computed(() => {
@@ -549,6 +816,8 @@ export class LessonPage {
     if (action.kind === 'publish') return this.t('lessons.detail.publishConfirm.title');
     if (action.kind === 'delete') return this.t('lessons.deleteConfirm.title');
     if (action.kind === 'regeneratePlay') return this.t('lessons.detail.regeneratePlayConfirm.title');
+    if (action.kind === 'deleteStop') return this.t('lessons.detail.deleteStopConfirm.title');
+    if (action.kind === 'leave') return this.t('lessons.detail.leaveConfirm.title');
     return this.t('lessons.detail.regenerateStopConfirm.title');
   });
 
@@ -559,6 +828,8 @@ export class LessonPage {
     if (action.kind === 'publish') return this.t('lessons.detail.publishConfirm.message', { title: this.pageTitle() });
     if (action.kind === 'delete') return this.t('lessons.deleteConfirm.message', { title: this.pageTitle() });
     if (action.kind === 'regeneratePlay') return this.t('lessons.detail.regeneratePlayConfirm.message');
+    if (action.kind === 'deleteStop') return this.t('lessons.detail.deleteStopConfirm.message', { title: action.title });
+    if (action.kind === 'leave') return this.t('lessons.detail.leaveConfirm.message');
     return this.t('lessons.detail.regenerateStopConfirm.message', { title: action.title });
   });
 
@@ -569,6 +840,8 @@ export class LessonPage {
     if (action.kind === 'publish') return this.t('lessons.detail.publishConfirm.confirm');
     if (action.kind === 'delete') return this.t('lessons.deleteConfirm.confirm');
     if (action.kind === 'regeneratePlay') return this.t('lessons.detail.regeneratePlayConfirm.confirm');
+    if (action.kind === 'deleteStop') return this.t('lessons.detail.deleteStopConfirm.confirm');
+    if (action.kind === 'leave') return this.t('lessons.detail.leaveConfirm.confirm');
     return this.t('lessons.detail.regenerateStopConfirm.confirm');
   });
 
@@ -601,12 +874,14 @@ export class LessonPage {
     if (action.kind === 'publish') this.doPublish();
     else if (action.kind === 'delete') this.doDelete();
     else if (action.kind === 'regeneratePlay') this.doRegeneratePlay(action.playId);
+    else if (action.kind === 'deleteStop') this.doDeleteStop(action.stopId);
+    else if (action.kind === 'leave') this.doLeave();
     else this.doRegenerateStop(action.stopId);
   }
 
   private doRegeneratePlay(playId: string): void {
     this.busy.set(this.t('lessons.detail.busy.regeneratingPlay'));
-    this.lessonsApi.regeneratePlay(playId).subscribe({
+    this.api.regeneratePlay(playId).subscribe({
       next: () => {
         this.busy.set(null);
         this.lessonRes.reload();
@@ -617,7 +892,7 @@ export class LessonPage {
 
   private doRegenerateStop(stopId: string): void {
     this.busy.set(this.t('lessons.detail.busy.regeneratingStop'));
-    this.lessonsApi.regenerateStop(stopId).subscribe({
+    this.api.regenerateStop(stopId).subscribe({
       next: () => {
         this.busy.set(null);
         this.lessonRes.reload();
@@ -626,10 +901,16 @@ export class LessonPage {
     });
   }
 
+  /** "Leave anyway": the guard is told yes once, and the navigation that was refused is retried. */
+  private doLeave(): void {
+    this.leaveConfirmed = true;
+    void this.router.navigateByUrl(this.leaveTarget ?? this.basePath());
+  }
+
   private doDelete(): void {
     const lesson = this.lesson();
     if (!lesson) return;
-    this.lessonsApi.deleteLesson(lesson.id).subscribe({
+    this.api.deleteLesson(lesson.id).subscribe({
       next: () => void this.router.navigate([this.basePath()]),
       error: () => undefined,
     });
@@ -641,7 +922,7 @@ export class LessonPage {
     const previous = lesson;
     this.busy.set(this.t('lessons.detail.busy.publishing'));
     this.lessonRes.update((current) => (current ? { ...current, status: AdminLessonStatusEnum.PUBLISHED } : current));
-    this.lessonsApi.publish(lesson.id).subscribe({
+    this.api.publish(lesson.id).subscribe({
       next: (updated) => {
         this.busy.set(null);
         this.lessonRes.update(() => updated);
@@ -662,7 +943,7 @@ export class LessonPage {
     const lesson = this.lesson();
     if (!lesson) return;
     this.busy.set(this.t('lessons.detail.busy.unpublishing'));
-    this.lessonsApi.unpublish(lesson.id).subscribe({
+    this.api.unpublish(lesson.id).subscribe({
       next: (updated) => {
         this.busy.set(null);
         this.lessonRes.update(() => updated);
@@ -677,7 +958,7 @@ export class LessonPage {
     const lesson = this.lesson();
     if (!lesson) return;
     this.busy.set(this.t('lessons.detail.busy.publishing'));
-    this.lessonsApi.publish(lesson.id).subscribe({
+    this.api.publish(lesson.id).subscribe({
       next: (updated) => {
         this.busy.set(null);
         this.lessonRes.update(() => updated);

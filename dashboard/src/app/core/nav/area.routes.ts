@@ -1,4 +1,6 @@
-import { CanActivateFn, Routes } from '@angular/router';
+import { CanActivateFn, CanDeactivateFn, Routes } from '@angular/router';
+import { lessonUnsavedGuard } from '../../features/lessons/lesson-unsaved.guard';
+import type { LessonPage } from '../../features/lessons/lesson.page';
 import { roleGuard } from '../auth/auth.guards';
 import type { Role } from '../auth/auth.service';
 import { featureGuard } from '../flags/feature.guard';
@@ -31,6 +33,7 @@ export function areaRoutes(role: Role): Routes {
           ? {
               path: screen.path,
               canActivate: gatesOf(screen),
+              canDeactivate: exitGatesOf(screen),
               loadComponent: () => componentFor(screen, role),
             }
           : { path: screen.path, pathMatch: 'full' as const, redirectTo: screen.redirectTo },
@@ -67,6 +70,15 @@ function componentFor(screen: Screen, role: Role) {
     return import('../../features/admin/teachers.page').then((m) => m.TeachersPage);
   }
   return import('../../features/stub/stub.page').then((m) => m.StubPage);
+}
+
+/**
+ * The one screen that can hold unsaved work (N2.4's stop and parent-panel editors). The guard
+ * imports only the page's *type*, so naming it here adds nothing to the shell's bundle — the
+ * component itself stays behind `loadComponent`.
+ */
+function exitGatesOf(screen: Screen): CanDeactivateFn<LessonPage>[] {
+  return screen.id === 'lesson' ? [lessonUnsavedGuard] : [];
 }
 
 function gatesOf(screen: Screen): CanActivateFn[] {

@@ -62,6 +62,19 @@
   color: var(--hq-color-accent-strong);
 }
 
+// Twenty-two stop types under five headings is taller than any screen, so the "+ Add stop"
+// menu scrolls rather than overflowing off the bottom of the viewport.
+.menu--tall {
+  max-block-size: 60vh;
+  overflow-y: auto;
+}
+
+.menu__group {
+  @include m.label;
+  padding: var(--hq-space-12) var(--hq-space-16) var(--hq-space-4);
+  color: var(--hq-color-ink-soft);
+}
+
 .lesson__dropzone {
   display: flex;
   flex-wrap: wrap;
@@ -165,12 +178,80 @@
   margin-block-start: var(--hq-space-16);
 }
 
+.lesson__stops {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-12);
+  flex: 1;
+  min-inline-size: 0;
+}
+
 .lesson__stop-list {
   display: flex;
   flex-direction: column;
   gap: var(--hq-space-8);
+}
+
+.lesson__stop-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--hq-space-8);
+  background: var(--hq-color-surface);
+}
+
+.lesson__stop-row .lesson__stop-item {
   flex: 1;
   min-inline-size: 0;
+}
+
+// The handle is the only draggable part: dragging from the row itself would fight the click
+// that selects a stop, and a keyboard user reorders with the list's own arrow keys instead.
+.lesson__stop-handle {
+  flex: none;
+  inline-size: var(--hq-size-button-height);
+  background: none;
+  border: var(--hq-size-rule) solid var(--hq-color-rule);
+  color: var(--hq-color-ink-soft);
+  cursor: grab;
+  @include m.focus-ring;
+}
+
+// CDK's own classes, the one place they are styled: the placeholder is the gap the row will
+// land in, and 250 ms is `--hq-motion-base`, the settle every other list in the system uses.
+.cdk-drag-placeholder {
+  opacity: 0.4;
+}
+
+.cdk-drag-animating,
+.lesson__stop-list.cdk-drop-list-dragging .lesson__stop-row:not(.cdk-drag-placeholder) {
+  transition: transform var(--hq-motion-base) var(--hq-motion-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cdk-drag-animating,
+  .lesson__stop-list.cdk-drop-list-dragging .lesson__stop-row:not(.cdk-drag-placeholder) {
+    transition-duration: 0ms;
+  }
+}
+
+.lesson__stop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-8);
+}
+
+.lesson__generate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--hq-space-12);
+}
+
+hq-stop-editor {
+  display: block;
+  margin-block-start: var(--hq-space-24);
+  padding-block-start: var(--hq-space-16);
+  border-block-start: var(--hq-size-rule) solid var(--hq-color-line);
 }
 
 .lesson__stop-item {
@@ -218,33 +299,4 @@
   align-items: center;
   gap: var(--hq-space-12);
   flex: none;
-}
-
-.lesson__panel-block {
-  padding-block-end: var(--hq-space-16);
-  margin-block-end: var(--hq-space-16);
-  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
-
-  &:last-child {
-    border-block-end: 0;
-    margin-block-end: 0;
-    padding-block-end: 0;
-  }
-}
-
-.lesson__panel-heading {
-  @include m.label;
-
-  margin-block-end: var(--hq-space-8);
-  color: var(--hq-color-ink-soft);
-}
-
-.lesson__panel-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--hq-space-4);
-}
-
-.lesson__panel-ar {
-  color: var(--hq-color-ink-soft);
 }

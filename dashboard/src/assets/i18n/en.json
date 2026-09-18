@@ -477,7 +477,15 @@
         "regeneratingPlay": "Rewriting this level…",
         "regeneratingStop": "Asking the model for a new version…",
         "publishing": "Publishing…",
-        "unpublishing": "Unpublishing…"
+        "unpublishing": "Unpublishing…",
+        "savingStop": "Saving the stop…",
+        "uploadingImage": "Uploading the picture…",
+        "addingStop": "Adding the stop…",
+        "deletingStop": "Deleting the stop…",
+        "reordering": "Saving the new order…",
+        "creatingLevel": "Creating the level…",
+        "generating": "Writing the other levels…",
+        "savingPanel": "Saving the parent panel…"
       },
       "files": {
         "title": "Files",
@@ -511,7 +519,9 @@
         "regeneratePlay": "Regenerate this level",
         "regenerateStop": "Regenerate this stop",
         "previewLabel": "Child app preview",
-        "stopList": "Stops"
+        "stopList": "Stops",
+        "noLevel": "This level does not exist yet.",
+        "dragHandle": "Reorder {{title}}"
       },
       "panel": {
         "title": "Parent panel",
@@ -519,7 +529,20 @@
         "supported": "Supported skills",
         "challenge": "A challenge to try",
         "stopTips": "Stop tips",
-        "modelAnswers": "Model answers"
+        "modelAnswers": "Model answers",
+        "rowEn": "English {{index}}",
+        "rowAr": "Arabic {{index}}",
+        "tipEn": "Tip for {{stop}} — English",
+        "tipAr": "Tip for {{stop}} — Arabic",
+        "answerEn": "Model answer for {{stop}}",
+        "add": "Add a line",
+        "remove": "Remove",
+        "save": "Save the parent panel",
+        "discard": "Discard changes",
+        "saved": "Parent panel saved.",
+        "incomplete": "Every line needs both English and Arabic.",
+        "atLeast": "At least {{count}} are needed.",
+        "atMost": "At most {{count}} fit here."
       },
       "publish": "Publish",
       "unpublish": "Unpublish",
@@ -543,6 +566,73 @@
         "title": "Regenerate this stop?",
         "message": "This replaces {{title}} with a new version and cannot be undone.",
         "confirm": "Regenerate"
+      },
+      "editor": {
+        "title": "Title",
+        "speak": "What the pot says",
+        "parentTipEn": "Parent tip (English)",
+        "parentTipAr": "Parent tip (Arabic)",
+        "image": "Picture",
+        "noImage": "No picture",
+        "imageOption": "Picture {{index}}",
+        "attach": "Attach a picture",
+        "attached": "Picture uploaded — pick it above to show it on this stop.",
+        "detach": "Detach",
+        "json": "The whole stop",
+        "jsonHint": "Checked against the schema the server uses. The id cannot change.",
+        "save": "Save the stop",
+        "delete": "Delete this stop",
+        "noChanges": "Nothing has changed yet.",
+        "fixFirst": "Fix what is listed below first.",
+        "idImmutable": "The id cannot change — the server addresses this stop by it.",
+        "unknownType": "\"type\" must be one of the twenty-two stop types.",
+        "addStop": "+ Add stop",
+        "createLevel": "Create this level",
+        "generateTitle": "Generate the other levels",
+        "generateLabel": "What this lesson is about",
+        "generateHint": "A few sentences is enough — the model writes Levels 2 and 3 and the Again variant from it.",
+        "generate": "Generate the levels",
+        "group": {
+          "information": "Information",
+          "oneAnswer": "One answer",
+          "severalAnswers": "Several answers",
+          "openAnswer": "Open answer",
+          "exit": "Exit"
+        }
+      },
+      "deleteStopConfirm": {
+        "title": "Delete this stop?",
+        "message": "“{{title}}” goes for good. There is no Undo: a stop added back would be a new one, and the parent panel's tips still point at this id.",
+        "confirm": "Delete the stop"
+      },
+      "leaveConfirm": {
+        "title": "Leave without saving?",
+        "message": "Your edits to this lesson have not been saved. Leaving loses them.",
+        "confirm": "Leave anyway"
+      },
+      "stopType": {
+        "readPage": "Read a page",
+        "storyPieces": "Story pieces",
+        "wordCards": "New words",
+        "move": "Move your body",
+        "explain": "Explain a skill",
+        "choice": "Multiple choice",
+        "trueFalse": "True or false",
+        "sequence": "Number sequence",
+        "count": "Count objects",
+        "compare": "Compare numbers",
+        "sound": "Which sound?",
+        "word": "Hear the word",
+        "readTap": "Read and tap",
+        "multiSelect": "Tap N of them",
+        "selectAll": "Select all that apply",
+        "match": "Match pairs",
+        "order": "Put in order",
+        "trace": "Trace a letter",
+        "retell": "Retell the story",
+        "openAnswer": "Open question",
+        "writeSentence": "Finish the sentence",
+        "exitTicket": "Exit ticket"
       }
     }
   },

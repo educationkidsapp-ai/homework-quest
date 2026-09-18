@@ -48,7 +48,7 @@
         (expired)="undoExpired()"
       />
 
-      @if (stripSteps().length > 0) {
+      @if (showSteps()) {
         <hq-step-strip
           [steps]="stripSteps()"
           [label]="'lessons.detail.pipeline' | transloco"
@@ -96,7 +96,7 @@
 
       <hq-card [title]="'lessons.detail.files.title' | transloco">
         <div card-actions class="lesson__files-actions">
-          @if (hasUndeletedFiles()) {
+          @if (hasUndeletedFiles() && canDeleteFiles()) {
             <hq-button *hqCan="'lesson.write'" variant="quiet" [disabled]="busy() !== null" (pressed)="deleteAllFiles()">
               {{ 'lessons.detail.files.deleteAll' | transloco }}
             </hq-button>
@@ -183,21 +183,25 @@
         </hq-card>
       }
 
-      @if (l.plays.length > 0) {
-        <hq-card [title]="'lessons.detail.plays.title' | transloco">
-          <hq-tabs
-            [tabs]="playTabs()"
-            [selected]="playTab()"
-            (selectedChange)="selectPlayTab($event)"
-            [label]="'lessons.detail.plays.tabsLabel' | transloco"
-          />
-          <div class="lesson__play">
-            <div class="lesson__stop-list" role="listbox" [attr.aria-label]="'lessons.detail.plays.stopList' | transloco">
-              @if (currentPlay(); as play) {
-                @if (play.stops.length === 0) {
-                  <p class="lesson__empty">{{ 'lessons.detail.plays.empty' | transloco }}</p>
-                } @else {
-                  @for (stop of play.stops; track stop.id; let i = $index) {
+      <hq-card [title]="'lessons.detail.plays.title' | transloco">
+        <hq-tabs
+          [tabs]="playTabs()"
+          [selected]="playTab()"
+          (selectedChange)="selectPlayTab($event)"
+          [label]="'lessons.detail.plays.tabsLabel' | transloco"
+        />
+        <div class="lesson__play">
+          <div class="lesson__stops">
+            @if (currentPlay(); as play) {
+              <div
+                class="lesson__stop-list"
+                role="listbox"
+                cdkDropList
+                [attr.aria-label]="'lessons.detail.plays.stopList' | transloco"
+                (cdkDropListDropped)="dropStop($event)"
+              >
+                @for (stop of orderedStops(); track stop.id; let i = $index) {
+                  <div class="lesson__stop-row" cdkDrag [cdkDragDisabled]="busy() !== null">
                     <button
                       #stopBtn
                       type="button"
@@ -211,92 +215,122 @@
                     >
                       <span class="lesson__stop-pos">{{ i + 1 }}</span>
                       <span class="lesson__stop-title">{{ stop.title }}</span>
-                      <span class="lesson__stop-type">{{ stop.type }}</span>
+                      <span class="lesson__stop-type">{{ 'lessons.detail.stopType.' + stop.type | transloco }}</span>
                     </button>
-                  }
+                    <button
+                      *hqCan="'play.write'"
+                      type="button"
+                      class="lesson__stop-handle"
+                      cdkDragHandle
+                      [attr.aria-label]="'lessons.detail.plays.dragHandle' | transloco: { title: stop.title }"
+                    >
+                      ⋮⋮
+                    </button>
+                  </div>
                 }
-                <hq-button
-                  *hqCan="'play.write'"
-                  variant="quiet"
-                  [disabled]="busy() !== null"
-                  (pressed)="requestRegeneratePlay()"
-                >
-                  {{ 'lessons.detail.plays.regeneratePlay' | transloco }}
+                @if (orderedStops().length === 0) {
+                  <p class="lesson__empty">{{ 'lessons.detail.plays.empty' | transloco }}</p>
+                }
+              </div>
+
+              <div class="lesson__stop-actions">
+                <ng-container *hqCan="'play.write'">
+                  <!-- `[attr.role]="null"` undoes CdkMenuTrigger's own `role="button"` on this
+                       host: it would nest a button inside `hq-button`'s real one, and the pair
+                       announce twice. The trigger's keyboard handling still works — the keydown
+                       bubbles up from the inner button — and `menu`/`expanded` put the popup
+                       announcement on the control that actually takes focus. -->
+                  <hq-button
+                    #addStopTrigger="cdkMenuTriggerFor"
+                    variant="secondary"
+                    [attr.role]="null"
+                    [menu]="true"
+                    [expanded]="addStopTrigger.isOpen()"
+                    [disabled]="busy() !== null"
+                    [cdkMenuTriggerFor]="addStopMenu"
+                  >
+                    {{ 'lessons.detail.editor.addStop' | transloco }}
+                  </hq-button>
+                  <hq-button variant="quiet" [disabled]="busy() !== null" (pressed)="requestRegeneratePlay()">
+                    {{ 'lessons.detail.plays.regeneratePlay' | transloco }}
+                  </hq-button>
+                </ng-container>
+              </div>
+            } @else {
+              <p class="lesson__empty">{{ 'lessons.detail.plays.noLevel' | transloco }}</p>
+              @if (missingPlay() && canCreateLevel()) {
+                <hq-button *hqCan="'play.write'" [disabled]="busy() !== null" (pressed)="createLevel()">
+                  {{ 'lessons.detail.editor.createLevel' | transloco }}
                 </hq-button>
-              } @else {
-                <p class="lesson__empty">{{ 'lessons.detail.plays.empty' | transloco }}</p>
               }
-            </div>
-            <div class="lesson__preview">
-              <hq-phone-preview
-                [stop]="selectedStop()"
-                [images]="l.images"
-                [subject]="previewSubject()"
-                [theme]="currentPlay()?.theme ?? null"
-                [label]="'lessons.detail.plays.previewLabel' | transloco"
-                [caption]="selectedStop()?.title ?? null"
-              />
-              @if (selectedStop()) {
-                <hq-button
-                  *hqCan="'stop.write'"
-                  variant="quiet"
-                  [disabled]="busy() !== null"
-                  (pressed)="requestRegenerateStop()"
-                >
-                  {{ 'lessons.detail.plays.regenerateStop' | transloco }}
-                </hq-button>
-              }
-            </div>
+            }
+          </div>
+
+          <div class="lesson__preview">
+            <hq-phone-preview
+              [stop]="selectedStop()"
+              [images]="l.images"
+              [subject]="previewSubject()"
+              [theme]="currentPlay()?.theme ?? null"
+              [label]="'lessons.detail.plays.previewLabel' | transloco"
+              [caption]="selectedStop()?.title ?? null"
+            />
+          </div>
+        </div>
+
+        @if (selectedStop(); as stop) {
+          <hq-stop-editor
+            [stop]="stop"
+            [images]="l.images"
+            [disabled]="busy() !== null"
+            (saved)="saveStop($event)"
+            (regenerated)="requestRegenerateStop()"
+            (deleted)="requestDeleteStop()"
+            (imageAttached)="attachImage($event)"
+            (dirtyChange)="onStopDirtyChange($event)"
+          />
+        }
+      </hq-card>
+
+      @if (isManual()) {
+        <hq-card [title]="'lessons.detail.editor.generateTitle' | transloco">
+          <div class="lesson__generate" *hqCan="'lesson.write'">
+            <hq-textarea
+              [label]="'lessons.detail.editor.generateLabel' | transloco"
+              [rows]="4"
+              [hint]="'lessons.detail.editor.generateHint' | transloco"
+              [value]="generateText()"
+              (valueChange)="generateText.set($event)"
+              [disabled]="busy() !== null"
+            />
+            <hq-button [disabled]="!canGenerate()" (pressed)="generateLevels()">
+              {{ 'lessons.detail.editor.generate' | transloco }}
+            </hq-button>
           </div>
         </hq-card>
       }
 
+      <ng-template #addStopMenu>
+        <div cdkMenu class="menu menu--tall" [attr.aria-label]="'lessons.detail.editor.addStop' | transloco">
+          @for (group of templateGroups(); track group.id) {
+            <p class="menu__group">{{ group.label }}</p>
+            @for (entry of group.entries; track entry.type) {
+              <button type="button" class="menu__item" cdkMenuItem (cdkMenuItemTriggered)="addStop(entry.type)">
+                {{ entry.label }}
+              </button>
+            }
+          }
+        </div>
+      </ng-template>
+
       @if (l.parentPanel; as panel) {
         <hq-card [title]="'lessons.detail.panel.title' | transloco">
-          <section class="lesson__panel-block">
-            <h3 class="lesson__panel-heading">{{ 'lessons.detail.panel.objectives' | transloco }}</h3>
-            <ul class="lesson__panel-list">
-              @for (obj of panel.objectives.en; track $index) {
-                <li>{{ obj }} <span class="lesson__panel-ar" dir="rtl">{{ panel.objectives.ar[$index] }}</span></li>
-              }
-            </ul>
-          </section>
-          <section class="lesson__panel-block">
-            <h3 class="lesson__panel-heading">{{ 'lessons.detail.panel.supported' | transloco }}</h3>
-            <ul class="lesson__panel-list">
-              @for (item of panel.supported; track $index) {
-                <li>{{ item.en }} <span class="lesson__panel-ar" dir="rtl">{{ item.ar }}</span></li>
-              }
-            </ul>
-          </section>
-          <section class="lesson__panel-block">
-            <h3 class="lesson__panel-heading">{{ 'lessons.detail.panel.challenge' | transloco }}</h3>
-            <ul class="lesson__panel-list">
-              @for (item of panel.challenge; track $index) {
-                <li>{{ item.en }} <span class="lesson__panel-ar" dir="rtl">{{ item.ar }}</span></li>
-              }
-            </ul>
-          </section>
-          @if (panel.stopTips.length > 0) {
-            <section class="lesson__panel-block">
-              <h3 class="lesson__panel-heading">{{ 'lessons.detail.panel.stopTips' | transloco }}</h3>
-              <ul class="lesson__panel-list">
-                @for (tip of panel.stopTips; track tip.stopId) {
-                  <li>{{ tip.en }} <span class="lesson__panel-ar" dir="rtl">{{ tip.ar }}</span></li>
-                }
-              </ul>
-            </section>
-          }
-          @if (panel.modelAnswers.length > 0) {
-            <section class="lesson__panel-block">
-              <h3 class="lesson__panel-heading">{{ 'lessons.detail.panel.modelAnswers' | transloco }}</h3>
-              <ul class="lesson__panel-list">
-                @for (answer of panel.modelAnswers; track answer.stopId) {
-                  <li>{{ answer.en }}</li>
-                }
-              </ul>
-            </section>
-          }
+          <hq-parent-panel-editor
+            [panel]="panel"
+            [disabled]="busy() !== null"
+            (saved)="savePanel($event)"
+            (dirtyChange)="onPanelDirtyChange($event)"
+          />
         </hq-card>
       }
     </div>
