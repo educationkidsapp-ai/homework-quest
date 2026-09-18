@@ -58,7 +58,7 @@ class OpenApiContractTest extends ApiTestSupport {
             "/teacher/lessons/{id}/files", "/teacher/lessons/{id}/images", "/teacher/lessons/{id}/analyze",
             "/teacher/lessons/{id}/retry", "/teacher/lessons/{id}/steps/{step}/retry",
             "/teacher/lessons/{id}/skills", "/teacher/lessons/{id}/generate-from-text",
-            "/teacher/lessons/{id}/parent-panel",
+            "/teacher/lessons/{id}/parent-panel", "/teacher/lessons/{id}/plays",
             "/teacher/stops/{stopId}", "/teacher/stops/{stopId}/regenerate",
             "/teacher/plays/{playId}/stops", "/teacher/plays/{playId}/order", "/teacher/plays/{playId}/regenerate",
             "/teacher/questions", "/teacher/questions/{id}", "/teacher/questions/{id}/send",

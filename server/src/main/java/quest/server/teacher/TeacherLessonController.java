@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,10 +30,13 @@ import org.springframework.web.multipart.MultipartFile;
 import quest.api.AdminLesson;
 import quest.api.ConfirmedSkill;
 import quest.api.JobRef;
+import quest.api.LessonFilter;
+import quest.api.dto.Curriculum;
 import quest.api.dto.LessonStatus;
 import quest.api.dto.ParentPanel;
 import quest.api.dto.Play;
 import quest.api.dto.Stop;
+import quest.api.dto.Subject;
 import quest.server.admin.AdminLessonService;
 import quest.server.analysis.AnalysisService;
 import quest.server.auth.Principals;
@@ -76,6 +80,27 @@ public class TeacherLessonController {
     public String createTeacherLesson(@AuthenticationPrincipal Principals.User caller,
                                @RequestBody @Valid TeacherDto.CreateTeacherLessonRequest body) {
         return lesson(teacherLessons.create(TeacherScope.require(caller), body));
+    }
+
+    /**
+     * §8's "All lessons" for a teacher — the Admin page's filters, her lessons only. The dashboard called
+     * `GET /admin/lessons` with her token until N2.4b, and that route is scoped to the tenant and nothing else, so
+     * it showed her every lesson her school holds. There is no `schoolId` parameter on purpose: hers is her token's.
+     */
+    @GetMapping(value = "/teacher/lessons", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('lesson.read')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = AdminLesson.class))))
+    public String listTeacherLessons(@AuthenticationPrincipal Principals.User caller,
+                                 @RequestParam(required = false) String curriculum, @RequestParam(required = false) Integer grade,
+                                 @RequestParam(required = false) String subject, @RequestParam(required = false) String from,
+                                 @RequestParam(required = false) String to, @RequestParam(required = false) String classId) {
+        var user = TeacherScope.require(caller);
+        LessonFilter filter;
+        try {
+            filter = new LessonFilter(curriculum == null ? null : Curriculum.valueOf(curriculum.toUpperCase()), grade,
+                    subject == null ? null : Subject.valueOf(subject.toUpperCase()), date(from), date(to), null, classId);
+        } catch (IllegalArgumentException e) { throw ApiException.badRequest("bad filter: " + e.getMessage()); }
+        return json.encodeShared(teacherLessons.list(user, filter), BuiltinSerializersKt.ListSerializer(AdminLesson.Companion.serializer()));
     }
 
     @GetMapping(value = "/teacher/lessons/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -138,6 +163,14 @@ public class TeacherLessonController {
         var uploads = new ArrayList<AnalysisService.Upload>();
         for (var f : files) uploads.add(new AnalysisService.Upload(f.getOriginalFilename(), f.getContentType(), f.getBytes()));
         return job(lessonId, service.upload(lessonId, uploads));
+    }
+
+    /** "Remove all files" in the editor: the sources go, the lesson stays a draft she can fill again. */
+    @DeleteMapping("/teacher/lessons/{id}/files")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("@permit.has('lesson.write')")
+    public void teacherDeleteFiles(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
+        service.deleteFiles(teacherLessons.requireId(TeacherScope.require(caller), id));
     }
 
     @PostMapping(value = "/teacher/lessons/{id}/analyze", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -227,6 +260,16 @@ public class TeacherLessonController {
         service.deleteStop(stopId);
     }
 
+    /** "Create level" in the editor — a level she writes by hand, on a lesson of hers. */
+    @PostMapping(value = "/teacher/lessons/{id}/plays", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('play.write')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = quest.api.AdminPlay.class)))
+    public String teacherCreatePlay(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @RequestBody String body) {
+        String lessonId = teacherLessons.requireId(TeacherScope.require(caller), id);
+        var req = decode(body, quest.api.CreatePlayRequest.Companion.serializer());
+        return json.encodeShared(service.createPlay(lessonId, req.getLevel(), req.getVariant()), quest.api.AdminPlay.Companion.serializer());
+    }
+
     @PostMapping(value = "/teacher/plays/{playId}/stops", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('stop.write')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Stop.class)))
@@ -259,6 +302,11 @@ public class TeacherLessonController {
 
     private void requirePlay(Principals.User caller, String playId) {
         teacherLessons.require(TeacherScope.require(caller), teacherLessons.lessonOfPlay(playId));
+    }
+
+    private static kotlinx.datetime.LocalDate date(String value) {
+        return value == null || value.isBlank() ? null
+                : kotlinx.datetime.LocalDate.Companion.parse(value, kotlinx.datetime.LocalDate.Formats.INSTANCE.getISO());
     }
 
     private String lesson(AdminLesson l) { return json.encodeShared(l, AdminLesson.Companion.serializer()); }

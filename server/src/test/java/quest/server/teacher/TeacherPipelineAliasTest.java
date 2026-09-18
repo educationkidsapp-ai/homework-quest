@@ -132,6 +132,9 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
         mvc.perform(as(multipart("/teacher/lessons/tp-hers/files")
                 .file(new MockMultipartFile("files", "s.pdf", "application/pdf", new byte[] {1})), otherToken))
                 .andExpect(status().isForbidden());
+        mvc.perform(as(delete("/teacher/lessons/tp-hers/files"), otherToken)).andExpect(status().isForbidden());
+        mvc.perform(as(post("/teacher/lessons/tp-hers/plays").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"level\":2,\"variant\":0}"), otherToken)).andExpect(status().isForbidden());
         mvc.perform(as(delete("/teacher/lessons/tp-hers"), otherToken)).andExpect(status().isForbidden());
 
         mvc.perform(as(put("/teacher/stops/" + stopId).contentType(MediaType.APPLICATION_JSON).content("{}"), otherToken))
@@ -148,6 +151,23 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
         mvc.perform(as(get("/teacher/lessons/tp-nothing"), teacherToken)).andExpect(status().isNotFound());
         mvc.perform(as(post("/teacher/stops/tp-nothing/regenerate"), teacherToken)).andExpect(status().isNotFound());
         mvc.perform(as(post("/teacher/plays/tp-nothing/regenerate"), teacherToken)).andExpect(status().isNotFound());
+    }
+
+    /**
+     * The two aliases N2.4a's editor was still calling on `/admin/**`: "Create level" and "Remove all files". Both
+     * go through {@link quest.server.tenancy.TeacherScope#requireLesson} first, so the same call on a colleague's
+     * lesson is refused above (`every_alias_refuses_another_teachers_lesson`).
+     */
+    @Test void create_level_and_remove_all_files_work_on_her_own_lesson() throws Exception {
+        var bare = lesson("tp-bare", SCHOOL, HERS, "british", 1, "english", LocalDate.now().plusDays(5), "review");
+
+        var play = json(mvc.perform(as(post("/teacher/lessons/" + bare.getId() + "/plays")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"level\":1,\"variant\":0}"), teacherToken))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(play.get("level").asInt()).isEqualTo(1);
+        assertThat(plays.findByLessonIdOrderByLevelAscVariantAsc(bare.getId())).hasSize(1);
+
+        mvc.perform(as(delete("/teacher/lessons/" + bare.getId() + "/files"), teacherToken)).andExpect(status().isNoContent());
     }
 
     // ---------------------------------------------------------------- helpers

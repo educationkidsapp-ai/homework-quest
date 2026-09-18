@@ -84,6 +84,37 @@ public class TeacherLessonService {
     public String requireId(Principals.User caller, String lessonId) { return require(caller, lessonId).getId(); }
 
     /**
+     * §8's "All lessons" as a teacher sees it: the Admin page's rows and filters, reduced to the lessons
+     * {@link TeacherScope#requireLesson} would let her open. Until N2.4b the dashboard called `GET /admin/lessons`
+     * with her token, and because that route is tenant-scoped only she was shown every lesson of her school — the
+     * leak N2.3b fixed for students, in the shape it takes for lessons.
+     *
+     * <p>The rule is {@link #reachable}, read from one statement — her assignments — rather than a lookup per row,
+     * so the list costs the same for one assignment as for thirty. `schoolId` is deliberately not a parameter of the
+     * route: a teacher's school is her token's, and naming another one could only ever narrow to nothing.
+     */
+    public List<AdminLesson> list(Principals.User caller, quest.api.LessonFilter filter) {
+        return admin.list(filter, reachable(caller));
+    }
+
+    /**
+     * The list's reading of `requireLesson`, as a predicate over already-scoped rows: she wrote it, or she holds the
+     * assignment on its class <em>and</em> its subject. A lesson with no class is only ever its author's. ADMIN and
+     * MANAGERIAL callers keep the whole school, which is what the tenant filter has already handed them.
+     */
+    private java.util.function.Predicate<LessonEntity> reachable(Principals.User caller) {
+        if (!scope.isTeacher(caller)) return l -> true;
+        var mine = new java.util.HashSet<String>();
+        for (var a : scope.assignmentsOf(caller)) mine.add(key(a.getClassId(), a.getSubject()));
+        return l -> caller.userId().equals(l.getTeacherId())
+                || (l.getClassId() != null && mine.contains(key(l.getClassId(), l.getSubject())));
+    }
+
+    private static String key(String classId, String subject) {
+        return classId + "\u0000" + (subject == null ? "" : subject.trim().toLowerCase(Locale.ROOT));
+    }
+
+    /**
      * The lesson a stop or a play belongs to, so a `/teacher/stops/{id}` write is scoped by the same rule as a
      * `/teacher/lessons/{id}` one. A row that does not exist is a 404 before anything is loaded to edit — the same
      * silence another teacher's gets, so neither answer tells the caller which it was.
