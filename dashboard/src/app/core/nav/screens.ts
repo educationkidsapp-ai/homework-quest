@@ -19,6 +19,14 @@ export interface Screen {
   readonly permission?: string;
   /** The phase that replaces the stub. Absent means the screen is built. */
   readonly phase?: number;
+  /**
+   * A path inside the same area this screen redirects to instead of drawing anything.
+   *
+   * N2.2: a teacher's `/teacher` is her week, not a Home of her own. A redirect row rather than
+   * a second route declared beside the table, so the rail, the router and `ROLE_HOME` still have
+   * exactly one place to disagree — none.
+   */
+  readonly redirectTo?: string;
 }
 
 export interface Area {
@@ -90,37 +98,30 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       },
     ],
   },
+  // N2.2 (`docs/teacher-flow.md` §4): "No other menu items render." A teacher's rail is **This
+  // week · My classes**, with Profile in the header menu where every role's is. The screens the
+  // later phases fill keep their rows and their routes — a bookmark still has to resolve to the
+  // stub that names the phase — but they lose their `labelKey`, which is what puts them in the
+  // rail. Telling a teacher about six screens she cannot open yet is the Admin's affordance, not
+  // hers: she has thirty children and twenty minutes.
   TEACHER: {
     base: '/teacher',
     screens: [
-      { id: 'home', path: '', labelKey: 'nav.home' },
-      // lessons (P3.2b/c): see the matching comment in the ADMIN area above.
-      { id: 'lessons', path: 'lessons', labelKey: 'nav.myLessons', permission: 'lesson.read' },
-      {
-        id: 'new-lesson',
-        path: 'lessons/new',
-        labelKey: 'nav.newLesson',
-        permission: 'lesson.write',
-      },
+      // Her Home *is* This week, so `/teacher` redirects rather than drawing a second landing.
+      { id: 'home', path: '', redirectTo: 'week' },
+      { id: 'week', path: 'week', labelKey: 'nav.thisWeek', permission: 'teacher.week' },
+      // `nav.myClasses` on the lessons list is the N2.2 stand-in: N2.3 builds the real My
+      // classes screen and takes the label with it. Her lessons stay one tap away from there
+      // rather than sitting in the rail twice under two names.
+      { id: 'lessons', path: 'lessons', labelKey: 'nav.myClasses', permission: 'lesson.read' },
+      { id: 'new-lesson', path: 'lessons/new', permission: 'lesson.write' },
       { id: 'lesson', path: 'lessons/:id', permission: 'lesson.read' },
       // No permission yet: `child.read` in permissions.json belongs to PARENT, and the key for
       // a teacher reading her own students arrives with P4.0's endpoints. Gating on the
       // parent's key would hide the item from every teacher.
-      { id: 'students', path: 'students', labelKey: 'nav.myStudents', phase: 4 },
-      {
-        id: 'questions',
-        path: 'questions',
-        labelKey: 'nav.questions',
-        flag: FLAGS.teacherQuestions,
-        phase: 4,
-      },
-      {
-        id: 'announcements',
-        path: 'announcements',
-        labelKey: 'nav.announcements',
-        flag: FLAGS.announcements,
-        phase: 4,
-      },
+      { id: 'students', path: 'students', phase: 4 },
+      { id: 'questions', path: 'questions', flag: FLAGS.teacherQuestions, phase: 4 },
+      { id: 'announcements', path: 'announcements', flag: FLAGS.announcements, phase: 4 },
     ],
   },
   MANAGERIAL: {

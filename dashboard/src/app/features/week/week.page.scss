@@ -1,0 +1,333 @@
+@use 'mixins' as m;
+
+:host {
+  display: block;
+}
+
+.week {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-24);
+}
+
+// Every uppercase label on the screen in one rule: `m.label` is five declarations and the
+// component stylesheet has a 10 kB budget, so it is included once rather than eight times.
+.week__range,
+.week__corner,
+.week__day,
+.week__group-label,
+.week__card-meta,
+.week__ribbon,
+.week__summary-title {
+  @include m.label;
+}
+
+// ---- the week bar --------------------------------------------------------------------------
+
+.week__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hq-space-16);
+}
+
+.week__nav {
+  display: flex;
+  gap: var(--hq-space-8);
+}
+
+.week__range {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hq-space-8);
+}
+
+.week__zone {
+  text-transform: none;
+  color: var(--hq-color-ink-soft);
+  font-weight: var(--hq-font-body-weight);
+}
+
+// ---- the grid ------------------------------------------------------------------------------
+//
+// One CSS grid with `display: contents` rows — the shape `hq-lessons-calendar` uses, so an ARIA
+// `row` sits between the grid and its cells without breaking the column tracks. The columns are
+// logical, so `dir="rtl"` puts the first school day at the inline-start by itself.
+
+.week__grid {
+  display: grid;
+  grid-template-columns: minmax(var(--hq-size-course-card), 1fr) repeat(var(--hq-week-columns, 5), 1fr);
+  gap: var(--hq-size-rule-thin);
+  background: var(--hq-color-rule);
+  border: var(--hq-size-rule) solid var(--hq-color-line);
+  overflow-x: auto;
+}
+
+.week__head,
+.week__group,
+.week__row {
+  display: contents;
+}
+
+.week__corner,
+.week__day,
+.week__group-label {
+  padding: var(--hq-space-8);
+  background: var(--hq-color-bg);
+  color: var(--hq-color-ink-soft);
+}
+
+.week__day {
+  text-align: center;
+}
+
+.week__group-label {
+  grid-column: 1 / -1;
+  padding-inline: var(--hq-space-16);
+  color: var(--hq-color-ink);
+}
+
+.week__row-label {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--hq-size-row-height);
+  padding: var(--hq-space-8) var(--hq-space-16);
+  background: var(--hq-color-surface);
+  font-weight: var(--hq-font-label-weight);
+}
+
+// A row that is not a valid drop target for the card in the air says so, rather than silently
+// refusing the drop.
+.week__row--disabled {
+  .week__row-label,
+  .week__cell {
+    background: var(--hq-color-bg);
+    color: var(--hq-color-disabled);
+  }
+}
+
+.week__cell {
+  display: flex;
+  min-block-size: var(--hq-size-row-height);
+  padding: var(--hq-space-4);
+  background: var(--hq-color-surface);
+
+  &.cdk-drop-list-receiving {
+    background: var(--hq-color-accent-soft);
+    box-shadow: inset 0 0 0 var(--hq-size-selected-border) var(--hq-color-accent);
+  }
+}
+
+// ---- the lesson card ------------------------------------------------------------------------
+
+.week__card {
+  display: flex;
+  inline-size: 100%;
+  align-items: stretch;
+  @include m.surface;
+
+  &:not(.cdk-drag-disabled) {
+    cursor: grab;
+  }
+}
+
+// A copy in flight: drawn, quiet, and doing nothing. No `cursor: grab`, no hover.
+.week__card--pending {
+  align-items: center;
+  gap: var(--hq-space-8);
+  padding: var(--hq-space-8);
+  color: var(--hq-color-ink-soft);
+  @include m.focus-ring;
+}
+
+.week__square--pending {
+  border-style: dashed;
+}
+
+.week__card-link {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--hq-space-8);
+  min-inline-size: 0;
+  padding: var(--hq-space-8);
+  color: var(--hq-color-ink);
+  text-decoration: none;
+  @include m.hover-tint;
+  @include m.focus-ring;
+}
+
+.week__square {
+  flex: none;
+  inline-size: var(--hq-space-12);
+  block-size: var(--hq-space-12);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-ink);
+  background: var(--hq-color-surface);
+}
+
+.week__square--draft {
+  background: var(--hq-color-band-look);
+}
+
+.week__square--ready {
+  background: var(--hq-color-band-mid);
+}
+
+.week__square--published {
+  background: var(--hq-color-band-good);
+}
+
+.week__card-text {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--hq-space-4);
+}
+
+.week__card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.week__card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-8);
+  color: var(--hq-color-ink-soft);
+}
+
+.week__played {
+  color: var(--hq-color-accent-strong);
+}
+
+.week__overflow {
+  flex: none;
+  inline-size: var(--hq-size-touch-target);
+  background: none;
+  border: 0;
+  color: var(--hq-color-ink-soft);
+  cursor: pointer;
+  @include m.focus-ring;
+
+  &:hover {
+    background: var(--hq-color-accent-soft);
+  }
+}
+
+// ---- the exam card (N4.3 fills it; the shape exists so the grid is not reshaped later) --------
+
+.week__exam {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  @include m.surface;
+  border-inline-start: var(--hq-size-selected-border) solid var(--hq-color-accent);
+}
+
+.week__ribbon {
+  padding: var(--hq-space-4) var(--hq-space-8);
+  background: var(--hq-color-accent);
+  color: var(--hq-color-on-accent);
+}
+
+// ---- the empty cell's `+` ---------------------------------------------------------------------
+
+.week__add {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--hq-size-touch-target);
+  color: var(--hq-color-disabled);
+  font-size: var(--hq-font-title-size);
+  line-height: 1;
+  text-decoration: none;
+  @include m.focus-ring;
+
+  &:hover {
+    background: var(--hq-color-accent-soft);
+    color: var(--hq-color-ink);
+  }
+}
+
+// ---- drag ---------------------------------------------------------------------------------------
+
+.cdk-drag-preview {
+  background: var(--hq-color-surface);
+  border: var(--hq-size-rule) solid var(--hq-color-line);
+  box-shadow: var(--hq-shadow-drag);
+}
+
+.cdk-drag-placeholder {
+  visibility: hidden;
+}
+
+// The 250 ms settle, on the system's one easing curve.
+.cdk-drag-animating {
+  transition: transform var(--hq-motion-base) var(--hq-motion-ease);
+
+  @include m.reduced-motion {
+    transition-duration: 0ms;
+  }
+}
+
+// ---- the summary strip --------------------------------------------------------------------------
+
+.week__summary {
+  padding: var(--hq-space-16) var(--hq-space-24);
+  @include m.surface;
+}
+
+.week__summary-title {
+  margin-block-end: var(--hq-space-8);
+}
+
+.week__summary-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-8) var(--hq-space-24);
+  list-style: none;
+}
+
+.week__summary-item {
+  color: var(--hq-color-ink-soft);
+}
+
+.week__summary-item--gap {
+  color: var(--hq-color-accent-strong);
+  font-weight: var(--hq-font-label-weight);
+}
+
+// ---- the card's overflow menu (rendered into the CDK overlay; see `classes.page.scss`) -----------
+
+.menu {
+  min-inline-size: var(--hq-size-course-card);
+  background: var(--hq-color-surface);
+  border: var(--hq-size-rule) solid var(--hq-color-line);
+  box-shadow: var(--hq-shadow-dialog);
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: var(--hq-size-touch-target);
+  padding-inline: var(--hq-space-16);
+  background: none;
+  border: 0;
+  color: var(--hq-color-ink);
+  text-align: start;
+  cursor: pointer;
+  @include m.focus-ring;
+
+  &:hover:not(:disabled) {
+    background: var(--hq-color-accent-soft);
+  }
+
+  &:disabled {
+    color: var(--hq-color-disabled);
+    cursor: default;
+  }
+}

@@ -492,7 +492,9 @@
     "complaints": "الشكاوى",
     "schoolUsage": "استخدام المدرسة",
     "teachers": "المعلّمون",
-    "classes": "الفصول"
+    "classes": "الفصول",
+    "thisWeek": "هذا الأسبوع",
+    "myClasses": "فصولي"
   },
   "profile": {
     "title": "ملفك الشخصي",
@@ -782,5 +784,56 @@
       "error": "فشل"
     },
     "cancel": "إلغاء"
+  },
+  "week": {
+    "title": "هذا الأسبوع",
+    "subtitle": "كل فصل تدرّسينه، يومًا بيوم. اسحبي البطاقة إلى يوم آخر لنقلها، أو إلى فصل من الصف نفسه لنسخها.",
+    "prev": "الأسبوع السابق",
+    "next": "الأسبوع التالي",
+    "today": "اليوم",
+    "range": "{{from}} – {{to}}",
+    "classColumn": "الفصل",
+    "grade": "الصف {{grade}}",
+    "rowLabel": "{{class}} · {{subject}} · {{curriculum}}",
+    "cellLabel": "{{class}}، {{day}}",
+    "loading": "جارٍ تحميل أسبوعك",
+    "empty": "اطلبي من المشرف إسناد فصل إليك",
+    "played": "لعب {{played}} من {{total}}",
+    "addLesson": "أضيفي درسًا لفصل {{class}} يوم {{day}}",
+    "actions": "إجراءات {{title}}",
+    "noSiblings": "لا يوجد فصل آخر بالصف والمادة نفسهما",
+    "occupied": "لدى {{class}} درس بالفعل يوم {{day}}.",
+    "status": {
+      "none": "لا يوجد درس بعد",
+      "draft": "مسودة",
+      "ready": "جاهز",
+      "published": "منشور"
+    },
+    "published": {
+      "reason": "لا يمكن نقل درس منشور. ألغي نشره أولًا."
+    },
+    "exam": {
+      "ribbon": "اختبار",
+      "window": "{{opens}} – {{closes}}"
+    },
+    "summary": {
+      "title": "أسبوعك باختصار",
+      "gap": "{{class}} بلا درس يوم {{day}}",
+      "noGaps": "لا توجد فجوات حتى الآن هذا الأسبوع",
+      "examsClosing": "اختبارات تُغلق هذا الأسبوع: {{count}}",
+      "marksWaiting": "محطات مفتوحة بانتظار التصحيح: {{count}}"
+    },
+    "copyConfirm": {
+      "title": "نسخ هذا الدرس؟",
+      "message": "نسخ «{{title}}» إلى {{class}} يوم {{day}}؟",
+      "confirm": "نسخ"
+    },
+    "undo": {
+      "moved": "نُقل «{{title}}» إلى {{day}}",
+      "copied": "نُسخ «{{title}}» إلى {{class}}"
+    },
+    "moveToDay": "نقل إلى {{day}}",
+    "copyToClass": "نسخ إلى {{class}}",
+    "copying": "جارٍ النسخ…"
   }
 }

@@ -28,6 +28,7 @@ const ROUTES = {
   'sign-in': ['hq-sign-in-page'],
   'admin home': ['hq-shell', 'hq-home-page'],
   'teacher home': ['hq-shell', 'hq-home-page'],
+  'this week': ['hq-shell', 'hq-week-page'],
   'management home': ['hq-shell', 'hq-home-page'],
   profile: ['hq-shell', 'hq-profile-page'],
   lessons: ['hq-shell', 'hq-lessons-page'],

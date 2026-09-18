@@ -24,11 +24,17 @@ export function areaRoutes(role: Role): Routes {
     {
       path: '',
       canActivate: [roleGuard(role)],
-      children: area.screens.map((screen) => ({
-        path: screen.path,
-        canActivate: gatesOf(screen),
-        loadComponent: () => componentFor(screen, role),
-      })),
+      children: area.screens.map((screen) =>
+        // A redirect row (N2.2's `/teacher` → `/teacher/week`) carries no guards: Angular
+        // resolves `redirectTo` before it runs them, and the row it points at is guarded anyway.
+        screen.redirectTo === undefined
+          ? {
+              path: screen.path,
+              canActivate: gatesOf(screen),
+              loadComponent: () => componentFor(screen, role),
+            }
+          : { path: screen.path, pathMatch: 'full' as const, redirectTo: screen.redirectTo },
+      ),
     },
   ];
 }
@@ -44,6 +50,7 @@ export function areaRoutes(role: Role): Routes {
  */
 function componentFor(screen: Screen, role: Role) {
   if (screen.path === '') return import('../../features/home/home.page').then((m) => m.HomePage);
+  if (screen.id === 'week') return import('../../features/week/week.page').then((m) => m.WeekPage);
   if (screen.id === 'lessons')
     return import('../../features/lessons/lessons.page').then((m) => m.LessonsPage);
   if (screen.id === 'new-lesson') {

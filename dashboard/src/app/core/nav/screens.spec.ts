@@ -73,6 +73,27 @@ describe('the screen table', () => {
     }
   });
 
+  /**
+   * N2.2 (`docs/teacher-flow.md` §4): "No other menu items render." A rail that grows a seventh
+   * item a teacher cannot open is the thing this package removed, so it is asserted rather than
+   * left to the next person to re-add by habit.
+   */
+  it('gives a teacher exactly This week and My classes in the rail', () => {
+    expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual(['week', 'lessons']);
+    expect(navScreens('TEACHER').map(({ link }) => link)).toEqual(['/teacher/week', '/teacher/lessons']);
+    // The screens later phases fill keep their routes — a bookmark still resolves to the stub.
+    expect(AREAS.TEACHER.screens.map((screen) => screen.path)).toContain('students');
+  });
+
+  it('sends /teacher to This week rather than drawing a Home of its own', () => {
+    const home = childrenOf(areaRoutes('TEACHER')).find((route) => route.path === '');
+    expect(home?.redirectTo).toBe('week');
+    expect(home?.pathMatch).toBe('full');
+    expect(home?.loadComponent).toBeUndefined();
+    // And the week itself is behind the permission only a TEACHER holds.
+    expect(AREAS.TEACHER.screens.find((screen) => screen.id === 'week')?.permission).toBe('teacher.week');
+  });
+
   it('names the phase of a stub, including on a detail route', () => {
     expect(phaseOf('/admin/users')).toBe(3);
     expect(phaseOf('/management/complaints')).toBe(5);

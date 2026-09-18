@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { EnvironmentProviders, Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { fireEvent, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -93,6 +93,40 @@ async function flushFlags(backend: HttpTestingController, schoolId: string, flag
   await settle();
 }
 
+/**
+ * The same teacher, arriving from This week's `+`: `?classId=` names the section, so the page
+ * reads it back from `GET /teacher/classes` and creates through `POST /teacher/lessons`.
+ */
+async function renderFromWeekPlus(params: Record<string, string>) {
+  const rendered = await renderHq(NewLessonPage, {
+    providers: [
+      ...providers,
+      { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(params) } } },
+    ],
+  });
+  const backend = TestBed.inject(HttpTestingController);
+
+  TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+  TestBed.inject(AuthService).loadMe().subscribe();
+  backend.expectOne('/me').flush(TEACHER_USER);
+  await settle();
+  backend.expectOne('/teacher/options').flush({
+    curriculum: 'british',
+    grades: [1, 3],
+    subjects: ['math', 'english'],
+    classes: [],
+    complete: true,
+  });
+  await settle();
+  backend.expectOne('/teacher/classes').flush([
+    { classId: 'c-1a', className: '1A', curriculum: 'british', grade: 1, subject: 'math', childrenCount: 18 },
+    { classId: 'c-3a', className: '3A', curriculum: 'british', grade: 3, subject: 'math', childrenCount: 20 },
+  ]);
+  await settle();
+
+  return { rendered, backend };
+}
+
 describe('New lesson', () => {
   beforeEach(() => localStorage.clear());
 
@@ -155,10 +189,7 @@ describe('New lesson', () => {
     await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
 
     await userEvent.click(screen.getByRole('button', { name: /Upload photos/ }));
-    const photos = Array.from(
-      { length: 12 },
-      (_, i) => new File(['x'], `p${i}.png`, { type: 'image/png' }),
-    );
+    const photos = Array.from({ length: 12 }, (_, i) => new File(['x'], `p${i}.png`, { type: 'image/png' }));
     await userEvent.upload(screen.getByLabelText('Drop PNG or JPG photos here'), photos);
 
     expect(screen.getByRole('alert')).toHaveTextContent('Up to 10 files at a time.');
@@ -211,12 +242,53 @@ describe('New lesson', () => {
     await settle();
     backend
       .expectOne('/admin/lessons/l-9/files')
-      .flush({ code: 'bad_request', message: 'The file is corrupt.' }, { status: 400, statusText: 'Bad Request' });
+      .flush(
+        { code: 'bad_request', message: 'The file is corrupt.' },
+        { status: 400, statusText: 'Bad Request' },
+      );
     await settle();
 
     backend.expectOne('/admin/lessons/l-9').flush({ deleted: true });
     await settle();
 
     expect(screen.getByRole('alert')).toHaveTextContent('The file is corrupt.');
+  });
+  // ---- N2.2: arriving from This week's `+` ---------------------------------------------------
+
+  it('takes the course off the section the + came from, and creates into that section', async () => {
+    const { backend } = await renderFromWeekPlus({
+      classId: 'c-3a',
+      curriculum: 'british',
+      grade: '1',
+      subject: 'math',
+      date: '2026-09-22',
+    });
+    await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    // `grade=1` in the link loses to the class it names: 3A is a Grade 3 section.
+    expect(screen.getByLabelText('Grade')).toHaveValue('3');
+    expect(screen.getByLabelText('Subject')).toHaveValue('math');
+
+    await userEvent.click(screen.getByRole('button', { name: /Write it yourself/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create and write the questions' }));
+
+    const request = backend.expectOne('/teacher/lessons');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({
+      classId: 'c-3a',
+      subject: 'math',
+      date: '2026-09-22',
+      source: 'manual',
+      practiceLength: 7,
+      title: undefined,
+    });
+    request.flush({ id: 'l-7' });
+    await settle();
+
+    expect(navigate).toHaveBeenCalledWith(
+      ['/teacher/lessons', 'l-7'],
+      expect.objectContaining({ queryParams: { notice: 'lessons.new.createdManual' } }),
+    );
   });
 });
