@@ -1,7 +1,9 @@
 package quest.server.platform;
 
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.stereotype.Service;
@@ -34,17 +36,31 @@ public class PlatformSettingsService {
     public String name() { return row().getName(); }
     public String shortName() { return row().getShortName(); }
 
-    /** `GET /platform-settings` (public): the three fields a browser needs, and nothing else. */
+    /**
+     * `GET /platform-settings` (public): the three fields a browser needs — plus, since N2.1, the school week and
+     * timezone, because the teacher's week grid cannot be laid out without knowing which days it has and where the
+     * day turns over. Neither is a secret: they are the same calendar the join card already prints.
+     */
     public PlatformDto.PlatformSettings publicSettings() {
         var row = row();
-        return new PlatformDto.PlatformSettings(row.getName(), row.getShortName(), row.getLogoUrl(), null, null);
+        return new PlatformDto.PlatformSettings(row.getName(), row.getShortName(), row.getLogoUrl(), null, null,
+                schoolWeek(), row.getTimezone());
     }
 
     /** `GET /admin/platform-settings`: every field, including the platform-wide default theme. */
     public PlatformDto.PlatformSettings settings(ThemeDto.SchoolTheme defaultTheme) {
         var row = row();
-        return new PlatformDto.PlatformSettings(row.getName(), row.getShortName(), row.getLogoUrl(), row.getSupportEmail(), defaultTheme);
+        return new PlatformDto.PlatformSettings(row.getName(), row.getShortName(), row.getLogoUrl(), row.getSupportEmail(),
+                defaultTheme, schoolWeek(), row.getTimezone());
     }
+
+    /** The platform's teaching days, in the order the week runs; `SchoolCalendar` applies a school's override. */
+    public List<DayOfWeek> schoolWeekDays() { return SchoolCalendar.parseWeek(row().getSchoolWeekJson()); }
+
+    /** The platform's timezone, as a validated IANA id. */
+    public String timezoneId() { return row().getTimezone(); }
+
+    private List<String> schoolWeek() { return schoolWeekDays().stream().map(DayOfWeek::name).map(n -> n.substring(0, 3)).toList(); }
 
     /** The Admin's platform-wide default theme as stored, or null when the design tokens' theme still applies. */
     public String defaultThemeJson() { return row().getDefaultThemeJson(); }
@@ -64,6 +80,10 @@ public class PlatformSettingsService {
         if (request.logoUrl() != null) row.setLogoUrl(logoUrl);
         if (request.supportEmail() != null) row.setSupportEmail(supportEmail);
         if (defaultThemeJson != null) row.setDefaultThemeJson(defaultThemeJson);
+        // The week and the zone decide what every teacher's grid looks like, so they are validated rather than
+        // trusted: an unknown day name or a zone `ZoneId` does not know is a 400, never a row that breaks the grid.
+        if (request.schoolWeek() != null) row.setSchoolWeekJson(SchoolCalendar.weekJson(request.schoolWeek()));
+        if (request.timezone() != null) row.setTimezone(SchoolCalendar.zoneId(request.timezone()).getId());
         row.setUpdatedAt(Instant.now());
         repository.save(row);
         cache.set(null);

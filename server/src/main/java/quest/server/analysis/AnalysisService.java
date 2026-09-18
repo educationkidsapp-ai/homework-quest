@@ -73,6 +73,9 @@ public class AnalysisService {
         lesson.setSourceHash(hash);
         boolean hit = cache.existsById(CacheKeys.INSTANCE.analysisKey(hash));
         for (var f : sourceFiles.findByLessonIdOrderByCreatedAt(lesson.getId())) if (f.getDeletedAt() == null) { f.setCacheHit(hit); sourceFiles.save(f); }
+        // The editor shows "Analyzed before" as soon as the file is in, before Analyse is pressed; `analyze` below
+        // writes the authoritative answer, since only it knows whether the row was still there when it ran.
+        lesson.setAnalysisCacheHit(hit);
         lesson.setStatus("draft"); lesson.setUpdatedAt(Instant.now());
         lessons.save(lesson);
     }
@@ -90,6 +93,10 @@ public class AnalysisService {
         String key = CacheKeys.INSTANCE.analysisKey(hash);
         var cached = cache.findById(key).orElse(null);
         String analysisJson;
+        // Whether the row was already there when *this* lesson analysed is the only honest reading of "analyzed
+        // before", and this is the one place that knows it. Recorded on the lesson (V8) rather than inferred later
+        // from the source files, which the text path and a copy do not have.
+        boolean before = cached != null;
         if (cached != null) {
             cached.setHits(cached.getHits() + 1); cache.save(cached);
             state.addUsage(lesson.getId(), 0, cached.getTokenUsage());
@@ -98,6 +105,7 @@ public class AnalysisService {
         } else {
             analysisJson = runPromptA(lesson, activeFiles, hash, key);
         }
+        lesson.setAnalysisCacheHit(before); lessons.save(lesson);
         var analysis = json.decodeShared(analysisJson, SourceAnalysis.Companion.serializer());
         applyAnalysis(lesson, analysis);
         return analysis;
@@ -112,12 +120,13 @@ public class AnalysisService {
         String key = CacheKeys.INSTANCE.analysisKey(hash);
         var cached = cache.findById(key).orElse(null);
         String analysisJson;
+        boolean before = cached != null;
         if (cached != null) { cached.setHits(cached.getHits() + 1); cache.save(cached); state.addUsage(lesson.getId(), 0, cached.getTokenUsage()); analysisJson = cached.getAnalysisJson(); }
         else {
             var src = new SlideProcessor.Source("text", List.of(new SlideProcessor.Page(1, text, new byte[0], 0, 0)));
             analysisJson = promptA(lesson, src, List.of(), hash, key);
         }
-        lesson.setSourceHash(hash); lessons.save(lesson);
+        lesson.setSourceHash(hash); lesson.setAnalysisCacheHit(before); lessons.save(lesson);
         var analysis = json.decodeShared(analysisJson, SourceAnalysis.Companion.serializer());
         applyAnalysis(lesson, analysis);
         for (var s : skills.findByLessonIdOrderByPosition(lesson.getId())) { s.setConfirmed(true); s.setUnsureJson(null); skills.save(s); }

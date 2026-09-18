@@ -408,8 +408,8 @@ interface DashboardApi {
     suspend fun teacherProfileOf(userId: String): TeacherProfile
     suspend fun saveTeacherProfileOf(userId: String, request: UpdateTeacherProfileRequest): TeacherProfile
 
-    /** §6 screen 12: the class's month, with the days that have no lesson flagged as gaps. */
-    suspend fun classCalendar(classId: String, year: Int, month: Int): ClassCalendar
+    /** §6 screen 12: the class's month (`yyyy-MM`), with the days that have no lesson flagged as gaps. */
+    suspend fun classCalendar(classId: String, month: String? = null): ClassCalendar
 
     // ---- Questions to students (§6 screen 14). Every route here is 404 while `teacherQuestions` is off.
 
@@ -434,6 +434,44 @@ interface DashboardApi {
     suspend fun classStudents(classId: String): List<ClassStudent>
     /** What one child played in the window, and the retells and drawings she saved. */
     suspend fun studentTimeline(childId: String, from: String? = null, to: String? = null): StudentTimeline
+
+    // ---- N2.1: This week, My classes and her lessons (`docs/teacher-flow.md` §4, §7, §8)
+
+    /**
+     * §4: every assignment she holds against one school week. [start] is any day of the week wanted, ISO
+     * `yyyy-MM-dd`; the server snaps it back to the week's first teaching day and answers `null` as "this week".
+     */
+    suspend fun teacherWeek(start: String? = null): TeacherWeek
+
+    /** §7: a card per assignment — today's lesson, how many children, how many have played it. */
+    suspend fun teacherClasses(): List<TeacherClassCard>
+
+    /**
+     * §8: a new lesson in one of her classes. The `(classId, subject)` pair must be one of her teaching
+     * assignments — 403 otherwise, whatever the chooser offered — and the row is stamped with her as the teacher.
+     */
+    suspend fun createTeacherLesson(request: CreateTeacherLessonRequest): quest.api.AdminLesson
+
+    /** Moves the lesson to another day. 409 once it is published: unpublish it first. */
+    suspend fun moveTeacherLesson(lessonId: String, request: MoveLessonRequest): quest.api.AdminLesson
+
+    /**
+     * A full copy — plays, stops with ids of their own, skills and the parent panel — into another class of the same
+     * grade and subject she teaches. The copy keeps the source's file hash, so its cache badge still reads
+     * "Analyzed before"; its results are its own from the first attempt.
+     */
+    suspend fun copyTeacherLesson(lessonId: String, request: CopyLessonRequest): quest.api.AdminLesson
+
+    /** Publishes the lesson into every class named, copying it into the ones that are not its own. */
+    suspend fun publishTeacherLesson(lessonId: String, request: PublishToClassesRequest): List<PublishedCopy>
+
+    suspend fun unpublishTeacherLesson(lessonId: String): quest.api.AdminLesson
+
+    /** Draft or error only; 409 for anything published or in flight. */
+    suspend fun deleteTeacherLesson(lessonId: String)
+
+    /** The lesson she is editing, with its plays, skills, panel and pipeline ledger. */
+    suspend fun teacherLesson(lessonId: String): quest.api.AdminLesson
 }
 
 /** `PUT /admin/platform-settings` (§A): only the fields that are present are written. */
@@ -444,6 +482,9 @@ data class UpdatePlatformSettingsRequest(
     val logoUrl: String? = null,
     val supportEmail: String? = null,
     val defaultTheme: SchoolTheme? = null,
+    /** N2.1: three-letter `DayOfWeek` names in the order the week runs, and an IANA zone. Both validated. */
+    val schoolWeek: List<String>? = null,
+    val timezone: String? = null,
 )
 
 // ---------------------------------------------------------------------------------------------------------------

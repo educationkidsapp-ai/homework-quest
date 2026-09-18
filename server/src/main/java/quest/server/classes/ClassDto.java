@@ -11,7 +11,17 @@ import java.util.List;
 public final class ClassDto {
     private ClassDto() {}
 
-    /** A section, with the two counts the Admin's Classes screen shows. `subject`/`teacherId` are the pre-V7 shape. */
+    /**
+     * A section, with the two counts the Admin's Classes screen shows. `subject`/`teacherId` are the pre-V7 shape.
+     *
+     * <p><strong>Named `SectionClass` in the document.</strong> springdoc keys components by simple class name, and
+     * {@link quest.server.dashboard.SchoolDataDto.SchoolClass} — the pre-V7 (curriculum, grade, subject) row the
+     * School page still serves — has the same one. Without this the two records collide in `server/openapi.json`:
+     * one wins, the other's routes are generated against the wrong shape, and N1.2 found the Classes screen missing
+     * `name`, `joinCode` and both counts. The Kotlin contract keeps calling it `SchoolClass`; only the document's
+     * component name differs, and only until the pre-V7 record goes.
+     */
+    @io.swagger.v3.oas.annotations.media.Schema(name = "SectionClass")
     public record SchoolClass(String id, String schoolId, String curriculum, int grade, String subject,
                               String teacherId, String teacherName, long createdAt, String name, String joinCode,
                               boolean active, boolean joinCodeEnabled, int children, int assignments) {}

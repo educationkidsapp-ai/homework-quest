@@ -385,6 +385,16 @@ class IsolationTest extends ApiTestSupport {
         return Stream.of(
                 Arguments.of("GET", "/teacher/classes/" + CLASS_B + "/calendar?year=2027&month=4"),
                 Arguments.of("GET", "/teacher/classes/" + CLASS_B + "/students"),
+                // N2.1: the teacher-scoped aliases over the pipeline reach no further than the Admin ones do.
+                Arguments.of("GET", "/teacher/lessons/" + LESSON_B),
+                Arguments.of("POST", "/teacher/lessons/" + LESSON_B + "/analyze"),
+                Arguments.of("POST", "/teacher/lessons/" + LESSON_B + "/retry"),
+                Arguments.of("POST", "/teacher/lessons/" + LESSON_B + "/unpublish"),
+                Arguments.of("PANEL", "/teacher/lessons/" + LESSON_B + "/parent-panel"),
+                Arguments.of("DELETE", "/teacher/lessons/" + LESSON_B),
+                Arguments.of("MULTIPART", "/teacher/lessons/" + LESSON_B + "/files"),
+                Arguments.of("COPY", "/teacher/lessons/" + LESSON_B + "/copy"),
+                Arguments.of("PUBLISH", "/teacher/lessons/" + LESSON_B + "/publish"),
                 Arguments.of("QUESTION", "/teacher/questions"),
                 Arguments.of("ANNOUNCEMENT", "/teacher/announcements"),
                 Arguments.of("GET", "/admin/users/teacher-b/teacher-profile"));
@@ -481,6 +491,8 @@ class IsolationTest extends ApiTestSupport {
                     .content("{\"classId\":\"" + CLASS_B + "\",\"bodyEn\":\"Not mine\"}");
             case "PATCH_CLASS" -> org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(path)
                     .contentType(MediaType.APPLICATION_JSON).content("{\"clearTeacher\":true}");
+            case "COPY" -> post(path).contentType(MediaType.APPLICATION_JSON).content("{\"classId\":\"" + CLASS_A + "\"}");
+            case "PUBLISH" -> post(path).contentType(MediaType.APPLICATION_JSON).content("{\"classIds\":[\"" + CLASS_A + "\"]}");
             case "DELETE" -> delete(path);
             case "MULTIPART" -> multipart(path).file(new MockMultipartFile("files", "s.pdf", "application/pdf", new byte[] {1}))
                     .file(new MockMultipartFile("file", "s.png", "image/png", new byte[] {1}));

@@ -23,6 +23,9 @@ public final class Entities {
         @Column(name = "theme_json") private String themeJson;
         @Column(name = "feature_flags_json", nullable = false) private String featureFlagsJson = "{}";
         @Column(nullable = false) private String status = "active";
+        /** V7, N2.1: this school's own teaching days and timezone, or null to follow the platform's (§A). */
+        @Column(name = "school_week_json") private String schoolWeekJson;
+        @Column private String timezone;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getName() { return name; } public void setName(String v) { name = v; }
@@ -32,6 +35,8 @@ public final class Entities {
         public String getThemeJson() { return themeJson; } public void setThemeJson(String v) { themeJson = v; }
         public String getFeatureFlagsJson() { return featureFlagsJson; } public void setFeatureFlagsJson(String v) { featureFlagsJson = v; }
         public String getStatus() { return status; } public void setStatus(String v) { status = v; }
+        public String getSchoolWeekJson() { return schoolWeekJson; } public void setSchoolWeekJson(String v) { schoolWeekJson = v; }
+        public String getTimezone() { return timezone; } public void setTimezone(String v) { timezone = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }
 

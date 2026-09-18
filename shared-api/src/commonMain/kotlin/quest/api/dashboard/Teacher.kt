@@ -1,7 +1,9 @@
 package quest.api.dashboard
 
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import quest.api.LessonSource
 import quest.api.dto.Curriculum
 import quest.api.dto.MediaKind
 import quest.api.dto.Play
@@ -65,20 +67,26 @@ data class TeacherOptions(
  * One day of a class's month. [lessonId] and [status] are null when nothing is dated that day.
  *
  * [schoolDay] is what makes [gap] meaningful: a school day with no lesson is a gap the calendar marks, a weekend is
- * not. **Sunday–Thursday is assumed** — the Gulf school week, which is what the QA schools run. It is not yet
- * configurable per school; when a school on a Monday–Friday week is onboarded, `schools` gains a `school_week`
- * column and this field is computed from it instead. Nothing on the client should hard-code the same assumption.
+ * not. Since N2.1 it is computed from the school's own week — Platform settings' `schoolWeek`, or the school's
+ * override — so nothing on the client may assume Sunday–Thursday either.
+ *
+ * [status] is the same coarse vocabulary the week grid uses (see [WeekLessonStatus]).
  */
 @Serializable
 data class ClassCalendarDay(
     val date: LocalDate,
     val lessonId: String? = null,
-    val status: String? = null,
+    val status: WeekLessonStatus? = null,
+    val type: LessonType? = null,
+    val playedCount: Int = 0,
     val schoolDay: Boolean = true,
     val gap: Boolean = false,
 )
 
-/** `GET /teacher/classes/{classId}/calendar?year=&month=` (§6 screen 12): the month, with the gaps flagged. */
+/**
+ * `GET /teacher/classes/{classId}/calendar?month=yyyy-MM` (§6 screen 12, `docs/teacher-flow.md` §7): the month,
+ * with the gaps flagged. `?year=&month=<number>` is the P4.0 shape and keeps working.
+ */
 @Serializable
 data class ClassCalendar(
     val classId: String,
@@ -327,3 +335,130 @@ data class ParentAnnouncement(
     val publishedAt: Long = 0,
     val expiresAt: Long? = null,
 )
+
+// ---------------------------------------------------------------------------------------------------------------
+// N2.1 — This week, My classes and her lessons (`docs/teacher-flow.md` §4, §7, §8)
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * What a cell of the week grid says about a lesson, which is coarser than [quest.api.dto.LessonStatus] on purpose:
+ * §4 gives the teacher three words. `draft` is everything still being made (created, uploading, analyzing, needs
+ * review, error, paused), `ready` is a lesson in review waiting to be published, `published` is live.
+ */
+@Serializable
+enum class WeekLessonStatus {
+    @SerialName("none") NONE, @SerialName("draft") DRAFT, @SerialName("ready") READY, @SerialName("published") PUBLISHED
+}
+
+/** Homework, or an exam (N4.3 fills the second; every lesson written today is [HOMEWORK]). */
+@Serializable
+enum class LessonType { @SerialName("homework") HOMEWORK, @SerialName("exam") EXAM }
+
+/**
+ * The lesson in one cell. [playedCount] is how many children of that class have answered at least one stop of it and
+ * [childrenCount] how many sit in the class, so §4's "12/24 played" needs no second request.
+ */
+@Serializable
+data class WeekLesson(
+    val id: String,
+    val title: String? = null,
+    val status: WeekLessonStatus = WeekLessonStatus.NONE,
+    val type: LessonType = LessonType.HOMEWORK,
+    val playedCount: Int = 0,
+    val childrenCount: Int = 0,
+    val version: Int = 0,
+)
+
+/** The exam window a cell falls in (N4.3). Always null today; the field exists so the grid is not reshaped later. */
+@Serializable
+data class WeekExam(val lessonId: String, val opensAt: LocalDate? = null, val closesAt: LocalDate? = null)
+
+@Serializable
+data class WeekCell(val date: LocalDate, val lesson: WeekLesson? = null, val exam: WeekExam? = null)
+
+/** One row of the grid: one teaching assignment, one cell per day of the school week. */
+@Serializable
+data class WeekRow(
+    val classId: String,
+    val className: String,
+    val curriculum: Curriculum,
+    val grade: Int,
+    val subject: Subject,
+    val cells: List<WeekCell> = emptyList(),
+)
+
+/** A school day of one of her classes with nothing dated on it, named so the strip can say "1B · Tuesday". */
+@Serializable
+data class WeekGap(val classId: String, val className: String, val date: LocalDate)
+
+/** The strip under the grid. [examsClosing] and [marksWaiting] stay empty until N4; the shape is fixed now. */
+@Serializable
+data class WeekSummary(
+    val gaps: List<WeekGap> = emptyList(),
+    val examsClosing: List<WeekGap> = emptyList(),
+    val marksWaiting: Int = 0,
+)
+
+/**
+ * `GET /teacher/week?start=YYYY-MM-DD` (§4 steps 2–8): every assignment she holds against the school week, in one
+ * response and a fixed number of statements.
+ *
+ * [start] is the request's `start` snapped back to the first day of the school week in the school's timezone, and
+ * [days] are the school's teaching days — Sunday–Thursday unless Platform settings or the school says otherwise, so
+ * nothing on the client may assume a length or a first day.
+ */
+@Serializable
+data class TeacherWeek(
+    val start: LocalDate,
+    val days: List<LocalDate> = emptyList(),
+    val rows: List<WeekRow> = emptyList(),
+    val summary: WeekSummary = WeekSummary(),
+)
+
+/** `GET /teacher/classes` (§7): one card per assignment, with today's lesson and how much of the class has played. */
+@Serializable
+data class TeacherClassCard(
+    val classId: String,
+    val className: String,
+    val curriculum: Curriculum,
+    val grade: Int,
+    val subject: Subject,
+    val todayLessonId: String? = null,
+    val todayStatus: WeekLessonStatus = WeekLessonStatus.NONE,
+    val childrenCount: Int = 0,
+    val playedToday: Int = 0,
+)
+
+/**
+ * `POST /teacher/lessons` (§8): the class and the subject must be a teaching assignment she holds, or the server
+ * answers the same 403 it gives for a class of another teacher — the chooser never decides what she may write.
+ */
+@Serializable
+data class CreateTeacherLessonRequest(
+    val classId: String,
+    val subject: Subject,
+    val date: LocalDate,
+    val source: LessonSource,
+    val title: String? = null,
+    val notes: String? = null,
+    val practiceLength: Int = 7,
+)
+
+/** `PATCH /teacher/lessons/{id}`: moving a lesson to another day. 409 once it is published — unpublish it first. */
+@Serializable
+data class MoveLessonRequest(val date: LocalDate)
+
+/** `POST /teacher/lessons/{id}/copy`: a full copy into another class of the same grade and subject that she teaches. */
+@Serializable
+data class CopyLessonRequest(val classId: String)
+
+/**
+ * `POST /teacher/lessons/{id}/publish`: the complete set of classes this lesson should be live in. The lesson's own
+ * class is **not** implied — include it to publish it, leave it out to publish only the copies.
+ */
+@Serializable
+data class PublishToClassesRequest(val classIds: List<String> = emptyList())
+
+/** One result of a publish: the class, the lesson row that is live in it, and the version that publish produced. */
+@Serializable
+data class PublishedCopy(val classId: String, val lessonId: String, val version: Int)

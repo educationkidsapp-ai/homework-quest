@@ -22,6 +22,15 @@
           "analysis" : {
             "$ref" : "#/components/schemas/SourceAnalysis"
           },
+          "analyzedBefore" : {
+            "type" : "boolean"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
           "course" : {
             "$ref" : "#/components/schemas/Course"
           },
@@ -102,6 +111,12 @@
             "enum" : [ "math", "english" ],
             "type" : "string"
           },
+          "teacherId" : {
+            "type" : "string"
+          },
+          "teacherName" : {
+            "type" : "string"
+          },
           "title" : {
             "type" : "string"
           },
@@ -113,12 +128,16 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "type" : {
+            "enum" : [ "homework", "exam" ],
+            "type" : "string"
+          },
           "version" : {
             "format" : "int32",
             "type" : "integer"
           }
         },
-        "required" : [ "course", "createdAt", "date", "files", "id", "images", "plays", "skills", "source", "status", "steps", "subject", "tokenUsage", "tokensSaved", "version" ],
+        "required" : [ "analyzedBefore", "course", "createdAt", "date", "files", "id", "images", "plays", "skills", "source", "status", "steps", "subject", "tokenUsage", "tokensSaved", "type", "version" ],
         "type" : "object"
       },
       "AdminPlay" : {
@@ -515,10 +534,17 @@
           "lessonId" : {
             "type" : "string"
           },
+          "playedCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "schoolDay" : {
             "type" : "boolean"
           },
           "status" : {
+            "type" : "string"
+          },
+          "type" : {
             "type" : "string"
           }
         },
@@ -616,6 +642,16 @@
           "type" : "object"
         } ],
         "required" : [ "correctOptionId", "hint", "id", "ingredient", "left", "numberLine", "options", "parentTip", "right", "speak", "title", "type" ]
+      },
+      "CopyLessonRequest" : {
+        "properties" : {
+          "classId" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "classId" ],
+        "type" : "object"
       },
       "Count" : {
         "allOf" : [ {
@@ -798,6 +834,42 @@
           }
         },
         "required" : [ "curriculum", "name" ],
+        "type" : "object"
+      },
+      "CreateTeacherLessonRequest" : {
+        "properties" : {
+          "classId" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "date" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "notes" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "practiceLength" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "source" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "subject" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "title" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "classId", "date", "source", "subject" ],
         "type" : "object"
       },
       "CreateTeacherQuestionRequest" : {
@@ -1658,6 +1730,16 @@
         "required" : [ "emoji", "text" ],
         "type" : "object"
       },
+      "MoveLessonRequest" : {
+        "properties" : {
+          "date" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "date" ],
+        "type" : "object"
+      },
       "MultiSelect" : {
         "allOf" : [ {
           "$ref" : "#/components/schemas/Stop"
@@ -1911,10 +1993,19 @@
           "name" : {
             "type" : "string"
           },
+          "schoolWeek" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
           "shortName" : {
             "type" : "string"
           },
           "supportEmail" : {
+            "type" : "string"
+          },
+          "timezone" : {
             "type" : "string"
           }
         },
@@ -2079,6 +2170,32 @@
           }
         },
         "required" : [ "childId", "skills", "stickers", "streakDays", "weakSkillIds" ],
+        "type" : "object"
+      },
+      "PublishToClassesRequest" : {
+        "properties" : {
+          "classIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "PublishedCopy" : {
+        "properties" : {
+          "classId" : {
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
         "type" : "object"
       },
       "PublishedLesson" : {
@@ -2631,6 +2748,57 @@
           },
           "user" : {
             "$ref" : "#/components/schemas/DashboardUser"
+          }
+        },
+        "type" : "object"
+      },
+      "SectionClass" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "assignments" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "joinCode" : {
+            "type" : "string"
+          },
+          "joinCodeEnabled" : {
+            "type" : "boolean"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "schoolId" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "teacherId" : {
+            "type" : "string"
+          },
+          "teacherName" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -3207,6 +3375,41 @@
         },
         "type" : "object"
       },
+      "TeacherClassCard" : {
+        "properties" : {
+          "childrenCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "playedToday" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "todayLessonId" : {
+            "type" : "string"
+          },
+          "todayStatus" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "TeacherClassInfo" : {
         "properties" : {
           "classId" : {
@@ -3689,6 +3892,29 @@
         },
         "type" : "object"
       },
+      "TeacherWeek" : {
+        "properties" : {
+          "days" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WeekRow"
+            },
+            "type" : "array"
+          },
+          "start" : {
+            "type" : "string"
+          },
+          "summary" : {
+            "$ref" : "#/components/schemas/WeekSummary"
+          }
+        },
+        "type" : "object"
+      },
       "TeachingAssignment" : {
         "properties" : {
           "classId" : {
@@ -3876,6 +4102,14 @@
             "minLength" : 0,
             "type" : "string"
           },
+          "schoolWeek" : {
+            "items" : {
+              "type" : "string"
+            },
+            "maxItems" : 7,
+            "minItems" : 0,
+            "type" : "array"
+          },
           "shortName" : {
             "maxLength" : 60,
             "minLength" : 0,
@@ -3883,6 +4117,11 @@
           },
           "supportEmail" : {
             "maxLength" : 254,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "timezone" : {
+            "maxLength" : 64,
             "minLength" : 0,
             "type" : "string"
           }
@@ -4108,6 +4347,20 @@
         },
         "type" : "object"
       },
+      "WeekCell" : {
+        "properties" : {
+          "date" : {
+            "type" : "string"
+          },
+          "exam" : {
+            "$ref" : "#/components/schemas/WeekExam"
+          },
+          "lesson" : {
+            "$ref" : "#/components/schemas/WeekLesson"
+          }
+        },
+        "type" : "object"
+      },
       "WeekCount" : {
         "properties" : {
           "count" : {
@@ -4116,6 +4369,111 @@
           },
           "week" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "WeekExam" : {
+        "properties" : {
+          "closesAt" : {
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "opensAt" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "WeekGap" : {
+        "properties" : {
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "WeekLesson" : {
+        "properties" : {
+          "childrenCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "playedCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "WeekRow" : {
+        "properties" : {
+          "cells" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WeekCell"
+            },
+            "type" : "array"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "subject" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "WeekSummary" : {
+        "properties" : {
+          "examsClosing" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WeekGap"
+            },
+            "type" : "array"
+          },
+          "gaps" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WeekGap"
+            },
+            "type" : "array"
+          },
+          "marksWaiting" : {
+            "format" : "int32",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -4422,7 +4780,7 @@
               "application/json" : {
                 "schema" : {
                   "items" : {
-                    "$ref" : "#/components/schemas/SchoolClass"
+                    "$ref" : "#/components/schemas/SectionClass"
                   },
                   "type" : "array"
                 }
@@ -4450,7 +4808,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/SchoolClass"
+                  "$ref" : "#/components/schemas/SectionClass"
                 }
               }
             },
@@ -4486,7 +4844,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/SchoolClass"
+                  "$ref" : "#/components/schemas/SectionClass"
                 }
               }
             },
@@ -4681,7 +5039,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/SchoolClass"
+                  "$ref" : "#/components/schemas/SectionClass"
                 }
               }
             },
@@ -7480,6 +7838,27 @@
         "tags" : [ "Announcements" ]
       }
     },
+    "/teacher/classes" : {
+      "get" : {
+        "operationId" : "myClasses",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/TeacherClassCard"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher" ]
+      }
+    },
     "/teacher/classes/{classId}/calendar" : {
       "get" : {
         "operationId" : "classCalendar",
@@ -7503,8 +7882,7 @@
           "name" : "month",
           "required" : false,
           "schema" : {
-            "format" : "int32",
-            "type" : "integer"
+            "type" : "string"
           }
         } ],
         "responses" : {
@@ -7657,6 +8035,492 @@
         "tags" : [ "Teacher" ]
       }
     },
+    "/teacher/lessons" : {
+      "post" : {
+        "operationId" : "createTeacherLesson",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateTeacherLessonRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminLesson"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}" : {
+      "delete" : {
+        "operationId" : "deleteTeacherLesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      },
+      "get" : {
+        "operationId" : "teacherLesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminLesson"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      },
+      "patch" : {
+        "operationId" : "moveTeacherLesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MoveLessonRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminLesson"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/analyze" : {
+      "post" : {
+        "operationId" : "teacherAnalyze",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/copy" : {
+      "post" : {
+        "operationId" : "copyTeacherLesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CopyLessonRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminLesson"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/files" : {
+      "post" : {
+        "operationId" : "teacherUploadFiles",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "files" : {
+                    "items" : {
+                      "format" : "binary",
+                      "type" : "string"
+                    },
+                    "type" : "array"
+                  }
+                },
+                "required" : [ "files" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/generate-from-text" : {
+      "post" : {
+        "operationId" : "teacherGenerateFromText",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/images" : {
+      "post" : {
+        "operationId" : "teacherUploadImage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonImage"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/parent-panel" : {
+      "put" : {
+        "operationId" : "teacherUpdatePanel",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ParentPanel"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/publish" : {
+      "post" : {
+        "operationId" : "publishTeacherLesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PublishToClassesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/PublishedCopy"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/retry" : {
+      "post" : {
+        "operationId" : "teacherRetry",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/skills" : {
+      "put" : {
+        "operationId" : "teacherConfirmSkills",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/steps/{step}/retry" : {
+      "post" : {
+        "operationId" : "teacherRetryStep",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "step",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/unpublish" : {
+      "post" : {
+        "operationId" : "unpublishTeacherLesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminLesson"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
     "/teacher/options" : {
       "get" : {
         "operationId" : "teacherOptions",
@@ -7673,6 +8537,104 @@
           }
         },
         "tags" : [ "Teacher" ]
+      }
+    },
+    "/teacher/plays/{playId}/order" : {
+      "put" : {
+        "operationId" : "teacherReorder",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "playId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Play"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/plays/{playId}/regenerate" : {
+      "post" : {
+        "operationId" : "teacherRegeneratePlay",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "playId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Play"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/plays/{playId}/stops" : {
+      "post" : {
+        "operationId" : "teacherAddStop",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "playId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Stop"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
       }
     },
     "/teacher/profile" : {
@@ -7854,6 +8816,85 @@
         "tags" : [ "Teacher questions" ]
       }
     },
+    "/teacher/stops/{stopId}" : {
+      "delete" : {
+        "operationId" : "teacherDeleteStop",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "stopId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      },
+      "put" : {
+        "operationId" : "teacherUpdateStop",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "stopId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Stop"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/stops/{stopId}/regenerate" : {
+      "post" : {
+        "operationId" : "teacherRegenerateStop",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "stopId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Stop"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
     "/teacher/students/{childId}/timeline" : {
       "get" : {
         "operationId" : "studentTimeline",
@@ -7885,6 +8926,32 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/StudentTimeline"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher" ]
+      }
+    },
+    "/teacher/week" : {
+      "get" : {
+        "operationId" : "myWeek",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "start",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherWeek"
                 }
               }
             },
@@ -7946,6 +9013,9 @@
   }, {
     "description" : "Dashboard sign-in",
     "name" : "Auth"
+  }, {
+    "description" : "A teacher's own lessons: create, move, copy, publish and the pipeline",
+    "name" : "Teacher lessons"
   }, {
     "description" : "Dashboard sign-in, sessions and passwords",
     "name" : "Auth"

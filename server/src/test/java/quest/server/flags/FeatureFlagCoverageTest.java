@@ -66,14 +66,21 @@ class FeatureFlagCoverageTest {
      *   <li>{@code TeacherAdminController} (N1.1) — this is how a teacher comes to exist, and how one locked out of
      *       her account gets back in. A flag that could switch it off is one nobody could switch back on without a
      *       database session, which is the same argument that exempts {@code FlagController} itself.</li>
+     *   <li>{@code TeacherLessonController} (N2.1) — {@code TeacherController}'s argument again, for the half of a
+     *       teacher's job that writes rather than reads: a flag over "make a lesson" leaves a TEACHER signed in with
+     *       nothing to do, and the routes are aliases over the pre-flag {@code AdminLessonController}, so gating them
+     *       would only push the dashboard back onto `/admin/**`. The part §4 <em>does</em> gate — which sources a
+     *       school may write from — is checked per request against `lessons.pdf|slides|images|manual` in
+     *       {@code TeacherLessonService.create}, because which key applies depends on the body and a route carries
+     *       one key.</li>
      * </ul>
      *
-     * <p>Those two are the only N1.1 additions here; every other controller the package adds is flagged.
+     * <p>Those are the only N1.1 and N2.1 additions here; every other controller those packages add is flagged.
      */
     private static final Set<String> INFRASTRUCTURE = Set.of(
             "FlagController", "ThemeController", "PlatformSettingsController",
             "HomeController", "DashboardDataController", "DashboardController", "TeacherController",
-            "ClassAdminController", "TeacherAdminController");
+            "ClassAdminController", "TeacherAdminController", "TeacherLessonController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

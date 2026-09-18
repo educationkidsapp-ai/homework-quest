@@ -35,10 +35,11 @@ import quest.server.flags.FeatureFlag;
 @Tag(name = "Teacher", description = "Teacher profile, lesson chooser options, calendar and students")
 public class TeacherController {
     private final TeacherProfileService profiles; private final TeacherCalendarService calendar;
-    private final TeacherStudentService students;
+    private final TeacherStudentService students; private final TeacherWeekService week;
 
-    public TeacherController(TeacherProfileService profiles, TeacherCalendarService calendar, TeacherStudentService students) {
-        this.profiles = profiles; this.calendar = calendar; this.students = students;
+    public TeacherController(TeacherProfileService profiles, TeacherCalendarService calendar,
+                             TeacherStudentService students, TeacherWeekService week) {
+        this.profiles = profiles; this.calendar = calendar; this.students = students; this.week = week;
     }
 
     // ---------------------------------------------------------------- profile (§5)
@@ -77,13 +78,35 @@ public class TeacherController {
 
     // ---------------------------------------------------------------- my lessons (§6 screen 12)
 
-    /** The class's month with the gaps flagged; `year` and `month` default to the current one. */
+    /**
+     * `docs/teacher-flow.md` §4: every assignment she holds against one school week, in one response. `start` is any
+     * day of the week wanted and is snapped back to that week's first teaching day, so the dashboard's prev/next may
+     * move by seven days without knowing where a week begins; absent means this week, in the school's own timezone.
+     */
+    @GetMapping(value = "/teacher/week", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.week')")
+    public TeacherDto.TeacherWeek myWeek(@AuthenticationPrincipal Principals.User caller,
+                                         @RequestParam(required = false) String start) {
+        return week.week(TeacherAccess.require(caller), start);
+    }
+
+    /** §7 My classes: a card per assignment — today's lesson, the class size, and how many have played it. */
+    @GetMapping(value = "/teacher/classes", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.week')")
+    public List<TeacherDto.TeacherClassCard> myClasses(@AuthenticationPrincipal Principals.User caller) {
+        return week.classes(TeacherAccess.require(caller));
+    }
+
+    /**
+     * The class's month with the gaps flagged. `month` is `yyyy-MM` (N2.1); `?year=&month=<number>` is the P4.0
+     * shape and keeps working until the dashboard has moved. Both absent is the current month.
+     */
     @GetMapping(value = "/teacher/classes/{classId}/calendar", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('calendar.read')")
     public TeacherDto.ClassCalendar classCalendar(@AuthenticationPrincipal Principals.User caller,
                                                   @PathVariable String classId,
                                                   @RequestParam(required = false) Integer year,
-                                                  @RequestParam(required = false) Integer month) {
+                                                  @RequestParam(required = false) String month) {
         return calendar.month(TeacherAccess.require(caller), classId, year, month);
     }
 

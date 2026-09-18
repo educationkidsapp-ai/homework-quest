@@ -72,10 +72,11 @@ public class AdminLessonService {
     private final FileStore files; private final Json json; private final PageImageRepository pageImages; private final String publicUrl; private final LessonSteps steps;
     private final TenantContext tenant; private final TenantGuard guard;
     private final quest.server.schools.SchoolService schools;
+    private final quest.server.tenancy.ClassRepository sections; private final quest.server.auth.UserRepository people;
 
-    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, TenantGuard guard, quest.server.schools.SchoolService schools) {
+    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, TenantGuard guard, quest.server.schools.SchoolService schools, quest.server.tenancy.ClassRepository sections, quest.server.auth.UserRepository people) {
         this.lessons = lessons; this.sourceFiles = sourceFiles; this.skills = skills; this.plays = plays; this.stops = stops; this.panels = panels; this.analysisCache = analysisCache; this.store = store; this.analysisService = analysisService; this.generation = generation; this.pipeline = pipeline; this.state = state; this.files = files; this.json = json;
-        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.guard = guard; this.schools = schools;
+        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.guard = guard; this.schools = schools; this.sections = sections; this.people = people;
     }
 
     /**
@@ -484,17 +485,29 @@ public class AdminLessonService {
         if (full && !manual(l) && !lessonFiles.isEmpty()) { pipeline.backfill(l.getId()); lessonSteps = steps.list(l.getId()); }
         var stepInfos = lessonSteps.stream().map(s -> new LessonStepInfo(LessonSteps.parse(s.getStep()), StepStatus.valueOf(s.getStatus().toUpperCase()), s.getAttempt(), s.getErrorCode(), s.getErrorMessage(), s.getUpdatedAt().toEpochMilli())).toList();
         var currentStep = l.getCurrentStep() == null ? null : LessonSteps.parse(l.getCurrentStep());
+        // N2.1's editor badge, free of a query and with one source of truth: `AnalysisService` records it beside the
+        // cache lookup that answers it (V8), so the text path and a copy are as truthful as an upload — and a
+        // hand-written lesson that paid for its own analysis says so rather than claiming a saving it never made.
+        boolean analyzedBefore = l.isAnalysisCacheHit();
+        var type = quest.api.dashboard.LessonType.valueOf(l.getType().toUpperCase());
         if (!full) return new AdminLesson(l.getId(), course, Subject.valueOf(l.getSubject().toUpperCase()), kdate(l.getDate()), status, l.getVersion(), l.getNotes(), l.getTitle(), l.getTokenUsage(), l.getTokensSaved(),
                 fileInfos, null, List.of(), List.of(), null, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, stepInfos, currentStep, List.of(),
-                l.getSchoolId(), schoolName);
+                l.getSchoolId(), schoolName,
+                // The list path names no class and no teacher: either would be a lookup per row, and §6 screen 8 shows
+                // a school column rather than a class one. The editor reads the full lesson, which fills both.
+                l.getClassId(), null, l.getTeacherId(), null, type, analyzedBefore);
         SourceAnalysis analysis = l.getSourceHash() == null ? null : analysisCache.findById(CacheKeys.INSTANCE.analysisKey(l.getSourceHash())).map(c -> json.decodeShared(c.getAnalysisJson(), SourceAnalysis.Companion.serializer())).orElse(null);
         var skillDtos = skills.findByLessonIdOrderByPosition(l.getId()).stream().map(this::skill).toList();
         var playDtos = store.plays(l.getId()).stream().map(p -> new AdminPlay(p.getId(), p.getLevel(), p.getVariant(), store.play(p), p.getPromptVersion(), p.getGeneratedAt().toEpochMilli())).toList();
         var panel = panels.findById(l.getId()).map(p -> json.decodeShared(p.getPanelJson(), ParentPanel.Companion.serializer())).orElse(null);
         var images = pageImages.findByLessonIdOrderByPageNumber(l.getId()).stream().map(i -> new PageImage(i.getId(), publicUrl + "/media/pages/" + i.getId(), i.getWidth(), i.getHeight(), i.getDescription())).toList();
+        var section = l.getClassId() == null ? null : sections.findOneById(l.getClassId()).orElse(null);
+        var teacher = l.getTeacherId() == null ? null : people.findById(l.getTeacherId()).orElse(null);
         return new AdminLesson(l.getId(), course, Subject.valueOf(l.getSubject().toUpperCase()), kdate(l.getDate()), status, l.getVersion(), l.getNotes(), l.getTitle(), l.getTokenUsage(), l.getTokensSaved(),
                 fileInfos, analysis, skillDtos, playDtos, panel, error, l.getPublishedAt() == null ? null : l.getPublishedAt().toEpochMilli(), l.getCreatedAt().toEpochMilli(), source, stepInfos, currentStep, images,
-                l.getSchoolId(), schoolName);
+                l.getSchoolId(), schoolName,
+                l.getClassId(), section == null ? null : section.getName(), l.getTeacherId(),
+                teacher == null ? null : teacher.getDisplayName(), type, analyzedBefore);
     }
 
     private ExtractedSkill skill(SkillEntity s) {

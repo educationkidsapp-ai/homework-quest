@@ -169,11 +169,19 @@ public class TeacherStudentService {
      * proven to be of the caller's school by {@link ChildService#scoped}; this is the rule inside the school, the
      * same one {@link TeacherAccess#readableClass} applies to a class in the path.
      */
+    /**
+     * Through {@link quest.server.tenancy.TeacherScope}, not `classes.teacher_id`: V7 stopped writing that column,
+     * so the pre-V7 test this used refused every teacher created since. A child who sits in a section is reached
+     * through that section; one who joined with a school code and has none yet falls back to the grade she is in,
+     * which is the same rule {@link quest.server.children.SchoolLessons} applies to her map.
+     */
     private void requireTeaches(Principals.User caller, ChildEntity child) {
         if (!access.isTeacher(caller)) return;
-        boolean mine = classes.findBySchoolIdAndCurriculumAndGrade(child.getSchoolId(), child.getCurriculum(), child.getGrade())
-                .stream().anyMatch(k -> caller.userId().equals(k.getTeacherId()));
-        if (!mine) throw ApiException.forbidden("That child is not in one of your classes.");
+        var mine = access.ownedClasses(caller);
+        boolean teaches = child.getClassId() != null
+                ? mine.stream().anyMatch(k -> k.getId().equals(child.getClassId()))
+                : mine.stream().anyMatch(k -> k.getCurriculum().equalsIgnoreCase(child.getCurriculum()) && k.getGrade() == child.getGrade());
+        if (!teaches) throw ApiException.forbidden("That child is not in one of your classes.");
     }
 
     // ---------------------------------------------------------------- the numbers
