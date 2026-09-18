@@ -98,11 +98,15 @@ function stopRows(page: Page): Locator {
 async function calendarCell(page: Page, className: string, day: string): Promise<Locator> {
   await page.goto('teacher/classes');
   await page.getByRole('link', { name: `${className} · Math · British`, exact: true }).click();
-  await expect(page.getByRole('grid')).toBeVisible();
+  const grid = page.getByRole('grid');
+  await expect(grid).toBeVisible();
   const cell = page.locator(`[data-date="${day}"]:not(.cal__cell--outside)`);
   for (let hop = 0; hop < 8 && (await cell.count()) === 0; hop += 1) {
+    // The grid carries the month it is showing as its `aria-label` (`class-calendar.component.ts`),
+    // so the hop is done when that label has changed — no sleeping on a guess at the animation.
+    const showing = await grid.getAttribute('aria-label');
     await page.getByRole('button', { name: 'Next month' }).click();
-    await page.waitForTimeout(250);
+    await expect(grid).not.toHaveAttribute('aria-label', showing ?? '');
   }
   await expect(cell, `${className}'s calendar never reached ${day}`).toHaveCount(1);
   return cell;
@@ -116,24 +120,45 @@ interface PipelineStep {
 }
 
 /**
- * `review` once the whole strip is done, otherwise the status — and, when a step has failed, that
- * step, its code and what the model was told it got wrong. The string is what `expect.poll`
- * prints, so a red QA run is readable without opening a trace.
+ * Blocks until the whole strip is done, and gives up the moment a step reports `error`.
+ *
+ * Failing fast is the point. `expect.poll` would keep asking until its budget ran out, so a
+ * `generate_L1 model_failed` — three lessons in four on a cold cache, still open against the
+ * backend — cost the full ceiling, twice under serial + `--retries=1`, and the QA job was
+ * cancelled at its 20-minute cap with no report and no trace to show for it. An error is a
+ * verdict, not a state to wait through: it ends the test in seconds, naming the step, the code
+ * and the model's own message so the CI log alone says what broke.
  */
-async function pipelineEnd(id: string): Promise<string> {
-  const api = await request.newContext({ baseURL: API });
-  try {
-    const response = await api.get(`/teacher/lessons/${id}`, {
-      headers: { Authorization: `Bearer ${saraToken}` },
-    });
-    if (!response.ok()) return `HTTP ${response.status()}`;
-    const lesson = (await response.json()) as { status: string; steps?: PipelineStep[] };
-    const failed = (lesson.steps ?? []).find((step) => step.status === 'error');
-    if (failed) return `${failed.step} ${failed.errorCode ?? 'failed'}: ${failed.errorMessage ?? ''}`;
-    return lesson.status;
-  } finally {
-    await api.dispose();
+async function waitForReview(id: string, budgetMs: number): Promise<void> {
+  const deadline = Date.now() + budgetMs;
+  let last = 'no answer yet';
+  while (Date.now() < deadline) {
+    const api = await request.newContext({ baseURL: API });
+    try {
+      const response = await api.get(`/teacher/lessons/${id}`, {
+        headers: { Authorization: `Bearer ${saraToken}` },
+      });
+      if (response.ok()) {
+        const lesson = (await response.json()) as { status: string; steps?: PipelineStep[] };
+        const failed = (lesson.steps ?? []).find((step) => step.status === 'error');
+        if (failed) {
+          throw new Error(
+            `the pipeline failed at ${failed.step} (${failed.errorCode ?? 'no code'}): ${failed.errorMessage ?? 'no message'}`,
+          );
+        }
+        if (lesson.status === 'review') return;
+        last = lesson.status;
+      } else {
+        last = `HTTP ${response.status()}`;
+      }
+    } finally {
+      await api.dispose();
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
   }
+  throw new Error(
+    `the pipeline was still ${last} after ${Math.round(budgetMs / 1000)}s — on a cold generation cache the real model needs longer than any budget that fits the job, so warm it once (see e2e/local/README.md)`,
+  );
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -177,10 +202,16 @@ test('step 3a — the + on 1A opens New lesson already knowing the class, subjec
 });
 
 test('step 3b — a PDF goes up and the step strip runs to the end', async ({ page }) => {
-  // The pipeline is a real model on QA, one 2.5 s poll at a time. Generous per step, and the
-  // file is created on a day this run owns rather than on the `+`'s day, which a previous run
-  // may already have filled (a class holds one lesson per day).
-  test.setTimeout(600_000);
+  // The pipeline is a real model on QA, one 2.5 s poll at a time — but the ceiling is four
+  // minutes, not ten. Serial mode plus `--retries=1` runs this file twice on a failure, and two
+  // ten-minute attempts would be cancelled at `deploy-qa.yml`'s 20-minute cap, which uploads no
+  // report. Four minutes twice, plus the five other specs, keeps the worst case near 12 minutes
+  // with a report to read. A pipeline that genuinely needs longer than this is a cold generation
+  // cache, which only happens after the fixture changes — see e2e/local/README.md.
+  //
+  // The lesson is created on a day this run owns rather than on the `+`'s day, which a previous
+  // run may already have filled (a class holds one lesson per day).
+  test.setTimeout(240_000);
   await signInAsSara(page);
 
   const query = new URLSearchParams({ classId: ownClassId, subject: 'math', date: LESSON_DAY });
@@ -203,22 +234,19 @@ test('step 3b — a PDF goes up and the step strip runs to the end', async ({ pa
   // needs_review: the model asks what the skills are; the ones it found are kept by default.
   const confirmSkills = page.getByRole('button', { name: 'Make the quest' });
   await expect(confirmSkills, 'the analyze/skills steps never finished').toBeVisible({
-    timeout: 240_000,
+    timeout: 120_000,
   });
   await confirmSkills.click();
 
   // `generating`: Level 1 lands first and the Levels card appears with it, so neither the heading
   // nor a tab is the end of the strip. The end is the server saying `review` — L1, L2, L3, Again
-  // and the parent panel all written — and each of those is a model call on QA, so the wait is
-  // minutes. Waited on the API rather than on the screen so that a pipeline that *fails* names
-  // the step and the model's own message in the CI log, instead of leaving a tab disabled and a
-  // report that says only "expected enabled, received disabled".
-  await expect
-    .poll(() => pipelineEnd(lessonId), { timeout: 420_000, intervals: [5_000] })
-    .toBe('review');
+  // and the parent panel all written. Waited on the API rather than on the screen so that a
+  // pipeline that *fails* says so at once and names the step, instead of leaving a tab disabled
+  // and a report that reads only "expected enabled, received disabled".
+  await waitForReview(lessonId, 180_000);
 
-  await expect(page.getByRole('heading', { name: 'Levels' })).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByRole('tab', { name: 'Level 2' })).toBeEnabled({ timeout: 60_000 });
+  await expect(page.getByRole('heading', { name: 'Levels' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('tab', { name: 'Level 2' })).toBeEnabled({ timeout: 30_000 });
 });
 
 test('step 3c — she edits a Level 2 stop and the list keeps the new title', async ({ page }) => {

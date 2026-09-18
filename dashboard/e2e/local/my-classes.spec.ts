@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { RUN, removeLessonsOfThisRun, signInAsSara } from './env';
+import { RUN, removeLessonsOfThisRun, settled, signInAsSara } from './env';
 
 /**
  * N2.3's acceptance (`docs/teacher-flow.md` §4 step 3 and §5), against the built bundle and a
@@ -196,17 +196,17 @@ test('the screenshot set, EN and AR', async ({ page }) => {
     await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
     await expect(page.locator('hq-card').first()).toBeVisible();
     // Long enough for `listStagger` and `countUp` to settle (30 ms apart, 250/600 ms each).
-    await page.waitForTimeout(1500);
+    await settled(page);
     await page.screenshot({ path: `${SHOTS}/01-my-classes-${language}.png` });
 
     await page.locator('hq-card').first().getByRole('link').first().click();
     await expect(page.getByRole('grid')).toBeVisible();
-    await page.waitForTimeout(600);
+    await settled(page);
     await page.screenshot({ path: `${SHOTS}/02-class-calendar-${language}.png` });
 
     await page.getByRole('tab').nth(1).click();
     await expect(page.getByRole('table')).toBeVisible();
-    await page.waitForTimeout(600);
+    await settled(page);
     await page.screenshot({ path: `${SHOTS}/03-class-children-${language}.png` });
   }
 

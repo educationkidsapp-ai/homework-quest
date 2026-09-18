@@ -86,8 +86,15 @@ E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… E2E_STAFF_PASSWORD=… \
 ```
 
 The job is capped at 20 minutes and the suite is written to finish well inside it: one worker,
-one retry, a 120 s ceiling per test (`playwright.config.ts`) that only the pipeline specs raise,
-and `test.describe.serial` wherever one test hands state to the next.
+one retry, a 120 s ceiling per test (`playwright.config.ts`) that only `teacher-flow.spec.ts`'s
+step 3b raises — to 240 s, not more — and `test.describe.serial` wherever one test hands state to
+the next. **A green run is about 4 minutes.** The worst case is step 3b hitting its ceiling on
+both attempts (serial mode re-runs the file), ≈ 8 minutes for that file plus ≈ 3.5 for the rest:
+**under 12**, and well inside the cap, so the report and the trace are uploaded rather than lost
+to a cancellation.
+
+A *failing* pipeline costs seconds, not the ceiling: `waitForReview` gives up the moment a step
+reports `error` and names the step, the code and the model's message.
 
 **QA's database is shared and never reset.** Every spec here is idempotent on it: titles carry a
 per-run tag (`RUN` in `env.ts`), lessons are written on a stretch of future days chosen per run,
@@ -157,7 +164,8 @@ none of them could pass on QA — and two of them waited three minutes each for 
 not drawn, which is what cancelled the post-deploy job at its 20-minute cap on every deploy after
 4f67dc2. `lesson-review.spec.ts`'s subject — a PDF from upload through the levels and the preview
 to published — is now `teacher-flow.spec.ts`, driven by the teacher whose flow it actually is.
-`shell.spec.ts` and `this-week.spec.ts` were rewritten for one school rather than deleted.
+`shell.spec.ts`, `this-week.spec.ts` and `lesson-retry.spec.ts` were rewritten for one school
+rather than deleted.
 
 ### Local only: `admin-classes-teachers.spec.ts`
 
@@ -193,6 +201,10 @@ HQ_API=http://localhost:18081 E2E_FAIL_ONCE_AT=1 \
   E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… E2E_STAFF_PASSWORD=… \
   pnpm e2e:local --grep 'injected failure'
 ```
+
+It runs as Sara on her own 1A section (N2.5 — it used to drive the Admin's School switcher and
+`All lessons`, so it could not have passed on one school even when it was opted in).
+`LessonRecoveryTest.java` covers the same hook at the API; what this file covers is the button.
 
 ## The static server
 

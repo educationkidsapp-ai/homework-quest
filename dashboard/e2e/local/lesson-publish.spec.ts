@@ -1,7 +1,16 @@
 import { expect, request, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { API, RUN, SARA, dayFromNow, removeLessonsOfThisRun, signInAsSara, signInForToken } from './env';
+import {
+  API,
+  RUN,
+  SARA,
+  dayFromNow,
+  removeLessonsOfThisRun,
+  settled,
+  signInAsSara,
+  signInForToken,
+} from './env';
 
 /**
  * N2.4b's acceptance (`docs/teacher-flow.md` Step 5, Step 8 and §10 steps 3–4).
@@ -180,17 +189,20 @@ test('both calendars show the lesson as published, each as its own copy', async 
   for (const className of ['1A British', siblingName]) {
     await page.goto('teacher/classes');
     await page.getByRole('link', { name: `${className} · Math · British`, exact: true }).click();
-    await expect(page.getByRole('grid')).toBeVisible();
+    const grid = page.getByRole('grid');
+    await expect(grid).toBeVisible();
 
     // The calendar opens on this month; the lesson is months out, so walk forward to its cell.
     // `:not(.cal__cell--outside)` matters: a month's grid also draws the neighbouring months'
     // spill days, and those carry the date but never the lesson.
     const cell = page.locator(`[data-date="${PUBLISH_DAY}"]:not(.cal__cell--outside)`);
     // Far enough out that this is a dozen hops, not two: the day has to be one no earlier run
-    // has taken, and the calendar only ever opens on this month.
+    // has taken, and the calendar only ever opens on this month. Each hop is done when the
+    // grid's own `aria-label` — the month it is showing — has changed.
     for (let hop = 0; hop < 14 && (await cell.count()) === 0; hop += 1) {
+      const showing = await grid.getAttribute('aria-label');
       await page.getByRole('button', { name: 'Next month' }).click();
-      await page.waitForTimeout(300);
+      await expect(grid).not.toHaveAttribute('aria-label', showing ?? '');
     }
     await expect(cell, `${className}'s calendar never reached ${PUBLISH_DAY}`).toHaveCount(1);
     // Its own copy, its own id — the cell links to the lesson *this* class was given.
@@ -321,14 +333,14 @@ test('the screenshot set, EN and AR', async ({ page }) => {
     await page.goto(lessonUrl);
     await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
     await expect(page.getByRole('heading', { level: 1, name: TITLE })).toBeVisible({ timeout: 20_000 });
-    await page.waitForTimeout(800);
+    await settled(page);
     await page.screenshot({ path: `${SHOTS}/01-published-lesson-${language}.png` });
 
     await page.goto(sheetDrafts[language]);
     // The footer's last control is the primary one — Publish, whatever it is called here.
     await page.locator('[page-footer]').getByRole('button').last().click();
     await expect(page.getByRole('dialog')).toBeVisible();
-    await page.waitForTimeout(500);
+    await settled(page);
     await page.screenshot({ path: `${SHOTS}/02-publish-sheet-${language}.png` });
     await page.keyboard.press('Escape');
   }

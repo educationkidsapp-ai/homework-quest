@@ -20,11 +20,13 @@ import { defineConfig, devices } from '@playwright/test';
  * that route is not in any built bundle. Those specs share one database, so they run serially
  * exactly as `playwright.local.config.ts` runs them locally.
  *
- * N2.5: one retry, not two (`pnpm e2e:qa`), and a hard 10-minute ceiling per test. The QA job is
- * capped at 20 minutes and was cancelled at the cap on every deploy after 4f67dc2, because two
- * pre-D13 specs waited three minutes for a school switcher that `multiSchool` off no longer draws
- * and then retried twice more. A run that cannot say what broke is worse than no run: the retry
- * budget is there for a flake, not for a spec that will never pass.
+ * N2.5: one retry, not two (`pnpm e2e:qa`), and a two-minute ceiling per test, which only the
+ * pipeline spec raises. The QA job is capped at 20 minutes and was cancelled at the cap on every
+ * deploy after 4f67dc2, because two pre-D13 specs waited three minutes for a school switcher that
+ * `multiSchool` off no longer draws and then retried twice more. A run that cannot say what broke
+ * is worse than no run — a cancelled job uploads no report and `if: failure()` never fires — so
+ * every wait here is bounded, and the retry budget is there for a flake, not for a spec that will
+ * never pass.
  */
 const path = '/dashboard/'; // where the API serves the dashboard — one place, so every target moves together
 const deployed = process.env['E2E_BASE_URL'];

@@ -70,15 +70,38 @@ export async function signInForToken(who: Account): Promise<string> {
 }
 
 /**
- * Sign-in through the screen, tour dismissed.
+ * Puts the browser on the sign-in screen with no session behind it.
  *
  * `localStorage.clear()` needs an origin, hence the first `goto` — a clear on `about:blank`
- * throws. The tour is modal, so nothing below it is clickable until Skip has been pressed.
+ * throws. And one clear is not always enough: `/sign-in` bounces a signed-in browser to its Home,
+ * and that Home writes the session back while it loads, so a clear followed by a single
+ * navigation can land on the Home again with the token restored. Clearing until the form is
+ * actually on screen is the only version of this that does not flake when one test signs in as
+ * two people in a row.
  */
-export async function signIn(page: Page, who: Account): Promise<void> {
-  await page.goto('sign-in');
+async function openSignIn(page: Page): Promise<void> {
+  // On a *static* file of the same origin, so nothing is running that could write the session
+  // back. `localStorage.clear()` needs an origin, so it cannot be done on `about:blank`; done on
+  // a dashboard route instead, the app is alive underneath it — `/sign-in` bounces a signed-in
+  // browser to its Home, the Home refreshes the token, and `hq.refresh` is back in storage before
+  // the next navigation reads it. That is what made a test signing in as two people in a row land
+  // on the first one's Home with no form to fill in.
+  await page.goto('assets/i18n/en.json');
   await page.evaluate(() => localStorage.clear());
   await page.goto('sign-in');
+  await expect(
+    page.getByLabel('Email'),
+    'the sign-in form never appeared — is a session still stored?',
+  ).toBeVisible();
+}
+
+/**
+ * Sign-in through the screen, tour dismissed.
+ *
+ * The tour is modal, so nothing below it is clickable until Skip has been pressed.
+ */
+export async function signIn(page: Page, who: Account): Promise<void> {
+  await openSignIn(page);
   await page.getByLabel('Email').fill(who.email);
   await page.getByLabel('Password').fill(who.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
@@ -90,6 +113,23 @@ export async function signIn(page: Page, who: Account): Promise<void> {
 
 export function signInAsSara(page: Page): Promise<void> {
   return signIn(page, SARA);
+}
+
+/**
+ * Waits until nothing on the page is still animating.
+ *
+ * What the screenshot tests actually want before they press the shutter, in place of a sleep
+ * long enough to cover the slowest animation on the slowest machine. `document.getAnimations()`
+ * is every running CSS animation, CSS transition and Web Animations player on the document, so
+ * the count-ups, the list staggers and the sheet's slide are all covered by the same condition —
+ * and on a fast machine it returns at once instead of waiting out a guess.
+ */
+export async function settled(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => document.getAnimations().every((animation) => animation.playState !== 'running'),
+    undefined,
+    { timeout: 10_000 },
+  );
 }
 
 /** An ISO day `days` from today, in UTC — the format every lesson date field uses. */

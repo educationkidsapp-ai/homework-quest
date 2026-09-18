@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { RUN, removeLessonsOfThisRun, signInAsSara } from './env';
+import { RUN, removeLessonsOfThisRun, settled, signInAsSara } from './env';
 
 /**
  * N2.2's acceptance (`docs/teacher-flow.md` §4 step 2): the week grid, the `+`, the drag that
@@ -187,18 +187,19 @@ test('the screenshot set, EN and AR', async ({ page }) => {
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
     await expect(page.getByRole('grid')).toBeVisible();
-    // Long enough for the summary strip's `listStagger` to finish (30 ms apart, 250 ms each).
     const strip = page.getByRole('region', { name: /at a glance|باختصار/ });
     await expect(strip).toBeVisible();
-    await page.waitForTimeout(1500);
+    // The summary strip's `listStagger` runs 30 ms apart, 250 ms each; `settled` waits for the
+    // last of them rather than for a number big enough to cover them all.
+    await settled(page);
     await page.screenshot({ path: `${SHOTS}/01-this-week-${language}.png` });
 
     // The summary strip sits under the fold behind the sticky footer, so it gets its own frame.
     await strip.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(300);
+    await settled(page);
     await page.screenshot({ path: `${SHOTS}/03-summary-${language}.png` });
     await page.mouse.wheel(0, -800);
-    await page.waitForTimeout(300);
+    await settled(page);
 
     // The card's menu open — the keyboard twin of the drag.
     await page
@@ -206,7 +207,7 @@ test('the screenshot set, EN and AR', async ({ page }) => {
       .first()
       .click();
     await expect(page.getByRole('menu').first()).toBeVisible();
-    await page.waitForTimeout(400);
+    await settled(page);
     await page.screenshot({ path: `${SHOTS}/02-card-menu-${language}.png` });
     await page.keyboard.press('Escape');
   }

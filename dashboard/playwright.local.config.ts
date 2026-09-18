@@ -11,12 +11,13 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Before running:
  *
- *   1. start the API on H2 (JDK 21 on PATH):
- *      SPRING_PROFILES_ACTIVE=h2 ADMIN_EMAIL=… ADMIN_PASSWORD=… LLM_PROVIDER=fake PORT=18080 \
- *        java -jar server/target/server.jar
- *   2. seed it:  E2E_BASE_URL=http://localhost:18080 … node e2e/seed/seed.mjs
- *   3. build:    pnpm build --configuration=production
- *   4. run:      pnpm e2e:local
+ *   1. start the API on H2 with the one-school seed (JDK 21 on PATH) — the server seeds itself,
+ *      so there is no separate seed step (`e2e/seed/seed.mjs` is the two-school legacy and is not
+ *      used by any spec here; see `e2e/local/README.md`):
+ *      SPRING_PROFILES_ACTIVE=h2 SEED_SCHOOL=true SEED_STAFF_PASSWORD=… ADMIN_EMAIL=… \
+ *        ADMIN_PASSWORD=… LLM_PROVIDER=fake PORT=18080 java -jar server/target/server.jar
+ *   2. build:    pnpm build --configuration=production
+ *   3. run:      pnpm e2e:local
  *
  * Credentials come from the environment and are never written down here:
  * `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`, `E2E_STAFF_PASSWORD`.
@@ -24,7 +25,7 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e/local',
   outputDir: './e2e/.output',
-  fullyParallel: false, // one seeded database; the school switcher is shared state
+  fullyParallel: false, // one seeded database, and the lessons a spec writes are shared state
   forbidOnly: !!process.env['CI'],
   workers: 1,
   reporter: [['list']],

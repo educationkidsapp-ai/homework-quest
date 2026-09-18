@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { ADMIN, SARA, signIn } from './env';
+import { ADMIN, SARA, settled, signIn } from './env';
 
 /**
  * P3.1's acceptance — the shell itself: branding, the Content-Security-Policy, where each role
@@ -214,7 +214,7 @@ test('the screenshot set, EN and AR', async ({ page }) => {
   await mkdir(SHOTS, { recursive: true });
 
   await page.goto('sign-in');
-  await page.waitForTimeout(400);
+  await settled(page);
   await page.screenshot({ path: `${SHOTS}/01-sign-in-en.png` });
 
   for (const [name, who, marker] of [
@@ -223,13 +223,13 @@ test('the screenshot set, EN and AR', async ({ page }) => {
   ] as const) {
     await signIn(page, who);
     await expect(page.getByRole('heading', { level: 1, name: marker })).toBeVisible();
-    await page.waitForTimeout(800); // let the count-up settle so the shot is not mid-animation
+    await settled(page); // the count-up has finished, so the shot is never mid-animation
     await page.screenshot({ path: `${SHOTS}/${name}-en.png` });
 
     await page.evaluate(() => localStorage.setItem('hq.language', 'ar'));
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await page.waitForTimeout(800);
+    await settled(page);
     await page.screenshot({ path: `${SHOTS}/${name}-ar.png` });
     await page.evaluate(() => localStorage.setItem('hq.language', 'en'));
   }
@@ -239,6 +239,6 @@ test('the screenshot set, EN and AR', async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('hq.language', 'ar'));
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await page.waitForTimeout(400);
+  await settled(page);
   await page.screenshot({ path: `${SHOTS}/01-sign-in-ar.png` });
 });

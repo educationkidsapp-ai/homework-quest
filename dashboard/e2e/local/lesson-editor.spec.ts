@@ -1,7 +1,16 @@
 import { expect, request, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { API, RUN, SARA, dayFromNow, removeLessonsOfThisRun, signInAsSara, signInForToken } from './env';
+import {
+  API,
+  RUN,
+  SARA,
+  dayFromNow,
+  removeLessonsOfThisRun,
+  settled,
+  signInAsSara,
+  signInForToken,
+} from './env';
 
 /**
  * N2.4a's acceptance (`docs/teacher-flow.md` §4 steps 4–8): Sara writes a lesson by hand.
@@ -263,7 +272,7 @@ test('screenshots: the editor in English and in Arabic', async ({ page }) => {
   await page.getByRole('button', { name: /Sara/ }).click();
   await page.getByRole('menuitem', { name: 'العربية' }).click();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await page.waitForTimeout(500);
+  await settled(page);
   await page.screenshot({ path: resolve(SHOTS, 'lesson-editor-ar.png'), fullPage: true });
 });
 
