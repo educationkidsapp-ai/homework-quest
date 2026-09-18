@@ -31,6 +31,13 @@ export interface GridCell {
   readonly status: CellStatus;
   /** A published lesson has been played; moving it would move it under the children. */
   readonly movable: boolean;
+  /**
+   * A copy the server has not answered for yet: it carries a placeholder id, so it is drawn but
+   * nothing may be done to it. A card whose id is `pending:…` must never be a link (the route
+   * would 404 on the placeholder) and must never be dragged (the `PATCH` would name a lesson
+   * that does not exist).
+   */
+  readonly pending: boolean;
 }
 
 export interface GridRow {
@@ -88,12 +95,14 @@ function toRow(row: WeekRow, days: readonly string[]): GridRow {
 
 function toCell(date: string, cell: WeekCell | undefined): GridCell {
   const lesson = cell?.lesson ?? null;
+  const pending = isPendingId(lesson?.id);
   return {
     date,
     lesson,
     exam: cell?.exam ?? null,
     status: statusOf(lesson),
-    movable: isMovable(lesson),
+    movable: !pending && isMovable(lesson),
+    pending,
   };
 }
 
@@ -199,7 +208,34 @@ export function withCopiedLesson(
   });
 }
 
-/** The id an optimistic copy carries until the refetch lands. Never sent to the server. */
+/**
+ * Swapping the placeholder for the card the server answered with.
+ *
+ * This runs on the `copy` response, not on the Undo strip's ten-second timeout: a placeholder
+ * left live for ten seconds is a card that links to `/teacher/lessons/pending:…` and can be
+ * dragged into a `PATCH` on an id nothing owns. The refetch afterwards is reconciliation, not
+ * the thing that makes the card real.
+ */
+export function withSettledCopy(
+  rows: readonly GridRow[],
+  targetClassId: string,
+  date: string,
+  lesson: WeekLesson,
+): readonly GridRow[] {
+  return rows.map((row) => {
+    if (row.classId !== targetClassId) return row;
+    return {
+      ...row,
+      cells: row.cells.map((cell) =>
+        cell.date === date && cell.pending
+          ? toCell(date, { date, lesson, exam: cell.exam ?? undefined })
+          : cell,
+      ),
+    };
+  });
+}
+
+/** The id an optimistic copy carries until the server answers. Never sent to the server. */
 export function pendingCopyId(targetClassId: string, date: string): string {
   return `pending:${targetClassId}:${date}`;
 }

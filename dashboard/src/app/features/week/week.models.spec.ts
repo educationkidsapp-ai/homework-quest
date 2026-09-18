@@ -6,11 +6,14 @@ import {
   dropTargetsFor,
   groupByGrade,
   isMovable,
+  isPendingId,
+  pendingCopyId,
   rowsOf,
   siblingsOf,
   statusOf,
   withCopiedLesson,
   withMovedLesson,
+  withSettledCopy,
 } from './week.models';
 
 const rows = rowsOf(WEEK);
@@ -116,5 +119,52 @@ describe('the optimistic copy', () => {
   it('leaves an occupied cell alone', () => {
     const copied = withCopiedLesson(rows, 'c-3a', DAYS[2], oneA.cells[0]!.lesson!, 'pending:x');
     expect(copied[2]!.cells[2]!.lesson?.id).toBe('l-2');
+  });
+
+  it('marks the placeholder pending, and pending is not movable', () => {
+    const copied = withCopiedLesson(
+      rows,
+      'c-1b',
+      DAYS[0],
+      oneA.cells[0]!.lesson!,
+      pendingCopyId('c-1b', DAYS[0]),
+    );
+
+    const cell = copied[1]!.cells[0]!;
+    expect(cell.pending).toBe(true);
+    // Its id names nothing: a link would 404 and a drag would PATCH a lesson that does not exist.
+    expect(cell.movable).toBe(false);
+    expect(isPendingId(cell.lesson?.id)).toBe(true);
+    // Every real card is the other way round.
+    expect(oneA.cells[0]!.pending).toBe(false);
+    expect(threeA.cells[2]!.pending).toBe(false);
+  });
+
+  it('swaps the placeholder for the server’s card as soon as the copy answers', () => {
+    const copied = withCopiedLesson(
+      rows,
+      'c-1b',
+      DAYS[0],
+      oneA.cells[0]!.lesson!,
+      pendingCopyId('c-1b', DAYS[0]),
+    );
+    const settled = withSettledCopy(copied, 'c-1b', DAYS[0], {
+      id: 'l-3',
+      title: 'Fractions',
+      status: 'ready',
+      playedCount: 0,
+      childrenCount: 18,
+      version: 0,
+    });
+
+    const cell = settled[1]!.cells[0]!;
+    expect(cell.lesson?.id).toBe('l-3');
+    expect(cell.pending).toBe(false);
+    expect(cell.movable).toBe(true);
+  });
+
+  it('never overwrites a settled card — only the cell still holding a placeholder', () => {
+    const settled = withSettledCopy(rows, 'c-3a', DAYS[2], { id: 'intruder', status: 'ready' });
+    expect(settled[2]!.cells[2]!.lesson?.id).toBe('l-2');
   });
 });

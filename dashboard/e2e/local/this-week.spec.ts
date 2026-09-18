@@ -32,13 +32,49 @@ function env(name: string): string {
   return value;
 }
 
+interface SeededAssignment {
+  readonly classId: string;
+  readonly className: string;
+  readonly subject: string;
+}
+interface SeededTeacher {
+  readonly userId: string;
+  readonly email: string;
+  readonly assignments: SeededAssignment[];
+}
+
+/**
+ * Sara, once the school seed has actually finished.
+ *
+ * Tomcat answers before `SchoolSeed` does: the server is up, `/health` is 200 and `/admin/**`
+ * works while the 30 classes, 40 teachers and 60 assignments are still being written on the main
+ * thread. Writing her assignments into that window is writing into a race — the seed lands after
+ * and puts her back to the two rows it knows about, and the grid loses the sibling this file
+ * exists to drag onto. So wait for her seeded pair before touching anything.
+ */
+async function seededSara(
+  api: Awaited<ReturnType<typeof request.newContext>>,
+  auth: Record<string, string>,
+): Promise<SeededTeacher> {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const teachers = await api.get('/admin/teachers', { headers: auth });
+    const sara = ((await teachers.json()) as SeededTeacher[]).find((row) => row.email === SARA.email);
+    if (sara && sara.assignments.length >= 2) return sara;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  throw new Error('the school seed never finished — start the server with SEED_SCHOOL=true');
+}
+
 /** Sara's second Grade 1 British Math section, created the way an Admin creates one. */
 test.beforeAll(async () => {
+  test.setTimeout(120_000);
   const api = await request.newContext({ baseURL: API });
   const signIn = await api.post('/admin/auth/sign-in', { data: ADMIN });
   expect(signIn.ok()).toBeTruthy();
   const token = ((await signIn.json()) as { token: string }).token;
   const auth = { Authorization: `Bearer ${token}` };
+
+  const sara = await seededSara(api, auth);
 
   const created = await api.post('/admin/classes', {
     headers: auth,
@@ -47,18 +83,12 @@ test.beforeAll(async () => {
   expect(created.ok()).toBeTruthy();
   const classId = ((await created.json()) as { id: string }).id;
 
-  const teachers = await api.get('/admin/teachers', { headers: auth });
-  const sara = ((await teachers.json()) as { userId: string; email: string; assignments: unknown[] }[]).find(
-    (row) => row.email === SARA.email,
-  );
-  expect(sara, 'Sara is missing — start the server with SEED_SCHOOL=true').toBeTruthy();
-
   // Her seeded two, and nothing an earlier run of this file left behind: a second leftover
   // sibling row would make "the sibling row" ambiguous, which is the one thing the drop needs.
-  const kept = (sara!.assignments as { classId: string; className: string; subject: string }[])
+  const kept = sara.assignments
     .filter((assignment) => !/^1Z/i.test(assignment.className))
     .map((assignment) => ({ classId: assignment.classId, subject: assignment.subject }));
-  const saved = await api.put(`/admin/teachers/${sara!.userId}/assignments`, {
+  const saved = await api.put(`/admin/teachers/${sara.userId}/assignments`, {
     headers: auth,
     data: { assignments: [...kept, { classId, subject: 'math' }] },
   });

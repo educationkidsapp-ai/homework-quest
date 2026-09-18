@@ -3,11 +3,30 @@
    to carry their own gates (`lesson.write` for the editor, `teacher.lesson.copy` for a copy). */
 import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
-import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  inject,
+  linkedSignal,
+  signal,
+  type Signal,
+  viewChild,
+} from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { TeacherApi, TeacherLessonsApi, type TeacherWeek, type WeekGap, apiErrorOf } from '../../api';
+import {
+  type AdminLesson,
+  TeacherApi,
+  TeacherLessonsApi,
+  type TeacherWeek,
+  type WeekGap,
+  apiErrorOf,
+} from '../../api';
 import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PlatformService } from '../../core/platform/platform.service';
@@ -33,7 +52,14 @@ import {
   siblingsOf,
   withCopiedLesson,
   withMovedLesson,
+  withSettledCopy,
 } from './week.models';
+
+/** `AdminLesson.status` in §4's three words — the mapping `TeacherWeekService.status` applies. */
+function weekStatusOf(status: string | undefined): string {
+  if (status === 'published') return 'published';
+  return status === 'review' ? 'ready' : 'draft';
+}
 
 /** What a drop list carries: which assignment and which day the cell under the cursor is. */
 export interface CellRef {
@@ -96,7 +122,13 @@ export class WeekPage {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly transloco = inject(TranslocoService);
+  private readonly injector = inject(Injector);
   private readonly lang = activeLang();
+
+  /** The confirm strip, so the keyboard path can put focus on the question it just asked. */
+  private readonly copyBand: Signal<ElementRef<HTMLElement> | undefined> = viewChild('copyBand', {
+    read: ElementRef,
+  });
 
   // ---- which week ---------------------------------------------------------------------------
 
@@ -136,8 +168,27 @@ export class WeekPage {
 
   /** Today **in the school's timezone** — `en-CA` is the one locale that formats as `YYYY-MM-DD`. */
   protected readonly today = computed(() =>
-    new Intl.DateTimeFormat('en-CA', { timeZone: this.timezone() }).format(new Date()),
+    this.formatter('en-CA', { timeZone: this.timezone() }).format(new Date()),
   );
+
+  /**
+   * One `Intl.DateTimeFormat` per locale and shape, kept for the life of the screen.
+   *
+   * Constructing one is the expensive part of formatting, and the grid asks for a day name per
+   * column, per row header, per gap and per menu item on every language change — hundreds of
+   * identical constructions for five distinct answers.
+   */
+  private readonly formatters = new Map<string, Intl.DateTimeFormat>();
+
+  private formatter(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+    const key = `${locale}|${JSON.stringify(options)}`;
+    let formatter = this.formatters.get(key);
+    if (!formatter) {
+      formatter = new Intl.DateTimeFormat(locale, options);
+      this.formatters.set(key, formatter);
+    }
+    return formatter;
+  }
 
   protected readonly rangeLabel = computed(() => {
     this.lang();
@@ -169,7 +220,7 @@ export class WeekPage {
   private format(iso: string, options: Intl.DateTimeFormatOptions): string {
     const date = new Date(`${iso}T00:00:00Z`);
     if (Number.isNaN(date.getTime())) return iso;
-    return new Intl.DateTimeFormat(this.lang(), { ...options, timeZone: 'UTC' }).format(date);
+    return this.formatter(this.lang(), { ...options, timeZone: 'UTC' }).format(date);
   }
 
   protected shift(weeks: number): void {
@@ -349,8 +400,18 @@ export class WeekPage {
     });
   });
 
+  /**
+   * The confirm strip takes focus as it opens.
+   *
+   * A drag ends with the pointer on the card and the question appearing above the grid; a
+   * keyboard user has just triggered a menu item that closed under them, and without this their
+   * focus is back on `<body>` with a question on screen they cannot answer without Tabbing to it.
+   */
   private askCopy(source: DragSource, target: GridRow): void {
     this.copyRequest.set({ source, target });
+    afterNextRender(() => this.copyBand()?.nativeElement.querySelector('button')?.focus(), {
+      injector: this.injector,
+    });
   }
 
   protected cancelCopy(): void {
@@ -381,14 +442,30 @@ export class WeekPage {
     );
 
     this.lessonsApi.copyTeacherLesson(source.lesson.id ?? '', { classId: target.classId }).subscribe({
-      next: () => {
+      next: (created: AdminLesson) => {
+        // The placeholder becomes the real card **here**, on the response — not when the Undo
+        // window closes. Until this line the card is inert; after it, it is an ordinary lesson.
+        if (created.id) {
+          this.rows.set(
+            withSettledCopy(this.rows(), target.classId, source.date, {
+              ...source.lesson,
+              id: created.id,
+              title: created.title ?? source.lesson.title,
+              status: weekStatusOf(created.status),
+              playedCount: 0,
+              version: created.version ?? 0,
+            }),
+          );
+        } else {
+          this.week.reload();
+        }
         this.undo.offerUndo({
           message: this.t('week.undo.copied', {
             title: source.lesson.title ?? '',
             class: target.className,
           }),
           // A copy is a real second lesson; taking it back is a delete she does from the lesson
-          // page, so the strip only reports it and the refetch replaces the placeholder id.
+          // page, so the strip only reports it and the refetch reconciles the rest of the grid.
           undo: () => this.week.reload(),
           commit: () => this.week.reload(),
         });
@@ -419,6 +496,10 @@ export class WeekPage {
     // `dir="rtl"` mirrors the columns, so Right must mean "the next column on the screen".
     const rtl = (grid.closest('[dir]')?.getAttribute('dir') ?? grid.ownerDocument.dir) === 'rtl';
     const inline = rtl ? -step : step;
+    const horizontal = event.key === 'ArrowRight' || event.key === 'ArrowLeft';
+    // The end of a week is the end of a week: stepping past Thursday must not land on the next
+    // class's Sunday, which is what a flat index would do.
+    if (horizontal && ((current % columns) + inline < 0 || (current % columns) + inline >= columns)) return;
     const delta = event.key === 'ArrowDown' ? columns : event.key === 'ArrowUp' ? -columns : inline;
     const next = cells[current + delta];
     if (!next) return;

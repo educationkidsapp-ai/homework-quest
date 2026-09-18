@@ -132,6 +132,19 @@
   }
 }
 
+// A copy in flight: drawn, quiet, and doing nothing. No `cursor: grab`, no hover.
+.week__card--pending {
+  align-items: center;
+  gap: var(--hq-space-8);
+  padding: var(--hq-space-8);
+  color: var(--hq-color-ink-soft);
+  @include m.focus-ring;
+}
+
+.week__square--pending {
+  border-style: dashed;
+}
+
 .week__card-link {
   display: flex;
   flex: 1;

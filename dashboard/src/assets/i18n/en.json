@@ -833,6 +833,7 @@
       "copied": "“{{title}}” copied to {{class}}"
     },
     "moveToDay": "Move to {{day}}",
-    "copyToClass": "Copy to {{class}}"
+    "copyToClass": "Copy to {{class}}",
+    "copying": "Copying…"
   }
 }

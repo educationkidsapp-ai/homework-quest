@@ -116,8 +116,23 @@ describe('This week', () => {
     expect(document.activeElement).toBe(cells[DAYS.length]);
 
     // The edges of the grid are edges: focus does not wrap onto another class's week.
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(document.activeElement).toBe(cells[DAYS.length]);
+
     await userEvent.keyboard('{ArrowUp}{ArrowUp}');
     expect(document.activeElement).toBe(cells[0]);
+  });
+
+  it('stops at the end of a week rather than wrapping onto the next class', async () => {
+    await renderWeek();
+
+    const cells = Array.from(document.querySelectorAll<HTMLElement>('[data-hq-cell]'));
+    const lastOfFirstRow = cells[DAYS.length - 1]!;
+    lastOfFirstRow.focus();
+
+    // Thursday of 1A is not one step from Sunday of 1B, however the flat index reads.
+    await userEvent.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(lastOfFirstRow);
   });
 
   // ---- move ---------------------------------------------------------------------------------
@@ -191,6 +206,9 @@ describe('This week', () => {
     await settle(rendered);
 
     expect(screen.getByText('Copy “Fractions” to 1B on Sunday?')).toBeTruthy();
+    // The strip takes focus as it opens: the menu item that asked the question is gone.
+    expect(document.activeElement?.textContent).toContain('Copy');
+
     await userEvent.click(screen.getByRole('button', { name: 'Copy' }));
     await settle(rendered);
 
@@ -200,10 +218,44 @@ describe('This week', () => {
     const request = backend.expectOne('/teacher/lessons/l-1/copy');
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({ classId: 'c-1b' });
-    request.flush({ id: 'l-3' });
+    request.flush({ id: 'l-3', title: 'Fractions', status: 'review', version: 0 });
     await settle(rendered);
 
     expect(TestBed.inject(UndoService).offer()?.message).toBe('“Fractions” copied to 1B');
+  });
+
+  it('draws the copy inert until the server answers, then makes it a real card', async () => {
+    const { rendered, backend } = await renderWeek();
+
+    await openCardMenu(rendered, 'Fractions');
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Copy to 1B' }));
+    await settle(rendered);
+    await userEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    await settle(rendered);
+
+    // In flight: drawn and named, but not a link, not draggable, and with no menu of its own —
+    // its id is a placeholder, so a link would 404 and a drag would PATCH a lesson nothing owns.
+    const pending = document.querySelector('[aria-busy="true"]');
+    expect(pending?.textContent).toContain('Copying…');
+    expect(pending?.querySelector('a')).toBeNull();
+    expect(pending?.querySelector('button')).toBeNull();
+    expect(screen.getAllByRole('link', { name: /Fractions/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Actions for Fractions' })).toHaveLength(1);
+
+    const request = backend.expectOne('/teacher/lessons/l-1/copy');
+    request.flush({ id: 'l-3', title: 'Fractions', status: 'review', version: 0 });
+    await settle(rendered);
+
+    // Settled on the response, not when the Undo window closes: two real cards, two menus.
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(screen.getAllByRole('link', { name: /Fractions/ })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Actions for Fractions' })).toHaveLength(2);
+    expect(
+      screen
+        .getAllByRole('link', { name: /Fractions/ })
+        .some((link) => (link.getAttribute('href') ?? '').includes('l-3')),
+    ).toBe(true);
+    expect(document.body.innerHTML).not.toContain('pending:');
   });
 
   it('rolls the copy back under the red band when the server refuses it', async () => {
