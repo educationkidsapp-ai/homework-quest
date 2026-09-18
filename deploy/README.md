@@ -83,6 +83,33 @@ Terraform's `optional_secrets`, so `RESEND_API_KEY` reaches the container only a
 (decisions D2, D10). If the dashboard ever moves to its own hosting, this is the one value to repoint — the links then
 use the dashboard origin and everything else stays as it is.
 
+## Seed data
+
+`quest.server.classes.SchoolSeed` (N1.1b) loads one school big enough to judge the dashboard by — 30 classes, 40
+teachers, 60 teaching assignments and 600 children from `server/src/main/resources/seed/*.csv` — into the default
+school on start-up. It goes in through the Admin services, so join codes, one-time passwords and the
+one-teacher-per-subject-per-class rule are real. `SEED_SCHOOL` is the switch: the `qa` (and `h2`) Spring profile
+already defaults it to `true` and `prod` has no such bean at all, so **QA would seed itself without any Terraform at
+all** — `var.seed_school` (`false` by default, `true` in `envs/qa.tfvars`) sets the env var anyway so the intent is
+stated per environment and a future prod stays off by construction.
+
+`SEED_STAFF_PASSWORD` is the one password every seeded teacher shares, with `must_change_password` cleared, so an e2e
+run can sign in as any of them. It is an **optional secret**, handled exactly like `RESEND_API_KEY`: the value lives in
+Secret Manager, `infra/secrets.sh` adds a version when the variable is set in the environment, the deploy workflows pass
+`secrets.SEED_STAFF_PASSWORD` to that script, and Terraform wires it into Cloud Run only once `optional_secrets` lists
+it. Leave it unset and no password is touched — each teacher keeps her own generated one, which nothing logs or prints.
+
+```bash
+export SEED_STAFF_PASSWORD=...                   # never committed
+infra/secrets.sh homework-quest-qa               # adds a Secret Manager version (prints only the secret NAMES)
+gh secret set SEED_STAFF_PASSWORD --env qa --body "$SEED_STAFF_PASSWORD"   # infra/bootstrap.sh does this for you
+```
+
+**Cost.** The first load takes about 12 seconds (one bcrypt per teacher). Afterwards the seed is idempotent but still
+runs: the scan that proves every row already exists costs about **0.4 s on every cold start**, which Cloud Run pays
+before the startup probe passes. That is the price of a QA database that refills itself, and it is why `seed_school`
+stays `false` for production.
+
 ## How the dashboard gets into the image
 
 `Dockerfile` stage `dashboard` (`node:22-alpine` plus a headless JRE, because `postinstall` → `pnpm gen:api` runs the

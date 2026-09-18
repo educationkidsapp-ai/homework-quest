@@ -107,7 +107,7 @@ locals {
     ADMIN_JWT_SECRET = random_password.jwt.result
   }
   required_secrets = ["DB_PASSWORD", "ADMIN_JWT_SECRET", "DEEPSEEK_API_KEY", "ADMIN_PASSWORD"]
-  optional_secrets = ["ANTHROPIC_API_KEY", "FIREBASE_CREDENTIALS", "RESEND_API_KEY"]
+  optional_secrets = ["ANTHROPIC_API_KEY", "FIREBASE_CREDENTIALS", "RESEND_API_KEY", "SEED_STAFF_PASSWORD"]
   # wired into Cloud Run: the required ones always, an optional one once its value has been provided (var.optional_secrets)
   runtime_secrets = concat(local.required_secrets, var.optional_secrets)
 }
@@ -250,6 +250,13 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "MAIL_FROM"
         value = var.mail_from
+      }
+      env {
+        # SchoolSeed (N1.1b): 30 classes / 40 teachers / 600 children into the default school. The `qa` Spring profile
+        # already defaults this to true, so the variable is belt-and-braces — it states the intent per environment and
+        # keeps prod off. The load is idempotent; its scan costs ~0.4 s on every cold start (see deploy/README.md).
+        name  = "SEED_SCHOOL"
+        value = var.seed_school ? "true" : "false"
       }
       env {
         # the dashboard is served by this same API at /dashboard/ (D2, D10), so the invite/reset links point at the API

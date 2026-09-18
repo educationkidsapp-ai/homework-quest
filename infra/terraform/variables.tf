@@ -46,6 +46,13 @@ variable "mail_from" {
 # The product name is no longer an env var: since P2.1 it lives in the `platform_settings` table and is edited in the
 # dashboard under Platform settings (`PUT /admin/platform-settings`).
 
+# ---------------------------------------------------------------- seed data (SchoolSeed, N1.1b)
+variable "seed_school" {
+  description = "Load the one-school seed (30 classes, 40 teachers, 600 children) into the default school on start-up. The `qa` Spring profile already defaults SEED_SCHOOL to true; setting it here makes the intent explicit per environment and keeps prod off. The shared teacher password is the optional secret SEED_STAFF_PASSWORD."
+  type        = bool
+  default     = false
+}
+
 variable "sql_tier" {
   type    = string
   default = "db-f1-micro"
@@ -59,11 +66,11 @@ variable "cloud_run_min_instances" {
 # them to Secret Manager with `gcloud secrets versions add`. Optional secrets are wired into Cloud Run only once
 # they exist — list them here after providing a value.
 variable "optional_secrets" {
-  description = "Optional secrets (ANTHROPIC_API_KEY, FIREBASE_CREDENTIALS, RESEND_API_KEY) that have a version and should reach the server"
+  description = "Optional secrets (ANTHROPIC_API_KEY, FIREBASE_CREDENTIALS, RESEND_API_KEY, SEED_STAFF_PASSWORD) that have a version and should reach the server"
   type        = list(string)
   default     = []
   validation {
-    condition     = alltrue([for s in var.optional_secrets : contains(["ANTHROPIC_API_KEY", "FIREBASE_CREDENTIALS", "RESEND_API_KEY"], s)])
-    error_message = "optional_secrets may only contain ANTHROPIC_API_KEY, FIREBASE_CREDENTIALS and RESEND_API_KEY"
+    condition     = alltrue([for s in var.optional_secrets : contains(["ANTHROPIC_API_KEY", "FIREBASE_CREDENTIALS", "RESEND_API_KEY", "SEED_STAFF_PASSWORD"], s)])
+    error_message = "optional_secrets may only contain ANTHROPIC_API_KEY, FIREBASE_CREDENTIALS, RESEND_API_KEY and SEED_STAFF_PASSWORD"
   }
 }
