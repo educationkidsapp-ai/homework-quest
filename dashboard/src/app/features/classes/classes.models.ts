@@ -88,7 +88,9 @@ export interface CalendarCell {
   readonly schoolDay: boolean;
   readonly status: CellStatus;
   readonly lessonId: string | null;
-  /** The lesson's type word (`generated`, `manual`, …). The API carries no title here — N2.3 gap. */
+  /** The lesson's own title, as the cell shows it. */
+  readonly title: string | null;
+  /** The lesson's type word (`homework`, `exam`), the fallback when the title is missing. */
   readonly type: string | null;
   readonly playedCount: number;
   /** A school day that has arrived with nothing planned on it. The server decides, not us. */
@@ -138,6 +140,7 @@ function toCell(
     schoolDay: inMonth && (entry?.schoolDay ?? false),
     status: normaliseStatus(entry?.status, lessonId !== null),
     lessonId,
+    title: entry?.title ?? null,
     type: entry?.type ?? null,
     playedCount: entry?.playedCount ?? 0,
     gap: inMonth && (entry?.gap ?? false),
@@ -172,25 +175,37 @@ export interface RosterRow {
 }
 
 /**
- * `GET /students` joined with `GET /children`.
+ * `GET /students` joined with `GET /children`, for **one** section.
  *
  * Two endpoints because they answer two questions and carry two permissions: `student.read` is
  * "how is my class doing", `roster.teacher` is "who is in it". The progress list is the spine —
  * a child the roster knows and the progress endpoint does not is a child with no data yet, so
  * she is appended rather than dropped.
+ *
+ * **Both lists are filtered to `classId`.** The server scopes them (#70), and did not always:
+ * before it did, 1A's Children tab listed all 96 children of Grade 1 British and the count under
+ * the tab agreed with it, which is a roster a teacher would have acted on. A row whose `classId`
+ * is absent is kept — an older server sends none, and dropping every row would be worse than
+ * trusting a scoping the server now does anyway.
  */
 export function rosterRows(
   students: readonly ClassStudent[] | null | undefined,
   children: readonly RosterChild[] | null | undefined,
+  classId: string,
 ): readonly RosterRow[] {
-  const roster = new Map((children ?? []).map((child) => [child.id ?? '', child]));
+  const mine = (id: string | undefined): boolean => !id || !classId || id === classId;
+  const roster = new Map(
+    (children ?? []).filter((child) => mine(child.classId)).map((child) => [child.id ?? '', child]),
+  );
   const seen = new Set<string>();
-  const rows = (students ?? []).map((student) => {
-    const id = student.childId ?? '';
-    seen.add(id);
-    return merge(id, student, roster.get(id));
-  });
-  const extra = (children ?? [])
+  const rows = (students ?? [])
+    .filter((student) => mine(student.classId))
+    .map((student) => {
+      const id = student.childId ?? '';
+      seen.add(id);
+      return merge(id, student, roster.get(id));
+    });
+  const extra = [...roster.values()]
     .filter((child) => !seen.has(child.id ?? ''))
     .map((child) => merge(child.id ?? '', undefined, child));
   return [...rows, ...extra].sort((a, b) => a.name.localeCompare(b.name));

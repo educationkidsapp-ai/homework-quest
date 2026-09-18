@@ -28,6 +28,7 @@ const TEACHER_PERMISSIONS = {
 
 const STUDENT = {
   childId: 'ch-1',
+  classId: 'c-1a',
   name: 'Amina',
   starsThisWeek: 9,
   levelReached: 2,
@@ -92,7 +93,7 @@ describe('the class page Children tab', () => {
 
     backend
       .expectOne('/teacher/classes/c-1a/children')
-      .flush([{ id: 'ch-1', name: 'Amina', parentEmail: 'p@x.test', active: true }]);
+      .flush([{ id: 'ch-1', classId: 'c-1a', name: 'Amina', parentEmail: 'p@x.test', active: true }]);
     await settle();
 
     expect(screen.getByRole('button', { name: /add a child/i })).toBeTruthy();

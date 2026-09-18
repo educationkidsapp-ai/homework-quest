@@ -40,8 +40,10 @@ async function renderHome(user: DashboardUserFixture, home: HomeResponse) {
   TestBed.tick();
 
   backend.expectOne('/me/home').flush(home);
-  // Anything else the shell's services ask for is not this screen's business.
-  for (const request of backend.match(() => true)) request.flush({});
+  // Anything else the shell's services ask for is not this screen's business. Cancelled ones are
+  // skipped: `PlatformService` re-reads `/platform-settings` as the account arrives (the school's
+  // timezone overrides the platform's), which supersedes the anonymous request still in flight.
+  for (const request of backend.match(() => true)) if (!request.cancelled) request.flush({});
   await Promise.resolve();
   rendered.fixture.detectChanges();
   return rendered;

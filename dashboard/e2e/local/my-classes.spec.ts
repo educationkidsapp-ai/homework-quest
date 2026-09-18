@@ -7,10 +7,14 @@ import { resolve } from 'node:path';
  * local API on H2 started with `SEED_SCHOOL=true` — the one school, 30 classes, 40 teachers,
  * 600 children.
  *
- * Sara Al Harbi (`seed/assignments.csv`) teaches **1A British** and **3A British**, both Math,
+ * Sara Al Harbi (`seed/assignments.csv`) teaches **1A British** and **1B British**, both Math,
  * and both classes are seeded with children — which is all this file needs. It creates nothing
  * through the Admin API and changes no assignment, so it can run before or after
  * `this-week.spec.ts` without either of them noticing.
+ *
+ * Two sections of one grade is the point: the review that sent N2.3 back found the Children tab
+ * listing all 96 children of Grade 1 British, so this file checks that 1A's roster is 1A's own
+ * size and that 1B's children are not in it.
  *
  * `teacher.rosterEdit` is **off** by default (`V7__sections.sql`), so the Children tab here is
  * the read-only shape: the roster columns and the add/edit controls must not appear, and the
@@ -63,37 +67,63 @@ function cardLink(page: Page, className: string) {
   return page.getByRole('link', { name: `${className} · Math · British`, exact: true });
 }
 
+function cardOf(page: Page, className: string) {
+  return page.locator('hq-card').filter({ hasText: `${className} · Math · British` });
+}
+
+/**
+ * The number the card counts up to — the class's own size, per `GET /teacher/classes`.
+ *
+ * `hqCountUp` animates 0 → n over 600 ms, so the first read catches a number on its way up.
+ * Polled until two reads agree rather than slept past, so it is not a timing bet.
+ */
+async function childrenCountOf(page: Page, className: string): Promise<number> {
+  const count = cardOf(page, className).locator('.my-classes__count');
+  await expect(count).toBeVisible();
+  let last = -1;
+  await expect
+    .poll(async () => {
+      const now = Number((await count.textContent())?.trim());
+      const settled = now > 0 && now === last;
+      last = now;
+      return settled;
+    })
+    .toBe(true);
+  return last;
+}
+
 test.describe.configure({ mode: 'serial' });
 
 test('My classes shows a card per assignment, grouped by grade', async ({ page }) => {
   await openMyClasses(page);
 
   await expect(page.getByRole('heading', { name: 'Grade 1' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Grade 3' })).toBeVisible();
   // The seed names her sections "1A British", so the card reads "1A British · Math · British" —
   // the row label This week uses: class · subject · curriculum.
   await expect(cardLink(page, '1A British')).toBeVisible();
-  await expect(cardLink(page, '3A British')).toBeVisible();
+  await expect(cardLink(page, '1B British')).toBeVisible();
 
-  // The class size is real, not a placeholder — `hqCountUp` has landed on the seeded count.
-  const card = page.locator('hq-card').filter({ hasText: '1A British · Math' });
-  await expect(card.getByText(/^\d+$/)).toBeVisible();
-  await expect(card.getByText('children')).toBeVisible();
+  // Two sections of one grade, two different sizes: the card counts its own class, not the course.
+  const one = await childrenCountOf(page, '1A British');
+  const two = await childrenCountOf(page, '1B British');
+  expect(one).toBeGreaterThan(0);
+  expect(two).toBeGreaterThan(0);
+  expect(one + two).toBeLessThan(96);
+  await expect(cardOf(page, '1A British').getByText('children')).toBeVisible();
 });
 
 test("Add today's lesson lands on New lesson, pre-set to that class and today", async ({ page }) => {
   await openMyClasses(page);
 
-  const card = page.locator('hq-card').filter({ hasText: '3A British · Math' });
-  const add = card.getByRole('link', { name: /^Add today's lesson/ });
-  // The seed leaves 3A with no lesson at all, so the card offers the action rather than a status.
+  const add = cardOf(page, '1B British').getByRole('link', { name: /^Add today's lesson/ });
+  // The seed leaves 1B with no lesson at all, so the card offers the action rather than a status.
   await expect(add).toBeVisible();
   await add.click();
 
   await expect(page).toHaveURL(/lessons\/new\?.*classId=/);
   await expect(page.getByRole('heading', { name: 'New lesson' })).toBeVisible();
   await expect(page.getByLabel('Curriculum')).toHaveValue('british');
-  await expect(page.getByLabel('Grade')).toHaveValue('3');
+  await expect(page.getByLabel('Grade')).toHaveValue('1');
   await expect(page.getByLabel('Subject')).toHaveValue('math');
 
   const today = new Date().toISOString().slice(0, 10);
@@ -105,16 +135,17 @@ test("Add today's lesson lands on New lesson, pre-set to that class and today", 
 
 test('the class page puts the class in the rail and the lesson in the calendar', async ({ page }) => {
   await openMyClasses(page);
-  await cardLink(page, '3A British').click();
+  await cardLink(page, '1B British').click();
 
-  await expect(page.getByRole('heading', { level: 1, name: '3A British · Math' })).toBeVisible();
+  // The header is the calendar response's own `className` and `subject` (#70), not a guess.
+  await expect(page.getByRole('heading', { level: 1, name: '1B British · Math' })).toBeVisible();
   await expect(page.getByRole('grid')).toBeVisible();
   const classUrl = page.url();
 
   // §5: a third rail item while she is inside the class, and only while she is.
   const items = rail(page).getByRole('list');
   await expect(items.getByRole('link')).toHaveCount(3);
-  await expect(items.getByRole('link', { name: '3A British · Math' })).toBeVisible();
+  await expect(items.getByRole('link', { name: '1B British · Math' })).toBeVisible();
 
   // A lesson created from the calendar's `+` appears on that day.
   await page
@@ -127,8 +158,12 @@ test('the class page puts the class in the rail and the lesson in the calendar',
   await page.getByRole('button', { name: 'Create and write the questions' }).click();
   await expect(page).toHaveURL(/\/teacher\/lessons\/[0-9a-f-]+/, { timeout: 30_000 });
 
+  // The cell names the lesson by its own title (#70), not by its type.
   await page.goto(classUrl);
-  const cell = page.getByRole('gridcell').filter({ hasText: 'Homework' }).first();
+  const cell = page
+    .getByRole('gridcell')
+    .filter({ hasText: `Shapes ${RUN}` })
+    .first();
   await expect(cell).toBeVisible({ timeout: 15_000 });
   await expect(cell.getByText(/played/)).toBeVisible();
 
@@ -141,6 +176,7 @@ test('the Children tab lists the roster, and offers nothing to change while the 
   page,
 }) => {
   await openMyClasses(page);
+  const size = await childrenCountOf(page, '1A British');
   await cardLink(page, '1A British').click();
 
   await page.getByRole('tab', { name: 'Children' }).click();
@@ -148,7 +184,11 @@ test('the Children tab lists the roster, and offers nothing to change while the 
   await expect(page.getByRole('columnheader', { name: 'Stars this week' })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Level reached' })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Weak skills' })).toBeVisible();
-  expect(await page.getByRole('row').count()).toBeGreaterThan(1);
+
+  // The review's finding: the tab used to list all 96 children of Grade 1 British. It is 1A's
+  // own roster now — the same number the card counts, and the count under the tab agrees.
+  await expect(page.getByRole('row')).toHaveCount(size + 1); // + the header row
+  await expect(page.getByText(`${size} children`)).toBeVisible();
 
   // `teacher.rosterEdit` is off: no add, no edit, no parent-email column.
   await expect(page.getByRole('button', { name: 'Add a child' })).toHaveCount(0);

@@ -91,6 +91,7 @@ describe('the class calendar', () => {
         schoolDay: true,
         lessonId: 'l-1',
         status: 'published',
+        title: 'Sorting shapes',
         type: 'homework',
         playedCount: 7,
       },
@@ -113,6 +114,7 @@ describe('the class calendar', () => {
     expect(cell).toMatchObject({
       lessonId: 'l-1',
       status: 'published',
+      title: 'Sorting shapes',
       type: 'homework',
       playedCount: 7,
       schoolDay: true,
@@ -157,6 +159,7 @@ describe('the class calendar', () => {
 describe('the roster', () => {
   const STUDENT = {
     childId: 'ch-1',
+    classId: 'c-1a',
     name: 'Amina',
     starsThisWeek: 9,
     levelReached: 2,
@@ -167,7 +170,8 @@ describe('the roster', () => {
   it('joins progress with the roster and drops skills with no name', () => {
     const [row] = rosterRows(
       [STUDENT],
-      [{ id: 'ch-1', name: 'Amina K.', parentEmail: 'p@x.test', active: true }],
+      [{ id: 'ch-1', classId: 'c-1a', name: 'Amina K.', parentEmail: 'p@x.test', active: true }],
+      'c-1a',
     );
 
     expect(row).toMatchObject({
@@ -183,22 +187,51 @@ describe('the roster', () => {
 
   /** Without the roster (flag off) the tab still lists the class — it only loses the columns. */
   it('leaves active and parentEmail unknown when the roster was not fetched', () => {
-    const [row] = rosterRows([STUDENT], []);
+    const [row] = rosterRows([STUDENT], [], 'c-1a');
 
     expect(row?.active).toBeNull();
     expect(row?.parentEmail).toBeNull();
   });
 
   it('keeps a child the roster knows and the progress endpoint does not', () => {
-    const rows = rosterRows([STUDENT], [{ id: 'ch-2', name: 'Bilal', active: false }]);
+    const rows = rosterRows(
+      [STUDENT],
+      [{ id: 'ch-2', classId: 'c-1a', name: 'Bilal', active: false }],
+      'c-1a',
+    );
 
     expect(rows.map((row) => row.name)).toEqual(['Amina', 'Bilal']);
     expect(rows[1]).toMatchObject({ starsThisWeek: 0, lastPlayed: null, active: false });
   });
 
   it('reads a never-played child as never, not as 1970', () => {
-    const [row] = rosterRows([{ ...STUDENT, lastPlayed: 0 }], []);
+    const [row] = rosterRows([{ ...STUDENT, lastPlayed: 0 }], [], 'c-1a');
 
     expect(row?.lastPlayed).toBeNull();
+  });
+
+  /**
+   * The review that sent N2.3 back: 1A's Children tab listed all 96 children of Grade 1 British,
+   * because the endpoint was scoped to the course rather than the section. The server is fixed
+   * (#70) and this keeps the screen honest whatever it is handed.
+   */
+  it('keeps only the children of this class', () => {
+    const rows = rosterRows(
+      [STUDENT, { ...STUDENT, childId: 'ch-9', classId: 'c-1b', name: 'Zayn' }],
+      [
+        { id: 'ch-1', classId: 'c-1a', name: 'Amina', active: true },
+        { id: 'ch-8', classId: 'c-1b', name: 'Yara', active: true },
+      ],
+      'c-1a',
+    );
+
+    expect(rows.map((row) => row.name)).toEqual(['Amina']);
+  });
+
+  /** An older server sends no `classId` at all; dropping every row would be the worse failure. */
+  it('keeps rows a server sent without a class of their own', () => {
+    const rows = rosterRows([{ ...STUDENT, classId: undefined }], [], 'c-1a');
+
+    expect(rows.map((row) => row.name)).toEqual(['Amina']);
   });
 });

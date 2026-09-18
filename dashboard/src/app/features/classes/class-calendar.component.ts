@@ -272,14 +272,15 @@ export class ClassCalendarComponent {
   });
 
   /**
-   * What the cell says next to the square.
+   * What the cell says next to the square: the lesson's title.
    *
-   * `GET /teacher/classes/{id}/calendar` carries the lesson's **type**, not its title (N2.3
-   * report). So the cell names the type — "Generated", "Manual" — and the title is one click
-   * away on the lesson page, rather than inventing a placeholder that reads like a real title.
+   * An untitled lesson falls back to its type — "Homework", "Exam" — rather than to an empty
+   * cell that looks like a free day, and to "Lesson" when the server sends neither.
    */
   protected titleOf(cell: CalendarCell): string {
     this.lang();
+    const title = (cell.title ?? '').trim();
+    if (title) return title;
     const type = cell.type ?? '';
     if (!type) return this.transloco.translate<string>('classes.calendar.lesson');
     const key = `classes.calendar.type.${type}`;

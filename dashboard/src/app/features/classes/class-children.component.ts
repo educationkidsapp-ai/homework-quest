@@ -86,8 +86,14 @@ export class ClassChildrenComponent {
 
   protected readonly loading = computed(() => this.students.isLoading() || this.children.isLoading());
 
+  /**
+   * The class's own children, and the count the tab shows.
+   *
+   * Scoped to `classId` here as well as in the server (#70): the count under the tab is read as
+   * "how big is 1A", and a list that quietly widened to the whole grade would make it lie.
+   */
   protected readonly rows = computed<readonly RosterRow[]>(() =>
-    rosterRows(this.students.value(), this.canEdit() ? this.children.value() : []),
+    rosterRows(this.students.value(), this.canEdit() ? this.children.value() : [], this.classId()),
   );
 
   protected readonly columns = computed<readonly TableColumn<RosterRow>[]>(() => {

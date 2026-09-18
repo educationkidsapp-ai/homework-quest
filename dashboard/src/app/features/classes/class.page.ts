@@ -96,28 +96,18 @@ export class ClassPage {
   // ---- the header ----------------------------------------------------------------------------
 
   /**
-   * `GET /teacher/classes/{id}/calendar` answers with the class's curriculum, grade and subject
-   * but not its **name**, so the name comes off the cards list she arrived through. The
-   * `?subject=` the card carries stands in until the calendar answers, so the header does not
-   * change its mind halfway through the first paint.
+   * The header comes off the calendar response, which carries the whole identity of the section
+   * (#70 added `className` and a real `subject`): one request for the screen rather than a
+   * second list fetched only to read one name out of it.
+   *
+   * `?subject=` — the card's own — stands in for the one word the header needs before the
+   * calendar answers, so the title does not change its mind halfway through the first paint.
    */
-  private readonly cards = rxResource({
-    params: () => true,
-    stream: () => this.teacherApi.myClasses(),
-    defaultValue: [],
-  });
-
-  private readonly card = computed(() =>
-    this.cards.value().find((candidate) => candidate.classId === this.classId()),
-  );
-
-  protected readonly className = computed(() => this.card()?.className ?? '');
-  protected readonly curriculum = computed(
-    () => this.calendar.value().curriculum ?? this.card()?.curriculum ?? '',
-  );
-  protected readonly grade = computed(() => this.calendar.value().grade ?? this.card()?.grade ?? 0);
+  protected readonly className = computed(() => this.calendar.value().className ?? '');
+  protected readonly curriculum = computed(() => this.calendar.value().curriculum ?? '');
+  protected readonly grade = computed(() => this.calendar.value().grade ?? 0);
   protected readonly subject = computed(
-    () => this.calendar.value().subject ?? this.query().get('subject') ?? this.card()?.subject ?? '',
+    () => this.calendar.value().subject ?? this.query().get('subject') ?? '',
   );
 
   /** "1A · Math" — §4's header, and the words the rail's third item uses. */
