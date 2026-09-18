@@ -8048,6 +8048,69 @@
       }
     },
     "/teacher/lessons" : {
+      "get" : {
+        "operationId" : "listTeacherLessons",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "curriculum",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "grade",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "subject",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "classId",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminLesson"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      },
       "post" : {
         "operationId" : "createTeacherLesson",
         "requestBody" : {
@@ -8215,6 +8278,23 @@
       }
     },
     "/teacher/lessons/{id}/files" : {
+      "delete" : {
+        "operationId" : "teacherDeleteFiles",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      },
       "post" : {
         "operationId" : "teacherUploadFiles",
         "parameters" : [ {
@@ -8364,6 +8444,42 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ParentPanel"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/plays" : {
+      "post" : {
+        "operationId" : "teacherCreatePlay",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminPlay"
                 }
               }
             },

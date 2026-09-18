@@ -98,10 +98,20 @@ public class AdminLessonService {
      * for the whole page whatever its length: the lessons, the schools they belong to, their source files and their
      * pipeline ledgers. `UsageQueryCountTest` pins that.
      */
-    public List<AdminLesson> list(LessonFilter f) {
+    public List<AdminLesson> list(LessonFilter f) { return list(f, l -> true); }
+
+    /**
+     * The same page, narrowed to the rows a caller may actually reach. `GET /teacher/lessons` (N2.4b) hands in
+     * {@link quest.server.teacher.TeacherLessonService}'s reading of `TeacherScope.requireLesson` — she wrote it, or
+     * she holds the assignment on its class and subject — so the teacher's list is her lessons rather than her
+     * school's. The predicate runs over the already-tenant-scoped rows and before the four bulk reads, so a narrowed
+     * list costs no more statements than the Admin's.
+     */
+    public List<AdminLesson> list(LessonFilter f, java.util.function.Predicate<LessonEntity> reachable) {
         String schoolId = f.getSchoolId() == null || f.getSchoolId().isBlank() ? null : f.getSchoolId().trim();
         String classId = f.getClassId() == null || f.getClassId().isBlank() ? null : f.getClassId().trim();
         var rows = lessons.findAllByOrderByDateDescCreatedAtDesc().stream().filter(l -> {
+            if (!reachable.test(l)) return false;
             var course = Course.Companion.parse(l.getCourseId());
             if (schoolId != null && !schoolId.equals(l.getSchoolId())) return false;
             // §6 screen 12 "her lessons only, by class": the rows are already scoped to the caller's school, so a
