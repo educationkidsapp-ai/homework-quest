@@ -46,7 +46,10 @@ async function settle(rendered: { fixture: { detectChanges: () => void } }): Pro
   rendered.fixture.detectChanges();
 }
 
-async function renderSignedIn(sections: readonly unknown[] = [ONE_A]) {
+/** MANAGERIAL reads sections and changes nothing — the screen must offer her nothing to press. */
+const READ_ONLY_PERMISSIONS = { role: 'MANAGERIAL', permissions: ['section.read'], readOnly: false };
+
+async function renderSignedIn(sections: readonly unknown[] = [ONE_A], permissions = ADMIN_PERMISSIONS) {
   const rendered = await renderHq(ClassesPage, { providers });
   const backend = TestBed.inject(HttpTestingController);
 
@@ -54,7 +57,7 @@ async function renderSignedIn(sections: readonly unknown[] = [ONE_A]) {
   TestBed.inject(AuthService).loadMe().subscribe();
   backend.expectOne('/me').flush(ADMIN_USER);
   TestBed.tick();
-  backend.expectOne('/me/permissions').flush(ADMIN_PERMISSIONS);
+  backend.expectOne('/me/permissions').flush(permissions);
 
   backend.expectOne('/admin/classes').flush(sections);
   await settle(rendered);
@@ -107,9 +110,7 @@ describe('Classes', () => {
     backend.expectNone('/admin/classes/c-1a/join-code');
 
     await userEvent.click(screen.getByRole('button', { name: 'Regenerate' }));
-    backend
-      .expectOne('/admin/classes/c-1a/join-code')
-      .flush({ ...ONE_A, joinCode: 'BRIT-1A-88' });
+    backend.expectOne('/admin/classes/c-1a/join-code').flush({ ...ONE_A, joinCode: 'BRIT-1A-88' });
     await settle(rendered);
 
     expect(screen.getByText('BRIT-1A-88')).toBeInTheDocument();
@@ -133,6 +134,14 @@ describe('Classes', () => {
     expect(TestBed.inject(UndoService).offer()?.message).toBe('1A deactivated');
   });
 
+  it('offers a MANAGERIAL account no way to create a class, empty list or not', async () => {
+    await renderSignedIn([], READ_ONLY_PERMISSIONS);
+
+    // The empty state still explains itself; only its button and the footer's are gone.
+    expect(screen.getByText('No classes yet. Create the first one.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create class' })).not.toBeInTheDocument();
+  });
+
   it('puts the row back when the change is refused', async () => {
     const { rendered, backend } = await renderSignedIn();
 
@@ -143,7 +152,10 @@ describe('Classes', () => {
 
     backend
       .expectOne('/admin/classes/c-1a')
-      .flush({ code: 'conflict', message: 'Not while a lesson is running' }, { status: 409, statusText: 'Conflict' });
+      .flush(
+        { code: 'conflict', message: 'Not while a lesson is running' },
+        { status: 409, statusText: 'Conflict' },
+      );
     await settle(rendered);
 
     expect(screen.getByRole('cell', { name: 'Active' })).toBeInTheDocument();

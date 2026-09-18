@@ -58,7 +58,7 @@
         <hq-empty-state
           table-empty
           [message]="'admin.teachers.empty' | transloco"
-          [actionLabel]="'admin.teachers.form.createAction' | transloco"
+          [actionLabel]="createLabel()"
           (action)="openCreate()"
         />
       </hq-table>

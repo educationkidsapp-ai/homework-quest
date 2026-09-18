@@ -47,7 +47,10 @@ async function settle(rendered: { fixture: { detectChanges: () => void } }): Pro
 }
 
 /** Signs an Admin in and answers the two lists the screen loads. */
-async function renderSignedIn(teachers: readonly unknown[] = [SARA]) {
+/** MANAGERIAL reads the staff list and changes nothing — no create action anywhere. */
+const READ_ONLY_PERMISSIONS = { role: 'MANAGERIAL', permissions: ['teacher.read'], readOnly: false };
+
+async function renderSignedIn(teachers: readonly unknown[] = [SARA], permissions = ADMIN_PERMISSIONS) {
   const rendered = await renderHq(TeachersPage, { providers });
   const backend = TestBed.inject(HttpTestingController);
 
@@ -55,7 +58,7 @@ async function renderSignedIn(teachers: readonly unknown[] = [SARA]) {
   TestBed.inject(AuthService).loadMe().subscribe();
   backend.expectOne('/me').flush(ADMIN_USER);
   TestBed.tick();
-  backend.expectOne('/me/permissions').flush(ADMIN_PERMISSIONS);
+  backend.expectOne('/me/permissions').flush(permissions);
 
   backend.expectOne('/admin/teachers').flush(teachers);
   backend.expectOne('/admin/classes').flush([ONE_A]);
@@ -114,6 +117,13 @@ describe('Teachers', () => {
     expect(screen.queryByText('swift-otter-42')).not.toBeInTheDocument();
     expect(localStorage.getItem('swift-otter-42')).toBeNull();
     expect(JSON.stringify(localStorage)).not.toContain('swift-otter-42');
+  });
+
+  it('offers a MANAGERIAL account no way to add a teacher, empty list or not', async () => {
+    await renderSignedIn([], READ_ONLY_PERMISSIONS);
+
+    expect(screen.getByText('No teachers yet. Add the first one.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add teacher' })).not.toBeInTheDocument();
   });
 
   it('disables an account behind a red confirm band, and offers Undo afterwards', async () => {

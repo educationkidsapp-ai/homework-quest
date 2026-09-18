@@ -10,6 +10,7 @@ import { ClassesApi, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
+import { PermissionService } from '../../core/permissions/permission.service';
 import { UndoService } from '../../core/undo/undo.service';
 import {
   BandComponent,
@@ -70,6 +71,7 @@ export class ClassesPage {
   private readonly transloco = inject(TranslocoService);
   private readonly band = inject(BandService);
   private readonly undo = inject(UndoService);
+  private readonly permissions = inject(PermissionService);
   private readonly lang = activeLang();
 
   // ---- the list ---------------------------------------------------------------------------
@@ -115,6 +117,18 @@ export class ClassesPage {
   });
 
   protected trackRow = (row: ClassRow): string => row.id;
+
+  /**
+   * The empty state's action, or `null` when this account may not create one.
+   *
+   * `*hqCan` is structural — on `hq-empty-state` it would take the whole empty state with it,
+   * and "no classes yet" is exactly what a MANAGERIAL account needs to be told. So the same
+   * permission decides the label instead, and `hq-empty-state` draws no button without one.
+   */
+  protected readonly createLabel = computed(() => {
+    this.lang();
+    return this.permissions.can('class.write') ? this.t('admin.classes.create.action') : null;
+  });
 
   // ---- create -----------------------------------------------------------------------------
 

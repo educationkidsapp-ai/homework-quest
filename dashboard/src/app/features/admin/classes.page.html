@@ -51,7 +51,7 @@
         <hq-empty-state
           table-empty
           [message]="'admin.classes.empty' | transloco"
-          [actionLabel]="'admin.classes.create.action' | transloco"
+          [actionLabel]="createLabel()"
           (action)="openCreate()"
         />
       </hq-table>

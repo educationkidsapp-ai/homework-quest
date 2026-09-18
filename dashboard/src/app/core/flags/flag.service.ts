@@ -1,10 +1,11 @@
-import { Injectable, computed, inject } from '@angular/core';
+import { Injectable, computed, effect, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoService } from '@jsverse/transloco';
 import { Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 import { FeatureFlagsApi } from '../../api';
 import { AuthService } from '../auth/auth.service';
+import { SchoolScopeStore } from '../auth/school-scope.store';
 import { BandService } from '../band/band.service';
 import { DEFAULT_FLAGS } from './flags.defaults';
 
@@ -30,7 +31,6 @@ export const FLAGS = {
   progressWeeklyEmail: 'progress.weeklyEmail',
   certificates: 'certificates',
   multiSchool: 'multiSchool',
-  teacherRosterEdit: 'teacher.rosterEdit',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];
@@ -82,6 +82,7 @@ export class FlagService {
   private readonly auth = inject(AuthService);
   private readonly band = inject(BandService);
   private readonly transloco = inject(TranslocoService);
+  private readonly scope = inject(SchoolScopeStore);
 
   /** Set only while the band on screen is the one this service put there — never dismiss someone else's. */
   private bandIsOurs = false;
@@ -107,6 +108,22 @@ export class FlagService {
     const status = this.resource.status();
     return status === 'resolved' || status === 'error' || status === 'local' || !this.auth.signedIn();
   });
+
+  constructor() {
+    /*
+     * D13: `multiSchool` decides whether there is a switcher at all, so the school scope follows
+     * it rather than the other way round — a selection kept in this browser cannot outlive the
+     * flag being turned off, and with it off no request carries an `X-School-Id`.
+     *
+     * Gated on `ready`, not just on `isOn`: until the map settles every flag reads as off, and
+     * acting on that would drop a real Admin's selection on every cold start of a deployment
+     * that does have several schools.
+     */
+    effect(() => {
+      if (!this.auth.signedIn() || !this.ready()) return;
+      this.scope.setMultiSchool(this.isOn(FLAGS.multiSchool));
+    });
+  }
 
   /** Default false: a feature nobody has turned on is off, including while the map loads. */
   isOn(key: string): boolean {

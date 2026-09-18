@@ -10,6 +10,7 @@ import { ClassesApi, TeachersApi, apiErrorOf, type TeacherAccount } from '../../
 import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
+import { PermissionService } from '../../core/permissions/permission.service';
 import { UndoService } from '../../core/undo/undo.service';
 import {
   BandComponent,
@@ -72,6 +73,7 @@ export class TeachersPage {
   private readonly transloco = inject(TranslocoService);
   private readonly band = inject(BandService);
   private readonly undo = inject(UndoService);
+  private readonly permissions = inject(PermissionService);
   private readonly router = inject(Router);
   private readonly lang = activeLang();
 
@@ -120,6 +122,18 @@ export class TeachersPage {
   });
 
   protected trackRow = (row: TeacherRow): string => row.id;
+
+  /**
+   * The empty state's action, or `null` when this account may not create one.
+   *
+   * `*hqCan` is structural — on `hq-empty-state` it would take the whole empty state with it,
+   * and "no teachers yet" is exactly what a MANAGERIAL account needs to be told. So the same
+   * permission decides the label instead, and `hq-empty-state` draws no button without one.
+   */
+  protected readonly createLabel = computed(() => {
+    this.lang();
+    return this.permissions.can('teacher.manage') ? this.t('admin.teachers.form.createAction') : null;
+  });
 
   /**
    * `classId|subject` → the teacher who already holds it. The picker reads it to disable the

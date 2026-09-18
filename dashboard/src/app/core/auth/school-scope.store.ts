@@ -20,6 +20,14 @@ export interface SchoolScope {
  * Persisted, because an Admin who has narrowed to one school expects to still be in it after
  * a reload; cleared on sign-out with the rest of the session.
  *
+ * **D13.** While `multiSchool` is off there is one school and no switcher, so a selection this
+ * browser kept from before — or from a database that has since been reseeded — must not keep
+ * scoping requests to a school id that may no longer exist. `setMultiSchool(false)` both masks
+ * the scope (so the interceptor sends no `X-School-Id`) and erases the stored value, because a
+ * mask alone would come back the moment the flag was turned on again. `FlagService` calls it
+ * once the flag map has settled; this store injects nothing but the document, so the
+ * interceptor can keep reading it without a cycle through `HttpClient`.
+ *
  * No HTTP lives here: the interceptor reads this store on every request, and a store that
  * injected the generated client would be a cycle through `HttpClient`.
  */
@@ -27,9 +35,16 @@ export interface SchoolScope {
 export class SchoolScopeStore {
   private readonly doc = inject(DOCUMENT);
   private readonly current = signal<SchoolScope | null>(this.read());
+  private readonly multiSchool = signal(true);
 
-  readonly scope = this.current.asReadonly();
-  readonly schoolId = computed(() => this.current()?.id ?? null);
+  readonly scope = computed(() => (this.multiSchool() ? this.current() : null));
+  readonly schoolId = computed(() => this.scope()?.id ?? null);
+
+  /** Whether this deployment has more than one school; false collapses the scope to "mine". */
+  setMultiSchool(on: boolean): void {
+    this.multiSchool.set(on);
+    if (!on && this.current() !== null) this.select(null);
+  }
 
   select(scope: SchoolScope | null): void {
     this.current.set(scope);

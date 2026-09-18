@@ -119,11 +119,23 @@ export class DialogComponent {
 
   readonly confirmed = output<void>();
 
+  /**
+   * Whatever had focus when this opened.
+   *
+   * A modal `<dialog>` restores focus itself, but only on the path where `showModal()` exists —
+   * not on the `open = true` fallback, and not for a dialog closed by its own Close button in
+   * every engine. Remembering it here means the person who pressed "Create class" and changed
+   * their mind is put back on that button rather than at the top of the document.
+   */
+  private opener: HTMLElement | null = null;
+
   constructor() {
     afterRenderEffect(() => {
       const dialog = this.dialog().nativeElement;
       if (this.open()) {
         if (dialog.open) return;
+        const active = dialog.ownerDocument.activeElement;
+        this.opener = active instanceof HTMLElement && !dialog.contains(active) ? active : this.opener;
         // Some jsdom versions ship <dialog> without showModal; degrade to the open attribute.
         if (typeof dialog.showModal === 'function') dialog.showModal();
         else dialog.open = true;
@@ -142,5 +154,8 @@ export class DialogComponent {
   /** Esc and the backdrop close the element itself; the signal has to hear about it. */
   protected onClose(): void {
     this.open.set(false);
+    const opener = this.opener;
+    this.opener = null;
+    opener?.focus();
   }
 }

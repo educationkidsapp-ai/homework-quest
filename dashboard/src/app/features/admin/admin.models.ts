@@ -1,5 +1,5 @@
 import type { SchoolClass, TeacherAccount, TeachingAssignment } from '../../api';
-import type { Curriculum, Subject } from '../lessons/lessons.models';
+import type { Subject } from '../lessons/lessons.models';
 
 /**
  * `GET /admin/classes` answers `quest.server.classes.ClassDto.SchoolClass`, which carries the
@@ -93,8 +93,4 @@ export function byCourseThenName(a: AdminClass, b: AdminClass): number {
   const grade = (a.grade ?? 0) - (b.grade ?? 0);
   if (grade !== 0) return grade;
   return (a.name ?? '').localeCompare(b.name ?? '', undefined, { numeric: true });
-}
-
-export function isCurriculumOf(section: AdminClass, curriculum: Curriculum | null): boolean {
-  return curriculum === null || section.curriculum === curriculum;
 }

@@ -106,7 +106,10 @@ describe('the assignment picker', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save assignments' }));
     backend
       .expectOne('/admin/teachers/u-sara/assignments')
-      .flush({ code: 'conflict', message: '1A already has a Math teacher: Noura' }, { status: 409, statusText: 'Conflict' });
+      .flush(
+        { code: 'conflict', message: '1A already has a Math teacher: Noura' },
+        { status: 409, statusText: 'Conflict' },
+      );
     rendered.fixture.detectChanges();
 
     expect(TestBed.inject(BandService).current()?.message).toBe('1A already has a Math teacher: Noura');
