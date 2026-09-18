@@ -1,113 +1,28 @@
-import { expect, request, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { RUN, removeLessonsOfThisRun, signInAsSara } from './env';
 
 /**
- * N2.2's acceptance (`docs/teacher-flow.md` §4 step 2), against the built bundle and a local API
- * on H2 started with `SEED_SCHOOL=true` — the one school, 30 classes, 40 teachers, 600 children.
+ * N2.2's acceptance (`docs/teacher-flow.md` §4 step 2): the week grid, the `+`, the drag that
+ * moves a lesson and the drop that copies it onto a sibling section.
  *
- * Sara Al Harbi (`seed/assignments.csv`) teaches **1A British** and **3A British**, both Math.
- * That is deliberate in the seed and inconvenient here: the drag-to-copy rule is "another class
- * of the same grade, curriculum and subject", and no seeded teacher has two such sections —
- * 1B–1E British Math are each somebody else's. So `test.beforeAll` creates one more Grade 1
- * British section through the Admin API and gives it to Sara, which is exactly what an Admin
- * would do, and leaves the seed alone.
+ * Rewritten for the one-school seed as it stands (N2.5). It used to create a `1Z… British`
+ * section through the Admin API in `beforeAll` and assign it to Sara, because no seeded teacher
+ * then had two sections of the same grade *and* subject and the drag-to-copy rule needs one.
+ * `seed/assignments.csv` now gives Sara **1A British** and **1B British**, both Math, so the
+ * sibling is seeded and this file creates no classes at all — which matters against QA, where
+ * the database is shared and never reset, and where an extra section would also change what
+ * `teacher-flow.spec.ts` asserts she teaches.
+ *
+ * What it does create — one lesson, plus the copy the drop makes — it deletes again in
+ * `afterAll`, so the week has the same empty cells for the next run.
  */
-const API = process.env['HQ_API'] ?? 'http://localhost:18080';
 const SHOTS = resolve(process.cwd(), '../docs/screenshots/dashboard-n2.2');
 
-const ADMIN = {
-  email: process.env['E2E_ADMIN_EMAIL'] ?? 'admin@quest.local',
-  password: env('E2E_ADMIN_PASSWORD'),
-};
-const SARA = { email: 'sara.al-harbi@school.test', password: env('E2E_STAFF_PASSWORD') };
-
-/** Unique per run: the H2 database outlives a single test file. */
-const RUN = Date.now().toString(36).slice(-4).toUpperCase();
-const SIBLING = `1Z${RUN} British`;
-
-function env(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set — see playwright.local.config.ts`);
-  return value;
-}
-
-interface SeededAssignment {
-  readonly classId: string;
-  readonly className: string;
-  readonly subject: string;
-}
-interface SeededTeacher {
-  readonly userId: string;
-  readonly email: string;
-  readonly assignments: SeededAssignment[];
-}
-
-/**
- * Sara, once the school seed has actually finished.
- *
- * Tomcat answers before `SchoolSeed` does: the server is up, `/health` is 200 and `/admin/**`
- * works while the 30 classes, 40 teachers and 60 assignments are still being written on the main
- * thread. Writing her assignments into that window is writing into a race — the seed lands after
- * and puts her back to the two rows it knows about, and the grid loses the sibling this file
- * exists to drag onto. So wait for her seeded pair before touching anything.
- */
-async function seededSara(
-  api: Awaited<ReturnType<typeof request.newContext>>,
-  auth: Record<string, string>,
-): Promise<SeededTeacher> {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    const teachers = await api.get('/admin/teachers', { headers: auth });
-    const sara = ((await teachers.json()) as SeededTeacher[]).find((row) => row.email === SARA.email);
-    if (sara && sara.assignments.length >= 2) return sara;
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
-  }
-  throw new Error('the school seed never finished — start the server with SEED_SCHOOL=true');
-}
-
-/** Sara's second Grade 1 British Math section, created the way an Admin creates one. */
-test.beforeAll(async () => {
-  test.setTimeout(120_000);
-  const api = await request.newContext({ baseURL: API });
-  const signIn = await api.post('/admin/auth/sign-in', { data: ADMIN });
-  expect(signIn.ok()).toBeTruthy();
-  const token = ((await signIn.json()) as { token: string }).token;
-  const auth = { Authorization: `Bearer ${token}` };
-
-  const sara = await seededSara(api, auth);
-
-  const created = await api.post('/admin/classes', {
-    headers: auth,
-    data: { curriculum: 'british', grade: 1, name: SIBLING },
-  });
-  expect(created.ok()).toBeTruthy();
-  const classId = ((await created.json()) as { id: string }).id;
-
-  // Her seeded two, and nothing an earlier run of this file left behind: a second leftover
-  // sibling row would make "the sibling row" ambiguous, which is the one thing the drop needs.
-  const kept = sara.assignments
-    .filter((assignment) => !/^1Z/i.test(assignment.className))
-    .map((assignment) => ({ classId: assignment.classId, subject: assignment.subject }));
-  const saved = await api.put(`/admin/teachers/${sara.userId}/assignments`, {
-    headers: auth,
-    data: { assignments: [...kept, { classId, subject: 'math' }] },
-  });
-  expect(saved.ok()).toBeTruthy();
-  await api.dispose();
-});
-
-async function signInAsSara(page: Page): Promise<void> {
-  await page.goto('sign-in');
-  await page.evaluate(() => localStorage.clear());
-  await page.goto('sign-in');
-  await page.getByLabel('Email').fill(SARA.email);
-  await page.getByLabel('Password').fill(SARA.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  const skip = page.getByRole('button', { name: 'Skip' });
-  await skip.waitFor({ state: 'visible', timeout: 15_000 });
-  await skip.click();
-  await expect(page.getByRole('dialog').first()).toBeHidden();
-}
+const OWN = '1A British';
+const SIBLING = '1B British';
+const TITLE = `Sorting ${RUN}`;
 
 /** The row of the grid for one class, by its `rowheader`. */
 function rowOf(page: Page, className: string): Locator {
@@ -132,6 +47,16 @@ async function dragTo(page: Page, card: Locator, target: Locator): Promise<void>
   await page.waitForTimeout(600);
 }
 
+/** Which column of a row holds a card, counted over the row's own `gridcell`s. */
+async function cellIndexOf(row: Locator, text: string): Promise<number> {
+  const cells = row.getByRole('gridcell');
+  const count = await cells.count();
+  for (let index = 0; index < count; index += 1) {
+    if ((await cells.nth(index).textContent())?.includes(text)) return index;
+  }
+  return -1;
+}
+
 test.describe.configure({ mode: 'serial' });
 
 test('signing in lands on This week, and the rail holds nothing else she cannot use', async ({ page }) => {
@@ -146,11 +71,10 @@ test('signing in lands on This week, and the rail holds nothing else she cannot 
   await expect(rail.getByRole('link', { name: 'This week' })).toBeVisible();
   await expect(rail.getByRole('link', { name: 'My classes' })).toBeVisible();
 
-  // Her three rows, grouped by grade — 1A and the sibling under Grade 1, 3A under Grade 3.
+  // Her two sections, grouped by grade — both Grade 1, which is what makes them siblings.
   await expect(page.getByText('Grade 1', { exact: true })).toBeVisible();
-  await expect(rowOf(page, '1A British')).toBeVisible();
+  await expect(rowOf(page, OWN)).toBeVisible();
   await expect(rowOf(page, SIBLING)).toBeVisible();
-  await expect(rowOf(page, '3A British')).toBeVisible();
 
   // A route outside her scope is a redirect home, not a screen full of red bands.
   await page.goto('admin/classes');
@@ -162,70 +86,73 @@ test('the + on an empty cell opens the editor already knowing the class, subject
 }) => {
   await signInAsSara(page);
 
-  const plus = rowOf(page, '1A British')
-    .getByRole('link', { name: /^Add a lesson for 1A British/ })
+  const plus = rowOf(page, OWN)
+    .getByRole('link', { name: new RegExp(`^Add a lesson for ${OWN}`) })
     .first();
   const label = (await plus.getAttribute('aria-label')) ?? '';
   await plus.click();
 
   await expect(page).toHaveURL(/lessons\/new\?.*classId=/);
   await expect(page.getByRole('heading', { name: 'New lesson' })).toBeVisible();
-  await expect(page.getByLabel('Curriculum')).toHaveValue('british');
-  await expect(page.getByLabel('Grade')).toHaveValue('1');
-  await expect(page.getByLabel('Subject')).toHaveValue('math');
+  // N2.4b: a teacher authors into a *section*, so the one picker is the class the `+` named and
+  // it is fixed. The Admin's curriculum/grade/subject trio is gone from her screen — it could
+  // not tell 1A from 1B, which is the whole point of the row the `+` was on.
+  await expect(page.getByLabel('Class')).toHaveValue(/1a british::math$/i);
+  await expect(page.getByLabel('Class')).toBeDisabled();
+  await expect(page.getByLabel('Curriculum')).toHaveCount(0);
   // The day the `+` was on, not today.
   const day = new URL(page.url()).searchParams.get('date') ?? '';
   expect(day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-  expect(label).toContain('1A British');
+  expect(label).toContain(OWN);
 });
 
 test('a manual lesson created from the + appears as a card in that cell', async ({ page }) => {
   await signInAsSara(page);
 
-  await rowOf(page, '1A British')
-    .getByRole('link', { name: /^Add a lesson for 1A British/ })
+  await rowOf(page, OWN)
+    .getByRole('link', { name: new RegExp(`^Add a lesson for ${OWN}`) })
     .first()
     .click();
   await expect(page.getByRole('heading', { name: 'New lesson' })).toBeVisible();
 
-  await page.getByLabel('Title').fill(`Sorting ${RUN}`);
+  await page.getByLabel('Title').fill(TITLE);
   await page.getByRole('button', { name: /Write it yourself/ }).click();
   await page.getByRole('button', { name: 'Create and write the questions' }).click();
-  await expect(page).toHaveURL(/\/teacher\/lessons\/[0-9a-f-]+/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/teacher\/lessons\/[0-9a-f-]+/, { timeout: 30_000 });
 
   await page.getByRole('navigation').getByRole('link', { name: 'This week' }).click();
-  await expect(rowOf(page, '1A British').getByText(`Sorting ${RUN}`)).toBeVisible();
+  await expect(rowOf(page, OWN).getByText(TITLE)).toBeVisible();
 });
 
 test('dragging the card to another day moves the lesson', async ({ page }) => {
   await signInAsSara(page);
 
-  const row = rowOf(page, '1A British');
-  const card = row.getByText(`Sorting ${RUN}`);
+  const row = rowOf(page, OWN);
+  const card = row.getByText(TITLE);
   await expect(card).toBeVisible();
-  const before = await cellIndexOf(row, `Sorting ${RUN}`);
+  const before = await cellIndexOf(row, TITLE);
 
   // The next empty cell in the same row.
-  const empty = row.getByRole('link', { name: /^Add a lesson for 1A British/ }).last();
+  const empty = row.getByRole('link', { name: new RegExp(`^Add a lesson for ${OWN}`) }).last();
   const target = (await empty.getAttribute('aria-label')) ?? '';
   await dragTo(page, card, empty);
 
   await expect(row.getByRole('link', { name: target })).toHaveCount(0);
-  const after = await cellIndexOf(row, `Sorting ${RUN}`);
+  const after = await cellIndexOf(row, TITLE);
   expect(after).not.toBe(before);
 
   // And it stuck: a reload reads the server back.
   await page.reload();
-  await expect(rowOf(page, '1A British').getByText(`Sorting ${RUN}`)).toBeVisible({ timeout: 15_000 });
-  expect(await cellIndexOf(rowOf(page, '1A British'), `Sorting ${RUN}`)).toBe(after);
+  await expect(rowOf(page, OWN).getByText(TITLE)).toBeVisible({ timeout: 15_000 });
+  expect(await cellIndexOf(rowOf(page, OWN), TITLE)).toBe(after);
 });
 
 test('dropping the card on the sibling row offers a copy, and the copy appears there', async ({ page }) => {
   await signInAsSara(page);
 
-  const source = rowOf(page, '1A British').getByText(`Sorting ${RUN}`);
+  const source = rowOf(page, OWN).getByText(TITLE);
   await expect(source).toBeVisible();
-  const index = await cellIndexOf(rowOf(page, '1A British'), `Sorting ${RUN}`);
+  const index = await cellIndexOf(rowOf(page, OWN), TITLE);
   const target = rowOf(page, SIBLING).getByRole('gridcell').nth(index);
   await dragTo(page, source, target);
 
@@ -234,9 +161,7 @@ test('dropping the card on the sibling row offers a copy, and the copy appears t
   await expect(band).toContainText(SIBLING);
   await page.getByRole('button', { name: 'Copy', exact: true }).click();
 
-  await expect(rowOf(page, SIBLING).getByText(`Sorting ${RUN}`)).toBeVisible({ timeout: 15_000 });
-  // 3A is another grade: it never becomes a drop target, so nothing landed there.
-  await expect(rowOf(page, '3A British').getByText(`Sorting ${RUN}`)).toHaveCount(0);
+  await expect(rowOf(page, SIBLING).getByText(TITLE)).toBeVisible({ timeout: 15_000 });
 });
 
 test('the summary strip names the class and the day of every gap', async ({ page }) => {
@@ -244,13 +169,16 @@ test('the summary strip names the class and the day of every gap', async ({ page
 
   const strip = page.getByRole('region', { name: 'This week at a glance' });
   await expect(strip).toBeVisible();
-  // Every school day 3A has nothing on, each named by class and by day rather than counted.
-  const gaps = strip.getByText(/3A British has no lesson (Sunday|Monday|Tuesday|Wednesday|Thursday)/);
+  // Every school day a section has nothing on, named by class and by day rather than counted.
+  const gaps = strip.getByText(
+    new RegExp(`1[AB] British has no lesson (Sunday|Monday|Tuesday|Wednesday|Thursday)`),
+  );
   expect(await gaps.count()).toBeGreaterThan(0);
   await expect(gaps.first()).toBeVisible();
 });
 
 test('the screenshot set, EN and AR', async ({ page }) => {
+  test.setTimeout(120_000);
   await mkdir(SHOTS, { recursive: true });
   await signInAsSara(page);
 
@@ -274,7 +202,7 @@ test('the screenshot set, EN and AR', async ({ page }) => {
 
     // The card's menu open — the keyboard twin of the drag.
     await page
-      .getByRole('button', { name: new RegExp(`Sorting ${RUN}`) })
+      .getByRole('button', { name: new RegExp(TITLE) })
       .first()
       .click();
     await expect(page.getByRole('menu').first()).toBeVisible();
@@ -286,12 +214,10 @@ test('the screenshot set, EN and AR', async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('hq.language', 'en'));
 });
 
-/** Which column of a row holds a card, counted over the row's own `gridcell`s. */
-async function cellIndexOf(row: Locator, text: string): Promise<number> {
-  const cells = row.getByRole('gridcell');
-  const count = await cells.count();
-  for (let index = 0; index < count; index += 1) {
-    if ((await cells.nth(index).textContent())?.includes(text)) return index;
-  }
-  return -1;
-}
+/**
+ * The week back the way it was found.
+ *
+ * This file's cells are *this* week's, and there are only five of them per section: without this
+ * a second run against the same database would find the row full and have no `+` left to press.
+ */
+test.afterAll(removeLessonsOfThisRun);

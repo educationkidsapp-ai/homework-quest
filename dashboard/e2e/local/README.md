@@ -1,132 +1,177 @@
-# Local end-to-end suite
+# The end-to-end suite
 
-`e2e/local/` runs the **built** dashboard against a **local** API, in the shape the container
-will have (P3.4): one origin, `/dashboard/**` from `dist/browser`, everything else proxied to the
-API, and the same Content-Security-Policy the server sends. `e2e/styleguide.spec.ts` is the other
-suite and still runs against `ng serve` (`pnpm e2e`).
+`e2e/local/` runs the **built** dashboard against a real API — the local H2 server here, and the
+deployed QA API after every deploy. One suite, two targets, which is the point: what CI proves
+after a deploy is what you can reproduce on this Mac.
 
-Neither suite runs in CI — both need a browser download, and this one needs a JDK, a database and
-a seed. They run here and, from P3.4, against QA after a deploy.
+- **locally** (`pnpm e2e:local`) the bundle is served by `e2e/local/serve.mjs` in the shape the
+  container has (P3.4): one origin, `/dashboard/**` from `dist/browser`, everything else proxied
+  to the API, and the Content-Security-Policy the server sends.
+- **against QA** (`pnpm e2e:qa`, `E2E_BASE_URL=<api>`) Playwright starts nothing: the API serves
+  the dashboard itself at `<api>/dashboard/`, `e2e/global-setup.ts` waits for `<api>/health`
+  first, and `expect` gets 15 s rather than 5 because a cold Cloud Run instance is slower than
+  this Mac at everything.
 
-## Running it
+`e2e/styleguide.spec.ts` is the other suite and still needs `ng serve` (`pnpm e2e`): the `qa` and
+`production` configurations replace `styleguide.route.ts`, so that route is in no built bundle.
+
+## One school
+
+Everything here assumes the **one-school seed** the server writes at startup (`SEED_SCHOOL=true`,
+`server/src/main/resources/seed/*.csv`): 31 classes, 40 teachers, ~600 children, one school.
+D13 keeps `multiSchool` **off**, so there is no school switcher and no second school — the
+two-school fixture of `e2e/seed/seed.mjs` is legacy and QA never runs it (see `e2e/README.md`).
+
+The people the suite signs in as:
+
+| Who | Email | What the seed gives them |
+| --- | --- | --- |
+| Admin | `$E2E_ADMIN_EMAIL` (default `admin@quest.local`) | the platform ADMIN, one school |
+| Sara Al Harbi | `sara.al-harbi@school.test` | **1A British** and **1B British**, both Math — the sibling pair the publish sheet and the drag-to-copy exist for |
+| Omar Nasser | `omar.nasser@school.test` | 3A/3B British Math — the other teacher, for the isolation checks |
+
+Nothing seeds a MANAGERIAL user, so there is no managerial coverage here yet.
+
+## Environment
+
+Passwords come from the environment, are never printed and are never written down here. A missing
+one fails with the variable's name, not its value.
+
+| Variable | Used for |
+| --- | --- |
+| `E2E_BASE_URL` | the deployed API to test against; unset means the local server below |
+| `E2E_ADMIN_EMAIL` | the Admin's email (default `admin@quest.local`) |
+| `E2E_ADMIN_PASSWORD` | the Admin's password — the server's `ADMIN_PASSWORD` |
+| `E2E_STAFF_PASSWORD` | the seeded teachers' password — **the same value** as the server's `SEED_STAFF_PASSWORD` |
+| `HQ_API` | local only: where `serve.mjs` proxies (default `http://localhost:18080`) |
+| `E2E_FAIL_ONCE_AT` | opts `lesson-retry.spec.ts` in; see below |
+
+`E2E_STAFF_PASSWORD` and `SEED_STAFF_PASSWORD` **must be the same value** wherever the suite runs,
+including the `qa` GitHub environment: the first is what Sara types, the second is what the server
+set for her. If they differ, every teacher spec fails at `beforeAll` with "could not sign in".
+
+## Running it locally
 
 ```bash
-# 1. the API on in-memory H2 — JDK 21, no Docker, no Firebase, no model calls
+# 1. the API on in-memory H2 with the one-school seed — JDK 21, no Docker, no model calls
 export JAVA_HOME=…/jdk-21…            # the default `java` on this Mac is 17
 ./gradlew :shared-api:publishToMavenLocal -Pquest.serverOnly=true   # once
 (cd server && ./mvnw -q -B package -DskipTests)
 
-export ADMIN_EMAIL=admin@quest.local
-export ADMIN_PASSWORD='<throwaway>'   # never a real one, never committed
-SPRING_PROFILES_ACTIVE=h2 LLM_PROVIDER=fake PORT=18080 \
-  PUBLIC_URL=http://localhost:18080 DASHBOARD_URL=http://localhost:4300 \
-  java -jar server/target/server.jar &
+SPRING_PROFILES_ACTIVE=h2 SEED_SCHOOL=true SEED_STAFF_PASSWORD="$E2E_STAFF_PASSWORD" \
+  ADMIN_EMAIL="$E2E_ADMIN_EMAIL" ADMIN_PASSWORD="$E2E_ADMIN_PASSWORD" \
+  LLM_PROVIDER=fake PORT=18080 PUBLIC_URL=http://localhost:18080 \
+  DASHBOARD_URL=http://localhost:4300 java -jar server/target/server.jar &
 
-# 2. two schools, every role, one published lesson each
-E2E_BASE_URL=http://localhost:18080 \
-E2E_ADMIN_EMAIL="$ADMIN_EMAIL" E2E_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
-E2E_STAFF_PASSWORD='<throwaway>' E2E_PARENT_PASSWORD='<throwaway>' \
-  node e2e/seed/seed.mjs
-
-# 3. the bundle the container will serve
+# 2. the bundle the container will serve
 cd dashboard && pnpm build --configuration=production
 
-# 4. the suite (Playwright starts e2e/local/serve.mjs itself)
+# 3. the suite (Playwright starts e2e/local/serve.mjs itself)
 E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… E2E_STAFF_PASSWORD=… pnpm e2e:local
+# or one file: pnpm e2e:local teacher-flow
 ```
 
-Accounts come from the seed: `admin@quest.local`, `teacher.a@alnoor.test` (Ms Sara, Al Noor,
-British Grade 1–2 Math) and `manager.a@alnoor.test`. Passwords are read from the environment and
-never printed — a missing one fails with the variable's name, not its value.
+## Running it against QA
 
-### Injecting a pipeline failure (`lesson-retry.spec.ts`)
-
-`LessonPipeline.java` has a test hook: `-Dquest.pipeline.fail-once-at=<step>` fails that step
-the first time it runs for each lesson, so "Retry and continue" has something real to retry
-past. It needs its own server (the happy-path suite's server was not started this way), so run
-it as a second pass:
+This is exactly what the `Dashboard e2e (Playwright, against QA)` job in `deploy-qa.yml` runs:
 
 ```bash
-# same jar, one JVM property added, a fresh port so both servers can be up at once
-SPRING_PROFILES_ACTIVE=h2 LLM_PROVIDER=fake PORT=18081 \
-  PUBLIC_URL=http://localhost:18081 DASHBOARD_URL=http://localhost:4300 \
-  java -Dquest.pipeline.fail-once-at=generate_L2 -jar server/target/server.jar &
-
-E2E_BASE_URL=http://localhost:18081 E2E_ADMIN_EMAIL="$ADMIN_EMAIL" \
-  E2E_ADMIN_PASSWORD="$ADMIN_PASSWORD" E2E_STAFF_PASSWORD='<throwaway>' \
-  E2E_PARENT_PASSWORD='<throwaway>' node e2e/seed/seed.mjs
-
-HQ_API=http://localhost:18081 E2E_FAIL_ONCE_AT=1 \
-  E2E_ADMIN_EMAIL="$ADMIN_EMAIL" E2E_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
-  pnpm e2e:local --grep 'injected failure'
+cd dashboard
+E2E_BASE_URL=https://…run.app \
+E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… E2E_STAFF_PASSWORD=… \
+  pnpm e2e:qa            # = playwright test --retries=1
 ```
 
-Every other test in the suite skips this file (`E2E_FAIL_ONCE_AT` unset), since a server that
-fails `generate_L2` once per lesson would make the happy-path run flaky.
+The job is capped at 20 minutes and the suite is written to finish well inside it: one worker,
+one retry, a 120 s ceiling per test (`playwright.config.ts`) that only the pipeline specs raise,
+and `test.describe.serial` wherever one test hands state to the next.
+
+**QA's database is shared and never reset.** Every spec here is idempotent on it: titles carry a
+per-run tag (`RUN` in `env.ts`), lessons are written on a stretch of future days chosen per run,
+and each file deletes what it made in `afterAll` (`removeLessonsOfThisRun`, through the Admin —
+a teacher may only delete a draft or a failed lesson). No spec touches seed data.
+
+QA runs the **real** model (`LLM_PROVIDER=deepseek`), so `teacher-flow.spec.ts` waits minutes for
+the pipeline rather than the seconds the local `fake` provider takes.
+
+### The PDF fixture, and why it matters on QA
+
+`e2e/fixtures/one-page.pdf` is a Year 1 British maths page — counting in 2s, with gaps to fill,
+a word problem and an exit question. It used to read "One page test fixture" and nothing else,
+which the `fake` provider happily analysed and the real model refused outright:
+
+    analyze  no_teaching_content
+    "These pages don't contain anything to practise. Check that you uploaded the lesson slides,
+     not a cover page or a worksheet key."
+
+That refusal is right, and it is why the pipeline had never actually run on QA. A fixture that a
+real model will teach from is part of the test.
+
+The server caches by **source hash**: `AnalysisService` caches the analysis and
+`GenerationService` caches each play (`CacheKeys.playKey(hash, level, variant, seed)`). So the
+first QA run after this file changes pays for the whole pipeline — eight or nine minutes of real
+model calls — and every run after it is a cache hit and takes seconds. Change the fixture only
+when something needs it, and expect one slow run when you do.
+
+### Known: `generate_L1 model_failed` on QA
+
+`teacher-flow.spec.ts` step 3b waits on the server's own status, so when the pipeline fails the
+CI log names the step and the model's message rather than leaving a disabled tab behind. The one
+seen so far, on three lessons out of four before the cache was warm:
+
+    generate_L1 model_failed: The AI returned an invalid answer twice. …
+    (Level 1 didn't match the schema: /stops/5/hint: all values fail against the false schema)
+
+DeepSeek puts a `hint` on a stop type whose schema forbids it — `Play.schema.json` gives `hint` to
+nine types and `additionalProperties: false` to the other thirteen, and the one retry
+`GenerationService` allows repeats the mistake. It is a server-side prompt/schema question, not a
+test one, and it is reported to the planner rather than worked around here. Once a valid Level 1
+is in the generation cache for this fixture's hash the step is a cache hit and the flake is gone,
+which is why the suite is green on QA today.
 
 ## What it proves
 
-| Test                                        | What would break without it                                     |
-| ------------------------------------------- | --------------------------------------------------------------- |
-| sign-in is branded from `PlatformSettings`  | a product name baked into the bundle (§A)                       |
-| the bundle runs clean under the API's CSP   | an inline script or `onload=` handler leaving the page unstyled |
-| one login per role lands on its Home        | the role guards and the `/` redirect                            |
-| a wrong password is a band, in place        | a 401 read as "your session expired" and a bounce               |
-| EN/AR flips `dir` without a reload          | a cached English sentence in a `computed()` (§6)                |
-| the Admin rail carries every §6 screen      | a nav item gated on a permission the role does not hold         |
-| the switcher scopes every screen            | `X-School-Id` not reaching the API, or the Home not re-reading  |
-| a teacher is offered nothing of the Admin's | the rail, and the URL behind it                                 |
-| `?` opens the sheet, Esc closes it          | the keyboard contract (§7)                                      |
-| the screenshot set                          | the RTL mirror, silently                                        |
-| a teacher publishes to her sibling class    | the fan-out sheet, and `classIds` reaching the teacher route    |
-| a hard reload with `ar` stored              | a nav rail of raw keys while `ar.json` is still on the wire     |
-| an Admin creates 1A/1B with distinct codes  | the Classes screen, and `POST /admin/classes` reaching a school |
-| a temporary password shows once, then goes  | a secret kept on screen for as long as the tab is open          |
-| a second Math teacher for 1A is refused     | N1.1's unique constraint never reaching the person (N1.2)       |
+| File | What would break without it |
+| --- | --- |
+| `teacher-flow.spec.ts` | `docs/teacher-flow.md` §10 steps 2–4 and 8 as one chain: her two rows, the `+`, a PDF through the step strip, a Level 2 edit, Preview as child, publish to 1A **and** 1B, both calendars — plus N1.3, that Omar is refused her class and her lesson by API and by URL |
+| `shell.spec.ts` | the sign-in branding, the CSP, where each role lands, rail and router being the same door, the keyboard contract, the screenshot set |
+| `this-week.spec.ts` | the week grid, the `+`, the drag that moves a lesson and the drop that copies it to the sibling section |
+| `my-classes.spec.ts` | a card per assignment, the class page's calendar and rail item, and a roster that is one section's own |
+| `lesson-editor.spec.ts` | manual authoring: the stop menu, the JSON editor against the schema, reordering, pictures, the parent panel |
+| `lesson-publish.spec.ts` | the publish sheet, Unpublish + Undo, moving and deleting a draft, "Analyzed before · 0 tokens", and the `ar` deep-reload regression |
+| `admin-classes-teachers.spec.ts` | §10 step 1: an Admin creates 1A/1B and Sara, the one-time password shows once, a second Math teacher for 1A is refused |
+| `lesson-retry.spec.ts` | that a failed pipeline step really retries past its failure (opt-in, below) |
 
-`admin-classes-teachers.spec.ts` (N1.2) runs the Admin's half of `docs/teacher-flow.md` §10 step 1:
-classes, teachers, the one-time password and the assignment picker. It creates everything it needs
-through the screens and names the rows after the run, so it is safe to run twice against one H2
-database — and it does **not** need `e2e/seed/seed.mjs` to finish (that script fails at its lesson
-step since N1.1: publishing now requires an assignment, which `test/seed-one-school-e2e` fixes).
-Run it with `SEED_SCHOOL=false` unless you want the 30-class seed behind it.
+Screenshots land in `docs/screenshots/dashboard-p3.1/`, `dashboard-n1.2/`, `dashboard-n2.2/`,
+`dashboard-n2.3/`, `dashboard-n2.4/` and `dashboard-n2.4b/` (1366 × 768, EN and AR) and are
+committed.
 
-`lesson-review.spec.ts` (P3.2d) carries a PDF lesson through skills confirmation, the three
-levels + Again, the pinned phone preview and publish; `lesson-retry.spec.ts` proves a failed
-step actually retries past its failure (see above).
+### Retired with D13 (N2.5)
 
-Screenshots land in `docs/screenshots/dashboard-p3.1/`, `docs/screenshots/dashboard-p3.2d/`,
-`docs/screenshots/dashboard-n1.2/` and `docs/screenshots/dashboard-n2.4b/`
-(1366 × 768, EN and AR) and are committed.
+`lessons.spec.ts`, `new-lesson.spec.ts` and `lesson-review.spec.ts` are gone. All three drove the
+Admin's school switcher or signed in as `teacher.a@alnoor.test` from the two-school fixture, so
+none of them could pass on QA — and two of them waited three minutes each for a switcher that is
+not drawn, which is what cancelled the post-deploy job at its 20-minute cap on every deploy after
+4f67dc2. `lesson-review.spec.ts`'s subject — a PDF from upload through the levels and the preview
+to published — is now `teacher-flow.spec.ts`, driven by the teacher whose flow it actually is.
+`shell.spec.ts` and `this-week.spec.ts` were rewritten for one school rather than deleted.
 
-`this-week.spec.ts` (N2.2), `my-classes.spec.ts` (N2.3), `lesson-editor.spec.ts` (N2.4a) and
-`lesson-publish.spec.ts` (N2.4b) are the suites that want the **one-school seed**, so they need
-their own server (`pnpm e2e:local my-classes` for the second; its screenshots land in
-`docs/screenshots/dashboard-n2.3/`, N2.4b's in `docs/screenshots/dashboard-n2.4b/`):
+### Injecting a pipeline failure (`lesson-retry.spec.ts`)
+
+`LessonPipeline.java` has a test hook: `-Dquest.pipeline.fail-once-at=<step>` fails that step the
+first time it runs for each lesson, so "Retry and continue" has something real to retry past. It
+needs its own server, so run it as a second pass; every other test skips this file while
+`E2E_FAIL_ONCE_AT` is unset, since a server that fails `generate_L2` once per lesson would make
+the happy path flaky.
 
 ```bash
 SPRING_PROFILES_ACTIVE=h2 SEED_SCHOOL=true SEED_STAFF_PASSWORD="$E2E_STAFF_PASSWORD" \
-  ADMIN_EMAIL="$E2E_ADMIN_EMAIL" ADMIN_PASSWORD="$E2E_ADMIN_PASSWORD" \
-  LLM_PROVIDER=fake PORT=18080 java -jar server/target/server.jar &
+  ADMIN_EMAIL=… ADMIN_PASSWORD=… LLM_PROVIDER=fake PORT=18081 \
+  java -Dquest.pipeline.fail-once-at=generate_L2 -jar server/target/server.jar &
 
-cd dashboard && pnpm build --configuration=production && pnpm e2e:local this-week
-```
-
-It signs in as Sara Al Harbi (`seed/teachers.csv`) and, because no seeded teacher has two
-sections of the same grade *and* subject, creates one more Grade 1 British section through the
-Admin API in `beforeAll` and assigns it to her — the drag-to-copy rule needs a sibling row. It
-creates lessons, so **start it against a fresh H2**: a second run on the same database finds the
-week already full and has no empty cell left to press `+` on.
-
-`lesson-publish.spec.ts` (N2.4b) runs teacher-flow Step 8 on the same seed: Sara creates a
-lesson on 1A, publishes it to 1A **and** 1B from the sheet, checks both calendars, unpublishes
-with the 10 s Undo, moves and deletes a draft, and earns the "Analyzed before · 0 tokens" badge
-by uploading the fixture PDF twice. It also holds `assets/i18n/ar.json` back 1.5 s and hard-reloads
-a lesson with `ar` stored — the regression `provideLanguage()` closed. Unlike `this-week.spec.ts`
-it picks a fresh stretch of future days on every run, so a second run needs no fresh database:
-
-```bash
-cd dashboard && pnpm build --configuration=production && pnpm e2e:local lesson-publish
+HQ_API=http://localhost:18081 E2E_FAIL_ONCE_AT=1 \
+  E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… E2E_STAFF_PASSWORD=… \
+  pnpm e2e:local --grep 'injected failure'
 ```
 
 ## The static server

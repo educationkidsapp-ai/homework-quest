@@ -6,15 +6,30 @@ endobj
 << /Type /Pages /Kids [3 0 R] /Count 1 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
 endobj
 4 0 obj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
 endobj
 5 0 obj
-<< /Length 52 >>
+<< /Length 1229 >>
 stream
-BT /F1 18 Tf 20 100 Td (One page test fixture) Tj ET
+BT /F1 20 Tf 72 780 Td (Maths - Year 1 - Counting in 2s) Tj ET
+BT /F1 12 Tf 72 748 Td (British curriculum, Grade 1. Skill: count forwards in twos from 2 to 20.) Tj ET
+BT /F1 14 Tf 72 712 Td (1.  Count in 2s and fill in the gaps.) Tj ET
+BT /F1 14 Tf 96 690 Td (2,  4,  6,  __,  10,  __,  14,  __,  18,  __) Tj ET
+BT /F1 14 Tf 72 656 Td (2.  There are 5 pairs of socks. How many socks altogether?) Tj ET
+BT /F1 14 Tf 96 634 Td (Answer: ______ socks) Tj ET
+BT /F1 14 Tf 72 600 Td (3.  Circle the numbers you say when you count in 2s.) Tj ET
+BT /F1 14 Tf 96 578 Td (3      4      7      8      11      12      15      16) Tj ET
+BT /F1 14 Tf 72 544 Td (4.  Draw 4 groups of 2 apples. How many apples are there?) Tj ET
+BT /F1 14 Tf 96 522 Td (Answer: ______ apples) Tj ET
+BT /F1 14 Tf 72 488 Td (5.  Write the missing numbers.) Tj ET
+BT /F1 14 Tf 96 466 Td (10,  12,  __,  16,  __,  20) Tj ET
+BT /F1 14 Tf 72 432 Td (6.  Ben counts 2, 4, 5, 6. Which number is wrong? Why?) Tj ET
+BT /F1 12 Tf 72 396 Td (Remember: counting in 2s means adding 2 each time. Every number you) Tj ET
+BT /F1 12 Tf 72 380 Td (land on is an even number.) Tj ET
+BT /F1 12 Tf 72 344 Td (Homework: count the legs of 6 chairs by counting in 2s, then in 4s.) Tj ET
 endstream
 endobj
 xref
@@ -28,5 +43,5 @@ xref
 trailer
 << /Size 6 /Root 1 0 R >>
 startxref
-413
+1591
 %%EOF

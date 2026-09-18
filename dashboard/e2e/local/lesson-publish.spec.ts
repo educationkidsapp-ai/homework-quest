@@ -1,6 +1,7 @@
 import { expect, request, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { API, RUN, SARA, dayFromNow, removeLessonsOfThisRun, signInAsSara, signInForToken } from './env';
 
 /**
  * N2.4b's acceptance (`docs/teacher-flow.md` Step 5, Step 8 and §10 steps 3–4).
@@ -23,12 +24,9 @@ import { resolve } from 'node:path';
  * It creates lessons on days well ahead, on a stretch that shifts per run, so it is safe to run
  * against one H2 database.
  */
-const API = process.env['HQ_API'] ?? 'http://localhost:18080';
 const SHOTS = resolve(process.cwd(), '../docs/screenshots/dashboard-n2.4b');
 const ONE_PAGE_PDF = resolve(process.cwd(), 'e2e/fixtures/one-page.pdf');
-const SARA = { email: 'sara.al-harbi@school.test', password: env('E2E_STAFF_PASSWORD') };
 
-const RUN = Date.now().toString(36).slice(-5).toUpperCase();
 const TITLE = `Counting on ${RUN}`;
 const DRAFT_TITLE = `Scratch ${RUN}`;
 
@@ -37,7 +35,7 @@ const DRAFT_TITLE = `Scratch ${RUN}`;
  * day, so a second run against the same H2 database must not land on the first run's cells. Far
  * enough out to be empty, near enough that the calendar test is a few "Next month" hops.
  */
-const BASE = 40 + (Math.floor(Date.now() / 1000) % 40);
+const BASE = 150 + (Math.floor(Date.now() / 1000) % 60);
 const PUBLISH_DAY = dayFromNow(BASE);
 const MOVED_DAY = dayFromNow(BASE + 1);
 const DRAFT_DAY = dayFromNow(BASE + 2);
@@ -48,25 +46,10 @@ let lessonUrl = '';
 /** Sara's own token, for the one lesson this file has to create outside the screens (below). */
 let saraToken = '';
 
-function env(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set — see playwright.local.config.ts`);
-  return value;
-}
-
-function dayFromNow(days: number): string {
-  const day = new Date();
-  day.setUTCDate(day.getUTCDate() + days);
-  return day.toISOString().slice(0, 10);
-}
-
 /** Her two sections, read with her own token — the pair the publish sheet is about. */
 test.beforeAll(async () => {
+  const token = await signInForToken(SARA);
   const api = await request.newContext({ baseURL: API });
-  const signIn = await api.post('/admin/auth/sign-in', { data: SARA });
-  expect(signIn.ok(), 'Sara could not sign in — is the server seeded with SEED_STAFF_PASSWORD?').toBeTruthy();
-  const token = ((await signIn.json()) as { token: string }).token;
-
   const classes = await api.get('/teacher/classes', { headers: { Authorization: `Bearer ${token}` } });
   const rows = (await classes.json()) as { classId: string; className: string; subject: string }[];
   const math = rows.filter((row) => row.subject === 'math');
@@ -81,19 +64,6 @@ test.beforeAll(async () => {
   saraToken = token;
   await api.dispose();
 });
-
-async function signInAsSara(page: Page): Promise<void> {
-  await page.goto('sign-in');
-  await page.evaluate(() => localStorage.clear());
-  await page.goto('sign-in');
-  await page.getByLabel('Email').fill(SARA.email);
-  await page.getByLabel('Password').fill(SARA.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  const skip = page.getByRole('button', { name: 'Skip' });
-  await skip.waitFor({ state: 'visible', timeout: 30_000 });
-  await skip.click();
-  await expect(page.getByRole('dialog').first()).toBeHidden();
-}
 
 /**
  * A manual lesson on her 1A section, through the screen rather than the API: the point of the
@@ -150,6 +120,21 @@ async function addOneStop(page: Page): Promise<void> {
   });
 }
 
+/** True once the server has finished reading the pages — whatever the page is painting. */
+async function analyzedStatusOf(lessonId: string): Promise<boolean> {
+  const api = await request.newContext({ baseURL: API });
+  try {
+    const lesson = await api.get(`/teacher/lessons/${lessonId}`, {
+      headers: { Authorization: `Bearer ${saraToken}` },
+    });
+    if (!lesson.ok()) return false;
+    const status = ((await lesson.json()) as { status: string }).status;
+    return status !== 'draft' && status !== 'uploading' && status !== 'analyzing';
+  } finally {
+    await api.dispose();
+  }
+}
+
 test.describe.configure({ mode: 'serial' });
 
 test('Sara writes a lesson on 1A and publishes it to 1A and 1B from the sheet', async ({ page }) => {
@@ -201,7 +186,9 @@ test('both calendars show the lesson as published, each as its own copy', async 
     // `:not(.cal__cell--outside)` matters: a month's grid also draws the neighbouring months'
     // spill days, and those carry the date but never the lesson.
     const cell = page.locator(`[data-date="${PUBLISH_DAY}"]:not(.cal__cell--outside)`);
-    for (let hop = 0; hop < 6 && (await cell.count()) === 0; hop += 1) {
+    // Far enough out that this is a dozen hops, not two: the day has to be one no earlier run
+    // has taken, and the calendar only ever opens on this month.
+    for (let hop = 0; hop < 14 && (await cell.count()) === 0; hop += 1) {
       await page.getByRole('button', { name: 'Next month' }).click();
       await page.waitForTimeout(300);
     }
@@ -261,9 +248,9 @@ test('the same file uploaded twice is badged "Analyzed before · 0 tokens"', asy
   test.setTimeout(180_000);
   await signInAsSara(page);
 
-  // The first upload pays for the analysis; the second is a cache hit on the file's hash. The
-  // fixture PDF has been analyzed by `lesson-review.spec.ts` on a shared database too — either
-  // way, what this proves is that the second lesson says so.
+  // The first upload pays for the analysis; the second is a cache hit on the file's hash. On a
+  // shared database the first one is often a hit too — either way, what this proves is that the
+  // second lesson says so.
   for (const pass of [1, 2]) {
     const query = new URLSearchParams({ classId, subject: 'math', date: dayFromNow(BASE + 5 + pass) });
     await page.goto(`teacher/lessons/new?${query.toString()}`);
@@ -272,8 +259,15 @@ test('the same file uploaded twice is badged "Analyzed before · 0 tokens"', asy
     await page.getByLabel('Drop a PDF here').setInputFiles(ONE_PAGE_PDF);
     await page.getByRole('button', { name: 'Create and read the PDF' }).click();
     await expect(page).toHaveURL(/\/teacher\/lessons\/[0-9a-f-]+/, { timeout: 30_000 });
-    // Wait for the analyze step to finish before the next pass hashes the same file.
-    await expect(page.getByText('Reading the pages')).toBeHidden({ timeout: 120_000 });
+    // The next pass may only hash the file once this one has stored its analysis. Waiting for
+    // "Reading the pages" to *disappear* is the wrong wait and passed by accident: a lesson is
+    // `uploading` for its first seconds, so the text is not on the page yet and `toBeHidden`
+    // returns at once — under the local `fake` provider the analysis was over by the time it
+    // mattered, against QA's real model it was not. The status the server reports is the fact.
+    await expect.poll(() => analyzedStatusOf(new URL(page.url()).pathname.split('/').pop()!), {
+      timeout: 150_000,
+      intervals: [2_000],
+    }).toBe(true);
   }
 
   await expect(page.getByText('Analyzed before · 0 tokens')).toBeVisible({ timeout: 30_000 });
@@ -341,3 +335,6 @@ test('the screenshot set, EN and AR', async ({ page }) => {
 
   await page.evaluate(() => localStorage.setItem('hq.language', 'en'));
 });
+
+/** The lessons this file wrote, off the shared database again (`env.ts`). */
+test.afterAll(removeLessonsOfThisRun);
