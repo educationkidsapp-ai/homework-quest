@@ -2,6 +2,8 @@ package quest.server.classes;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -10,6 +12,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import quest.server.auth.TeacherRepository;
 import quest.server.config.ApiException;
 import quest.server.tenancy.Entities.TeachingAssignmentEntity;
@@ -22,6 +25,9 @@ import quest.server.tenancy.Entities.TeachingAssignmentEntity;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class SchoolSeedTest extends ClassesTestSupport {
     private static final String SCHOOL = "seed-school";
+    /** The first row of `teachers.csv`; the load in {@link #loadTheSchool} deliberately runs without a password. */
+    private static final String SEEDED_TEACHER = "sara.al-harbi@school.test";
+    private static final String STAFF_PASSWORD = "seed-staff-password";
 
     @Autowired SchoolSeed seed;
     @Autowired TeacherRepository profiles;
@@ -32,7 +38,7 @@ class SchoolSeedTest extends ClassesTestSupport {
 
     @BeforeAll void loadTheSchool() {
         school(SCHOOL, "Seed School", "SEED01");
-        first = seed.load(SCHOOL);
+        first = seed.load(SCHOOL, null);                                        // no staff password: that is a test of its own
     }
 
     @AfterAll void takeItBackOut() {
@@ -81,6 +87,21 @@ class SchoolSeedTest extends ClassesTestSupport {
         assertThat(users.findBySchoolIdAndRole(SCHOOL, "TEACHER")).hasSize(40);
         assertThat(assignments.findAll().stream().filter(a -> SCHOOL.equals(a.getSchoolId()))).hasSize(60);
         assertThat(childRows.findAll().stream().filter(c -> SCHOOL.equals(c.getSchoolId()))).hasSize(600);
+    }
+
+    /**
+     * QA is seeded before SEED_STAFF_PASSWORD exists as often as not, so the run that finally carries it has to reach
+     * the teachers an earlier run created — a password that only ever lands on new rows is a password e2e cannot use.
+     */
+    @Test void a_later_run_gives_the_staff_password_to_teachers_already_seeded() throws Exception {
+        assertThat(seed.load(SCHOOL, STAFF_PASSWORD)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0));
+
+        var session = json(mvc.perform(post("/auth/sign-in").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + SEEDED_TEACHER + "\",\"password\":\"" + STAFF_PASSWORD + "\"}"))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(session.get("role").asText()).isEqualTo("TEACHER");
+        assertThat(session.get("schoolId").asText()).isEqualTo(SCHOOL);
+        assertThat(session.get("mustChangePassword").asBoolean()).as("e2e signs in without a first-login dance").isFalse();
     }
 
     @Test void a_malformed_row_fails_the_load_naming_its_line() {

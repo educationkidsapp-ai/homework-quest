@@ -41,10 +41,12 @@ import quest.server.tenancy.TenantContext;
  * and a re-run adds nothing: a section is matched by curriculum + grade + name, a teacher by email and a child by her
  * name within her class, so the second run logs the same counts and writes no row.
  *
- * <p><strong>Passwords.</strong> With SEED_STAFF_PASSWORD set, every seeded teacher gets that one password with
- * `must_change_password` cleared, which is what lets an e2e run sign in as any of them; the value is never logged.
- * Without it each teacher keeps the one-time password {@link TemporaryPasswords} generated — nothing here can print
- * it, and an Admin hands one out with `POST /admin/teachers/{id}/password`.
+ * <p><strong>Passwords.</strong> With SEED_STAFF_PASSWORD set, every teacher named in `teachers.csv` gets that one
+ * password with `must_change_password` cleared — the ones this run creates and the ones an earlier run did, because
+ * QA is usually seeded before the secret exists and being already seeded is no reason to be unable to sign in. The
+ * value is never logged. Without it nothing touches a password at all: a new teacher keeps the one-time password
+ * {@link TemporaryPasswords} generated, an existing one keeps whatever she has, and an Admin hands a fresh one out
+ * with `POST /admin/teachers/{id}/password`.
  */
 @Component
 @Profile({"qa", "h2", "test"})
@@ -81,11 +83,21 @@ public class SchoolSeed implements CommandLineRunner {
      * `X-School-Id` sets it, so every query underneath is filtered by it exactly as it is during a request.
      */
     public Counts load(String schoolId) {
+        var seed = props.seed();
+        return load(schoolId, seed == null ? null : seed.staffPassword());
+    }
+
+    /**
+     * The same load with the staff password given rather than configured. QA seeds itself before SEED_STAFF_PASSWORD
+     * exists as often as not, so the password is applied to the teachers a previous run created too — being already
+     * seeded is not a reason to be unable to sign in.
+     */
+    public Counts load(String schoolId, String staffPassword) {
         tenant.set("ADMIN", null, schoolId);
         try {
             var caller = new Principals.User(ACTOR, ACTOR + "@" + schoolId, "ADMIN", null);
             var sections = classes(caller);                                      // the order matters: the three below name a class
-            int teachers = teachers(caller);
+            int teachers = teachers(caller, staffPassword);
             int assignments = assignments(caller, sections.byName());
             int children = children(caller, sections.byName());
             var counts = new Counts(sections.created(), teachers, assignments, children);
@@ -117,26 +129,34 @@ public class SchoolSeed implements CommandLineRunner {
         return new Sections(byName, created);
     }
 
-    /** One bcrypt for the shared password, not one per teacher: the hash is the same string for all of them. */
-    private int teachers(Principals.User caller) {
-        var seed = props.seed();
-        String shared = seed == null ? null : seed.staffPassword();
-        String hash = shared == null || shared.isBlank() ? null : encoder.encode(shared);
-        var known = new LinkedHashSet<String>();
-        for (var t : staff.list()) known.add(t.email().toLowerCase(Locale.ROOT));
-        int created = 0;
+    /**
+     * One bcrypt for the shared password, not one per teacher: the hash is the same string for all of them, and it is
+     * put on the teachers a previous run created as well as on the new ones. With no password configured nothing
+     * touches an existing account — a teacher who has since chosen her own password keeps it.
+     */
+    private int teachers(Principals.User caller, String staffPassword) {
+        String hash = staffPassword == null || staffPassword.isBlank() ? null : encoder.encode(staffPassword);
+        var known = new LinkedHashMap<String, String>();                        // email -> user id
+        for (var t : staff.list()) known.put(t.email().toLowerCase(Locale.ROOT), t.userId());
+        int created = 0, signable = 0;
         for (var row : rows("teachers.csv", 4)) {
             String fullName = row.at(0), email = row.at(1).toLowerCase(Locale.ROOT), curriculum = row.at(3);
             var subjects = Arrays.stream(row.at(2).split(";")).map(String::strip).filter(s -> !s.isEmpty()).toList();
-            if (!known.add(email)) continue;
-            var made = row.attempt(() -> staff.create(caller, new ClassDto.CreateTeacherRequest(fullName, email, subjects, curriculum, null)));
-            if (hash != null) signInReady(made.teacher().userId(), hash);
-            created++;                                                          // the one-time password is dropped here, unlogged
+            String userId = known.get(email);
+            if (userId == null) {
+                var made = row.attempt(() -> staff.create(caller, new ClassDto.CreateTeacherRequest(fullName, email, subjects, curriculum, null)));
+                userId = made.teacher().userId();                               // the one-time password is dropped here, unlogged
+                known.put(email, userId);
+                created++;
+            }
+            if (hash == null) continue;
+            signInReady(userId, hash);
+            signable++;
         }
         log.info("school seed: {} teachers, {} new", known.size(), created);
         log.info(hash == null
                 ? STAFF_PASSWORD_ENV + " unset → passwords not printable; hand one out from Admin › Teachers"
-                : "seeded teachers share the password in " + STAFF_PASSWORD_ENV);
+                : "school seed: " + signable + " teachers carry the password in " + STAFF_PASSWORD_ENV);
         return created;
     }
 

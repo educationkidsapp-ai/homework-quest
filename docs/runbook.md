@@ -598,9 +598,10 @@ rows carry real join codes, real one-time passwords and the one-teacher-per-subj
 logs the counts and writes nothing, and a malformed CSV row stops the load naming its file and line. `SEED_SCHOOL`
 (default `false`, `true` in the `qa` and `h2` profiles, no such bean in `prod`) is the switch, and **Terraform should
 set `SEED_SCHOOL=true` on the QA Cloud Run service** so a fresh QA database fills itself. `SEED_STAFF_PASSWORD` is
-the one password every seeded teacher gets, with `must_change_password` cleared so an e2e run can sign in as any of
-them; leave it unset and each teacher keeps her own generated password, which nothing logs or prints — the start-up
-line says only that the variable is unset. The first load costs about 12 seconds (one bcrypt per teacher); later
+the one password every teacher in `teachers.csv` gets, with `must_change_password` cleared so an e2e run can sign in
+as any of them; it is applied on every run, including to the teachers an earlier run created, because QA is usually
+seeded before the secret exists. Leave it unset and no password is touched at all — a new teacher keeps her own
+generated one, which nothing logs or prints, and the start-up line says only that the variable is unset. The first load costs about 12 seconds (one bcrypt per teacher); later
 boots are instant. This school is separate from the Al Noor / Green Valley fixture below, which lives in its own two
 schools and is untouched by it.
 
