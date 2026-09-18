@@ -90,6 +90,18 @@ async function createTeacher(page: Page, fullName: string, email: string): Promi
   await dialog.getByRole('button', { name: 'Save' }).click();
 }
 
+/**
+ * Local only (N2.5). This file creates classes and a teacher on every run, and there is no
+ * `DELETE /admin/classes/{id}` or `/admin/teachers/{id}` to take them back — the rest of the
+ * suite cleans up after itself, and this one cannot. Against a local H2 database that is a fresh
+ * start every time; against QA's shared, never-reset database it would leave a `1A<run>`, a
+ * `1B<run>` and a `sara.<run>@…` behind on every deploy, for good.
+ */
+test.skip(
+  !!process.env['E2E_BASE_URL'],
+  'creates classes and teachers that no endpoint can delete — local only, never against a shared database',
+);
+
 test.describe.configure({ mode: 'serial' });
 
 test('an Admin creates 1A and 1B, and each gets its own join code', async ({ page }) => {

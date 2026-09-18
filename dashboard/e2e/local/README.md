@@ -46,6 +46,9 @@ one fails with the variable's name, not its value.
 | `HQ_API` | local only: where `serve.mjs` proxies (default `http://localhost:18080`) |
 | `E2E_FAIL_ONCE_AT` | opts `lesson-retry.spec.ts` in; see below |
 
+Setting `E2E_BASE_URL` also opts two files **out**: `admin-classes-teachers.spec.ts` entirely,
+and `lesson-editor.spec.ts`'s level generation. Both are explained below.
+
 `E2E_STAFF_PASSWORD` and `SEED_STAFF_PASSWORD` **must be the same value** wherever the suite runs,
 including the `qa` GitHub environment: the first is what Sara types, the second is what the server
 set for her. If they differ, every teacher spec fails at `beforeAll` with "could not sign in".
@@ -139,7 +142,7 @@ which is why the suite is green on QA today.
 | `my-classes.spec.ts` | a card per assignment, the class page's calendar and rail item, and a roster that is one section's own |
 | `lesson-editor.spec.ts` | manual authoring: the stop menu, the JSON editor against the schema, reordering, pictures, the parent panel |
 | `lesson-publish.spec.ts` | the publish sheet, Unpublish + Undo, moving and deleting a draft, "Analyzed before · 0 tokens", and the `ar` deep-reload regression |
-| `admin-classes-teachers.spec.ts` | §10 step 1: an Admin creates 1A/1B and Sara, the one-time password shows once, a second Math teacher for 1A is refused |
+| `admin-classes-teachers.spec.ts` | §10 step 1: an Admin creates 1A/1B and Sara, the one-time password shows once, a second Math teacher for 1A is refused (**local only** — see below) |
 | `lesson-retry.spec.ts` | that a failed pipeline step really retries past its failure (opt-in, below) |
 
 Screenshots land in `docs/screenshots/dashboard-p3.1/`, `dashboard-n1.2/`, `dashboard-n2.2/`,
@@ -155,6 +158,23 @@ not drawn, which is what cancelled the post-deploy job at its 20-minute cap on e
 4f67dc2. `lesson-review.spec.ts`'s subject — a PDF from upload through the levels and the preview
 to published — is now `teacher-flow.spec.ts`, driven by the teacher whose flow it actually is.
 `shell.spec.ts` and `this-week.spec.ts` were rewritten for one school rather than deleted.
+
+### Local only: `admin-classes-teachers.spec.ts`
+
+It skips itself when `E2E_BASE_URL` is set. The file creates two classes and a teacher through
+the screens on every run, and there is no `DELETE /admin/classes/{id}` or
+`/admin/teachers/{id}` to take them back — every other file here cleans up after itself in
+`afterAll`, and this one cannot. On a local H2 database that is a fresh start each time; on QA's
+shared, never-reset database it would leave a `1A<run>`, a `1B<run>` and a `sara.<run>@alnoor.test`
+behind on every deploy, for good. Run it here, with `SEED_SCHOOL=false` unless you want the
+30-class seed behind it:
+
+```bash
+pnpm e2e:local admin-classes-teachers
+```
+
+If an endpoint to remove a class or a teacher ever lands, delete the skip and give the file the
+same `afterAll` the others have.
 
 ### Injecting a pipeline failure (`lesson-retry.spec.ts`)
 
