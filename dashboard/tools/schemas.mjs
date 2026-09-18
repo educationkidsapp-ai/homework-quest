@@ -19,7 +19,7 @@
  * The output is generated, not committed — `gen:api`'s rule, for the same reason: it is derived
  * from a file in this repository, and `postinstall` runs both.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -94,6 +94,9 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     }
     process.stdout.write(`schemas — up to date (${count} stop validators)\n`);
   } else {
+    // The Docker dashboard stage runs `pnpm install` (and so this script) before `COPY dashboard ./`,
+    // when src/ does not exist yet — the same reason gen-api.mjs creates its own output directory.
+    mkdirSync(dirname(TARGET), { recursive: true });
     writeFileSync(TARGET, next);
     writeFileSync(TYPES, DECLARATION);
     process.stdout.write(`schemas — ${count} stop validators\n`);
