@@ -478,7 +478,8 @@ describe('Lesson', () => {
   });
 
   it('deletes the lesson from the overflow menu behind a confirm band', async () => {
-    const { backend } = await renderLesson(BASE_LESSON);
+    // A draft: N2.4b gates the menu on the status the server will actually accept a delete for.
+    const { backend } = await renderLesson({ ...BASE_LESSON, status: 'draft' });
 
     await userEvent.click(await screen.findByRole('button', { name: 'Actions for Adding to ten' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
@@ -582,18 +583,23 @@ describe('Lesson', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('offers Delete on a draft and Unpublish — never Delete — on a published lesson', async () => {
-    await renderLessonAs({ ...BASE_LESSON, status: 'draft' }, TEACHER_USER, {
+  it('offers Delete on a draft only — a written lesson is unpublished, never deleted', async () => {
+    const withDelete = {
       ...TEACHER_PERMISSIONS,
       permissions: [...TEACHER_PERMISSIONS.permissions, 'lesson.delete'],
-    });
+    };
+    await renderLessonAs({ ...BASE_LESSON, status: 'draft' }, TEACHER_USER, withDelete);
     expect(await screen.findByRole('button', { name: 'Actions for Adding to ten' })).toBeInTheDocument();
 
+    // `review` is what an unpublished lesson falls back to, and the server answers 409 on a
+    // delete of one — the screen must not offer what the endpoint refuses.
     TestBed.resetTestingModule();
-    await renderLessonAs({ ...BASE_LESSON, status: 'published' }, TEACHER_USER, {
-      ...TEACHER_PERMISSIONS,
-      permissions: [...TEACHER_PERMISSIONS.permissions, 'lesson.delete'],
-    });
+    await renderLessonAs({ ...BASE_LESSON, status: 'review' }, TEACHER_USER, withDelete);
+    await screen.findByText('Files');
+    expect(screen.queryByRole('button', { name: 'Actions for Adding to ten' })).not.toBeInTheDocument();
+
+    TestBed.resetTestingModule();
+    await renderLessonAs({ ...BASE_LESSON, status: 'published' }, TEACHER_USER, withDelete);
     expect(await screen.findByRole('button', { name: 'Unpublish' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Actions for Adding to ten' })).not.toBeInTheDocument();
   });

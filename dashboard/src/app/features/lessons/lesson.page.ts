@@ -864,10 +864,16 @@ export class LessonPage {
   );
 
   /**
-   * §8: "draft and error lessons can be deleted". A published one is on children's islands and
-   * in their results; Unpublish is the way back, and it keeps the 10 s Undo.
+   * §8: "draft and error lessons can be deleted", and the server says the same thing — a delete
+   * of anything else answers 409 ("Only a draft or a failed lesson can be deleted"). So a lesson
+   * that has been written is kept even after Unpublish takes it off the islands: its plays, its
+   * parent panel and its results are what Unpublish was for, and offering a Delete the server
+   * would refuse is worse than not offering one.
    */
-  protected readonly canDelete = computed(() => !this.isPublished() && this.lesson() !== null);
+  protected readonly canDelete = computed(() => {
+    const status = this.lesson()?.status;
+    return status === AdminLessonStatusEnum.DRAFT || status === AdminLessonStatusEnum.ERROR;
+  });
 
   protected readonly publishReason = computed(() => {
     this.lang();
@@ -1000,7 +1006,7 @@ export class LessonPage {
     const previous = lesson;
     this.busy.set(this.t('lessons.detail.busy.publishing'));
     this.lessonRes.update((current) => (current ? { ...current, status: AdminLessonStatusEnum.PUBLISHED } : current));
-    this.api.publish(lesson.id).subscribe({
+    this.api.publish(lesson.id, lesson.classId).subscribe({
       next: (updated) => {
         this.busy.set(null);
         this.lessonRes.update(() => updated);
@@ -1145,7 +1151,9 @@ export class LessonPage {
     const lesson = this.lesson();
     if (!lesson) return;
     this.busy.set(this.t('lessons.detail.busy.publishing'));
-    this.api.publish(lesson.id).subscribe({
+    // Its own class only: Undo puts back what Unpublish took away, and the siblings it was
+    // published to alongside were never unpublished — re-fanning out would republish them.
+    this.api.publish(lesson.id, lesson.classId).subscribe({
       next: (updated) => {
         this.busy.set(null);
         this.lessonRes.update(() => updated);

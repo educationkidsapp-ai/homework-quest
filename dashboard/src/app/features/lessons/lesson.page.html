@@ -62,7 +62,7 @@
       }
 
       <div class="lesson__facts">
-        <p class="lesson__fact">{{ classFact() }}</p>
+        <p>{{ classFact() }}</p>
         @if (canMoveDate()) {
           <hq-input
             type="date"
@@ -73,7 +73,7 @@
             (valueChange)="moveDate($event)"
           />
         } @else {
-          <p class="lesson__fact">{{ dateLabel() }}</p>
+          <p>{{ dateLabel() }}</p>
         }
         @if (analyzedBefore()) {
           <p class="hq-badge" [title]="analyzedBeforeTooltip()">
@@ -407,7 +407,7 @@
         } @else if (siblingClasses().length === 0) {
           <p class="hq-muted">{{ 'lessons.detail.publishSheet.noSiblings' | transloco }}</p>
         } @else {
-          <fieldset class="lesson__siblings">
+          <fieldset class="hq-fieldset">
             <legend class="hq-muted">{{ 'lessons.detail.publishSheet.also' | transloco }}</legend>
             @for (sibling of siblingClasses(); track sibling.id) {
               <hq-checkbox

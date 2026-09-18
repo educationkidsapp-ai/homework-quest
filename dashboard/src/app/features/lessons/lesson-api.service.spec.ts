@@ -74,15 +74,33 @@ describe('LessonApiService', () => {
   });
 
   /** The teacher route answers with the copies it made, so the lesson itself is re-read. */
-  it('publishes a teacher lesson to her sibling classes, then reads the lesson back', () => {
+  it('publishes a teacher lesson into its own class, then reads the lesson back', () => {
     const { api, backend } = signIn(TEACHER_USER);
 
-    api.publish('l-1', ['c-1', 'c-2']).subscribe();
+    api.publish('l-1', 'c-1').subscribe();
     const published = backend.expectOne('/teacher/lessons/l-1/publish');
-    expect(published.request.body).toEqual({ classIds: ['c-1', 'c-2'] });
+    expect(published.request.body).toEqual({ classIds: ['c-1'] });
     published.flush([{ classId: 'c-1', lessonId: 'l-1', version: 2 }]);
 
     backend.expectOne('/teacher/lessons/l-1');
+  });
+
+  /** An empty `classIds` is a 400 from the server, so the façade never sends one. */
+  it('refuses to publish a teacher lesson that does not name its class', () => {
+    const { api, backend } = signIn(TEACHER_USER);
+
+    let failed = false;
+    api.publish('l-1').subscribe({ error: () => (failed = true) });
+    expect(failed).toBe(true);
+    backend.verify();
+  });
+
+  it('fans a teacher lesson out to every class the sheet ticked', () => {
+    const { api, backend } = signIn(TEACHER_USER);
+
+    api.publishToClasses('l-1', ['c-1', 'c-2']).subscribe();
+    const published = backend.expectOne('/teacher/lessons/l-1/publish');
+    expect(published.request.body).toEqual({ classIds: ['c-1', 'c-2'] });
   });
 
   /** The list and the create are the two the pages used to call `/admin/**` with directly. */

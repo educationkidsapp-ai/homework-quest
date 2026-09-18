@@ -308,9 +308,6 @@ hq-stop-editor {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--hq-space-16);
-}
-
-.lesson__fact {
   font-weight: var(--hq-font-label-weight);
 }
 
@@ -318,14 +315,5 @@ hq-stop-editor {
   display: flex;
   flex-wrap: wrap;
   gap: var(--hq-space-12);
-  margin-block-start: var(--hq-space-8);
   list-style: none;
-}
-
-.lesson__siblings {
-  display: flex;
-  flex-direction: column;
-  gap: var(--hq-space-12);
-  padding: 0;
-  border: 0;
 }

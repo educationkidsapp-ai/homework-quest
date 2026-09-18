@@ -152,14 +152,20 @@ export class LessonApiService {
   }
 
   /**
-   * Publish this lesson and answer with it as it now stands — what the Admin confirm and the
-   * teacher's Undo-unpublish both want. The teacher route answers with the copies it made,
-   * so this reads the lesson back; the sheet uses {@link publishToClasses} to see them.
+   * Publish this lesson into its own class, and answer with it as it now stands — what the
+   * Admin's confirm and the teacher's Undo-unpublish both want.
+   *
+   * A teacher must name the class: `POST /teacher/lessons/{id}/publish` refuses an empty
+   * `classIds` with 400 ("Name at least one class to publish into"), because a lesson that lands
+   * nowhere is not a publish. Its answer is the list of copies it made rather than the lesson,
+   * so the lesson is read back; the sheet wants those copies and calls
+   * {@link publishToClasses} instead.
    */
-  publish(id: string, classIds: readonly string[] = []): Observable<AdminLesson> {
+  publish(id: string, ownClassId?: string): Observable<AdminLesson> {
     if (this.isAdmin()) return this.admin.publish(id);
+    if (!ownClassId) return this.unsupported("publish without the lesson's own class");
     return this.teacher
-      .publishTeacherLesson(id, { classIds: [...classIds] })
+      .publishTeacherLesson(id, { classIds: [ownClassId] })
       .pipe(switchMap(() => this.teacher.teacherLesson(id)));
   }
 
