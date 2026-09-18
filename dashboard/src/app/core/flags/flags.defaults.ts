@@ -1,5 +1,6 @@
 /**
- * The 14 keys of §4 with their `default_on`, mirroring `shared-api`'s
+ * The 21 seeded keys with their `default_on` — §4's fourteen from `V5__flags_themes.sql` and the
+ * seven `V7__sections.sql` adds for the one-school build — mirroring `shared-api`'s
  * `quest.api.DEFAULT_FLAGS` (`ContentApi.kt`) — itself `V5__flags_themes.sql`'s seed, on for
  * what ships today and off for what is not built yet.
  *
@@ -22,4 +23,12 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   'stickers.treasureChest': true,
   'progress.weeklyEmail': false,
   certificates: true,
+  // V7 (N1): all off. `multiSchool` off is what makes ADMIN mean "this school" (D13).
+  multiSchool: false,
+  webPlayer: false,
+  gradebook: false,
+  openStopMarking: false,
+  exams: false,
+  'teacher.rosterEdit': false,
+  'join.byList': false,
 };

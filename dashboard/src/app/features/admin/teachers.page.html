@@ -1,0 +1,232 @@
+<hq-page [title]="'admin.teachers.title' | transloco" [subtitle]="'admin.teachers.subtitle' | transloco">
+  <div class="teachers">
+    @if (passwordShown()) {
+      <hq-band variant="notice" [open]="true" [title]="passwordTitle()" (dismissed)="dismissPassword()">
+        <p class="teachers__password-note">{{ 'admin.teachers.password.note' | transloco }}</p>
+        <p class="teachers__password">
+          <code data-hq-temp-password>{{ passwordValue() }}</code>
+          <hq-button variant="secondary" (pressed)="copyPassword()">
+            {{
+              (passwordCopied() ? 'admin.teachers.password.copied' : 'admin.teachers.password.copy')
+                | transloco
+            }}
+          </hq-button>
+        </p>
+      </hq-band>
+    }
+
+    @if (pendingDeactivate()) {
+      <hq-band
+        variant="confirm"
+        [open]="true"
+        [title]="confirmTitle()"
+        [confirmLabel]="confirmLabel()"
+        (confirmed)="confirmPending()"
+        (dismissed)="cancelPending()"
+      >
+        {{ confirmMessage() }}
+      </hq-band>
+    }
+
+    <div class="teachers__toolbar">
+      <div data-hq-search>
+        <hq-input
+          [label]="'admin.teachers.filter.label' | transloco"
+          [placeholder]="'admin.teachers.filter.placeholder' | transloco"
+          [value]="filterText()"
+          (valueChange)="filterText.set($event)"
+        />
+      </div>
+    </div>
+
+    @if (staff.isLoading()) {
+      <hq-skeleton
+        [loading]="true"
+        [lines]="6"
+        height="var(--hq-size-row-height)"
+        [label]="'admin.teachers.loading' | transloco"
+      />
+    } @else {
+      <hq-table
+        [rows]="rows()"
+        [columns]="columns()"
+        [cellTemplate]="cell"
+        [overflowTemplate]="overflow"
+        [trackBy]="trackRow"
+        [label]="'admin.teachers.title' | transloco"
+      >
+        <hq-empty-state
+          table-empty
+          [message]="'admin.teachers.empty' | transloco"
+          [actionLabel]="'admin.teachers.form.createAction' | transloco"
+          (action)="openCreate()"
+        />
+      </hq-table>
+    }
+  </div>
+
+  <ng-template #cell let-row let-column="column">
+    @switch (column.key) {
+      @case ('fullName') {
+        {{ row.fullName }}
+      }
+      @case ('email') {
+        {{ row.email }}
+      }
+      @case ('subjects') {
+        {{ row.subjects }}
+      }
+      @case ('curriculum') {
+        {{ row.curriculum }}
+      }
+      @case ('assignments') {
+        @if (row.assignments.length === 0) {
+          <span class="teachers__none">{{ 'admin.teachers.noAssignments' | transloco }}</span>
+        } @else {
+          <span class="teachers__chips">
+            @for (chip of row.assignments; track chip) {
+              <span class="teachers__chip">{{ chip }}</span>
+            }
+          </span>
+        }
+      }
+      @case ('active') {
+        <span class="teachers__status" [class.teachers__status--off]="!row.active">
+          {{ (row.active ? 'admin.teachers.active' : 'admin.teachers.inactive') | transloco }}
+        </span>
+      }
+    }
+  </ng-template>
+
+  <ng-template #overflow let-row>
+    <button
+      type="button"
+      class="teachers__overflow-trigger"
+      [cdkMenuTriggerFor]="rowMenu"
+      (click)="menuRow.set(row)"
+      [attr.aria-label]="'admin.teachers.rowActions' | transloco: { name: row.fullName }"
+    >
+      ⋮
+    </button>
+  </ng-template>
+
+  <ng-template #rowMenu>
+    <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
+      <button
+        type="button"
+        cdkMenuItem
+        class="menu__item"
+        *hqCan="'teacher.manage'"
+        (cdkMenuItemTriggered)="openAssignments(menuRow()?.source ?? null)"
+      >
+        {{ 'admin.teachers.assign.action' | transloco }}
+      </button>
+      <button
+        type="button"
+        cdkMenuItem
+        class="menu__item"
+        *hqCan="'teacher.manage'"
+        (cdkMenuItemTriggered)="openEdit(menuRow()?.source ?? null)"
+      >
+        {{ 'admin.teachers.form.editAction' | transloco }}
+      </button>
+      <button
+        type="button"
+        cdkMenuItem
+        class="menu__item"
+        *hqCan="'teacher.manage'"
+        (cdkMenuItemTriggered)="resetPassword(menuRow()?.source ?? null)"
+      >
+        {{ 'admin.teachers.password.reset' | transloco }}
+      </button>
+      @if (menuRow()?.active) {
+        <button
+          type="button"
+          cdkMenuItem
+          class="menu__item menu__item--danger"
+          *hqCan="'teacher.manage'"
+          (cdkMenuItemTriggered)="requestDeactivate(menuRow())"
+        >
+          {{ 'admin.teachers.deactivate' | transloco }}
+        </button>
+      } @else {
+        <button
+          type="button"
+          cdkMenuItem
+          class="menu__item"
+          *hqCan="'teacher.manage'"
+          (cdkMenuItemTriggered)="setActive(menuRow()!, true)"
+        >
+          {{ 'admin.teachers.activate' | transloco }}
+        </button>
+      }
+    </div>
+  </ng-template>
+
+  <hq-dialog
+    [(open)]="formOpen"
+    [title]="formTitle()"
+    [confirmLabel]="'admin.teachers.form.save' | transloco"
+    [confirmDisabled]="!canSave()"
+    [confirmReason]="canSave() ? null : ('admin.teachers.form.reason' | transloco)"
+    [loading]="saving()"
+    (confirmed)="save()"
+  >
+    <hq-input
+      [label]="'admin.teachers.form.fullName' | transloco"
+      [value]="fullName()"
+      [required]="true"
+      (valueChange)="fullName.set($event)"
+    />
+    <hq-input
+      [label]="'admin.teachers.form.email' | transloco"
+      type="email"
+      autocomplete="off"
+      [value]="email()"
+      [required]="true"
+      [disabled]="formMode() === 'edit'"
+      [hint]="formMode() === 'edit' ? ('admin.teachers.form.emailFixed' | transloco) : null"
+      (valueChange)="email.set($event)"
+    />
+    <fieldset class="teachers__subjects">
+      <legend class="teachers__legend">{{ 'admin.teachers.form.subjects' | transloco }}</legend>
+      @for (subject of allSubjects; track subject) {
+        <hq-checkbox
+          [label]="'subject.' + subject | transloco"
+          [checked]="hasSubject(subject)"
+          (checkedChange)="toggleSubject(subject, $event)"
+        />
+      }
+    </fieldset>
+    <hq-select
+      [label]="'admin.teachers.form.curriculum' | transloco"
+      [placeholder]="'admin.teachers.form.curriculumPlaceholder' | transloco"
+      [options]="curriculumOptions()"
+      [value]="curriculum()"
+      (valueChange)="curriculum.set($event === 'american' || $event === 'british' ? $event : '')"
+    />
+    <hq-input
+      [label]="'admin.teachers.form.photoUrl' | transloco"
+      type="url"
+      [value]="photoUrl()"
+      [hint]="'ui.optional' | transloco"
+      (valueChange)="photoUrl.set($event)"
+    />
+  </hq-dialog>
+
+  @if (assignFor(); as teacher) {
+    <hq-assignment-picker
+      [(open)]="assignOpen"
+      [teacher]="teacher"
+      [sections]="sortedSections()"
+      [taken]="takenBy()"
+      (saved)="onAssignmentsSaved()"
+    />
+  }
+
+  <div page-footer>
+    <hq-button *hqCan="'teacher.manage'" variant="primary" (pressed)="openCreate()">
+      {{ 'admin.teachers.form.createAction' | transloco }}
+    </hq-button>
+  </div>
+</hq-page>

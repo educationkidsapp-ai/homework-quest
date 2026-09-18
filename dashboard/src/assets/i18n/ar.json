@@ -1,4 +1,129 @@
 {
+  "admin": {
+    "classes": {
+      "title": "الفصول",
+      "subtitle": "كل فصول المدرسة، ومعها الرمز الذي يكتبه أولياء الأمور للانضمام.",
+      "loading": "جارٍ تحميل الفصول",
+      "empty": "لا توجد فصول بعد. أنشئ أول فصل.",
+      "course": "{{curriculum}} · الصف {{grade}}",
+      "gradeOption": "الصف {{grade}}",
+      "teacherCount": "{{count}} مُسند",
+      "active": "نشط",
+      "inactive": "غير نشط",
+      "copy": "نسخ",
+      "copied": "تم النسخ",
+      "copyCode": "رمز الانضمام للفصل {{name}}",
+      "printCard": "طباعة بطاقة رمز الانضمام",
+      "regenerate": "تجديد رمز الانضمام",
+      "deactivate": "إيقاف",
+      "activate": "تفعيل",
+      "rowActions": "إجراءات الفصل {{name}}",
+      "filter": {
+        "label": "ابحث عن فصل",
+        "placeholder": "1A",
+        "curriculum": "المنهج",
+        "allCurricula": "كل المناهج"
+      },
+      "table": {
+        "name": "الفصل",
+        "course": "المقرر",
+        "joinCode": "رمز الانضمام",
+        "children": "الأطفال",
+        "teachers": "المعلّمون",
+        "status": "الحالة"
+      },
+      "create": {
+        "action": "إنشاء فصل",
+        "title": "إنشاء فصل",
+        "confirm": "إنشاء",
+        "reason": "اختر المنهج والصف، وأعطِ الفصل اسمًا.",
+        "curriculum": "المنهج",
+        "curriculumPlaceholder": "اختر المنهج",
+        "grade": "الصف",
+        "gradePlaceholder": "اختر الصف",
+        "name": "اسم الفصل",
+        "namePlaceholder": "1A",
+        "nameExample": "رقم الصف وحرف، مثل 1A.",
+        "nameHint": "أسماء الفصول عادةً رقم الصف وحرف، مثل 1A."
+      },
+      "regenerateConfirm": {
+        "title": "تجديد رمز الانضمام؟",
+        "message": "كل بطاقة مطبوعة للفصل {{name}} تتوقف عن العمل. ومن انضم من أولياء الأمور يبقى منضمًا.",
+        "confirm": "تجديد"
+      },
+      "deactivateConfirm": {
+        "title": "إيقاف هذا الفصل؟",
+        "message": "يختفي الفصل {{name}} من فصول معلّميه ويتوقف عن قبول أولياء أمور جدد.",
+        "confirm": "إيقاف"
+      },
+      "undo": {
+        "activated": "الفصل {{name}} نشط مرة أخرى",
+        "deactivated": "تم إيقاف الفصل {{name}}"
+      }
+    },
+    "teachers": {
+      "title": "المعلّمون",
+      "subtitle": "من يُدرّس هنا، وماذا يُدرّس كل واحد منهم.",
+      "loading": "جارٍ تحميل المعلّمين",
+      "empty": "لا يوجد معلّمون بعد. أضف أول معلّم.",
+      "active": "نشط",
+      "inactive": "موقوف",
+      "noAssignments": "لا شيء بعد",
+      "deactivate": "إيقاف الحساب",
+      "activate": "تفعيل الحساب",
+      "rowActions": "إجراءات المعلّم {{name}}",
+      "filter": {
+        "label": "ابحث عن معلّم",
+        "placeholder": "الاسم أو البريد"
+      },
+      "table": {
+        "name": "الاسم",
+        "email": "البريد الإلكتروني",
+        "subjects": "المواد",
+        "curriculum": "المنهج",
+        "assignments": "يُدرّس",
+        "status": "الحالة"
+      },
+      "form": {
+        "createAction": "إضافة معلّم",
+        "createTitle": "إضافة معلّم",
+        "editAction": "تعديل",
+        "editTitle": "تعديل بيانات المعلّم",
+        "save": "حفظ",
+        "reason": "الاسم الكامل والبريد الإلكتروني ومادة واحدة على الأقل.",
+        "fullName": "الاسم الكامل",
+        "email": "البريد الإلكتروني",
+        "emailFixed": "لا يمكن تغيير بريد تسجيل الدخول من هنا.",
+        "subjects": "المواد",
+        "curriculum": "المنهج",
+        "curriculumPlaceholder": "اختر المنهج",
+        "photoUrl": "رابط الصورة"
+      },
+      "password": {
+        "title": "كلمة مرور مؤقتة لـ {{name}}",
+        "note": "انسخها الآن وسلّمها. تُعرض مرة واحدة ولا يمكن قراءتها مجددًا — استخدم إعادة تعيين كلمة المرور لإصدار غيرها.",
+        "copy": "نسخ كلمة المرور",
+        "copied": "تم النسخ",
+        "reset": "إعادة تعيين كلمة المرور"
+      },
+      "assign": {
+        "action": "الإسنادات",
+        "title": "ماذا تُدرّس {{name}}",
+        "save": "حفظ الإسنادات",
+        "taken": "يُدرّسه {{name}}",
+        "none": "لا توجد فصول تطابق منهجها وموادها بعد."
+      },
+      "deactivateConfirm": {
+        "title": "إيقاف هذا الحساب؟",
+        "message": "لن تتمكن {{name}} من تسجيل الدخول. تبقى دروس فصولها وتبقى إسناداتها كما هي.",
+        "confirm": "إيقاف"
+      },
+      "undo": {
+        "activated": "يمكن لـ {{name}} تسجيل الدخول مرة أخرى",
+        "deactivated": "تم إيقاف {{name}}"
+      }
+    }
+  },
   "auth": {
     "email": "البريد الإلكتروني",
     "password": "كلمة المرور",
@@ -366,7 +491,8 @@
     "announcements": "الإعلانات",
     "complaints": "الشكاوى",
     "schoolUsage": "استخدام المدرسة",
-    "teachers": "المعلّمون"
+    "teachers": "المعلّمون",
+    "classes": "الفصول"
   },
   "profile": {
     "title": "ملفك الشخصي",
@@ -654,6 +780,7 @@
       "running": "قيد التنفيذ",
       "done": "تم",
       "error": "فشل"
-    }
+    },
+    "cancel": "إلغاء"
   }
 }

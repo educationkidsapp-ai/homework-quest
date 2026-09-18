@@ -1,0 +1,180 @@
+<hq-page [title]="'admin.classes.title' | transloco" [subtitle]="'admin.classes.subtitle' | transloco">
+  <div class="classes">
+    @if (pending()) {
+      <hq-band
+        variant="confirm"
+        [open]="true"
+        [title]="confirmTitle()"
+        [confirmLabel]="confirmLabel()"
+        (confirmed)="confirmPending()"
+        (dismissed)="cancelPending()"
+      >
+        {{ confirmMessage() }}
+      </hq-band>
+    }
+
+    <div class="classes__toolbar">
+      <div data-hq-search>
+        <hq-input
+          [label]="'admin.classes.filter.label' | transloco"
+          [placeholder]="'admin.classes.filter.placeholder' | transloco"
+          [value]="filterText()"
+          (valueChange)="filterText.set($event)"
+        />
+      </div>
+
+      <hq-select
+        class="classes__filter"
+        [label]="'admin.classes.filter.curriculum' | transloco"
+        [options]="curriculumOptions()"
+        [value]="curriculumFilter() ?? ''"
+        (valueChange)="curriculumFilter.set($event === 'american' || $event === 'british' ? $event : null)"
+      />
+    </div>
+
+    @if (sections.isLoading()) {
+      <hq-skeleton
+        [loading]="true"
+        [lines]="6"
+        height="var(--hq-size-row-height)"
+        [label]="'admin.classes.loading' | transloco"
+      />
+    } @else {
+      <hq-table
+        [rows]="rows()"
+        [columns]="columns()"
+        [cellTemplate]="cell"
+        [overflowTemplate]="overflow"
+        [trackBy]="trackRow"
+        [label]="'admin.classes.title' | transloco"
+      >
+        <hq-empty-state
+          table-empty
+          [message]="'admin.classes.empty' | transloco"
+          [actionLabel]="'admin.classes.create.action' | transloco"
+          (action)="openCreate()"
+        />
+      </hq-table>
+    }
+  </div>
+
+  <ng-template #cell let-row let-column="column">
+    @switch (column.key) {
+      @case ('name') {
+        {{ row.name }}
+      }
+      @case ('course') {
+        {{ row.course }}
+      }
+      @case ('joinCode') {
+        <span class="classes__code">
+          <code>{{ row.joinCode }}</code>
+          <hq-button variant="quiet" (pressed)="copyJoinCode(row)">
+            {{ (copied() === row.id ? 'admin.classes.copied' : 'admin.classes.copy') | transloco }}
+            <span class="hq-sr-only">{{ 'admin.classes.copyCode' | transloco: { name: row.name } }}</span>
+          </hq-button>
+        </span>
+      }
+      @case ('children') {
+        {{ row.children }}
+      }
+      @case ('teachers') {
+        {{ row.teachers }}
+      }
+      @case ('active') {
+        <span class="classes__status" [class.classes__status--off]="!row.active">
+          {{ (row.active ? 'admin.classes.active' : 'admin.classes.inactive') | transloco }}
+        </span>
+      }
+    }
+  </ng-template>
+
+  <ng-template #overflow let-row>
+    <button
+      type="button"
+      class="classes__overflow-trigger"
+      [cdkMenuTriggerFor]="rowMenu"
+      (click)="menuRow.set(row)"
+      [attr.aria-label]="'admin.classes.rowActions' | transloco: { name: row.name }"
+    >
+      ⋮
+    </button>
+  </ng-template>
+
+  <ng-template #rowMenu>
+    <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
+      <button type="button" cdkMenuItem class="menu__item" (cdkMenuItemTriggered)="printCard(menuRow()!)">
+        {{ 'admin.classes.printCard' | transloco }}
+      </button>
+      <button
+        type="button"
+        cdkMenuItem
+        class="menu__item"
+        *hqCan="'class.write'"
+        (cdkMenuItemTriggered)="request('regenerate', menuRow())"
+      >
+        {{ 'admin.classes.regenerate' | transloco }}
+      </button>
+      @if (menuRow()?.active) {
+        <button
+          type="button"
+          cdkMenuItem
+          class="menu__item menu__item--danger"
+          *hqCan="'class.write'"
+          (cdkMenuItemTriggered)="request('deactivate', menuRow())"
+        >
+          {{ 'admin.classes.deactivate' | transloco }}
+        </button>
+      } @else {
+        <button
+          type="button"
+          cdkMenuItem
+          class="menu__item"
+          *hqCan="'class.write'"
+          (cdkMenuItemTriggered)="setActive(menuRow()!, true)"
+        >
+          {{ 'admin.classes.activate' | transloco }}
+        </button>
+      }
+    </div>
+  </ng-template>
+
+  <hq-dialog
+    [(open)]="createOpen"
+    [title]="'admin.classes.create.title' | transloco"
+    [confirmLabel]="'admin.classes.create.confirm' | transloco"
+    [confirmDisabled]="!canCreate()"
+    [confirmReason]="canCreate() ? null : ('admin.classes.create.reason' | transloco)"
+    [loading]="saving()"
+    (confirmed)="create()"
+  >
+    <hq-select
+      [label]="'admin.classes.create.curriculum' | transloco"
+      [placeholder]="'admin.classes.create.curriculumPlaceholder' | transloco"
+      [options]="createCurriculumOptions()"
+      [value]="newCurriculum()"
+      (valueChange)="newCurriculum.set($event === 'american' || $event === 'british' ? $event : '')"
+    />
+    <hq-select
+      [label]="'admin.classes.create.grade' | transloco"
+      [placeholder]="'admin.classes.create.gradePlaceholder' | transloco"
+      [options]="gradeOptions()"
+      [value]="newGrade()"
+      (valueChange)="newGrade.set($event)"
+    />
+    <hq-input
+      [label]="'admin.classes.create.name' | transloco"
+      [placeholder]="'admin.classes.create.namePlaceholder' | transloco"
+      [hint]="nameHint() || ('admin.classes.create.nameExample' | transloco)"
+      [required]="true"
+      [value]="newName()"
+      (valueChange)="newName.set($event)"
+    />
+  </hq-dialog>
+
+  <div page-footer>
+    <hq-button *hqCan="'class.write'" variant="primary" (pressed)="openCreate()">
+      {{ 'admin.classes.create.action' | transloco }}
+    </hq-button>
+  </div>
+</hq-page>

@@ -45,9 +45,30 @@ export const AREAS: Readonly<Record<Role, Area>> = {
     base: '/admin',
     screens: [
       { id: 'home', path: '', labelKey: 'nav.home' },
-      { id: 'schools', path: 'schools', labelKey: 'nav.schools', permission: 'school.read', phase: 3 },
-      { id: 'school', path: 'schools/:id', permission: 'school.read', phase: 3 },
-      { id: 'school-users', path: 'schools/:id/users', permission: 'user.read', phase: 3 },
+      // N1.2: the one-school screens. Classes reads with `section.read` and writes with
+      // `class.write`; Teachers reads with `teacher.read` and writes with `teacher.manage`, so a
+      // MANAGERIAL account gets both screens and none of their actions.
+      { id: 'classes', path: 'classes', labelKey: 'nav.classes', permission: 'section.read' },
+      { id: 'teachers', path: 'teachers', labelKey: 'nav.teachers', permission: 'teacher.read' },
+      // D13: while `multiSchool` is off there is one school, it is the Admin's own, and these
+      // three screens have nothing to show — the rail hides them and the router refuses them,
+      // rather than offering a list of one and a switcher that switches to itself.
+      {
+        id: 'schools',
+        path: 'schools',
+        labelKey: 'nav.schools',
+        flag: FLAGS.multiSchool,
+        permission: 'school.read',
+        phase: 3,
+      },
+      { id: 'school', path: 'schools/:id', flag: FLAGS.multiSchool, permission: 'school.read', phase: 3 },
+      {
+        id: 'school-users',
+        path: 'schools/:id/users',
+        flag: FLAGS.multiSchool,
+        permission: 'user.read',
+        phase: 3,
+      },
       { id: 'users', path: 'users', labelKey: 'nav.users', permission: 'user.read', phase: 3 },
       { id: 'flags', path: 'flags', labelKey: 'nav.flags', permission: 'flag.read', phase: 3 },
       // lessons (P3.2b/c/d): the list, the new-lesson wizard and the review page are all

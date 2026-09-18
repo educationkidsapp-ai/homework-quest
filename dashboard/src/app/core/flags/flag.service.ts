@@ -8,7 +8,12 @@ import { AuthService } from '../auth/auth.service';
 import { BandService } from '../band/band.service';
 import { DEFAULT_FLAGS } from './flags.defaults';
 
-/** The 14 keys of §4, mirroring `quest.server.flags.FlagKeys`. */
+/**
+ * The flag keys this dashboard names, mirroring `quest.server.flags.FlagKeys`: §4's fourteen
+ * plus the seven `V7__sections.sql` adds for the one-school build (N1). Only the ones a screen
+ * actually reads are listed — `FlagService` keys on strings, so an unnamed flag still works;
+ * naming one is how a typo in a template becomes a compile error.
+ */
 export const FLAGS = {
   lessonsPdf: 'lessons.pdf',
   lessonsSlides: 'lessons.slides',
@@ -24,6 +29,8 @@ export const FLAGS = {
   stickersTreasureChest: 'stickers.treasureChest',
   progressWeeklyEmail: 'progress.weeklyEmail',
   certificates: 'certificates',
+  multiSchool: 'multiSchool',
+  teacherRosterEdit: 'teacher.rosterEdit',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

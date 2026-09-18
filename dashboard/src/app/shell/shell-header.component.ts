@@ -8,6 +8,8 @@ import { catchError } from 'rxjs/operators';
 import { SchoolSummary, SchoolsApi } from '../api';
 import { AuthService } from '../core/auth/auth.service';
 import { SchoolScopeStore } from '../core/auth/school-scope.store';
+import { FeatureDirective } from '../core/flags/feature.directive';
+import { FLAGS, FlagService } from '../core/flags/flag.service';
 import { LANGUAGES, LanguageService } from '../core/i18n/language.service';
 import { ThemeService } from '../core/theme/theme.service';
 import { TourService } from '../core/tour/tour.service';
@@ -31,7 +33,7 @@ import { TourService } from '../core/tour/tour.service';
  */
 @Component({
   selector: 'hq-shell-header',
-  imports: [CdkMenu, CdkMenuItem, CdkMenuTrigger, RouterLink, TranslocoPipe],
+  imports: [CdkMenu, CdkMenuItem, CdkMenuTrigger, FeatureDirective, RouterLink, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (auth.impersonatedBy(); as actor) {
@@ -52,6 +54,7 @@ import { TourService } from '../core/tour/tour.service';
       <div class="header__actions">
         @if (isAdmin()) {
           <button
+            *hqFeature="'multiSchool'"
             type="button"
             class="header__button"
             data-hq-tour="switcher"
@@ -225,6 +228,7 @@ import { TourService } from '../core/tour/tour.service';
 })
 export class ShellHeaderComponent {
   private readonly schoolsApi = inject(SchoolsApi);
+  private readonly flags = inject(FlagService);
   protected readonly scope = inject(SchoolScopeStore);
   private readonly theme = inject(ThemeService);
   private readonly tour = inject(TourService);
@@ -240,9 +244,14 @@ export class ShellHeaderComponent {
   /**
    * Only an Admin may list schools, and only an Admin has a switcher — so the request is
    * made once, when the menu is first about to be useful, and not at all for anyone else.
+   *
+   * D13: with `multiSchool` off the switcher is not rendered at all, so there is nothing to
+   * fill and the request is not made either. Hiding the button while still asking the server
+   * for a list nobody can see is the kind of thing that survives a review and shows up in the
+   * access log.
    */
   protected readonly schools = rxResource<readonly SchoolSummary[], boolean | undefined>({
-    params: () => (this.isAdmin() ? true : undefined),
+    params: () => (this.isAdmin() && this.flags.isOn(FLAGS.multiSchool) ? true : undefined),
     stream: () => this.schoolsApi.listSchools().pipe(catchError(() => of<SchoolSummary[]>([]))),
     defaultValue: [],
   });

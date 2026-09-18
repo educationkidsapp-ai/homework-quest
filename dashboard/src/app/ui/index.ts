@@ -7,6 +7,7 @@ export { ToggleComponent } from './toggle/toggle.component';
 export { TableComponent, type TableColumn } from './table/table.component';
 export { TabsComponent, type Tab } from './tabs/tabs.component';
 export { CardComponent } from './card/card.component';
+export { DialogComponent } from './dialog/dialog.component';
 export { BandComponent, type BandVariant } from './band/band.component';
 export { StepStripComponent, type PipelineStep, type StepState } from './step-strip/step-strip.component';
 export { ProgressBarComponent } from './progress-bar/progress-bar.component';
