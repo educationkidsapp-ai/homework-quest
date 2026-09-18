@@ -58,6 +58,9 @@ public final class ClassDto {
 
     public record ImportPreview(boolean dryRun, List<ImportRow> rows, ImportSummary summary) {}
 
+    /** The body of `POST /classes/lookup`: a join code is a credential, so it travels in a body, never in a URL. */
+    public record ClassLookupRequest(@NotBlank String code) {}
+
     /** What a parent sees after typing a join code, and nothing more: no roster, no teacher, no school id. */
     public record ClassLookup(String classId, String name, int grade, String curriculum, String schoolName) {}
 

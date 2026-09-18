@@ -366,7 +366,7 @@ interface DashboardApi {
     suspend fun updateMyRosterChild(classId: String, childId: String, request: UpdateRosterChildRequest): RosterChild
 
     /** Public: what a parent sees after typing a join code. Unknown or disabled is a uniform 404. */
-    suspend fun classByJoinCode(code: String): ClassLookup
+    suspend fun classByJoinCode(request: ClassLookupRequest): ClassLookup
 
     suspend fun schoolClasses(schoolId: String): List<SchoolClass>
     suspend fun createClass(schoolId: String, request: CreateClassRequest): SchoolClass

@@ -545,6 +545,16 @@
         },
         "type" : "object"
       },
+      "ClassLookupRequest" : {
+        "properties" : {
+          "code" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "code" ],
+        "type" : "object"
+      },
       "ClassStudent" : {
         "properties" : {
           "avatarColor" : {
@@ -6924,16 +6934,18 @@
       }
     },
     "/classes/lookup" : {
-      "get" : {
+      "post" : {
         "operationId" : "classByJoinCode",
-        "parameters" : [ {
-          "in" : "query",
-          "name" : "code",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ClassLookupRequest"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "content" : {

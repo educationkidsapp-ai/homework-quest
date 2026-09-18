@@ -79,6 +79,18 @@ ALTER TABLE schools ADD COLUMN timezone TEXT;
 -- share no portable random-string function, and a UNIQUE column cannot be filled with a guess. Every code created
 -- from here on comes from `JoinCodes.generate()` in Java and is random.
 
+-- The lesson's author, read from the class it was published into — first, while every class still has a NULL `name`,
+-- and before that class id is re-pointed below.
+--
+-- The `name IS NULL` guard is not decoration: `teacher_id IS NULL` alone is not "not converted yet", because a lesson
+-- of a class that had no teacher legitimately ends up with a null author. On a second run its `class_id` is already
+-- the section, which has a name — and whose own `teacher_id` is the section head's, so without this guard she would
+-- be credited with a lesson she never wrote. Running this <em>before</em> the naming below is what makes the guard
+-- mean "nothing in this group has been converted yet" rather than "this row is not the one that became the section".
+UPDATE lessons l SET teacher_id = (SELECT k.teacher_id FROM classes k WHERE k.id = l.class_id)
+WHERE l.teacher_id IS NULL AND l.class_id IS NOT NULL
+  AND EXISTS (SELECT 1 FROM classes k WHERE k.id = l.class_id AND k.name IS NULL);
+
 UPDATE classes c SET
     name = CAST(c.grade AS VARCHAR) || 'A',
     join_code = 'C' || LPAD(CAST(1 + (
@@ -104,10 +116,6 @@ WHERE k.teacher_id IS NOT NULL AND k.subject IS NOT NULL
               WHERE s.school_id = k.school_id AND s.curriculum = k.curriculum AND s.grade = k.grade
                 AND s.subject = k.subject AND s.teacher_id IS NOT NULL)
   AND NOT EXISTS (SELECT 1 FROM teaching_assignments t WHERE t.class_id = sec.id AND t.subject = k.subject);
-
--- The lesson's author, read from the class it was published into — before that class id is re-pointed below.
-UPDATE lessons l SET teacher_id = (SELECT k.teacher_id FROM classes k WHERE k.id = l.class_id)
-WHERE l.teacher_id IS NULL AND l.class_id IS NOT NULL;
 
 -- Every lesson of a legacy row moves to its group's section. Lessons already on a section (name NOT NULL) are left
 -- alone, which is what makes this safe to run over data that has been converted once.

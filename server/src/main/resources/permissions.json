@@ -113,7 +113,7 @@
     { "method": "POST", "path": "/children/{id}/stops/{stopId}/media", "permission": "child.play" },
     { "method": "GET", "path": "/lessons/{id}", "permission": "lesson.play" },
     { "method": "GET", "path": "/schools/by-code/{code}", "permission": "school.join" },
-    { "method": "GET", "path": "/classes/lookup", "permission": "class.lookup" },
+    { "method": "POST", "path": "/classes/lookup", "permission": "class.lookup" },
     { "method": "POST", "path": "/schools/logo", "permission": "school.logo" },
     { "method": "GET", "path": "/schools/{id}/flags", "permission": "school.flags" },
     { "method": "GET", "path": "/schools/{id}/theme", "permission": "school.theme" },

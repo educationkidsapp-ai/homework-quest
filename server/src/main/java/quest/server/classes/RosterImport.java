@@ -23,6 +23,11 @@ import quest.server.config.ApiException;
  * included, with the file's own row number, so {@link RosterService} can mark each one `new`, `duplicate` or
  * `invalid` and the Admin can see in the preview exactly which line of her spreadsheet she has to fix. A file that
  * cannot be opened at all is the only 400.
+ *
+ * <p><strong>A cell is stored as typed.</strong> A name beginning `=`, `+`, `-` or `@` is a formula to Excel when it
+ * is later written back out, so neutralising it belongs where a CSV is <em>produced</em> — the exports of N4.1 —
+ * rather than here, where it would corrupt the roster to defend a file this package never writes. Whatever escapes
+ * a value on the way out must do it for every export, not for the subset that happened to arrive through an import.
  */
 @Component
 public class RosterImport {
@@ -36,12 +41,19 @@ public class RosterImport {
     public List<Line> read(MultipartFile file) {
         String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase(Locale.ROOT);
         try {
-            var rows = name.endsWith(".xlsx") || name.endsWith(".xls") ? spreadsheet(file.getBytes()) : csv(file.getBytes());
-            if (rows.size() > MAX_ROWS) throw ApiException.badRequest("That file has more than " + MAX_ROWS + " rows.");
-            return rows;
+            return name.endsWith(".xlsx") || name.endsWith(".xls") ? spreadsheet(file.getBytes()) : csv(file.getBytes());
         } catch (IOException e) {
             throw ApiException.badRequest("That file could not be read — save it again as CSV or XLSX.");
         }
+    }
+
+    /**
+     * The row limit is checked <em>while</em> reading, not after: a file with a million rows should be refused on
+     * the row after the cap rather than parsed in full and then thrown away, which is the difference between a 400
+     * and a heap the request did not need.
+     */
+    private static void checkCap(List<Line> rows) {
+        if (rows.size() > MAX_ROWS) throw ApiException.badRequest("That file has more than " + MAX_ROWS + " rows.");
     }
 
     private List<Line> csv(byte[] bytes) throws IOException {
@@ -55,6 +67,7 @@ public class RosterImport {
                 var cells = split(line);
                 if (number == 1 && isHeader(cells)) continue;
                 out.add(new Line(number, cell(cells, 0), cell(cells, 1)));
+                checkCap(out);
             }
         }
         return out;
@@ -71,6 +84,7 @@ public class RosterImport {
                 if (cells.stream().allMatch(String::isBlank)) continue;
                 if (number == 1 && isHeader(cells)) continue;
                 out.add(new Line(number, cell(cells, 0), cell(cells, 1)));
+                checkCap(out);
             }
         }
         return out;

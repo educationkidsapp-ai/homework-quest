@@ -92,18 +92,27 @@ class SectionBackfillTest extends ApiTestSupport {
         user(PREFIX + "sara");
         legacyClass(PREFIX + "a-math", "british", 1, "math", PREFIX + "sara");
         legacyClass(PREFIX + "b-english", "british", 1, "english", PREFIX + "sara");
+        // A class nobody taught, with a lesson on it. This is the row that makes the second run interesting: its
+        // lesson keeps a null author for ever, so "teacher_id IS NULL" cannot be the migration's idea of "not
+        // converted yet" — after the first run the lesson points at the section, whose own `teacher_id` is Sara's.
+        legacyClass(PREFIX + "c-free", "british", 1, "science", null);
         lesson(PREFIX + "lesson-1", PREFIX + "b-english", "british", 1, "english");
+        lesson(PREFIX + "lesson-2", PREFIX + "c-free", "british", 1, "science");
         child(PREFIX + "child-1", "british", 1);
 
         backfill();
         String code = classes.findById(PREFIX + "a-math").orElseThrow().getJoinCode();
         long assignmentsAfterFirst = assignments.findByClassIdOrderBySubjectAsc(PREFIX + "a-math").size();
+        assertThat(jdbc.queryForObject("SELECT teacher_id FROM lessons WHERE id = ?", String.class, PREFIX + "lesson-2")).isNull();
 
         backfill();
 
         assertThat(classes.findById(PREFIX + "a-math").orElseThrow().getJoinCode()).as("a second run must not roll the code").isEqualTo(code);
         assertThat(assignments.findByClassIdOrderBySubjectAsc(PREFIX + "a-math")).hasSize((int) assignmentsAfterFirst);
         assertThat(jdbc.queryForObject("SELECT class_id FROM lessons WHERE id = ?", String.class, PREFIX + "lesson-1")).isEqualTo(PREFIX + "a-math");
+        assertThat(jdbc.queryForObject("SELECT teacher_id FROM lessons WHERE id = ?", String.class, PREFIX + "lesson-1")).isEqualTo(PREFIX + "sara");
+        assertThat(jdbc.queryForObject("SELECT teacher_id FROM lessons WHERE id = ?", String.class, PREFIX + "lesson-2"))
+                .as("a lesson nobody wrote must not be credited to the section head on a re-run").isNull();
         assertThat(jdbc.queryForObject("SELECT class_id FROM children WHERE id = ?", String.class, PREFIX + "child-1")).isEqualTo(PREFIX + "a-math");
     }
 

@@ -44,11 +44,15 @@ class NoSchoolIdLiteralTest {
 
     @Test void no_service_controller_or_repository_names_a_school() throws IOException {
         var offenders = new ArrayList<String>();
+        var scannedPackages = new ArrayList<String>();
+        int scannedFiles = 0;
         for (String pkg : WATCHED) {
             Path root = Path.of("src/main/java/quest/server").resolve(pkg);
             if (!Files.isDirectory(root)) continue;
+            scannedPackages.add(pkg);
             try (Stream<Path> files = Files.walk(root)) {
                 for (Path file : files.filter(f -> f.toString().endsWith(".java")).toList()) {
+                    scannedFiles++;
                     if (ALLOWED_FILES.contains(file.getFileName().toString())) continue;
                     var lines = Files.readAllLines(file, StandardCharsets.UTF_8);
                     for (int i = 0; i < lines.size(); i++) {
@@ -60,6 +64,11 @@ class NoSchoolIdLiteralTest {
                 }
             }
         }
+        // A source sweep that found nothing passes for the wrong reason — a renamed package, or a working directory
+        // that is not `server/` — so what it actually looked at is asserted before what it found.
+        assertThat(scannedPackages).as("every watched package must exist; rename one and this rule stops watching it")
+                .containsExactlyElementsOf(WATCHED);
+        assertThat(scannedFiles).as("the sweep must have read real sources, not an empty tree").isGreaterThan(50);
         assertThat(offenders)
                 .as("D13: read the school from TenantContext (`schoolId()` / `writeSchoolId()`), never from a literal")
                 .isEmpty();

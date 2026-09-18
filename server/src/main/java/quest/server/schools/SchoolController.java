@@ -79,16 +79,22 @@ public class SchoolController {
      * than with the Admin class routes because it is the sibling of `by-code` above: the two public things a parent
      * types before she has an account.
      *
+     * <p><strong>POST, with the code in the body</strong>, for the reason `/schools/logo` below is: a join code is a
+     * credential, and a query string is the one part of a request that is logged everywhere by default — the access
+     * log, the load balancer, any forward proxy, the browser's own history. The body is logged by none of those.
+     * `/schools/by-code/{code}` keeps its path parameter only because the app already ships calling it.
+     *
      * <p>The answer carries the class, the course and the school's name and nothing else — no roster, no teacher, no
-     * school id. Unknown, disabled and retired codes are one uniform 404, and the route shares the logo lookup's
-     * rate-limit bucket so a code space cannot be swept and so throttling it never uses up a real sign-in's
-     * attempts.
+     * school id. Unknown, disabled and retired codes are one uniform 404, and the route is rate-limited in a bucket
+     * of its own (`classes.lookup`) so a code space cannot be swept and so throttling it never uses up a real
+     * sign-in's attempts.
      */
-    @GetMapping(value = "/classes/lookup", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = "/classes/lookup", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("permitAll")
-    public quest.server.classes.ClassDto.ClassLookup classByJoinCode(@RequestParam String code, HttpServletRequest request) {
+    public quest.server.classes.ClassDto.ClassLookup classByJoinCode(@RequestBody @Valid quest.server.classes.ClassDto.ClassLookupRequest body,
+                                                                     HttpServletRequest request) {
         limiter.probe("classes.lookup", null, AuthController.clientIp(request));
-        return sections.lookup(code);
+        return sections.lookup(body == null ? null : body.code());
     }
 
     /**

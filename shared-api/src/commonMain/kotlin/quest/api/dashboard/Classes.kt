@@ -153,7 +153,14 @@ data class ImportSummary(val total: Int = 0, val added: Int = 0, val duplicate: 
 data class ImportPreview(val dryRun: Boolean = true, val rows: List<ImportRow> = emptyList(), val summary: ImportSummary = ImportSummary())
 
 /**
- * Public `GET /classes/lookup?code=`: what a parent sees after typing a join code, and nothing more — no roster, no
+ * The body of `POST /classes/lookup`. A join code is a credential, so it travels in a body rather than a query
+ * string, which the access log, the load balancer and the browser's own history all keep by default.
+ */
+@Serializable
+data class ClassLookupRequest(val code: String)
+
+/**
+ * Public `POST /classes/lookup`: what a parent sees after typing a join code, and nothing more — no roster, no
  * teacher, no school id. An unknown, disabled or inactive code is the same uniform 404.
  */
 @Serializable

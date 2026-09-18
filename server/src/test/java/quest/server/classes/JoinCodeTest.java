@@ -1,7 +1,6 @@
 package quest.server.classes;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -33,7 +32,7 @@ class JoinCodeTest extends ClassesTestSupport {
     @AfterEach void cleanUp() { removeSeed(); }
 
     @Test void a_code_answers_the_class_and_nothing_else_about_the_school() throws Exception {
-        var lookup = json(mvc.perform(get("/classes/lookup?code=" + code)).andExpect(status().isOk()).andReturn());
+        var lookup = json(mvc.perform(lookup(code)).andExpect(status().isOk()).andReturn());
         assertThat(lookup.get("classId").asText()).isEqualTo(classId);
         assertThat(lookup.get("name").asText()).isEqualTo("2C");
         assertThat(lookup.get("grade").asInt()).isEqualTo(2);
@@ -45,21 +44,21 @@ class JoinCodeTest extends ClassesTestSupport {
                 .containsExactlyInAnyOrder("classId", "name", "grade", "curriculum", "schoolName");
 
         // spaces and case are a person typing, not a different code
-        assertThat(json(mvc.perform(get("/classes/lookup?code=" + code.toLowerCase().replaceAll("(...)(...)", "$1 $2")))
+        assertThat(json(mvc.perform(lookup(code.toLowerCase().replaceAll("(...)(...)", "$1 $2")))
                 .andExpect(status().isOk()).andReturn()).get("classId").asText()).isEqualTo(classId);
     }
 
     @Test void an_unknown_or_switched_off_code_is_the_same_uniform_404() throws Exception {
-        mvc.perform(get("/classes/lookup?code=ZZZZZZ")).andExpect(status().isNotFound());
-        mvc.perform(get("/classes/lookup?code=" + code.substring(0, 5))).andExpect(status().isBadRequest());
+        mvc.perform(lookup("ZZZZZZ")).andExpect(status().isNotFound());
+        mvc.perform(lookup(code.substring(0, 5))).andExpect(status().isBadRequest());
 
         mvc.perform(scoped(patch("/admin/classes/" + classId).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"joinCodeEnabled\":false}"), admin, A)).andExpect(status().isOk());
-        mvc.perform(get("/classes/lookup?code=" + code)).andExpect(status().isNotFound());
+        mvc.perform(lookup(code)).andExpect(status().isNotFound());
 
         mvc.perform(scoped(patch("/admin/classes/" + classId).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"joinCodeEnabled\":true,\"active\":false}"), admin, A)).andExpect(status().isOk());
-        mvc.perform(get("/classes/lookup?code=" + code)).andExpect(status().isNotFound());
+        mvc.perform(lookup(code)).andExpect(status().isNotFound());
     }
 
     /** The code settles school, section, curriculum and grade; the body's own course fields are ignored. */
@@ -78,5 +77,10 @@ class JoinCodeTest extends ClassesTestSupport {
                 .andExpect(status().isNotFound());
         var legacy = parentPost("/children", "{\"name\":\"Adam\",\"avatarColor\":\"sun\",\"curriculum\":\"british\",\"grade\":1,\"schoolCode\":\"JCAAAA\"}");
         assertThat(childRows.findById(legacy.get("id").asText()).orElseThrow().getClassId()).isNull();
+    }
+
+    /** The code goes in the body, never a query string: it is a credential and query strings are logged everywhere. */
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder lookup(String code) {
+        return post("/classes/lookup").contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"" + code + "\"}");
     }
 }
