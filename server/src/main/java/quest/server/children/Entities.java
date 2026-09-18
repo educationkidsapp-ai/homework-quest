@@ -13,17 +13,28 @@ import org.hibernate.annotations.Filter;
 public final class Entities {
     private Entities() {}
 
-    /** Tenant table: every read through a scoped request is filtered to the caller's school (`quest.server.tenancy`). */
+    /**
+     * Tenant table: every read through a scoped request is filtered to the caller's school (`quest.server.tenancy`).
+     *
+     * <p>Since V7 a child is first of all a <strong>roster row</strong> of a section (`classId`) — Admin or her
+     * teacher types the name long before anyone has an account for her, so `parentId` is nullable and `active` is
+     * how a roster row is retired without deleting the attempts hanging off it. `name` is the full name the roster
+     * carries; `deletedAt` stays the parent-side soft delete it always was.
+     */
     @Entity(name = "ChildEntity") @Table(name = "children")
     @Filter(name = "school", condition = "school_id = :schoolId")
     public static class ChildEntity {
         @Id private String id;
-        @Column(name = "parent_id", nullable = false) private String parentId;
+        @Column(name = "parent_id") private String parentId;
         @Column(name = "school_id", nullable = false) private String schoolId = "default";
         @Column(nullable = false) private String name; @Column(name = "avatar_color", nullable = false) private String avatarColor;
         @Column(nullable = false) private String curriculum; @Column(nullable = false) private int grade;
         @Column(nullable = false) private String languages = "en";
         @Column(name = "pin_hash") private String pinHash;
+        @Column(name = "class_id") private String classId;
+        @Column(name = "parent_email") private String parentEmail;
+        @Column(name = "photo_url") private String photoUrl;
+        @Column(nullable = false) private boolean active = true;
         @Column(name = "created_at", nullable = false) private Instant createdAt; @Column(name = "deleted_at") private Instant deletedAt;
         public String courseId() { return curriculum + "/" + grade; }
         public String getId() { return id; } public void setId(String v) { id = v; }
@@ -35,6 +46,10 @@ public final class Entities {
         public int getGrade() { return grade; } public void setGrade(int v) { grade = v; }
         public String getLanguages() { return languages; } public void setLanguages(String v) { languages = v; }
         public String getPinHash() { return pinHash; } public void setPinHash(String v) { pinHash = v; }
+        public String getClassId() { return classId; } public void setClassId(String v) { classId = v; }
+        public String getParentEmail() { return parentEmail; } public void setParentEmail(String v) { parentEmail = v; }
+        public String getPhotoUrl() { return photoUrl; } public void setPhotoUrl(String v) { photoUrl = v; }
+        public boolean isActive() { return active; } public void setActive(boolean v) { active = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
         public Instant getDeletedAt() { return deletedAt; } public void setDeletedAt(Instant v) { deletedAt = v; }
     }

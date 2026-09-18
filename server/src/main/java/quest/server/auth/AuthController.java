@@ -23,9 +23,10 @@ import quest.server.platform.ThemeService;
 @Tag(name = "Auth", description = "Dashboard sign-in, sessions and passwords")
 public class AuthController {
     private final AuthService auth; private final Permissions permissions; private final ThemeService themes;
-    private final quest.server.schools.SchoolService schools;
-    public AuthController(AuthService auth, Permissions permissions, ThemeService themes, quest.server.schools.SchoolService schools) {
-        this.auth = auth; this.permissions = permissions; this.themes = themes; this.schools = schools;
+    private final quest.server.schools.SchoolService schools; private final quest.server.classes.SectionService sections;
+    public AuthController(AuthService auth, Permissions permissions, ThemeService themes,
+                          quest.server.schools.SchoolService schools, quest.server.classes.SectionService sections) {
+        this.auth = auth; this.permissions = permissions; this.themes = themes; this.schools = schools; this.sections = sections;
     }
 
     @PostMapping(value = "/auth/sign-in", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -71,7 +72,10 @@ public class AuthController {
         // The platform ADMIN has no school, and an immutable `Map` refuses even to be *asked* about a null key.
         String schoolName = user.getSchoolId() == null ? null
                 : schools.namesOf(java.util.List.of(user.getSchoolId())).get(user.getSchoolId());
-        return DashboardDto.of(user, principal.impersonatedBy(), themes.displayName(user.getSchoolId()), schoolName);
+        // V7: a teacher's navigation is her assignments (`docs/teacher-flow.md` §2), so they arrive with her account
+        // rather than as a second request. Two statements, and none at all for ADMIN and MANAGERIAL.
+        var assignments = "TEACHER".equals(user.getRole()) ? sections.assignmentsOfTeacher(user.getId()) : null;
+        return DashboardDto.of(user, principal.impersonatedBy(), themes.displayName(user.getSchoolId()), schoolName, assignments);
     }
 
     /**

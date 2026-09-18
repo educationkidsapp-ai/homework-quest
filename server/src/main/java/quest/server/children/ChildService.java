@@ -12,17 +12,20 @@ import quest.api.dto.Curriculum;
 import quest.api.dto.UpdateChildRequest;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
+import quest.server.tenancy.ClassRepository;
+import quest.server.tenancy.JoinCodes;
 import quest.server.tenancy.SchoolRepository;
 import quest.server.tenancy.TenantContext;
 
 @Service
 public class ChildService {
-    private final ChildRepository children; private final SchoolRepository schools; private final TenantContext tenant;
-    public ChildService(ChildRepository children, SchoolRepository schools, TenantContext tenant) { this.children = children; this.schools = schools; this.tenant = tenant; }
+    private final ChildRepository children; private final SchoolRepository schools; private final ClassRepository classes; private final TenantContext tenant;
+    public ChildService(ChildRepository children, SchoolRepository schools, ClassRepository classes, TenantContext tenant) { this.children = children; this.schools = schools; this.classes = classes; this.tenant = tenant; }
 
     /** A parent's own child. `findOneById`, not `findById`: filters do not apply to `em.find`. */
     public Entities.ChildEntity owned(String childId, Principals.Parent parent) {
-        return children.findOneById(childId).filter(c -> c.getDeletedAt() == null && c.getParentId().equals(parent.parentId())).orElseThrow(() -> ApiException.notFound("child"));
+        // `parent.parentId()` first: since V7 a roster child may have no parent at all, and `getParentId()` is null.
+        return children.findOneById(childId).filter(c -> c.getDeletedAt() == null && parent.parentId().equals(c.getParentId())).orElseThrow(() -> ApiException.notFound("child"));
     }
 
     /**
@@ -43,13 +46,30 @@ public class ChildService {
 
     public List<Child> list(Principals.Parent parent) { return children.findByParentIdAndDeletedAtIsNullOrderByCreatedAt(parent.parentId()).stream().map(ChildService::dto).toList(); }
 
+    /**
+     * A parent's new child. Two ways to say where she belongs, in order of precedence:
+     *
+     * <ul>
+     *   <li><strong>`joinCode`</strong> (V7): the code on a class's card. It settles the school, the section, the
+     *       curriculum and the grade all at once, because the card is the more specific answer than anything the
+     *       parent could pick from a list — so whatever `curriculum`, `grade` and `schoolCode` say is ignored.</li>
+     *   <li>`schoolCode` with `curriculum` + `grade`: the pre-V7 shape the app still sends. The child has no section
+     *       until Admin puts her in one, and her map falls back to §2's "every class of her school with that
+     *       curriculum and grade" ({@link SchoolLessons}).</li>
+     * </ul>
+     */
     @Transactional
     public Child create(Principals.Parent parent, CreateChildRequest req) {
-        validate(req.getName(), req.getGrade(), req.getAvatarColor());
+        var section = req.getJoinCode() == null || req.getJoinCode().isBlank() ? null
+                : classes.findByJoinCode(JoinCodes.normalise(req.getJoinCode())).orElseThrow(() -> ApiException.notFound("class"));
+        String curriculum = section != null ? section.getCurriculum() : req.getCurriculum().name().toLowerCase();
+        int grade = section != null ? section.getGrade() : req.getGrade();
+        validate(req.getName(), grade, req.getAvatarColor());
         var e = new Entities.ChildEntity();
         e.setId(UUID.randomUUID().toString()); e.setParentId(parent.parentId()); e.setName(req.getName().trim()); e.setAvatarColor(req.getAvatarColor());
-        e.setCurriculum(req.getCurriculum().name().toLowerCase()); e.setGrade(req.getGrade()); e.setLanguages(String.join(",", req.getLanguages())); e.setCreatedAt(Instant.now());
-        e.setSchoolId(schoolOf(req.getSchoolCode()));
+        e.setCurriculum(curriculum); e.setGrade(grade); e.setLanguages(String.join(",", req.getLanguages())); e.setCreatedAt(Instant.now());
+        e.setSchoolId(section != null ? section.getSchoolId() : schoolOf(req.getSchoolCode()));
+        if (section != null) e.setClassId(section.getId());
         return dto(children.save(e));
     }
 

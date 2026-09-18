@@ -34,6 +34,9 @@ public class SecurityConfig {
                 // §3/§4/§A: the app and the sign-in page read these before anyone has a token. Listed one by one so
                 // a later `/schools/**` route is authenticated until it is deliberately opened here.
                 .requestMatchers("/platform-settings", "/schools/*/flags", "/schools/*/theme", "/schools/logo").permitAll()
+                // V7: the class join code, the narrower sibling of `/schools/by-code/**`. Exactly this path, so a
+                // later `/classes/**` route is authenticated until it is deliberately opened here.
+                .requestMatchers("/classes/lookup").permitAll()
                 .requestMatchers("/me", "/me/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 // §6 screens 19–20: "my own school", with no school id in the path. Dashboard roles only; which of
                 // them may read what is the `@PreAuthorize` on each route, as everywhere else.

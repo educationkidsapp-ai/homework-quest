@@ -75,17 +75,29 @@ data class JoinSchoolInfo(
     val theme: SchoolTheme? = null,
 )
 
-/** Per school: (curriculum, grade, subject) with the teacher who owns it. Replaces the global `Course` for publishing. */
+/**
+ * A **section** since V7 (D14): "1A" inside a curriculum and grade, with the join code parents type. Who teaches
+ * what is [TeachingAssignment], not a field here; [subject] and [teacherId] are the pre-V7 shape, still answered for
+ * `webAdmin` and null on every section created from V7 onwards.
+ *
+ * [children] and [assignments] are the counts the Admin's Classes screen shows, filled by `GET /admin/classes`.
+ */
 @Serializable
 data class SchoolClass(
     val id: String,
     val schoolId: String,
     val curriculum: Curriculum,
     val grade: Int,
-    val subject: Subject,
+    val subject: Subject? = null,
     val teacherId: String? = null,
     val teacherName: String? = null,
     val createdAt: Long = 0,
+    val name: String? = null,
+    val joinCode: String? = null,
+    val active: Boolean = true,
+    val joinCodeEnabled: Boolean = true,
+    val children: Int = 0,
+    val assignments: Int = 0,
 )
 
 @Serializable
@@ -110,6 +122,12 @@ data class DashboardUser(
     val platformName: String? = null,
     /** The name of [schoolId], so the Admin's cross-school Users list (§6 screen 6) needs no second request. */
     val schoolName: String? = null,
+    /**
+     * `GET /me` only: what this teacher is assigned to teach (`docs/teacher-flow.md` §2). The dashboard builds her
+     * whole navigation from it, so it arrives with the account rather than as a second request. Absent for ADMIN and
+     * MANAGERIAL, who are not assignment-scoped.
+     */
+    val assignments: List<TeachingAssignment>? = null,
 )
 
 /** The public half of a teacher account: what the teacher island and the school page show. */
@@ -310,6 +328,46 @@ interface DashboardApi {
     suspend fun home(): HomeResponse
 
     /** The School page's Classes tab (§6 screen 5). A Teacher or Managerial caller may only name her own school. */
+    // ------------------------------------------------------------------ sections, teachers and rosters (N1.1)
+
+    /** `GET /admin/classes`, narrowed by curriculum and grade when they are given. */
+    suspend fun classes(curriculum: Curriculum? = null, grade: Int? = null): List<SchoolClass>
+    suspend fun createSection(request: CreateSectionRequest): SchoolClass
+    suspend fun updateSection(classId: String, request: UpdateSectionRequest): SchoolClass
+
+    /** A new random join code; the old one stops working the moment this returns. */
+    suspend fun regenerateJoinCode(classId: String): SchoolClass
+
+    /** `GET /admin/classes/{id}/join-card.pdf` — the A5 card a school prints and hands to parents. */
+    suspend fun joinCard(classId: String): ByteArray
+
+    suspend fun classAssignments(classId: String): List<TeachingAssignment>
+
+    suspend fun teachers(): List<TeacherAccount>
+
+    /** The reply carries the temporary password once; it cannot be read again. */
+    suspend fun createTeacher(request: CreateTeacherRequest): TeacherCreated
+    suspend fun updateTeacher(userId: String, request: UpdateTeacherRequest): TeacherAccount
+    suspend fun resetTeacherPassword(userId: String): TemporaryPassword
+
+    /** Replaces her whole set. A (class, subject) another teacher holds is 409 naming her. */
+    suspend fun setAssignments(userId: String, request: AssignmentsRequest): List<TeachingAssignment>
+
+    suspend fun classChildren(classId: String): List<RosterChild>
+    suspend fun addChildToClass(classId: String, request: CreateRosterChildRequest): RosterChild
+    suspend fun updateRosterChild(childId: String, request: UpdateRosterChildRequest): RosterChild
+
+    /** CSV or XLSX with `name,parentEmail`; `dryRun` returns the preview without writing anything. */
+    suspend fun importRoster(classId: String, fileName: String, bytes: ByteArray, dryRun: Boolean = true): ImportPreview
+
+    /** The teacher's own roster, behind the `teacher.rosterEdit` flag and scoped to her assignments. */
+    suspend fun myClassChildren(classId: String): List<RosterChild>
+    suspend fun addChildToMyClass(classId: String, request: CreateRosterChildRequest): RosterChild
+    suspend fun updateMyRosterChild(classId: String, childId: String, request: UpdateRosterChildRequest): RosterChild
+
+    /** Public: what a parent sees after typing a join code. Unknown or disabled is a uniform 404. */
+    suspend fun classByJoinCode(code: String): ClassLookup
+
     suspend fun schoolClasses(schoolId: String): List<SchoolClass>
     suspend fun createClass(schoolId: String, request: CreateClassRequest): SchoolClass
     /** Assigns the class's teacher, or hands it back to nobody with `clearTeacher`. */

@@ -156,9 +156,7 @@ class ReportsQueryCountTest extends ApiTestSupport {
     private void klass(String schoolId) {
         String id = schoolId + ":british:1:math";
         if (classes.existsById(id)) return;
-        var k = new Entities.ClassEntity();
-        k.setId(id); k.setSchoolId(schoolId); k.setCurriculum("british"); k.setGrade(1); k.setSubject("math"); k.setCreatedAt(Instant.now());
-        classes.save(k);
+        quest.server.ClassFixtures.section(classes, null, id, schoolId, "british", 1, "math", null);
     }
 
     /** A published lesson with one play, one stop and one attempt, so every branch of `/admin/usage` has work to do. */

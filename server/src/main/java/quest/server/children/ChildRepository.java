@@ -28,6 +28,16 @@ public interface ChildRepository extends JpaRepository<Entities.ChildEntity, Str
     List<Entities.ChildEntity> findBySchoolIdAndDeletedAtIsNullOrderByNameAsc(String schoolId);
     List<Entities.ChildEntity> findBySchoolIdAndCurriculumAndGradeAndDeletedAtIsNullOrderByNameAsc(String schoolId, String curriculum, int grade);
 
+    // -------------------------------------------------------------- rosters (V7)
+
+    /** One section's roster, retired rows included so the Admin screen can show and re-activate them. */
+    List<Entities.ChildEntity> findByClassIdAndDeletedAtIsNullOrderByNameAsc(String classId);
+    List<Entities.ChildEntity> findByClassIdAndActiveTrueAndDeletedAtIsNullOrderByNameAsc(String classId);
+
+    /** `[classId, live children]` for a page of sections at once — one statement rather than one per class. */
+    @Query("select c.classId, count(c) from ChildEntity c where c.classId in :classIds and c.active = true and c.deletedAt is null group by c.classId")
+    List<Object[]> countByClassIdIn(@Param("classIds") List<String> classIds);
+
     /**
      * `[curriculum, grade, live children]` for every course at once — one query instead of one per course, and scoped
      * by the `school` filter like every other read here.

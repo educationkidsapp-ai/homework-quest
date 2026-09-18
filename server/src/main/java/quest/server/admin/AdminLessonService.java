@@ -60,7 +60,7 @@ import quest.server.content.SkillRepository;
 import quest.server.content.SourceFileRepository;
 import quest.server.content.StopRepository;
 import quest.server.files.FileStore;
-import quest.server.tenancy.ClassService;
+
 import quest.server.tenancy.TenantContext;
 import quest.server.tenancy.TenantGuard;
 
@@ -70,12 +70,12 @@ public class AdminLessonService {
     private final LessonRepository lessons; private final SourceFileRepository sourceFiles; private final SkillRepository skills; private final PlayRepository plays; private final StopRepository stops; private final ParentPanelRepository panels;
     private final AnalysisCacheRepository analysisCache; private final LessonStore store; private final AnalysisService analysisService; private final GenerationService generation; private final LessonPipeline pipeline; private final LessonState state;
     private final FileStore files; private final Json json; private final PageImageRepository pageImages; private final String publicUrl; private final LessonSteps steps;
-    private final TenantContext tenant; private final ClassService classes; private final TenantGuard guard;
+    private final TenantContext tenant; private final TenantGuard guard;
     private final quest.server.schools.SchoolService schools;
 
-    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, ClassService classes, TenantGuard guard, quest.server.schools.SchoolService schools) {
+    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, TenantGuard guard, quest.server.schools.SchoolService schools) {
         this.lessons = lessons; this.sourceFiles = sourceFiles; this.skills = skills; this.plays = plays; this.stops = stops; this.panels = panels; this.analysisCache = analysisCache; this.store = store; this.analysisService = analysisService; this.generation = generation; this.pipeline = pipeline; this.state = state; this.files = files; this.json = json;
-        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.classes = classes; this.guard = guard; this.schools = schools;
+        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.guard = guard; this.schools = schools;
     }
 
     /**
@@ -134,9 +134,10 @@ public class AdminLessonService {
         e.setCreatedBy(admin == null ? null : admin.email()); e.setCreatedAt(Instant.now()); e.setUpdatedAt(Instant.now());
         var schoolId = tenant.writeSchoolId();
         var curriculum = req.getCurriculum().name().toLowerCase(); var subject = req.getSubject().name().toLowerCase();
-        var teacherId = guard.lessonCreator(curriculum, req.getGrade(), subject);   // §5: a teacher's subject/curriculum/grades, or 403
+        // D14: the lesson goes into a section the caller holds a teaching assignment on, or 403 (`TenantGuard`).
+        var target = guard.lessonTarget(req.getClassId(), curriculum, req.getGrade(), subject);
         e.setSchoolId(schoolId);
-        e.setClassId(classes.findOrCreateForTeacher(schoolId, curriculum, req.getGrade(), subject, teacherId).getId());
+        e.setClassId(target.section().getId()); e.setTeacherId(target.teacherId());
         if (req.getTitle() != null && !req.getTitle().isBlank()) e.setTitle(req.getTitle().trim());
         if (req.getSource() == LessonSource.MANUAL) {
             // hand-written: straight to review with an empty Level 1; the admin adds stops, writes or generates the rest

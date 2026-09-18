@@ -76,7 +76,7 @@ public class SchoolWizardService {
                     new UserDto.CreateUserRequest(manager.email(), MANAGERIAL, manager.password(), manager.displayName(), null));
             user = new DashboardDto.DashboardUser(created.id(), created.email(), created.role(), created.schoolId(),
                     created.status(), created.displayName(), created.photoUrl(), created.language(),
-                    created.mustChangePassword(), created.lastLoginAt(), created.createdAt(), null, null, school.name());
+                    created.mustChangePassword(), created.lastLoginAt(), created.createdAt(), null, null, school.name(), null);
         }
 
         audit.record(actor.userId(), "school.wizard", "school", school.id(), school.id(),

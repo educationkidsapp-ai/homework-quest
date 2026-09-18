@@ -15,7 +15,15 @@ data class Child(
     val schoolId: String = "default",
 ) { val course: Course get() = Course(curriculum, grade) }
 
-/** `schoolCode` is the 6-character code a parent types to join a school; without it the child lands in the default school. */
+/**
+ * `schoolCode` is the 6-character code a parent types to join a school; without it the child lands in the default
+ * school.
+ *
+ * `joinCode` is the newer, narrower one (V7, `docs/teacher-flow.md` §2): the code printed on a **class**'s card. It
+ * puts the child straight into that section, and the school, curriculum and grade all come from the class — whatever
+ * `curriculum`, `grade` and `schoolCode` say is ignored, because the card is the more specific answer. Both fields
+ * stay so the app keeps working unchanged until it adopts the class code.
+ */
 @Serializable
 data class CreateChildRequest(
     val name: String,
@@ -24,6 +32,7 @@ data class CreateChildRequest(
     val grade: Int,
     val languages: List<String> = listOf("en"),
     val schoolCode: String? = null,
+    val joinCode: String? = null,
 )
 
 @Serializable

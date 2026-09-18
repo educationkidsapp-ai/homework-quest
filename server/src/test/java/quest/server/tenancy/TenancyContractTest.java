@@ -65,7 +65,13 @@ class TenancyContractTest extends ApiTestSupport {
         assertThat(klass.getSchoolId()).isEqualTo("default");
         assertThat(klass.getCurriculum()).isEqualTo("british");
         assertThat(klass.getGrade()).isEqualTo(2);
-        assertThat(klass.getSubject()).isEqualTo("math");
+        // V7 (D14): the class is a **section**, not a (curriculum, grade, subject) triple. An Admin who names no
+        // class gets the school's section for that course — created as "2A" if it had none — and the subject stays
+        // on the lesson, where it belongs, rather than on the class.
+        assertThat(klass.isSection()).isTrue();
+        assertThat(klass.getName()).isEqualTo("2A");
+        assertThat(klass.getJoinCode()).isNotBlank();
+        assertThat(lesson.getSubject()).isEqualTo("math");
     }
 
     @Test void the_tenant_scope_follows_the_token_then_the_header() {

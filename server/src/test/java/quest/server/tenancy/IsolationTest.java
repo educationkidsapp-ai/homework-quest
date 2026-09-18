@@ -67,6 +67,7 @@ class IsolationTest extends ApiTestSupport {
 
     @Autowired SchoolRepository schools;
     @Autowired ClassRepository classes;
+    @Autowired quest.server.tenancy.TeachingAssignmentRepository assignments;
     @Autowired UserRepository users;
     @Autowired TeacherRepository teachers;
     @Autowired LessonRepository lessons;
@@ -328,21 +329,30 @@ class IsolationTest extends ApiTestSupport {
             for (Runnable write : List.<Runnable>of(
                     () -> lessonService.publish(LESSON_A), () -> lessonService.unpublish(LESSON_A), () -> lessonService.delete(LESSON_A),
                     () -> lessonService.retry(LESSON_A), () -> lessonService.deleteFiles(LESSON_A), () -> lessonService.analyze(LESSON_A),
-                    () -> lessonService.create(new CreateLessonRequest(Curriculum.BRITISH, 1, Subject.MATH, kdate(DATE_A), null, 7, LessonSource.MANUAL, "Managerial"), null)))
+                    () -> lessonService.create(new CreateLessonRequest(Curriculum.BRITISH, 1, Subject.MATH, kdate(DATE_A), null, 7, LessonSource.MANUAL, "Managerial", null), null)))
                 assertThatThrownBy(write::run).isInstanceOf(ApiException.class)
                         .satisfies(e -> assertThat(((ApiException) e).error().code()).isEqualTo("forbidden"));
         });
     }
 
-    @Test void a_teacher_creates_lessons_only_for_her_subject_curriculum_and_grades() {
+    /**
+     * V7 (D14): a teacher publishes into a <strong>(class, subject) she holds a teaching assignment for</strong>, not
+     * into whatever her profile's subjects, curriculum and grades happen to list. The fixture gives `teacher-a` one
+     * assignment — British Grade 1 Math — so that combination is hers and every other one is 403, whether it differs
+     * by subject, by curriculum or by grade.
+     */
+    @Test void a_teacher_creates_lessons_only_where_she_holds_an_assignment() {
         as("TEACHER", "teacher-a", A, () -> {
             assertThat(created(Curriculum.BRITISH, 1, Subject.MATH)).isNotNull();                    // hers
-            assertThatThrownBy(() -> created(Curriculum.BRITISH, 1, Subject.ENGLISH)).hasMessageContaining("subject:");
-            assertThatThrownBy(() -> created(Curriculum.AMERICAN, 1, Subject.MATH)).hasMessageContaining("curriculum:");
-            assertThatThrownBy(() -> created(Curriculum.BRITISH, 3, Subject.MATH)).hasMessageContaining("grade:");
+            for (Runnable write : List.<Runnable>of(
+                    () -> created(Curriculum.BRITISH, 1, Subject.ENGLISH),
+                    () -> created(Curriculum.AMERICAN, 1, Subject.MATH),
+                    () -> created(Curriculum.BRITISH, 3, Subject.MATH)))
+                assertThatThrownBy(write::run).isInstanceOf(ApiException.class).hasMessageContaining("You teach")
+                        .satisfies(e -> assertThat(((ApiException) e).error().code()).isEqualTo("forbidden"));
         });
         var mine = lessons.findAll().stream().filter(l -> A.equals(l.getSchoolId()) && !LESSON_A.equals(l.getId())).toList();
-        assertThat(mine).isNotEmpty().allSatisfy(l -> assertThat(classes.findById(l.getClassId()).orElseThrow().getTeacherId()).isEqualTo("teacher-a"));
+        assertThat(mine).isNotEmpty().allSatisfy(l -> assertThat(l.getTeacherId()).isEqualTo("teacher-a"));
     }
 
     @Test void a_child_of_another_school_is_not_found_for_a_scoped_caller() throws Exception {
@@ -407,6 +417,38 @@ class IsolationTest extends ApiTestSupport {
         mvc.perform(get("/teacher/classes/" + CLASS_B + "/students").header("Authorization", "Bearer " + tokenB)).andExpect(status().isOk());
     }
 
+    /**
+     * V7, `docs/teacher-flow.md` §2: inside <em>one</em> school, a teacher reaches only the classes she is assigned
+     * to. The 404s above are the tenant filter; this is {@link TeacherScope}, and the difference matters — a
+     * colleague's class exists and is 403, a stranger's school's does not exist and is 404.
+     */
+    @Test void a_teacher_is_refused_a_colleagues_class_in_her_own_school() throws Exception {
+        String other = A + ":british:2:english";
+        user("teacher-a2", A, "teacher2@alpha.test", "TEACHER");
+        quest.server.ClassFixtures.section(classes, assignments, other, A, "british", 2, "english", "teacher-a2");
+        var tokenA = jwt.issue("teacher-a", "teacher@alpha.test", "TEACHER", A).token();
+
+        var refused = mvc.perform(get("/teacher/classes/" + other + "/students").header("Authorization", "Bearer " + tokenA)).andReturn();
+        assertThat(refused.getResponse().getStatus()).as("a colleague's class exists, and is still not hers").isEqualTo(403);
+        assertThat(refused.getResponse().getContentAsString()).contains("2E");
+        mvc.perform(get("/teacher/classes/" + other + "/calendar?year=2027&month=4").header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/teacher/classes/" + CLASS_A + "/students").header("Authorization", "Bearer " + tokenA)).andExpect(status().isOk());
+    }
+
+    /** And the Admin cannot hand one teacher a (class, subject) another already holds: 409, naming her. */
+    @Test void a_second_teacher_for_the_same_class_and_subject_is_refused_by_name() throws Exception {
+        var admin = adminToken();
+        users.findById("teacher-a").ifPresent(u -> { u.setDisplayName("Sara Al Harbi"); users.save(u); });
+        user("teacher-a3", A, "teacher3@alpha.test", "TEACHER");
+
+        var refused = json(mvc.perform(scoped(put("/admin/teachers/teacher-a3/assignments"), admin, A)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"assignments\":[{\"classId\":\"" + CLASS_A + "\",\"subject\":\"math\"}]}"))
+                .andExpect(status().isConflict()).andReturn());
+        assertThat(refused.get("message").asText()).isEqualTo("1M · math is taught by Sara Al Harbi");
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private JsonNode adminList(String token, String schoolId) throws Exception {
@@ -465,7 +507,7 @@ class IsolationTest extends ApiTestSupport {
     }
 
     private String created(Curriculum curriculum, int grade, Subject subject) {
-        return lessonService.create(new CreateLessonRequest(curriculum, grade, subject, kdate(DATE_A), null, 7, LessonSource.MANUAL, "Teacher lesson"), null).getId();
+        return lessonService.create(new CreateLessonRequest(curriculum, grade, subject, kdate(DATE_A), null, 7, LessonSource.MANUAL, "Teacher lesson", null), null).getId();
     }
 
     private static LessonFilter filter() { return new LessonFilter(null, null, null, null, null, null, null); }
@@ -494,9 +536,7 @@ class IsolationTest extends ApiTestSupport {
     private void klass(String schoolId, String subject, String teacherId) {
         String id = schoolId + ":british:1:" + subject;
         if (classes.existsById(id)) return;
-        var k = new Entities.ClassEntity();
-        k.setId(id); k.setSchoolId(schoolId); k.setCurriculum("british"); k.setGrade(1); k.setSubject(subject); k.setTeacherId(teacherId); k.setCreatedAt(Instant.now());
-        classes.save(k);
+        quest.server.ClassFixtures.section(classes, assignments, id, schoolId, "british", 1, subject, teacherId);
     }
 
     private void lesson(String id, String schoolId, LocalDate date) {

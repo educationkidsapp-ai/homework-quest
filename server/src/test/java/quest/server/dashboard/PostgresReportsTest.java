@@ -48,6 +48,7 @@ class PostgresReportsTest extends PostgresContainerSupport {
     @Autowired SchoolService schools;
     @Autowired SchoolRepository schoolRows;
     @Autowired ClassRepository classRows;
+    @Autowired quest.server.tenancy.TeachingAssignmentRepository assignmentRows;
     @Autowired LessonRepository lessons;
     @Autowired UserRepository users;
     @Autowired TenantContext tenant;
@@ -125,10 +126,7 @@ class PostgresReportsTest extends PostgresContainerSupport {
         user(TEACHER, "teacher@pg-school.test", "TEACHER");
         user(MANAGER, "manager@pg-school.test", "MANAGERIAL");
 
-        var klass = new ClassEntity();
-        klass.setId(SCHOOL + ":british:1:math"); klass.setSchoolId(SCHOOL); klass.setCurriculum("british");
-        klass.setGrade(1); klass.setSubject("math"); klass.setTeacherId(TEACHER); klass.setCreatedAt(Instant.now());
-        classRows.save(klass);
+        quest.server.ClassFixtures.section(classRows, assignmentRows, SCHOOL + ":british:1:math", SCHOOL, "british", 1, "math", TEACHER);
 
         lesson("pg-lesson-1", LocalDate.now(ZoneOffset.UTC), 1_200);
         lesson("pg-lesson-2", LocalDate.now(ZoneOffset.UTC).minusDays(3), 900);

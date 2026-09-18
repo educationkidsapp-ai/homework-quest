@@ -83,8 +83,8 @@ interface ContentApi {
 }
 
 /**
- * What [ContentApi.schoolFlags] answers without a backend: the `default_on` of the 14 §4 flags as
- * `V5__flags_themes.sql` seeds them — on for what ships today, off for what is not built yet.
+ * What [ContentApi.schoolFlags] answers without a backend: the `default_on` of every flag as
+ * `V5__flags_themes.sql` and `V7__sections.sql` seed them — on for what ships today, off for what is not built yet.
  */
 val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "lessons.pdf" to true,
@@ -101,6 +101,15 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "stickers.treasureChest" to true,
     "progress.weeklyEmail" to false,
     "certificates" to true,
+    // N1.1, the one-school build (`docs/prompts/dashboard-first-one-school.md`). All off: `multiSchool` hides the
+    // Admin school screens and the switcher while there is one school, and the rest gate what N2–N4 build.
+    "multiSchool" to false,
+    "webPlayer" to false,
+    "gradebook" to false,
+    "openStopMarking" to false,
+    "exams" to false,
+    "teacher.rosterEdit" to false,
+    "join.byList" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

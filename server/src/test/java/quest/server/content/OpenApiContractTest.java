@@ -58,8 +58,23 @@ class OpenApiContractTest extends ApiTestSupport {
             "/children/{id}/announcements",
             "/children/{id}/teacher-questions/{questionId}", "/children/{id}/teacher-questions/{questionId}/answers");
 
+    /**
+     * N1.1: sections, teaching assignments and class rosters (`quest.api.dashboard.Classes.kt`,
+     * `docs/teacher-flow.md` §1–§2). `/teacher/classes/{classId}/children**` is behind `teacher.rosterEdit` at run
+     * time and is still in the document, for the same reason the teacher's feature routes are: `server/openapi.json`
+     * describes the API the server can serve, not what one school has switched on.
+     */
+    static final List<String> CLASSES_API = List.of(
+            "/admin/classes", "/admin/classes/{id}", "/admin/classes/{id}/join-code",
+            "/admin/classes/{id}/join-card.pdf", "/admin/classes/{id}/assignments",
+            "/admin/classes/{id}/children", "/admin/classes/{id}/children/import", "/admin/children/{id}",
+            "/admin/teachers", "/admin/teachers/{id}", "/admin/teachers/{id}/reset-password",
+            "/admin/teachers/{id}/assignments",
+            "/teacher/classes/{classId}/children", "/teacher/classes/{classId}/children/{childId}");
+
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
-    static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings", "/schools/logo");
+    static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
+            "/schools/logo", "/classes/lookup");
 
     @Test void every_shared_api_route_is_served() throws Exception {
         var doc = json(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn());
@@ -69,6 +84,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(DASHBOARD_API);
         assertThat(paths).containsAll(DASHBOARD_DATA_API);
         assertThat(paths).containsAll(TEACHER_API);
+        assertThat(paths).containsAll(CLASSES_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
     }
