@@ -1,12 +1,16 @@
 package quest.server.classes;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -28,6 +32,10 @@ class SchoolSeedTest extends ClassesTestSupport {
     /** The first row of `teachers.csv`; the load in {@link #loadTheSchool} deliberately runs without a password. */
     private static final String SEEDED_TEACHER = "sara.al-harbi@school.test";
     private static final String STAFF_PASSWORD = "seed-staff-password";
+    /** The slot #70 moved: `assignments.csv` gave 3A British · math to Sara, it now belongs to Omar. */
+    private static final String MOVED = "3A British";
+    private static final String SARA = SEEDED_TEACHER;
+    private static final String OMAR = "omar.nasser@school.test";
 
     @Autowired SchoolSeed seed;
     @Autowired TeacherRepository profiles;
@@ -104,11 +112,82 @@ class SchoolSeedTest extends ClassesTestSupport {
         assertThat(session.get("mustChangePassword").asBoolean()).as("e2e signs in without a first-login dance").isFalse();
     }
 
+    /**
+     * QA is not re-created between deploys: a run whose `assignments.csv` has moved a slot meets the school holding
+     * the old one. #70 moved 3A/3B British · math from Sara to Omar and the seed answered 409 from a
+     * `CommandLineRunner`, which is a Cloud Run revision that never answers `/health`. The file is the truth now.
+     */
+    @Test void a_slot_the_file_moved_is_reconciled_on_the_next_run() {
+        String sara = teacherId(SARA), omar = teacherId(OMAR);
+        move(classId(MOVED), "math", sara);                                     // the school as the previous deploy left it
+
+        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 1, 0));
+
+        assertThat(slotsOf(omar)).containsExactly("3A British · math", "3B British · math");
+        assertThat(slotsOf(sara)).containsExactly("1A British · math", "1B British · math");
+        assertThat(assignments.findAll().stream().filter(a -> SCHOOL.equals(a.getSchoolId()))).hasSize(60);
+    }
+
+    /**
+     * The same slot held by a colleague an Admin typed in by hand is hers: the seed says so at WARN and takes neither
+     * the assignment off her nor the server down. Nothing else in the file moves because of it.
+     */
+    @Test void a_slot_an_admin_gave_away_is_left_alone_and_does_not_throw() {
+        String omar = teacherId(OMAR), moved = classId(MOVED);
+        var outsider = user(SCHOOL + "-outsider", SCHOOL, "admin.made@school.test", "TEACHER");
+        move(moved, "math", outsider.getId());
+
+        assertThatNoException().isThrownBy(() -> seed.load(SCHOOL));
+
+        assertThat(slotsOf(outsider.getId())).containsExactly("3A British · math");
+        assertThat(slotsOf(omar)).as("the file's other rows are untouched").containsExactly("3B British · math");
+
+        assignments.deleteAll(assignments.findAll().stream().filter(a -> outsider.getId().equals(a.getTeacherId())).toList());
+        users.delete(outsider);
+        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 1, 0));
+        assertThat(slotsOf(omar)).containsExactly("3A British · math", "3B British · math");
+    }
+
+    /** A fixture nobody can load is a QA nuisance; a seed that rethrows makes it an outage. Startup goes on. */
+    @Test void a_broken_load_is_logged_and_never_aborts_startup() {
+        assertThatNoException().isThrownBy(() -> seed.load(SCHOOL + "-missing", null, true));
+        assertThat(classes.findAll().stream().filter(k -> (SCHOOL + "-missing").equals(k.getSchoolId()))).isEmpty();
+    }
+
     @Test void a_malformed_row_fails_the_load_naming_its_line() {
         String file = "fullName,email,subjects,curriculum\nSara Al Harbi,sara@school.test,math,british\nbroken\n";
         assertThatThrownBy(() -> SchoolSeed.parse("teachers.csv", file, 4))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("seed/teachers.csv line 3")
                 .hasMessageContaining("4 columns expected, 1 found");
+    }
+    // ---------------------------------------------------------------- reading the seeded school back
+
+    private String teacherId(String email) {
+        return users.findBySchoolIdAndRole(SCHOOL, "TEACHER").stream().filter(u -> email.equalsIgnoreCase(u.getEmail()))
+                .findFirst().orElseThrow().getId();
+    }
+
+    private String classId(String name) {
+        return classes.findAll().stream().filter(k -> SCHOOL.equals(k.getSchoolId()) && name.equals(k.getName()))
+                .findFirst().orElseThrow().getId();
+    }
+
+    /** What she teaches, named the way the files name it. */
+    private List<String> slotsOf(String teacherId) {
+        var names = new LinkedHashMap<String, String>();
+        classes.findAll().forEach(k -> names.put(k.getId(), k.getName()));
+        return assignments.findAll().stream().filter(a -> SCHOOL.equals(a.getSchoolId()) && teacherId.equals(a.getTeacherId()))
+                .map(a -> names.get(a.getClassId()) + " · " + a.getSubject()).sorted().toList();
+    }
+
+    /** Hands a slot to somebody else behind the service's back — the state a previous deploy leaves behind. */
+    private void move(String classId, String subject, String teacherId) {
+        assignments.deleteAll(assignments.findAll().stream()
+                .filter(a -> SCHOOL.equals(a.getSchoolId()) && classId.equals(a.getClassId()) && subject.equals(a.getSubject())).toList());
+        var row = new TeachingAssignmentEntity();
+        row.setId(UUID.randomUUID().toString()); row.setSchoolId(SCHOOL); row.setTeacherId(teacherId);
+        row.setClassId(classId); row.setSubject(subject); row.setCreatedAt(Instant.now());
+        assignments.save(row);
     }
 }
