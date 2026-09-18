@@ -11,7 +11,31 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public final class StopIds {
     private StopIds() {}
 
-    public static String prefix(String lessonId, int level, int variant) { return lessonId.substring(0, Math.min(8, lessonId.length())) + ":" + level + ":" + variant + ":"; }
+    public static String prefix(String lessonId, int level, int variant) { return prefix8(lessonId) + ":" + level + ":" + variant + ":"; }
+
+    /** The lesson's share of every id it owns — stops, page images and skills all start with it. */
+    public static String prefix8(String lessonId) { return lessonId.substring(0, Math.min(8, lessonId.length())); }
+
+    /**
+     * Moves every lesson-unique id in a subtree from one lesson to another: how a lesson is copied into a sibling
+     * class (N2.1). Only the fields that <em>are</em> ids are touched — `id`, `stopId`, `pageImageId`, `skillId`,
+     * `imageId` — and only when they already carry the source lesson's prefix, so prose that happens to look like an
+     * id is left alone and an id that was never prefixed (a hand-written stop from another lesson) is not invented.
+     *
+     * <p>The play's own `"<lessonId>:<level>:<variant>"` is not of this shape and is rewritten by the caller.
+     */
+    public static void reprefix(JsonNode node, String fromLessonId, String toLessonId) {
+        String from = prefix8(fromLessonId) + ":", to = prefix8(toLessonId) + ":";
+        rewrite(node, from, to);
+    }
+
+    private static void rewrite(JsonNode node, String from, String to) {
+        if (node instanceof ObjectNode o) {
+            for (String field : new String[] {"id", "stopId", "pageImageId", "skillId", "imageId"})
+                if (o.hasNonNull(field) && o.get(field).asText().startsWith(from)) o.put(field, to + o.get(field).asText().substring(from.length()));
+            o.fields().forEachRemaining(e -> rewrite(e.getValue(), from, to));
+        } else if (node instanceof ArrayNode a) for (JsonNode n : a) rewrite(n, from, to);
+    }
 
     /** Rewrites every stop id (including exit-ticket questions) in a play JSON tree in place. */
     public static void relabel(ObjectNode play, String lessonId, int level, int variant) {
@@ -65,7 +89,7 @@ public final class StopIds {
     }
 
     /** Hand-written stops already carry the lesson prefix; model ids do not. */
-    private static String withPrefix(String lessonId, int level, String id) {
+    public static String withPrefix(String lessonId, int level, String id) {
         String p = prefix(lessonId, level, 0);
         return id.startsWith(p) ? id : p + id;
     }

@@ -167,6 +167,41 @@ abstract class TeacherTestSupport extends ApiTestSupport {
     /** The single-answer stop {@link #lessonWithSkill} puts in the lesson, which the attempts below answer. */
     static String stopId(String lessonId) { return lessonId + ":stop-1"; }
 
+    /**
+     * A lesson `AdminLessonService.publish` will accept: three levels, the Again variant, a parent panel and one
+     * confirmed skill — what `LessonStore.assemble` insists on. Its ids carry the lesson's own prefix, the way the
+     * pipeline writes them, so a copy of it has something real to rewrite.
+     */
+    LessonEntity readyLesson(String id, String schoolId, String classId, String curriculum, int grade, String subject,
+                             LocalDate date) {
+        var l = lesson(id, schoolId, classId, curriculum, grade, subject, date, "review");
+        l.setVersion(0); l.setPublishedAt(null); l.setSourceHash("hash-" + id); lessons.save(l);
+        for (int level = 1; level <= 3; level++) store.savePlay(id, play(id, level, 0), "v1", level);
+        store.savePlay(id, play(id, 1, 1), "v1", 9);
+        store.savePanel(id, new quest.api.dto.ParentPanel(
+                new quest.api.dto.BilingualList(List.of("Practise together."), List.of("تدرّبوا معًا.")),
+                List.of(new Bilingual("Count them out loud.", "عدّوا بصوت عالٍ.")),
+                List.of(new Bilingual("Try the next ten.", "جرّبوا العشرة التالية.")),
+                List.of(new quest.api.dto.StopTip(prefixed(id, 1, 0), "Ask them to count again.", "اطلبوا العدّ مجددًا.")),
+                List.of()));
+        var skill = new SkillEntity();
+        skill.setId(quest.server.analysis.StopIds.prefix8(id) + ":skill-1"); skill.setLessonId(id); skill.setName("Counting");
+        skill.setSubject(subject); skill.setMethod("practice"); skill.setConfidence(1.0); skill.setConfirmed(true);
+        skill.setPosition(0);
+        skills.save(skill);
+        return l;
+    }
+
+    private static Play play(String lessonId, int level, int variant) {
+        return new Play(level, variant, SourceKind.MATH, new Theme("Pot", "Soup", "🍲", "Served!"),
+                List.of(choice(prefixed(lessonId, level, variant), "Pick one")), null);
+    }
+
+    /** The lesson-unique stop id the pipeline would write: `<lesson8>:<level>:<variant>:s1`. */
+    static String prefixed(String lessonId, int level, int variant) {
+        return quest.server.analysis.StopIds.prefix(lessonId, level, variant) + "s1";
+    }
+
     /** A child of a school, created through the parent API so its parent row and foreign keys are real. */
     String child(String name, String schoolCode, String curriculum, int grade) throws Exception {
         return parentPost("/children", "{\"name\":\"" + name + "\",\"avatarColor\":\"sun\",\"curriculum\":\"" + curriculum
@@ -216,10 +251,14 @@ abstract class TeacherTestSupport extends ApiTestSupport {
         answerRows.deleteAll(answerRows.findAll().stream().filter(a -> a.getSchoolId().startsWith(p)).toList());
         questionRows.deleteAll(questionRows.findAll().stream().filter(q -> q.getSchoolId().startsWith(p)).toList());
         announcementRows.deleteAll(announcementRows.findAll().stream().filter(a -> a.getSchoolId().startsWith(p)).toList());
-        attempts.deleteAll(attempts.findAll().stream().filter(a -> a.getId().startsWith(p) || a.getLessonId().startsWith(p)).toList());
-        skills.deleteAll(skills.findAll().stream().filter(s -> s.getLessonId().startsWith(p)).toList());
-        stops.deleteAll(stops.findAll().stream().filter(s -> s.getLessonId().startsWith(p)).toList());
-        plays.deleteAll(plays.findAll().stream().filter(x -> x.getLessonId().startsWith(p)).toList());
-        lessons.deleteAll(lessons.findAll().stream().filter(l -> l.getId().startsWith(p)).toList());
+        // A lesson made through the API carries a UUID, not the test's prefix, so the set is "this test's schools'
+        // lessons" and everything that hangs off one is matched by id against that set rather than by prefix.
+        var mine = lessons.findAll().stream().filter(l -> l.getId().startsWith(p) || l.getSchoolId().startsWith(p)).toList();
+        var ids = mine.stream().map(quest.server.content.Entities.LessonEntity::getId).collect(java.util.stream.Collectors.toSet());
+        attempts.deleteAll(attempts.findAll().stream().filter(a -> a.getId().startsWith(p) || ids.contains(a.getLessonId())).toList());
+        skills.deleteAll(skills.findAll().stream().filter(s -> ids.contains(s.getLessonId())).toList());
+        stops.deleteAll(stops.findAll().stream().filter(s -> ids.contains(s.getLessonId())).toList());
+        plays.deleteAll(plays.findAll().stream().filter(x -> ids.contains(x.getLessonId())).toList());
+        lessons.deleteAll(mine);
     }
 }

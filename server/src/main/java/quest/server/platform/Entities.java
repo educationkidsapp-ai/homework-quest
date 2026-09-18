@@ -21,6 +21,9 @@ public final class Entities {
         @Column(name = "logo_url") private String logoUrl;
         @Column(name = "support_email") private String supportEmail;
         @Column(name = "default_theme_json") private String defaultThemeJson;
+        /** V7, N2.1: the teaching days as a JSON list of three-letter `DayOfWeek` names, and the IANA zone. */
+        @Column(name = "school_week_json", nullable = false) private String schoolWeekJson = "[]";
+        @Column(nullable = false) private String timezone = "UTC";
         @Column(name = "updated_at", nullable = false) private Instant updatedAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getName() { return name; } public void setName(String v) { name = v; }
@@ -28,6 +31,8 @@ public final class Entities {
         public String getLogoUrl() { return logoUrl; } public void setLogoUrl(String v) { logoUrl = v; }
         public String getSupportEmail() { return supportEmail; } public void setSupportEmail(String v) { supportEmail = v; }
         public String getDefaultThemeJson() { return defaultThemeJson; } public void setDefaultThemeJson(String v) { defaultThemeJson = v; }
+        public String getSchoolWeekJson() { return schoolWeekJson; } public void setSchoolWeekJson(String v) { schoolWeekJson = v; }
+        public String getTimezone() { return timezone; } public void setTimezone(String v) { timezone = v; }
         public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }
     }
 }

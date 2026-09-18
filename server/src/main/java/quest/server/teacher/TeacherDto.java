@@ -40,13 +40,73 @@ public final class TeacherDto {
     // ---------------------------------------------------------------- my lessons (§6 screen 12)
 
     /**
-     * One day of a class's month. `schoolDay` is what makes `gap` meaningful — see
-     * {@link TeacherCalendarService#SCHOOL_WEEK} for the Sunday–Thursday assumption and how to lift it.
+     * One day of a class's month. `schoolDay` is what makes `gap` meaningful, and since N2.1 it comes from the
+     * school's own week ({@link quest.server.platform.SchoolCalendar}) rather than a Sunday–Thursday constant.
+     * `status` is the week grid's coarse vocabulary — see {@link #DRAFT} — so one screen's words are every screen's.
      */
-    public record ClassCalendarDay(String date, String lessonId, String status, boolean schoolDay, boolean gap) {}
+    public record ClassCalendarDay(String date, String lessonId, String status, String type, int playedCount,
+                                   boolean schoolDay, boolean gap) {}
 
     public record ClassCalendar(String classId, String curriculum, int grade, String subject, int year, int month,
                                 List<ClassCalendarDay> days, int gaps) {}
+
+
+    // ---------------------------------------------------------------- this week and my classes (N2.1, §4, §7)
+
+    /**
+     * The three words §4 gives a lesson, which is coarser than `LessonStatus` on purpose: `draft` is everything
+     * still being made (draft, uploading, analyzing, needs_review, generating, error, paused), `ready` is `review`
+     * — made and waiting to be published — and `published` is live. `none` is an empty cell.
+     */
+    public static final String NONE = "none", DRAFT = "draft", READY = "ready", PUBLISHED = "published";
+
+    /** The lesson in one cell; `playedCount` of `childrenCount` is §4's "12/24 played", with no second request. */
+    public record WeekLesson(String id, String title, String status, String type, int playedCount, int childrenCount,
+                             int version) {}
+
+    /** The exam window a cell falls in (N4.3). Always null today; the field exists so the grid is not reshaped. */
+    public record WeekExam(String lessonId, String opensAt, String closesAt) {}
+
+    public record WeekCell(String date, WeekLesson lesson, WeekExam exam) {}
+
+    /** One row of the grid: one teaching assignment, one cell per teaching day. */
+    public record WeekRow(String classId, String className, String curriculum, int grade, String subject,
+                          List<WeekCell> cells) {}
+
+    /** A school day of one of her classes with nothing on it, named so the strip can say "1B · Tuesday". */
+    public record WeekGap(String classId, String className, String date) {}
+
+    /** The strip under the grid; `examsClosing` and `marksWaiting` stay empty until N4. */
+    public record WeekSummary(List<WeekGap> gaps, List<WeekGap> examsClosing, int marksWaiting) {}
+
+    /** `GET /teacher/week`: `start` is the requested day snapped back to the week's first teaching day. */
+    public record TeacherWeek(String start, List<String> days, List<WeekRow> rows, WeekSummary summary) {}
+
+    /** `GET /teacher/classes` (§7): one card per assignment. */
+    public record TeacherClassCard(String classId, String className, String curriculum, int grade, String subject,
+                                   String todayLessonId, String todayStatus, int childrenCount, int playedToday) {}
+
+    // ---------------------------------------------------------------- her lessons (N2.1, §8)
+
+    /** `(classId, subject)` must be one of her assignments — 403 otherwise, whatever the chooser offered. */
+    public record CreateTeacherLessonRequest(@NotBlank String classId, @NotBlank String subject, @NotBlank String date,
+                                             @NotBlank String source, @Size(max = 200) String title,
+                                             @Size(max = 2000) String notes, Integer practiceLength) {}
+
+    /** Moving a lesson to another day. 409 once it is published: unpublish it first. */
+    public record MoveLessonRequest(@NotBlank String date) {}
+
+    /** A full copy into another class of the same grade and subject she teaches. */
+    public record CopyLessonRequest(@NotBlank String classId) {}
+
+    /**
+     * The complete set of classes the lesson should be live in. The lesson's own class is not implied — name it to
+     * publish it, leave it out to publish only the copies.
+     */
+    public record PublishToClassesRequest(List<String> classIds) {}
+
+    /** One result of a publish: the class, the lesson row live in it, and the version that publish produced. */
+    public record PublishedCopy(String classId, String lessonId, int version) {}
 
     // ---------------------------------------------------------------- questions to students (§6 screen 14)
 

@@ -73,4 +73,11 @@ data class PlatformSettings(
     val logoUrl: String? = null,
     val supportEmail: String? = null,
     val defaultTheme: SchoolTheme? = null,
+    /**
+     * N2.1: the teaching days, as three-letter `java.time.DayOfWeek` names in the order the week runs
+     * (`["SUN","MON","TUE","WED","THU"]` by default), and the IANA zone its days turn over in. Public, because the
+     * teacher's week grid cannot be laid out without them and a school may override both.
+     */
+    val schoolWeek: List<String> = emptyList(),
+    val timezone: String? = null,
 )

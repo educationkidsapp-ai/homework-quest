@@ -30,6 +30,15 @@ public interface LessonRepository extends JpaRepository<Entities.LessonEntity, S
     List<Entities.LessonEntity> findByClassIdAndDateBetweenOrderByDateAsc(String classId, LocalDate from, LocalDate to);
 
     /**
+     * Every lesson of a teacher's classes inside a window — the whole of `GET /teacher/week` and `GET /teacher/classes`
+     * in one statement, however many assignments she holds (`TeacherWeekQueryCountTest` pins it).
+     */
+    List<Entities.LessonEntity> findByClassIdInAndDateBetweenOrderByDateAsc(Collection<String> classIds, LocalDate from, LocalDate to);
+
+    /** One class's lessons on one day, for the duplicate a publish-to-siblings must reuse instead of copying again. */
+    List<Entities.LessonEntity> findByClassIdAndSubjectAndDateOrderByCreatedAtAsc(String classId, String subject, LocalDate date);
+
+    /**
      * Look a lesson up through a query, not `em.find`: Hibernate filters do not apply to `find`, so a `findById` would
      * hand a scoped caller a lesson of another school. Everything user-facing goes through here.
      */

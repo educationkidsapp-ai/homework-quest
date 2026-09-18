@@ -111,6 +111,19 @@ data class AdminLesson(
     /** The school the lesson belongs to — the Admin's All-lessons school column (§6 screen 8). */
     val schoolId: String? = null,
     val schoolName: String? = null,
+    /** N2.1: the section it was written for and who wrote it — the editor's fixed "1B · Maths · Ms Sara" header. */
+    val classId: String? = null,
+    val className: String? = null,
+    val teacherId: String? = null,
+    val teacherName: String? = null,
+    /** Homework, or an exam (N4.3). */
+    val type: quest.api.dashboard.LessonType = quest.api.dashboard.LessonType.HOMEWORK,
+    /**
+     * True when this lesson's source files were already in `analysis_cache` before it was created — the editor's
+     * "Analyzed before · 0 tokens" badge. [tokenUsage] is what this lesson actually spent, which is 0 on a full
+     * cache hit and on a copy; [tokensSaved] is what the cache avoided.
+     */
+    val analyzedBefore: Boolean = false,
 )
 
 @Serializable data class CacheEntry(val fileHash: String, val curriculum: Curriculum, val grade: Int, val subject: Subject, val promptVersion: String, val tokenUsage: Long, val createdAt: Long, val hits: Int, val lessonIds: List<String>)

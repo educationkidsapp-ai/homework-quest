@@ -54,7 +54,8 @@ public final class Entities {
         public Instant getDeletedAt() { return deletedAt; } public void setDeletedAt(Instant v) { deletedAt = v; }
     }
 
-    @Entity @Table(name = "attempts")
+    /** Named for JPQL like its neighbours: a nested `@Entity` has no usable default name in a query. */
+    @Entity(name = "AttemptEntity") @Table(name = "attempts")
     public static class AttemptEntity {
         @Id private String id;
         @Column(name = "child_id", nullable = false) private String childId;
