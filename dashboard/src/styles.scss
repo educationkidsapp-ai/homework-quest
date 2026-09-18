@@ -176,3 +176,44 @@ a {
   white-space: nowrap;
   border: 0;
 }
+
+// A small boxed note beside a title — "Analyzed before · 0 tokens" on the lesson header and on
+// the list's rows. Global rather than per-screen because it is the same badge in both places and
+// `lesson.page.scss` is already at its 10 kB budget; anything that appears twice belongs here.
+.hq-badge {
+  padding: var(--hq-space-4) var(--hq-space-8);
+  border: var(--hq-size-rule) solid var(--hq-color-line);
+  background: var(--hq-color-accent-soft);
+  font-size: var(--hq-font-label-size);
+  white-space: nowrap;
+}
+
+// `hq-button`'s secondary box on an `<a>`. A control that navigates has to be a link — so that
+// middle-click, "open in new tab" and the status bar all work — but it should not look different
+// from the buttons beside it.
+.hq-linkbutton {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--hq-size-button-height);
+  padding-inline: var(--hq-space-16);
+  border: var(--hq-size-rule) solid var(--hq-color-ink);
+  background: var(--hq-color-surface);
+  color: var(--hq-color-ink);
+  font-weight: var(--hq-font-label-weight);
+  text-decoration: none;
+}
+
+// A group of checkboxes with a caption: the semantics a screen reader wants, without the
+// browser's fieldset chrome or the legend's inline indent, which would misalign the boxes below
+// it by a few pixels for no reason anyone chose.
+.hq-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-12);
+  padding: 0;
+  border: 0;
+
+  > legend {
+    padding-inline: 0;
+  }
+}

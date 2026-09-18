@@ -62,7 +62,7 @@
           [label]="'lessons.view.label' | transloco"
         />
 
-        @if (hasFailed()) {
+        @if (hasFailed() && canDeleteFailed()) {
           <hq-button *hqCan="'lesson.delete'" variant="quiet" (pressed)="requestDeleteAllFailed()">
             {{ 'lessons.deleteAllFailed' | transloco }}
           </hq-button>
@@ -112,6 +112,11 @@
     @switch (column.key) {
       @case ('title') {
         <a [routerLink]="[basePath(), row.id]">{{ row.title }}</a>
+        @if (row.analyzedBefore) {
+          <span class="hq-badge lessons__badge" [title]="row.analyzedBeforeTooltip">
+            {{ 'lessons.analyzedBefore' | transloco }}
+          </span>
+        }
       }
       @case ('classLabel') {
         {{ row.classLabel }}

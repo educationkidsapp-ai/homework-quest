@@ -122,9 +122,9 @@ test("Add today's lesson lands on New lesson, pre-set to that class and today", 
 
   await expect(page).toHaveURL(/lessons\/new\?.*classId=/);
   await expect(page.getByRole('heading', { name: 'New lesson' })).toBeVisible();
-  await expect(page.getByLabel('Curriculum')).toHaveValue('british');
-  await expect(page.getByLabel('Grade')).toHaveValue('1');
-  await expect(page.getByLabel('Subject')).toHaveValue('math');
+  // N2.4b: the link names her section and the section is the whole course — a teacher's New
+  // lesson has one picker, already filled and locked, rather than three she must agree with.
+  await expect(page.getByLabel('Class')).toHaveValue(/1b british::math$/i);
 
   const today = new Date().toISOString().slice(0, 10);
   const date = new URL(page.url()).searchParams.get('date') ?? '';

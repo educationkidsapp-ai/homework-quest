@@ -35,11 +35,17 @@ async function settle(): Promise<void> {
   TestBed.tick();
 }
 
-async function renderTeacher(options: {
-  curriculum?: string;
-  grades?: readonly number[];
-  subjects?: readonly string[];
-}) {
+/**
+ * A teacher authors into one of her **assignments**, so the page reads `GET /teacher/classes`
+ * and nothing else: N2.4b dropped `GET /teacher/options` from this screen entirely (see the
+ * comment on `availableCurricula`).
+ */
+const SARA_CLASSES = [
+  { classId: 'c-1a', className: '1A', curriculum: 'british', grade: 1, subject: 'math', childrenCount: 18 },
+  { classId: 'c-1b', className: '1B', curriculum: 'british', grade: 1, subject: 'math', childrenCount: 19 },
+];
+
+async function renderTeacher(classes: readonly unknown[] = [SARA_CLASSES[0]!]) {
   const rendered = await renderHq(NewLessonPage, { providers });
   const backend = TestBed.inject(HttpTestingController);
 
@@ -47,13 +53,7 @@ async function renderTeacher(options: {
   TestBed.inject(AuthService).loadMe().subscribe();
   backend.expectOne('/me').flush(TEACHER_USER);
   await settle();
-  backend.expectOne('/teacher/options').flush({
-    curriculum: options.curriculum ?? 'british',
-    grades: options.grades ?? [1],
-    subjects: options.subjects ?? ['math'],
-    classes: [],
-    complete: true,
-  });
+  backend.expectOne('/teacher/classes').flush([...classes]);
   await settle();
 
   return { rendered, backend };
@@ -110,14 +110,6 @@ async function renderFromWeekPlus(params: Record<string, string>) {
   TestBed.inject(AuthService).loadMe().subscribe();
   backend.expectOne('/me').flush(TEACHER_USER);
   await settle();
-  backend.expectOne('/teacher/options').flush({
-    curriculum: 'british',
-    grades: [1, 3],
-    subjects: ['math', 'english'],
-    classes: [],
-    complete: true,
-  });
-  await settle();
   backend.expectOne('/teacher/classes').flush([
     { classId: 'c-1a', className: '1A', curriculum: 'british', grade: 1, subject: 'math', childrenCount: 18 },
     { classId: 'c-3a', className: '3A', curriculum: 'british', grade: 3, subject: 'math', childrenCount: 20 },
@@ -132,16 +124,24 @@ describe('New lesson', () => {
 
   // ---- the chooser -----------------------------------------------------------------------
 
-  it('restricts a teacher to her own curriculum and grade, auto-selecting a single option', async () => {
-    await renderTeacher({ curriculum: 'british', grades: [1], subjects: ['math', 'english'] });
+  it('offers a teacher her assignments, not a course, and picks the only one for her', async () => {
+    await renderTeacher();
 
-    // Curriculum and grade have one option each and are pre-filled.
-    expect(screen.getByLabelText('Curriculum')).toHaveValue('british');
-    expect(screen.getByLabelText('Grade')).toHaveValue('1');
-    // Subject has two, so it is left for the teacher to choose.
-    expect(screen.getByLabelText('Subject')).toHaveValue('');
-    // Every subject a teacher's classes cover is offered — never the platform's full list.
-    expect(screen.queryByRole('option', { name: 'Science' })).not.toBeInTheDocument();
+    // §4: class and subject are fixed — a curriculum/grade pair cannot tell 1A from 1B.
+    expect(screen.queryByLabelText('Curriculum')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Subject')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Class')).toHaveValue('c-1a::math');
+  });
+
+  it('leaves the class for the teacher to choose when she has more than one', async () => {
+    await renderTeacher(SARA_CLASSES);
+
+    expect(screen.getByLabelText('Class')).toHaveValue('');
+    expect(screen.getByRole('option', { name: '1A · Math · British' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '1B · Math · British' })).toBeInTheDocument();
+    // Nothing downstream until she picks: the primary action says which step is missing.
+    expect(screen.getByRole('button', { name: 'Create the lesson' })).toBeDisabled();
+    expect(screen.getAllByText('Choose a class to continue.').length).toBeGreaterThan(0);
   });
 
   it('an admin must pick a school before starting a lesson', async () => {
@@ -163,7 +163,7 @@ describe('New lesson', () => {
   // ---- source cards behind their flag ------------------------------------------------------
 
   it('hides a source card whose flag is off', async () => {
-    const { backend } = await renderTeacher({ subjects: ['math'] });
+    const { backend } = await renderTeacher();
     await flushFlags(backend, TEACHER_USER.schoolId ?? '', { ...ALL_FLAGS_ON, 'lessons.manual': false });
 
     expect(screen.getByRole('button', { name: /Upload a PDF/ })).toBeInTheDocument();
@@ -173,7 +173,7 @@ describe('New lesson', () => {
   // ---- file limits: 25 MB/file, 100 MB total, 10 files -----------------------------------
 
   it('rejects a file over 25 MB by name, and does not add it', async () => {
-    const { backend } = await renderTeacher({ subjects: ['math'] });
+    const { backend } = await renderTeacher();
     await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
 
     await userEvent.click(screen.getByRole('button', { name: /Upload a PDF/ }));
@@ -185,7 +185,7 @@ describe('New lesson', () => {
   });
 
   it('keeps only the first 10 images and says so, rather than silently dropping the rest', async () => {
-    const { backend } = await renderTeacher({ subjects: ['math'] });
+    const { backend } = await renderTeacher();
     await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
 
     await userEvent.click(screen.getByRole('button', { name: /Upload photos/ }));
@@ -199,7 +199,7 @@ describe('New lesson', () => {
   // ---- create → upload → analyze, with rollback --------------------------------------------
 
   it('creates a lesson, uploads its file, starts analysis, and lands on the lesson route', async () => {
-    const { backend } = await renderTeacher({ subjects: ['math'] });
+    const { backend } = await renderTeacher();
     await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
@@ -212,13 +212,23 @@ describe('New lesson', () => {
     expect(create).toBeEnabled();
     await userEvent.click(create);
 
-    backend
-      .expectOne('/admin/lessons')
-      .flush({ id: 'l-9', course: { curriculum: 'british', grade: 1 }, subject: 'math', date: '2026-09-17' });
+    const created = backend.expectOne('/teacher/lessons');
+    expect(created.request.body).toMatchObject({
+      classId: 'c-1a',
+      subject: 'math',
+      source: 'pdf',
+      practiceLength: 7,
+    });
+    created.flush({
+      id: 'l-9',
+      course: { curriculum: 'british', grade: 1 },
+      subject: 'math',
+      date: '2026-09-17',
+    });
     await settle();
-    backend.expectOne('/admin/lessons/l-9/files').flush({ jobId: 'j-1', status: 'uploading' });
+    backend.expectOne('/teacher/lessons/l-9/files').flush({ jobId: 'j-1', status: 'uploading' });
     await settle();
-    backend.expectOne('/admin/lessons/l-9/analyze').flush({ jobId: 'j-2', status: 'analyzing' });
+    backend.expectOne('/teacher/lessons/l-9/analyze').flush({ jobId: 'j-2', status: 'analyzing' });
     await settle();
 
     expect(navigate).toHaveBeenCalledWith(
@@ -228,7 +238,7 @@ describe('New lesson', () => {
   });
 
   it('rolls the draft lesson back when the upload fails, leaving no orphan', async () => {
-    const { backend } = await renderTeacher({ subjects: ['math'] });
+    const { backend } = await renderTeacher();
     await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
 
     await userEvent.click(screen.getByRole('button', { name: /Upload a PDF/ }));
@@ -237,18 +247,18 @@ describe('New lesson', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Create and read the PDF' }));
 
     backend
-      .expectOne('/admin/lessons')
+      .expectOne('/teacher/lessons')
       .flush({ id: 'l-9', course: { curriculum: 'british', grade: 1 }, subject: 'math', date: '2026-09-17' });
     await settle();
     backend
-      .expectOne('/admin/lessons/l-9/files')
+      .expectOne('/teacher/lessons/l-9/files')
       .flush(
         { code: 'bad_request', message: 'The file is corrupt.' },
         { status: 400, statusText: 'Bad Request' },
       );
     await settle();
 
-    backend.expectOne('/admin/lessons/l-9').flush({ deleted: true });
+    backend.expectOne('/teacher/lessons/l-9').flush({ deleted: true });
     await settle();
 
     expect(screen.getByRole('alert')).toHaveTextContent('The file is corrupt.');
@@ -266,9 +276,11 @@ describe('New lesson', () => {
     await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
 
-    // `grade=1` in the link loses to the class it names: 3A is a Grade 3 section.
-    expect(screen.getByLabelText('Grade')).toHaveValue('3');
-    expect(screen.getByLabelText('Subject')).toHaveValue('math');
+    // `grade=1` in the link loses to the class it names: 3A is a Grade 3 section, and the
+    // select is disabled because the `+` already decided which one this lesson belongs to.
+    const classSelect = screen.getByLabelText('Class');
+    expect(classSelect).toHaveValue('c-3a::math');
+    expect(classSelect).toBeDisabled();
 
     await userEvent.click(screen.getByRole('button', { name: /Write it yourself/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Create and write the questions' }));
@@ -282,6 +294,7 @@ describe('New lesson', () => {
       source: 'manual',
       practiceLength: 7,
       title: undefined,
+      notes: undefined,
     });
     request.flush({ id: 'l-7' });
     await settle();

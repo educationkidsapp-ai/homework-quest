@@ -143,7 +143,10 @@ test('Sara writes a lesson by hand and it opens on the editor', async ({ page })
   await page.goto(`teacher/lessons/new?${query.toString()}`);
 
   await expect(page.getByRole('heading', { name: 'New lesson' })).toBeVisible();
-  await expect(page.getByLabel('Subject')).toHaveValue('math');
+  // N2.4b: a teacher authors into a *section*, so the one picker is the class the `+` named and
+  // it is fixed — the curriculum/grade/subject trio is the Admin's, and cannot tell 1A from 1B.
+  await expect(page.getByLabel('Class')).toHaveValue(`${classId}::math`);
+  await expect(page.getByLabel('Class')).toBeDisabled();
   await page.getByLabel('Title').fill(TITLE);
   await page.getByRole('button', { name: /Write it yourself/ }).click();
   await page.getByRole('button', { name: 'Create and write the questions' }).click();

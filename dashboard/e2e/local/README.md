@@ -78,6 +78,8 @@ fails `generate_L2` once per lesson would make the happy-path run flaky.
 | a teacher is offered nothing of the Admin's | the rail, and the URL behind it                                 |
 | `?` opens the sheet, Esc closes it          | the keyboard contract (§7)                                      |
 | the screenshot set                          | the RTL mirror, silently                                        |
+| a teacher publishes to her sibling class    | the fan-out sheet, and `classIds` reaching the teacher route    |
+| a hard reload with `ar` stored              | a nav rail of raw keys while `ar.json` is still on the wire     |
 | an Admin creates 1A/1B with distinct codes  | the Classes screen, and `POST /admin/classes` reaching a school |
 | a temporary password shows once, then goes  | a secret kept on screen for as long as the tab is open          |
 | a second Math teacher for 1A is refused     | N1.1's unique constraint never reaching the person (N1.2)       |
@@ -93,13 +95,14 @@ Run it with `SEED_SCHOOL=false` unless you want the 30-class seed behind it.
 levels + Again, the pinned phone preview and publish; `lesson-retry.spec.ts` proves a failed
 step actually retries past its failure (see above).
 
-Screenshots land in `docs/screenshots/dashboard-p3.1/`, `docs/screenshots/dashboard-p3.2d/` and
-`docs/screenshots/dashboard-n1.2/`
+Screenshots land in `docs/screenshots/dashboard-p3.1/`, `docs/screenshots/dashboard-p3.2d/`,
+`docs/screenshots/dashboard-n1.2/` and `docs/screenshots/dashboard-n2.4b/`
 (1366 × 768, EN and AR) and are committed.
 
-`this-week.spec.ts` (N2.2) and `my-classes.spec.ts` (N2.3) are the suites that want the
-**one-school seed**, so they need their own server (`pnpm e2e:local my-classes` for the second;
-its screenshots land in `docs/screenshots/dashboard-n2.3/`):
+`this-week.spec.ts` (N2.2), `my-classes.spec.ts` (N2.3), `lesson-editor.spec.ts` (N2.4a) and
+`lesson-publish.spec.ts` (N2.4b) are the suites that want the **one-school seed**, so they need
+their own server (`pnpm e2e:local my-classes` for the second; its screenshots land in
+`docs/screenshots/dashboard-n2.3/`, N2.4b's in `docs/screenshots/dashboard-n2.4b/`):
 
 ```bash
 SPRING_PROFILES_ACTIVE=h2 SEED_SCHOOL=true SEED_STAFF_PASSWORD="$E2E_STAFF_PASSWORD" \
@@ -114,6 +117,17 @@ sections of the same grade *and* subject, creates one more Grade 1 British secti
 Admin API in `beforeAll` and assigns it to her — the drag-to-copy rule needs a sibling row. It
 creates lessons, so **start it against a fresh H2**: a second run on the same database finds the
 week already full and has no empty cell left to press `+` on.
+
+`lesson-publish.spec.ts` (N2.4b) runs teacher-flow Step 8 on the same seed: Sara creates a
+lesson on 1A, publishes it to 1A **and** 1B from the sheet, checks both calendars, unpublishes
+with the 10 s Undo, moves and deletes a draft, and earns the "Analyzed before · 0 tokens" badge
+by uploading the fixture PDF twice. It also holds `assets/i18n/ar.json` back 1.5 s and hard-reloads
+a lesson with `ar` stored — the regression `provideLanguage()` closed. Unlike `this-week.spec.ts`
+it picks a fresh stretch of future days on every run, so a second run needs no fresh database:
+
+```bash
+cd dashboard && pnpm build --configuration=production && pnpm e2e:local lesson-publish
+```
 
 ## The static server
 

@@ -72,6 +72,26 @@ export function createLessonBody(request: CreateLessonRequest): string {
   return JSON.stringify(request);
 }
 
+/**
+ * What the New lesson screen has in hand, before either create endpoint is chosen.
+ *
+ * The two differ in exactly one thing: an Admin authors into a **course**
+ * (`curriculum` + `grade`), a teacher into a **section** (`classId`). `LessonApiService.create`
+ * takes this and drops the half its role does not send, so the screen fills in whichever it
+ * knows and never has to name an endpoint.
+ */
+export interface NewLessonRequest {
+  readonly classId?: string;
+  readonly curriculum?: Curriculum;
+  readonly grade?: number;
+  readonly subject: Subject;
+  readonly date: string;
+  readonly source: LessonSource;
+  readonly practiceLength?: number;
+  readonly title?: string;
+  readonly notes?: string;
+}
+
 /** `POST /admin/lessons/{id}/skills`'s body (`ConfirmedSkill` in `AdminApi.kt`) — same reason. */
 export interface ConfirmedSkillRequest {
   readonly id?: string;

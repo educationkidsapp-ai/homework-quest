@@ -1,5 +1,15 @@
-import { DOCUMENT, Injectable, computed, effect, inject, signal } from '@angular/core';
+import {
+  DOCUMENT,
+  EnvironmentProviders,
+  Injectable,
+  computed,
+  effect,
+  inject,
+  provideAppInitializer,
+  signal,
+} from '@angular/core';
 import { TranslocoService } from '@jsverse/transloco';
+import { firstValueFrom } from 'rxjs';
 
 export const LANGUAGES = ['en', 'ar'] as const;
 export type Language = (typeof LANGUAGES)[number];
@@ -68,4 +78,31 @@ export class LanguageService {
       return null;
     }
   }
+}
+
+/**
+ * Load the stored language **before** the app renders anything.
+ *
+ * `TranslocoService.setActiveLang` does not fetch: the bundle arrives when something subscribes,
+ * which is the first `| transloco` pipe. Everything rendered before it lands shows the key
+ * itself, and a `computed()` calling `translate()` caches that key until `activeLang()` ticks it
+ * loose. On a shallow route the gap is invisible; on a hard reload of a deep authenticated route
+ * — `/teacher/lessons/{id}`, where `/me`, the lazy chunk and the lesson all have to land first —
+ * the nav rail is painted from `screens.ts` and reads `nav.thisWeek` for as long as the download
+ * takes. A Playwright probe with `ar.json` held back 1.5 s showed exactly that.
+ *
+ * Making it an initializer closes the window instead of narrowing it: Angular waits for the
+ * returned promise before the first render, so there is no frame in which the active language
+ * has no translations. `activeLang()` stays — it is still what carries a *later* switch into a
+ * `computed()` — but nothing depends on it to recover from the first paint any more.
+ */
+export function provideLanguage(): EnvironmentProviders {
+  return provideAppInitializer(async () => {
+    const language = inject(LanguageService).language();
+    const transloco = inject(TranslocoService);
+    transloco.setActiveLang(language);
+    // A failed load must not block the app: Transloco falls back to the key, which is what
+    // would have happened anyway, and the red band for the asset is not worth a blank page.
+    await firstValueFrom(transloco.load(language)).catch(() => undefined);
+  });
 }

@@ -300,3 +300,20 @@ hq-stop-editor {
   gap: var(--hq-space-12);
   flex: none;
 }
+
+// Class · subject, the day and the cache badge. The day is a field while the lesson is
+// unpublished and a sentence once it is not, so the row aligns to the end of the line.
+.lesson__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--hq-space-16);
+  font-weight: var(--hq-font-label-weight);
+}
+
+.lesson__copies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-12);
+  list-style: none;
+}

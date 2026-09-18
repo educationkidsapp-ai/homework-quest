@@ -100,10 +100,9 @@ describe('Lessons', () => {
     expect(screen.getByText('Uploading')).toBeInTheDocument();
     expect(screen.queryByText('Failed')).not.toBeInTheDocument();
 
-    backend.expectOne((req) => req.url === '/admin/lessons/l-1/retry' && req.method === 'POST').flush(
-      null,
-      { status: 500, statusText: 'Server Error' },
-    );
+    backend
+      .expectOne((req) => req.url === '/admin/lessons/l-1/retry' && req.method === 'POST')
+      .flush(null, { status: 500, statusText: 'Server Error' });
     await Promise.resolve();
 
     expect(await screen.findByText('Failed')).toBeInTheDocument();

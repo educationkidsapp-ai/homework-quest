@@ -6,7 +6,7 @@ import { provideApiClient } from './api';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/http/auth.interceptor';
 import { errorInterceptor } from './core/http/error.interceptor';
-import { LANGUAGES } from './core/i18n/language.service';
+import { LANGUAGES, provideLanguage } from './core/i18n/language.service';
 import { HttpTranslocoLoader } from './core/i18n/transloco-loader';
 
 export const appConfig: ApplicationConfig = {
@@ -33,5 +33,8 @@ export const appConfig: ApplicationConfig = {
       },
       loader: HttpTranslocoLoader,
     }),
+    // After `provideTransloco`: it reads the language the person last chose and waits for that
+    // bundle, so no screen can paint its keys. See `provideLanguage`.
+    provideLanguage(),
   ],
 };

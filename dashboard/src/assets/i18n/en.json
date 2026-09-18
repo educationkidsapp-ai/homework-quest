@@ -439,7 +439,8 @@
         "chooseCourse": "Choose a curriculum, grade and subject to continue.",
         "fixDate": "Pick a valid lesson day.",
         "chooseSource": "Choose how to add the content.",
-        "addFile": "Add at least one file."
+        "addFile": "Add at least one file.",
+        "chooseClass": "Choose a class to continue."
       },
       "createDefault": "Create the lesson",
       "create": {
@@ -456,7 +457,11 @@
       "created": "Lesson created — its pipeline starts now.",
       "createdManual": "Lesson created — write its questions below.",
       "rollback": "The upload failed, so the draft lesson was removed: {{message}}",
-      "rollbackFailed": "The upload failed ({{message}}) and the draft lesson could not be removed. Delete it from the list."
+      "rollbackFailed": "The upload failed ({{message}}) and the draft lesson could not be removed. Delete it from the list.",
+      "classField": "Class",
+      "classPlaceholder": "Choose a class",
+      "classOption": "{{class}} · {{subject}} · {{curriculum}}",
+      "noClasses": "You have no classes yet. The office assigns them."
     },
     "detail": {
       "stepState": {
@@ -485,7 +490,8 @@
         "reordering": "Saving the new order…",
         "creatingLevel": "Creating the level…",
         "generating": "Writing the other levels…",
-        "savingPanel": "Saving the parent panel…"
+        "savingPanel": "Saving the parent panel…",
+        "movingDate": "Moving the lesson…"
       },
       "files": {
         "title": "Files",
@@ -521,7 +527,8 @@
         "previewLabel": "Child app preview",
         "stopList": "Stops",
         "noLevel": "This level does not exist yet.",
-        "dragHandle": "Reorder {{title}}"
+        "dragHandle": "Reorder {{title}}",
+        "previewEmpty": "Pick a stop to see it here."
       },
       "panel": {
         "title": "Parent panel",
@@ -633,8 +640,21 @@
         "openAnswer": "Open question",
         "writeSentence": "Finish the sentence",
         "exitTicket": "Exit ticket"
+      },
+      "version": "Version {{version}}",
+      "moveDate": "Lesson day",
+      "previewAsChild": "Preview as child",
+      "publishSheet": {
+        "title": "Publish to {{class}} on {{date}}",
+        "ownClass": "This lesson publishes to its own class.",
+        "also": "Also publish to",
+        "noSiblings": "You have no other class in this grade and subject.",
+        "confirm": "Publish",
+        "done": "Published. Each class has its own copy:"
       }
-    }
+    },
+    "analyzedBefore": "Analyzed before · 0 tokens",
+    "analyzedBeforeTooltip": "This file was analyzed before, so the result came back instantly and saved {{tokens}} tokens."
   },
   "nav": {
     "brand": "Dashboard",
@@ -1001,5 +1021,12 @@
     "moveToDay": "Move to {{day}}",
     "copyToClass": "Copy to {{class}}",
     "copying": "Copying…"
+  },
+  "player": {
+    "gallery": {
+      "title": "Preview as child",
+      "comingIn": "The web player arrives in N3. Until then, the lesson is ready and children will see it on its day.",
+      "back": "Back to the lesson"
+    }
   }
 }

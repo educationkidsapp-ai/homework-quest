@@ -109,9 +109,14 @@ async function renderLessonAs(
   return { rendered, backend };
 }
 
-/** An Admin reads `/admin/**`; everyone else reads the teacher aliases. */
+/**
+ * A teacher reads the `/teacher/**` aliases; everyone else reads `/admin/**`.
+ *
+ * MANAGERIAL is on the Admin side, not the teacher one: a manager holds no teaching
+ * assignment, so every `/teacher/**` read of hers would 404 — see `LessonApiService.isAdmin`.
+ */
 function lessonUrlFor(user: typeof ADMIN_USER): string {
-  return user.role === 'ADMIN' ? '/admin/lessons/l-1' : '/teacher/lessons/l-1';
+  return user.role === 'TEACHER' ? '/teacher/lessons/l-1' : '/admin/lessons/l-1';
 }
 
 /** A schema-valid `choice` stop, so the editor's live validation has something real to chew on. */
@@ -473,7 +478,8 @@ describe('Lesson', () => {
   });
 
   it('deletes the lesson from the overflow menu behind a confirm band', async () => {
-    const { backend } = await renderLesson(BASE_LESSON);
+    // A draft: N2.4b gates the menu on the status the server will actually accept a delete for.
+    const { backend } = await renderLesson({ ...BASE_LESSON, status: 'draft' });
 
     await userEvent.click(await screen.findByRole('button', { name: 'Actions for Adding to ten' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
@@ -482,6 +488,165 @@ describe('Lesson', () => {
 
     backend.expectOne((req) => req.url === '/admin/lessons/l-1' && req.method === 'DELETE').flush(null);
     await waitFor(() => expect(screen.queryByText('Delete this lesson?')).not.toBeInTheDocument());
+  });
+
+  // ---- N2.4b: the publish sheet, the lifecycle, the badge, the day --------------------------
+
+  /**
+   * §8's sheet. A teacher publishing a Grade 1 Math lesson is offered her *other* Grade 1 Math
+   * sections and nothing else — 2C · Math is a different course and 1B · English a different
+   * subject, and a copy in either would be a lesson nobody asked for.
+   */
+  const SARA_CLASSES = [
+    { classId: 'c-1a', className: '1A', curriculum: 'british', grade: 1, subject: 'math' },
+    { classId: 'c-1b', className: '1B', curriculum: 'british', grade: 1, subject: 'math' },
+    { classId: 'c-1b-en', className: '1B', curriculum: 'british', grade: 1, subject: 'english' },
+    { classId: 'c-2c', className: '2C', curriculum: 'british', grade: 2, subject: 'math' },
+  ];
+
+  const READY_TEACHER_LESSON = {
+    ...BASE_LESSON,
+    source: 'manual',
+    classId: 'c-1a',
+    className: '1A',
+    plays: [
+      {
+        id: 'p-1',
+        level: 1,
+        variant: 0,
+        play: {
+          kind: 'math',
+          level: 1,
+          variant: 0,
+          theme: { potName: 'Soup', dishName: 'Stew', potEmoji: '🍲', servedText: 'Served!' },
+          stops: [
+            {
+              id: 'st-1',
+              type: 'choice',
+              title: 'A stop',
+              speak: '',
+              ingredient: { emoji: '🥕', name: 'c' },
+              parentTip: { en: '', ar: '' },
+              hint: '',
+              question: '',
+              options: [],
+              correctOptionId: '',
+            },
+          ],
+        },
+      },
+    ],
+  };
+
+  it('publishes a teacher lesson to her own class plus the siblings she ticks', async () => {
+    const { backend } = await renderLessonAs(READY_TEACHER_LESSON, TEACHER_USER, TEACHER_PERMISSIONS);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Publish' }));
+    backend.expectOne('/teacher/classes').flush(SARA_CLASSES);
+    await waitFor(() => expect(screen.getByLabelText('1B')).toBeInTheDocument());
+
+    // Her own class is the title, never a checkbox; 1B · English and 2C · Math are not siblings.
+    expect(screen.getByText('Publish to 1A on Sep 10, 2026')).toBeInTheDocument();
+    expect(screen.queryByLabelText('1A')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('2C')).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText('1B')).toHaveLength(1);
+
+    await userEvent.click(screen.getByLabelText('1B'));
+    const sheet = screen.getByRole('dialog');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Publish' }));
+
+    const published = backend.expectOne((req) => req.url === '/teacher/lessons/l-1/publish');
+    expect(published.request.body).toEqual({ classIds: ['c-1a', 'c-1b'] });
+    published.flush([
+      { classId: 'c-1a', lessonId: 'l-1', version: 2 },
+      { classId: 'c-1b', lessonId: 'l-9', version: 1 },
+    ]);
+    await waitFor(() =>
+      backend
+        .expectOne('/teacher/lessons/l-1')
+        .flush({ ...READY_TEACHER_LESSON, status: 'published', version: 2 }),
+    );
+
+    // One link per copy, named after its class: the point of the fan-out is the other class.
+    expect(await screen.findByRole('link', { name: '1B' })).toHaveAttribute(
+      'href',
+      '/teacher/lessons/l-9',
+    );
+    expect(screen.getByRole('link', { name: '1A' })).toHaveAttribute('href', '/teacher/lessons/l-1');
+  });
+
+  it('keeps the plain confirm band for an Admin, who has no classes to fan out to', async () => {
+    await renderLesson({ ...BASE_LESSON, source: 'manual', plays: READY_TEACHER_LESSON.plays });
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Publish' }));
+    expect(screen.getByRole('alert', { name: 'Publish this lesson?' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('offers Delete on a draft only — a written lesson is unpublished, never deleted', async () => {
+    const withDelete = {
+      ...TEACHER_PERMISSIONS,
+      permissions: [...TEACHER_PERMISSIONS.permissions, 'lesson.delete'],
+    };
+    await renderLessonAs({ ...BASE_LESSON, status: 'draft' }, TEACHER_USER, withDelete);
+    expect(await screen.findByRole('button', { name: 'Actions for Adding to ten' })).toBeInTheDocument();
+
+    // `review` is what an unpublished lesson falls back to, and the server answers 409 on a
+    // delete of one — the screen must not offer what the endpoint refuses.
+    TestBed.resetTestingModule();
+    await renderLessonAs({ ...BASE_LESSON, status: 'review' }, TEACHER_USER, withDelete);
+    await screen.findByText('Files');
+    expect(screen.queryByRole('button', { name: 'Actions for Adding to ten' })).not.toBeInTheDocument();
+
+    TestBed.resetTestingModule();
+    await renderLessonAs({ ...BASE_LESSON, status: 'published' }, TEACHER_USER, withDelete);
+    expect(await screen.findByRole('button', { name: 'Unpublish' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Actions for Adding to ten' })).not.toBeInTheDocument();
+  });
+
+  it('moves an unpublished lesson to another day optimistically, and rolls back on failure', async () => {
+    const { backend } = await renderLessonAs(BASE_LESSON, TEACHER_USER, TEACHER_PERMISSIONS);
+
+    const day = await screen.findByLabelText('Lesson day');
+    fireEvent.input(day, { target: { value: '2026-09-14' } });
+    expect(day).toHaveValue('2026-09-14');
+
+    const moved = backend.expectOne((req) => req.url === '/teacher/lessons/l-1' && req.method === 'PATCH');
+    expect(moved.request.body).toEqual({ date: '2026-09-14' });
+    moved.flush({ code: 'conflict', message: 'That day is taken.' }, { status: 409, statusText: 'Conflict' });
+
+    // Rolled back, not left showing a day the server refused.
+    await waitFor(() => expect(screen.getByLabelText('Lesson day')).toHaveValue('2026-09-10'));
+  });
+
+  it('fixes the day of a published lesson, and never offers a date control for an Admin', async () => {
+    await renderLessonAs({ ...BASE_LESSON, status: 'published' }, TEACHER_USER, TEACHER_PERMISSIONS);
+    await screen.findByRole('button', { name: 'Unpublish' });
+    expect(screen.queryByLabelText('Lesson day')).not.toBeInTheDocument();
+
+    TestBed.resetTestingModule();
+    await renderLesson(BASE_LESSON);
+    await screen.findByText('Files');
+    expect(screen.queryByLabelText('Lesson day')).not.toBeInTheDocument();
+  });
+
+  it('badges a cached analysis and puts what it saved in the tooltip', async () => {
+    await renderLesson({ ...BASE_LESSON, analyzedBefore: true, tokensSaved: 14_200 });
+
+    const badge = await screen.findByText('Analyzed before · 0 tokens');
+    expect(badge).toHaveAttribute(
+      'title',
+      'This file was analyzed before, so the result came back instantly and saved 14200 tokens.',
+    );
+  });
+
+  it('offers Preview as child on a ready lesson, pointing at the player route', async () => {
+    await renderLessonAs(READY_TEACHER_LESSON, TEACHER_USER, TEACHER_PERMISSIONS);
+
+    expect(await screen.findByRole('link', { name: 'Preview as child' })).toHaveAttribute(
+      'href',
+      '/player/gallery?lesson=l-1',
+    );
   });
 
   it('gives a viewer without lesson.write no way to reach the file input, hidden or not', async () => {

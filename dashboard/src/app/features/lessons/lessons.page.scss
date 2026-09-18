@@ -99,3 +99,9 @@
   font-size: var(--hq-font-label-size);
   color: var(--hq-color-ink-soft);
 }
+
+// Beside a row's title, not a column of its own: it is true of few lessons, and a column of
+// blanks would cost every row the width of "Analyzed before". The box itself is `.hq-badge`.
+.lessons__badge {
+  margin-inline-start: var(--hq-space-8);
+}
