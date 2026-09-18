@@ -301,9 +301,8 @@ hq-stop-editor {
   flex: none;
 }
 
-// The facts row: class · subject and the day, side by side with the cache badge. The date is an
-// input for an unpublished lesson and plain text for a published one, so the row aligns to the
-// end of the line rather than the middle — a 56px field next to a 20px sentence otherwise.
+// Class · subject, the day and the cache badge. The day is a field while the lesson is
+// unpublished and a sentence once it is not, so the row aligns to the end of the line.
 .lesson__facts {
   display: flex;
   flex-wrap: wrap;
@@ -315,14 +314,6 @@ hq-stop-editor {
   font-weight: var(--hq-font-label-weight);
 }
 
-.lesson__badge {
-  padding: var(--hq-space-4) var(--hq-space-8);
-  border: var(--hq-size-rule) solid var(--hq-color-line);
-  background: var(--hq-color-accent-soft);
-  font-size: var(--hq-font-label-size);
-  white-space: nowrap;
-}
-
 .lesson__copies {
   display: flex;
   flex-wrap: wrap;
@@ -331,29 +322,10 @@ hq-stop-editor {
   list-style: none;
 }
 
-.lesson__sheet-note {
-  color: var(--hq-color-ink-soft);
-}
-
 .lesson__siblings {
   display: flex;
   flex-direction: column;
   gap: var(--hq-space-12);
   padding: 0;
   border: 0;
-}
-
-// `hq-button`'s secondary box on an anchor — see the comment in the footer of `lesson.page.html`.
-.lesson__secondary {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: var(--hq-size-button-height);
-  padding-inline: var(--hq-space-16);
-  border: var(--hq-size-rule) solid var(--hq-color-ink);
-  background: var(--hq-color-surface);
-  color: var(--hq-color-ink);
-  font-weight: var(--hq-font-label-weight);
-  text-decoration: none;
-  @include m.hover-tint;
-  @include m.focus-ring;
 }

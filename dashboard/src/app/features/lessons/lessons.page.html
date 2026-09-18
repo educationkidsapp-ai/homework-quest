@@ -113,7 +113,7 @@
       @case ('title') {
         <a [routerLink]="[basePath(), row.id]">{{ row.title }}</a>
         @if (row.analyzedBefore) {
-          <span class="lessons__badge" [title]="row.analyzedBeforeTooltip">
+          <span class="hq-badge lessons__badge" [title]="row.analyzedBeforeTooltip">
             {{ 'lessons.analyzedBefore' | transloco }}
           </span>
         }

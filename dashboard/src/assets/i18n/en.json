@@ -527,7 +527,8 @@
         "previewLabel": "Child app preview",
         "stopList": "Stops",
         "noLevel": "This level does not exist yet.",
-        "dragHandle": "Reorder {{title}}"
+        "dragHandle": "Reorder {{title}}",
+        "previewEmpty": "Pick a stop to see it here."
       },
       "panel": {
         "title": "Parent panel",

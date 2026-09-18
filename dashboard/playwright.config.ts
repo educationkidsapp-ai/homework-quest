@@ -9,6 +9,11 @@ import { defineConfig, devices } from '@playwright/test';
  * `deploy-qa.yml` runs after the QA deploy. The dashboard is served by the API at
  * `<origin>/dashboard/` (P3.4), and no dev server is started.
  *
+ * Against a deployment `globalSetup` waits for `<api>/health` first (see `e2e/global-setup.ts`)
+ * and `expect` gets 15 s rather than the default 5: a Cloud Run instance that has just been
+ * created is slower than this Mac at everything, and a timeout there says "the assertion is
+ * wrong" when the truth is "the box is cold".
+ *
  * Against a deployment the suite is `e2e/local/` — sign-in per role, the switcher, RTL, the
  * screenshots (P3.1). `e2e/styleguide.spec.ts` stays behind `ng serve`: both the `qa` and the
  * `production` configuration replace `styleguide.route.ts`, so that route is not in any built
@@ -27,6 +32,8 @@ export default defineConfig({
   retries: process.env['CI'] ? 1 : 0,
   workers: deployed || process.env['CI'] ? 1 : undefined,
   reporter: process.env['CI'] ? [['github'], ['list']] : [['list']],
+  globalSetup: deployed ? './e2e/global-setup.ts' : undefined,
+  expect: { timeout: deployed ? 15_000 : 5_000 },
   use: {
     baseURL,
     viewport: { width: 1366, height: 768 },

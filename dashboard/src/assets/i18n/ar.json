@@ -527,7 +527,8 @@
         "previewLabel": "معاينة تطبيق الطفل",
         "stopList": "المحطات",
         "noLevel": "هذا المستوى غير موجود بعد.",
-        "dragHandle": "إعادة ترتيب {{title}}"
+        "dragHandle": "إعادة ترتيب {{title}}",
+        "previewEmpty": "اختاري محطة لتظهر هنا."
       },
       "panel": {
         "title": "لوحة ولي الأمر",
