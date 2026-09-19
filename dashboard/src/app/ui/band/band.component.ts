@@ -58,8 +58,11 @@ let nextBandId = 0;
       gap: var(--hq-space-16);
       overflow: hidden;
       padding: var(--hq-space-12) var(--hq-space-16);
-      border: var(--hq-size-rule) solid var(--hq-color-accent);
-      background: var(--hq-color-accent-soft);
+      // The band is the system's failure and confirmation surface (§0: no toasts), so it is
+      // the error ramp rather than the accent — which is now brand-500 and says nothing.
+      border: var(--hq-size-rule) solid var(--hq-color-error-500);
+      background: var(--hq-color-error-soft);
+      color: var(--hq-color-error-ink);
     }
 
     .band--notice {

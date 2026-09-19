@@ -221,6 +221,8 @@ html.dark {
   --hq-color-line: var(--hq-color-gray-800);
   --hq-color-hover: rgb(255 255 255 / 0.05);
   --hq-color-disabled: var(--hq-color-gray-600);
+  // An ink fill is near-white here, so the text on it cannot be.
+  --hq-color-on-ink: var(--hq-color-gray-900);
 
   --hq-color-accent-strong: var(--hq-color-brand-400);
   --hq-color-accent-soft: rgb(70 95 255 / 0.12);
