@@ -60,7 +60,11 @@ abstract class DashboardTestSupport extends ApiTestSupport {
     /** The prefix every row this test seeds carries, so {@link #removeSeed} can find it again. */
     abstract String prefix();
 
-    static LocalDate today() { return LocalDate.now(ZoneOffset.UTC); }
+    /** Today as the code under test sees it: the suite's clock, UTC, pinned or not. */
+    LocalDate today() { return LocalDate.now(clock.withZone(ZoneOffset.UTC)); }
+
+    /** Now as the code under test sees it — the bookkeeping instants a fixture row needs. */
+    Instant now() { return clock.instant(); }
 
     /**
      * Noon UTC on a given day. Every figure here is bucketed by UTC day or ISO week, so an attempt seeded as
@@ -68,6 +72,9 @@ abstract class DashboardTestSupport extends ApiTestSupport {
      * which is a flake that only appears at 04:00. Seed the day you mean, at a fixed point inside it.
      */
     static Instant noon(LocalDate day) { return day.atTime(12, 0).toInstant(ZoneOffset.UTC); }
+
+    /** When a lesson's tokens were spent: the moment it was published, or noon of the day it teaches. */
+    private static Instant noonOr(Instant publishedAt, LocalDate date) { return publishedAt != null ? publishedAt : noon(date); }
 
     // ---------------------------------------------------------------- tokens
 
@@ -91,13 +98,13 @@ abstract class DashboardTestSupport extends ApiTestSupport {
             var s = new SchoolEntity();
             s.setId(id); s.setName(name); s.setCode(code);
             s.setCurriculumOptionsJson("[\"british\",\"american\"]"); s.setGradeOptionsJson("[1,2,3]");
-            s.setStatus("active"); s.setCreatedAt(Instant.now());
+            s.setStatus("active"); s.setCreatedAt(now());
             return schools.save(s);
         });
     }
 
     UserEntity user(String id, String schoolId, String email, String role) {
-        return user(id, schoolId, email, role, "active", Instant.now());
+        return user(id, schoolId, email, role, "active", now());
     }
 
     UserEntity user(String id, String schoolId, String email, String role, String status, Instant createdAt) {
@@ -112,7 +119,7 @@ abstract class DashboardTestSupport extends ApiTestSupport {
     void teacherProfile(String userId, String subjectsJson, String curriculum, String gradesJson) {
         var t = new TeacherEntity();
         t.setUserId(userId); t.setSubjectsJson(subjectsJson); t.setCurriculum(curriculum); t.setGradesJson(gradesJson);
-        t.setUpdatedAt(Instant.now());
+        t.setUpdatedAt(now());
         teacherProfiles.save(t);
     }
 
@@ -139,8 +146,8 @@ abstract class DashboardTestSupport extends ApiTestSupport {
         l.setId(id); l.setSchoolId(schoolId); l.setClassId(classId); l.setCourseId(curriculum + "/" + grade);
         l.setSubject(subject); l.setDate(date); l.setStatus(status); l.setVersion(1); l.setTitle("Lesson " + id);
         l.setSource("pdf"); l.setTokenUsage(tokenUsage); l.setPublishedAt(publishedAt);
-        if (l.getCreatedAt() == null) l.setCreatedAt(Instant.now());
-        l.setUpdatedAt(Instant.now());
+        if (l.getCreatedAt() == null) l.setCreatedAt(noonOr(publishedAt, date));
+        l.setUpdatedAt(now());
         return lessons.save(l);
     }
 
@@ -151,7 +158,7 @@ abstract class DashboardTestSupport extends ApiTestSupport {
      */
     LessonEntity lessonWithSkill(String id, String schoolId, String classId, String curriculum, int grade, String subject,
                                  LocalDate date, String skillName) {
-        var l = lesson(id, schoolId, classId, curriculum, grade, subject, date, "published", Instant.now(), 1000);
+        var l = lesson(id, schoolId, classId, curriculum, grade, subject, date, "published", noon(date), 1000);
         var tip = new Bilingual("Ask them to count again.", "Ask them to count again.");
         var stop = new Stop.Choice(stopId(id), "Pick one", "Which one is it?", new Ingredient("🥕", "carrot"), tip,
                 "Count them first.", "Which is bigger?",

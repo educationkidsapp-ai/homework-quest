@@ -11,12 +11,15 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
-/** Full context on in-memory H2 with FAKE_AUTH, the sample LLM and the seeded lessons. */
+/** Full context on in-memory H2 with FAKE_AUTH, the sample LLM, the seeded lessons and a pinnable {@link TestClock}. */
 @SpringBootTest
+@org.springframework.context.annotation.Import(TestTimeConfig.class)
 @org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 @ActiveProfiles("test")
 public abstract class ApiTestSupport {
     @Autowired protected MockMvc mvc;
+    /** The suite's clock; pin it with {@link TestClock#pinTo} and release it in an `@AfterEach`. */
+    @Autowired protected TestClock clock;
     protected final ObjectMapper mapper = new ObjectMapper();
     protected final String PARENT = "Bearer fake-token-parent-" + java.util.UUID.randomUUID().toString().substring(0, 8);   // a fresh parent per test
 

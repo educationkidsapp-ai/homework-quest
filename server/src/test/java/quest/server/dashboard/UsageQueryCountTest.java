@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,9 +28,9 @@ class UsageQueryCountTest extends DashboardTestSupport {
         teacherProfile(TEACHER, "[\"math\"]", "british", "[1]");
         user(MANAGER, A, "manager@uq.test", "MANAGERIAL");
         klass(A + ":british:1:math", A, "british", 1, "math", TEACHER);
-        lesson("uq-lesson-1", A, A + ":british:1:math", "british", 1, "math", today(), "published", Instant.now(), 5_000);
+        lesson("uq-lesson-1", A, A + ":british:1:math", "british", 1, "math", today(), "published", noon(today()), 5_000);
         var child = child("Yara", "USAGEA", "british", 1);
-        attempt(child, "uq-lesson-1", "uq-lesson-1:stop-1", true, Instant.now().minus(1, ChronoUnit.HOURS));
+        attempt(child, "uq-lesson-1", "uq-lesson-1:stop-1", true, noon(today()));
     }
 
     @AfterEach void clean() { removeSeed(); }
@@ -71,14 +69,14 @@ class UsageQueryCountTest extends DashboardTestSupport {
             String classId = A + ":british:" + grade + ":" + subject;
             klass(classId, A, "british", grade, subject, TEACHER);
             lesson("uq-grown-" + i, A, classId, "british", grade, subject, today().minusDays(i), "published",
-                    Instant.now().minus(i, ChronoUnit.DAYS), 1_000L * i);
+                    noon(today().minusDays(i)), 1_000L * i);
         }
         for (int i = 2; i <= 4; i++) {
             school("uq-school-" + i, "Usage School " + i, "USAG0" + i);
             user("uq-teacher-" + i, A, "teacher" + i + "@uq.test", "TEACHER");
             teacherProfile("uq-teacher-" + i, "[\"math\"]", "british", "[1]");
             var child = child("Child " + i, "USAGEA", "british", 1);
-            attempt(child, "uq-lesson-1", "uq-lesson-1:stop-1", true, Instant.now().minus(i, ChronoUnit.HOURS));
+            attempt(child, "uq-lesson-1", "uq-lesson-1:stop-1", true, noon(today()).plusSeconds(i));
         }
         klass(A + ":british:3:english:2", A, "british", 3, "english", "uq-teacher-2");
     }

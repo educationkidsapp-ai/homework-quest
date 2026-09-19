@@ -1,6 +1,7 @@
 package quest.server.dashboard;
 
 import jakarta.persistence.EntityManager;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -31,9 +32,12 @@ import quest.server.tenancy.Entities.SchoolEntity;
  */
 @Service
 public class UsageService {
-    private final EntityManager em; private final QuestProperties props;
+    private final EntityManager em; private final QuestProperties props; private final Clock clock;
 
-    public UsageService(EntityManager em, QuestProperties props) { this.em = em; this.props = props; }
+    public UsageService(EntityManager em, QuestProperties props, Clock clock) { this.em = em; this.props = props; this.clock = clock; }
+
+    /** Today in UTC, from the injected clock — never {@code LocalDate.now()}; see {@code TimeConfig}. */
+    private LocalDate today() { return LocalDate.now(clock.withZone(ZoneOffset.UTC)); }
 
     double price() { return props.llm().price(); }
 
@@ -41,7 +45,7 @@ public class UsageService {
 
     @Transactional(readOnly = true)
     public SchoolDataDto.SchoolUsage schoolUsage(SchoolEntity school, String from, String to) {
-        var window = Reports.window(from, to, LocalDate.now(ZoneOffset.UTC));
+        var window = Reports.window(from, to, today());
         var scope = Map.<String, Object>of("schoolId", school.getId(),
                 "windowFrom", window.fromInstant().atZone(ZoneOffset.UTC).toLocalDateTime(),
                 "windowEnd", window.toExclusive().atZone(ZoneOffset.UTC).toLocalDateTime());
@@ -118,7 +122,7 @@ public class UsageService {
     @Transactional(readOnly = true)
     public SchoolDataDto.SchoolBilling billing(SchoolEntity school, Integer months) {
         int wanted = Math.clamp(months == null || months <= 0 ? Reports.DEFAULT_MONTHS : months, 1, Reports.MAX_MONTHS);
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = today();
         LocalDate firstMonth = today.withDayOfMonth(1).minusMonths(wanted - 1L);
         var scope = Map.<String, Object>of("schoolId", school.getId(), "windowFrom", firstMonth.atStartOfDay());
 
@@ -150,7 +154,7 @@ public class UsageService {
 
     @Transactional(readOnly = true)
     public SchoolDataDto.PlatformUsage platformUsage(String from, String to) {
-        var window = Reports.window(from, to, LocalDate.now(ZoneOffset.UTC));
+        var window = Reports.window(from, to, today());
         var scope = Map.<String, Object>of(
                 "windowFrom", window.fromInstant().atZone(ZoneOffset.UTC).toLocalDateTime(),
                 "windowEnd", window.toExclusive().atZone(ZoneOffset.UTC).toLocalDateTime());

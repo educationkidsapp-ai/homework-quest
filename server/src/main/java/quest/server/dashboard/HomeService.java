@@ -1,6 +1,7 @@
 package quest.server.dashboard;
 
 import jakarta.persistence.EntityManager;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -67,11 +68,12 @@ public class HomeService {
 
     private final EntityManager em; private final TenantContext tenant; private final SchoolRepository schools;
     private final ClassRepository classes; private final UserRepository users; private final ThemeService themes;
+    private final Clock clock;
 
     public HomeService(EntityManager em, TenantContext tenant, SchoolRepository schools, ClassRepository classes,
-                       UserRepository users, ThemeService themes) {
+                       UserRepository users, ThemeService themes, Clock clock) {
         this.em = em; this.tenant = tenant; this.schools = schools; this.classes = classes;
-        this.users = users; this.themes = themes;
+        this.users = users; this.themes = themes; this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -84,7 +86,7 @@ public class HomeService {
         String platformName = themes.displayName(schoolId);
         String displayName = users.findById(caller.userId()).map(u -> u.getDisplayName() == null || u.getDisplayName().isBlank()
                 ? u.getEmail() : u.getDisplayName()).orElse(caller.email());
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = LocalDate.now(clock.withZone(ZoneOffset.UTC));
 
         return switch (caller.role() == null ? "" : caller.role()) {
             case "TEACHER" -> teacherHome(caller, displayName, schoolId, schoolName, logoUrl, platformName, today);

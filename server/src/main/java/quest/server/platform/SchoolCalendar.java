@@ -25,7 +25,7 @@ import quest.server.tenancy.SchoolRepository;
  *
  * <p><strong>The zone decides one thing:</strong> what "today" is. A teacher in Riyadh opening her week at 00:30
  * must see the new day, not the server's UTC yesterday, so every "today" in the teacher screens comes from
- * {@link #today(String)} rather than from {@code LocalDate.now()}.
+ * {@link #today(String)} rather than from {@code LocalDate.now()} — which reads the injected {@code Clock} and so can be pinned in a test.
  *
  * <p>At most one query per call — the school row; `schools` is not a tenant table and has no filter, and the
  * platform row comes from {@link PlatformSettingsService}'s cache.
@@ -39,10 +39,10 @@ public class SchoolCalendar {
     private static final ZoneId UTC = ZoneId.of("UTC");
     private static final Pattern QUOTED = Pattern.compile("\"([A-Za-z]+)\"");
 
-    private final PlatformSettingsService platform; private final SchoolRepository schools;
+    private final PlatformSettingsService platform; private final SchoolRepository schools; private final java.time.Clock clock;
 
-    public SchoolCalendar(PlatformSettingsService platform, SchoolRepository schools) {
-        this.platform = platform; this.schools = schools;
+    public SchoolCalendar(PlatformSettingsService platform, SchoolRepository schools, java.time.Clock clock) {
+        this.platform = platform; this.schools = schools; this.clock = clock;
     }
 
     /** The week one school runs, with its zone. A null `schoolId` is the platform's own (an Admin with no scope). */
@@ -57,7 +57,7 @@ public class SchoolCalendar {
     }
 
     /** Today in the school's zone — never the server's. */
-    public LocalDate today(String schoolId) { return LocalDate.now(of(schoolId).zone()); }
+    public LocalDate today(String schoolId) { return LocalDate.now(clock.withZone(of(schoolId).zone())); }
 
     /**
      * One school's teaching days, in the order they run, and the zone its dates are read in.

@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +34,7 @@ class HomeQueryCountTest extends DashboardTestSupport {
         klass(A + ":british:1:math", A, "british", 1, "math", TEACHER);
         lessonWithSkill("hq-lesson-1", A, A + ":british:1:math", "british", 1, "math", today(), "Counting");
         child = child("Nour", "QUERYA", "british", 1);
-        attempt(child, "hq-lesson-1", stopId("hq-lesson-1"), false, Instant.now().minus(2, ChronoUnit.HOURS));
+        attempt(child, "hq-lesson-1", stopId("hq-lesson-1"), false, noon(today()));
     }
 
     @AfterEach void clean() { removeSeed(); }
@@ -79,7 +77,7 @@ class HomeQueryCountTest extends DashboardTestSupport {
         user("hq-teacher-3", A, "teacher3@hq.test", "TEACHER");
         for (int i = 2; i <= 3; i++) {
             var more = child("Child " + i, "QUERYA", "british", 1);
-            attempt(more, "hq-lesson-1", stopId("hq-lesson-1"), i % 2 == 0, Instant.now().minus(i, ChronoUnit.HOURS));
+            attempt(more, "hq-lesson-1", stopId("hq-lesson-1"), i % 2 == 0, noon(today()).plusSeconds(i));
         }
     }
 

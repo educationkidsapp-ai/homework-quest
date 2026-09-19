@@ -7,9 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -29,10 +27,20 @@ class SchoolDataTest extends DashboardTestSupport {
 
     @Override String prefix() { return "data-"; }
 
+    /**
+     * The two days the fixture is pinned to. Every figure below is bucketed by UTC day or ISO week, so a fixture
+     * seeded from the wall clock agreed with the report only on some days of the week: this test failed every Friday
+     * and Saturday evening on the developers' machines while CI, which runs on weekdays, stayed green. Both days are
+     * asserted, so neither the weekend nor the week can be the one that passes by luck.
+     */
+    private static final LocalDate TUESDAY = LocalDate.of(2026, 9, 15), SATURDAY = LocalDate.of(2026, 9, 19);
+
     private LocalDate day;
 
-    @BeforeEach void seed() throws Exception {
-        day = today();
+    @BeforeEach void seed() throws Exception { seedOn(TUESDAY); }
+
+    private void seedOn(LocalDate pinned) throws Exception {
+        day = clock.pinTo(pinned);
         school(A, "Data Academy", "DATAAA");
         school(B, "Data Beta", "DATABB");
         user(TEACHER_A, A, "teacher@data-a.test", "TEACHER");
@@ -42,9 +50,8 @@ class SchoolDataTest extends DashboardTestSupport {
         klass(MATHS_A, A, "british", 1, "math", TEACHER_A);
         klass(B + ":british:1:math", B, "british", 1, "math", TEACHER_B);
 
-        lesson("data-a-1", A, MATHS_A, "british", 1, "math", day.minusDays(1), "published",
-                Instant.now().minus(1, ChronoUnit.DAYS), 4_000);
-        lesson("data-a-2", A, MATHS_A, "british", 1, "math", day, "published", Instant.now(), 6_000);
+        lesson("data-a-1", A, MATHS_A, "british", 1, "math", day.minusDays(1), "published", noon(day.minusDays(1)), 4_000);
+        lesson("data-a-2", A, MATHS_A, "british", 1, "math", day, "published", noon(day), 6_000);
         lessonWithSkill("data-a-3", A, MATHS_A, "british", 1, "math", day, "Adding to ten");
 
         var child = child("Sara", "DATAAA", "british", 1);
@@ -54,7 +61,7 @@ class SchoolDataTest extends DashboardTestSupport {
         attempt(child, "data-a-3", stopId("data-a-3"), false, noon(day).plusSeconds(60));
     }
 
-    @AfterEach void clean() { removeSeed(); }
+    @AfterEach void clean() { removeSeed(); clock.release(); }
 
     // ---------------------------------------------------------------- Overview counts
 
@@ -123,7 +130,9 @@ class SchoolDataTest extends DashboardTestSupport {
 
     // ---------------------------------------------------------------- Usage tab
 
-    @Test void school_usage_counts_children_families_plays_and_publishing() throws Exception {
+    @Test void school_usage_counts_children_families_plays_and_publishing() throws Exception { assertSchoolUsage(); }
+
+    private void assertSchoolUsage() throws Exception {
         var usage = json(mvc.perform(admin(get("/admin/schools/" + A + "/usage"), adminToken())).andExpect(status().isOk()).andReturn());
 
         assertThat(usage.get("schoolId").asText()).isEqualTo(A);
@@ -222,7 +231,21 @@ class SchoolDataTest extends DashboardTestSupport {
 
     // ---------------------------------------------------------------- Platform usage & cost (§6 screen 10)
 
-    @Test void platform_usage_reports_calls_hit_rate_and_cost_per_school() throws Exception {
+    @Test void platform_usage_reports_calls_hit_rate_and_cost_per_school() throws Exception { assertPlatformUsage(); }
+
+    /**
+     * The same two reports, seeded and read on a Saturday instead of a Tuesday. The window is thirty days and
+     * the publishing series is bucketed into ISO weeks either way, so nothing here may depend on where in the
+     * week the last day falls.
+     */
+    @Test void the_same_figures_hold_when_today_is_a_saturday() throws Exception {
+        removeSeed();
+        seedOn(SATURDAY);
+        assertSchoolUsage();
+        assertPlatformUsage();
+    }
+
+    private void assertPlatformUsage() throws Exception {
         var usage = json(mvc.perform(admin(get("/admin/usage/platform"), adminToken())).andExpect(status().isOk()).andReturn());
 
         assertThat(usage.get("schools").asInt()).isGreaterThanOrEqualTo(2);
