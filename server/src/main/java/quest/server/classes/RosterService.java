@@ -44,6 +44,16 @@ public class RosterService {
         this.children = children; this.scope = scope; this.reader = reader; this.audit = audit;
     }
 
+    /**
+     * `GET /admin/children`: every live child of the school, and with `unassigned=true` only the ones who are on no
+     * section's roster — which is how an Admin finds a child a parent has just registered in the app, to attach her.
+     * There is no other way to see her: every other roster read is by `class_id`, and hers is null.
+     */
+    public List<ClassDto.RosterChild> ofSchool(boolean unassignedOnly) {
+        return children.findBySchoolIdAndDeletedAtIsNullOrderByNameAsc(scope.writeSchoolId()).stream()
+                .filter(c -> !unassignedOnly || c.getClassId() == null).map(RosterService::dto).toList();
+    }
+
     public List<ClassDto.RosterChild> list(Principals.User caller, String classId) {
         var section = scope.requireClass(caller, classId);
         return children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(section.getId()).stream().map(RosterService::dto).toList();
@@ -91,6 +101,53 @@ public class RosterService {
         }
         children.save(child);
         audit.record(caller.userId(), "child.update", "child", child.getId(), child.getSchoolId(), Map.of("classId", child.getClassId()));
+        return dto(child);
+    }
+
+    /**
+     * `POST …/classes/{classId}/roster/attach`: put a child who already exists onto this section's roster.
+     *
+     * <p>The child the Admin means here is not a roster row somebody typed — she is a child a <em>parent</em>
+     * registered in the app, with the school's join code and no section at all. Until she has one,
+     * {@link quest.server.children.SchoolLessons} gives her every section of her curriculum and grade, so a lesson
+     * published to 1A and copied to 1B reaches her twice; with one, she sees her own class's copy and nothing else,
+     * and her work appears on that class's teacher's dashboard.
+     *
+     * <p>Three refusals and one silence: another school's child is a 404 for a scoped caller (the lookup is a
+     * filtered query) and a 409 for the unscoped platform ADMIN, who can see across schools; a child whose
+     * curriculum or grade is not this section's is a 409, because a Grade 1 British child in a Grade 1 American
+     * class would be shown lessons written for a syllabus she is not taught; and attaching a child who is already on
+     * this roster writes nothing and answers the same row.
+     */
+    @Transactional
+    public ClassDto.RosterChild attach(Principals.User caller, String classId, String childId) {
+        var section = writable(caller, classId);
+        var child = children.findOneById(childId).filter(c -> c.getDeletedAt() == null).orElseThrow(() -> ApiException.notFound("child"));
+        if (!section.getSchoolId().equals(child.getSchoolId()))
+            throw ApiException.conflict(child.getName() + " belongs to another school.");
+        if (!section.getCurriculum().equalsIgnoreCase(child.getCurriculum()) || section.getGrade() != child.getGrade())
+            throw ApiException.conflict(child.getName() + " is " + child.getCurriculum() + " grade " + child.getGrade()
+                    + ", and " + section.getName() + " is " + section.getCurriculum() + " grade " + section.getGrade() + ".");
+        if (section.getId().equals(child.getClassId())) return dto(child);      // already there: idempotent
+        child.setClassId(section.getId());
+        children.save(child);
+        audit.record(caller.userId(), "child.attach", "child", child.getId(), section.getSchoolId(), Map.of("classId", section.getId()));
+        return dto(child);
+    }
+
+    /**
+     * `DELETE …/classes/{classId}/roster/{childId}`: take her off this section's roster again. She keeps her account,
+     * her attempts and her progress — only the link to the class goes, which puts her back to seeing every section of
+     * her curriculum and grade. A child who is not on this roster is a 404, so the path cannot detach someone else's.
+     */
+    @Transactional
+    public ClassDto.RosterChild detach(Principals.User caller, String classId, String childId) {
+        var section = writable(caller, classId);
+        var child = children.findOneById(childId).filter(c -> c.getDeletedAt() == null).orElseThrow(() -> ApiException.notFound("child"));
+        if (!section.getId().equals(child.getClassId())) throw ApiException.notFound("child");
+        child.setClassId(null);
+        children.save(child);
+        audit.record(caller.userId(), "child.detach", "child", child.getId(), section.getSchoolId(), Map.of("classId", section.getId()));
         return dto(child);
     }
 

@@ -184,6 +184,9 @@
     { "method": "GET", "path": "/admin/classes/{id}/children", "permission": "roster.read" },
     { "method": "POST", "path": "/admin/classes/{id}/children", "permission": "roster.write" },
     { "method": "POST", "path": "/admin/classes/{id}/children/import", "permission": "roster.write" },
+    { "method": "POST", "path": "/admin/classes/{id}/roster/attach", "permission": "roster.write" },
+    { "method": "DELETE", "path": "/admin/classes/{id}/roster/{childId}", "permission": "roster.write" },
+    { "method": "GET", "path": "/admin/children", "permission": "roster.read" },
     { "method": "PATCH", "path": "/admin/children/{id}", "permission": "roster.write" },
 
     { "method": "GET", "path": "/admin/teachers", "permission": "teacher.read" },
@@ -216,6 +219,8 @@
     { "method": "GET", "path": "/teacher/classes/{classId}/children", "permission": "roster.teacher" },
     { "method": "POST", "path": "/teacher/classes/{classId}/children", "permission": "roster.teacher" },
     { "method": "PATCH", "path": "/teacher/classes/{classId}/children/{childId}", "permission": "roster.teacher" },
+    { "method": "POST", "path": "/teacher/classes/{classId}/roster/attach", "permission": "roster.teacher" },
+    { "method": "DELETE", "path": "/teacher/classes/{classId}/roster/{childId}", "permission": "roster.teacher" },
     { "method": "GET", "path": "/teacher/students/{childId}/timeline", "permission": "student.read" },
 
     { "method": "GET", "path": "/teacher/lessons", "permission": "lesson.read" },

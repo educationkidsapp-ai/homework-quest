@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -115,11 +116,41 @@ public class ClassAdminController {
         return rosters.add(TeacherScope.require(caller), id, body);
     }
 
+    /**
+     * The school's children, and with `?unassigned=true` the ones on no roster at all — a parent registered them in
+     * the app with the school's join code and nobody has put them in a section yet.
+     */
+    @GetMapping(value = "/admin/children", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('roster.read')")
+    public List<ClassDto.RosterChild> schoolChildren(@RequestParam(defaultValue = "false") boolean unassigned) {
+        return rosters.ofSchool(unassigned);
+    }
+
     @PatchMapping(value = "/admin/children/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('roster.write')")
     public ClassDto.RosterChild updateChild(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
                                             @RequestBody @Valid ClassDto.UpdateRosterChildRequest body) {
         return rosters.update(TeacherScope.require(caller), id, body);
+    }
+
+    /**
+     * A child who already has an account — one a parent registered in the app with the school's join code — put onto
+     * this section's roster, which is what makes her see this class's lessons and puts her work on its teacher's
+     * dashboard. Idempotent; another school's child and a curriculum or grade that is not this section's are 409.
+     */
+    @PostMapping(value = "/admin/classes/{id}/roster/attach", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('roster.write')")
+    public ClassDto.RosterChild attachChild(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
+                                            @RequestBody @Valid ClassDto.AttachChildRequest body) {
+        return rosters.attach(TeacherScope.require(caller), id, body.childId());
+    }
+
+    /** The other way: she keeps her account and her progress, and stops being one of this class's children. */
+    @DeleteMapping(value = "/admin/classes/{id}/roster/{childId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('roster.write')")
+    public ClassDto.RosterChild detachChild(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
+                                            @PathVariable String childId) {
+        return rosters.detach(TeacherScope.require(caller), id, childId);
     }
 
     /** CSV or XLSX, columns `name,parentEmail`. `dryRun=true` (the default) writes nothing and returns the preview. */

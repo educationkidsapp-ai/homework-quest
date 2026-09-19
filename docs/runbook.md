@@ -16,6 +16,7 @@ Secrets appear by name only; nothing here prints a value.
 - [Platform settings](#platform-settings)
 - [Environment variables](#environment-variables)
 - [Seeding two schools, isolation, flags and themes](#seeding-two-schools-isolation-flags-and-themes)
+- [QA as the owner's acceptance environment](#qa-as-the-owners-acceptance-environment)
 - [Design tokens](#design-tokens)
 - [CI](#ci)
 - [Rollback](#rollback)
@@ -729,6 +730,94 @@ immediately afterwards.
 Two things it cannot take back, both by design: the `flag_audit` rows, which are append-only (that trail is the point
 of the audit assertion), and a school that had **no** `theme_json`, which ends holding an explicit copy of the theme it
 was already being shown — there is no `DELETE` for a theme and the rendered result is identical.
+
+## QA as the owner's acceptance environment
+
+QA has two jobs and they want different data. The automated e2e suite needs the 30-class school and the Al Noor /
+Green Valley fixture above; the owner's own acceptance pass needs **two teachers and nothing else**, so that a lesson
+Ms Maya posts is the only lesson his child sees. `SEED_PROFILE` picks which, and `SEED_RESET` is the one-shot wipe
+that gets from one to the other.
+
+| Variable | Value for the acceptance pass | Notes |
+|---|---|---|
+| `SEED_SCHOOL` | `true` | unchanged: the switch that lets the seed run at all |
+| `SEED_PROFILE` | `acceptance` | `full` (the default) is the 30-class school; **an unknown value fails the start**, with the two valid names in the message — a typo must not quietly refill QA with the 30-class school |
+| `SEED_RESET` | `true` for **one** deploy, then back to `false` | refused outright under the `prod` profile: the revision fails to start. **It ignores `SEED_SCHOOL`** — the wipe runs whether or not the seed is switched on, so `SEED_SCHOOL=false` is no protection |
+| `SEED_STAFF_PASSWORD` | the shared teacher password, from Secret Manager | never logged, never printed; the seed re-applies it on every boot |
+
+**What the acceptance profile seeds** (`server/src/main/resources/seed/acceptance/*.csv`, into the **default**
+school): three sections — `1A British` and `1B British` (british, grade 1) and `1A American` (american, grade 1);
+two teachers — **Maya** (math, `maya@test.com`) and **Rami** (english, `rami@test.com`), both signing in with
+`SEED_STAFF_PASSWORD` and no first-login password change; three assignments — Maya on 1A + 1B British math, Rami on
+1A American english. **No children**: they arrive when the owner registers as a parent in the app. Re-running the
+seed changes nothing (sections are matched by curriculum + grade + name, teachers by their lower-cased email).
+
+> The password the owner chose is nine characters, which is under the `MIN_PASSWORD` of 10. That minimum is a
+> validation rule on *changing* and *resetting* a password (`AuthService`, `DashboardDto`), and the seed never goes
+> through it — it encodes the value straight onto the row — so nothing had to be relaxed for this.
+
+**What `SEED_RESET=true` deletes**, once, before the seed runs, one transaction per school, with a row count logged
+per table:
+
+- every lesson of every school and everything hanging off it — steps, source files (including the blob and the
+  extracted `.md` in the bucket), page images, skills, plays, stops, parent panels;
+- every child and everything keyed by a child — attempts, stop and lesson completions, parent unlocks, stickers,
+  streaks, recordings and drawings (blobs included);
+- teacher questions and their answers, announcements, sections, teaching assignments, staff invitations;
+- every staff account with role TEACHER or MANAGERIAL, and their refresh tokens;
+- **every parent account**, because a parent's children are school rows and the row would be left pointing at
+  nothing. *The owner and everyone else re-registers in the app after the wipe;*
+- then the schools that are not `default` — Al Noor (`ALNOOR`) and Green Valley (`GREENV`) — entirely: their staff,
+  their flag overrides, their audit trail and their theme.
+
+**What it keeps:** the `default` school and its theme, join code, own flag overrides and own audit trail; the
+platform ADMIN; `platform_settings`; the feature-flag defaults; the `courses` reference rows; and the two permanent
+caches (`analysis_cache`,
+`generation_cache` — they are keyed by a content hash and a prompt version, not by a school, so keeping them saves QA
+a re-analysis of every file uploaded next).
+
+**It is one-shot.** The run writes a `seed_resets` row and every later start with the variable still on finds it and
+does nothing — a deploy that forgets to set `SEED_RESET=false` cannot wipe the owner's work on the next revision.
+Put it back to `false` anyway. To wipe a second time, clear the ledger first (`DELETE FROM seed_resets;`) and deploy
+with `SEED_RESET=true` again.
+
+### The owner's pass, end to end
+
+1. Deploy once with `SEED_PROFILE=acceptance` and `SEED_RESET=true`; check the logs for `seed reset:` counts and
+   `school seed default ready: 3 new classes, 2 new teachers, 3 new assignments, 0 new children`.
+2. Set `SEED_RESET=false` and deploy again.
+3. In the app, register as a parent and add two children, using the **Default school's join code `HQ0001`** — one
+   Grade 1 British, one Grade 1 American.
+4. Attach each child to her section, so she sees one copy of each lesson rather than one per section of her grade
+   (an unattached child is shown every section of her curriculum and grade, and a lesson published to 1A and copied
+   to 1B reaches her twice). As the platform ADMIN, against the QA API (**needs QA credentials**):
+
+```bash
+API=https://homework-quest-api-625882725080.me-central1.run.app
+TOKEN=$(curl -s -X POST "$API/admin/auth/sign-in" -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" | jq -r .token)
+AUTH=(-H "Authorization: Bearer $TOKEN" -H 'X-School-Id: default' -H 'Content-Type: application/json')
+
+curl -s "${AUTH[@]}" "$API/admin/classes" | jq -r '.[] | "\(.id)\t\(.name)"'      # the three section ids
+curl -s "${AUTH[@]}" "$API/admin/children?unassigned=true" | jq -r '.[] | "\(.id)\t\(.name)"'   # on no roster yet
+
+curl -s -X POST "${AUTH[@]}" "$API/admin/classes/$CLASS_ID/roster/attach" -d '{"childId":"'"$CHILD_ID"'"}'
+# 200 with the child and her new classId · 409 for another school's child or a curriculum/grade that is not the
+# section's · calling it twice writes nothing. DELETE …/roster/$CHILD_ID detaches her again.
+```
+
+   Ms Maya can do the same for her own sections while `teacher.rosterEdit` is on:
+   `POST /teacher/classes/{classId}/roster/attach` and `DELETE /teacher/classes/{classId}/roster/{childId}`.
+
+5. Sign in as `maya@test.com`, publish a lesson to `1A British`, and it appears for the child on that roster; when
+   the child finishes it, her stars appear on Ms Maya's dashboard.
+
+**The automated e2e suite needs `SEED_PROFILE=full`.** `e2e/` asserts against the 30-class school and the two-school
+fixture; run it on the acceptance profile and it fails for want of data. Switching back to `full` re-seeds the
+**default school's** 30 classes on the next boot — but **not** Al Noor and Green Valley, which the wipe deleted
+outright and no seed re-creates. Run `node e2e/seed/seed.mjs` (see
+[Seeding two schools](#seeding-two-schools-isolation-flags-and-themes)) to build that fixture again before relying on
+a QA e2e run.
 
 ## Design tokens
 

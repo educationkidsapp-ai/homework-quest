@@ -296,6 +296,16 @@
         },
         "type" : "object"
       },
+      "AttachChildRequest" : {
+        "properties" : {
+          "childId" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "childId" ],
+        "type" : "object"
+      },
       "AttemptAck" : {
         "properties" : {
           "accepted" : {
@@ -4748,6 +4758,36 @@
         "tags" : [ "Admin reports" ]
       }
     },
+    "/admin/children" : {
+      "get" : {
+        "operationId" : "schoolChildren",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "unassigned",
+          "required" : false,
+          "schema" : {
+            "default" : false,
+            "type" : "boolean"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/RosterChild"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
+      }
+    },
     "/admin/children/{id}" : {
       "patch" : {
         "operationId" : "updateChild_1",
@@ -5069,6 +5109,75 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/SectionClass"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/classes/{id}/roster/attach" : {
+      "post" : {
+        "operationId" : "attachChild",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AttachChildRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RosterChild"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/classes/{id}/roster/{childId}" : {
+      "delete" : {
+        "operationId" : "detachChild",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "childId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RosterChild"
                 }
               }
             },
@@ -8138,6 +8247,75 @@
           },
           "required" : true
         },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RosterChild"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher roster" ]
+      }
+    },
+    "/teacher/classes/{classId}/roster/attach" : {
+      "post" : {
+        "operationId" : "attachToMyClass",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AttachChildRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RosterChild"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher roster" ]
+      }
+    },
+    "/teacher/classes/{classId}/roster/{childId}" : {
+      "delete" : {
+        "operationId" : "detachFromMyClass",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "childId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {

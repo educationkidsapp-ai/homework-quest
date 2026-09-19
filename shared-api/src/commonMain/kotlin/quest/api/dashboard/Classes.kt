@@ -121,6 +121,14 @@ data class UpdateRosterChildRequest(
     val classId: String? = null,
 )
 
+/**
+ * `POST /admin/classes/{id}/roster/attach` and its teacher twin: a child who already has an account — one a parent
+ * registered in the app with the school's join code — put onto this section's roster. Until she is on one she is
+ * shown every section of her curriculum and grade, so a lesson copied to a sibling section reaches her twice.
+ */
+@Serializable
+data class AttachChildRequest(val childId: String)
+
 /** What the import made of one line. Only [ImportStatus.NEW] rows are inserted when the import is committed. */
 @Serializable
 enum class ImportStatus {
