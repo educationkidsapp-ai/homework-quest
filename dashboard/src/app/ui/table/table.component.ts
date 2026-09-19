@@ -108,8 +108,8 @@ export interface TableColumn<Row> {
 
     th {
       padding: var(--hq-space-cell);
-      font-size: var(--hq-text-theme-xs);
-      line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+      font-size: var(--hq-text-theme-2xs);
+      line-height: calc(var(--hq-text-theme-2xs-line) / var(--hq-text-theme-2xs));
       font-weight: var(--hq-text-weight-medium);
       color: var(--hq-color-ink-soft);
       border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);

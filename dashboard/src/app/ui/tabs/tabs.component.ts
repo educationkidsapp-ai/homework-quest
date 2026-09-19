@@ -143,8 +143,8 @@ export interface Tab<T extends string = string> {
     .tabs__badge {
       padding: 0 var(--hq-space-8);
       border-radius: var(--hq-radius-pill);
-      font-size: var(--hq-text-theme-xs);
-      line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+      font-size: var(--hq-text-theme-2xs);
+      line-height: calc(var(--hq-text-theme-2xs-line) / var(--hq-text-theme-2xs));
       color: var(--hq-color-ink-soft);
     }
 

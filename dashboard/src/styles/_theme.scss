@@ -76,7 +76,11 @@
   --hq-color-surface: #ffffff; // card, sidebar, header — school `primary`
   --hq-color-surface-raised: #ffffff; // sidebar/header, which part company in dark mode
   --hq-color-ink: var(--hq-color-gray-800); // primary text — school `primaryInk`
-  --hq-color-ink-soft: var(--hq-color-gray-500); // secondary text
+  // CR3 asks for secondary text "no lighter than #6b7280". `gray-500` (#667085, 4.97:1) was
+  // already a hair darker than that, so the floor was met and the *complaint* was not: a meta
+  // line at 4.97:1 is AA and no more. `gray-600` (#475467) carries the same grey at 7.69:1 and
+  // still reads a clear step under `ink` (#1d2939, 14.70:1, itself darker than CR3's #1f2937).
+  --hq-color-ink-soft: var(--hq-color-gray-600); // secondary text
   // The label weight between ink and ink-soft: §3's nav item, dropdown row and secondary
   // button all sit at `gray-700`. In dark mode there is no step there — on `#1a2231` a
   // `gray-700` label is barely a colour — so the role collapses onto the primary ink and
@@ -163,14 +167,21 @@
   --hq-text-title-sm-line: 38px;
   --hq-text-theme-xl: 20px;
   --hq-text-theme-xl-line: 30px;
-  --hq-text-theme-sm: 14px; // body, table cells, nav labels, buttons
-  --hq-text-theme-sm-line: 20px;
-  --hq-text-theme-xs: 12px; // table headers, captions, badges
-  --hq-text-theme-xs-line: 18px;
-  --hq-text-page-title: 24px;
-  --hq-text-page-title-line: 32px;
-  --hq-text-card-title: 18px;
-  --hq-text-card-title-line: 26px;
+  // CR3 (2026-09-19): the owner reads the dashboard at 14/12 and calls it too small. The two
+  // running-text steps move up one notch — body to 16/24, secondary to 14/20 — and the 12 px
+  // the spec's §3 genuinely needs (badge, data-table header, keycap, avatar initials, the
+  // step marker) survives under its own name, used only where a *label* has to be that size.
+  // Nothing that is read as a sentence is 12 px any more.
+  --hq-text-theme-sm: 16px; // body, table cells, nav labels, buttons, inputs
+  --hq-text-theme-sm-line: 24px;
+  --hq-text-theme-xs: 14px; // secondary text — meta lines, hints, captions, form labels
+  --hq-text-theme-xs-line: 20px;
+  --hq-text-theme-2xs: 12px; // §3 only: badge, table header, keycap, initials — never a sentence
+  --hq-text-theme-2xs-line: 18px;
+  --hq-text-page-title: 26px; // CR3 asks for 24–28
+  --hq-text-page-title-line: 34px;
+  --hq-text-card-title: 19px; // CR3 asks for 18–20
+  --hq-text-card-title-line: 28px;
   --hq-text-weight-medium: 500;
   --hq-text-weight-semibold: 600;
   --hq-text-weight-bold: 700;
@@ -179,8 +190,10 @@
   --hq-font-body-size: var(--hq-text-theme-sm);
   --hq-font-body-line: var(--hq-text-theme-sm-line);
   --hq-font-input-size: var(--hq-text-theme-sm);
-  --hq-font-label-size: var(--hq-text-theme-sm);
-  --hq-font-label-line: var(--hq-text-theme-sm-line);
+  // A form label is secondary text, so it holds the 14/20 step the body has vacated rather
+  // than following the body up to 16 — which is also why this line is unchanged in pixels.
+  --hq-font-label-size: var(--hq-text-theme-xs);
+  --hq-font-label-line: var(--hq-text-theme-xs-line);
   --hq-font-label-weight: var(--hq-text-weight-medium);
   --hq-font-title-size: var(--hq-text-page-title);
   --hq-font-title-line: var(--hq-text-page-title-line);
@@ -215,11 +228,18 @@
 
   // --- Rhythm ------------------------------------------------------------- §1 Spacing
   --hq-space-grid-gap: 24px;
-  --hq-space-card: 24px;
-  --hq-space-card-header: 20px 24px;
-  --hq-space-button: 11px 16px;
-  --hq-space-cell: 14px 24px; // table cell at the card edge
-  --hq-space-cell-inner: 14px 12px;
+  // CR3: "reduce excessive padding". The card comes down to the bottom of the 20–24 band the
+  // change request allows, and the table cell follows it in so a row still lines up with the
+  // card's own padding; the row keeps its 48 px because the type inside it grew by the 4 px
+  // the padding gave back.
+  --hq-space-card: 20px;
+  --hq-space-card-header: 16px 20px;
+  // Both control paddings shrink by the 2–3 px the 24 px line box took: the button's height is
+  // fixed at 44 and its content box has to hold a 24 px line, and `m.control`'s 44 px minimum
+  // is only a minimum — at the old 10 px an input would have grown to 46.
+  --hq-space-button: 8px 16px;
+  --hq-space-cell: 12px 20px; // table cell at the card edge
+  --hq-space-cell-inner: 12px 12px;
   // §4: icons are 24 px in navigation and metric tiles, 20 px in controls and table cells,
   // 18 px inside buttons.
   --hq-size-icon-nav: 24px;
@@ -245,8 +265,15 @@
   --hq-space-header-inline: 24px; // header inner `padding: 0 24px`
   --hq-space-logo-block: 32px; // sidebar logo block `padding: 32px 0`
   // §2 Content well. `--hq-size-content-max-width` stays the 1100 px reading measure a *page*
-  // may ask for; the well around it is the spec's 1536 px.
-  --hq-size-content-well: 1536px;
+  // may ask for (`--hq-page-max-width`, which the shell sets to 100 %); the well around it was
+  // the spec's 1536 px.
+  //
+  // CR3: "content fills the width instead of floating in empty space". 1536 is wider than a
+  // 1366 viewport can offer and narrower than a 1920 one — at 1920 the rail takes 290, the
+  // gutter 2 × 24, and 1566 px of room was being cropped back to 1536. The well moves above
+  // both, so the grids fill the screen at 1366 *and* 1920 and the 32 px page gutter (the
+  // generated `--hq-size-page-padding`) is what holds the content off the edge.
+  --hq-size-content-well: 1760px;
   // Below this the rail is an off-canvas drawer rather than a column.
   --hq-size-drawer-breakpoint: 1024px;
 
@@ -261,11 +288,11 @@
   // §3's badge and status pill.
   --hq-space-badge: 2px 10px;
   --hq-space-badge-gap: 6px;
-  --hq-space-control: 10px 16px; // §1: the input's own padding, one step inside the button's
+  --hq-space-control: 9px 16px; // §1: the input's own padding, one step inside the button's
   --hq-space-keycap: 4.5px 7px; // §3 Keycap
   --hq-space-chip: 8px 14px; // §3 Filter chip
-  --hq-text-note: 13px; // §3 Timeline's sub-line, the one size between `theme-xs` and `sm`
-  --hq-text-lead: 16px; // §3 Empty state's headline — the one step above body text
+  --hq-text-note: 14px; // §3 Timeline's sub-line — at CR3's 14 px floor for secondary text
+  --hq-text-lead: 18px; // §3 Empty state's headline — the one step above body text
   // §3 Data table: `14px 24px` at the card edge is the cell; the leading tile is 40 px at the
   // control radius, the metric tile 48 px at the tile radius.
   --hq-size-cell-tile: 40px;
@@ -383,7 +410,7 @@ html.dark {
   --hq-color-surface: #ffffff;
   --hq-color-surface-raised: #ffffff;
   --hq-color-ink: var(--hq-color-gray-800);
-  --hq-color-ink-soft: var(--hq-color-gray-500);
+  --hq-color-ink-soft: var(--hq-color-gray-600);
   --hq-color-ink-muted: var(--hq-color-gray-400);
   --hq-color-ink-strong: var(--hq-color-gray-700);
   --hq-color-rule: var(--hq-color-gray-200);

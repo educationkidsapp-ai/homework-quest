@@ -240,6 +240,26 @@ Shadows are unchanged in dark mode; they are near-invisible on dark surfaces by 
 
 Places the dashboard knowingly departs from the above, each with the ruling behind it.
 
+- **CR3 readability (2026-09-19).** The owner's change request of 2026-09-19 overrides §1's type
+  ramp and two of its spacing figures; the dashboard's sizes are now, all from
+  `src/styles/_theme.scss`: body **16/24** (`--hq-text-theme-sm`, which is also the table cell,
+  the nav label, the button and the input), secondary text **14/20**
+  (`--hq-text-theme-xs` — meta lines, hints, the timeline sub-line `--hq-text-note`, and
+  `--hq-font-label-size`, so a form label is one step under the body), the page title **26/34 at
+  600** and the card title **19/28 at 600** (inside the request's 24–28 and 18–20), the empty
+  state's lead **18px**. The spec's **12 px** survives as `--hq-text-theme-2xs` and is used only
+  where §3 needs a label in a fixed box — the badge, the data-table header row, the keycap, the
+  header's `EN`/`AR` and avatar initials, the step-strip marker — and never for a sentence.
+  Spacing: card padding **20px** (header `16px 20px`), table cell `12px 20px`, grid gap **24px**,
+  page gutter **32px** (`--hq-size-page-padding`, unchanged), and the content well widens from
+  §2's **1536px to 1760px** so the grids fill the width at 1366 *and* 1920 instead of being
+  cropped back. The 1100 px reading measure (`--hq-size-content-max-width`) is kept for the one
+  place that is a row of controls rather than a grid, the lessons page's filter chooser.
+  Contrast: `--hq-color-ink` stays `gray-800` (`#1d2939`, **14.70:1**, darker than the request's
+  `#1f2937`) and `--hq-color-ink-soft` moves `gray-500` → `gray-600` (`#475467`, **7.69:1**,
+  well under the request's `#6b7280` ceiling); dark mode is untouched and
+  `e2e/styleguide.spec.ts`'s AA assertion still names `--hq-color-ink-muted` as the only
+  exemption.
 - **D19 — the focus ring keeps its outline.** §3 asks for `border-color:#9cb9ff` plus the
   `rgba(70,95,255,0.1)` halo. The halo ships as written; the border does not, because `#9cb9ff`
   on white is **1.94:1** and a focus indicator that cannot be seen is not one. Every focusable

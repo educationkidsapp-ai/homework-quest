@@ -382,8 +382,8 @@ export interface NavItem<T extends string = string> {
       border-radius: var(--hq-radius-pill);
       background: var(--hq-color-success-soft);
       color: var(--hq-color-success-ink);
-      font-size: var(--hq-text-theme-xs);
-      line-height: var(--hq-text-theme-xs-line);
+      font-size: var(--hq-text-theme-2xs);
+      line-height: var(--hq-text-theme-2xs-line);
       font-weight: var(--hq-text-weight-medium);
     }
 
