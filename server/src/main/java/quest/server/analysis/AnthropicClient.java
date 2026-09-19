@@ -10,7 +10,6 @@ import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.TextBlockParam;
 import com.anthropic.models.messages.ThinkingConfigAdaptive;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -23,9 +22,13 @@ public class AnthropicClient implements LlmClient {
     private static final Logger log = LoggerFactory.getLogger(AnthropicClient.class);
     private final com.anthropic.client.AnthropicClient client; private final String model; private final long maxTokens;
 
-    public AnthropicClient(QuestProperties.Anthropic cfg) {
+    public AnthropicClient(QuestProperties.Anthropic cfg, QuestProperties.Llm llm) {
         if (cfg == null || cfg.apiKey() == null || cfg.apiKey().isBlank()) throw new IllegalStateException("ANTHROPIC_API_KEY is not set");
-        this.client = AnthropicOkHttpClient.builder().apiKey(cfg.apiKey()).timeout(Duration.ofMinutes(6)).build();
+        var limits = llm == null ? QuestProperties.Llm.defaults() : llm;
+        // The SDK's `timeout` is the whole request; a call past it throws, which `complete` already turns into a
+        // transient failure. Without it the socket could hold open for as long as the provider cared to.
+        this.client = AnthropicOkHttpClient.builder().apiKey(cfg.apiKey()).timeout(limits.timeout()).build();
+        log.info("Anthropic timeout: {}s", limits.timeout().toSeconds());
         this.model = cfg.model() == null || cfg.model().isBlank() ? "claude-opus-5" : cfg.model();
         this.maxTokens = cfg.maxTokens() > 0 ? cfg.maxTokens() : 16000;
     }

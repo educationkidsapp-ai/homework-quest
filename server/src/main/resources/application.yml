@@ -59,6 +59,11 @@ quest:
     # USD per 1 000 tokens, used to turn `lessons.token_usage` into the Billing and Platform-cost figures. A blended
     # input+output assumption for the DeepSeek chat model, not an invoice — set it to the rate your bill uses.
     price-per-1k-tokens: ${LLM_PRICE_PER_1K_TOKENS:0.0004}
+    # Hard per-call bounds on every provider. A model call that hangs is what left a QA lesson `generating` for
+    # three quarters of an hour: a read timeout turns it into the transient failure the step already knows how to
+    # retry. `timeout-seconds` is capped at 120 in code — the outer bound is the step deadline below.
+    timeout-seconds: ${QUEST_LLM_TIMEOUT_SECONDS:120}
+    connect-timeout-seconds: ${QUEST_LLM_CONNECT_TIMEOUT_SECONDS:10}
   anthropic:
     api-key: ${ANTHROPIC_API_KEY:}
     model: ${ANTHROPIC_MODEL:claude-opus-5}
@@ -84,6 +89,21 @@ quest:
       # profile that has no model and no bucket behind it. Those two turn it on below, so a laptop and CI (neither
       # has Node or Tesseract) still run the pipeline, extracting text with PDFBox/POI and recording method `text`.
       allow-builtin-fallback: false
+    # How long one step may run before the watchdog calls it dead. Generate steps make two model calls with the
+    # retries in between, analyse one, convert is local work. A step past its deadline is marked `error`/`timeout`,
+    # the lesson leaves `generating`, and Retry and Delete work again.
+    deadline:
+      generate-seconds: ${QUEST_PIPELINE_DEADLINE_GENERATE_SECONDS:360}
+      analyze-seconds: ${QUEST_PIPELINE_DEADLINE_ANALYZE_SECONDS:240}
+      convert-seconds: ${QUEST_PIPELINE_DEADLINE_CONVERT_SECONDS:180}
+    watchdog:
+      # The sweep that recovers a job this instance never had — a Cloud Run instance recycled mid-step leaves the row
+      # `running` and nothing else would ever finish it. Runs once at startup and then on this interval.
+      enabled: ${QUEST_PIPELINE_WATCHDOG_ENABLED:true}
+      interval-seconds: ${QUEST_PIPELINE_WATCHDOG_INTERVAL_SECONDS:60}
+      # Added to a step's deadline before the sweep touches a row, so a job running on another instance is never
+      # taken away from it over a clock skew.
+      grace-seconds: ${QUEST_PIPELINE_WATCHDOG_GRACE_SECONDS:60}
   storage:
     kind: ${STORAGE_KIND:local}
     local-dir: ${STORAGE_DIR:data/files}

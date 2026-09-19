@@ -30,11 +30,29 @@ public record QuestProperties(Auth auth, Llm llm, Anthropic anthropic, DeepSeek 
      * uses. Both endpoints return the rate they applied alongside the totals, so the screen shows the assumption
      * rather than hiding it.
      */
-    public record Llm(String provider, Double pricePer1kTokens) {
+    public record Llm(String provider, Double pricePer1kTokens, Integer timeoutSeconds, Integer connectTimeoutSeconds) {
         /** USD per 1 000 tokens when nothing is configured; see the note above. */
         public static final double DEFAULT_PRICE_PER_1K_TOKENS = 0.0004;
+        /** One model call may hold a connection this long; anything past it is a transient failure, not a stuck job. */
+        public static final int DEFAULT_TIMEOUT_SECONDS = 120;
+        public static final int MAX_TIMEOUT_SECONDS = 120;
+        public static final int DEFAULT_CONNECT_TIMEOUT_SECONDS = 10;
 
         public double price() { return pricePer1kTokens == null || pricePer1kTokens < 0 ? DEFAULT_PRICE_PER_1K_TOKENS : pricePer1kTokens; }
+
+        /**
+         * The read timeout of one HTTP call to the provider. It is <strong>capped</strong> at
+         * {@value #MAX_TIMEOUT_SECONDS} s on purpose: a call that hangs is the whole of QA's stuck-lesson bug, and a
+         * value an operator could raise to an hour would put the hang back. The step deadline
+         * ({@link quest.server.analysis.PipelineDeadlines}) is the outer bound; this is the inner one.
+         */
+        public java.time.Duration timeout() { return java.time.Duration.ofSeconds(clamp(timeoutSeconds, DEFAULT_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS)); }
+        public java.time.Duration connectTimeout() { return java.time.Duration.ofSeconds(clamp(connectTimeoutSeconds, DEFAULT_CONNECT_TIMEOUT_SECONDS, 60)); }
+
+        private static int clamp(Integer value, int fallback, int max) { return value == null || value <= 0 ? fallback : Math.min(value, max); }
+
+        /** The defaults, for a client built outside Spring (tests, {@link quest.server.analysis.LlmConfig}'s fallback when nothing is bound). */
+        public static Llm defaults() { return new Llm(null, null, null, null); }
     }
     public record Anthropic(String apiKey, String model, long maxTokens) {}
     public record DeepSeek(String apiKey, String baseUrl, String model, String visionModel, long maxTokens) {}

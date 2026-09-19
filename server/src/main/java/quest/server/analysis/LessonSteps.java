@@ -22,6 +22,10 @@ import quest.server.content.LessonStepRepository;
  * {@link #run} executes one step: skips it when already done, retries transient failures ({@link TransientFailure},
  * an LLM 429/5xx/timeout, a bucket or LibreOffice hiccup) with exponential backoff, and marks permanent ones
  * (unreadable file, schema rejected twice, too large) as {@code error} at once with an actionable message.
+ *
+ * <p>Every attempt is bounded by the step's {@link PipelineDeadlines deadline}. Past it the step is abandoned and
+ * marked {@code error}/{@code timeout} — a step that hangs is not a step that is working, and a lesson left
+ * `generating` with nothing running is the one failure the admin panel gives no way out of.
  */
 @Service
 public class LessonSteps {
@@ -34,11 +38,15 @@ public class LessonSteps {
     public static class TransientFailure extends RuntimeException { public TransientFailure(String m, Throwable c) { super(m, c); } }
     /** Thrown when a step is aborted by an operator action (e.g. the lesson was deleted meanwhile). */
     public static class Stop extends RuntimeException { public Stop(String m) { super(m); } }
+    /** Thrown when a step ran past its {@link PipelineDeadlines deadline} and was abandoned. */
+    public static class Deadline extends RuntimeException { public Deadline(String m) { super(m); } }
+    /** The error code a step that ran past its deadline carries, here and in the watchdog's sweep. */
+    public static final String TIMEOUT = "timeout";
 
-    private final LessonStepRepository steps; private final LessonRepository lessons; private final long retryDelayMs;
+    private final LessonStepRepository steps; private final LessonRepository lessons; private final long retryDelayMs; private final PipelineDeadlines deadlines;
 
-    public LessonSteps(LessonStepRepository steps, LessonRepository lessons, @Value("${quest.pipeline.retry-delay-ms:2000}") long retryDelayMs) {
-        this.steps = steps; this.lessons = lessons; this.retryDelayMs = retryDelayMs;
+    public LessonSteps(LessonStepRepository steps, LessonRepository lessons, @Value("${quest.pipeline.retry-delay-ms:2000}") long retryDelayMs, PipelineDeadlines deadlines) {
+        this.steps = steps; this.lessons = lessons; this.retryDelayMs = retryDelayMs; this.deadlines = deadlines;
     }
 
     public static String stepName(PipelineStep s) { return switch (s) { case UPLOAD -> "upload"; case CONVERT -> "convert"; case ANALYZE -> "analyze"; case SKILLS -> "skills"; case GENERATE_L1 -> "generate_L1"; case GENERATE_L2 -> "generate_L2"; case GENERATE_L3 -> "generate_L3"; case GENERATE_AGAIN -> "generate_again"; case PANEL -> "panel"; }; }
@@ -102,9 +110,13 @@ public class LessonSteps {
         for (int attempt = 1; ; attempt++) {
             mark(lessonId, s, "running", null, null);
             try {
-                body.run();
+                bounded(lessonId, s, body);
                 done(lessonId, s);
                 return true;
+            } catch (Deadline e) {
+                log.error("lesson {} step {} ran past its deadline ({}) and was abandoned", lessonId, stepName(s), deadlines.of(s));
+                mark(lessonId, s, "error", TIMEOUT, Messages.of(TIMEOUT, null));
+                return false;
             } catch (TransientFailure e) {
                 if (attempt < TRANSIENT_ATTEMPTS) {
                     long wait = retryDelayMs * (1L << (attempt - 1));
@@ -124,6 +136,27 @@ public class LessonSteps {
                 return false;
             }
         }
+    }
+
+    /**
+     * The step body, bounded by its deadline. It runs on a virtual thread of its own so that the deadline can
+     * actually end it: interrupting the worker unblocks the HTTP call or the process wait it is sitting in, so the
+     * job stops instead of waking up later and writing `done` over the error the teacher was just shown.
+     */
+    private void bounded(String lessonId, PipelineStep s, Runnable body) {
+        var thrown = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        Thread worker = Thread.ofVirtual().name("pipeline-" + stepName(s) + "-" + lessonId)
+                .unstarted(() -> { try { body.run(); } catch (Throwable t) { thrown.set(t); } });
+        worker.start();
+        boolean finished;
+        try { finished = worker.join(deadlines.of(s)); }
+        catch (InterruptedException e) { worker.interrupt(); Thread.currentThread().interrupt(); throw new Stop("the pipeline thread was interrupted"); }
+        if (!finished) { worker.interrupt(); throw new Deadline(stepName(s) + " ran past " + deadlines.of(s)); }
+        Throwable t = thrown.get();
+        if (t == null) return;
+        if (t instanceof RuntimeException e) throw e;
+        if (t instanceof Error e) throw e;
+        throw new IllegalStateException(t.getMessage(), t);
     }
 
     private static void sleep(long ms) { try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
@@ -147,6 +180,7 @@ public class LessonSteps {
                 case "ocr_failed" -> "We tried to read the pictures and found no words. Upload a clearer scan, or paste the text with \"Type the text instead\"." + d;
                 case "tool_missing" -> "The document converter isn't installed on this server. An operator needs to check QUEST_ANYDOC_BIN and QUEST_TESSERACT_BIN." + d;
                 case "io" -> "The document converter stopped before it finished. Press Retry and continue; if it happens again, paste the text with \"Type the text instead\"." + d;
+                case "timeout" -> "This step took too long. Retry it." + d;
                 case "markdown_missing" -> "This lesson's files haven't been converted to text yet. Press Retry and continue to convert them." + d;
                 default -> (detail == null || detail.isBlank() ? "Something went wrong at this step. Press Retry and continue." : detail);
             };

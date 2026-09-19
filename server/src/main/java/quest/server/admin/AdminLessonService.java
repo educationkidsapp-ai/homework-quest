@@ -69,14 +69,14 @@ import quest.server.tenancy.TenantGuard;
 public class AdminLessonService {
     private final LessonRepository lessons; private final SourceFileRepository sourceFiles; private final SkillRepository skills; private final PlayRepository plays; private final StopRepository stops; private final ParentPanelRepository panels;
     private final AnalysisCacheRepository analysisCache; private final LessonStore store; private final AnalysisService analysisService; private final GenerationService generation; private final LessonPipeline pipeline; private final LessonState state;
-    private final FileStore files; private final Json json; private final PageImageRepository pageImages; private final String publicUrl; private final LessonSteps steps;
+    private final FileStore files; private final Json json; private final PageImageRepository pageImages; private final String publicUrl; private final LessonSteps steps; private final quest.server.analysis.PipelineWatchdog watchdog;
     private final TenantContext tenant; private final TenantGuard guard; private final quest.server.analysis.ConversionService conversion;
     private final quest.server.schools.SchoolService schools;
     private final quest.server.tenancy.ClassRepository sections; private final quest.server.auth.UserRepository people;
 
-    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, TenantGuard guard, quest.server.analysis.ConversionService conversion, quest.server.schools.SchoolService schools, quest.server.tenancy.ClassRepository sections, quest.server.auth.UserRepository people) {
+    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, quest.server.analysis.PipelineWatchdog watchdog, TenantContext tenant, TenantGuard guard, quest.server.analysis.ConversionService conversion, quest.server.schools.SchoolService schools, quest.server.tenancy.ClassRepository sections, quest.server.auth.UserRepository people) {
         this.lessons = lessons; this.sourceFiles = sourceFiles; this.skills = skills; this.plays = plays; this.stops = stops; this.panels = panels; this.analysisCache = analysisCache; this.store = store; this.analysisService = analysisService; this.generation = generation; this.pipeline = pipeline; this.state = state; this.files = files; this.json = json;
-        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.guard = guard; this.conversion = conversion; this.schools = schools; this.sections = sections; this.people = people;
+        this.watchdog = watchdog; this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.guard = guard; this.conversion = conversion; this.schools = schools; this.sections = sections; this.people = people;
     }
 
     /**
@@ -593,7 +593,18 @@ public class AdminLessonService {
         return new ExtractedSkill(s.getId(), s.getName(), Subject.valueOf(s.getSubject().toUpperCase()), s.getMethod(), examples, slidesNos, s.isConfirmed() ? 1.0 : s.getConfidence(), unsure);
     }
 
-    private static boolean editable(LessonEntity l) { var s = LessonState.status(l); return s != LessonStatus.ANALYZING && s != LessonStatus.GENERATING && s != LessonStatus.UPLOADING; }
+    /**
+     * Whether the caller may change this lesson now. "Not while a job is running" is the rule, and the second half of
+     * it is the one QA found missing: a lesson stays `generating` after its job's instance is gone, and the teacher
+     * was then told to wait for a job nobody was running. A lesson the watchdog can prove is dead
+     * ({@link quest.server.analysis.PipelineWatchdog#looksStuck}) is editable again — Retry and Delete both come back
+     * — while a job that is genuinely live in this instance still refuses, as before.
+     */
+    private boolean editable(LessonEntity l) {
+        var s = LessonState.status(l);
+        if (s != LessonStatus.ANALYZING && s != LessonStatus.GENERATING && s != LessonStatus.UPLOADING) return true;
+        return watchdog.looksStuck(l);
+    }
     private static void requireReview(LessonEntity l) { var s = LessonState.status(l); if (s != LessonStatus.REVIEW && s != LessonStatus.PUBLISHED && s != LessonStatus.ERROR && s != LessonStatus.PAUSED) throw ApiException.badRequest("Generate the levels first."); }
     private void touch(LessonEntity l) { l.setUpdatedAt(Instant.now()); if (LessonState.status(l) == LessonStatus.PUBLISHED) l.setStatus("review"); lessons.save(l); }
     static LocalDate jdate(kotlinx.datetime.LocalDate d) { return LocalDate.of(d.getYear(), d.getMonthNumber(), d.getDayOfMonth()); }

@@ -23,13 +23,15 @@ import quest.server.config.QuestProperties;
  */
 public class DeepSeekClient implements LlmClient {
     private static final Logger log = LoggerFactory.getLogger(DeepSeekClient.class);
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build();
     private final ObjectMapper mapper = new ObjectMapper();
-    private final QuestProperties.DeepSeek cfg;
+    private final QuestProperties.DeepSeek cfg; private final HttpClient http; private final Duration timeout;
 
-    public DeepSeekClient(QuestProperties.DeepSeek cfg) {
+    public DeepSeekClient(QuestProperties.DeepSeek cfg, QuestProperties.Llm llm) {
         if (cfg == null || cfg.apiKey() == null || cfg.apiKey().isBlank()) throw new IllegalStateException("DEEPSEEK_API_KEY is not set");
-        this.cfg = cfg;
+        var limits = llm == null ? QuestProperties.Llm.defaults() : llm;
+        this.cfg = cfg; this.timeout = limits.timeout();
+        this.http = HttpClient.newBuilder().connectTimeout(limits.connectTimeout()).build();
+        log.info("DeepSeek timeouts: connect {}s, read {}s", limits.connectTimeout().toSeconds(), timeout.toSeconds());
     }
 
     @Override public String name() { return "deepseek"; }
@@ -55,7 +57,7 @@ public class DeepSeekClient implements LlmClient {
         String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.deepseek.com" : cfg.baseUrl().replaceAll("/+$", "");
         var request = HttpRequest.newBuilder(URI.create(base + "/chat/completions"))
                 .header("Authorization", "Bearer " + cfg.apiKey()).header("Content-Type", "application/json")
-                .timeout(Duration.ofMinutes(6)).POST(HttpRequest.BodyPublishers.ofString(body.toString())).build();
+                .timeout(timeout).POST(HttpRequest.BodyPublishers.ofString(body.toString())).build();
         IOException last = null;
         for (int attempt = 0; attempt < 3; attempt++) {
             try {
@@ -68,6 +70,9 @@ public class DeepSeekClient implements LlmClient {
                 JsonNode usage = json.path("usage");
                 log.info("DeepSeek {} ok: in={} out={}", model, usage.path("prompt_tokens").asLong(), usage.path("completion_tokens").asLong());
                 return new Result(stripFences(text), usage.path("prompt_tokens").asLong(), usage.path("completion_tokens").asLong());
+            // java.net.http.HttpTimeoutException is an IOException: a call that ran past `quest.llm.timeout-seconds`
+            // lands here, is retried like any other I/O failure and then leaves as a transient failure — which is
+            // what the step's retry and, past the deadline, the watchdog are for.
             } catch (IOException e) { last = e; log.warn("DeepSeek I/O error (attempt {}): {}", attempt + 1, e.toString()); sleep(2000L << attempt); }
             catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new LlmException("interrupted", e); }
         }

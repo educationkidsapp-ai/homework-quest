@@ -4789,6 +4789,23 @@
       }
     },
     "/admin/children/{id}" : {
+      "delete" : {
+        "operationId" : "deleteChild_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "Classes" ]
+      },
       "patch" : {
         "operationId" : "updateChild_1",
         "parameters" : [ {

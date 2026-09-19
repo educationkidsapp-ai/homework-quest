@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -38,10 +39,14 @@ public class RosterService {
     private static final List<String> AVATARS = List.of("sky", "sun", "mint", "lavender");
 
     private final ChildRepository children; private final TeacherScope scope; private final RosterImport reader;
-    private final AuditService audit;
+    private final AuditService audit; private final quest.server.children.ChildMediaRepository media;
+    private final quest.server.teacher.TeacherQuestionAnswerRepository answers; private final quest.server.files.FileStore files;
 
-    public RosterService(ChildRepository children, TeacherScope scope, RosterImport reader, AuditService audit) {
+    public RosterService(ChildRepository children, TeacherScope scope, RosterImport reader, AuditService audit,
+                         quest.server.children.ChildMediaRepository media,
+                         quest.server.teacher.TeacherQuestionAnswerRepository answers, quest.server.files.FileStore files) {
         this.children = children; this.scope = scope; this.reader = reader; this.audit = audit;
+        this.media = media; this.answers = answers; this.files = files;
     }
 
     /**
@@ -149,6 +154,44 @@ public class RosterService {
         children.save(child);
         audit.record(caller.userId(), "child.detach", "child", child.getId(), section.getSchoolId(), Map.of("classId", section.getId()));
         return dto(child);
+    }
+
+    /**
+     * `DELETE /admin/children/{id}`: the child is gone, and with her everything that was only ever about her.
+     *
+     * <p>This is the one hard delete in the roster. {@link #detach} takes her off a class and keeps her, `PATCH
+     * /admin/children/{id}` with `active=false` retires her and keeps her, and the parent's own
+     * `DELETE /children/{id}` sets `deleted_at` and keeps her — all three leave her attempts where they are, which
+     * is right for a child who left the school and wrong for a row that should never have existed. An Admin
+     * clearing out acceptance or test data needs the row to actually go, so this removes it: her roster place (the
+     * row itself), and by `ON DELETE CASCADE` her attempts, stop and lesson completions, parent unlocks, stickers,
+     * streak and media rows. `teacher_question_answers` is the one child table `V6` gave no cascade to, so those
+     * rows are deleted here by hand — before the child, or the constraint would refuse.
+     *
+     * <p>Her recordings and drawings are deleted from the bucket first: a cascade takes the rows and would leave the
+     * blobs they pointed at behind for good, with no row left to find them by.
+     *
+     * <p><strong>Scope.</strong> The child is read through the filtered query, so another school's id is a 404 for a
+     * scoped caller rather than a refusal that confirms she exists; when she is on a roster, that class is taken
+     * through {@link TeacherScope} as well, which is what the write permission is checked against. A child on no
+     * roster at all is deletable too — she is exactly the one an acceptance run leaves behind.
+     */
+    @Transactional
+    public void delete(Principals.User caller, String childId) {
+        var child = children.findOneById(childId).orElseThrow(() -> ApiException.notFound("child"));
+        // Two gates, because a child on no roster has no class to be gated by: her school has to be the one this
+        // caller writes into (the platform ADMIN's `X-School-Id`, D6), and when she is on a roster that class has to
+        // be reachable too — the same check `update` makes.
+        if (!child.getSchoolId().equals(scope.writeSchoolId())) throw ApiException.notFound("child");
+        if (child.getClassId() != null) writable(caller, child.getClassId());
+        for (var m : media.findByChildId(child.getId())) delete(m.getStoragePath());
+        answers.deleteAll(answers.findByChildIdOrderByAnsweredAtDesc(child.getId()));
+        children.delete(child);
+        audit.record(caller.userId(), "child.delete", "child", child.getId(), child.getSchoolId(), Map.of("name", child.getName()));
+    }
+
+    private void delete(String path) {
+        try { files.delete(path); } catch (RuntimeException e) { LoggerFactory.getLogger(RosterService.class).warn("could not delete {}: {}", path, e.toString()); }
     }
 
     /**
