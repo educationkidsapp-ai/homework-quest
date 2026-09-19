@@ -45,9 +45,11 @@ export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 't
           [attr.autocomplete]="autocomplete() || null"
           [disabled]="disabled()"
           [required]="required()"
+          [attr.maxlength]="maxLength()"
           [attr.aria-invalid]="error() ? 'true' : null"
           [attr.aria-describedby]="describedBy()"
           (input)="onInput($event)"
+          (blur)="blurred.emit()"
           (keydown.enter)="onEnter()"
         />
         @if (keycap(); as key) {
@@ -171,6 +173,8 @@ export class InputComponent {
   readonly disabled = input(false);
   readonly required = input(false);
   readonly autocomplete = input<string | null>(null);
+  /** Maximum characters, enforced by the field as well as counted by the form. */
+  readonly maxLength = input<number | null>(null);
   /** Reserve the leading 48 px for a glyph projected into `[input-icon]` (§3 Input). */
   readonly icon = input(false);
   /** The trailing key hint, e.g. `/` on the shell's search field. */
@@ -179,6 +183,8 @@ export class InputComponent {
   readonly enterSubmit = input(false);
 
   readonly enterSubmitted = output<string>();
+  /** The field lost focus — what a form validates one field on, rather than on every keystroke. */
+  readonly blurred = output<void>();
 
   protected readonly describedBy = computed(() => {
     const ids = [this.hint() ? `${this.id}-hint` : null, this.error() ? `${this.id}-error` : null];
