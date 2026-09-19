@@ -28,7 +28,7 @@ jobs:
       name: ${{ inputs.environment }}
       url: ${{ vars.API_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/gcp-auth
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
