@@ -3129,6 +3129,9 @@
           "speak" : {
             "type" : "string"
           },
+          "teacherText" : {
+            "type" : "string"
+          },
           "title" : {
             "type" : "string"
           },
@@ -6384,6 +6387,42 @@
         "tags" : [ "Admin lessons" ]
       }
     },
+    "/admin/stops/{stopId}/from-text" : {
+      "post" : {
+        "operationId" : "stopFromText",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "stopId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Stop"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Admin lessons" ]
+      }
+    },
     "/admin/stops/{stopId}/regenerate" : {
       "post" : {
         "operationId" : "regenerateStop",
@@ -8964,6 +9003,42 @@
       },
       "put" : {
         "operationId" : "teacherUpdateStop",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "stopId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Stop"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/stops/{stopId}/from-text" : {
+      "post" : {
+        "operationId" : "teacherStopFromText",
         "parameters" : [ {
           "in" : "path",
           "name" : "stopId",

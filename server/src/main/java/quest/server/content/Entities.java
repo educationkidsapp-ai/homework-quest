@@ -156,6 +156,8 @@ public final class Entities {
         @Column(nullable = false) private String title; @Column(nullable = false) private String ingredient;
         @Column(name = "content_json", nullable = false) private String contentJson;
         @Column(name = "parent_tip_en", nullable = false) private String parentTipEn; @Column(name = "parent_tip_ar", nullable = false) private String parentTipAr;
+        /** CR5 (V9): the readable English the teacher last saved for this stop, and when. Null until she saves one. */
+        @Column(name = "text") private String text; @Column(name = "text_updated_at") private Instant textUpdatedAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getPlayId() { return playId; } public void setPlayId(String v) { playId = v; }
         public String getLessonId() { return lessonId; } public void setLessonId(String v) { lessonId = v; }
@@ -167,6 +169,8 @@ public final class Entities {
         public String getContentJson() { return contentJson; } public void setContentJson(String v) { contentJson = v; }
         public String getParentTipEn() { return parentTipEn; } public void setParentTipEn(String v) { parentTipEn = v; }
         public String getParentTipAr() { return parentTipAr; } public void setParentTipAr(String v) { parentTipAr = v; }
+        public String getText() { return text; } public void setText(String v) { text = v; }
+        public Instant getTextUpdatedAt() { return textUpdatedAt; } public void setTextUpdatedAt(Instant v) { textUpdatedAt = v; }
     }
 
     @Entity @Table(name = "parent_panels")

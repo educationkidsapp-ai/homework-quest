@@ -216,6 +216,12 @@ public class AdminLessonService {
         return LessonStatus.GENERATING;
     }
 
+    /**
+     * The raw-JSON save, which is what the admin panel's debug view still posts. CR5 leaves it exactly as it was with
+     * one consequence written down: the stop's teacher-facing prose (`stops.text`) is dropped, because a sentence
+     * about the JSON that was there is a lie about the JSON that is there now. The next read describes the new JSON
+     * instead. Every other stop of the play keeps the prose its teacher wrote.
+     */
     @Transactional
     public Stop updateStop(String stopId, Stop stop) {
         var se = stops.findById(stopId).orElseThrow(() -> ApiException.notFound("stop"));
@@ -508,7 +514,11 @@ public class AdminLessonService {
                 l.getClassId(), null, l.getTeacherId(), null, type, analyzedBefore);
         SourceAnalysis analysis = l.getSourceHash() == null ? null : analysisCache.findById(CacheKeys.INSTANCE.analysisKey(l.getSourceHash())).map(c -> json.decodeShared(c.getAnalysisJson(), SourceAnalysis.Companion.serializer())).orElse(null);
         var skillDtos = skills.findByLessonIdOrderByPosition(l.getId()).stream().map(this::skill).toList();
-        var playDtos = store.plays(l.getId()).stream().map(p -> new AdminPlay(p.getId(), p.getLevel(), p.getVariant(), store.play(p), p.getPromptVersion(), p.getGeneratedAt().toEpochMilli())).toList();
+        // CR5: the editor shows prose, not JSON, so every stop of the detail view carries its `teacherText` — what she
+        // saved (`stops.text`), or a deterministic reading of the JSON that is actually stored. One query for the whole
+        // lesson, and only on the detail path: the list above returns before this and stays at four statements.
+        var savedText = store.teacherText(l.getId());
+        var playDtos = store.plays(l.getId()).stream().map(p -> new AdminPlay(p.getId(), p.getLevel(), p.getVariant(), store.withTeacherText(store.play(p), savedText), p.getPromptVersion(), p.getGeneratedAt().toEpochMilli())).toList();
         var panel = panels.findById(l.getId()).map(p -> json.decodeShared(p.getPanelJson(), ParentPanel.Companion.serializer())).orElse(null);
         var images = pageImages.findByLessonIdOrderByPageNumber(l.getId()).stream().map(i -> new PageImage(i.getId(), publicUrl + "/media/pages/" + i.getId(), i.getWidth(), i.getHeight(), i.getDescription())).toList();
         var section = l.getClassId() == null ? null : sections.findOneById(l.getClassId()).orElse(null);

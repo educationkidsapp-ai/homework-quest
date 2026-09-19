@@ -38,6 +38,17 @@ sealed interface Stop {
     val parentTip: Bilingual
     /** Optional picture shown above the stop (a page image or an admin-attached image, `PublishedLesson.images` id). */
     val imageId: String?
+    /**
+     * CR5: the readable English a teacher edits instead of this JSON.
+     *
+     * <p>Read-side only. It is never part of a stored play — `Play.schema.json` forbids the property — so
+     * `LessonStore.savePlay` strips it on the way in, and a read fills it from `stops.text` (what she last saved
+     * through `POST /{teacher|admin}/stops/{id}/from-text`) or, when that is null, from the deterministic
+     * `StopText.describe` of the JSON that is actually stored. Sending it back changes nothing: the raw-JSON
+     * `PUT /{teacher|admin}/stops/{id}` **drops** the saved prose, because a sentence about the JSON that was there
+     * is a lie about the JSON that is there now, and the next read describes the new content instead.
+     */
+    val teacherText: String?
     val type: String
     val category: StopCategory
 
@@ -47,35 +58,35 @@ sealed interface Stop {
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val pageNumber: Int, val sentences: List<String>, val pageImageId: String? = null, val pictureDescription: String? = null,
         val illustrationKey: String? = null, val tapTask: TapTask? = null,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "readPage"; override val category get() = StopCategory.INFO }
 
     @Serializable @SerialName("storyPieces")
     data class StoryPieces(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val cards: List<StoryCard>,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "storyPieces"; override val category get() = StopCategory.INFO }
 
     @Serializable @SerialName("wordCards")
     data class WordCards(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val words: List<WordCard>,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "wordCards"; override val category get() = StopCategory.INFO }
 
     @Serializable @SerialName("move")
     data class Move(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val actions: List<MoveAction>,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "move"; override val category get() = StopCategory.INFO }
 
     @Serializable @SerialName("explain")
     data class Explain(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val skillId: String, val explanation: String, val workedExamples: List<WorkedExample>,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "explain"; override val category get() = StopCategory.INFO }
 
     // ---------------------------------------------------------------- single-answer stops
@@ -90,14 +101,14 @@ sealed interface Stop {
     data class Choice(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         override val hint: String, val question: String, val options: List<Tile>, val correctOptionId: String,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "choice"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
     @Serializable @SerialName("trueFalse")
     data class TrueFalse(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         override val hint: String, val statement: String, val answer: Boolean,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer {
         override val type get() = "trueFalse"; override val correctId get() = if (answer) TRUE_ID else FALSE_ID; override val optionIds get() = listOf(TRUE_ID, FALSE_ID)
         companion object { const val TRUE_ID = "true"; const val FALSE_ID = "false" }
@@ -107,42 +118,42 @@ sealed interface Stop {
     data class Sequence(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         override val hint: String, val chips: List<Int?>, val options: List<Option>, val correctOptionId: String, val numberLine: NumberLine,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "sequence"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
     @Serializable @SerialName("count")
     data class Count(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         override val hint: String, val objectKey: String, val groupSizes: List<Int>, val options: List<Option>, val correctOptionId: String, val numberLine: NumberLine,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "count"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id }; val total: Int get() = groupSizes.sum() }
 
     @Serializable @SerialName("compare")
     data class Compare(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         override val hint: String, val left: Int, val right: Int, val options: List<Option>, val correctOptionId: String, val numberLine: NumberLine,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "compare"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
     @Serializable @SerialName("sound")
     data class Sound(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         override val hint: String, val illustrationKey: String, val options: List<Option>, val correctOptionId: String,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "sound"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
     @Serializable @SerialName("word")
     data class Word(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         override val hint: String, val spokenWord: String, val options: List<Option>, val correctOptionId: String,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "word"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
     @Serializable @SerialName("readTap")
     data class ReadTap(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         override val hint: String, val word: String, val options: List<PictureOption>, val correctOptionId: String,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "readTap"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
     // ---------------------------------------------------------------- multi-answer and open stops
@@ -150,56 +161,56 @@ sealed interface Stop {
     data class MultiSelect(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val prompt: String, val options: List<Tile>, val correctIds: List<String>, val pick: Int,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "multiSelect"; override val category get() = StopCategory.MULTI }
 
     @Serializable @SerialName("selectAll")
     data class SelectAll(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val prompt: String, val options: List<Tile>, val correctIds: List<String>,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "selectAll"; override val category get() = StopCategory.MULTI }
 
     @Serializable @SerialName("match")
     data class Match(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val prompt: String, val pairs: List<MatchPair>,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "match"; override val category get() = StopCategory.MULTI }
 
     @Serializable @SerialName("order")
     data class Order(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val prompt: String, val items: List<OrderItem>, val correctOrder: List<String>,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "order"; override val category get() = StopCategory.MULTI }
 
     @Serializable @SerialName("trace")
     data class Trace(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val text: String, val hint: String,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "trace"; override val category get() = StopCategory.MULTI }
 
     @Serializable @SerialName("retell")
     data class Retell(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val prompt: String, val cues: List<RetellCue>, val modelAnswer: String, val record: Boolean = true,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "retell"; override val category get() = StopCategory.OPEN }
 
     @Serializable @SerialName("openAnswer")
     data class OpenAnswer(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val prompt: String, val mode: String, val modelAnswer: String,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "openAnswer"; override val category get() = StopCategory.OPEN }
 
     @Serializable @SerialName("writeSentence")
     data class WriteSentence(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val frame: String, val answer: String, val options: List<String>? = null, val free: Boolean = false,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "writeSentence"; override val category get() = if (free) StopCategory.OPEN else StopCategory.SINGLE }
 
     // ---------------------------------------------------------------- exit ticket
@@ -207,7 +218,7 @@ sealed interface Stop {
     data class ExitTicket(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
         val questions: List<Stop>,
-        override val imageId: String? = null,
+        override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "exitTicket"; override val category get() = StopCategory.EXIT }
 }
 
@@ -250,3 +261,36 @@ object MultiAnswerLogic {
     /** Exit ticket: average of the three question stars, never below one. */
     fun exitTicketStars(stars: List<Int>): Int = if (stars.isEmpty()) 1 else stars.average().toInt().coerceAtLeast(1)
 }
+
+/**
+ * The same stop carrying (or clearing) the teacher-facing [Stop.teacherText]. A sealed hierarchy has no shared
+ * `copy`, so the 22 branches are spelled out once, here, rather than at every call site.
+ */
+fun Stop.withTeacherText(text: String?): Stop = when (this) {
+    is Stop.ReadPage -> copy(teacherText = text)
+    is Stop.StoryPieces -> copy(teacherText = text)
+    is Stop.WordCards -> copy(teacherText = text)
+    is Stop.Move -> copy(teacherText = text)
+    is Stop.Explain -> copy(teacherText = text)
+    is Stop.Choice -> copy(teacherText = text)
+    is Stop.TrueFalse -> copy(teacherText = text)
+    is Stop.Sequence -> copy(teacherText = text)
+    is Stop.Count -> copy(teacherText = text)
+    is Stop.Compare -> copy(teacherText = text)
+    is Stop.Sound -> copy(teacherText = text)
+    is Stop.Word -> copy(teacherText = text)
+    is Stop.ReadTap -> copy(teacherText = text)
+    is Stop.MultiSelect -> copy(teacherText = text)
+    is Stop.SelectAll -> copy(teacherText = text)
+    is Stop.Match -> copy(teacherText = text)
+    is Stop.Order -> copy(teacherText = text)
+    is Stop.Trace -> copy(teacherText = text)
+    is Stop.Retell -> copy(teacherText = text)
+    is Stop.OpenAnswer -> copy(teacherText = text)
+    is Stop.WriteSentence -> copy(teacherText = text)
+    is Stop.ExitTicket -> copy(teacherText = text)
+}
+
+/** Every stop of the play with its teacher text cleared — what a stored `play_json` must look like. */
+fun Play.withoutTeacherText(): Play =
+    if (stops.none { it.teacherText != null }) this else copy(stops = stops.map { it.withTeacherText(null) })

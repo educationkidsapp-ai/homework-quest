@@ -148,6 +148,7 @@
     { "method": "PUT", "path": "/admin/stops/{stopId}", "permission": "stop.write" },
     { "method": "DELETE", "path": "/admin/stops/{stopId}", "permission": "stop.write" },
     { "method": "POST", "path": "/admin/stops/{stopId}/regenerate", "permission": "stop.write" },
+    { "method": "POST", "path": "/admin/stops/{stopId}/from-text", "permission": "stop.write" },
 
     { "method": "GET", "path": "/admin/cache", "permission": "cache.read" },
     { "method": "GET", "path": "/admin/usage", "permission": "usage.read" },
@@ -236,6 +237,7 @@
     { "method": "PUT", "path": "/teacher/stops/{stopId}", "permission": "stop.write" },
     { "method": "DELETE", "path": "/teacher/stops/{stopId}", "permission": "stop.write" },
     { "method": "POST", "path": "/teacher/stops/{stopId}/regenerate", "permission": "stop.write" },
+    { "method": "POST", "path": "/teacher/stops/{stopId}/from-text", "permission": "stop.write" },
     { "method": "POST", "path": "/teacher/plays/{playId}/stops", "permission": "stop.write" },
     { "method": "PUT", "path": "/teacher/plays/{playId}/order", "permission": "play.write" },
     { "method": "POST", "path": "/teacher/plays/{playId}/regenerate", "permission": "play.write" },
