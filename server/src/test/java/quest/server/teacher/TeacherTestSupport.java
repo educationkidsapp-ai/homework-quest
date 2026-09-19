@@ -96,6 +96,17 @@ abstract class TeacherTestSupport extends ApiTestSupport {
         setFlag(adminToken, schoolId, FlagKeys.ANNOUNCEMENTS, true);
     }
 
+    /**
+     * The `index`-th teaching day from today in the default Sunday–Thursday week. `POST /teacher/lessons` and
+     * `PATCH /teacher/lessons/{id}` refuse a day the school does not teach on, so a fixture built on
+     * `LocalDate.now().plusDays(n)` would pass Sunday to Thursday and fail on the weekend.
+     */
+    static LocalDate schoolDay(int index) {
+        LocalDate day = LocalDate.now();
+        for (int found = 0; ; day = day.plusDays(1))
+            if (quest.server.platform.SchoolCalendar.DEFAULT_WEEK.contains(day.getDayOfWeek()) && found++ == index) return day;
+    }
+
     // ---------------------------------------------------------------- rows
 
     SchoolEntity school(String id, String name, String code) {

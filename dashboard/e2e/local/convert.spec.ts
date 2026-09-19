@@ -3,11 +3,11 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   API,
-  dayFromNow,
   expect,
   removeLessonsOfThisRun,
   RUN,
   SARA,
+  schoolDayFromNow,
   setLanguage,
   setScheme,
   shoot,
@@ -34,7 +34,7 @@ const SHOTS = resolve(process.cwd(), '../docs/screenshots/cr4');
 const ONE_PAGE_PDF = resolve(process.cwd(), 'e2e/fixtures/one-page.pdf');
 const TITLE = `Converted first ${RUN}`;
 /** A day this run owns: a class holds one lesson per day, and the database is never reset. */
-const DATE = dayFromNow(400 + (Math.floor(Date.now() / 1000) % 60));
+const DATE = schoolDayFromNow(400 + (Math.floor(Date.now() / 1000) % 60));
 
 /** The words she types over the converted text — short, and unmistakably hers. */
 const TYPED = '# Shapes on the page\n\nA triangle has three sides.\n\n- a triangle\n- a circle';

@@ -78,11 +78,13 @@ class OpenApiContractTest extends ApiTestSupport {
     static final List<String> CLASSES_API = List.of(
             "/admin/classes", "/admin/classes/{id}", "/admin/classes/{id}/join-code",
             "/admin/classes/{id}/join-card.pdf", "/admin/classes/{id}/assignments",
-            "/admin/classes/{id}/children", "/admin/classes/{id}/children/import", "/admin/children", "/admin/children/{id}",
+            "/admin/classes/{id}/children", "/admin/classes/{id}/children/unassigned",
+            "/admin/classes/{id}/children/import", "/admin/children", "/admin/children/{id}",
             "/admin/classes/{id}/roster/attach", "/admin/classes/{id}/roster/{childId}",
             "/admin/teachers", "/admin/teachers/{id}", "/admin/teachers/{id}/reset-password",
             "/admin/teachers/{id}/assignments",
-            "/teacher/classes/{classId}/children", "/teacher/classes/{classId}/children/{childId}",
+            "/teacher/classes/{classId}/children", "/teacher/classes/{classId}/children/unassigned",
+            "/teacher/classes/{classId}/children/{childId}",
             "/teacher/classes/{classId}/roster/attach", "/teacher/classes/{classId}/roster/{childId}");
 
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */

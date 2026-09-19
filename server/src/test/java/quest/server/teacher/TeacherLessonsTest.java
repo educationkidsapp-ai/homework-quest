@@ -8,8 +8,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +50,7 @@ class TeacherLessonsTest extends TeacherTestSupport {
     }
 
     @AfterEach void clean() {
+        schools.findById(SCHOOL).ifPresent(s -> { s.setSchoolWeekJson(null); schools.save(s); });
         removeSeed();
         childRows.findAll().stream().filter(c -> c.getSchoolId().startsWith(prefix()) && c.getClassId() != null)
                 .forEach(c -> { c.setClassId(null); childRows.save(c); });
@@ -58,7 +61,7 @@ class TeacherLessonsTest extends TeacherTestSupport {
     // ---------------------------------------------------------------- create (§8 step 1)
 
     @Test void a_lesson_is_created_into_one_of_her_assignments_and_nowhere_else() throws Exception {
-        var made = create(teacherToken, A, "math", LocalDate.now(), status().isCreated());
+        var made = create(teacherToken, A, "math", schoolDay(0), status().isCreated());
         assertThat(made.get("classId").asText()).isEqualTo(A);
         assertThat(made.get("className").asText()).isEqualTo("1A");
         assertThat(made.get("teacherId").asText()).isEqualTo(TEACHER);
@@ -66,31 +69,66 @@ class TeacherLessonsTest extends TeacherTestSupport {
         assertThat(made.get("type").asText()).isEqualTo("homework");
         assertThat(made.get("status").asText()).isEqualTo("draft");
 
-        create(teacherToken, HERS_NOT, "math", LocalDate.now(), status().isForbidden());
-        create(teacherToken, A, "english", LocalDate.now(), status().isForbidden());
+        create(teacherToken, HERS_NOT, "math", schoolDay(0), status().isForbidden());
+        create(teacherToken, A, "english", schoolDay(0), status().isForbidden());
     }
 
     /** §4 of the schools prompt: a source her school has switched off is the same silence an unknown route gives. */
     @Test void a_source_the_school_has_switched_off_is_not_accepted() throws Exception {
         setFlag(adminToken, SCHOOL, FlagKeys.LESSONS_PDF, false);
-        try { create(teacherToken, A, "math", LocalDate.now(), status().isNotFound()); }
+        try { create(teacherToken, A, "math", schoolDay(0), status().isNotFound()); }
         finally { setFlag(adminToken, SCHOOL, FlagKeys.LESSONS_PDF, true); }
     }
 
     // ---------------------------------------------------------------- move
 
     @Test void a_lesson_moves_day_while_it_is_unpublished_and_not_after() throws Exception {
-        var made = create(teacherToken, A, "math", LocalDate.now(), status().isCreated());
+        var made = create(teacherToken, A, "math", schoolDay(0), status().isCreated());
         String id = made.get("id").asText();
         var moved = json(mvc.perform(as(patch("/teacher/lessons/" + id).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"date\":\"" + LocalDate.now().plusDays(2) + "\"}"), teacherToken))
+                .content("{\"date\":\"" + schoolDay(2) + "\"}"), teacherToken))
                 .andExpect(status().isOk()).andReturn());
-        assertThat(moved.get("date").asText()).isEqualTo(LocalDate.now().plusDays(2).toString());
+        assertThat(moved.get("date").asText()).isEqualTo(schoolDay(2).toString());
 
         publishReady("tl-published", A);
         mvc.perform(as(patch("/teacher/lessons/tl-published").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"date\":\"" + LocalDate.now().plusDays(1) + "\"}"), teacherToken))
+                .content("{\"date\":\"" + schoolDay(1) + "\"}"), teacherToken))
                 .andExpect(status().isConflict());
+    }
+
+    // ---------------------------------------------------------------- the school week
+
+    /**
+     * #98 gave the week grid a column for today even when today is a Friday or a Saturday, so that a teacher who
+     * publishes on a weekend day can still see what she published. That column is a drop target like any other, and
+     * `move` took any date it was handed — a card dropped on it was filed on a day the school does not teach, where
+     * no child would ever be shown it. `create` had the same hole from the other end.
+     */
+    @Test void a_day_the_school_does_not_teach_on_is_refused_on_the_way_in_and_on_the_way_across() throws Exception {
+        for (var weekend : List.of(next(DayOfWeek.FRIDAY), next(DayOfWeek.SATURDAY))) {
+            var refused = create(teacherToken, A, "math", weekend, status().isConflict());
+            assertThat(refused.get("code").asText()).isEqualTo("not_teaching_day");
+            assertThat(refused.get("message").asText()).contains(weekend.getDayOfWeek() == DayOfWeek.FRIDAY ? "Friday" : "Saturday")
+                    .contains("Sunday");
+        }
+
+        var made = create(teacherToken, A, "math", schoolDay(0), status().isCreated());
+        String id = made.get("id").asText();
+        assertThat(move(id, next(DayOfWeek.FRIDAY), status().isConflict()).get("code").asText()).isEqualTo("not_teaching_day");
+        assertThat(lessons.findOneById(id).orElseThrow().getDate()).as("the refused move wrote nothing").isEqualTo(schoolDay(0));
+    }
+
+    /** The days are the school's own, so a Monday–Friday school refuses Saturday and Sunday and accepts Friday. */
+    @Test void a_school_with_its_own_week_has_its_own_weekend() throws Exception {
+        var school = schools.findById(SCHOOL).orElseThrow();
+        school.setSchoolWeekJson("[\"MON\",\"TUE\",\"WED\",\"THU\",\"FRI\"]"); schools.save(school);
+
+        create(teacherToken, A, "math", next(DayOfWeek.SATURDAY), status().isConflict());
+        create(teacherToken, A, "math", next(DayOfWeek.SUNDAY), status().isConflict());
+        var friday = create(teacherToken, A, "math", next(DayOfWeek.FRIDAY), status().isCreated());
+        assertThat(friday.get("date").asText()).isEqualTo(next(DayOfWeek.FRIDAY).toString());
+        assertThat(move(friday.get("id").asText(), next(DayOfWeek.SUNDAY), status().isConflict()).get("code").asText())
+                .isEqualTo("not_teaching_day");
     }
 
     // ---------------------------------------------------------------- copy
@@ -200,7 +238,7 @@ class TeacherLessonsTest extends TeacherTestSupport {
     // ---------------------------------------------------------------- delete
 
     @Test void only_a_draft_or_a_failed_lesson_can_be_deleted() throws Exception {
-        String draft = create(teacherToken, A, "math", LocalDate.now(), status().isCreated()).get("id").asText();
+        String draft = create(teacherToken, A, "math", schoolDay(0), status().isCreated()).get("id").asText();
         mvc.perform(as(delete("/teacher/lessons/" + draft), teacherToken)).andExpect(status().isNoContent());
 
         readyLesson("tl-ready", SCHOOL, A, "british", 1, "math", LocalDate.now());
@@ -227,6 +265,18 @@ class TeacherLessonsTest extends TeacherTestSupport {
         return json(mvc.perform(as(post("/teacher/lessons").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"classId\":\"" + classId + "\",\"subject\":\"" + subject + "\",\"date\":\"" + date
                         + "\",\"source\":\"pdf\",\"title\":\"Counting to ten\"}"), token)).andExpect(expected).andReturn());
+    }
+
+    private JsonNode move(String id, LocalDate date, ResultMatcher expected) throws Exception {
+        return json(mvc.perform(as(patch("/teacher/lessons/" + id).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"date\":\"" + date + "\"}"), teacherToken)).andExpect(expected).andReturn());
+    }
+
+    /** The next date that falls on `day`, today included — a Friday is a Friday whatever the school's zone says. */
+    private static LocalDate next(DayOfWeek day) {
+        LocalDate d = LocalDate.now();
+        while (d.getDayOfWeek() != day) d = d.plusDays(1);
+        return d;
     }
 
     private org.springframework.test.web.servlet.ResultActions copy(String id, String classId, String token) throws Exception {

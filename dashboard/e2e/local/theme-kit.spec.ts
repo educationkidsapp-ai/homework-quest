@@ -3,11 +3,11 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   API,
-  dayFromNow,
   expect,
   removeLessonsOfThisRun,
   RUN,
   SARA,
+  schoolDayFromNow,
   setLanguage,
   setScheme,
   shoot,
@@ -40,7 +40,7 @@ const PHONE = { width: 375, height: 812 };
 
 const TITLE = `Counting in twos ${RUN}`;
 /** A day far out and different every run: a class holds one lesson per day (see N2.4a). */
-const DATE = dayFromNow(320 + (Math.floor(Date.now() / 1000) % 40));
+const DATE = schoolDayFromNow(320 + (Math.floor(Date.now() / 1000) % 40));
 
 let classId = '';
 let lessonPath = '';

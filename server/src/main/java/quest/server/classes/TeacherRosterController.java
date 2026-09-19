@@ -43,6 +43,18 @@ public class TeacherRosterController {
         return rosters.list(TeacherScope.require(caller), classId);
     }
 
+    /**
+     * The children the attach sheet offers: her school's, on no roster at all, and of this section's curriculum and
+     * grade. Until this existed the only list of unplaced children was `GET /admin/children?unassigned=true`, which
+     * is `roster.read` and so ADMIN/MANAGERIAL — a teacher could attach a child she already had the id of and had
+     * no way to find one.
+     */
+    @GetMapping(value = "/teacher/classes/{classId}/children/unassigned", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('roster.teacher')")
+    public List<ClassDto.RosterChild> unassignedForMyClass(@AuthenticationPrincipal Principals.User caller, @PathVariable String classId) {
+        return rosters.unassignedFor(TeacherScope.require(caller), classId);
+    }
+
     @PostMapping(value = "/teacher/classes/{classId}/children", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("@permit.has('roster.teacher')")

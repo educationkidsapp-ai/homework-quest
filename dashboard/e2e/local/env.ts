@@ -472,10 +472,34 @@ export async function addStopThroughForm(
   await expect(rows).toHaveCount(before + 1, { timeout: 30_000 });
 }
 
-/** An ISO day `days` from today, in UTC — the format every lesson date field uses. */
-export function dayFromNow(days: number): string {
+/** Sunday to Thursday, as `Date.getUTCDay()` numbers them — see {@link schoolDayFromNow}. */
+const TEACHING_DAYS = new Set([0, 1, 2, 3, 4]);
+
+/**
+ * The `days`-th **teaching day** from today, as an ISO date — the format every lesson date field
+ * uses, and the only kind of date a lesson may carry.
+ *
+ * <p>`POST /teacher/lessons` and `PATCH /teacher/lessons/{id}` refuse a day the school does not
+ * teach on with a 409 `not_teaching_day`, so plain "today plus N" is the wrong arithmetic here:
+ * two of every seven offsets land on a Friday or a Saturday, and a suite built on them fails on
+ * those days and passes on the others. Counting teaching days gives every spec what it was
+ * actually asking for — consecutive, distinct, empty cells on a stretch this run owns — and can
+ * never produce a date the server will refuse. `BASE + 1` is the next column of the grid rather
+ * than the next square on a calendar, which is what the week view draws anyway.
+ *
+ * <p>The week is hard-coded: it is the server's `SchoolCalendar.DEFAULT_WEEK` and what the
+ * one-school seed runs. Reading it from `GET /platform-settings` would have to be awaited, and
+ * every spec here fixes its days in a module-level `const` that cannot await anything. A seed
+ * that ever moves off the Gulf week changes this one line.
+ */
+export function schoolDayFromNow(days: number): string {
   const day = new Date();
-  day.setUTCDate(day.getUTCDate() + days);
+  while (!TEACHING_DAYS.has(day.getUTCDay())) day.setUTCDate(day.getUTCDate() + 1);
+  for (let found = 0; found < days; found += 1) {
+    do {
+      day.setUTCDate(day.getUTCDate() + 1);
+    } while (!TEACHING_DAYS.has(day.getUTCDay()));
+  }
   return day.toISOString().slice(0, 10);
 }
 

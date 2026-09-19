@@ -4,11 +4,11 @@ import { resolve } from 'node:path';
 import {
   addStopThroughForm,
   API,
-  dayFromNow,
   expect,
   removeLessonsOfThisRun,
   RUN,
   SARA,
+  schoolDayFromNow,
   setScheme,
   shoot,
   signInAsSara,
@@ -44,14 +44,17 @@ const TITLE = `Counting on ${RUN}`;
 const DRAFT_TITLE = `Scratch ${RUN}`;
 
 /**
- * Days well ahead, and a different stretch of them on every run: a class holds one lesson per
- * day, so a second run against the same H2 database must not land on the first run's cells. Far
- * enough out to be empty, near enough that the calendar test is a few "Next month" hops.
+ * Teaching days well ahead, and a different stretch of them on every run: a class holds one
+ * lesson per day, so a second run against the same H2 database must not land on the first run's
+ * cells. Far enough out to be empty, near enough that the calendar test is a dozen "Next month"
+ * hops. They are counted in school days rather than calendar days because a lesson may not be
+ * dated to a Friday or a Saturday at all (`schoolDayFromNow`), which also makes `BASE + 1` the
+ * next column of the week grid rather than a square the grid does not draw.
  */
 const BASE = 150 + (Math.floor(Date.now() / 1000) % 60);
-const PUBLISH_DAY = dayFromNow(BASE);
-const MOVED_DAY = dayFromNow(BASE + 1);
-const DRAFT_DAY = dayFromNow(BASE + 2);
+const PUBLISH_DAY = schoolDayFromNow(BASE);
+const MOVED_DAY = schoolDayFromNow(BASE + 1);
+const DRAFT_DAY = schoolDayFromNow(BASE + 2);
 
 let classId = '';
 let siblingName = '';
@@ -255,7 +258,7 @@ test('an unpublished lesson moves day, and the move survives a reload', async ({
 
 test('a draft is deleted from the overflow menu behind a red band', async ({ page }) => {
   await signInAsSara(page);
-  const draft = await createDraft(`${DRAFT_TITLE} draft`, dayFromNow(BASE + 3));
+  const draft = await createDraft(`${DRAFT_TITLE} draft`, schoolDayFromNow(BASE + 3));
   await page.goto(draft);
 
   await page.getByRole('button', { name: /^Actions for/ }).click();
@@ -274,7 +277,7 @@ test('the same file uploaded twice is badged "Analyzed before · 0 tokens"', asy
   // shared database the first one is often a hit too — either way, what this proves is that the
   // second lesson says so.
   for (const pass of [1, 2]) {
-    const query = new URLSearchParams({ classId, subject: 'math', date: dayFromNow(BASE + 5 + pass) });
+    const query = new URLSearchParams({ classId, subject: 'math', date: schoolDayFromNow(BASE + 5 + pass) });
     await page.goto(`teacher/lessons/new?${query.toString()}`);
     await page.getByLabel('Title').fill(`${TITLE} cached ${pass}`);
     await page.getByRole('button', { name: /Upload a PDF/ }).click();
@@ -334,7 +337,7 @@ test('the screenshot set, EN and AR', async ({ page }) => {
     sheetDrafts[language] = await createManualLesson(
       page,
       `${TITLE} sheet ${language}`,
-      dayFromNow(BASE + 8 + index),
+      schoolDayFromNow(BASE + 8 + index),
     );
     await addOneStop(page);
   }

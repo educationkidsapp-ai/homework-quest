@@ -36,6 +36,7 @@ import quest.server.content.PlayRepository;
 import quest.server.content.SkillRepository;
 import quest.server.flags.FeatureFlags;
 import quest.server.flags.FlagKeys;
+import quest.server.platform.SchoolCalendar;
 import quest.server.tenancy.Entities.ClassEntity;
 import quest.server.tenancy.TeacherScope;
 
@@ -68,13 +69,15 @@ public class TeacherLessonService {
     private final LessonStore store; private final PlayRepository plays; private final SkillRepository skills;
     private final ParentPanelRepository panels; private final PageImageRepository pageImages;
     private final quest.server.content.StopRepository stops;
-    private final Json json; private final FeatureFlags flags;
+    private final Json json; private final FeatureFlags flags; private final SchoolCalendar calendar;
 
     public TeacherLessonService(AdminLessonService admin, TeacherScope scope, LessonRepository lessons, LessonStore store,
                                 PlayRepository plays, SkillRepository skills, ParentPanelRepository panels,
-                                PageImageRepository pageImages, quest.server.content.StopRepository stops, Json json, FeatureFlags flags) {
+                                PageImageRepository pageImages, quest.server.content.StopRepository stops, Json json,
+                                FeatureFlags flags, SchoolCalendar calendar) {
         this.admin = admin; this.scope = scope; this.lessons = lessons; this.store = store; this.plays = plays;
-        this.skills = skills; this.panels = panels; this.pageImages = pageImages; this.stops = stops; this.json = json; this.flags = flags;
+        this.skills = skills; this.panels = panels; this.pageImages = pageImages; this.stops = stops; this.json = json;
+        this.flags = flags; this.calendar = calendar;
     }
 
     /** The scope check every `/teacher/lessons/{id}/**` alias runs before it delegates: owner, or assigned. */
@@ -137,21 +140,48 @@ public class TeacherLessonService {
         var section = scope.requireAssignment(caller, body.classId().trim(), subject);
         var source = source(body.source());
         requireSourceFlag(source);
+        var day = requireTeachingDay(section.getSchoolId(), TeacherWeekService.date(body.date()));
         int practiceLength = body.practiceLength() == null ? 7 : body.practiceLength();
         var request = new CreateLessonRequest(Curriculum.valueOf(section.getCurriculum().toUpperCase(Locale.ROOT)),
-                section.getGrade(), Subject.valueOf(subject.toUpperCase(Locale.ROOT)), kdate(TeacherWeekService.date(body.date())),
+                section.getGrade(), Subject.valueOf(subject.toUpperCase(Locale.ROOT)), kdate(day),
                 body.notes(), practiceLength, source, body.title(), section.getId());
         return admin.create(request, caller);
     }
 
-    /** Moving a card in the week grid. Only while it is unpublished — otherwise children have already played it. */
+    /**
+     * Moving a card in the week grid. Only while it is unpublished — otherwise children have already played it —
+     * and only onto a day the school teaches on.
+     *
+     * <p>The day check is the other half of #98: the week grid now appends <em>today's</em> column even when today
+     * is a Friday or a Saturday, so that a teacher who publishes on a weekend day can still see what she published.
+     * That column is a live drop target like any other, and without this a card dropped on it would be filed on a
+     * day the school does not teach — invisible to the children, and gone from the grid as soon as she pages away.
+     * The 409 is what lets the dashboard refuse the drop and say why.
+     */
     @Transactional
     public AdminLesson move(Principals.User caller, String id, String date) {
         var lesson = require(caller, id);
         if (LessonState.status(lesson) == LessonStatus.PUBLISHED)
             throw ApiException.conflict("Unpublish the lesson before moving it to another day.");
-        lesson.setDate(TeacherWeekService.date(date)); lesson.setUpdatedAt(Instant.now());
+        lesson.setDate(requireTeachingDay(lesson.getSchoolId(), TeacherWeekService.date(date)));
+        lesson.setUpdatedAt(Instant.now());
         return admin.toAdmin(lessons.save(lesson), true);
+    }
+
+    /**
+     * The date, or 409 `not_teaching_day`. The days are the school's own ({@link SchoolCalendar}: school row →
+     * platform row → Sunday–Thursday), so a Monday–Friday school refuses Saturday and Sunday and a school that
+     * teaches six days refuses only Friday — the rule is never a hard-coded weekend.
+     */
+    private LocalDate requireTeachingDay(String schoolId, LocalDate date) {
+        var week = calendar.of(schoolId);
+        if (week.isSchoolDay(date)) return date;
+        throw ApiException.notTeachingDay(name(date.getDayOfWeek()) + " is not a teaching day at this school — lessons go on "
+                + week.days().stream().map(TeacherLessonService::name).collect(java.util.stream.Collectors.joining(", ")) + ".");
+    }
+
+    private static String name(java.time.DayOfWeek day) {
+        return day.getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH);
     }
 
     /** Draft or error only — a lesson that is ready or published is kept until she unpublishes and empties it. */

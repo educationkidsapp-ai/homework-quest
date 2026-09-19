@@ -63,23 +63,6 @@ public class GenerationService {
         panel(lesson, hash, analysisJson(hash), plays);
     }
 
-    /** All four plays and the panel for a lesson (called by the pipeline after skills are confirmed). */
-    public void generateAll(LessonEntity lesson) {
-        String hash = requireHash(lesson);
-        String analysisJson = analysisJson(hash);
-        String skillsJson = confirmedSkillsJson(lesson);
-        Map<String, String> canonicalPlays = new HashMap<>();
-        Set<String> level1Ids = new HashSet<>();
-        for (int[] t : TARGETS) {
-            int level = t[0], variant = t[1];
-            String canonical = playJson(lesson, hash, analysisJson, skillsJson, level, variant, 0, variant == 1 ? level1Ids : Set.of());
-            if (level == 1 && variant == 0) level1Ids.addAll(stopIds(canonical));
-            canonicalPlays.put(level + ":" + variant, canonical);
-            attach(lesson, canonical, level, variant, 0);
-        }
-        panel(lesson, hash, analysisJson, canonicalPlays);
-    }
-
     /** Regenerate one level with the next seed (a fresh cache slot). */
     public Play regeneratePlay(LessonEntity lesson, PlayEntity existing) {
         String hash = requireHash(lesson);

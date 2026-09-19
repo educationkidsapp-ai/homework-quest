@@ -54,6 +54,8 @@ data class ApiError(val code: String, val message: String) {
         const val ENCRYPTED = "encrypted"; const val UNSUPPORTED = "unsupported"; const val MALFORMED = "malformed"
         const val NEEDS_OCR = "needs_ocr"; const val OCR_FAILED = "ocr_failed"; const val TOOL_MISSING = "tool_missing"; const val IO = "io"
         const val MARKDOWN_MISSING = "markdown_missing"
+        /** 409: the date is fine, the day is not — the school does not teach on it (`SchoolCalendar`). */
+        const val NOT_TEACHING_DAY = "not_teaching_day"
     }
 }
 

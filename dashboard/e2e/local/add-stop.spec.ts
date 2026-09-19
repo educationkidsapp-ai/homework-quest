@@ -3,10 +3,10 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   API,
-  dayFromNow,
   expect,
   RUN,
   SARA,
+  schoolDayFromNow,
   setLanguage,
   setScheme,
   shoot,
@@ -29,7 +29,7 @@ import {
  */
 const SHOTS = resolve(process.cwd(), '../docs/screenshots/cr2');
 const TITLE = `Shapes and sides ${RUN}`;
-const DATE = dayFromNow(360 + (Math.floor(Date.now() / 1000) % 60));
+const DATE = schoolDayFromNow(360 + (Math.floor(Date.now() / 1000) % 60));
 
 let classId = '';
 let lessonUrl = '';
