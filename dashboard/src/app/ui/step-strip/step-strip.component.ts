@@ -107,7 +107,7 @@ export interface PipelineStep {
       inline-size: var(--hq-size-timeline-marker);
       block-size: var(--hq-size-timeline-marker);
       border-radius: var(--hq-radius-pill);
-      font-size: var(--hq-text-theme-xs);
+      font-size: var(--hq-text-theme-2xs);
       font-weight: var(--hq-text-weight-semibold);
       line-height: 1;
       background: var(--hq-color-neutral-soft);

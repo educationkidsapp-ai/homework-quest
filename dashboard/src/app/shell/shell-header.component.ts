@@ -258,8 +258,8 @@ import { TourService } from '../core/tour/tour.service';
     // The language switch says which language it is on rather than drawing a globe nobody can
     // read a language off. Upper-cased by CSS so 'ar'/'en' stay the codes the service uses.
     .header__icon-text {
-      font-size: var(--hq-text-theme-xs);
-      line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+      font-size: var(--hq-text-theme-2xs);
+      line-height: calc(var(--hq-text-theme-2xs-line) / var(--hq-text-theme-2xs));
       font-weight: var(--hq-text-weight-semibold);
       text-transform: uppercase;
       letter-spacing: 0.02em;
@@ -318,7 +318,7 @@ import { TourService } from '../core/tour/tour.service';
       border-radius: var(--hq-radius-pill);
       background: var(--hq-color-accent-soft);
       color: var(--hq-color-accent-on-soft);
-      font-size: var(--hq-text-theme-xs);
+      font-size: var(--hq-text-theme-2xs);
       font-weight: var(--hq-text-weight-semibold);
     }
 

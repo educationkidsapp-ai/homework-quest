@@ -76,8 +76,8 @@ export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 't
     }
 
     .field__label {
-      font-size: var(--hq-text-theme-sm);
-      line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
+      font-size: var(--hq-font-label-size);
+      line-height: calc(var(--hq-font-label-line) / var(--hq-font-label-size));
       font-weight: var(--hq-text-weight-medium);
       display: flex;
       align-items: baseline;
