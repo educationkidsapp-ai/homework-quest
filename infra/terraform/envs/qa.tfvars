@@ -15,4 +15,4 @@ seed_school = true
 # to false right after that deploy lands. The automated e2e suite needs `full`; while QA is on `acceptance`, the
 # e2e job is switched off with the repository variable E2E_ON_QA=false.
 seed_profile = "acceptance"
-seed_reset   = true
+seed_reset   = false # the one-shot wipe ran on the deploy of #92/#93; leave off (the seed_resets ledger also blocks a repeat)
