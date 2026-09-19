@@ -324,8 +324,12 @@ export type Stop =
 
 export type StopType = Stop['type'];
 
-/** How a stop is answered, which drives the player and the scoring. */
-export type StopCategory = 'INFO' | 'SINGLE' | 'MULTI' | 'OPEN' | 'EXIT';
+/**
+ * How a stop is answered — the app's own categories, kept here because they are what orders the
+ * map below. The dashboard previews a stop rather than scoring one, so nothing reads a category:
+ * what it needs from this table is its keys, in the order §5 lists them.
+ */
+type StopCategory = 'INFO' | 'SINGLE' | 'MULTI' | 'OPEN' | 'EXIT';
 
 const CATEGORY_OF: Readonly<Record<StopType, StopCategory>> = {
   readPage: 'INFO',
@@ -354,12 +358,6 @@ const CATEGORY_OF: Readonly<Record<StopType, StopCategory>> = {
 
 /** Every stop type, in the order §5 lists them — the source of the "+ Add stop" menu. */
 export const STOP_TYPES: readonly StopType[] = Object.keys(CATEGORY_OF) as StopType[];
-
-/** `writeSentence` is open when `free`, single otherwise — every other type is fixed. */
-export function categoryOf(stop: Stop): StopCategory {
-  if (stop.type === 'writeSentence') return stop.free === true ? 'OPEN' : 'SINGLE';
-  return CATEGORY_OF[stop.type];
-}
 
 /** The hint a wrong answer shows, for the stops that have one. */
 export function hintOf(stop: Stop): string | null {

@@ -150,16 +150,7 @@ let nextReasonId = 0;
 
     // §3 Icon button: a 44 × 44 square on the container rule, the glyph in secondary ink.
     .btn--icon {
-      inline-size: var(--hq-size-button-height);
-      padding: 0;
-      background: var(--hq-color-surface);
-      border-color: var(--hq-color-rule);
-      color: var(--hq-color-ink-soft);
-
-      &:hover:not(:disabled) {
-        background: var(--hq-color-surface-sunken);
-        color: var(--hq-color-ink-strong);
-      }
+      @include m.icon-button;
     }
 
     .btn__spinner {

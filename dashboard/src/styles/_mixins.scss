@@ -118,6 +118,33 @@
 }
 
 /// §2 "Card with header": 18/600 over an optional 14/400 sub.
+// §3's "Icon button" row, which the spec writes once and gives two radii: `44 × 44`, a
+// `--hq-color-rule` border, a `--hq-color-ink-soft` glyph, and on hover the sunken ground with
+// the strong ink. The header's are pills on the raised header surface and the kit's variant is
+// a radius-8 control on the page surface, so those two are the parameters and nothing else is.
+//
+// Shared because there is one row in the spec and there were two copies of it in the code
+// (`ui/button` and `shell/shell-header`), which is how they had come to disagree about the
+// hover colour.
+@mixin icon-button($radius: var(--hq-radius-control), $background: var(--hq-color-surface)) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  inline-size: var(--hq-size-control-height);
+  block-size: var(--hq-size-control-height);
+  padding: 0;
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: $radius;
+  background: $background;
+  color: var(--hq-color-ink-soft);
+
+  &:hover:not(:disabled) {
+    background: var(--hq-color-surface-sunken);
+    color: var(--hq-color-ink-strong);
+  }
+}
+
 @mixin card-title {
   font-size: var(--hq-text-card-title);
   line-height: calc(var(--hq-text-card-title-line) / var(--hq-text-card-title));

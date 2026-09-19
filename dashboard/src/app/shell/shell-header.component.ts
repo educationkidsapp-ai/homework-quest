@@ -230,16 +230,10 @@ import { TourService } from '../core/tour/tour.service';
 
     // §3 Button, icon variant — 44 × 44, and the round form the header takes.
     .header__icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      inline-size: var(--hq-size-control-height);
-      block-size: var(--hq-size-control-height);
-      flex: none;
-      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
-      border-radius: var(--hq-radius-pill);
-      background: var(--hq-color-surface-raised);
-      color: var(--hq-color-ink-soft);
+      // The same spec row as the kit's btn--icon variant, at the radius §3 gives it in the
+      // header. Not the component itself: cdkMenuTriggerFor and the suite's data-hq-* hooks
+      // have to sit on the real button element, and hq-button renders its own inside.
+      @include m.icon-button(var(--hq-radius-pill), var(--hq-color-surface-raised));
       cursor: pointer;
       @include m.motion-safe('background-color, color, border-color');
       @include m.focus-ring;
@@ -252,11 +246,6 @@ import { TourService } from '../core/tour/tour.service';
         stroke-width: 1.8;
         stroke-linecap: round;
         stroke-linejoin: round;
-      }
-
-      &:hover {
-        background: var(--hq-color-hover);
-        color: var(--hq-color-ink);
       }
 
       &[aria-pressed='true'],
