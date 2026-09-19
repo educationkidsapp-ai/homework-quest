@@ -48,6 +48,7 @@ class GradebookQueryCountTest extends GradingTestSupport {
     @AfterEach void clean() { removeSeed(); }
 
     @Test void the_gradebook_costs_the_same_for_thirty_children_and_twenty_lessons_as_for_one() throws Exception {
+        warmUp();
         long one = statements(this::gradebook);
 
         grow();
@@ -58,6 +59,7 @@ class GradebookQueryCountTest extends GradingTestSupport {
     }
 
     @Test void the_results_page_costs_the_same_for_a_full_class_as_for_one_child() throws Exception {
+        warmUp();
         long one = statements(() -> mvc.perform(as(get("/teacher/lessons/gq-lesson-1/results"), teacherToken))
                 .andExpect(status().isOk()));
 
@@ -69,6 +71,7 @@ class GradebookQueryCountTest extends GradingTestSupport {
     }
 
     @Test void the_child_page_costs_the_same_for_twenty_lessons_as_for_one() throws Exception {
+        warmUp();
         long one = statements(() -> mvc.perform(as(get("/teacher/children/" + firstChild), teacherToken))
                 .andExpect(status().isOk()));
 
@@ -77,6 +80,18 @@ class GradebookQueryCountTest extends GradingTestSupport {
         assertThat(statements(() -> mvc.perform(as(get("/teacher/children/" + firstChild), teacherToken))
                 .andExpect(status().isOk())))
                 .as("the child page must not run a query per lesson").isEqualTo(one);
+    }
+
+    /**
+     * One call before the baseline is taken. The flag check in front of every route here reads
+     * `FeatureFlags.effective`, which caches per school for a minute and is dropped when the fixture switches the
+     * flags on — so the very first request of a test pays two reloads that no later one does, and the baseline
+     * would be measuring the cache rather than the query shape.
+     */
+    private void warmUp() throws Exception {
+        gradebook();
+        mvc.perform(as(get("/teacher/lessons/gq-lesson-1/results"), teacherToken)).andExpect(status().isOk());
+        mvc.perform(as(get("/teacher/children/" + firstChild), teacherToken)).andExpect(status().isOk());
     }
 
     /** The real shape: 30 children on the roster and 20 published lessons in the window, all of them played. */

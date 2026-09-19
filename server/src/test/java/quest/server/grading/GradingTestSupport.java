@@ -54,6 +54,8 @@ abstract class GradingTestSupport extends ApiTestSupport {
     @Autowired AttemptRepository attempts;
     @Autowired ChildRepository childRows;
     @Autowired TeacherMarkRepository markRows;
+    @Autowired quest.server.flags.SchoolFlagRepository schoolFlags;
+    @Autowired quest.server.flags.FeatureFlags featureFlags;
     @Autowired LessonStore store;
     @Autowired AdminJwtService jwt;
 
@@ -77,35 +79,36 @@ abstract class GradingTestSupport extends ApiTestSupport {
         return builder.header("Authorization", "Bearer " + token);
     }
 
-    /** Switches a flag for one school through the real Admin route, cache invalidation included. */
-    void setFlag(String adminToken, String schoolId, String key, boolean enabled) throws Exception {
-        mvc.perform(as(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .put("/admin/schools/" + schoolId + "/flags/" + key)
-                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .content("{\"enabled\":" + enabled + "}"), adminToken))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+    /**
+     * Switches a flag for one school by writing the override row and invalidating the cache — the two things
+     * `FlagService.set` does besides recording the flip.
+     *
+     * <p><strong>Deliberately not the Admin route.</strong> That route also writes a `flag_audit` row, the audit log
+     * is global to the suite's one H2 database, and `FlagAdminTest` asserts that its own column action adds exactly
+     * one row to a page capped at `FlagService.MAX_AUDIT_LIMIT` (200). A fixture that flips flags to set itself up
+     * is not a flip anybody audits, and pushing that page over its limit fails a test in another package that has
+     * nothing to do with this one.
+     */
+    void setFlag(String adminToken, String schoolId, String key, boolean enabled) {
+        var row = schoolFlags.findOne(schoolId, key).orElseGet(() -> {
+            var fresh = new quest.server.flags.Entities.SchoolFeatureFlagEntity();
+            fresh.setSchoolId(schoolId); fresh.setFlagKey(key);
+            return fresh;
+        });
+        row.setEnabled(enabled); row.setUpdatedBy("test"); row.setUpdatedAt(Instant.now());
+        schoolFlags.save(row);
+        featureFlags.invalidate(schoolId);
     }
 
     /**
      * Both N4.1 features on: the routes are 404 while `gradebook` is off, and marking needs its own key too.
      *
-     * <p><strong>Once per school per JVM.</strong> Every flip writes a `flag_audit` row, the audit log is global to
-     * the suite's one database, and `FlagAdminTest` asserts that its own column action adds exactly one row to a
-     * page of 200 — so a `@BeforeEach` calling this for sixteen tests is enough to push that page past its limit
-     * and fail a test in another package. The context is shared across these classes, so remembering what has
-     * already been switched on is both cheaper and the only neighbourly thing to do.
      */
-    void enableGrading(String adminToken, String schoolId) throws Exception {
-        if (!GRADING_ENABLED.add(schoolId)) return;
+    void enableGrading(String adminToken, String schoolId) {
         setFlag(adminToken, schoolId, quest.server.flags.FlagKeys.GRADEBOOK, true);
         setFlag(adminToken, schoolId, quest.server.flags.FlagKeys.OPEN_STOP_MARKING, true);
     }
 
-    /** The schools {@link #enableGrading} has already switched on in this JVM. */
-    private static final java.util.Set<String> GRADING_ENABLED = java.util.concurrent.ConcurrentHashMap.newKeySet();
-
-    /** A test that flips a flag off and back on again must be able to re-enable it afterwards. */
-    void forgetGradingFlags(String schoolId) { GRADING_ENABLED.remove(schoolId); }
 
     // ---------------------------------------------------------------- rows
 
