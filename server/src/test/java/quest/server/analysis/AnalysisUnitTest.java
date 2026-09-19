@@ -3,16 +3,28 @@ package quest.server.analysis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import quest.api.CacheKeys;
 import quest.api.dto.Play;
 import quest.api.samples.HotSoupSeed;
 import quest.api.validation.SchemaValidator;
 import quest.server.admin.AdminPipelineTest;
 import quest.server.config.ApiException;
+import quest.server.config.Json;
+import quest.server.content.Entities.LessonEntity;
+import quest.server.content.Entities.SkillEntity;
+import quest.server.content.LessonStore;
+import quest.server.content.ParentPanelRepository;
+import quest.server.content.SkillRepository;
 
 class AnalysisUnitTest {
     private final ObjectMapper mapper = new ObjectMapper();
@@ -122,5 +134,73 @@ class AnalysisUnitTest {
         assertThat(errors).isNotEmpty();
         assertThat(errors).allSatisfy(e -> assertThat(e).doesNotContain("does not match constant").doesNotContain("sentences").doesNotContain("cards"));
         assertThat(String.join(" ", errors)).contains("illustrationKey");
+    }
+
+    /**
+     * The QA failure of 2026-09-18 (cold cache, 3 of 4 pipelines): the model writes a `hint` on a stop type whose
+     * schema branch forbids it. Every stray property is dropped before validation; the nine types that declare
+     * `hint` keep theirs.
+     */
+    @Test void stray_stop_properties_are_dropped_against_the_schema_branch_for_the_type() throws Exception {
+        Set<String> withHint = Set.of("choice", "trueFalse", "sequence", "count", "compare", "sound", "word", "readTap", "trace");
+        List<String> seen = new ArrayList<>();
+        for (Play p : HotSoupSeed.INSTANCE.getLesson().getPlays()) {
+            ObjectNode node = (ObjectNode) mapper.readTree(SchemaValidator.INSTANCE.getJson().encodeToString(Play.Companion.serializer(), p));
+            for (JsonNode s : node.get("stops")) { stray(s, seen); for (JsonNode q : s.path("questions")) stray(q, seen); }
+            assertThat(SchemaValidator.INSTANCE.validatePlayJson(node.toString(), p.getLevel(), Set.of()).getErrors()).isNotEmpty();   // what killed generate_L1
+            var clean = mapper.readTree(LlmJson.dropUnknownStopFields(node.toString()));
+            assertThat(SchemaValidator.INSTANCE.validatePlayJson(clean.toString(), p.getLevel(), Set.of()).getErrors()).isEmpty();
+            for (JsonNode s : clean.get("stops")) { kept(s, withHint); for (JsonNode q : s.path("questions")) kept(q, withHint); }
+        }
+        assertThat(seen).contains("multiSelect", "retell", "exitTicket", "readPage", "match", "order", "choice");   // the exit questions are stops of their own
+        assertThat(LlmJson.dropUnknownStopFields("not json")).isEqualTo("not json");
+    }
+
+    private void stray(JsonNode stop, List<String> seen) { seen.add(stop.get("type").asText()); ((ObjectNode) stop).put("hint", "Stray hint."); ((ObjectNode) stop).put("madeUpKey", 1); }
+
+    private void kept(JsonNode stop, Set<String> withHint) {
+        assertThat(stop.has("madeUpKey")).as("madeUpKey on %s", stop.get("type").asText()).isFalse();
+        assertThat(stop.path("hint").asText("")).as("hint on %s", stop.get("type").asText()).isEqualTo(withHint.contains(stop.get("type").asText()) ? "Stray hint." : "");
+    }
+
+    /** The same failure end to end: the first answer carries the stray hint and is now accepted — one model call, nothing retried. */
+    @Test void a_first_play_with_a_stray_hint_is_repaired_instead_of_retried() throws Exception {
+        ObjectNode play = (ObjectNode) mapper.readTree(SchemaValidator.INSTANCE.getJson().encodeToString(Play.Companion.serializer(), HotSoupSeed.INSTANCE.getLesson().getPlays().get(0)));
+        var stops = play.get("stops");
+        var exit = stops.get(stops.size() - 1);
+        ((ObjectNode) exit).put("hint", "Stray hint.");
+        for (JsonNode q : exit.get("questions")) ((ObjectNode) q).put("hint", "Stray hint.");   // one of them is the multiSelect
+        var llm = new CountingClient(play.toString());
+
+        var cache = Mockito.mock(GenerationCacheRepository.class);
+        var analysis = new CacheEntities.AnalysisCacheEntity(); analysis.setAnalysisJson("{}");
+        var analyses = Mockito.mock(AnalysisCacheRepository.class);
+        Mockito.when(analyses.findById(Mockito.anyString())).thenReturn(Optional.of(analysis));
+        var skill = new SkillEntity(); skill.setId("l:s1"); skill.setName("Retelling"); skill.setSubject("english"); skill.setMethod("beginning, middle, end"); skill.setExamplesJson("[]");
+        var skills = Mockito.mock(SkillRepository.class);
+        Mockito.when(skills.findByLessonIdAndConfirmedTrueOrderByPosition(Mockito.anyString())).thenReturn(List.of(skill));
+        var store = Mockito.mock(LessonStore.class);
+        var lesson = new LessonEntity(); lesson.setId("abcdef12-3456"); lesson.setSourceHash("hash"); lesson.setPracticeLength(7);
+        var service = new GenerationService(cache, analyses, skills, store, llm, new Json(mapper), Mockito.mock(LessonState.class), Mockito.mock(AnalysisService.class), Mockito.mock(ParentPanelRepository.class));
+
+        service.generatePlay(lesson, 1, 0);
+
+        assertThat(llm.calls).isEqualTo(1);   // no validator retry turn
+        var saved = ArgumentCaptor.forClass(Play.class);
+        Mockito.verify(store).savePlay(Mockito.eq(lesson.getId()), saved.capture(), Mockito.anyString(), Mockito.eq(0));
+        assertThat(SchemaValidator.INSTANCE.validate(saved.getValue(), 1, Set.of(), false).getErrors()).isEmpty();
+        var cached = ArgumentCaptor.forClass(CacheEntities.GenerationCacheEntity.class);
+        Mockito.verify(cache).save(cached.capture());
+        var exitOut = mapper.readTree(cached.getValue().getJson()).get("stops").get(stops.size() - 1);
+        assertThat(exitOut.has("hint")).isFalse();
+        assertThat(exitOut.get("questions")).anySatisfy(q -> { assertThat(q.get("type").asText()).isEqualTo("multiSelect"); assertThat(q.has("hint")).isFalse(); });
+    }
+
+    /** Answers the same play every time and counts the turns. */
+    private static final class CountingClient implements LlmClient {
+        private final String answer; int calls;
+        CountingClient(String answer) { this.answer = answer; }
+        @Override public String name() { return "counting"; }
+        @Override public Result complete(String system, String user, List<Attachment> attachments) { calls++; return new Result(answer, 10, 10); }
     }
 }

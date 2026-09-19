@@ -6,17 +6,23 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import quest.api.Illustrations;
 import quest.api.dto.Play;
+import quest.api.validation.Schemas;
 import quest.api.validation.SchemaValidator;
 import quest.api.validation.ValidationResult;
 
 /** Small repairs on model output that need no second call, and readable validation errors for the retry turn. */
 final class LlmJson {
     private LlmJson() {}
+    private static final Logger log = LoggerFactory.getLogger(LlmJson.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Set<String> KNOWN = new HashSet<>(Illustrations.INSTANCE.getKeys());
     private static final Set<String> PIECES = Set.of("title", "genre", "characters", "setting", "plot", "problem");
@@ -33,6 +39,53 @@ final class LlmJson {
     /** Arrays of strings with a per-item limit (page sentences, examples, objectives…). */
     private static final java.util.Map<String, Integer> ARRAY_LIMITS = java.util.Map.of(
             "childText", 90, "examples", 120, "candidates", 40, "characters", 30, "sentences", 90, "steps", 80, "options", 40);
+
+    /**
+     * The property names each stop type declares, read once from the shared `Play.schema.json` (every `stop_<type>`
+     * branch is `additionalProperties: false`), so this can never drift from the contract.
+     */
+    private static final Map<String, Set<String>> STOP_FIELDS = stopFields();
+
+    private static Map<String, Set<String>> stopFields() {
+        Map<String, Set<String>> byType = new HashMap<>();
+        try {
+            JsonNode defs = MAPPER.readTree(Schemas.INSTANCE.getPlay()).path("$defs");
+            defs.forEach(def -> {
+                JsonNode type = def.path("properties").path("type").path("const");
+                if (!type.isTextual() || def.path("additionalProperties").asBoolean(true)) return;
+                Set<String> names = new HashSet<>(); def.path("properties").fieldNames().forEachRemaining(names::add);
+                byType.put(type.asText(), names);
+            });
+        } catch (IOException e) { log.warn("could not read the stop fields from Play.schema.json: {}", e.toString()); }
+        return Map.copyOf(byType);
+    }
+
+    /**
+     * Stray properties the model adds to a stop — most often a `hint` on one of the 13 types whose schema branch has
+     * no `hint` — cost a whole retry turn for nothing, so they are dropped here: for every object that declares a
+     * known stop `type` (including the three inside an exitTicket), whatever that type's branch does not declare goes.
+     */
+    static String dropUnknownStopFields(String raw) {
+        try {
+            JsonNode node = MAPPER.readTree(raw);
+            List<String> dropped = new ArrayList<>();
+            dropUnknown(node, dropped);
+            if (dropped.isEmpty()) return raw;
+            log.debug("dropped {} stop propert{} the play schema forbids: {}", dropped.size(), dropped.size() == 1 ? "y" : "ies", dropped);
+            return node.toString();
+        } catch (IOException e) { return raw; }
+    }
+
+    private static void dropUnknown(JsonNode node, List<String> dropped) {
+        if (node instanceof ObjectNode o) {
+            Set<String> allowed = STOP_FIELDS.get(o.path("type").asText());
+            if (allowed != null) {
+                List<String> extra = new ArrayList<>(); o.fieldNames().forEachRemaining(f -> { if (!allowed.contains(f)) extra.add(f); });
+                for (String f : extra) { dropped.add(o.path("type").asText() + " " + o.path("id").asText("?") + ": " + f); o.remove(f); }
+            }
+            o.fields().forEachRemaining(e -> dropUnknown(e.getValue(), dropped));
+        } else if (node instanceof ArrayNode a) for (JsonNode n : a) dropUnknown(n, dropped);
+    }
 
     /** Unknown illustration keys are dropped where the key is optional (tiles, cues, order items, readPage, page lists); enum-like fields are lower-cased. */
     static String cleanIllustrations(String raw) {
