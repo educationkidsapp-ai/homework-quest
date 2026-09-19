@@ -329,7 +329,7 @@ export class LessonPage {
     return readableServerText(raw) || this.t('lessons.detail.stepFailed');
   });
 
-  // ---- CR4: the moment to check what the model will read -------------------------------------
+  // ---- CR4: the source files' conversion -----------------------------------------------------
 
   /**
    * The window in which the preview is worth opening: the text exists and the model has not read
@@ -346,6 +346,34 @@ export class LessonPage {
       analyze?.status === LessonStepInfoStatusEnum.PENDING
     );
   });
+
+  /**
+   * A retry answered with the whole lesson — swap it in, then set the pipeline going again.
+   *
+   * Two halves, and the second is the one that matters. `POST …/retry-conversion` resets the
+   * steps from `convert` and puts the lesson back to `draft`; it starts **no job**, by design —
+   * the server does not decide on its own to spend a model call. So a teacher who has just
+   * typed her page out by hand would be left looking at a lesson that says `draft` and does
+   * nothing, with no control on the screen to start it: the "Retry and continue" pair is shown
+   * only for `error`. Asking for the analysis here is what makes "the pipeline resumes" true.
+   *
+   * The swap first, rather than a `reload()`: the status, the step strip and the file's pill
+   * move in one frame instead of through a round trip still showing the failure she just fixed.
+   */
+  protected onLessonReconverted(lesson: AdminLesson): void {
+    this.lessonRes.set(lesson);
+    if (this.isManual()) return;
+    this.busy.set(this.t('lessons.new.busy.analyzing'));
+    this.api.analyze(lesson.id).subscribe({
+      next: (job) => {
+        this.busy.set(null);
+        this.lessonRes.update((current) =>
+          current ? { ...current, status: jobStatusAsLessonStatus(job.status) } : current,
+        );
+      },
+      error: () => this.busy.set(null),
+    });
+  }
 
   protected readonly isErrorStatus = computed(() => this.lesson()?.status === AdminLessonStatusEnum.ERROR);
   protected readonly isPublished = computed(() => this.lesson()?.status === AdminLessonStatusEnum.PUBLISHED);

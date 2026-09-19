@@ -191,6 +191,7 @@
           [lessonId]="lessonId"
           [files]="files()"
           [checkNow]="convertDoneBeforeAnalyze()"
+          (lessonChanged)="onLessonReconverted($event)"
         />
       </hq-card>
 

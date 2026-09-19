@@ -161,8 +161,15 @@ export class TextareaComponent {
   readonly mono = input(false);
   /** Grow to fit the text instead of scrolling inside `rows`, which becomes the minimum height. */
   readonly autoGrow = input(false);
-  /** `rtl` on the Arabic half of a bilingual pair; `null` follows the page. */
-  readonly dir = input<'ltr' | 'rtl' | null>(null);
+  /**
+   * `rtl` on the Arabic half of a bilingual pair; `null` follows the page.
+   *
+   * `auto` (CR4) is for a box holding text whose language is not the screen's and not known
+   * here — a converted file's Markdown, which is as often English inside an Arabic dashboard as
+   * the other way round. The browser reads the first strong character and lays the box out to
+   * match, which is the only answer that is right for both.
+   */
+  readonly dir = input<'ltr' | 'rtl' | 'auto' | null>(null);
   /** Maximum characters, enforced by the field as well as counted by the form. */
   readonly maxLength = input<number | null>(null);
 

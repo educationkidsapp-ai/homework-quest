@@ -527,8 +527,16 @@
           "previewTitle": "What the AI will read — {{file}}",
           "previewCaption": "This is the text itself, not the file.",
           "previewUse": "Use this text",
+          "previewEdit": "Edit the text",
           "previewEmpty": "This file came out empty. Type the text instead.",
-          "previewMissing": "The text isn't ready yet. Wait for the file to finish, or type the text."
+          "previewMissing": "The text isn't ready yet. Wait for the file to finish, or type the text.",
+          "ocr": "Read with OCR",
+          "typeText": "Type the text",
+          "typeTitle": "Type the text — {{file}}",
+          "typeLabel": "The text of this file",
+          "typeHint": "Write it the way you would read it aloud. Start a heading with #, a list item with -.",
+          "typeSave": "Save this text",
+          "typeEmpty": "Write the text first."
         }
       },
       "skills": {

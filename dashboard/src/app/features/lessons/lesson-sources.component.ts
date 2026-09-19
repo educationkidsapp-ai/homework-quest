@@ -1,8 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import type { SourceFileInfo } from '../../api';
+import { type AdminLesson, type SourceFileInfo, apiErrorOf, readableServerText } from '../../api';
+import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
-import { ButtonComponent, DialogComponent, SkeletonComponent } from '../../ui';
+import { CanDirective } from '../../core/permissions/can.directive';
+import { ButtonComponent, DialogComponent, SkeletonComponent, TextareaComponent } from '../../ui';
 import { type FileConvertView, viewOf } from './file-conversion';
 import { LessonApiService } from './lesson-api.service';
 import { StopProseComponent } from './stop-prose.component';
@@ -18,10 +20,11 @@ interface SourceRow {
   readonly reason: string | null;
 }
 
-/** Whether the preview is open, and over which file. */
+/** Which dialog is open, and over which file — one at a time, by construction. */
 type OpenDialog =
   | { readonly kind: 'none' }
-  | { readonly kind: 'preview'; readonly file: SourceFileInfo };
+  | { readonly kind: 'preview'; readonly file: SourceFileInfo }
+  | { readonly kind: 'type'; readonly file: SourceFileInfo };
 
 /**
  * CR4 §4: the lesson's source files, and what became of each of them.
@@ -29,18 +32,29 @@ type OpenDialog =
  * Between Upload and Analyse the pipeline now turns every file into text on our own machines,
  * and this is the only place a teacher meets that: a pill that says *Converting…*, then *Ready ·
  * 1,240 words*, or *Couldn't read this file* with one sentence saying what to do. Three things
- * hang off it; this change set brings the first — a preview of the exact text the model will be
- * given, before it is given it.
+ * hang off it — a preview of the exact text the model will be given, "Read with OCR" for pages
+ * that turned out to be pictures, and "Type the text" for everything else.
  *
  * Its own component rather than more of `lesson.page.html` because it owns state the page has no
  * other use for (two dialogs, a fetched Markdown body, a per-file busy flag) and because the
  * mapping it renders is the thing under test: `file-conversion.spec.ts` covers every error code
  * without a screen, and this only puts words to it.
  *
+ * It never reloads the lesson itself. Both retries answer with the **whole** lesson, so it hands
+ * that up through {@link lessonChanged} and the page swaps it in — the pill, the step strip and
+ * the status move in one frame instead of through a half-state a reload would show.
  */
 @Component({
   selector: 'hq-lesson-sources',
-  imports: [ButtonComponent, DialogComponent, SkeletonComponent, StopProseComponent, TranslocoPipe],
+  imports: [
+    ButtonComponent,
+    CanDirective,
+    DialogComponent,
+    SkeletonComponent,
+    StopProseComponent,
+    TextareaComponent,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (files().length === 0) {
@@ -94,6 +108,28 @@ type OpenDialog =
 
             @if (row.reason) {
               <p class="sources__reason">{{ row.reason }}</p>
+              <div class="sources__actions" *hqCan="'lesson.write'">
+                @if (row.view.canOcr) {
+                  <hq-button
+                    data-hq-ocr
+                    [disabled]="busyFileId() !== null"
+                    [loading]="busyFileId() === row.file.id"
+                    (pressed)="readWithOcr(row.file)"
+                  >
+                    {{ 'lessons.detail.files.convert.ocr' | transloco }}
+                  </hq-button>
+                }
+                @if (row.view.canTypeText) {
+                  <hq-button
+                    data-hq-type-text
+                    variant="quiet"
+                    [disabled]="busyFileId() !== null"
+                    (pressed)="openTypeText(row.file)"
+                  >
+                    {{ 'lessons.detail.files.convert.typeText' | transloco }}
+                  </hq-button>
+                }
+              </div>
             }
           </li>
         }
@@ -114,6 +150,9 @@ type OpenDialog =
           <p class="sources__preview-caption">
             {{ 'lessons.detail.files.convert.previewCaption' | transloco }}
           </p>
+          <hq-button *hqCan="'lesson.write'" data-hq-edit-text variant="quiet" (pressed)="editFromPreview()">
+            {{ 'lessons.detail.files.convert.previewEdit' | transloco }}
+          </hq-button>
         </div>
         @if (markdownLoading()) {
           <hq-skeleton [loading]="true" [lines]="6" [label]="'lessons.loading' | transloco" />
@@ -128,6 +167,34 @@ type OpenDialog =
       </hq-dialog>
     }
 
+    @if (dialog().kind === 'type') {
+      <hq-dialog
+        data-hq-type-dialog
+        [open]="true"
+        [sheet]="true"
+        [title]="dialogTitle()"
+        [confirmLabel]="'lessons.detail.files.convert.typeSave' | transloco"
+        [confirmDisabled]="typed().trim() === ''"
+        [confirmReason]="typed().trim() === '' ? typeReason() : null"
+        [loading]="busyFileId() !== null"
+        (confirmed)="saveTypedText()"
+        (openChange)="onDialogOpenChange($event)"
+      >
+        @if (markdownLoading()) {
+          <hq-skeleton [loading]="true" [lines]="4" [label]="'lessons.loading' | transloco" />
+        } @else {
+          <hq-textarea
+            [label]="'lessons.detail.files.convert.typeLabel' | transloco"
+            [hint]="'lessons.detail.files.convert.typeHint' | transloco"
+            [rows]="10"
+            [required]="true"
+            dir="auto"
+            [value]="typed()"
+            (valueChange)="typed.set($event)"
+          />
+        }
+      </hq-dialog>
+    }
   `,
   styles: `
     :host {
@@ -236,6 +303,7 @@ type OpenDialog =
 })
 export class LessonSourcesComponent {
   private readonly api = inject(LessonApiService);
+  private readonly band = inject(BandService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
 
@@ -248,10 +316,16 @@ export class LessonSourcesComponent {
    */
   readonly checkNow = input(false);
 
+  /** A retry answered with the whole lesson; the page swaps it in. */
+  readonly lessonChanged = output<AdminLesson>();
+
   protected readonly dialog = signal<OpenDialog>({ kind: 'none' });
   protected readonly markdown = signal('');
   protected readonly markdownLoading = signal(false);
   protected readonly markdownError = signal<string | null>(null);
+  protected readonly typed = signal('');
+  /** The file a request is in flight for — one at a time, which is what refuses a double submit. */
+  protected readonly busyFileId = signal<string | null>(null);
 
   protected readonly showCheckNow = computed(() => this.checkNow() && this.rows().some((r) => r.view.canPreview));
 
@@ -274,7 +348,13 @@ export class LessonSourcesComponent {
     this.lang();
     const open = this.dialog();
     if (open.kind === 'none') return '';
-    return this.t('lessons.detail.files.convert.previewTitle', { file: open.file.fileName });
+    const key = open.kind === 'preview' ? 'previewTitle' : 'typeTitle';
+    return this.t(`lessons.detail.files.convert.${key}`, { file: open.file.fileName });
+  });
+
+  protected readonly typeReason = computed(() => {
+    this.lang();
+    return this.t('lessons.detail.files.convert.typeEmpty');
   });
 
   // ---- the preview ---------------------------------------------------------------------------
@@ -282,6 +362,14 @@ export class LessonSourcesComponent {
   protected openPreview(file: SourceFileInfo): void {
     this.dialog.set({ kind: 'preview', file });
     this.loadMarkdown(file);
+  }
+
+  /** "Edit the text" — the same words, in a box she can change, without a second fetch. */
+  protected editFromPreview(): void {
+    const open = this.dialog();
+    if (open.kind !== 'preview') return;
+    this.typed.set(this.markdown());
+    this.dialog.set({ kind: 'type', file: open.file });
   }
 
   protected onDialogOpenChange(open: boolean): void {
@@ -293,14 +381,54 @@ export class LessonSourcesComponent {
     this.markdownError.set(null);
   }
 
+  // ---- the two fallbacks ---------------------------------------------------------------------
+
   /**
-   * What the model will read, fetched as `text/markdown`.
+   * "Type the text", prefilled with whatever we already have.
    *
-   * The link is rendered only on a `ready` file, so a 404 here is not the ordinary case it is on
-   * the endpoint — it is the conversion having been undone underneath her, and it gets a
-   * sentence in the dialog rather than a band over the page.
+   * A file that failed usually has nothing, and the fetch 404s — that is not an error worth a
+   * band here, it is simply an empty box, so the failure leaves the textarea as it is.
    */
-  private loadMarkdown(file: SourceFileInfo): void {
+  protected openTypeText(file: SourceFileInfo): void {
+    this.typed.set('');
+    this.dialog.set({ kind: 'type', file });
+    if (viewOf(file).canPreview) this.loadMarkdown(file, (text) => this.typed.set(text));
+  }
+
+  protected readWithOcr(file: SourceFileInfo): void {
+    if (this.busyFileId() !== null) return;
+    this.busyFileId.set(file.id);
+    this.api.retryConversion(this.lessonId(), file.id, 'ocr').subscribe({
+      next: (lesson) => this.afterRetry(lesson),
+      error: (err: unknown) => this.failed(err),
+    });
+  }
+
+  protected saveTypedText(): void {
+    const open = this.dialog();
+    const text = this.typed().trim();
+    if (open.kind !== 'type' || text === '' || this.busyFileId() !== null) return;
+    this.busyFileId.set(open.file.id);
+    this.api.retryConversion(this.lessonId(), open.file.id, 'text', text).subscribe({
+      next: (lesson) => this.afterRetry(lesson),
+      error: (err: unknown) => this.failed(err),
+    });
+  }
+
+  private afterRetry(lesson: AdminLesson): void {
+    this.busyFileId.set(null);
+    this.closeDialog();
+    this.lessonChanged.emit(lesson);
+  }
+
+  /** §7: a failure is the red band, never a toast — and never the server's own JSON (CR5). */
+  private failed(error: unknown): void {
+    this.busyFileId.set(null);
+    const raw = apiErrorOf(error)?.message ?? '';
+    this.band.fail(readableServerText(raw) || this.t('band.unreachable'));
+  }
+
+  private loadMarkdown(file: SourceFileInfo, then?: (text: string) => void): void {
     this.markdown.set('');
     this.markdownError.set(null);
     this.markdownLoading.set(true);
@@ -308,10 +436,11 @@ export class LessonSourcesComponent {
       next: (text) => {
         this.markdownLoading.set(false);
         this.markdown.set(text);
+        then?.(text);
       },
       error: () => {
         this.markdownLoading.set(false);
-        this.markdownError.set(this.t('lessons.detail.files.convert.previewMissing'));
+        if (!then) this.markdownError.set(this.t('lessons.detail.files.convert.previewMissing'));
       },
     });
   }
