@@ -28,6 +28,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'play.write',
   'question.send',
   'question.write',
+  'results.write',
   'roster.teacher',
   'roster.write',
   'school.logo',

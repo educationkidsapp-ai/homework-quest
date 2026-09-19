@@ -86,11 +86,26 @@ abstract class GradingTestSupport extends ApiTestSupport {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
     }
 
-    /** Both N4.1 features on: the routes are 404 while `gradebook` is off, and marking needs its own key too. */
+    /**
+     * Both N4.1 features on: the routes are 404 while `gradebook` is off, and marking needs its own key too.
+     *
+     * <p><strong>Once per school per JVM.</strong> Every flip writes a `flag_audit` row, the audit log is global to
+     * the suite's one database, and `FlagAdminTest` asserts that its own column action adds exactly one row to a
+     * page of 200 — so a `@BeforeEach` calling this for sixteen tests is enough to push that page past its limit
+     * and fail a test in another package. The context is shared across these classes, so remembering what has
+     * already been switched on is both cheaper and the only neighbourly thing to do.
+     */
     void enableGrading(String adminToken, String schoolId) throws Exception {
+        if (!GRADING_ENABLED.add(schoolId)) return;
         setFlag(adminToken, schoolId, quest.server.flags.FlagKeys.GRADEBOOK, true);
         setFlag(adminToken, schoolId, quest.server.flags.FlagKeys.OPEN_STOP_MARKING, true);
     }
+
+    /** The schools {@link #enableGrading} has already switched on in this JVM. */
+    private static final java.util.Set<String> GRADING_ENABLED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** A test that flips a flag off and back on again must be able to re-enable it afterwards. */
+    void forgetGradingFlags(String schoolId) { GRADING_ENABLED.remove(schoolId); }
 
     // ---------------------------------------------------------------- rows
 
