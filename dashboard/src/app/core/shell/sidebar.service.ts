@@ -1,4 +1,4 @@
-import { DOCUMENT, DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
+import { DOCUMENT, DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 
 /**
  * Below this the rail cannot be a column — it would leave the content under 700 px — so it
@@ -94,8 +94,14 @@ export class SidebarService {
     this.openState.set(true);
   }
 
+  /**
+   * `untracked`, because the guard *reads* the state and the shell calls this from an effect
+   * that watches the URL. Read plainly, the read made `open` a dependency of that effect, so
+   * opening the drawer immediately re-ran it and closed the drawer again — the burger looked
+   * dead on every viewport under 1024 px.
+   */
   closeDrawer(): void {
-    if (!this.openState()) return;
+    if (!untracked(this.openState)) return;
     this.openState.set(false);
     // Focus was inside a panel that is now gone; without this it falls to `<body>` and the
     // next Tab starts the page again from the top.

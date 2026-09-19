@@ -132,10 +132,11 @@ import { ShellHeaderComponent } from './shell-header.component';
       min-block-size: 100vh;
     }
 
-    // The rail's own sticky/width behaviour is the component's; the shell only places it.
-    .shell__nav {
-      z-index: var(--hq-z-nav);
-    }
+    // The rail's own sticky/width behaviour, and its stacking, are the component's; the shell
+    // only places it. It carries **no** z-index here on purpose: 'z-index' applies to a flex
+    // item whatever its position, so the 20 this used to hold made the rail a stacking context
+    // and sealed its drawer — z-index 60, fixed, over everything — inside a level *below* the
+    // header's 40. The drawer opened underneath the bar that opened it.
 
     // The role's name, under the school's in the sidebar's logo block.
     .shell__brand {

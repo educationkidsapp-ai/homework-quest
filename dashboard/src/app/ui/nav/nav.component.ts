@@ -21,8 +21,11 @@ export interface NavItem<T extends string = string> {
  * and the viewer rather than by three components:
  *
  * - wide and expanded — a sticky, full-height column with a 1 px rule on its inner edge;
- * - wide and collapsed — 90 px of centred icons, labels hidden, each item named by its
- *   `aria-label` and its `title` so neither a pointer nor a screen reader loses the word. It
+ * - wide and collapsed — 90 px of centred icons, labels hidden, each item named by an
+ *   `aria-label` and a `title` so neither a pointer nor a screen reader loses the word. The
+ *   two are added only while the text is hidden: an `aria-label` that merely repeats visible
+ *   text costs nothing to a screen reader and everything to `getByLabel`, which then finds the
+ *   rail's "My classes" beside a form's "Class" field. It
  *   expands again while the pointer is over it, which is TailAdmin's own behaviour and what
  *   makes the collapsed rail usable rather than a guessing game;
  * - narrow — the off-canvas drawer: a `rgba(16,24,40,0.45)` scrim, a .22 s slide from the
@@ -51,64 +54,75 @@ export interface NavItem<T extends string = string> {
       <div class="nav__scrim" [class.is-open]="open()" aria-hidden="true" (click)="dismissed.emit()"></div>
     }
 
-    <div
-      class="nav__panel"
-      [class.is-collapsed]="narrowed()"
-      [cdkTrapFocus]="drawer() && open()"
-      [cdkTrapFocusAutoCapture]="drawer() && open()"
-      (mouseenter)="hovering.set(true)"
-      (mouseleave)="hovering.set(false)"
-    >
-      <div class="nav__brand">
-        @if (brandLogo(); as logo) {
-          <img class="nav__logo" [src]="logo" alt="" />
-        } @else if (monogram(); as initial) {
-          <span class="nav__logo nav__logo--initial" aria-hidden="true">{{ initial }}</span>
-        }
-        <span class="nav__brand-text">
-          @if (brandName(); as name) {
-            <span class="nav__brand-name">{{ name }}</span>
+    <!--
+      A closed drawer is **not in the document**, rather than parked off-canvas with a
+      transform. Chrome counts a fixed element's box in the document's scrollable width even
+      when it is translated past the edge, so in Arabic the parked panel gave every page a
+      290 px horizontal scroll and a screenshot at 375 px came out as empty ground. Not
+      rendering it is the only version of this with no overflow to clip, and it costs nothing:
+      the slide-in is a keyframe animation, which runs on an element that has just appeared
+      where a transition has no previous value to run from.
+    -->
+    @if (!drawer() || open()) {
+      <div
+        class="nav__panel"
+        [class.is-collapsed]="narrowed()"
+        [cdkTrapFocus]="drawer() && open()"
+        [cdkTrapFocusAutoCapture]="drawer() && open()"
+        (mouseenter)="hovering.set(true)"
+        (mouseleave)="hovering.set(false)"
+      >
+        <div class="nav__brand">
+          @if (brandLogo(); as logo) {
+            <img class="nav__logo" [src]="logo" alt="" />
+          } @else if (monogram(); as initial) {
+            <span class="nav__logo nav__logo--initial" aria-hidden="true">{{ initial }}</span>
           }
-          <ng-content select="[nav-brand]" />
-        </span>
+          <span class="nav__brand-text">
+            @if (brandName(); as name) {
+              <span class="nav__brand-name">{{ name }}</span>
+            }
+            <ng-content select="[nav-brand]" />
+          </span>
+        </div>
+
+        <nav class="nav__nav" [attr.aria-label]="label()">
+          <ul class="nav__list">
+            @for (item of items(); track item.id) {
+              <li>
+                @if (item.link; as link) {
+                  <a
+                    class="nav__item"
+                    [routerLink]="link"
+                    routerLinkActive="is-active"
+                    [attr.aria-label]="narrowed() ? item.label : null"
+                    [attr.title]="narrowed() ? item.label : null"
+                    [attr.aria-current]="item.id === active() ? 'page' : null"
+                    (click)="select(item.id)"
+                  >
+                    <ng-container [ngTemplateOutlet]="body" [ngTemplateOutletContext]="{ $implicit: item }" />
+                  </a>
+                } @else {
+                  <button
+                    type="button"
+                    class="nav__item"
+                    [class.is-active]="item.id === active()"
+                    [attr.aria-label]="narrowed() ? item.label : null"
+                    [attr.title]="narrowed() ? item.label : null"
+                    [attr.aria-current]="item.id === active() ? 'page' : null"
+                    (click)="select(item.id)"
+                  >
+                    <ng-container [ngTemplateOutlet]="body" [ngTemplateOutletContext]="{ $implicit: item }" />
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+        </nav>
+
+        <div class="nav__footer"><ng-content select="[nav-footer]" /></div>
       </div>
-
-      <nav class="nav__nav" [attr.aria-label]="label()">
-        <ul class="nav__list">
-          @for (item of items(); track item.id) {
-            <li>
-              @if (item.link; as link) {
-                <a
-                  class="nav__item"
-                  [routerLink]="link"
-                  routerLinkActive="is-active"
-                  [attr.aria-label]="item.label"
-                  [attr.title]="narrowed() ? item.label : null"
-                  [attr.aria-current]="item.id === active() ? 'page' : null"
-                  (click)="select(item.id)"
-                >
-                  <ng-container [ngTemplateOutlet]="body" [ngTemplateOutletContext]="{ $implicit: item }" />
-                </a>
-              } @else {
-                <button
-                  type="button"
-                  class="nav__item"
-                  [class.is-active]="item.id === active()"
-                  [attr.aria-label]="item.label"
-                  [attr.title]="narrowed() ? item.label : null"
-                  [attr.aria-current]="item.id === active() ? 'page' : null"
-                  (click)="select(item.id)"
-                >
-                  <ng-container [ngTemplateOutlet]="body" [ngTemplateOutletContext]="{ $implicit: item }" />
-                </button>
-              }
-            </li>
-          }
-        </ul>
-      </nav>
-
-      <div class="nav__footer"><ng-content select="[nav-footer]" /></div>
-    </div>
+    }
 
     <ng-template #body let-item>
       <svg class="nav__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -152,6 +166,7 @@ export interface NavItem<T extends string = string> {
     .nav__panel {
       position: sticky;
       inset-block-start: 0;
+      z-index: var(--hq-z-nav);
       display: flex;
       flex-direction: column;
       block-size: 100vh;
@@ -174,7 +189,8 @@ export interface NavItem<T extends string = string> {
     // Labels out of the flow rather than hidden with 'visibility', so the icon centres in the
     // 90 px strip instead of sitting where the 290 px row left it.
     .is-collapsed {
-      .nav__item {
+      .nav__item,
+      .nav__brand {
         justify-content: center;
       }
 
@@ -182,10 +198,6 @@ export interface NavItem<T extends string = string> {
       .nav__badge,
       .nav__brand-text {
         display: none;
-      }
-
-      .nav__brand {
-        justify-content: center;
       }
     }
 
@@ -195,16 +207,23 @@ export interface NavItem<T extends string = string> {
       inset-block: 0;
       inset-inline-start: 0;
       z-index: var(--hq-z-drawer);
-      transform: translateX(calc(-100% * var(--hq-nav-slide)));
       box-shadow: var(--hq-shadow-xl);
-      // .22 s rather than the sidebar's .3 s; the panel's own include already collapses both
-      // to 0 ms under reduced motion.
-      transition-duration: var(--hq-motion-drawer);
-      transition-timing-function: ease-out;
+      animation: hq-drawer-in var(--hq-motion-drawer) ease-out both;
+
+      @include m.reduced-motion {
+        animation-duration: 0ms;
+      }
     }
 
-    :host(.hq-nav--open) .nav__panel {
-      transform: none;
+    // In Arabic the inline-start edge is the right one, so the panel slides in from there —
+    // one custom property, no second stylesheet.
+    @keyframes hq-drawer-in {
+      from {
+        transform: translateX(calc(-100% * var(--hq-nav-slide)));
+      }
+      to {
+        transform: none;
+      }
     }
 
     .nav__scrim {
@@ -214,7 +233,11 @@ export interface NavItem<T extends string = string> {
       background: var(--hq-color-overlay);
       opacity: 0;
       pointer-events: none;
-      @include m.motion-safe('opacity', var(--hq-motion-drawer), ease-out);
+      transition: opacity var(--hq-motion-drawer) ease-out;
+
+      @include m.reduced-motion {
+        transition-duration: 0ms;
+      }
 
       &.is-open {
         opacity: 1;
@@ -256,7 +279,7 @@ export interface NavItem<T extends string = string> {
 
     .nav__brand-name {
       font-size: var(--hq-text-card-title);
-      line-height: calc(var(--hq-text-card-title-line) / var(--hq-text-card-title));
+      line-height: var(--hq-text-card-title-line);
       font-weight: var(--hq-text-weight-semibold);
       color: var(--hq-color-ink);
     }
@@ -266,8 +289,7 @@ export interface NavItem<T extends string = string> {
     }
 
     .nav__list {
-      display: flex;
-      flex-direction: column;
+      display: grid;
       gap: var(--hq-space-4);
     }
 
@@ -287,7 +309,7 @@ export interface NavItem<T extends string = string> {
       background: none;
       color: var(--hq-color-ink-strong);
       font-size: var(--hq-text-theme-sm);
-      line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
+      line-height: var(--hq-text-theme-sm-line);
       font-weight: var(--hq-text-weight-medium);
       text-align: start;
       text-decoration: none;
@@ -352,7 +374,7 @@ export interface NavItem<T extends string = string> {
       background: var(--hq-color-success-soft);
       color: var(--hq-color-success-ink);
       font-size: var(--hq-text-theme-xs);
-      line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+      line-height: var(--hq-text-theme-xs-line);
       font-weight: var(--hq-text-weight-medium);
     }
 
