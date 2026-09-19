@@ -78,6 +78,7 @@ public class SeedReset implements CommandLineRunner {
     public SeedReset(QuestProperties props, JdbcTemplate jdbc, PlatformTransactionManager transactions,
                      FileStore files, Environment environment) {
         this.props = props; this.jdbc = jdbc; this.tx = new TransactionTemplate(transactions); this.files = files;
+        if (props.seed() != null) props.seed().profileOrFull();                 // a SEED_PROFILE typo fails the start here
         if (enabled(props) && List.of(environment.getActiveProfiles()).contains("prod"))
             throw new IllegalStateException(ENV + "=true is refused under the `prod` profile: it deletes every "
                     + "school's lessons, children, staff and schools. Unset " + ENV + " and redeploy.");
@@ -103,16 +104,17 @@ public class SeedReset implements CommandLineRunner {
             });
             log.info("seed reset: {} emptied{}", schoolId, keep ? "" : " and deleted");
         }
-        tx.executeWithoutResult(status -> {
-            counts.merge("parents", jdbc.update("DELETE FROM parents"), Integer::sum);
-            jdbc.update("INSERT INTO seed_resets (id, ran_at, deleted_json) VALUES (?, ?, ?)",
-                    MARK, Timestamp.from(Instant.now()), json(counts));
-        });
+        tx.executeWithoutResult(status -> counts.merge("parents", jdbc.update("DELETE FROM parents"), Integer::sum));
         counts.forEach((table, rows) -> log.info("seed reset: {} {} row(s) deleted", table, rows));
+
+        // The bucket before the ledger, never after: the ledger is what stops the next start doing any of this
+        // again, so a process killed between the two would leave blobs nothing points at and nothing will revisit.
         int gone = 0;
         for (var path : blobs) {
             try { files.delete(path); gone++; } catch (RuntimeException e) { log.warn("seed reset: {} not deleted: {}", path, e.toString()); }
         }
+        tx.executeWithoutResult(status -> jdbc.update("INSERT INTO seed_resets (id, ran_at, deleted_json) VALUES (?, ?, ?)",
+                MARK, Timestamp.from(Instant.now()), json(counts)));
         log.info("seed reset: {} school(s), {} stored file(s) deleted; the default school, the platform admin, "
                 + "platform settings, the flag defaults and the permanent caches were kept", schools.size(), gone);
     }

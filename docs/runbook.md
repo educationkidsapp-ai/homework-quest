@@ -741,8 +741,8 @@ that gets from one to the other.
 | Variable | Value for the acceptance pass | Notes |
 |---|---|---|
 | `SEED_SCHOOL` | `true` | unchanged: the switch that lets the seed run at all |
-| `SEED_PROFILE` | `acceptance` | `full` (the default) is the 30-class school; an unknown value falls back to `full` |
-| `SEED_RESET` | `true` for **one** deploy, then back to `false` | refused outright under the `prod` profile: the revision fails to start |
+| `SEED_PROFILE` | `acceptance` | `full` (the default) is the 30-class school; **an unknown value fails the start**, with the two valid names in the message — a typo must not quietly refill QA with the 30-class school |
+| `SEED_RESET` | `true` for **one** deploy, then back to `false` | refused outright under the `prod` profile: the revision fails to start. **It ignores `SEED_SCHOOL`** — the wipe runs whether or not the seed is switched on, so `SEED_SCHOOL=false` is no protection |
 | `SEED_STAFF_PASSWORD` | the shared teacher password, from Secret Manager | never logged, never printed; the seed re-applies it on every boot |
 
 **What the acceptance profile seeds** (`server/src/main/resources/seed/acceptance/*.csv`, into the **default**
@@ -770,8 +770,9 @@ per table:
 - then the schools that are not `default` — Al Noor (`ALNOOR`) and Green Valley (`GREENV`) — entirely: their staff,
   their flag overrides, their audit trail and their theme.
 
-**What it keeps:** the `default` school and its theme and join code, the platform ADMIN, `platform_settings`, the
-feature-flag defaults, the `courses` reference rows, and the two permanent caches (`analysis_cache`,
+**What it keeps:** the `default` school and its theme, join code, own flag overrides and own audit trail; the
+platform ADMIN; `platform_settings`; the feature-flag defaults; the `courses` reference rows; and the two permanent
+caches (`analysis_cache`,
 `generation_cache` — they are keyed by a content hash and a prompt version, not by a school, so keeping them saves QA
 a re-analysis of every file uploaded next).
 
@@ -812,8 +813,11 @@ curl -s -X POST "${AUTH[@]}" "$API/admin/classes/$CLASS_ID/roster/attach" -d '{"
    the child finishes it, her stars appear on Ms Maya's dashboard.
 
 **The automated e2e suite needs `SEED_PROFILE=full`.** `e2e/` asserts against the 30-class school and the two-school
-fixture; run it on the acceptance profile and it fails for want of data. Switch the variable back (and re-seed, which
-happens on the next boot) before relying on a QA e2e run.
+fixture; run it on the acceptance profile and it fails for want of data. Switching back to `full` re-seeds the
+**default school's** 30 classes on the next boot — but **not** Al Noor and Green Valley, which the wipe deleted
+outright and no seed re-creates. Run `node e2e/seed/seed.mjs` (see
+[Seeding two schools](#seeding-two-schools-isolation-flags-and-themes)) to build that fixture again before relying on
+a QA e2e run.
 
 ## Design tokens
 

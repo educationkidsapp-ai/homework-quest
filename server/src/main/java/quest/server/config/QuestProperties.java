@@ -59,8 +59,18 @@ public record QuestProperties(Auth auth, Llm llm, Anthropic anthropic, DeepSeek 
         /** The owner's acceptance school of `resources/seed/acceptance/*.csv`: 3 sections, 2 teachers, no children. */
         public static final String ACCEPTANCE = "acceptance";
 
-        /** `full` unless the deploy asked for `acceptance`; an unknown name is `full`, never a failed start. */
-        public String profileOrFull() { return ACCEPTANCE.equalsIgnoreCase(profile) ? ACCEPTANCE : FULL; }
+        /**
+         * `full` when nothing is configured, else the profile named — and a name that is neither <strong>fails the
+         * start</strong>. A typo silently falling back to `full` is the worst of the three outcomes: the deploy
+         * reports success and QA quietly fills with the 30-class school the owner asked to be rid of.
+         */
+        public String profileOrFull() {
+            if (profile == null || profile.isBlank()) return FULL;
+            String name = profile.strip().toLowerCase(java.util.Locale.ROOT);
+            if (FULL.equals(name) || ACCEPTANCE.equals(name)) return name;
+            throw new IllegalStateException("SEED_PROFILE=" + profile + " is not a seed profile: use `"
+                    + FULL + "` (the 30-class QA school) or `" + ACCEPTANCE + "` (the owner's two teachers).");
+        }
 
         /** Where {@link quest.server.classes.SchoolSeed} reads its four files from, classpath-relative. */
         public String directory() { return ACCEPTANCE.equals(profileOrFull()) ? "seed/acceptance/" : "seed/"; }
