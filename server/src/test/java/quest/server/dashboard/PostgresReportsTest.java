@@ -139,12 +139,16 @@ class PostgresReportsTest extends PostgresContainerSupport {
         users.save(u);
     }
 
+    private static Instant noon(LocalDate day) { return day.atTime(12, 0).toInstant(ZoneOffset.UTC); }
+
     private void lesson(String id, LocalDate date, long tokens) {
         var l = new LessonEntity();
         l.setId(id); l.setSchoolId(SCHOOL); l.setClassId(SCHOOL + ":british:1:math"); l.setCourseId("british/1");
         l.setSubject("math"); l.setDate(date); l.setStatus("published"); l.setVersion(1); l.setTitle("Lesson " + id);
-        l.setSource("pdf"); l.setTokenUsage(tokens); l.setPublishedAt(Instant.now());
-        l.setCreatedAt(Instant.now()); l.setUpdatedAt(Instant.now());
+        // Noon of the lesson's own day, not "now": the window below ends today, and a row written at the edge of
+        // a day is read back on the next one wherever the JVM is not on UTC.
+        l.setSource("pdf"); l.setTokenUsage(tokens); l.setPublishedAt(noon(date));
+        l.setCreatedAt(noon(date)); l.setUpdatedAt(noon(date));
         lessons.save(l);
     }
 }
