@@ -682,6 +682,10 @@ a parent sees the score her child earned without the teacher remembering a secon
 until `POST /teacher/lessons/{id}/release` (§8 gives it its own release, automatic on close or manual). Rows that
 existed before V13 are untouched and stay unreleased until something publishes or releases them.
 
+A release a teacher **withdraws** stays withdrawn: re-publishing that lesson does not put it back in front of the
+parents (`lessons.release_withdrawn`), because a default must not overrule an explicit instruction. `{"released":
+true}` is how she changes her mind.
+
 The parent's `GET /children/{id}/progress` carries the score, band and comment in `results[]` for released lessons
 only. The child never sees a number at all — that is §6's rule and this changes nothing about it. To take a lesson
 back off the parent's report:
@@ -699,7 +703,8 @@ parent on her next read.
 **Two different numbers, on purpose.** The gradebook's per-child `average` is the plain arithmetic mean of her
 scored cells in the window on screen — a teacher who adds the row up by hand gets the same number. The child page's
 `levelScore` is §7's rolling `ChildLevel`: weighted toward recent lessons, an exam counted twice, the newest ten
-only. It answers "where is she now" rather than "what do her marks come to", and the two can differ by a band.
+of **that subject** (the window is per subject, so a three-subject class still gets three full levels and three
+full lines on the chart). It answers "where is she now" rather than "what do her marks come to", and the two can differ by a band.
 
 Scores are computed from the attempts on every read — there is no `homework_scores` table to rebuild, and no cache
 to clear. The thresholds behind the four bands (`emerging`, `developing`, `secure`, `exceeding`) are constants in

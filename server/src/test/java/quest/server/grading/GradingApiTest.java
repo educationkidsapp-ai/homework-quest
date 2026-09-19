@@ -193,6 +193,62 @@ class GradingApiTest extends GradingTestSupport {
                 .as("§8 gives an exam its own release").isNull();
     }
 
+    /**
+     * §7 rolls a level per subject, so the ten-lesson window is per subject. With the cap applied before grouping,
+     * a three-subject class left each subject four scores and `Bands.trend` answered null for a child who plainly
+     * had a trend — this is that bug, pinned: twelve lessons, four per subject in four *different* subjects.
+     */
+    @Test void each_subject_gets_its_own_window_in_a_multi_subject_class() throws Exception {
+        String[] subjects = {"math", "english", "science"};
+        for (int i = 0; i < 12; i++) {
+            String id = "gr-multi-" + i;
+            var l = lesson(id, A, section1a, LocalDate.now().minusDays(20 - i));
+            l.setSubject(subjects[i % subjects.length]); lessons.save(l);
+            // Falling scores within each subject, so every one of them has a direction to report.
+            boolean right = i < 6;
+            attempt(maya, id, 1, 1, right, right ? 3 : 0);
+            attempt(maya, id, 2, 1, right, right ? 3 : 0);
+        }
+
+        var page = json(mvc.perform(as(get("/teacher/children/" + maya), sara)).andExpect(status().isOk()).andReturn());
+
+        var levels = new java.util.HashMap<String, com.fasterxml.jackson.databind.JsonNode>();
+        page.get("levels").forEach(l -> levels.put(l.get("subject").asText(), l));
+        assertThat(levels.keySet()).contains("math", "english", "science");
+        int scored = 0;
+        for (String subject : subjects) {
+            int lessons = levels.get(subject).get("lessons").asInt();
+            scored += lessons;
+            assertThat(lessons).as("%s must keep its own window, not a share of one pooled ten", subject)
+                    .isGreaterThanOrEqualTo(Bands.TREND_POINTS);
+            assertThat(levels.get(subject).get("trend").isNull())
+                    .as("%s has enough scores for a direction — a trend, not a null", subject).isFalse();
+        }
+        // Twelve lessons here plus the fixture's own: a window capped before grouping could hold ten in total.
+        assertThat(scored).as("every scored lesson counts in its own subject").isEqualTo(13);
+        assertThat(page.get("trend").size()).as("the chart draws every point the levels rest on").isEqualTo(13);
+    }
+
+    /** A teacher who took a lesson off the parents' reports has said what she wants; a re-publish must not undo it. */
+    @Test void re_publishing_a_withdrawn_homework_does_not_release_it_again() throws Exception {
+        var homework = readyLesson("gr-withdrawn", "homework");
+        publish(sara, homework).andExpect(status().isOk());
+        assertThat(lessons.findById(homework).orElseThrow().getReleasedAt()).isNotNull();
+
+        mvc.perform(as(post("/teacher/lessons/" + homework + "/release").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"released\":false}"), sara)).andExpect(status().isOk());
+
+        publish(sara, homework).andExpect(status().isOk());
+
+        assertThat(lessons.findById(homework).orElseThrow().getReleasedAt())
+                .as("a default must not overrule an explicit instruction").isNull();
+
+        mvc.perform(as(post("/teacher/lessons/" + homework + "/release").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"released\":true}"), sara)).andExpect(status().isOk());
+        assertThat(lessons.findById(homework).orElseThrow().getReleasedAt())
+                .as("and she can still change her mind").isNotNull();
+    }
+
     @Test void an_unpublished_lesson_cannot_be_released() throws Exception {
         var draft = lesson("gr-lesson-draft", A, section1a, LocalDate.now().minusDays(1));
         draft.setStatus("draft"); draft.setPublishedAt(null); lessons.save(draft);

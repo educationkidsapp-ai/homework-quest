@@ -48,6 +48,8 @@ public final class Entities {
         @Column(name = "published_at") private Instant publishedAt;
         /** V13 (§7): when the teacher released the results. Null is "not released" — no parent sees a score yet. */
         @Column(name = "released_at") private Instant releasedAt;
+        /** V13: she took the release back explicitly, so publishing this lesson again must not put it back. */
+        @Column(name = "release_withdrawn", nullable = false) private boolean releaseWithdrawn;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getCourseId() { return courseId; } public void setCourseId(String v) { courseId = v; }
@@ -77,6 +79,7 @@ public final class Entities {
         public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }
         public Instant getPublishedAt() { return publishedAt; } public void setPublishedAt(Instant v) { publishedAt = v; }
         public Instant getReleasedAt() { return releasedAt; } public void setReleasedAt(Instant v) { releasedAt = v; }
+        public boolean isReleaseWithdrawn() { return releaseWithdrawn; } public void setReleaseWithdrawn(boolean v) { releaseWithdrawn = v; }
     }
 
     @Entity @Table(name = "source_files")

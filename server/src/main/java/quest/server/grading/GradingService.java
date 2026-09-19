@@ -193,18 +193,24 @@ public class GradingService {
         var child = childService.scoped(childId);
         requireTeaches(caller, child);
         var section = child.getClassId() == null ? null : classes.findById(child.getClassId()).orElse(null);
-        // The last N of her section's published lessons, not every lesson it has ever had: the page is a band, a
-        // chart of the same window §7 rolls the level over, and the comments and work that hang off them.
+        // §7 rolls a level **per subject**, so the window has to be per subject too: slicing the section's lessons
+        // to the last ten before grouping would leave each subject of a three-subject class three or four scores,
+        // which is below `Bands.TREND_POINTS` and answers "no trend" for a child who plainly has one. The read is
+        // still bounded — the last ten of any one subject cannot lie outside the last `ten × subjects` lessons of
+        // the section — and the cap that matters is applied to each subject's own list below.
         var all = child.getClassId() == null ? List.<LessonEntity>of()
                 : lessons.findByClassIdInAndStatusOrderByDateAsc(List.of(child.getClassId()), "published");
-        var published = all.size() <= TREND_LESSONS ? all : all.subList(all.size() - TREND_LESSONS, all.size());
+        var published = cap(all, TREND_LESSONS * Math.max(1, subjectsOf(all)));
         var scores = scoresOf(child, published);
 
         var levels = new ArrayList<GradingDto.ChildLevel>();
         var bySubject = new LinkedHashMap<String, List<Scored>>();
         for (var s : scores) if (s.score().score() != null) bySubject.computeIfAbsent(s.lesson().getSubject(), k -> new ArrayList<>()).add(s);
+        var charted = new ArrayList<Scored>();
         bySubject.forEach((subject, list) -> {
-            var newestFirst = list.stream().sorted(Comparator.comparing((Scored s) -> s.lesson().getDate()).reversed()).toList();
+            var newestFirst = list.stream().sorted(Comparator.comparing((Scored s) -> s.lesson().getDate()).reversed())
+                    .limit(TREND_LESSONS).toList();                             // this subject's newest ten, and no other subject's
+            charted.addAll(newestFirst);
             var values = newestFirst.stream().map(s -> (double) s.score().score()).toList();
             var exams = newestFirst.stream().map(s -> "exam".equals(s.lesson().getType())).toList();
             // §7's rolling `ChildLevel`: weighted toward the recent lessons, an exam counted twice, the newest ten
@@ -214,7 +220,9 @@ public class GradingService {
                     Bands.trend(values), levelScore == null ? null : (int) Math.round(levelScore), values.size()));
         });
 
-        var trend = scores.stream().filter(s -> s.score().score() != null)
+        // The chart is every point a level rests on, oldest first — so a three-subject class draws three full lines
+        // rather than one line cut off ten lessons ago.
+        var trend = charted.stream()
                 .sorted(Comparator.comparing(s -> s.lesson().getDate()))
                 .map(s -> new GradingDto.ChildTrendPoint(s.lesson().getId(), s.lesson().getTitle(),
                         s.lesson().getDate().toString(), s.lesson().getSubject(), s.score().score(),
@@ -280,13 +288,19 @@ public class GradingService {
      * is left alone — §8 gives it its own release, automatic on close or manual, and a mark pending on an exam is
      * the normal case rather than an oversight.
      *
-     * <p>Called for every copy a publish produces, because each copy is its own lesson with its own results. A
-     * re-publish re-releases, which is right: the version a parent is looking at is the one that is live.
+     * <p>Called for every copy a publish produces, because each copy is its own lesson with its own results.
+     *
+     * <p><strong>A withdrawn release stays withdrawn.</strong> A teacher who took a lesson back off the parents'
+     * reports and then re-published it — a corrected version, say — has said what she wants, and a default is not
+     * an argument against an explicit instruction; silently putting it back in front of the parents would be the
+     * kind of surprise the release toggle exists to prevent. `release_withdrawn` remembers that, and
+     * `POST /release` with `released: true` is how she changes her mind.
      */
     @Transactional
     public void releaseOnPublish(String lessonId) {
         var lesson = lessons.findById(lessonId).orElse(null);
-        if (lesson == null || "exam".equals(lesson.getType()) || lesson.getReleasedAt() != null) return;
+        if (lesson == null || "exam".equals(lesson.getType())) return;
+        if (lesson.getReleasedAt() != null || lesson.isReleaseWithdrawn()) return;
         lesson.setReleasedAt(Instant.now());
         lesson.setUpdatedAt(Instant.now());
         lessons.save(lesson);
@@ -299,6 +313,7 @@ public class GradingService {
             throw ApiException.conflict("Publish \"" + lesson.getTitle() + "\" before releasing its results.");
         boolean released = body == null || body.released() == null || body.released();
         lesson.setReleasedAt(released ? Instant.now() : null);
+        lesson.setReleaseWithdrawn(!released);                                  // remembered, so a re-publish respects it
         lesson.setUpdatedAt(Instant.now());
         lessons.save(lesson);
         int roster = lesson.getClassId() == null ? 0
@@ -461,6 +476,15 @@ public class GradingService {
     }
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GradingService.class);
+
+    /** The newest `limit` of a list already in date order, or all of it. */
+    private static List<LessonEntity> cap(List<LessonEntity> byDate, int limit) {
+        return byDate.size() <= limit ? byDate : byDate.subList(byDate.size() - limit, byDate.size());
+    }
+
+    private static int subjectsOf(List<LessonEntity> all) {
+        return (int) all.stream().map(LessonEntity::getSubject).distinct().count();
+    }
 
     private static LocalDate parse(String value, LocalDate fallback) {
         if (value == null || value.isBlank()) return fallback;

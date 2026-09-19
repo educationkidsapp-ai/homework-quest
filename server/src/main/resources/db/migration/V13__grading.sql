@@ -19,6 +19,12 @@
 
 ALTER TABLE lessons ADD COLUMN IF NOT EXISTS released_at TIMESTAMP;
 
+-- Whether a teacher has explicitly taken the release back. Publishing a homework releases it (§7's "default on for
+-- homework"), and without this a re-publish of a lesson she had withdrawn would silently put it back in front of
+-- the parents — a default overruling an instruction. Null `released_at` alone cannot tell "never released" from
+-- "released and withdrawn", which is why it is a column rather than an inference.
+ALTER TABLE lessons ADD COLUMN IF NOT EXISTS release_withdrawn BOOLEAN NOT NULL DEFAULT FALSE;
+
 CREATE TABLE IF NOT EXISTS teacher_marks (
     id          TEXT PRIMARY KEY,
     school_id   TEXT NOT NULL,

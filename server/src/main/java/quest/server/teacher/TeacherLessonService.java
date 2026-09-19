@@ -300,7 +300,6 @@ public class TeacherLessonService {
             }
             results.add(new TeacherDto.PublishedCopy(classId, targetId, republish(targetId).getVersion()));
             grading.releaseOnPublish(targetId);                                 // §7: release is default on for homework
-
         }
         return List.copyOf(results);
     }
