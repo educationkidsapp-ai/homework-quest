@@ -76,6 +76,11 @@
   --hq-color-surface-raised: #ffffff; // sidebar/header, which part company in dark mode
   --hq-color-ink: var(--hq-color-gray-800); // primary text — school `primaryInk`
   --hq-color-ink-soft: var(--hq-color-gray-500); // secondary text
+  // The label weight between ink and ink-soft: §3's nav item, dropdown row and secondary
+  // button all sit at `gray-700`. In dark mode there is no step there — on `#1a2231` a
+  // `gray-700` label is barely a colour — so the role collapses onto the primary ink and
+  // every component that reads it stops needing a `html.dark` rule of its own.
+  --hq-color-ink-strong: var(--hq-color-gray-700);
   --hq-color-ink-muted: var(--hq-color-gray-400); // muted text and placeholders
   --hq-color-rule: var(--hq-color-gray-200); // container border — school `softBorder`
   --hq-color-divider: var(--hq-color-gray-100); // the divider *inside* a container
@@ -202,6 +207,36 @@
   --hq-size-control-height: 44px;
   --hq-size-button-height: var(--hq-size-control-height);
   --hq-size-input-height: var(--hq-size-control-height);
+
+  // --- The shell ----------------------------------------------------------- §2 App shell
+  // The generated token still reads `240px` (the old rail); the spec's sidebar is 290 px
+  // expanded and 90 px collapsed, so `--hq-size-nav-width` is re-pointed like the colour
+  // roles above rather than renamed, and the styleguide's token table reads the live value.
+  --hq-size-sidebar: 290px;
+  --hq-size-sidebar-collapsed: 90px;
+  --hq-size-nav-width: var(--hq-size-sidebar);
+  --hq-size-sidebar-padding: 20px; // `padding: 0 20px` on the rail
+  --hq-space-nav-item: 8px 12px; // §3 Nav item
+  --hq-space-dropdown-row: 10px 8px; // §2 Dropdown panel
+  --hq-space-dropdown: 12px;
+  --hq-space-header-row: 16px; // header row `padding: 16px 0`
+  --hq-space-header-inline: 24px; // header inner `padding: 0 24px`
+  --hq-space-logo-block: 32px; // sidebar logo block `padding: 32px 0`
+  // §2 Content well. `--hq-size-content-max-width` stays the 1100 px reading measure a *page*
+  // may ask for; the well around it is the spec's 1536 px.
+  --hq-size-content-well: 1536px;
+  // Below this the rail is an off-canvas drawer rather than a column.
+  --hq-size-drawer-breakpoint: 1024px;
+
+  // The header sits above the page and below the CDK's overlays (menus, dialogs, the tour).
+  --hq-z-header: 40;
+  --hq-z-drawer: 60;
+
+  // §2: the sidebar takes .3s, the drawer .22s, a dropdown .18s. All three run on the
+  // system's easing and all three collapse to 0 ms under `prefers-reduced-motion`.
+  --hq-motion-sidebar: 300ms;
+  --hq-motion-drawer: 220ms;
+  --hq-motion-dropdown: 180ms;
 }
 
 // --- Dark mode ------------------------------------------------------------- §5
@@ -234,6 +269,7 @@ html.dark {
   --hq-color-bezel: var(--hq-color-gray-950);
   --hq-color-ink-soft: var(--hq-color-gray-400);
   --hq-color-ink-muted: var(--hq-color-gray-500);
+  --hq-color-ink-strong: var(--hq-color-ink);
   --hq-color-divider: var(--hq-color-gray-800);
   --hq-color-control-rule: var(--hq-color-gray-700);
   --hq-color-line: var(--hq-color-gray-800);
@@ -282,6 +318,7 @@ html.dark {
   --hq-color-ink: var(--hq-color-gray-800);
   --hq-color-ink-soft: var(--hq-color-gray-500);
   --hq-color-ink-muted: var(--hq-color-gray-400);
+  --hq-color-ink-strong: var(--hq-color-gray-700);
   --hq-color-rule: var(--hq-color-gray-200);
   --hq-color-divider: var(--hq-color-gray-100);
   --hq-color-control-rule: var(--hq-color-gray-300);
