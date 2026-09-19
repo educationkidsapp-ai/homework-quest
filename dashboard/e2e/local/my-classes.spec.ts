@@ -1,7 +1,15 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { RUN, removeLessonsOfThisRun, shoot, signInAsSara } from './env';
+import {
+  classFreeToday,
+  expect,
+  removeLessonsOfThisRun,
+  RUN,
+  shoot,
+  signInAsSara,
+  test,
+} from './env';
 
 /**
  * N2.3's acceptance (`docs/teacher-flow.md` §4 step 3 and §5), against the built bundle and a
@@ -93,18 +101,25 @@ test('My classes shows a card per assignment, grouped by grade', async ({ page }
 });
 
 test("Add today's lesson lands on New lesson, pre-set to that class and today", async ({ page }) => {
+  // Which section, read rather than named. The card only offers this action when today has
+  // nothing on it (`my-classes.page.html:53`), and on QA's shared database both of Sara's
+  // sections usually do — `classFreeToday()` finds one that is free, or frees one that an
+  // earlier run left behind, and says so plainly if it can do neither (`env.ts`).
+  const free = await classFreeToday();
   await openMyClasses(page);
 
-  const add = cardOf(page, '1B British').getByRole('link', { name: /^Add today's lesson/ });
-  // The seed leaves 1B with no lesson at all, so the card offers the action rather than a status.
-  await expect(add).toBeVisible();
+  const add = cardOf(page, free.className).getByRole('link', { name: /^Add today's lesson/ });
+  await expect(
+    add,
+    `${free.className} has nothing on today, so its card should offer the action`,
+  ).toBeVisible();
   await add.click();
 
   await expect(page).toHaveURL(/lessons\/new\?.*classId=/);
   await expect(page.getByRole('heading', { name: 'New lesson' })).toBeVisible();
   // N2.4b: the link names her section and the section is the whole course — a teacher's New
   // lesson has one picker, already filled and locked, rather than three she must agree with.
-  await expect(page.getByLabel('Class')).toHaveValue(/1b british::math$/i);
+  await expect(page.getByLabel('Class')).toHaveValue(`${free.classId}::${free.subject}`);
 
   const today = new Date().toISOString().slice(0, 10);
   const date = new URL(page.url()).searchParams.get('date') ?? '';

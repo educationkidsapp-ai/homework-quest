@@ -1,6 +1,16 @@
-import { expect, request, test } from '@playwright/test';
+import { request } from '@playwright/test';
 import { resolve } from 'node:path';
-import { API, RUN, SARA, dayFromNow, removeLessonsOfThisRun, signInAsSara, signInForToken } from './env';
+import {
+  API,
+  dayFromNow,
+  expect,
+  removeLessonsOfThisRun,
+  RUN,
+  SARA,
+  signInAsSara,
+  signInForToken,
+  test,
+} from './env';
 
 /**
  * The pipeline actually breaking, and **Retry and continue** actually mending it.

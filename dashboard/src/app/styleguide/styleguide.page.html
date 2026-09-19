@@ -117,6 +117,30 @@
             'styleguide.button.disabled' | transloco
           }}</hq-button>
         </div>
+
+        <!-- T3 §3's 44 × 44 icon button and the full-width form button. Neither had a frame
+             here, so a regression in either was invisible to the screenshot pair — and `icon`
+             has no caller in `src/app/features/**` at all, which is the other reason to draw
+             it: a variant nothing uses is a variant nothing tests. The name is carried by
+             `hq-sr-only` text, because `hq-button` has no `ariaLabel` input and CDK puts a
+             host attribute on `<hq-button>`, which is not the focusable element. -->
+        <h3 class="hq-label sg__heading">{{ 'styleguide.button.moreTitle' | transloco }}</h3>
+        <div class="sg__row">
+          <hq-button variant="icon">
+            <span aria-hidden="true">⋯</span>
+            <span class="hq-sr-only">{{ 'styleguide.button.icon' | transloco }}</span>
+          </hq-button>
+          <hq-button variant="icon" [disabled]="true">
+            <span aria-hidden="true">⋯</span>
+            <span class="hq-sr-only">{{ 'styleguide.button.iconDisabled' | transloco }}</span>
+          </hq-button>
+          <hq-button variant="danger" [loading]="true">{{
+            'styleguide.button.dangerLoading' | transloco
+          }}</hq-button>
+        </div>
+        <div class="sg__stack">
+          <hq-button variant="primary" [block]="true">{{ 'styleguide.button.block' | transloco }}</hq-button>
+        </div>
       </hq-card>
 
       <!-- Input, select, checkbox, toggle -->
@@ -136,6 +160,14 @@
             [enterSubmit]="true"
           />
           <hq-input type="search" [label]="'styleguide.input.search' | transloco" [enterSubmit]="true" />
+          <!-- T3 §3: the 56 px keycap the search field wears to advertise its shortcut. -->
+          <hq-input
+            type="search"
+            [label]="'styleguide.input.keycapLabel' | transloco"
+            [placeholder]="'styleguide.input.keycapPlaceholder' | transloco"
+            [keycap]="'styleguide.input.keycap' | transloco"
+            [enterSubmit]="true"
+          />
           <hq-input [label]="'styleguide.input.disabled' | transloco" [disabled]="true" />
           <hq-select
             [label]="'styleguide.select.label' | transloco"
@@ -168,10 +200,49 @@
         </div>
       </hq-card>
 
-      <!-- Tabs -->
+      <!-- Badges: §3's status pill, in every tone and in both weights. A global class rather
+           than a kit component (styles.scss:204), so nothing else would ever have drawn it. -->
+      <hq-card [title]="'styleguide.sections.badge' | transloco">
+        <h3 class="hq-label">{{ 'styleguide.badge.soft' | transloco }}</h3>
+        <div class="sg__row">
+          <span class="hq-badge">{{ 'styleguide.badge.neutral' | transloco }}</span>
+          <span class="hq-badge hq-badge--primary">{{ 'styleguide.badge.primary' | transloco }}</span>
+          <span class="hq-badge hq-badge--success">{{ 'styleguide.badge.success' | transloco }}</span>
+          <span class="hq-badge hq-badge--warning">{{ 'styleguide.badge.warning' | transloco }}</span>
+          <span class="hq-badge hq-badge--error">{{ 'styleguide.badge.error' | transloco }}</span>
+        </div>
+
+        <h3 class="hq-label sg__heading">{{ 'styleguide.badge.solid' | transloco }}</h3>
+        <div class="sg__row">
+          <span class="hq-badge hq-badge--solid">{{ 'styleguide.badge.neutral' | transloco }}</span>
+          <span class="hq-badge hq-badge--solid hq-badge--primary">{{
+            'styleguide.badge.primary' | transloco
+          }}</span>
+          <span class="hq-badge hq-badge--solid hq-badge--success">{{
+            'styleguide.badge.success' | transloco
+          }}</span>
+          <span class="hq-badge hq-badge--solid hq-badge--warning">{{
+            'styleguide.badge.warning' | transloco
+          }}</span>
+          <span class="hq-badge hq-badge--solid hq-badge--error">{{
+            'styleguide.badge.error' | transloco
+          }}</span>
+        </div>
+      </hq-card>
+
+      <!-- Tabs: the underline set the Admin screens use, and T3's chips, which the class page
+           switches its Calendar/Children panels with. Two presentations, one contract. -->
       <hq-card [title]="'styleguide.sections.tabs' | transloco">
         <hq-tabs [tabs]="tabs()" [(selected)]="selectedTab" [label]="'styleguide.tabs.label' | transloco" />
         <p class="sg__note">{{ selectedTab() }}</p>
+
+        <h3 class="hq-label sg__heading">{{ 'styleguide.tabs.chips' | transloco }}</h3>
+        <hq-tabs
+          variant="chips"
+          [tabs]="tabs()"
+          [(selected)]="selectedTab"
+          [label]="'styleguide.tabs.chipsLabel' | transloco"
+        />
       </hq-card>
 
       <!-- Table + empty state -->
@@ -187,6 +258,7 @@
           [label]="'styleguide.table.label' | transloco"
           [overflowLabel]="'styleguide.table.menu' | transloco"
           [trackBy]="trackLesson"
+          [isSelected]="isSelectedLesson"
         >
           <hq-empty-state
             table-empty
@@ -198,7 +270,13 @@
         <ng-template #cell let-lesson let-column="column">
           @switch (column.key) {
             @case ('name') {
-              <strong>{{ lesson.name }}</strong>
+              <!-- T3 §3's cell tile: a 40 px monogram beside an ellipsised title. A pair of
+                   global classes rather than a component, because `hq-table` takes its cells
+                   from the caller's own template (styles.scss:267). -->
+              <span class="hq-cell">
+                <span class="hq-cell__tile" aria-hidden="true">{{ lesson.name.charAt(0) }}</span>
+                <span class="hq-cell__title">{{ lesson.name }}</span>
+              </span>
             }
             @case ('subject') {
               {{ lesson.subject }}
@@ -216,13 +294,34 @@
         </ng-template>
       </hq-card>
 
-      <!-- Card -->
+      <!-- Card: the frame everything else sits in, in each of its three shapes. `nested` is a
+           card inside a card (a level inside the lesson editor); `flush` drops the body's
+           padding so a table or a list can reach the frame's own edge. -->
       <hq-card
         [title]="'styleguide.card.title' | transloco"
         [eyebrow]="'styleguide.card.eyebrow' | transloco"
       >
         <hq-button card-actions variant="quiet">⋯</hq-button>
         <p>{{ 'styleguide.card.body' | transloco }}</p>
+
+        <div class="sg__stack sg__heading">
+          <hq-card [nested]="true" [title]="'styleguide.card.nestedTitle' | transloco">
+            <p>{{ 'styleguide.card.nested' | transloco }}</p>
+          </hq-card>
+
+          <hq-card [flush]="true" [title]="'styleguide.card.flushTitle' | transloco">
+            <ul class="sg__rows">
+              <li class="sg__collapsible">{{ 'styleguide.card.flushRow' | transloco }}</li>
+              <li class="sg__collapsible">{{ 'styleguide.card.flushRow' | transloco }}</li>
+            </ul>
+          </hq-card>
+
+          <!-- No header at all: `title` and `eyebrow` both unset, so the frame is the whole
+               component. The chooser card on All lessons is this one. -->
+          <hq-card>
+            <p>{{ 'styleguide.card.bare' | transloco }}</p>
+          </hq-card>
+        </div>
       </hq-card>
 
       <!-- Band -->
@@ -271,8 +370,27 @@
           <hq-button (pressed)="stepPhase.set(stepPhase() + 1)">{{
             'styleguide.steps.replay' | transloco
           }}</hq-button>
+        </div>
+
+        <!-- `.sg__bars`, not `.sg__stack`: the stack is `align-items: flex-start`, which
+             collapses a `display: block` child with no intrinsic width to nothing — these two
+             bars have been rendering at zero width since P1.0 and no assertion caught it,
+             because nothing here ever measured them. -->
+        <div class="sg__bars">
           <hq-progress-bar [value]="64" [label]="'styleguide.progress.label' | transloco" />
           <hq-progress-bar [value]="null" [label]="'styleguide.progress.indeterminateLabel' | transloco" />
+        </div>
+
+        <!-- §3's thresholds, which the bar picks for itself from its value: green at 70 and
+             over, amber from 50, the error ramp below. All three in one frame, because the
+             rule is invisible on a single bar and a screenshot of 64 % proves only "amber". -->
+        <h3 class="hq-label sg__heading">{{ 'styleguide.progress.thresholds' | transloco }}</h3>
+        <div class="sg__bars">
+          <hq-progress-bar [value]="88" [label]="'styleguide.progress.good' | transloco" />
+          <hq-progress-bar [value]="58" [label]="'styleguide.progress.mid' | transloco" />
+          <hq-progress-bar [value]="22" [label]="'styleguide.progress.low' | transloco" />
+          <!-- `plain` opts out: the brand fill, for work done rather than for a result. -->
+          <hq-progress-bar [value]="22" [plain]="true" [label]="'styleguide.progress.plain' | transloco" />
         </div>
       </hq-card>
 
@@ -324,12 +442,21 @@
         />
       </hq-card>
 
-      <!-- Empty state -->
+      <!-- Empty state: the message alone, and T3's second line, which is where the "what to do
+           about it" sentence goes now that the message itself is a heading. -->
       <hq-card [title]="'styleguide.sections.emptyState' | transloco">
-        <hq-empty-state
-          [message]="'styleguide.empty.message' | transloco"
-          [actionLabel]="'styleguide.empty.action' | transloco"
-        />
+        <div class="sg__stack">
+          <hq-empty-state
+            [message]="'styleguide.empty.message' | transloco"
+            [actionLabel]="'styleguide.empty.action' | transloco"
+          />
+          <hq-empty-state
+            [message]="'styleguide.empty.message' | transloco"
+            [detail]="'styleguide.empty.detail' | transloco"
+            [actionLabel]="'styleguide.empty.action' | transloco"
+          />
+          <hq-empty-state [message]="'styleguide.empty.bare' | transloco" />
+        </div>
       </hq-card>
 
       <!-- Phone frame -->

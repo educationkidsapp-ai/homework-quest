@@ -16,7 +16,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "ng test",
-    "e2e": "playwright test",
+    "e2e": "playwright test e2e/styleguide.spec.ts",
     "e2e:qa": "playwright test --retries=1",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",

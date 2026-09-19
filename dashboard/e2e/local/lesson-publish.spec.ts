@@ -1,16 +1,18 @@
-import { expect, request, test, type Locator, type Page } from '@playwright/test';
+import { request, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   API,
+  dayFromNow,
+  expect,
+  removeLessonsOfThisRun,
   RUN,
   SARA,
-  dayFromNow,
-  removeLessonsOfThisRun,
   setScheme,
   shoot,
   signInAsSara,
   signInForToken,
+  test,
 } from './env';
 
 /**

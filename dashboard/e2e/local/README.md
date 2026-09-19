@@ -63,8 +63,16 @@ export JAVA_HOME=…/jdk-21…            # the default `java` on this Mac is 17
 
 SPRING_PROFILES_ACTIVE=h2 SEED_SCHOOL=true SEED_STAFF_PASSWORD="$E2E_STAFF_PASSWORD" \
   ADMIN_EMAIL="$E2E_ADMIN_EMAIL" ADMIN_PASSWORD="$E2E_ADMIN_PASSWORD" \
-  LLM_PROVIDER=fake PORT=18080 PUBLIC_URL=http://localhost:18080 \
+  LLM_PROVIDER=fake PORT=18080 PUBLIC_URL=http://localhost:4300 \
   DASHBOARD_URL=http://localhost:4300 java -jar server/target/server.jar &
+
+# `PUBLIC_URL` is the origin the *browser* reaches the app on — 4300, the static server — and
+# not the API's own port. The server writes it into every media link it hands out
+# (`LessonStore.java:76`, `AdminLessonService.java:329`), and `serve.mjs` sends the API's own
+# Content-Security-Policy, whose `img-src` is `'self' https: data:`. Pointed at 18080 the crops
+# in the lesson editor are cross-origin plain http, so Chrome blocks every one of them and logs
+# an error per image — which T4's console gate now fails the run for. Pointed at 4300 the links
+# go back through the proxy, same origin, exactly as they will in the container.
 
 # 2. the bundle the container will serve
 cd dashboard && pnpm build --configuration=production
@@ -139,6 +147,39 @@ test one, and it is reported to the planner rather than worked around here. Once
 is in the generation cache for this fixture's hash the step is a cache hit and the flake is gone,
 which is why the suite is green on QA today.
 
+## The console gate (T4)
+
+Every test in this directory imports `test` from `./env` rather than from `@playwright/test`,
+and that `test` carries one extra assertion nobody has to write: **the browser console has to be
+clean**. `console.error`, any `console.warn` whose text contains an `NG0` code, and any uncaught
+`pageerror` are collected for the whole test and asserted empty at teardown.
+
+Angular's runtime warnings are the half worth having. `NG0100` (expression changed after it was
+checked), `NG0913` (an image with no dimensions), `NG0955` (a duplicate `track`) are warnings a
+screen renders straight through, so no assertion *about the screen* would ever see them — and
+"no console errors, no NG0xxx warnings" was on the owner's acceptance list for the restyle with
+nothing enforcing it.
+
+Two escape hatches, in order of preference:
+
+1. **A test that expects a refusal declares it**, next to the line that causes it:
+
+   ```ts
+   expectConsoleError(/status of 401 .*\/auth\/sign-in/, 'this test types a wrong password on purpose');
+   ```
+
+   `shell.spec.ts`'s wrong-password test is the one caller. The declaration is recorded as a
+   test annotation, so it shows up in the report rather than disappearing into the source.
+
+2. **`ALLOWED_NOISE` in `env.ts`**, for noise that is nobody's defect and happens anywhere. It
+   has three entries, each with the reason it is there, and each names something outside
+   `src/app/**`. Adding a fourth is a decision, not a formality: anything the dashboard itself
+   logs is a defect to report.
+
+Console messages carry their URL into the failure message, because Chrome's own text for a bad
+response — "Failed to load resource: the server responded with a status of …" — never says
+which resource.
+
 ## What it proves
 
 | File | What would break without it |
@@ -153,6 +194,7 @@ which is why the suite is green on QA today.
 | `lesson-retry.spec.ts` | that a failed pipeline step really retries past its failure (opt-in, below) |
 | `theme-shell.spec.ts` | T2's shell: the 290/90 px sidebar and that it is remembered, the drawer under 1024 px (scrim, Escape, focus back on the burger, Tab trapped), the rail on the inline-start edge in Arabic, the header's controls and the account menu's keyboard contract — plus the three-width screenshot matrix |
 | `theme-kit.spec.ts` | T3's kit and the teacher screens: that **no screen scrolls the page sideways** at 1366, 768 or 375 in either language — a pane scrolls, the document never does — plus the seven-screen screenshot set |
+| `theme-flow.spec.ts` | T4's: the **whole teacher flow** walked once as a person — sign in, This week (her Home), My classes, a class's Calendar and Children, All lessons, New lesson, the editor's stop editor / parent panel / publish sheet, the day moved, Profile, sign out — with every form on the path submitted exactly once; then the eight screens measured at 1366 light and dark and at 768 and 375, for a heading, no sideways page scroll, the screen's main action on screen, and dark-mode body-text contrast against its own surface, computed in the page; plus the 48-frame `theme-t4` set |
 
 Screenshots land in `docs/screenshots/dashboard-p3.1/`, `dashboard-n1.2/`, `dashboard-n2.2/`,
 `dashboard-n2.3/`, `dashboard-n2.4/` and `dashboard-n2.4b/` (1366 × 768, EN and AR) and are
@@ -161,7 +203,16 @@ package gave the shell a collapsed rail and a drawer, so it is photographed at 1
 with the drawer shut **and** open, and at 375, each in EN and AR and in both schemes.
 `theme-t3/` is the kit's: the seven teacher screens at 1366 in EN and AR, light and dark, plus
 a light English frame at 768 and at 375 — the two widths where the week grid and the class
-calendar change shape.
+calendar change shape. `theme-t4/` is the flow's, in the same shape over the eight screens a
+teacher really has — This week, My classes, the class page's Calendar **and** its Children,
+All lessons, New lesson, the lesson editor, Profile — 32 frames at 1366 plus 16 narrow ones,
+and the styleguide's own light/dark pair.
+
+**`theme-t3/home-*.png` are not a screen.** `theme-kit.spec.ts` opens `teacher/home`, which
+matches no route — a teacher's Home *is* This week (`screens.ts:111` redirects `/teacher` to
+it), so those six frames are the not-found page, and the spec's only barrier there is "a level-1
+heading", which "Nothing here" satisfies. `theme-flow.spec.ts` photographs This week instead and
+asserts the redirect; the T3 file is left as it is for its own package to correct.
 
 `shoot()` falls back to a full-page frame when the document scrolls sideways. Chrome's viewport
 capture takes its origin from the scrollable area rather than the layout viewport, and in an RTL

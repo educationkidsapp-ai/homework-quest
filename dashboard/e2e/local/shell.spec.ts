@@ -1,7 +1,6 @@
-import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { ADMIN, SARA, setLanguage, shoot, signIn } from './env';
+import { ADMIN, expect, expectConsoleError, SARA, setLanguage, shoot, signIn, test } from './env';
 
 /**
  * P3.1's acceptance — the shell itself: branding, the Content-Security-Policy, where each role
@@ -77,6 +76,12 @@ test('each role signs in and lands on its own Home', async ({ page }) => {
 });
 
 test('a wrong password is a band on the page, not a toast and not a sign-out', async ({ page }) => {
+  // The 401 is what this test asks for, so it is declared rather than left for the console gate
+  // to report as a defect (`env.ts`).
+  expectConsoleError(
+    /status of 401 .*\/auth\/sign-in/,
+    'this test signs in with a wrong password on purpose; the refusal is the behaviour being proved',
+  );
   await page.goto('sign-in');
   await page.getByLabel('Email').fill(SARA.email);
   await page.getByLabel('Password').fill('definitely-not-it');

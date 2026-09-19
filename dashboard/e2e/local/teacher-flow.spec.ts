@@ -1,15 +1,17 @@
-import { expect, request, test, type Locator, type Page } from '@playwright/test';
+import { request, type Locator, type Page } from '@playwright/test';
 import { resolve } from 'node:path';
 import {
   API,
+  dayFromNow,
+  expect,
   OMAR,
+  removeLessonsOfThisRun,
   RUN,
   SARA,
-  dayFromNow,
-  removeLessonsOfThisRun,
   signIn,
   signInAsSara,
   signInForToken,
+  test,
 } from './env';
 
 /**
@@ -333,9 +335,7 @@ test('step 3f — both class calendars show the lesson as published', async ({ p
  * being proved is the server's answer — a dashboard that merely did not draw a link would pass a
  * screen-only test and still leak the row to anything that asked.
  */
-test('step 8 — another teacher is refused her class and her lesson, by API and by URL', async ({
-  page,
-}) => {
+test('step 8 — another teacher is refused her class and her lesson, by API and by URL', async ({ page }) => {
   const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
   const api = await request.newContext({ baseURL: API });
 

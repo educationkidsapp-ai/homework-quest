@@ -100,6 +100,21 @@
   border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
   border-radius: var(--hq-radius-control);
   box-shadow: var(--hq-shadow-xs);
+
+  // T4: the halo, given back to the three controls this mixin draws.
+  //
+  // §4's focus ring is two properties — the outline from `focus-ring` above, and the soft
+  // `rgba(70,95,255,0.1)` halo from the global `:focus-visible` in `styles.scss`. The global
+  // rule sets it as a `box-shadow`, and the line above sets a `box-shadow` too: same
+  // specificity, component stylesheet emitted later, so on a focused input, select or textarea
+  // the halo was replaced by the resting elevation and the ring lost half of itself.
+  // `e2e/styleguide.spec.ts`'s "both halves of the ring" has been failing on `develop` ever
+  // since, and that suite does not run in CI, so nothing said so. Scoped to this mixin because
+  // these three are the only controls that took the elevation (input, select, textarea); every
+  // other focusable element still gets the halo from the global rule.
+  &:focus-visible {
+    box-shadow: var(--hq-focus-ring);
+  }
 }
 
 /// §2 "Card with header": 18/600 over an optional 14/400 sub.

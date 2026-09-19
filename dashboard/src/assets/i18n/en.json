@@ -763,7 +763,8 @@
       "shortcuts": "Shortcuts",
       "countUp": "Count up",
       "motion": "Motion",
-      "foundations": "Foundations"
+      "foundations": "Foundations",
+      "badge": "Badge"
     },
     "button": {
       "primary": "Primary",
@@ -771,7 +772,12 @@
       "danger": "Delete school",
       "quiet": "Quiet",
       "loading": "Publishing",
-      "disabled": "Disabled"
+      "disabled": "Disabled",
+      "moreTitle": "Icon and full width",
+      "icon": "More actions",
+      "iconDisabled": "More actions (disabled)",
+      "dangerLoading": "Deleting",
+      "block": "Save and publish"
     },
     "input": {
       "label": "School name",
@@ -780,7 +786,10 @@
       "errorLabel": "School code",
       "error": "That code is already taken.",
       "search": "Search lessons",
-      "disabled": "Read-only field"
+      "disabled": "Read-only field",
+      "keycapLabel": "Search everything",
+      "keycapPlaceholder": "Lessons, classes, children",
+      "keycap": "⌘K"
     },
     "select": {
       "label": "Curriculum",
@@ -819,12 +828,19 @@
       "overview": "Overview",
       "users": "Users",
       "theme": "Theme",
-      "flags": "Feature flags"
+      "flags": "Feature flags",
+      "chips": "Chips",
+      "chipsLabel": "Class panels"
     },
     "card": {
       "title": "Lessons published",
       "eyebrow": "This week",
-      "body": "Cards are the only container: a white panel behind a two-pixel ink rule."
+      "body": "Cards are the only container: a white panel behind a two-pixel ink rule.",
+      "nestedTitle": "Level 2",
+      "nested": "A card inside a card: one step darker, no shadow of its own.",
+      "flushTitle": "Recent lessons",
+      "flushRow": "Counting by 2s · Math · Grade 1",
+      "bare": "No title and no eyebrow: the frame is the whole component."
     },
     "band": {
       "error": "Could not publish the lesson — the slide deck has no readable text.",
@@ -848,7 +864,12 @@
     },
     "progress": {
       "label": "Upload progress",
-      "indeterminateLabel": "Reading slides"
+      "indeterminateLabel": "Reading slides",
+      "thresholds": "Thresholds",
+      "good": "Class average, 88%",
+      "mid": "Class average, 58%",
+      "low": "Class average, 22%",
+      "plain": "Slides read, 22%"
     },
     "skeleton": {
       "label": "Loading lessons",
@@ -865,7 +886,9 @@
     },
     "empty": {
       "message": "No schools yet — create the first one and invite its managerial user.",
-      "action": "New school"
+      "action": "New school",
+      "detail": "Schools hold the classes, the teachers and the children — start with one.",
+      "bare": "Nothing to show for this week."
     },
     "nav": {
       "label": "Admin",
@@ -912,6 +935,15 @@
       "typeSample": "Every screen is built from these six sizes",
       "darkMode": "Dark mode",
       "darkModeHint": "Remembered under localStorage['theme']; a school's accent still applies, its ground and ink do not."
+    },
+    "badge": {
+      "soft": "Soft",
+      "solid": "Solid",
+      "neutral": "Draft",
+      "primary": "Scheduled",
+      "success": "Published",
+      "warning": "Needs review",
+      "error": "Failed"
     }
   },
   "subject": {

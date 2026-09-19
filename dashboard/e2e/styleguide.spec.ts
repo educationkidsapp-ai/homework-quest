@@ -4,6 +4,8 @@ import { shoot } from './local/env';
 const SHOTS = '../docs/screenshots/dashboard-p1.0';
 /** The four frames the T1 PR is reviewed from: both languages against both schemes. */
 const THEME_SHOTS = '../docs/screenshots/theme-t1';
+/** T4's: the same four frames once the T3 kit's variants are on the page. */
+const T4_SHOTS = '../docs/screenshots/theme-t4';
 
 /**
  * The screenshots attached to the P1.0 PR.
@@ -71,6 +73,48 @@ test.describe('styleguide', () => {
         );
       });
     }
+  }
+
+  /**
+   * T4: the T3 kit's own variants, which the guide had no frame for.
+   *
+   * Every one of these shipped in #81 and none of them was drawn here, so the light/dark pair
+   * below proved the *foundations* and nothing built on them. The assertions are deliberately
+   * about presence and count rather than about pixels — a screenshot is the record, and a
+   * count is what fails when a variant quietly stops rendering.
+   */
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`the T3 kit's variants, ${scheme}`, async ({ page }) => {
+      await openStyleguide(page, 'en', scheme);
+
+      // Badges: five tones, twice over — soft and solid (styles.scss:204).
+      await expect(page.locator('.hq-badge')).toHaveCount(10);
+      await expect(page.locator('.hq-badge--solid')).toHaveCount(5);
+
+      // Cards: the default frame, `nested`, `flush`, and one with neither title nor eyebrow.
+      await expect(page.locator('hq-card.card--nested')).toHaveCount(1);
+      await expect(page.locator('hq-card.card--flush').first()).toBeVisible();
+
+      // Buttons: the 44 × 44 icon variant, which no feature screen uses, and the block one.
+      await expect(page.locator('.btn--icon')).toHaveCount(2);
+      await expect(page.locator('.btn--block')).toHaveCount(1);
+
+      // Tabs: the underline set and T3's chips, the same contract twice.
+      await expect(page.locator('hq-tabs')).toHaveCount(2);
+
+      // Progress: §3's three thresholds plus `plain`, so the rule is visible in one frame.
+      for (const tone of ['good', 'mid', 'look', 'plain']) {
+        await expect(page.locator(`.bar--${tone}`).first()).toBeVisible();
+      }
+
+      // The input keycap and the table's cell tile, both new in T3.
+      await expect(page.locator('.field__keycap')).toHaveCount(1);
+      await expect(page.locator('.hq-cell__tile').first()).toBeVisible();
+
+      await shoot(page, `${T4_SHOTS}/styleguide-en-${scheme}.png`, page.getByRole('heading', { level: 1 }), {
+        fullPage: true,
+      });
+    });
   }
 
   // The halo comes from the global `:focus-visible` and the outline from each component's
