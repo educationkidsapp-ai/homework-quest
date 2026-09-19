@@ -70,6 +70,19 @@ class OpenApiContractTest extends ApiTestSupport {
             "/children/{id}/teacher-questions/{questionId}", "/children/{id}/teacher-questions/{questionId}/answers");
 
     /**
+     * N4.1: results, marking, release, the gradebook and the child page (`quest.api.dashboard.Grading.kt`,
+     * `docs/teacher-flow.md` step 9). All of it is behind the `gradebook` flag at run time, and the exports are
+     * behind it too; they are still in the document, because `server/openapi.json` describes the API the server can
+     * serve, not what one school has switched on.
+     */
+    static final List<String> GRADING_API = List.of(
+            "/teacher/lessons/{id}/results", "/teacher/lessons/{id}/results.csv", "/teacher/lessons/{id}/results.xlsx",
+            "/teacher/marks", "/teacher/lessons/{id}/release",
+            "/teacher/classes/{classId}/gradebook", "/teacher/classes/{classId}/gradebook.csv",
+            "/teacher/classes/{classId}/gradebook.xlsx",
+            "/teacher/children/{childId}");
+
+    /**
      * N1.1: sections, teaching assignments and class rosters (`quest.api.dashboard.Classes.kt`,
      * `docs/teacher-flow.md` §1–§2). `/teacher/classes/{classId}/children**` is behind `teacher.rosterEdit` at run
      * time and is still in the document, for the same reason the teacher's feature routes are: `server/openapi.json`
@@ -99,6 +112,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(DASHBOARD_API);
         assertThat(paths).containsAll(DASHBOARD_DATA_API);
         assertThat(paths).containsAll(TEACHER_API);
+        assertThat(paths).containsAll(GRADING_API);
         assertThat(paths).containsAll(CLASSES_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");

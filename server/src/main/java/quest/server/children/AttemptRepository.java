@@ -20,6 +20,16 @@ public interface AttemptRepository extends JpaRepository<Entities.AttemptEntity,
     List<Entities.AttemptEntity> findByChildIdIn(Collection<String> childIds);
 
     /**
+     * The same, narrowed to a set of lessons (N4.1). The gradebook grid asks about one month of a class's work, and
+     * a class's whole attempt history is every lesson it has ever played — the window belongs in the statement, not
+     * in a filter afterwards. `attempts(child_id, lesson_id)` (V13) is the index behind both of these.
+     */
+    List<Entities.AttemptEntity> findByChildIdInAndLessonIdIn(Collection<String> childIds, Collection<String> lessonIds);
+
+    /** One child's attempts on a named set of lessons — the child page and her parent's released results. */
+    List<Entities.AttemptEntity> findByChildIdAndLessonIdIn(String childId, Collection<String> lessonIds);
+
+    /**
      * `[lessonId, how many distinct children have answered at least one stop of it]` — §4's "12/24 played" for a
      * whole week's grid in one statement. Counted in the database rather than by loading the attempts, because a
      * week of ten classes is tens of thousands of rows and the grid needs one number from each.

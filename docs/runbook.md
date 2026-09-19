@@ -651,6 +651,65 @@ generated one, which nothing logs or prints, and the start-up line says only tha
 boots are instant. This school is separate from the Al Noor / Green Valley fixture below, which lives in its own two
 schools and is untouched by it.
 
+**Attempts to score (`seed/attempts.csv`).** The dashboard's Results page and gradebook are empty until some child
+has actually played something, so `quest.server.grading.AttemptSeed` reads
+`server/src/main/resources/seed/attempts.csv` right after the school seed and gives three children of `1A British`
+and `1B British` a handful of attempts. It brings its own lesson — one published homework per class named in the
+file ("Counting to ten": two single-answer stops and one retell), because a fresh QA database has no lessons until a
+teacher writes one — and the lesson id, the stop ids and the attempt ids are all derived from the class id, so a
+re-run writes nothing. It runs for the **`full` profile only**: `acceptance` is the owner's own environment, where
+the children arrive when he registers in the app and the lessons are the ones he posts himself, and a fixture
+putting scores on that board would be inventing work nobody did. A row naming a class or a child the school does not
+have stops the load naming the line; as with the school seed, a broken fixture costs QA its seed, never its revision.
+
+## Results, marking and release
+
+`docs/teacher-flow.md` step 9. Three things are worth knowing when QA looks wrong.
+
+**The two flags.** Every route below is behind `gradebook`, and `PUT /teacher/marks` is behind `openStopMarking` as
+well. Both are seeded **off** (V7), so a school sees 404 from the whole area until an Admin turns them on:
+
+```bash
+curl -X PUT "$API/admin/schools/$SCHOOL/flags/gradebook" -H "Authorization: Bearer $ADMIN" \
+     -H 'Content-Type: application/json' -d '{"enabled":true}'
+curl -X PUT "$API/admin/schools/$SCHOOL/flags/openStopMarking" -H "Authorization: Bearer $ADMIN" \
+     -H 'Content-Type: application/json' -d '{"enabled":true}'
+```
+
+**A homework is released when it is published; an exam is not.** §7's release is "default on for homework", so
+`POST /teacher/lessons/{id}/publish` stamps `released_at` on every copy it takes live whose `type` is not `exam` —
+a parent sees the score her child earned without the teacher remembering a second action. An exam stays unreleased
+until `POST /teacher/lessons/{id}/release` (§8 gives it its own release, automatic on close or manual). Rows that
+existed before V13 are untouched and stay unreleased until something publishes or releases them.
+
+A release a teacher **withdraws** stays withdrawn: re-publishing that lesson does not put it back in front of the
+parents (`lessons.release_withdrawn`), because a default must not overrule an explicit instruction. `{"released":
+true}` is how she changes her mind.
+
+The parent's `GET /children/{id}/progress` carries the score, band and comment in `results[]` for released lessons
+only. The child never sees a number at all — that is §6's rule and this changes nothing about it. To take a lesson
+back off the parent's report:
+
+```bash
+curl -X POST "$API/teacher/lessons/$LESSON/release" -H "Authorization: Bearer $TEACHER" \
+     -H 'Content-Type: application/json' -d '{"released":false}'
+```
+
+**Marking a released lesson is allowed.** §7 says only that a parent sees the score and the comment *after* release;
+it does not freeze a released lesson, and since a homework is released the moment it is published, refusing marks on
+one would make §7's own marking flow impossible. So `PUT /teacher/marks` always lands, and the new mark reaches the
+parent on her next read.
+
+**Two different numbers, on purpose.** The gradebook's per-child `average` is the plain arithmetic mean of her
+scored cells in the window on screen — a teacher who adds the row up by hand gets the same number. The child page's
+`levelScore` is §7's rolling `ChildLevel`: weighted toward recent lessons, an exam counted twice, the newest ten
+of **that subject** (the window is per subject, so a three-subject class still gets three full levels and three
+full lines on the chart). It answers "where is she now" rather than "what do her marks come to", and the two can differ by a band.
+
+Scores are computed from the attempts on every read — there is no `homework_scores` table to rebuild, and no cache
+to clear. The thresholds behind the four bands (`emerging`, `developing`, `secure`, `exceeding`) are constants in
+`server/src/main/java/quest/server/grading/Bands.java`.
+
 `e2e/` holds the fixture and the assertions over it — three Node-and-bash scripts, no dependencies beyond Node 22,
 `curl` and optionally `jq`. Full detail in [e2e/README.md](../e2e/README.md).
 

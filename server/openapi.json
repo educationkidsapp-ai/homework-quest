@@ -475,6 +475,249 @@
         "required" : [ "avatarColor", "curriculum", "grade", "id", "languages", "name", "schoolId" ],
         "type" : "object"
       },
+      "ChildComment" : {
+        "properties" : {
+          "comment" : {
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "lessonTitle" : {
+            "type" : "string"
+          },
+          "markedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "stars" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "stopId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ChildLevel" : {
+        "properties" : {
+          "band" : {
+            "type" : "string"
+          },
+          "lessons" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "levelScore" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "trend" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ChildReport" : {
+        "properties" : {
+          "avatarColor" : {
+            "type" : "string"
+          },
+          "childId" : {
+            "type" : "string"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "comments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChildComment"
+            },
+            "type" : "array"
+          },
+          "levels" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChildLevel"
+            },
+            "type" : "array"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "trend" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChildTrendPoint"
+            },
+            "type" : "array"
+          },
+          "work" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChildWork"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "ChildResult" : {
+        "properties" : {
+          "attempted" : {
+            "type" : "boolean"
+          },
+          "autoScore" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "band" : {
+            "type" : "string"
+          },
+          "childId" : {
+            "type" : "string"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "comment" : {
+            "type" : "string"
+          },
+          "completion" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "levelReached" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "needsMarking" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "score" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "starsEarned" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "starsTotal" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "stops" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChildStopResult"
+            },
+            "type" : "array"
+          },
+          "teacherScore" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "ChildStopResult" : {
+        "properties" : {
+          "accuracy" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "attempted" : {
+            "type" : "boolean"
+          },
+          "attempts" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "firstTryCorrect" : {
+            "type" : "boolean"
+          },
+          "markComment" : {
+            "type" : "string"
+          },
+          "markStars" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "needsMarking" : {
+            "type" : "boolean"
+          },
+          "score" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "stars" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "stopId" : {
+            "type" : "string"
+          },
+          "workUrl" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ChildTrendPoint" : {
+        "properties" : {
+          "band" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "released" : {
+            "type" : "boolean"
+          },
+          "score" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ChildWork" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "stopId" : {
+            "type" : "string"
+          },
+          "url" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "Choice" : {
         "allOf" : [ {
           "$ref" : "#/components/schemas/SingleAnswer"
@@ -1205,6 +1448,129 @@
         "required" : [ "email" ],
         "type" : "object"
       },
+      "Gradebook" : {
+        "properties" : {
+          "children" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GradebookChild"
+            },
+            "type" : "array"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "from" : {
+            "type" : "string"
+          },
+          "lessons" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GradebookLesson"
+            },
+            "type" : "array"
+          },
+          "needsMarking" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "to" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "GradebookCell" : {
+        "properties" : {
+          "attempted" : {
+            "type" : "boolean"
+          },
+          "autoScore" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "band" : {
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "needsMarking" : {
+            "type" : "boolean"
+          },
+          "score" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "teacherScore" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "GradebookChild" : {
+        "properties" : {
+          "average" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "band" : {
+            "type" : "string"
+          },
+          "cells" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GradebookCell"
+            },
+            "type" : "array"
+          },
+          "childId" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "trend" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "GradebookLesson" : {
+        "properties" : {
+          "classAverage" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "needsMarking" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "released" : {
+            "type" : "boolean"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "HomeCard" : {
         "properties" : {
           "key" : {
@@ -1530,6 +1896,82 @@
         "required" : [ "id", "url" ],
         "type" : "object"
       },
+      "LessonRelease" : {
+        "properties" : {
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "released" : {
+            "type" : "boolean"
+          },
+          "releasedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "LessonResults" : {
+        "properties" : {
+          "children" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChildResult"
+            },
+            "type" : "array"
+          },
+          "classAverage" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "needsMarking" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "played" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "released" : {
+            "type" : "boolean"
+          },
+          "releasedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "stops" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ResultStop"
+            },
+            "type" : "array"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "LessonStepInfo" : {
         "properties" : {
           "attempt" : {
@@ -1623,6 +2065,40 @@
           }
         },
         "required" : [ "childId", "course", "from", "islands", "to", "today" ],
+        "type" : "object"
+      },
+      "MarkInput" : {
+        "properties" : {
+          "childId" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "comment" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "lessonId" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "score" : {
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 0,
+            "type" : "integer"
+          },
+          "stars" : {
+            "format" : "int32",
+            "maximum" : 3,
+            "minimum" : 0,
+            "type" : "integer"
+          },
+          "stopId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "childId", "lessonId" ],
         "type" : "object"
       },
       "Match" : {
@@ -2168,6 +2644,12 @@
             "format" : "date",
             "type" : "string"
           },
+          "results" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ReleasedResult"
+            },
+            "type" : "array"
+          },
           "skills" : {
             "items" : {
               "$ref" : "#/components/schemas/SkillProgress"
@@ -2191,7 +2673,7 @@
             "type" : "array"
           }
         },
-        "required" : [ "childId", "skills", "stickers", "streakDays", "weakSkillIds" ],
+        "required" : [ "childId", "results", "skills", "stickers", "streakDays", "weakSkillIds" ],
         "type" : "object"
       },
       "PublishToClassesRequest" : {
@@ -2343,6 +2825,49 @@
         "required" : [ "refreshToken" ],
         "type" : "object"
       },
+      "ReleaseRequest" : {
+        "properties" : {
+          "released" : {
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
+      "ReleasedResult" : {
+        "properties" : {
+          "band" : {
+            "type" : "string"
+          },
+          "comment" : {
+            "type" : "string"
+          },
+          "date" : {
+            "example" : "2026-05-04",
+            "format" : "date",
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "releasedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "score" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "subject" : {
+            "enum" : [ "math", "english" ],
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "date", "lessonId", "releasedAt", "subject" ],
+        "type" : "object"
+      },
       "ResetPasswordRequest" : {
         "properties" : {
           "newPassword" : {
@@ -2356,6 +2881,27 @@
           }
         },
         "required" : [ "newPassword", "token" ],
+        "type" : "object"
+      },
+      "ResultStop" : {
+        "properties" : {
+          "level" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "open" : {
+            "type" : "boolean"
+          },
+          "stopId" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "Retell" : {
@@ -2425,6 +2971,19 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "SaveMarksRequest" : {
+        "properties" : {
+          "marks" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MarkInput"
+            },
+            "minItems" : 1,
+            "type" : "array"
+          }
+        },
+        "required" : [ "marks" ],
         "type" : "object"
       },
       "School" : {
@@ -3545,6 +4104,38 @@
           }
         },
         "required" : [ "answered", "from", "questionId", "stopsCount", "teacherName", "title", "to" ],
+        "type" : "object"
+      },
+      "TeacherMark" : {
+        "properties" : {
+          "childId" : {
+            "type" : "string"
+          },
+          "comment" : {
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "markedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "markedBy" : {
+            "type" : "string"
+          },
+          "score" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "stars" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "stopId" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "TeacherOptions" : {
@@ -8149,6 +8740,32 @@
         "tags" : [ "Announcements" ]
       }
     },
+    "/teacher/children/{childId}" : {
+      "get" : {
+        "operationId" : "childReport",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "childId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildReport"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Results and gradebook" ]
+      }
+    },
     "/teacher/classes" : {
       "get" : {
         "operationId" : "myClasses",
@@ -8344,6 +8961,128 @@
           }
         },
         "tags" : [ "Teacher roster" ]
+      }
+    },
+    "/teacher/classes/{classId}/gradebook" : {
+      "get" : {
+        "operationId" : "gradebook",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Gradebook"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Results and gradebook" ]
+      }
+    },
+    "/teacher/classes/{classId}/gradebook.csv" : {
+      "get" : {
+        "operationId" : "gradebookCsv",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Results and gradebook" ]
+      }
+    },
+    "/teacher/classes/{classId}/gradebook.xlsx" : {
+      "get" : {
+        "operationId" : "gradebookXlsx",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Results and gradebook" ]
       }
     },
     "/teacher/classes/{classId}/roster/attach" : {
@@ -9007,6 +9746,121 @@
         "tags" : [ "Teacher lessons" ]
       }
     },
+    "/teacher/lessons/{id}/release" : {
+      "post" : {
+        "operationId" : "releaseLesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReleaseRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonRelease"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Results and gradebook" ]
+      }
+    },
+    "/teacher/lessons/{id}/results" : {
+      "get" : {
+        "operationId" : "lessonResults",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonResults"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Results and gradebook" ]
+      }
+    },
+    "/teacher/lessons/{id}/results.csv" : {
+      "get" : {
+        "operationId" : "lessonResultsCsv",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Results and gradebook" ]
+      }
+    },
+    "/teacher/lessons/{id}/results.xlsx" : {
+      "get" : {
+        "operationId" : "lessonResultsXlsx",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Results and gradebook" ]
+      }
+    },
     "/teacher/lessons/{id}/retry" : {
       "post" : {
         "operationId" : "teacherRetry",
@@ -9126,6 +9980,37 @@
           }
         },
         "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/marks" : {
+      "put" : {
+        "operationId" : "saveMarks",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SaveMarksRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/TeacherMark"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Results and gradebook" ]
       }
     },
     "/teacher/options" : {
@@ -9662,6 +10547,9 @@
   }, {
     "description" : "Dashboard sign-in, sessions and passwords",
     "name" : "Auth"
+  }, {
+    "description" : "Scores, teacher marks, release, the class gradebook and the child page",
+    "name" : "Results and gradebook"
   }, {
     "description" : "Lesson pipeline, plays and stops",
     "name" : "Admin lessons"

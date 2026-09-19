@@ -26,10 +26,10 @@ public class ProgressService {
     public record SkillBand(String skillId, String name, Subject subject, String lessonId, Band band, Double accuracy, int attempts, Long lastPractised) {}
 
     private final AttemptRepository attempts; private final SchoolLessons schoolLessons; private final SkillRepository skills; private final PlayRepository plays; private final LessonStore store;
-    private final StreakRepository streaks; private final StickerRepository stickers;
+    private final StreakRepository streaks; private final StickerRepository stickers; private final quest.server.grading.GradingService grading;
 
-    public ProgressService(AttemptRepository attempts, SchoolLessons schoolLessons, SkillRepository skills, PlayRepository plays, LessonStore store, StreakRepository streaks, StickerRepository stickers) {
-        this.attempts = attempts; this.schoolLessons = schoolLessons; this.skills = skills; this.plays = plays; this.store = store; this.streaks = streaks; this.stickers = stickers;
+    public ProgressService(AttemptRepository attempts, SchoolLessons schoolLessons, SkillRepository skills, PlayRepository plays, LessonStore store, StreakRepository streaks, StickerRepository stickers, quest.server.grading.GradingService grading) {
+        this.attempts = attempts; this.schoolLessons = schoolLessons; this.skills = skills; this.plays = plays; this.store = store; this.streaks = streaks; this.stickers = stickers; this.grading = grading;
     }
 
     public List<SkillBand> skillBands(Entities.ChildEntity child) { return skillBands(child, schoolLessons.publishedFor(child)); }
@@ -73,8 +73,15 @@ public class ProgressService {
         return ids;
     }
 
+    /**
+     * N4.1 (teacher prompt §7): `results` carries the score, the band and the teacher's comment for every lesson she
+     * has <strong>released</strong>, and nothing for the rest — the flag is the release, not the attempt. It is a
+     * new field with a default, so an app that has not been updated reads exactly what it read before. Child mode
+     * still sees no number anywhere: this is the parent's half of the report.
+     */
     public ProgressResponse progress(Entities.ChildEntity child) {
-        var bands = skillBands(child);
+        var published = schoolLessons.publishedFor(child);
+        var bands = skillBands(child, published);
         var list = bands.stream().map(b -> new SkillProgress(b.skillId(), b.name(), b.subject(), b.band() == null ? null : b.band().name(),
                 b.accuracy() == null ? null : ProgressBands.INSTANCE.accuracyWords(b.accuracy()), b.attempts(), b.lastPractised())).toList();
         var weak = bands.stream().filter(b -> b.band() == Band.NEEDS_ANOTHER_LOOK).map(SkillBand::skillId).toList();
@@ -82,7 +89,8 @@ public class ProgressService {
         kotlinx.datetime.LocalDate last = streak == null || streak.getLastPlayedDate() == null ? null
                 : new kotlinx.datetime.LocalDate(streak.getLastPlayedDate().getYear(), streak.getLastPlayedDate().getMonthValue(), streak.getLastPlayedDate().getDayOfMonth());
         var stickerKeys = stickers.findByChildIdOrderByEarnedAt(child.getId()).stream().map(Entities.StickerEntity::getStickerKey).toList();
-        return new ProgressResponse(child.getId(), list, weak, streak == null ? 0 : streak.getCurrentDays(), last, stickerKeys);
+        return new ProgressResponse(child.getId(), list, weak, streak == null ? 0 : streak.getCurrentDays(), last, stickerKeys,
+                grading.releasedFor(child, published));
     }
 
     /** Weak skills grouped by lesson (one review island per lesson). */

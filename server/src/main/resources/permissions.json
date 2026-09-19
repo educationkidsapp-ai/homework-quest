@@ -75,6 +75,8 @@
     "announcement.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
     "announcement.write": ["ADMIN", "TEACHER"],
     "student.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "results.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "results.write": ["ADMIN", "TEACHER"],
     "child.teacherQuestion.read": ["PARENT"],
     "child.teacherQuestion.answer": ["PARENT"],
     "child.announcement.read": ["PARENT"]
@@ -225,6 +227,16 @@
     { "method": "POST", "path": "/teacher/classes/{classId}/roster/attach", "permission": "roster.teacher" },
     { "method": "DELETE", "path": "/teacher/classes/{classId}/roster/{childId}", "permission": "roster.teacher" },
     { "method": "GET", "path": "/teacher/students/{childId}/timeline", "permission": "student.read" },
+
+    { "method": "GET", "path": "/teacher/lessons/{id}/results", "permission": "results.read" },
+    { "method": "GET", "path": "/teacher/lessons/{id}/results.csv", "permission": "results.read" },
+    { "method": "GET", "path": "/teacher/lessons/{id}/results.xlsx", "permission": "results.read" },
+    { "method": "PUT", "path": "/teacher/marks", "permission": "results.write" },
+    { "method": "POST", "path": "/teacher/lessons/{id}/release", "permission": "results.write" },
+    { "method": "GET", "path": "/teacher/classes/{classId}/gradebook", "permission": "results.read" },
+    { "method": "GET", "path": "/teacher/classes/{classId}/gradebook.csv", "permission": "results.read" },
+    { "method": "GET", "path": "/teacher/classes/{classId}/gradebook.xlsx", "permission": "results.read" },
+    { "method": "GET", "path": "/teacher/children/{childId}", "permission": "results.read" },
 
     { "method": "GET", "path": "/teacher/lessons", "permission": "lesson.read" },
     { "method": "POST", "path": "/teacher/lessons", "permission": "lesson.write" },
