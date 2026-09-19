@@ -8,9 +8,11 @@ after a deploy is what you can reproduce on this Mac.
   container has (P3.4): one origin, `/dashboard/**` from `dist/browser`, everything else proxied
   to the API, and the Content-Security-Policy the server sends.
 - **against QA** (`pnpm e2e:qa`, `E2E_BASE_URL=<api>`) Playwright starts nothing: the API serves
-  the dashboard itself at `<api>/dashboard/`, `e2e/global-setup.ts` waits for `<api>/health`
-  first, and `expect` gets 15 s rather than 5 because a cold Cloud Run instance is slower than
-  this Mac at everything.
+  the dashboard itself at `<api>/dashboard/`, and `expect` gets 15 s rather than 5 because a cold
+  Cloud Run instance is slower than this Mac at everything.
+
+Both targets go through `e2e/global-setup.ts` before the first spec, and it waits for the API to
+be **seeded** rather than merely answering — see [the cold start](#the-cold-start-you-do-not-have-to-wait-for-the-seed).
 
 `e2e/styleguide.spec.ts` is the other suite and still needs `ng serve` (`pnpm e2e`): the `qa` and
 `production` configurations replace `styleguide.route.ts`, so that route is in no built bundle.
@@ -81,6 +83,41 @@ cd dashboard && pnpm build --configuration=production
 E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… E2E_STAFF_PASSWORD=… pnpm e2e:local
 # or one file: pnpm e2e:local teacher-flow
 ```
+
+### The cold start: you do not have to wait for the seed
+
+**Start the suite as soon as you have started the server.** `e2e/global-setup.ts` runs before the
+first spec on this config as well as against QA, and it waits for the API to be *seeded* rather
+than merely answering. It prints the wait it did:
+
+```
+e2e: the seed answered everything the suite needs after 12s
+```
+
+The gate exists because `/health` lies. `SchoolSeed` is a `CommandLineRunner`
+(`server/.../classes/SchoolSeed.java`) and Spring Boot starts Tomcat during the context refresh,
+so the server answers requests for the whole of the load — measured here, 30 classes, 40 teachers,
+60 assignments and 600 children take **≈ 14 s** after `Started ServerApplication`, and the four
+phases land in that order. A suite that starts inside that window signs Sara in perfectly well and
+then finds no classes, or her two classes with nobody in them. That is what failed the first one
+or two tests of a cold run in T4's and T5's sessions — `admin-classes-teachers` and
+`lesson-editor` — and passed on a re-run, which is the worst shape a failure can have: it teaches
+everyone to re-run rather than to read.
+
+So the gate polls what the specs need, on the API itself (`HQ_API`, default `localhost:18080` —
+not through `serve.mjs`, which Playwright may not have started yet): `GET /teacher/classes` as
+Sara until **1A British** and **1B British** (math) are both there, then
+`GET /teacher/classes/{1A}/students` until it answers a non-empty roster. The children are the
+seed's last phase, so a roster that answers is the whole load having finished. Bounded at 120 s,
+and the failure names `SchoolSeed`, the CSVs and `SEED_SCHOOL=true` rather than leaving a spec to
+report it as a missing button.
+
+The sign-in half of the gate is T4's and keeps its semantics: **429 aborts immediately** on either
+target (the throttle is holding an earlier run's attempts against this one, and polling only
+refills the bucket), and **401 aborts immediately against a deployment**, naming
+`E2E_STAFF_PASSWORD`. Locally a 401 is retried inside the same 120 s window — a cold server refuses
+Sara for the seconds between Tomcat accepting connections and the seed's `teachers` phase writing
+her — and if it is still 401 at the deadline the failure names the variable anyway.
 
 ## Running it against QA
 
@@ -244,12 +281,18 @@ the screens on every run, and there is no `DELETE /admin/classes/{id}` or
 `/admin/teachers/{id}` to take them back — every other file here cleans up after itself in
 `afterAll`, and this one cannot. On a local H2 database that is a fresh start each time; on QA's
 shared, never-reset database it would leave a `1A<run>`, a `1B<run>` and a `sara.<run>@alnoor.test`
-behind on every deploy, for good. Run it here, with `SEED_SCHOOL=false` unless you want the
-30-class seed behind it:
+behind on every deploy, for good. Run it here, against **the same seeded server as everything
+else** — the classes and the teacher it makes carry the per-run tag, so they sit beside the
+30-class seed rather than colliding with it:
 
 ```bash
 pnpm e2e:local admin-classes-teachers
 ```
+
+It used to say `SEED_SCHOOL=false` here, since the file signs in as the Admin and needs nothing
+the seed writes. That is no longer an option: the readiness gate above polls *Sara's* two classes
+and her roster, so a server started with no school to seed fails global setup after 120 s. One
+server, seeded, for every file in this directory.
 
 If an endpoint to remove a class or a teacher ever lands, delete the skip and give the file the
 same `afterAll` the others have.
