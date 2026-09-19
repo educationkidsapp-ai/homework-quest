@@ -49,10 +49,10 @@ class AcceptanceSeedTest extends ClassesTestSupport {
     }
 
     @Test void the_profile_names_the_directory_the_files_are_read_from() {
-        assertThat(new QuestProperties.Seed(true, "acceptance", false, null).directory()).isEqualTo(DIR);
-        assertThat(new QuestProperties.Seed(true, null, false, null).directory()).isEqualTo("seed/");
-        assertThat(new QuestProperties.Seed(true, " ACCEPTANCE ", false, null).directory()).isEqualTo(DIR);
-        assertThatThrownBy(() -> new QuestProperties.Seed(true, "nonsense", false, null).profileOrFull())
+        assertThat(new QuestProperties.Seed(true, "acceptance", false, null, null).directory()).isEqualTo(DIR);
+        assertThat(new QuestProperties.Seed(true, null, false, null, null).directory()).isEqualTo("seed/");
+        assertThat(new QuestProperties.Seed(true, " ACCEPTANCE ", false, null, null).directory()).isEqualTo(DIR);
+        assertThatThrownBy(() -> new QuestProperties.Seed(true, "nonsense", false, null, null).profileOrFull())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("SEED_PROFILE=nonsense is not a seed profile");
         assertThat(props.seed().profileOrFull()).as("the suite runs the default").isEqualTo("full");

@@ -154,20 +154,25 @@ public class AnalysisService {
         String[] course = lesson.getCourseId().split("/");
         String user = Prompts.userA(course[0], Integer.parseInt(course[1]), lesson.getSubject(), lesson.getNotes(), sourceText, markdown);
         long used = 0; String text = null; List<String> errors = List.of();
-        for (int attempt = 0; attempt < 2; attempt++) {
-            String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected by the validator:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
-            LlmClient.Result r;
-            try { r = llm.complete(Prompts.SYSTEM_A, u, List.of()); }
-            catch (LlmClient.LlmException e) { if (e.isTransient()) throw new LessonSteps.TransientFailure(e.getMessage(), e); throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", e.getMessage()); }
-            used += r.total();
-            JsonNode probe = tryTree(r.text());
-            if (probe != null && "no_teaching_content".equals(probe.path("error").asText(null))) { state.addUsage(lesson.getId(), used, 0); throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "no_teaching_content", "These slides don't contain anything to practise."); }
-            String cleaned = LlmJson.cleanIllustrations(r.text());
-            var result = SchemaValidator.INSTANCE.validateAnalysisJson(cleaned);
-            if (result.getErrors().isEmpty()) { text = cleaned; break; }
-            errors = result.getErrors(); log.warn("Prompt A attempt {} invalid: {}", attempt + 1, errors);
-            LlmFailures.keep("A", r.text(), errors);
-        }
+        // Whatever the model has already been paid for is booked on the way out too. A second attempt that ends in a
+        // transient failure, or a step abandoned at its deadline, used to drop the first attempt's tokens on the
+        // floor: the bill arrived from DeepSeek and the lesson's `token_usage` never heard about it.
+        try {
+            for (int attempt = 0; attempt < 2; attempt++) {
+                String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected by the validator:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
+                LlmClient.Result r;
+                try { r = llm.complete(Prompts.SYSTEM_A, u, List.of()); }
+                catch (LlmClient.LlmException e) { if (e.isTransient()) throw new LessonSteps.TransientFailure(e.getMessage(), e); throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", e.getMessage()); }
+                used += r.total();
+                JsonNode probe = tryTree(r.text());
+                if (probe != null && "no_teaching_content".equals(probe.path("error").asText(null))) throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "no_teaching_content", "These slides don't contain anything to practise.");
+                String cleaned = LlmJson.cleanIllustrations(r.text());
+                var result = SchemaValidator.INSTANCE.validateAnalysisJson(cleaned);
+                if (result.getErrors().isEmpty()) { text = cleaned; break; }
+                errors = result.getErrors(); log.warn("Prompt A attempt {} invalid: {}", attempt + 1, errors);
+                LlmFailures.keep("A", r.text(), errors);
+            }
+        } catch (RuntimeException e) { if (used > 0) state.addUsage(lesson.getId(), used, 0); throw e; }
         state.addUsage(lesson.getId(), used, 0);
         if (text == null) throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", "The model's analysis didn't match the schema: " + String.join("; ", errors.subList(0, Math.min(5, errors.size()))));
         var e = new CacheEntities.AnalysisCacheEntity();

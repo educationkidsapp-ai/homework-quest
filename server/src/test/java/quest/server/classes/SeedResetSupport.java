@@ -35,6 +35,8 @@ abstract class SeedResetSupport {
     /** Two schools beside `default`, as QA holds them: Al Noor and Green Valley from the P1.6 fixture. */
     private static final String NOOR = "rst-noor", GREEN = "rst-green";
     private static final List<String> SCHOOLS = List.of("default", NOOR, GREEN);
+    /** One of `ContentSeed`'s three §6 lessons, which QA held with no section and which the wipe must still reach. */
+    private static final String SAMPLE = "lesson-counting-by-2s";
 
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactions;
@@ -91,10 +93,21 @@ abstract class SeedResetSupport {
         assertThat(count("analysis_cache") + count("generation_cache")).as("the caches are keyed by hash, not by school").isZero();
         assertThat(jdbc.queryForObject("SELECT code FROM schools WHERE id = 'default'", String.class)).isEqualTo("HQ0001");
         assertThat(count("seed_resets")).isEqualTo(1);
+        assertThat(jdbc.queryForList("SELECT id FROM seed_resets", String.class)).containsExactly("once");
+    }
+
+    /**
+     * The three §6 samples go with everything else — they are `default`-school lessons and the per-school pass
+     * already names them, section or no section. What put them back on QA was {@link quest.server.content.ContentSeed}
+     * running there at all, which {@link quest.server.content.ContentSeedProfileTest} is now the guard against.
+     */
+    @Test @Order(4) void the_sample_lessons_go_with_everything_else() {
+        assertThat(count("lessons", "id LIKE 'lesson-%'")).as("no §6 sample survives the wipe").isZero();
+        assertThat(count("plays") + count("stops") + count("parent_panels") + count("skills")).isZero();
     }
 
     /** A deploy that forgot to put the variable back to `false` must not wipe the owner's work on the next revision. */
-    @Test @Order(4) void a_second_run_deletes_nothing_and_the_seed_adds_nothing() {
+    @Test @Order(5) void a_second_run_deletes_nothing_and_the_seed_adds_nothing() {
         jdbc.update("INSERT INTO parents (id, firebase_uid, email, created_at) VALUES ('rst-after', 'uid-after', 'after@test.local', CURRENT_TIMESTAMP)");
 
         reset().run();
@@ -108,16 +121,43 @@ abstract class SeedResetSupport {
         assertThat(count("children")).isZero();
     }
 
+    /**
+     * `SEED_RESET_TOKEN`: the ledger is what makes the wipe one-shot, and this is the only handle on it — nobody has
+     * `psql` against QA, so without a token a second wipe is unreachable. A value nobody has used runs once and
+     * writes its own row; the same value again is as inert as the un-tokenised second run above.
+     */
+    @Test @Order(6) void a_new_reset_token_runs_the_wipe_again_and_the_same_one_never_does() {
+        jdbc.update("INSERT INTO parents (id, firebase_uid, email, created_at) VALUES ('rst-token', 'uid-token', 'token@test.local', CURRENT_TIMESTAMP)");
+
+        reset("2026-09-r2").run();
+
+        assertThat(count("parents")).as("a token nobody has used wipes again").isZero();
+        assertThat(jdbc.queryForList("SELECT id FROM seed_resets ORDER BY id", String.class))
+                .containsExactly("once", "token:2026-09-r2");
+
+        jdbc.update("INSERT INTO parents (id, firebase_uid, email, created_at) VALUES ('rst-keep', 'uid-keep', 'keep@test.local', CURRENT_TIMESTAMP)");
+        reset("2026-09-r2").run();
+        assertThat(jdbc.queryForList("SELECT id FROM parents", String.class)).containsExactly("rst-keep");
+        assertThat(count("seed_resets")).isEqualTo(2);
+    }
+
     // ---------------------------------------------------------------- the QA database as the wipe finds it
 
-    private SeedReset reset() { return new SeedReset(props(true, "acceptance"), jdbc, transactions, files, environment); }
+    private SeedReset reset() { return reset(null); }
 
-    private static QuestProperties props(boolean reset, String profile) {
+    /** The wipe as one deploy configures it; `token` is `SEED_RESET_TOKEN`, and null is the original one-shot run. */
+    private SeedReset reset(String token) { return new SeedReset(props(true, "acceptance", token), jdbc, transactions, files, environment); }
+
+    private static QuestProperties props(boolean reset, String profile) { return props(reset, profile, null); }
+
+    private static QuestProperties props(boolean reset, String profile, String token) {
         return new QuestProperties(null, null, null, null, null, null, null,
-                new QuestProperties.Seed(true, profile, reset, "nine-char"), null, null, null, null);
+                new QuestProperties.Seed(true, profile, reset, "nine-char", token), null, null, null, null);
     }
 
     private int count(String table) { return jdbc.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class); }
+
+    private int count(String table, String where) { return jdbc.queryForObject("SELECT COUNT(*) FROM " + table + " WHERE " + where, Integer.class); }
 
     /**
      * Three schools — `default` and the two QA still holds — each with staff, a section, a teaching assignment, a
@@ -131,7 +171,19 @@ abstract class SeedResetSupport {
         school(NOOR, "Al Noor", "RSTNOR"); school(GREEN, "Green Valley", "RSTGRN");
         var blobs = new ArrayList<String>();
         for (var schoolId : SCHOOLS) blobs.addAll(contents(schoolId, "rst-" + schoolId.replace("rst-", "")));
+        sample();
         return blobs;
+    }
+
+    /**
+     * One §6 sample lesson as QA holds it: seeded by `ContentSeed` before `lessons.school_id` existed, so it names
+     * no school and every `WHERE school_id = ?` in the wipe walks straight past it.
+     */
+    private void sample() {
+        // `ContentSeed` has already written the three of them into this context (it runs under `test`, as it did
+        // under `qa`), so the wipe finds them exactly as QA did: `default`-school lessons with no section.
+        sql("UPDATE lessons SET class_id = NULL WHERE id = '" + SAMPLE + "'");
+        assertThat(count("lessons", "id = '" + SAMPLE + "'")).as("the sample lesson is there to delete").isOne();
     }
 
     /** One school's worth of everything the wipe walks through; `k` prefixes every id so three sets never collide. */

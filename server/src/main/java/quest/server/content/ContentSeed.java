@@ -16,9 +16,17 @@ import quest.server.config.Json;
 import quest.server.tenancy.ClassService;
 import quest.server.tenancy.TenantContext;
 
-/** Dev database seed (profiles local, dev, h2): the three §6 lessons from shared-api, published with all levels and the variant. */
+/**
+ * Dev database seed: the three §6 sample lessons from shared-api, published with all levels and the variant.
+ *
+ * <p><strong>Never on QA.</strong> The profile list used to include `qa`, which is how `lesson-counting-by-2s`,
+ * `lesson-sh-sound` and `lesson-hot-soup-1` came back the moment {@link quest.server.classes.SeedReset} had deleted
+ * them — the wipe runs first and this runs after it, so the owner's acceptance pass started with three lessons
+ * nobody had written. QA is the owner's environment and the only lessons in it are the ones a teacher posts there;
+ * the samples belong to a developer's laptop and to the test suite, which asserts against them.
+ */
 @Component
-@Profile({"local", "dev", "h2", "test", "qa"})
+@Profile({"local", "dev", "h2", "test"})
 public class ContentSeed implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(ContentSeed.class);
     private final LessonRepository lessons; private final SkillRepository skills; private final LessonStore store; private final Json json; private final ClassService classes;

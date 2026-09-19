@@ -70,12 +70,20 @@ public record QuestProperties(Auth auth, Llm llm, Anthropic anthropic, DeepSeek 
      * suite needs, `acceptance` the owner's three sections and two teachers with no children at all. `reset`
      * (SEED_RESET) is the one-shot wipe {@link quest.server.classes.SeedReset} runs before the seed — it is refused
      * outright under `prod`, and the deploy turns it back off once it has run.
+     *
+     * <p>`reset-token` (SEED_RESET_TOKEN) is how the wipe runs a <em>second</em> time. "One-shot" is a row in
+     * `seed_resets`, and without a way past it the only route to a second wipe was an operator with `psql` on the
+     * QA database, which nobody has here. A token is the ledger's id: a value that has not been used runs the wipe
+     * and is written down, and re-deploying with the same value does nothing at all — so the safety the ledger
+     * gives is unchanged, it is just addressable.
      */
-    public record Seed(boolean school, String profile, boolean reset, String staffPassword) {
+    public record Seed(boolean school, String profile, boolean reset, String staffPassword, String resetToken) {
         /** The 30-class QA school of `resources/seed/*.csv`. */
         public static final String FULL = "full";
         /** The owner's acceptance school of `resources/seed/acceptance/*.csv`: 3 sections, 2 teachers, no children. */
         public static final String ACCEPTANCE = "acceptance";
+        /** The ledger id of the original, un-tokenised wipe. A token names its own row and never collides with it. */
+        public static final String FIRST_RUN = "once";
 
         /**
          * `full` when nothing is configured, else the profile named — and a name that is neither <strong>fails the
@@ -92,5 +100,8 @@ public record QuestProperties(Auth auth, Llm llm, Anthropic anthropic, DeepSeek 
 
         /** Where {@link quest.server.classes.SchoolSeed} reads its four files from, classpath-relative. */
         public String directory() { return ACCEPTANCE.equals(profileOrFull()) ? "seed/acceptance/" : "seed/"; }
+
+        /** The `seed_resets` row this configuration's wipe would write; blank token = the original one-shot run. */
+        public String resetMark() { return resetToken == null || resetToken.isBlank() ? FIRST_RUN : "token:" + resetToken.strip(); }
     }
 }

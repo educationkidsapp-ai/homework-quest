@@ -3,6 +3,7 @@ package quest.server.teacher;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,6 +38,12 @@ import quest.server.tenancy.TenantContext;
  * `start` is snapped back to the week's first teaching day, so the dashboard's prev/next can move by seven days
  * without knowing where a week begins. "Today" is read in the school's zone, which is what decides whether an empty
  * school day is a gap the teacher has to fix or a day that has not happened yet.
+ *
+ * <p><strong>And today is always on the grid.</strong> Sunday–Thursday leaves Friday and Saturday outside every
+ * week, so a teacher opening §4 on a Friday saw the week that ended on Thursday and no column for the lesson she had
+ * just published — which is how the owner's acceptance pass read it as lost. Today's column is appended to the week
+ * it falls in and named in `weekendDays`; the grid is one column per `days` entry either way, so nothing on the
+ * client has to change to show it.
  */
 @Service
 public class TeacherWeekService {
@@ -57,8 +64,17 @@ public class TeacherWeekService {
         var week = calendar.of(schoolId);
         var today = LocalDate.now(week.zone());
         var first = week.startOf(start == null || start.isBlank() ? today : date(start));
-        var days = week.datesFrom(first);
-        var data = load(caller, schoolId, first, first.plusDays(6));
+        var last = first.plusDays(6);
+        // Friday and Saturday: the school week is Sunday–Thursday, so on a weekend day "today" falls outside the
+        // grid entirely and a lesson she published this morning looks like it was never saved. Today's column is
+        // added to the week it falls in — `startOf` already snaps a weekend day back to the week that just ended,
+        // so today is always inside [first, first+6] — and named in `weekendDays`, which is what keeps this additive:
+        // the grid draws one column per entry in `days` and one cell per column, and never knew which were teaching
+        // days. Paging to another week drops it again, because that week does not contain today.
+        var weekend = !week.isSchoolDay(today) && !today.isBefore(first) && !today.isAfter(last) ? today : null;
+        var days = new ArrayList<>(week.datesFrom(first));
+        if (weekend != null) { days.add(weekend); days.sort(Comparator.naturalOrder()); }
+        var data = load(caller, schoolId, first, last);
 
         var rows = new ArrayList<TeacherDto.WeekRow>(data.assignments().size());
         var gaps = new ArrayList<TeacherDto.WeekGap>();
@@ -70,14 +86,16 @@ public class TeacherWeekService {
                 var lesson = data.lesson(assignment.getClassId(), assignment.getSubject(), day);
                 cells.add(new TeacherDto.WeekCell(day.toString(), lesson == null ? null : data.card(lesson), null));
                 // A school day is only a gap once it has arrived: colouring the rest of the week red would make
-                // every Sunday morning look like a failure.
-                if (lesson == null && !day.isAfter(today)) gaps.add(new TeacherDto.WeekGap(section.getId(), section.getName(), day.toString()));
+                // every Sunday morning look like a failure. A weekend column is never a gap — nobody teaches on it.
+                if (lesson == null && !day.isAfter(today) && !day.equals(weekend)) gaps.add(new TeacherDto.WeekGap(section.getId(), section.getName(), day.toString()));
             }
             rows.add(new TeacherDto.WeekRow(section.getId(), section.getName(), section.getCurriculum(),
                     section.getGrade(), assignment.getSubject(), List.copyOf(cells)));
         }
         return new TeacherDto.TeacherWeek(first.toString(), days.stream().map(LocalDate::toString).toList(),
-                List.copyOf(rows), new TeacherDto.WeekSummary(List.copyOf(gaps), List.of(), 0));
+                List.copyOf(rows), new TeacherDto.WeekSummary(List.copyOf(gaps), List.of(), 0),
+                today.isBefore(first) || today.isAfter(last) ? null : today.toString(),
+                weekend == null ? List.of() : List.of(weekend.toString()));
     }
 
     /** §7: the same rows reduced to today — today's lesson, the class size, and how many have played it. */

@@ -746,6 +746,7 @@ that gets from one to the other.
 | `SEED_SCHOOL` | `true` | unchanged: the switch that lets the seed run at all |
 | `SEED_PROFILE` | `acceptance` | `full` (the default) is the 30-class school; **an unknown value fails the start**, with the two valid names in the message — a typo must not quietly refill QA with the 30-class school |
 | `SEED_RESET` | `true` for **one** deploy, then back to `false` | refused outright under the `prod` profile: the revision fails to start. **It ignores `SEED_SCHOOL`** — the wipe runs whether or not the seed is switched on, so `SEED_SCHOOL=false` is no protection |
+| `SEED_RESET_TOKEN` | unset the first time; any new short string to wipe **again** | the ledger's id. Blank is the original one-shot run (`once`); a value writes `token:<value>` instead, so a value nobody has used runs the wipe once and re-deploying with the same value deletes nothing. Use something you will recognise in the logs, e.g. `2026-09-samples` |
 | `SEED_STAFF_PASSWORD` | the shared teacher password, from Secret Manager | never logged, never printed; the seed re-applies it on every boot |
 
 **What the acceptance profile seeds** (`server/src/main/resources/seed/acceptance/*.csv`, into the **default**
@@ -781,8 +782,17 @@ a re-analysis of every file uploaded next).
 
 **It is one-shot.** The run writes a `seed_resets` row and every later start with the variable still on finds it and
 does nothing — a deploy that forgets to set `SEED_RESET=false` cannot wipe the owner's work on the next revision.
-Put it back to `false` anyway. To wipe a second time, clear the ledger first (`DELETE FROM seed_resets;`) and deploy
-with `SEED_RESET=true` again.
+Put it back to `false` anyway. To wipe a second time, deploy with `SEED_RESET=true` **and** `SEED_RESET_TOKEN` set to
+a value that has not been used: the token is the ledger's id, so a new one runs once and is written down, and the
+same one again does nothing. (Clearing the table by hand still works, but nobody has `psql` against QA.)
+
+**The three §6 sample lessons** — `lesson-counting-by-2s`, `lesson-sh-sound`, `lesson-hot-soup-1` — were in QA
+because `ContentSeed` listed the `qa` profile: it is a `CommandLineRunner` ordered *after* the wipe, so it wrote all
+three back the moment the wipe had finished, and the owner's acceptance pass opened on three lessons no teacher had
+posted. It now runs only under `local`, `dev`, `h2` and `test`. They are `default`-school lessons, so the wipe
+already deletes them — but the copies already in QA are still there, and the ledger blocks a repeat: **QA needs one
+more deploy with `SEED_RESET=true` and a fresh `SEED_RESET_TOKEN` to be rid of them.** That wipe also takes out
+anything the owner has posted since, so do it before the next acceptance pass, not during one.
 
 ### The owner's pass, end to end
 
@@ -822,7 +832,11 @@ good, and both are now bounded:
 
 - **A model call that hangs.** Every LLM client has a connect timeout of 10 s and a read timeout of
   `quest.llm.timeout-seconds` (`QUEST_LLM_TIMEOUT_SECONDS`, default and maximum **120 s**). A call past it is a
-  transient failure: the step retries it three times and then fails with `model_unavailable`.
+  transient failure: the client retries it up to three times and then fails with `model_unavailable`. It retries
+  **only while the step's own deadline still has room for a whole call** (connect + read, 130 s) — three attempts
+  plus backoff is 374 s and a generate step is bounded at 360 s, so the third call could only ever be cut off
+  mid-flight. Out of room, the client stops and says `model_unavailable` (*"wait a minute and press Retry"*) rather
+  than letting the step end as `timeout` (*"retry this"*), which is the more useful of the two messages.
 - **A job whose instance is gone.** Cloud Run scales to zero and recycles instances, and the `@Async` job goes with
   the instance — leaving a `lesson_steps` row saying `running` that nothing will ever finish. Each step has a
   deadline (`quest.pipeline.deadline.generate-seconds` **360**, `analyze-seconds` **240**, `convert-seconds` **180**,
@@ -833,6 +847,28 @@ good, and both are now bounded:
 Either way the lesson leaves the transient status, the step strip shows where it stopped, and **Retry, Retry this
 step and Delete all work again** — "Wait for the current job to finish" is now only ever about a job this instance is
 really running. Set `QUEST_PIPELINE_WATCHDOG_ENABLED=false` to turn the sweep off (debugging only).
+
+**"Type the text instead" is a pipeline too.** A lesson generated from typed text used to be one job with no ledger
+and no deadline, so a hang there was the one case nothing could end. It now walks the same steps (Upload and Convert
+are done by definition, Analyse runs Prompt A on the text, the skills need no confirming, and a level written by hand
+is kept rather than regenerated), which means the same deadlines and the same step strip. A hand-written lesson has
+no **Retry** — the way out is pressing *Generate from text* again, and the levels already written are not paid for
+twice.
+
+**How long is the worst case?** One step at a time: its deadline, times the number of attempts. A step retries a
+transient failure **3 times** (`LessonSteps.TRANSIENT_ATTEMPTS`), each attempt bounded by the step's own deadline,
+with `quest.pipeline.retry-delay-ms` (2 s) doubling between them — so a generate step is at most
+**3 × 360 s + 6 s ≈ 18 minutes**, Analyse **3 × 240 s ≈ 12 minutes** and Convert **3 × 180 s ≈ 9 minutes**. A whole lesson that fails at the last step
+is the sum of the steps before it. The sweep's own bound is different and smaller: it only ever waits one deadline +
+60 s grace + up to one 60 s interval for a row *nothing in this process is holding*. If a lesson has been
+`analyzing`/`generating` for more than 20 minutes, it is not slow — check the logs.
+
+**Tokens of a call that was abandoned.** A step that is interrupted at its deadline while waiting for a model
+answer books nothing for that call: no `usage` block ever arrived, so the server does not know what it cost and does
+not guess. **The provider's bill will include it and `lessons.token_usage` will not** — the gap is one call per
+abandoned step, and the Billing tab is per-school model tokens, not an invoice. Calls that *were* answered are
+always booked, including when the attempt after them fails: Prompt A, Prompt B, Prompt C and the stop rewriter all
+write what they have to the lesson on the way out.
 
 To see what is stuck right now: `GET /admin/lessons` and look for `status` `analyzing`/`generating` with an old
 `updatedAt`, or `currentStep` set. Nothing needs to be done by hand — wait one interval.
