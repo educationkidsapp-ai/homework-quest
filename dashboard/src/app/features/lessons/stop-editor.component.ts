@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, ou
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
+import { ViewModeService } from '../../core/view-mode/view-mode.service';
 import { BandComponent, ButtonComponent, InputComponent, SelectComponent, type SelectOption, TextareaComponent } from '../../ui';
 import { STOP_TYPES, type Stop, type StopType } from '../../ui/phone-preview';
 import { stopJson } from './lessons.models';
@@ -28,6 +29,15 @@ const VALIDATE_DEBOUNCE_MS = 250;
 
 /** `StopTextService.MAX_TEXT` — the server's 400 for a longer text, refused here instead. */
 const MAX_TEXT = 8000;
+
+/** The five quick fields, by the `instancePath` Ajv reports them under. */
+const QUICK_FIELDS = [
+  { path: '/title', labelKey: 'lessons.detail.editor.title' },
+  { path: '/speak', labelKey: 'lessons.detail.editor.speak' },
+  { path: '/parentTip/en', labelKey: 'lessons.detail.editor.parentTipEn' },
+  { path: '/parentTip/ar', labelKey: 'lessons.detail.editor.parentTipAr' },
+  { path: '/imageId', labelKey: 'lessons.detail.editor.image' },
+] as const;
 
 /**
  * The stop editor, to the right of the stop list (dev prompt §4.4; teacher flow §4 step 6).
@@ -160,18 +170,41 @@ const MAX_TEXT = 8000;
         <p class="editor__note">{{ 'lessons.detail.editor.text.fieldsNote' | transloco }}</p>
       </div>
 
-      <hq-textarea
-        [label]="'lessons.detail.editor.json' | transloco"
-        [rows]="16"
-        [mono]="true"
-        [required]="true"
-        dir="ltr"
-        [value]="text()"
-        (valueChange)="text.set($event)"
-        [hint]="'lessons.detail.editor.jsonHint' | transloco"
-        [error]="errorText()"
-        [disabled]="fieldsDisabled()"
-      />
+      @if (fieldProblem(); as problem) {
+        <hq-band variant="error" [open]="true" [dismissible]="false" [title]="'band.failed' | transloco">
+          {{ problem }}
+        </hq-band>
+      }
+
+      @if (viewMode.debug()) {
+        <details class="editor__raw" data-hq-raw-json>
+          <summary class="editor__raw-summary">{{ 'lessons.detail.editor.raw' | transloco }}</summary>
+          <div class="editor__raw-body">
+            <hq-textarea
+              [label]="'lessons.detail.editor.json' | transloco"
+              [rows]="16"
+              [mono]="true"
+              [required]="true"
+              dir="ltr"
+              [value]="text()"
+              (valueChange)="text.set($event)"
+              [hint]="'lessons.detail.editor.jsonHint' | transloco"
+              [error]="errorText()"
+              [disabled]="fieldsDisabled()"
+            />
+            @if (validatorErrors().length > 0) {
+              <div>
+                <p class="editor__raw-title">{{ 'lessons.detail.editor.rawErrors' | transloco }}</p>
+                <ul class="editor__raw-list">
+                  @for (line of validatorErrors(); track $index) {
+                    <li>{{ line }}</li>
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+        </details>
+      }
 
       <div class="editor__actions" *hqCan="'stop.write'">
         <hq-button variant="primary" [disabled]="!canSave()" [reason]="saveReason()" (pressed)="save()">
@@ -257,6 +290,39 @@ const MAX_TEXT = 8000;
       outline-offset: var(--hq-space-4);
     }
 
+    .editor__raw {
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      padding: var(--hq-space-12) var(--hq-space-16);
+    }
+
+    .editor__raw-summary {
+      font-size: var(--hq-font-label-size);
+      font-weight: var(--hq-font-label-weight);
+      color: var(--hq-color-ink-soft);
+      cursor: pointer;
+    }
+
+    .editor__raw-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--hq-space-12);
+      padding-block-start: var(--hq-space-12);
+    }
+
+    .editor__raw-title {
+      font-size: var(--hq-font-label-size);
+      font-weight: var(--hq-font-label-weight);
+      color: var(--hq-color-error-ink);
+    }
+
+    .editor__raw-list {
+      margin: 0;
+      padding-inline-start: var(--hq-space-24);
+      font-family: var(--hq-font-family-mono);
+      font-size: var(--hq-text-theme-xs);
+      color: var(--hq-color-error-ink);
+    }
+
     .editor__actions {
       display: flex;
       flex-wrap: wrap;
@@ -273,6 +339,8 @@ const MAX_TEXT = 8000;
 export class StopEditorComponent {
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
+  /** `debug` is an Admin's, and opens the Raw JSON panel below the fields. */
+  protected readonly viewMode = inject(ViewModeService);
 
   readonly stop = input.required<Stop | null>();
   readonly images = input<readonly EditorImage[]>([]);
@@ -282,6 +350,8 @@ export class StopEditorComponent {
   readonly saving = input(false);
   /** Why the last text save did not land; cleared by the page when the next one starts. */
   readonly failure = input<StopSaveFailure | null>(null);
+  /** The validator's own lines from the last 422 — the Raw panel's, never a teacher's. */
+  readonly validatorErrors = input<readonly string[]>([]);
 
   /** The quick fields / raw JSON path: the stop document to `PUT`, already schema-valid. */
   readonly saved = output<Stop>();
@@ -365,12 +435,33 @@ export class StopEditorComponent {
     () => !this.disabled() && !this.saving() && (this.proseSavable() || this.jsonSavable()),
   );
 
+  /**
+   * A quick field the schema will not take, named — because in teacher view the JSON that
+   * carries the reason is not on screen.
+   *
+   * `Play.schema.json` holds every one of the five to `minLength: 1` and a maximum (40 for a
+   * title, 90 for what the pot says, 200 for a tip), and emptying one is the ordinary way to
+   * make the document invalid. The Raw panel shows Ajv's own lines; this says which field,
+   * which is the whole of what a teacher can act on.
+   */
+  protected readonly fieldProblem = computed(() => {
+    this.lang();
+    if (this.viewMode.debug() || !this.jsonDirty()) return null;
+    if (this.idChanged()) return this.t('lessons.detail.editor.idImmutable');
+    const errors = this.validation()?.valid === false ? (this.validation()?.errors ?? []) : [];
+    if (errors.length === 0) return null;
+    const field = QUICK_FIELDS.find((entry) => errors.some((error) => error.startsWith(entry.path)));
+    return field
+      ? this.t('lessons.detail.editor.text.fieldProblem', { field: this.t(field.labelKey) })
+      : this.t('lessons.detail.editor.text.documentProblem');
+  });
+
   protected readonly saveReason = computed(() => {
     this.lang();
     if (this.canSave() || this.disabled() || this.saving()) return null;
     if (!this.dirty()) return this.t('lessons.detail.editor.noChanges');
     if (this.proseDirty()) return this.t('lessons.detail.editor.text.writeSomething');
-    return this.t('lessons.detail.editor.fixFirst');
+    return this.fieldProblem() ?? this.t('lessons.detail.editor.fixFirst');
   });
 
   protected readonly imageOptions = computed<readonly SelectOption[]>(() => {

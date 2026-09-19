@@ -10,6 +10,7 @@ import { BASE_PATH } from '../../api';
 import { ADMIN_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
+import { ViewModeService } from '../../core/view-mode/view-mode.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { LessonPage } from './lesson.page';
 
@@ -79,6 +80,16 @@ function providersFor(id: string, notice?: string): (Provider | EnvironmentProvi
  */
 async function renderLesson(lesson: object, notice?: string) {
   return renderLessonAs(lesson, ADMIN_USER, ADMIN_PERMISSIONS, notice);
+}
+
+/**
+ * CR5: the Raw JSON panel is an Admin's, in debug view, and shut by default even for her. The
+ * three JSON tests below are about that panel, so they open it the way the account menu does.
+ */
+function openRawJson(): void {
+  TestBed.inject(ViewModeService).set('debug');
+  TestBed.tick();
+  document.querySelectorAll('details[data-hq-raw-json]').forEach((el) => el.setAttribute('open', ''));
 }
 
 async function renderLessonAs(
@@ -165,7 +176,12 @@ function lessonWithStops(extra: object = {}) {
 }
 
 describe('Lesson', () => {
-  beforeEach(() => localStorage.clear());
+  // `sessionStorage` too: `ViewModeService` remembers debug there, and it would leak into the
+  // next test's teacher view, where the whole point is that no JSON is on the page.
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
 
 
   it('renders the pipeline steps with their state, and the failed step\'s message in a band', async () => {
@@ -305,6 +321,8 @@ describe('Lesson', () => {
   it('saves the selected stop, quick field and JSON staying one document', async () => {
     const { backend } = await renderLesson(lessonWithStops());
 
+    openRawJson();
+
     const title = screen.getByLabelText(/^Title/);
     await userEvent.clear(title);
     await userEvent.type(title, 'Pick the biggest');
@@ -328,6 +346,7 @@ describe('Lesson', () => {
   /** Only the declared type's branch is reported, and Save stays off until it passes. */
   it('refuses to save a stop the schema would reject, naming the missing field only', async () => {
     await renderLesson(lessonWithStops());
+    openRawJson();
 
     const json = screen.getByLabelText(/The whole stop/);
     const { question, ...withoutQuestion } = JSON.parse((json as HTMLTextAreaElement).value) as Record<string, unknown>;
@@ -343,6 +362,7 @@ describe('Lesson', () => {
 
   it('will not save a stop whose id was edited, because the server addresses it by that id', async () => {
     await renderLesson(lessonWithStops());
+    openRawJson();
 
     const json = screen.getByLabelText(/The whole stop/);
     const parsed = JSON.parse((json as HTMLTextAreaElement).value) as Record<string, unknown>;
@@ -368,6 +388,10 @@ describe('Lesson', () => {
       'First (correct)',
       'Second',
     ]);
+
+    // Teacher view, which is everybody's default: no JSON on the page at all.
+    expect(screen.queryByLabelText(/The whole stop/)).toBeNull();
+    expect(document.querySelector('[data-hq-raw-json]')).toBeNull();
 
     const prose = screen.getByLabelText(/This stop, in your words/);
     await userEvent.clear(prose);
@@ -429,6 +453,30 @@ describe('Lesson', () => {
     TestBed.tick();
 
     expect(screen.getByText(/Wait for this lesson to finish generating/)).toBeInTheDocument();
+  });
+
+  it('shows the Raw JSON panel, and the last 422\u2019s validator lines, only in debug view', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    const prose = screen.getByLabelText(/This stop, in your words/);
+    await userEvent.clear(prose);
+    await userEvent.type(prose, 'Draw anything');
+    await userEvent.click(screen.getByRole('button', { name: 'Save the stop' }));
+    backend
+      .expectOne('/admin/stops/st-1/from-text')
+      .flush(
+        { code: 'rephrase', message: "Couldn't save, please rephrase. #/options: minItems 2; #/hint: required" },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      );
+    await Promise.resolve();
+    TestBed.tick();
+
+    expect(screen.queryByText(/minItems/)).toBeNull();
+
+    openRawJson();
+    expect(screen.getByLabelText(/The whole stop/)).toBeInTheDocument();
+    expect(screen.getByText('#/options: minItems 2')).toBeInTheDocument();
+    expect(screen.getByText('#/hint: required')).toBeInTheDocument();
   });
 
   it('adds a stop from the grouped template menu', async () => {

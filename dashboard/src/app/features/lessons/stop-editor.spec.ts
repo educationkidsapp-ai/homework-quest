@@ -5,10 +5,11 @@ import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BASE_PATH } from '../../api';
-import { TEACHER_USER } from '../../../testing/fixtures';
+import { ADMIN_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
+import { ViewModeService } from '../../core/view-mode/view-mode.service';
 import type { Stop } from '../../ui/phone-preview';
 import { StopEditorComponent } from './stop-editor.component';
 
@@ -25,8 +26,13 @@ const STOP = {
   teacherText: 'True or false?\nPip says: Alan carries the bowl.\n\nThe statement is true.',
 } as unknown as Stop;
 
-/** Signed in with `stop.write`, because Save sits behind `*hqCan`. */
-async function renderEditor() {
+/**
+ * Signed in with `stop.write`, because Save sits behind `*hqCan`.
+ *
+ * `debug` signs an Admin in instead and opens the Raw JSON panel — `ViewModeService` allows the
+ * mode for ADMIN and for nobody else, so a teacher cannot be put into it even by a test.
+ */
+async function renderEditor({ debug = false }: { debug?: boolean } = {}) {
   const saved = vi.fn();
   const textSaved = vi.fn();
   const rendered = await renderHq(StopEditorComponent, {
@@ -38,26 +44,41 @@ async function renderEditor() {
   const backend = TestBed.inject(HttpTestingController);
   TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
   TestBed.inject(AuthService).loadMe().subscribe();
-  backend.expectOne('/me').flush(TEACHER_USER);
+  backend.expectOne('/me').flush(debug ? ADMIN_USER : TEACHER_USER);
   TestBed.tick();
-  backend
-    .expectOne('/me/permissions')
-    .flush({ role: 'TEACHER', permissions: ['lesson.read', 'stop.write'], readOnly: false });
+  backend.expectOne('/me/permissions').flush({
+    role: debug ? 'ADMIN' : 'TEACHER',
+    permissions: ['lesson.read', 'stop.write'],
+    readOnly: false,
+  });
   await Promise.resolve();
   TestBed.tick();
+  if (debug) {
+    TestBed.inject(ViewModeService).set('debug');
+    TestBed.tick();
+  }
   await rendered.fixture.whenStable();
 
   return { rendered, saved, textSaved };
 }
 
 describe('Stop editor', () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
 
-  it('opens on the stop in English, and the JSON it shows carries no teacherText', async () => {
+  it('opens on the stop in English, with no JSON anywhere for a teacher', async () => {
     await renderEditor();
 
     const prose: HTMLTextAreaElement = screen.getByLabelText(/This stop, in your words/);
     expect(prose.value).toBe(STOP.teacherText);
+    expect(screen.queryByLabelText(/The whole stop/)).toBeNull();
+    expect(document.querySelector('[data-hq-raw-json]')).toBeNull();
+  });
+
+  it('keeps teacherText out of the document the Raw JSON panel shows an Admin', async () => {
+    await renderEditor({ debug: true });
 
     // `Play.schema.json` is `additionalProperties: false`: left in, the document never validates.
     const json: HTMLTextAreaElement = screen.getByLabelText(/The whole stop/);
@@ -75,7 +96,6 @@ describe('Stop editor', () => {
 
     await userEvent.type(prose, ' Ask it again.');
     expect(title).toBeDisabled();
-    expect(screen.getByLabelText(/The whole stop/)).toBeDisabled();
 
     await userEvent.clear(prose);
     await userEvent.type(prose, STOP.teacherText!);

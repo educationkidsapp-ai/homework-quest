@@ -610,8 +610,12 @@
           "tooLong": "That is longer than one stop can hold — shorten it a little.",
           "writeSomething": "Write what this stop should do first.",
           "fieldsFirst": "Save or undo the fields below before rewriting this.",
-          "fieldsNote": "These five save straight away, with no assistant. Saving them rewrites the description above from the new question."
+          "fieldsNote": "These five save straight away, with no assistant. Saving them rewrites the description above from the new question.",
+          "fieldProblem": "{{field}} is empty or too long — fix it before saving.",
+          "documentProblem": "One of the fields above is empty or too long — fix it before saving."
         },
+        "raw": "Raw JSON",
+        "rawErrors": "What the validator said about the last save",
         "group": {
           "information": "Information",
           "oneAnswer": "One answer",
@@ -732,6 +736,10 @@
     },
     "sidebar": {
       "toggle": "Show or hide the menu"
+    },
+    "viewMode": {
+      "teacher": "Show the raw JSON",
+      "debug": "Hide the raw JSON"
     }
   },
   "shortcuts": {

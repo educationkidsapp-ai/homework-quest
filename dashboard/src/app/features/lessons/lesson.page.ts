@@ -616,6 +616,8 @@ export class LessonPage {
   protected readonly savingStopText = signal(false);
   /** The last text save's refusal, in the two shapes the editor can explain. */
   protected readonly stopSaveFailure = signal<StopSaveFailure | null>(null);
+  /** The 422's own validator lines — the Raw JSON panel's, and nobody else's. */
+  protected readonly stopValidatorErrors = signal<readonly string[]>([]);
 
   /**
    * CR5: save the stop as the English the teacher wrote, and let the server (and Prompt D) make
@@ -632,6 +634,7 @@ export class LessonPage {
     if (!stop) return;
     this.savingStopText.set(true);
     this.stopSaveFailure.set(null);
+    this.stopValidatorErrors.set([]);
     this.busy.set(this.t('lessons.detail.busy.savingStopText'));
     this.api.stopFromText(stop.id, stopFromTextBody(text)).subscribe({
       next: () => {
@@ -644,7 +647,10 @@ export class LessonPage {
         this.savingStopText.set(false);
         this.busy.set(null);
         const status = error instanceof HttpErrorResponse ? error.status : 0;
-        if (status === 422) this.stopSaveFailure.set('rephrase');
+        if (status === 422) {
+          this.stopSaveFailure.set('rephrase');
+          this.stopValidatorErrors.set(validatorLinesOf(error));
+        }
         else if (status === 400) this.stopSaveFailure.set('generating');
         else this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
       },
@@ -653,6 +659,7 @@ export class LessonPage {
 
   protected saveStop(stop: Stop): void {
     this.stopSaveFailure.set(null);
+    this.stopValidatorErrors.set([]);
     this.busy.set(this.t('lessons.detail.busy.savingStop'));
     this.api.updateStop(stop.id, stopBody(stop)).subscribe({
       next: () => {
@@ -1272,4 +1279,24 @@ export class LessonPage {
     const text = this.t(key);
     return text === key ? '' : text;
   }
+}
+
+/**
+ * The validator's own lines out of a 422, for the Raw JSON panel.
+ *
+ * `StopTextService` answers `"Couldn't save, please rephrase. <up to five errors, joined by
+ * '; '>"`. The sentence is what the teacher reads, translated; these are what an Admin in debug
+ * mode needs to see the shape of, so they are taken from the **raw** body rather than from
+ * `apiErrorOf`, which strips exactly this.
+ */
+function validatorLinesOf(error: unknown): readonly string[] {
+  if (!(error instanceof HttpErrorResponse)) return [];
+  const body: unknown = error.error;
+  const message = typeof body === 'object' && body !== null ? (body as { message?: unknown }).message : null;
+  if (typeof message !== 'string') return [];
+  const detail = message.replace(/^[^.]*\.\s*/, '');
+  return detail
+    .split(';')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
 }
