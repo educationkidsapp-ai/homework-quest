@@ -3,10 +3,11 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   API,
-  RUN,
-  SARA,
   dayFromNow,
   removeLessonsOfThisRun,
+  RUN,
+  SARA,
+  setLanguage,
   setScheme,
   shoot,
   signInAsSara,
@@ -292,10 +293,9 @@ test('screenshots: the editor in English and in Arabic, light and dark', async (
   await shoot(page, resolve(SHOTS, 'lesson-editor-en-dark.png'), editor(page), { fullPage: true });
   await setScheme(page, 'light');
 
-  // Through the account menu, the way a teacher switches — not by writing localStorage.
-  await page.getByRole('button', { name: /Sara/ }).click();
-  await page.getByRole('menuitem', { name: 'العربية' }).click();
-  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  // Through the header's language control, the way a teacher switches — not by writing
+  // localStorage. T2 moved it out of the account menu.
+  await setLanguage(page, 'ar');
   await shoot(page, resolve(SHOTS, 'lesson-editor-ar.png'), editor(page), { fullPage: true });
 
   await setScheme(page, 'dark');

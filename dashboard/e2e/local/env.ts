@@ -153,7 +153,23 @@ export async function shoot(
     { timeout: 10_000 },
   );
 
-  const shot = await page.screenshot({ path, fullPage: options.fullPage ?? false });
+  // A document that scrolls sideways is photographed whole.
+  //
+  // Chrome's *viewport* capture takes its origin from the scrollable area rather than from the
+  // layout viewport, and in an RTL document that range runs from negative to zero — so a class
+  // page at 375 px, laid out correctly and correct on screen, came out as empty ground with a
+  // 40 px sliver of the shell at one edge, identically on every run. The full-page path does
+  // not have that bug, and on a screen whose content is wider than the viewport it is the more
+  // useful picture in any case: what is off the edge is what one wants to see.
+  //
+  // The horizontal overflow itself is a screen's own business — at the time of writing it is
+  // the class calendar under about 900 px — and this only decides how to photograph it.
+  const wider = await page.evaluate(() => {
+    const root = document.scrollingElement;
+    return root !== null && root.scrollWidth > root.clientWidth + 1;
+  });
+  const shot = await page.screenshot({ path, fullPage: options.fullPage === true || wider });
+
   expect(
     shot.byteLength,
     `${path} is a blank frame (${shot.byteLength} bytes) — the screen had not painted`,
@@ -171,6 +187,25 @@ export async function setScheme(page: Page, scheme: 'light' | 'dark'): Promise<v
   const isDark = (await toggle.getAttribute('aria-pressed')) === 'true';
   if (isDark !== (scheme === 'dark')) await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', String(scheme === 'dark'));
+}
+
+/**
+ * Switches the dashboard's language through the header's own control.
+ *
+ * T2 moved the two language rows out of the account menu and gave them a control of their own
+ * beside the scheme toggle (spec §2 "Header"), so a spec that reaches for the account menu to
+ * find Arabic no longer finds it there. The trigger is found by `data-hq-language` for the same
+ * reason `setScheme` uses an attribute: its accessible name is itself translated.
+ *
+ * The two options are named in their own language in both bundles — "English" and "العربية" —
+ * so the row to click does not depend on which language is on.
+ */
+export async function setLanguage(page: Page, language: 'en' | 'ar'): Promise<void> {
+  const html = page.locator('html');
+  if ((await html.getAttribute('lang')) === language) return;
+  await page.locator('[data-hq-language]').click();
+  await page.getByRole('menuitem', { name: language === 'ar' ? 'العربية' : 'English' }).click();
+  await expect(html).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
 }
 
 /** An ISO day `days` from today, in UTC — the format every lesson date field uses. */
