@@ -259,6 +259,16 @@ resource "google_cloud_run_v2_service" "api" {
         value = var.seed_school ? "true" : "false"
       }
       env {
+        # which seed (full for the e2e suite, acceptance for the owner's hands-on testing) — backend/acceptance-seed
+        name  = "SEED_PROFILE"
+        value = var.seed_profile
+      }
+      env {
+        # one-shot wipe before seeding; the server refuses it under the prod profile
+        name  = "SEED_RESET"
+        value = var.seed_reset ? "true" : "false"
+      }
+      env {
         # the dashboard is served by this same API at /dashboard/ (D2, D10), so the invite/reset links point at the API
         # origin; it becomes the dashboard's own origin if the bundle is ever hosted separately. DASHBOARD_DIR (where
         # the bundle lives inside the container) is baked into the image by the Dockerfile — deliberately not here.

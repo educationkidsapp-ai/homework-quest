@@ -128,6 +128,10 @@ jobs:
     # dashboard/playwright.config.ts from the local dev server to QA (the dashboard is served at <API>/dashboard/).
     name: Dashboard e2e (Playwright, against QA)
     needs: deploy
+    # Off while QA holds the owner's acceptance seed (SEED_PROFILE=acceptance has no Sara and no children): set the
+    # *repository* variable E2E_ON_QA=false (a job-level `if` cannot read environment variables); remove it or set
+    # it to true when QA is back on the full seed.
+    if: vars.E2E_ON_QA != 'false'
     runs-on: ubuntu-latest
     environment: qa
     timeout-minutes: 20
