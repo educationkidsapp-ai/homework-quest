@@ -233,3 +233,22 @@ Toggle: a `.dark` class on `<html>` (`@custom-variant dark (&:is(.dark *))`), pe
 | Focus ring | `rgba(70,95,255,0.1)` | same, with border `#7592ff` |
 
 Shadows are unchanged in dark mode; they are near-invisible on dark surfaces by design.
+
+---
+
+## Deviations
+
+Places the dashboard knowingly departs from the above, each with the ruling behind it.
+
+- **D19 — the focus ring keeps its outline.** §3 asks for `border-color:#9cb9ff` plus the
+  `rgba(70,95,255,0.1)` halo. The halo ships as written; the border does not, because `#9cb9ff`
+  on white is **1.94:1** and a focus indicator that cannot be seen is not one. Every focusable
+  element takes `outline: var(--hq-size-focus-ring) solid var(--hq-color-focus)` over the spec's
+  halo instead (`src/styles.scss`, `m.focus-ring`), and `--hq-color-focus-border` carries
+  `#9cb9ff` for the controls whose own border is part of the state. `e2e/styleguide.spec.ts`
+  asserts both halves.
+- **The accent as text is re-derived in dark mode.** §5 lets a school's accent survive into dark
+  mode, which is right for a fill and wrong for a word: the seeded school's `#cc2a0f` reads
+  3.07:1 on the dark card. `--hq-color-accent-ink` mixes the accent 45 % into white for text
+  only; the accent itself is untouched wherever it is a background. See §4.5 of
+  `docs/reports/tailadmin-restyle.md`.
