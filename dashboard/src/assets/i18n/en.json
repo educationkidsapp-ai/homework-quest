@@ -1194,7 +1194,11 @@
     },
     "moveToDay": "Move to {{day}}",
     "copyToClass": "Copy to {{class}}",
-    "copying": "Copying…"
+    "copying": "Copying…",
+    "weekend": {
+      "label": "Weekend",
+      "cell": "No lessons on {{day}} — the school does not teach that day."
+    }
   },
   "player": {
     "gallery": {

@@ -44,6 +44,7 @@ import {
   pendingCopyId,
   rowsOf,
   siblingsOf,
+  weekendDaysOf,
   withCopiedLesson,
   withMovedLesson,
   withSettledCopy,
@@ -143,6 +144,20 @@ export class WeekPage {
   protected readonly days = computed(() => daysOf(this.week.value()));
 
   /**
+   * Today's column when today is a day the school does not teach on (#98).
+   *
+   * The server appends it so a lesson published on a Friday morning is not invisible until
+   * Sunday; the grid draws it muted, refuses every drop on it and offers no `+`, because
+   * `POST /teacher/lessons` and the move both answer 409 `not_teaching_day` for such a date.
+   * A column that looked ordinary and then refused would be a trap.
+   */
+  protected readonly weekendDays = computed(() => weekendDaysOf(this.week.value()));
+
+  protected isWeekend(date: string): boolean {
+    return this.weekendDays().has(date);
+  }
+
+  /**
    * The grid, writable.
    *
    * `linkedSignal` rather than `computed`: a move or a copy paints before the server answers,
@@ -197,6 +212,12 @@ export class WeekPage {
   protected dayLabel(iso: string): string {
     this.lang();
     return this.format(iso, { weekday: 'short', day: 'numeric' });
+  }
+
+  /** The word under a weekend column's date, so the muted colour is not the only thing saying it. */
+  protected weekendLabel(): string {
+    this.lang();
+    return this.t('week.weekend.label');
   }
 
   protected dayName(iso: string): string {
@@ -283,7 +304,7 @@ export class WeekPage {
   protected readonly allowDrop = (drag: CdkDrag<CellRef>, drop: CdkDropList<CellRef>): boolean => {
     const source = drag.data;
     const target = drop.data;
-    if (!source?.cell.lesson || !target) return false;
+    if (!source?.cell.lesson || !target || target.cell.weekend) return false;
     if (source.row.classId === target.row.classId) return source.cell.movable && !target.cell.lesson;
     return areSiblings(source.row, target.row);
   };
@@ -317,8 +338,10 @@ export class WeekPage {
   protected readonly moveTargets = computed<readonly { date: string; taken: boolean }[]>(() => {
     const ref = this.menuCell();
     if (!ref?.cell.movable) return [];
+    // A weekend column is not offered at all rather than offered and disabled: "move to Friday"
+    // in a menu is a thing this school never does, not a thing that happens to be occupied.
     return ref.row.cells
-      .filter((cell) => cell.date !== ref.cell.date)
+      .filter((cell) => cell.date !== ref.cell.date && !cell.weekend)
       .map((cell) => ({ date: cell.date, taken: cell.lesson !== null }));
   });
 
@@ -340,7 +363,7 @@ export class WeekPage {
   // ---- move ---------------------------------------------------------------------------------------
 
   private move(source: DragSource, toDate: string): void {
-    if (source.date === toDate) return;
+    if (source.date === toDate || this.isWeekend(toDate)) return;
     const before = this.rows();
     const target = this.cellAt(before, source.classId, toDate);
     if (!target || target.lesson) {

@@ -11,7 +11,7 @@ import { BASE_PATH } from '../../api';
 import { renderHq } from '../../../testing/render';
 import { UndoService } from '../../core/undo/undo.service';
 import { BandService } from '../../core/band/band.service';
-import { DAYS, WEEK } from './week.fixture';
+import { DAYS, WEEK, WEEK_ON_A_FRIDAY } from './week.fixture';
 import { WeekPage } from './week.page';
 
 const providers: (Provider | EnvironmentProviders)[] = [
@@ -286,5 +286,55 @@ describe('This week', () => {
     expect(headers).toHaveLength(DAYS.length + 1);
     expect(headers[1]).toContain('الأحد');
     expect(headers.at(-1)).toContain('الخميس');
+  });
+
+  // ---- today on a day the school does not teach (#98) ------------------------------------------
+
+  describe('the weekend column', () => {
+    it('is drawn, named and offered as no place to put a lesson', async () => {
+      await renderWeek(WEEK_ON_A_FRIDAY);
+
+      // Six columns plus the class column: Friday is on the grid, so this morning's lesson is.
+      expect(screen.getAllByRole('columnheader')).toHaveLength(DAYS.length + 2);
+      const friday = screen.getByRole('columnheader', { name: /Fri/ });
+      expect(friday.textContent).toContain('Weekend');
+      // No `+` for it anywhere: the server answers 409 `not_teaching_day` to that form.
+      expect(screen.queryByRole('link', { name: /Add a lesson for 1A on Friday/ })).toBeNull();
+      expect(screen.getByRole('link', { name: 'Add a lesson for 1A on Monday' })).toBeTruthy();
+    });
+
+    it('is not offered as a day to move a card to', async () => {
+      const { rendered } = await renderWeek(WEEK_ON_A_FRIDAY);
+
+      await openCardMenu(rendered, 'Fractions');
+      expect(screen.getByRole('menuitem', { name: 'Move to Monday' })).toBeTruthy();
+      expect(screen.queryByRole('menuitem', { name: 'Move to Friday' })).toBeNull();
+    });
+
+    /**
+     * The belt to the braces: another tab may have changed the school week since this grid was
+     * fetched. The server's own sentence goes in the band — it names the days the school teaches.
+     */
+    it('shows the server’s sentence in the band if a move still earns a 409', async () => {
+      const { rendered, backend } = await renderWeek();
+
+      await openCardMenu(rendered, 'Fractions');
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Move to Wednesday' }));
+      await settle(rendered);
+
+      backend.expectOne('/teacher/lessons/l-1').flush(
+        {
+          code: 'not_teaching_day',
+          message: 'Friday is not a teaching day at this school — lessons go on Sunday, Thursday.',
+        },
+        { status: 409, statusText: 'Conflict' },
+      );
+      await settle(rendered);
+
+      expect(TestBed.inject(BandService).current()?.message).toBe(
+        'Friday is not a teaching day at this school — lessons go on Sunday, Thursday.',
+      );
+      expect(screen.getByText('Fractions')).toBeTruthy();
+    });
   });
 });

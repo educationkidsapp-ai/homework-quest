@@ -46,122 +46,149 @@
             [style.--hq-week-columns]="days().length"
             (keydown)="onGridKeydown($event)"
           >
-        <div class="week__head" role="row">
-          <div class="week__corner" role="columnheader">{{ 'week.classColumn' | transloco }}</div>
-          @for (day of days(); track day) {
-            <div class="week__day" role="columnheader">{{ dayLabel(day) }}</div>
-          }
-        </div>
-
-        @for (group of groups(); track group.grade) {
-          <div class="week__group" role="row">
-            <div class="week__group-label" role="rowheader" [attr.aria-colspan]="days().length + 1">
-              {{ 'week.grade' | transloco: { grade: group.grade } }}
-            </div>
-          </div>
-
-          @for (row of group.rows; track trackRow($index, row)) {
-            <div class="week__row" role="row" [class.week__row--disabled]="rowDisabled(row)">
-              <div class="week__row-label" role="rowheader">{{ rowLabel(row) }}</div>
-
-              @for (cell of row.cells; track cell.date) {
-                <div
-                  class="week__cell"
-                  role="gridcell"
-                  cdkDropList
-                  [cdkDropListData]="{ row: row, cell: cell }"
-                  [cdkDropListEnterPredicate]="allowDrop"
-                  (cdkDropListDropped)="dropped($event)"
-                >
-                  @if (cell.pending) {
-                    <!--
-                      A copy the server has not answered for yet. Drawn, focusable so the grid's
-                      arrow keys keep working, and otherwise inert: its id is a placeholder, so a
-                      link would 404 and a drag would PATCH a lesson that does not exist.
-                    -->
-                    <span class="week__card week__card--pending" data-hq-cell tabindex="0" aria-busy="true">
-                      <hq-status-square [status]="cell.status" [pending]="true" />
-                      <span class="week__card-text">
-                        <span class="week__card-title">{{ titleOf(cell) }}</span>
-                        <span class="week__card-meta">{{ 'week.copying' | transloco }}</span>
-                      </span>
-                    </span>
-                  } @else if (cell.lesson; as lesson) {
-                    <div
-                      class="week__card"
-                      cdkDrag
-                      [cdkDragData]="{ row: row, cell: cell }"
-                      [cdkDragDisabled]="!cell.movable"
-                      (cdkDragStarted)="dragStarted(row, cell)"
-                      (cdkDragEnded)="dragEnded()"
-                      [attr.title]="cell.movable ? null : ('week.published.reason' | transloco)"
-                    >
-                      <a
-                        class="week__card-link"
-                        data-hq-cell
-                        [routerLink]="lessonLink(cell)"
-                        [attr.aria-label]="cellLabel(row, cell) + ' — ' + titleOf(cell)"
-                      >
-                        <hq-status-square [status]="cell.status" />
-                        <span class="week__card-text">
-                          <span class="week__card-title">{{ titleOf(cell) }}</span>
-                          <span class="week__card-meta">
-                            {{ 'week.status.' + cell.status | transloco }}
-                            @if (lesson.playedCount) {
-                              <span class="week__played">
-                                {{
-                                  'week.played'
-                                    | transloco: { played: lesson.playedCount, total: lesson.childrenCount }
-                                }}
-                              </span>
-                            }
-                          </span>
-                        </span>
-                      </a>
-
-                      @if (!cell.movable) {
-                        <span class="hq-sr-only">{{ 'week.published.reason' | transloco }}</span>
-                      }
-
-                      <button
-                        type="button"
-                        class="hq-iconbutton hq-iconbutton--quiet"
-                        [cdkMenuTriggerFor]="cardMenu"
-                        (click)="menuCell.set({ row: row, cell: cell })"
-                        [attr.aria-label]="'week.actions' | transloco: { title: titleOf(cell) }"
-                      >
-                        ⋮
-                      </button>
-                    </div>
-                  } @else if (cell.exam; as exam) {
-                    <div class="week__exam">
-                      <span class="week__ribbon">{{ 'week.exam.ribbon' | transloco }}</span>
-                      <a
-                        class="week__card-link"
-                        data-hq-cell
-                        [routerLink]="['/teacher/lessons', exam.lessonId]"
-                      >
-                        {{ 'week.exam.window' | transloco: { opens: exam.opensAt, closes: exam.closesAt } }}
-                      </a>
-                    </div>
-                  } @else {
-                    <a
-                      class="week__add"
-                      data-hq-cell
-                      [routerLink]="newLessonLink"
-                      [queryParams]="newLessonParams(row, cell)"
-                      [attr.aria-label]="
-                        'week.addLesson' | transloco: { class: row.className, day: dayName(cell.date) }
-                      "
-                    >
-                      +
-                    </a>
+            <div class="week__head" role="row">
+              <div class="week__corner" role="columnheader">{{ 'week.classColumn' | transloco }}</div>
+              @for (day of days(); track day) {
+                <div class="week__day" role="columnheader" [class.week__day--weekend]="isWeekend(day)">
+                  {{ dayLabel(day) }}
+                  @if (isWeekend(day)) {
+                    <!-- Today, on a day the school does not teach: named, not merely greyed. -->
+                    <span class="week__weekend-word">{{ weekendLabel() }}</span>
                   }
                 </div>
               }
             </div>
-          }
-        }
+
+            @for (group of groups(); track group.grade) {
+              <div class="week__group" role="row">
+                <div class="week__group-label" role="rowheader" [attr.aria-colspan]="days().length + 1">
+                  {{ 'week.grade' | transloco: { grade: group.grade } }}
+                </div>
+              </div>
+
+              @for (row of group.rows; track trackRow($index, row)) {
+                <div class="week__row" role="row" [class.week__row--disabled]="rowDisabled(row)">
+                  <div class="week__row-label" role="rowheader">{{ rowLabel(row) }}</div>
+
+                  @for (cell of row.cells; track cell.date) {
+                    <div
+                      class="week__cell"
+                      role="gridcell"
+                      [class.week__cell--weekend]="cell.weekend"
+                      cdkDropList
+                      [cdkDropListData]="{ row: row, cell: cell }"
+                      [cdkDropListEnterPredicate]="allowDrop"
+                      (cdkDropListDropped)="dropped($event)"
+                    >
+                      @if (cell.pending) {
+                        <!--
+                      A copy the server has not answered for yet. Drawn, focusable so the grid's
+                      arrow keys keep working, and otherwise inert: its id is a placeholder, so a
+                      link would 404 and a drag would PATCH a lesson that does not exist.
+                    -->
+                        <span
+                          class="week__card week__card--pending"
+                          data-hq-cell
+                          tabindex="0"
+                          aria-busy="true"
+                        >
+                          <hq-status-square [status]="cell.status" [pending]="true" />
+                          <span class="week__card-text">
+                            <span class="week__card-title">{{ titleOf(cell) }}</span>
+                            <span class="week__card-meta">{{ 'week.copying' | transloco }}</span>
+                          </span>
+                        </span>
+                      } @else if (cell.lesson; as lesson) {
+                        <div
+                          class="week__card"
+                          cdkDrag
+                          [cdkDragData]="{ row: row, cell: cell }"
+                          [cdkDragDisabled]="!cell.movable"
+                          (cdkDragStarted)="dragStarted(row, cell)"
+                          (cdkDragEnded)="dragEnded()"
+                          [attr.title]="cell.movable ? null : ('week.published.reason' | transloco)"
+                        >
+                          <a
+                            class="week__card-link"
+                            data-hq-cell
+                            [routerLink]="lessonLink(cell)"
+                            [attr.aria-label]="cellLabel(row, cell) + ' — ' + titleOf(cell)"
+                          >
+                            <hq-status-square [status]="cell.status" />
+                            <span class="week__card-text">
+                              <span class="week__card-title">{{ titleOf(cell) }}</span>
+                              <span class="week__card-meta">
+                                {{ 'week.status.' + cell.status | transloco }}
+                                @if (lesson.playedCount) {
+                                  <span class="week__played">
+                                    {{
+                                      'week.played'
+                                        | transloco
+                                          : { played: lesson.playedCount, total: lesson.childrenCount }
+                                    }}
+                                  </span>
+                                }
+                              </span>
+                            </span>
+                          </a>
+
+                          @if (!cell.movable) {
+                            <span class="hq-sr-only">{{ 'week.published.reason' | transloco }}</span>
+                          }
+
+                          <button
+                            type="button"
+                            class="hq-iconbutton hq-iconbutton--quiet"
+                            [cdkMenuTriggerFor]="cardMenu"
+                            (click)="menuCell.set({ row: row, cell: cell })"
+                            [attr.aria-label]="'week.actions' | transloco: { title: titleOf(cell) }"
+                          >
+                            ⋮
+                          </button>
+                        </div>
+                      } @else if (cell.exam; as exam) {
+                        <div class="week__exam">
+                          <span class="week__ribbon">{{ 'week.exam.ribbon' | transloco }}</span>
+                          <a
+                            class="week__card-link"
+                            data-hq-cell
+                            [routerLink]="['/teacher/lessons', exam.lessonId]"
+                          >
+                            {{
+                              'week.exam.window' | transloco: { opens: exam.opensAt, closes: exam.closesAt }
+                            }}
+                          </a>
+                        </div>
+                      } @else if (cell.weekend) {
+                        <!--
+                      No `+`: the server answers 409 `not_teaching_day` for this date, so an
+                      invitation to add a lesson here would be an invitation to be refused. It
+                      stays in the grid's roving order (`data-hq-cell`) so the arrow keys still
+                      step across the week, and says why it is empty rather than just being empty.
+                    -->
+                        <span class="week__weekend-cell" data-hq-cell tabindex="-1">
+                          <span class="hq-sr-only">{{
+                            'week.weekend.cell' | transloco: { day: dayName(cell.date) }
+                          }}</span>
+                        </span>
+                      } @else {
+                        <a
+                          class="week__add"
+                          data-hq-cell
+                          [routerLink]="newLessonLink"
+                          [queryParams]="newLessonParams(row, cell)"
+                          [attr.aria-label]="
+                            'week.addLesson' | transloco: { class: row.className, day: dayName(cell.date) }
+                          "
+                        >
+                          +
+                        </a>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            }
           </div>
         </div>
       </hq-card>

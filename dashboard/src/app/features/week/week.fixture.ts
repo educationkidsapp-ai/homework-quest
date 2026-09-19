@@ -82,3 +82,17 @@ export const WEEK: TeacherWeek = {
     marksWaiting: 0,
   },
 };
+
+/**
+ * The same week as it comes back on a Friday (#98): Friday the 25th appended as a sixth column
+ * and named in `weekendDays`. Every row gains a cell for it, exactly as the server sends one.
+ */
+export const FRIDAY = '2026-09-25';
+
+export const WEEK_ON_A_FRIDAY: TeacherWeek = {
+  ...WEEK,
+  days: [...DAYS, FRIDAY],
+  today: FRIDAY,
+  weekendDays: [FRIDAY],
+  rows: (WEEK.rows ?? []).map((row) => ({ ...row, cells: [...(row.cells ?? []), { date: FRIDAY }] })),
+};

@@ -252,3 +252,30 @@
 .cdk-drag-placeholder {
   visibility: hidden;
 }
+
+// ---- the weekend column ----------------------------------------------------------------------
+// Today on a Friday or a Saturday: on the grid so this morning's lesson is visible, and visibly
+// not a school day — a sunken background across the whole column, the word under the date, and
+// no `+`. §4's colours only; the difference is surface, not a new hue.
+
+.week__day--weekend {
+  background: var(--hq-color-bg);
+  color: var(--hq-color-ink-muted);
+}
+
+.week__weekend-word {
+  display: block;
+  font-size: var(--hq-text-theme-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--hq-font-letter-spacing-label);
+}
+
+.week__cell--weekend {
+  background: var(--hq-color-bg);
+}
+
+.week__weekend-cell {
+  display: flex;
+  flex: 1;
+  min-block-size: var(--hq-size-touch-target);
+}
