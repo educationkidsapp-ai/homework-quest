@@ -151,6 +151,19 @@ function choiceStop(id: string, title: string) {
   };
 }
 
+/**
+ * CR2's form: the three required fields, by the labels a teacher reads.
+ *
+ * Scoped to the form rather than the page, because the stop editor behind it has a "Title" of
+ * its own. A browser makes the page inert while a modal is up; jsdom does not.
+ */
+async function fillAddStopForm(title: string, question: string, type: string): Promise<void> {
+  const form = within(document.querySelector<HTMLElement>('[data-hq-add-stop]')!);
+  await userEvent.type(form.getByLabelText(/^Title/), title);
+  await userEvent.type(form.getByLabelText(/^Question \/ what the child does/), question);
+  await userEvent.selectOptions(form.getByLabelText(/^Type/), type);
+}
+
 function lessonWithStops(extra: object = {}) {
   return {
     ...BASE_LESSON,
@@ -479,16 +492,22 @@ describe('Lesson', () => {
     expect(screen.getByText('#/hint: required')).toBeInTheDocument();
   });
 
-  it('adds a stop from the grouped template menu', async () => {
+  /** CR2: "+ Add stop" opens the form, and the form is the only way to add one. */
+  it('adds a stop from the form, and offers no template menu', async () => {
     const { backend } = await renderLesson(lessonWithStops());
 
     await userEvent.click(screen.getByRole('button', { name: '+ Add stop' }));
-    expect(screen.getByText('Several answers')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Match pairs' }));
+    expect(screen.queryByRole('menuitem', { name: 'Match pairs' })).not.toBeInTheDocument();
 
-    const request = backend.expectOne('/admin/plays/p-1/stops');
-    expect(request.request.method).toBe('POST');
-    expect(JSON.parse(request.request.body as string) as { type: string }).toMatchObject({ type: 'match' });
+    await fillAddStopForm('Match the pairs', 'Join each word to its picture.', 'match');
+    await userEvent.click(screen.getByRole('button', { name: 'Save the question' }));
+
+    const created = backend.expectOne('/admin/plays/p-1/stops');
+    expect(created.request.method).toBe('POST');
+    expect(JSON.parse(created.request.body as string) as { type: string; title: string }).toMatchObject({
+      type: 'match',
+      title: 'Match the pairs',
+    });
   });
 
   it('deletes a stop only behind the red confirm band, and offers no Undo', async () => {
@@ -533,7 +552,8 @@ describe('Lesson', () => {
     const { backend } = await renderLessonAs(lessonWithStops(), TEACHER_USER, TEACHER_PERMISSIONS);
 
     await userEvent.click(screen.getByRole('button', { name: '+ Add stop' }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'True or false' }));
+    await fillAddStopForm('Is it true?', 'Say whether ten is bigger than five.', 'trueFalse');
+    await userEvent.click(screen.getByRole('button', { name: 'Save the question' }));
 
     backend.expectOne('/teacher/plays/p-1/stops');
     backend.expectNone('/admin/plays/p-1/stops');

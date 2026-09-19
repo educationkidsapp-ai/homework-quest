@@ -4,7 +4,17 @@
 import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList } from '@angular/cdk/drag-drop';
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, viewChildren } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChildren,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -42,9 +52,11 @@ import {
   TextareaComponent,
   type Tab,
   TabsComponent,
+  ToastComponent,
   UndoStripComponent,
 } from '../../ui';
 import { type Play, type Stop, PhonePreviewComponent } from '../../ui/phone-preview';
+import { AddStopComponent } from './add-stop.component';
 import { LessonApiService } from './lesson-api.service';
 import { toPreviewPlay } from './lesson-preview.mapper';
 import {
@@ -64,7 +76,6 @@ import {
 } from './lessons.models';
 import { ParentPanelEditorComponent } from './parent-panel-editor.component';
 import { StopEditorComponent, type StopSaveFailure } from './stop-editor.component';
-import { STOP_TEMPLATES, STOP_TEMPLATE_GROUPS, type StopTemplateGroup, templatesByGroup } from './stop-templates';
 
 const POLL_MS = 2500;
 
@@ -79,12 +90,13 @@ interface SkillRowView {
 }
 
 type PlayTabId = 'L1' | 'L2' | 'L3' | 'Again';
-const PLAY_TAB_DEFS: readonly { readonly id: PlayTabId; readonly level: number; readonly variant: number }[] = [
-  { id: 'L1', level: 1, variant: 0 },
-  { id: 'L2', level: 2, variant: 0 },
-  { id: 'L3', level: 3, variant: 0 },
-  { id: 'Again', level: 1, variant: 1 },
-];
+const PLAY_TAB_DEFS: readonly { readonly id: PlayTabId; readonly level: number; readonly variant: number }[] =
+  [
+    { id: 'L1', level: 1, variant: 0 },
+    { id: 'L2', level: 2, variant: 0 },
+    { id: 'L3', level: 3, variant: 0 },
+    { id: 'Again', level: 1, variant: 1 },
+  ];
 
 type PendingAction =
   | { readonly kind: 'publish' }
@@ -93,13 +105,6 @@ type PendingAction =
   | { readonly kind: 'regenerateStop'; readonly stopId: string; readonly title: string }
   | { readonly kind: 'deleteStop'; readonly stopId: string; readonly title: string }
   | { readonly kind: 'leave' };
-
-/** The "+ Add stop" menu, grouped exactly as `StopTemplates.kt` groups it. */
-interface TemplateGroupView {
-  readonly id: StopTemplateGroup;
-  readonly label: string;
-  readonly entries: readonly { readonly type: string; readonly label: string }[];
-}
 
 /**
  * One lesson through its pipeline (Admin + Teacher, §6 screens 8/13): the step strip, its
@@ -119,6 +124,8 @@ interface TemplateGroupView {
     ButtonComponent,
     BandComponent,
     UndoStripComponent,
+    ToastComponent,
+    AddStopComponent,
     StepStripComponent,
     TabsComponent,
     SelectComponent,
@@ -322,11 +329,15 @@ export class LessonPage {
     if (!lesson) return;
     const previous = lesson.status;
     this.busy.set(this.t('lessons.detail.busy.retrying'));
-    this.lessonRes.update((current) => (current ? { ...current, status: AdminLessonStatusEnum.UPLOADING } : current));
+    this.lessonRes.update((current) =>
+      current ? { ...current, status: AdminLessonStatusEnum.UPLOADING } : current,
+    );
     this.api.retry(lesson.id).subscribe({
       next: (job) => {
         this.busy.set(null);
-        this.lessonRes.update((current) => (current ? { ...current, status: jobStatusAsLessonStatus(job.status) } : current));
+        this.lessonRes.update((current) =>
+          current ? { ...current, status: jobStatusAsLessonStatus(job.status) } : current,
+        );
       },
       error: () => {
         this.busy.set(null);
@@ -342,11 +353,15 @@ export class LessonPage {
     if (!step) return;
     const previous = lesson.status;
     this.busy.set(this.t('lessons.detail.busy.retryingStep', { step: this.t(`lessons.step.${step}`) }));
-    this.lessonRes.update((current) => (current ? { ...current, status: AdminLessonStatusEnum.UPLOADING } : current));
+    this.lessonRes.update((current) =>
+      current ? { ...current, status: AdminLessonStatusEnum.UPLOADING } : current,
+    );
     this.api.retryStep(lesson.id, step).subscribe({
       next: (job) => {
         this.busy.set(null);
-        this.lessonRes.update((current) => (current ? { ...current, status: jobStatusAsLessonStatus(job.status) } : current));
+        this.lessonRes.update((current) =>
+          current ? { ...current, status: jobStatusAsLessonStatus(job.status) } : current,
+        );
       },
       error: () => {
         this.busy.set(null);
@@ -444,12 +459,17 @@ export class LessonPage {
 
   // ---- skills confirmation ------------------------------------------------------------------
 
-  protected readonly isNeedsReview = computed(() => this.lesson()?.status === AdminLessonStatusEnum.NEEDS_REVIEW);
+  protected readonly isNeedsReview = computed(
+    () => this.lesson()?.status === AdminLessonStatusEnum.NEEDS_REVIEW,
+  );
   protected readonly skillRows = signal<readonly SkillRowView[]>([]);
   protected readonly skillsError = signal<string | null>(null);
   protected readonly subjectOptions = computed(() => {
     this.lang();
-    return SUBJECTS.map((subject) => ({ value: subject, label: this.translateOrEmpty(`subject.${subject}`) || subject }));
+    return SUBJECTS.map((subject) => ({
+      value: subject,
+      label: this.translateOrEmpty(`subject.${subject}`) || subject,
+    }));
   });
 
   /** The status this lesson had the *previous* time this ran — not just its id — so a second
@@ -568,7 +588,9 @@ export class LessonPage {
   private selectFirstStop(): void {
     const stops = this.currentPlay()?.stops ?? [];
     const first = stops[0];
-    this.selectedStopId.set(stops.some((stop) => stop.id === this.selectedStopId()) ? this.selectedStopId() : (first?.id ?? null));
+    this.selectedStopId.set(
+      stops.some((stop) => stop.id === this.selectedStopId()) ? this.selectedStopId() : (first?.id ?? null),
+    );
   }
 
   /** The listbox pattern (`ui/tabs/tabs.component.ts`'s roving-tabindex arrows, plus Home/End). */
@@ -650,8 +672,7 @@ export class LessonPage {
         if (status === 422) {
           this.stopSaveFailure.set('rephrase');
           this.stopValidatorErrors.set(validatorLinesOf(error));
-        }
-        else if (status === 400) this.stopSaveFailure.set('generating');
+        } else if (status === 400) this.stopSaveFailure.set('generating');
         else this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
       },
     });
@@ -694,32 +715,15 @@ export class LessonPage {
     });
   }
 
-  protected readonly templateGroups = computed<readonly TemplateGroupView[]>(() => {
-    this.lang();
-    return STOP_TEMPLATE_GROUPS.map((group) => ({
-      id: group,
-      label: this.t(`lessons.detail.editor.group.${group}`),
-      entries: templatesByGroup(group).map((entry) => ({
-        type: entry.type,
-        label: this.t(`lessons.detail.stopType.${entry.type}`),
-      })),
-    }));
-  });
+  /** CR2: "+ Add stop" opens one form (`hq-add-stop`), which owns the two calls that save it. */
+  protected readonly addStopOpen = signal(false);
+  /** "Question added", for four seconds. The only toast on this page, and never for a failure. */
+  protected readonly stopAddedToast = signal(false);
 
-  protected addStop(type: string): void {
-    const play = this.currentAdminPlay();
-    const template = STOP_TEMPLATES.find((entry) => entry.type === type);
-    if (!play || !template) return;
-    const stop = template.make(this.previewSubject());
-    this.busy.set(this.t('lessons.detail.busy.addingStop'));
-    this.api.addStop(play.id, stopBody(stop)).subscribe({
-      next: (added) => {
-        this.busy.set(null);
-        this.selectedStopId.set(added.id);
-        this.lessonRes.reload();
-      },
-      error: () => this.busy.set(null),
-    });
+  protected onStopAdded(stopId: string): void {
+    this.selectedStopId.set(stopId);
+    this.stopAddedToast.set(true);
+    this.lessonRes.reload();
   }
 
   protected requestDeleteStop(): void {
@@ -778,7 +782,9 @@ export class LessonPage {
     const stops = this.currentPlay()?.stops ?? [];
     const ids = this.reorderedIds();
     if (ids === null) return stops;
-    return ids.map((id) => stops.find((stop) => stop.id === id)).filter((stop): stop is Stop => stop !== undefined);
+    return ids
+      .map((id) => stops.find((stop) => stop.id === id))
+      .filter((stop): stop is Stop => stop !== undefined);
   });
 
   // ---- manual authoring: create a missing level, generate the rest from a note --------------
@@ -916,7 +922,9 @@ export class LessonPage {
     const lesson = this.lesson();
     if (!lesson) return false;
     if (lesson.source === AdminLessonSourceEnum.MANUAL) {
-      return lesson.plays.some((play) => play.level === 1 && play.variant === 0 && play.play.stops.length > 0);
+      return lesson.plays.some(
+        (play) => play.level === 1 && play.variant === 0 && play.play.stops.length > 0,
+      );
     }
     const mains = lesson.plays.filter((play) => play.variant === 0).length;
     const hasAgain = lesson.plays.some((play) => play.variant === 1);
@@ -924,7 +932,8 @@ export class LessonPage {
   });
 
   protected readonly canPublish = computed(
-    () => this.lesson()?.status === AdminLessonStatusEnum.REVIEW && this.publishReady() && this.busy() === null,
+    () =>
+      this.lesson()?.status === AdminLessonStatusEnum.REVIEW && this.publishReady() && this.busy() === null,
   );
 
   /**
@@ -944,7 +953,8 @@ export class LessonPage {
     if (this.canPublish() || this.busy() !== null) return null;
     const lesson = this.lesson();
     if (!lesson) return null;
-    if (lesson.status !== AdminLessonStatusEnum.REVIEW) return this.t('lessons.detail.publishReason.notReady');
+    if (lesson.status !== AdminLessonStatusEnum.REVIEW)
+      return this.t('lessons.detail.publishReason.notReady');
     return this.t('lessons.detail.publishReason.incomplete');
   });
 
@@ -968,10 +978,12 @@ export class LessonPage {
     this.lang();
     const action = this.pendingAction();
     if (!action) return '';
-    if (action.kind === 'publish') return this.t('lessons.detail.publishConfirm.message', { title: this.pageTitle() });
+    if (action.kind === 'publish')
+      return this.t('lessons.detail.publishConfirm.message', { title: this.pageTitle() });
     if (action.kind === 'delete') return this.t('lessons.deleteConfirm.message', { title: this.pageTitle() });
     if (action.kind === 'regeneratePlay') return this.t('lessons.detail.regeneratePlayConfirm.message');
-    if (action.kind === 'deleteStop') return this.t('lessons.detail.deleteStopConfirm.message', { title: action.title });
+    if (action.kind === 'deleteStop')
+      return this.t('lessons.detail.deleteStopConfirm.message', { title: action.title });
     if (action.kind === 'leave') return this.t('lessons.detail.leaveConfirm.message');
     return this.t('lessons.detail.regenerateStopConfirm.message', { title: action.title });
   });
@@ -1069,7 +1081,9 @@ export class LessonPage {
     if (!lesson) return;
     const previous = lesson;
     this.busy.set(this.t('lessons.detail.busy.publishing'));
-    this.lessonRes.update((current) => (current ? { ...current, status: AdminLessonStatusEnum.PUBLISHED } : current));
+    this.lessonRes.update((current) =>
+      current ? { ...current, status: AdminLessonStatusEnum.PUBLISHED } : current,
+    );
     this.api.publish(lesson.id, lesson.classId).subscribe({
       next: (updated) => {
         this.busy.set(null);
@@ -1188,7 +1202,7 @@ export class LessonPage {
       .filter((copy) => copy.lessonId !== undefined)
       .map((copy) => ({
         id: copy.lessonId!,
-        name: names.get(copy.classId ?? '') ?? (copy.classId ?? ''),
+        name: names.get(copy.classId ?? '') ?? copy.classId ?? '',
       }));
   }
 
