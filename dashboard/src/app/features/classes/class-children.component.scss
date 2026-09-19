@@ -22,8 +22,11 @@
 
 .children__actions {
   display: flex;
-  gap: var(--hq-space-8);
+  gap: var(--hq-space-4);
   justify-content: flex-end;
+  // The row now carries three verbs; they stay on one line and the table scrolls, which is
+  // what `hq-table` does with a wide table (its wrapper is `overflow-x: auto`).
+  white-space: nowrap;
 }
 
 .children__form {

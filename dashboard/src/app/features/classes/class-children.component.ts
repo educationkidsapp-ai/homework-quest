@@ -109,7 +109,7 @@ export class ClassChildrenComponent {
   protected readonly columns = computed<readonly TableColumn<RosterRow>[]>(() => {
     this.lang();
     const base: TableColumn<RosterRow>[] = [
-      { key: 'name', header: this.t('classes.children.table.name'), width: '24%' },
+      { key: 'name', header: this.t('classes.children.table.name'), width: '18%' },
       { key: 'starsThisWeek', header: this.t('classes.children.table.stars'), align: 'end' },
       { key: 'levelReached', header: this.t('classes.children.table.level'), align: 'end' },
       { key: 'weakSkills', header: this.t('classes.children.table.weakSkills') },
