@@ -36,7 +36,13 @@ import { ButtonComponent } from '../button/button.component';
       (cancel)="onCancel($event)"
       (close)="onClose()"
     >
-      <form method="dialog" class="dialog__form" (submit)="onSubmit($event)">
+      <!--
+        novalidate: this system says what is wrong under the field, in its own words and its own
+        language, and a native validation bubble would both duplicate that and, worse, silently
+        swallow the submit event a form with an empty required field never fires. The primary
+        action's own guard (confirmDisabled) and the host's validation are what refuse a save.
+      -->
+      <form method="dialog" class="dialog__form" novalidate (submit)="onSubmit($event)">
         <header class="dialog__header">
           <h2 class="dialog__title">{{ title() }}</h2>
           <hq-button variant="quiet" (pressed)="requestClose()">{{ 'ui.close' | transloco }}</hq-button>

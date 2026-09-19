@@ -585,12 +585,24 @@ export class LessonPage {
     this.selectedStopId.set(id);
   }
 
+  /**
+   * A stop that has just been created but whose lesson has not been re-read yet.
+   *
+   * Without it, `selectFirstStop` would snap the selection back to the first stop for the
+   * fraction of a second between "the form saved" and "the re-read landed" — and then leave it
+   * there, because by the time the new stop exists the selection no longer points at it.
+   */
+  private readonly pendingStopId = signal<string | null>(null);
+
   private selectFirstStop(): void {
     const stops = this.currentPlay()?.stops ?? [];
-    const first = stops[0];
-    this.selectedStopId.set(
-      stops.some((stop) => stop.id === this.selectedStopId()) ? this.selectedStopId() : (first?.id ?? null),
-    );
+    const selected = this.selectedStopId();
+    if (stops.some((stop) => stop.id === selected)) {
+      if (this.pendingStopId() !== null) this.pendingStopId.set(null);
+      return;
+    }
+    if (selected !== null && selected === this.pendingStopId()) return;
+    this.selectedStopId.set(stops[0]?.id ?? null);
   }
 
   /** The listbox pattern (`ui/tabs/tabs.component.ts`'s roving-tabindex arrows, plus Home/End). */
@@ -721,6 +733,7 @@ export class LessonPage {
   protected readonly stopAddedToast = signal(false);
 
   protected onStopAdded(stopId: string): void {
+    this.pendingStopId.set(stopId);
     this.selectedStopId.set(stopId);
     this.stopAddedToast.set(true);
     this.lessonRes.reload();

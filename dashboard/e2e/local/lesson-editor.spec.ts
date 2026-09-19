@@ -83,13 +83,28 @@ function editor(page: Page): Locator {
   return page.locator('hq-stop-editor');
 }
 
-/** Adds one stop and waits for the list to grow — "+ Add stop" reloads the lesson behind it. */
-async function addStop(page: Page, menuItem: string, expectedTitle: string): Promise<void> {
+/** CR2's form, which replaced the twenty-two-template menu. */
+export function addStopForm(page: Page): Locator {
+  return page.locator('[data-hq-add-stop]');
+}
+
+/**
+ * Adds one stop through the form and waits for the list to grow — saving re-reads the lesson.
+ *
+ * The labels are scoped to the form because the stop editor behind the dialog has a "Title" of
+ * its own; `type` is the stop type's value, which is what the `<optgroup>`ed select carries.
+ */
+async function addStop(page: Page, type: string, title: string, question: string): Promise<void> {
   const before = await stopRows(page).count();
   await page.getByRole('button', { name: '+ Add stop' }).click();
-  await page.getByRole('menuitem', { name: menuItem, exact: true }).click();
-  await expect(stopRows(page)).toHaveCount(before + 1, { timeout: 20_000 });
-  await expect(stopRows(page).filter({ hasText: expectedTitle }).first()).toBeVisible();
+  const form = addStopForm(page);
+  await expect(form).toBeVisible();
+  await form.getByLabel('Title', { exact: true }).fill(title);
+  await form.getByLabel('Question / what the child does', { exact: true }).fill(question);
+  await form.getByLabel('Type', { exact: true }).selectOption(type);
+  await page.getByRole('button', { name: 'Save the question' }).click();
+  await expect(stopRows(page)).toHaveCount(before + 1, { timeout: 30_000 });
+  await expect(stopRows(page).filter({ hasText: title }).first()).toBeVisible();
 }
 
 /** A row reads "3\nThree last questions\nExit ticket"; the middle line is the stop's title. */
@@ -157,22 +172,29 @@ test('Sara writes a lesson by hand and it opens on the editor', async ({ page })
   await expect(page.getByRole('button', { name: '+ Add stop' })).toBeVisible();
 });
 
-test('she adds three kinds of stop from the grouped menu', async ({ page }) => {
-  test.setTimeout(120_000);
+test('she adds three kinds of stop from the one form', async ({ page }) => {
+  test.setTimeout(180_000);
   await openTheLesson(page);
 
+  // CR2: the twenty-two-template menu is gone; the five groups are the type select's headings.
   await page.getByRole('button', { name: '+ Add stop' }).click();
-  // The menu is grouped exactly as the old admin panel grouped it.
+  await expect(page.getByRole('menuitem')).toHaveCount(0);
+  const types = addStopForm(page).getByLabel('Type', { exact: true });
   for (const group of ['Information', 'One answer', 'Several answers', 'Open answer', 'Exit']) {
-    await expect(page.getByText(group, { exact: true })).toBeVisible();
+    await expect(types.locator(`optgroup[label="${group}"]`)).toHaveCount(1);
   }
-  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Cancel' }).click();
 
   // The starter stop the "Write it yourself" chooser already made, plus the three below.
   const before = await stopRows(page).count();
-  await addStop(page, 'Read a page', 'Read the page');
-  await addStop(page, 'Multiple choice', 'Pick the answer');
-  await addStop(page, 'Exit ticket', 'Three last questions');
+  await addStop(page, 'readPage', 'Read the page', 'Read page one of the book together.');
+  await addStop(
+    page,
+    'choice',
+    'Pick the answer',
+    'Ask which shape has three sides.\n\nOptions:\n- a triangle (correct)\n- a circle',
+  );
+  await addStop(page, 'exitTicket', 'Three last questions', 'Three quick questions about shapes.');
   await expect(stopRows(page)).toHaveCount(before + 3);
 });
 
@@ -206,16 +228,21 @@ test('she rewrites a stop in her own words, and no JSON is anywhere on the page'
 
   await stopRows(page).filter({ hasText: 'Pick the answer' }).click();
 
-  // The stop as the server describes it, rendered as a page rather than a document.
+  // Her own words, rendered as a page rather than a document. Since CR2 every stop in a
+  // hand-written lesson is saved *from* text, so `stops.text` is set and there is nothing left
+  // for `StopText.describe` to render here — that path is what a *generated* lesson's stops
+  // still take, and it is the same prose view either way.
   const prose = proseField(page);
-  await expect(prose).toHaveValue(/Pip says:/);
+  await expect(prose).toHaveValue(/Ask which shape has three sides/);
   await expect(editor(page).locator('[data-hq-stop-prose] li').first()).toBeVisible();
   await expectNoJsonOnThePage(page);
 
   // The fake provider answers Prompt D with the stop as stored, taking `title` and `speak` from
   // the first two lines — so what comes back names itself, and the stop list is the proof.
   const title = `Which shape ${RUN}`;
-  await prose.fill(`${title}\nPick the shape with three sides.\n\nOptions:\n- a triangle (correct)\n- a circle`);
+  await prose.fill(
+    `${title}\nPick the shape with three sides.\n\nOptions:\n- a triangle (correct)\n- a circle`,
+  );
   const save = page.getByRole('button', { name: 'Save the stop' });
   await expect(save).toBeEnabled();
   await save.click();
