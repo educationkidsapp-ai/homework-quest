@@ -278,11 +278,16 @@ deliberately lets a school's accent survive into dark mode, and a school picked 
 against a white page, so the result is whatever they chose — here, 3.07:1 for every link.
 
 **Fixed in T5.** `--hq-color-error-ink` moved to a new `error-400` step (`#f97066`, **5.93:1**).
-The accent gained a role of its own, `--hq-color-accent-ink` — the accent itself in light mode,
-and in dark mode the accent mixed 45 % into white, which clears 4.5:1 for any accent a school
-could send, pure black included at 4.9:1. It is used only where the accent is *text* (the
-selected underline tab, the week grid's played figure); as a fill the accent is untouched, so a
-button, a chip and the tab's own rule are still that school's colour.
+The accent gained a role of its own, `--hq-color-accent-ink`. **In dark mode** it is the accent
+mixed 45 % into white, which clears 4.5:1 on the `#171f2e` card for *any* accent a school could
+send — pure black, the worst case, lands at 4.9:1, and the seeded school's `#cc2a0f` at
+**7.72:1**. **In light mode it is the raw accent**, unchanged: a school picked that colour
+against a white page, and what keeps it legible there is the server's own contrast check on the
+theme, not this role. So the "any accent" guarantee is a dark-mode one.
+
+It is used only where the accent is *text* (the selected underline tab, the week grid's played
+figure); as a fill the accent is untouched, so a button, a chip and the tab's own rule are still
+that school's colour.
 
 `ink-muted` stays at 3.32:1 and is now documented in `_theme.scss` rather than merely observed:
 it is `::placeholder`, disabled text, an out-of-month day, the empty state's second line — never
@@ -299,7 +304,12 @@ in dark mode.
   (`.hq-iconbutton`, `.hq-dropzone`, CDK's global drag classes), because a rule lifted out of a
   lazy chunk into `styles.scss` is loaded on every screen — `.lesson__stop-item` stayed where it
   is for that reason. A mixin would not have helped: the budget measures the *compiled*
-  stylesheet, and an `@include` expands into it.
+  stylesheet, and an `@include` expands into it. The `initial` warning in `angular.json` moved
+  from 490 kB to **500 kB** by planner decision, with the reason in `tools/budget.mjs`'s header
+  (JSON takes no comment): raw initial went 489.55 → 494.69 kB while the gzipped transfer stayed
+  flat at 103 kB, and two standing build warnings went away. The error stays 520 kB, and the
+  budget that means anything — 350 kB of gzipped JS per route — is unmoved at a worst case of
+  **152.2 kB** on the lesson editor.
 - **`statusTone()` returns `string`** at `features/lessons/lessons.page.ts:491` and
   `features/classes/my-classes.page.ts:114`. A `'primary' | 'success' | 'error' | 'warning' |
   'light'` union would let the compiler catch a typo in a badge class name that today just

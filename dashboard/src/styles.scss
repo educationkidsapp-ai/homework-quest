@@ -543,7 +543,7 @@ a {
 }
 
 // --- Protected pictures ----------------------------------------------------
-// `img[hqAuthSrc]` (ui/media/auth-src.directive.ts) fetches `/media/pages/{id}` with the bearer
+// `img[hqPageImage]` (ui/media/page-image.directive.ts) fetches `/media/pages/{id}` with the bearer
 // the route requires and writes what it is showing onto the element as `data-hq-media`. The
 // element keeps its own classes and box; only the ground under it changes, so these rules are
 // global rather than per-component — four call sites in the phone preview share them.

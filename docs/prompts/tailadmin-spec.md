@@ -250,5 +250,6 @@ Places the dashboard knowingly departs from the above, each with the ruling behi
 - **The accent as text is re-derived in dark mode.** §5 lets a school's accent survive into dark
   mode, which is right for a fill and wrong for a word: the seeded school's `#cc2a0f` reads
   3.07:1 on the dark card. `--hq-color-accent-ink` mixes the accent 45 % into white for text
-  only; the accent itself is untouched wherever it is a background. See §4.5 of
-  `docs/reports/tailadmin-restyle.md`.
+  only, and only here — in light mode the role is the raw accent, governed by the server's
+  contrast check on the theme. The accent itself is untouched wherever it is a background. See
+  §4.5 of `docs/reports/tailadmin-restyle.md`.

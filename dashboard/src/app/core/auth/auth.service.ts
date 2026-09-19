@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, of, shareReplay, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap, tap } from 'rxjs/operators';
 import { AuthApi, DashboardUser, SignInResponse, TokenPair } from '../../api';
+import { MediaService } from '../media/media.service';
 import { SchoolScopeStore } from './school-scope.store';
 import { SessionStore } from './session.store';
 
@@ -49,6 +50,7 @@ export class AuthService {
   private readonly api = inject(AuthApi);
   private readonly session = inject(SessionStore);
   private readonly schoolScope = inject(SchoolScopeStore);
+  private readonly media = inject(MediaService);
 
   private readonly currentUser = signal<DashboardUser | null>(null);
   private readonly currentStatus = signal<AuthStatus>('unknown');
@@ -157,6 +159,9 @@ export class AuthService {
     this.currentUser.set(null);
     this.currentStatus.set('anonymous');
     this.inFlightRefresh = null;
+    // Page crops are megabytes of one teacher's scanned pages, held in a root-provided cache
+    // whose injector never dies in a single-page app. This is the moment that session ends.
+    this.media.clear();
   }
 
   /** After `POST /auth/change-password` the flag is gone; re-read rather than guess. */

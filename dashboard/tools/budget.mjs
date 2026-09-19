@@ -5,6 +5,13 @@
  *   pnpm budget            print the table
  *   pnpm budget --check    exit 1 when a route is over
  *
+ * `angular.json`'s `initial` warning was raised from 490 kB to **500 kB** in T5 (JSON takes no
+ * comment, which is why the reason is written here). The shared rules that took
+ * `lesson.page.scss` and `week.page.scss` under their component-style budget now live in the
+ * always-loaded stylesheet: raw initial went 489.55 → 493.43 kB while the gzipped transfer
+ * stayed flat at 102.99 kB, and two standing build warnings went away. The error stays 520 kB,
+ * and the number below — 350 kB of gzipped JS per route — is the budget that means anything.
+ *
  * Angular's own `budgets` in angular.json compare **raw** bytes and have no gzip mode, so they
  * can only ever be a proxy (they are set to a deliberately tighter raw number, so a regression
  * trips there first). This measures what the brief actually asks about: the JavaScript a

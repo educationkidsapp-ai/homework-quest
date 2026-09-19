@@ -339,8 +339,12 @@ html.dark {
   // the `#171f2e` card, which is not a colour to set words in (§4.5 of
   // `docs/reports/tailadmin-restyle.md`). Mixed 45 % into white it clears 4.5:1 for *any*
   // accent a school could send, including pure black, which is the worst case at **4.9:1**;
-  // `#cc2a0f` itself lands near 6.7:1 and still reads as that school's red. The accent is
+  // `#cc2a0f` itself lands at **7.72:1** and still reads as that school's red. The accent is
   // untouched as a fill — a button, a chip, the rail's marker are all still the school's.
+  //
+  // The guarantee is this block's alone. In light mode the role is the raw accent, because a
+  // school chose that colour against a white page and the server's contrast check on the theme
+  // is what governs it there.
   --hq-color-accent-ink: color-mix(in srgb, var(--hq-color-accent) 45%, #ffffff);
   --hq-color-focus-border: var(--hq-color-brand-400);
 

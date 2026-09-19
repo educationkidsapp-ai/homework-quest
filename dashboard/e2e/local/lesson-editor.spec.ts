@@ -242,9 +242,9 @@ test('she attaches a picture and puts it on the stop', async ({ page }) => {
 
   // And the crop is actually drawn. `/media/pages/{id}` wants a bearer, which an `<img src>`
   // cannot send, so every picture in this editor used to answer 401 and draw nothing
-  // (`docs/reports/tailadmin-restyle.md` §4.1). `hqAuthSrc` fetches the bytes through the
-  // HttpClient the interceptor decorates and paints them; `data-hq-media` is what it says it is
-  // showing, and `naturalWidth` is the browser saying it decoded real pixels.
+  // (`docs/reports/tailadmin-restyle.md` §4.1). `hqPageImage` fetches the bytes by id through
+  // the generated client the interceptor decorates and paints them; `data-hq-media` is what it
+  // says it is showing, and `naturalWidth` is the browser saying it decoded real pixels.
   const crop = page.locator('hq-phone-preview img[data-hq-media]').first();
   await expect(crop).toHaveAttribute('data-hq-media', 'ready', { timeout: 20_000 });
   expect(await crop.evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);

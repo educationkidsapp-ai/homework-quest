@@ -4,7 +4,7 @@
 import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList } from '@angular/cdk/drag-drop';
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, signal, viewChildren } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, viewChildren } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -21,6 +21,7 @@ import {
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { activeLang } from '../../core/i18n/active-lang';
+import { MediaService } from '../../core/media/media.service';
 import { CanDirective } from '../../core/permissions/can.directive';
 import {
   BandComponent,
@@ -146,6 +147,7 @@ export class LessonPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly transloco = inject(TranslocoService);
+  private readonly media = inject(MediaService);
   private readonly lang = activeLang();
 
   private readonly stopButtons = viewChildren<ElementRef<HTMLButtonElement>>('stopBtn');
@@ -1169,6 +1171,12 @@ export class LessonPage {
   // ---- wiring ---------------------------------------------------------------------------
 
   constructor() {
+    // Page crops belong to this lesson and are never wanted again once it is closed — they are
+    // lossless scans, so a tab that walked through a week of lessons would otherwise be holding
+    // all of them. Opening another lesson drops these; so does leaving the editor.
+    this.media.scopeTo(this.lessonId);
+    inject(DestroyRef).onDestroy(() => this.media.scopeTo(null));
+
     const key = this.route.snapshot.queryParamMap.get('notice');
     if (key) {
       const text = this.t(key);
