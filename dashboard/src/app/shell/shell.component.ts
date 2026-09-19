@@ -30,7 +30,7 @@ import { ClassContextService } from '../core/nav/class-context.service';
 import { navScreens } from '../core/nav/screens';
 import { PermissionService } from '../core/permissions/permission.service';
 import { SchoolScopeStore } from '../core/auth/school-scope.store';
-import { SidebarService } from '../core/shell/sidebar.service';
+import { SIDEBAR_ID, SidebarService } from '../core/shell/sidebar.service';
 import { ThemeService } from '../core/theme/theme.service';
 import { TourComponent } from '../core/tour/tour.component';
 import { TourService } from '../core/tour/tour.service';
@@ -74,6 +74,7 @@ import { ShellHeaderComponent } from './shell-header.component';
     <div class="shell">
       <hq-nav
         class="shell__nav"
+        [id]="sidebarId"
         data-hq-tour="nav"
         [items]="items()"
         [active]="activeId()"
@@ -88,7 +89,13 @@ import { ShellHeaderComponent } from './shell-header.component';
         <span nav-brand class="shell__brand">{{ 'nav.brand' | transloco }}</span>
       </hq-nav>
 
-      <div class="shell__main">
+      <!--
+        Everything behind a modal drawer is inert: not merely untabbable but out of reach of a
+        click, a pointer and the accessibility tree, which is what aria-modal="true" on the
+        panel is promising. The focus trap alone keeps Tab inside; inert is what makes the
+        promise true for a screen reader and for a stray tap on the header.
+      -->
+      <div class="shell__main" [attr.inert]="drawerOpen() ? '' : null">
         <hq-shell-header (signOut)="signOut()" />
 
         @if (band.current(); as message) {
@@ -188,6 +195,9 @@ export class ShellComponent {
   protected readonly band = inject(BandService);
   protected readonly undo = inject(UndoService);
   protected readonly sidebar = inject(SidebarService);
+  protected readonly sidebarId = SIDEBAR_ID;
+  /** The one condition the shell behind the rail is inert under. */
+  protected readonly drawerOpen = computed(() => this.sidebar.drawer() && this.sidebar.open());
 
   // §2's logo block: the school in scope, or the platform when there is none. The same two
   // values the header used to carry — the brand belongs to the rail now, not to the bar.

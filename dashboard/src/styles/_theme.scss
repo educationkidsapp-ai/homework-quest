@@ -230,7 +230,14 @@
 
   // The header sits above the page and below the CDK's overlays (menus, dialogs, the tour).
   --hq-z-header: 40;
-  --hq-z-drawer: 60;
+  // Above the Undo strip, which is `--hq-z-undo: 60` and would otherwise paint through a modal
+  // drawer, and below `--hq-z-toastless-band: 70`, because the red band always wins. The scrim
+  // sits one step under the panel so the strip is behind the dimming too.
+  --hq-z-drawer: 65;
+  --hq-z-drawer-scrim: 64;
+
+  // §3's badge and status pill.
+  --hq-space-badge: 2px 10px;
 
   // §2: the sidebar takes .3s, the drawer .22s, a dropdown .18s. All three run on the
   // system's easing and all three collapse to 0 ms under `prefers-reduced-motion`.

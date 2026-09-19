@@ -11,7 +11,7 @@ import { SchoolScopeStore } from '../core/auth/school-scope.store';
 import { FeatureDirective } from '../core/flags/feature.directive';
 import { FLAGS, FlagService } from '../core/flags/flag.service';
 import { LANGUAGES, LanguageService } from '../core/i18n/language.service';
-import { SidebarService } from '../core/shell/sidebar.service';
+import { SIDEBAR_ID, SidebarService } from '../core/shell/sidebar.service';
 import { DarkModeService } from '../core/theme/dark-mode.service';
 import { TourService } from '../core/tour/tour.service';
 
@@ -59,6 +59,7 @@ import { TourService } from '../core/tour/tour.service';
           type="button"
           class="header__icon"
           data-hq-sidebar-toggle
+          [attr.aria-controls]="sidebarId"
           [attr.aria-label]="'shell.sidebar.toggle' | transloco"
           [attr.aria-expanded]="sidebar.expanded()"
           (click)="toggleSidebar($event)"
@@ -368,6 +369,7 @@ export class ShellHeaderComponent {
   protected readonly scope = inject(SchoolScopeStore);
   protected readonly darkMode = inject(DarkModeService);
   protected readonly sidebar = inject(SidebarService);
+  protected readonly sidebarId = SIDEBAR_ID;
   protected readonly auth = inject(AuthService);
   protected readonly language = inject(LanguageService);
   protected readonly languages = LANGUAGES;

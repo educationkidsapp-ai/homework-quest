@@ -30,6 +30,10 @@ export interface NavItem<T extends string = string> {
  *   makes the collapsed rail usable rather than a guessing game;
  * - narrow — the off-canvas drawer: a `rgba(16,24,40,0.45)` scrim, a .22 s slide from the
  *   **inline-start** edge, Escape and the scrim to close, and Tab trapped inside while it is.
+ *   It says what it is — `role="dialog"`, `aria-modal="true"` and the navigation's own name —
+ *   but only while it *is* one: a column is a landmark, not a dialog, and claiming otherwise
+ *   would have a screen reader announce a dialog that never opened. The shell makes everything
+ *   behind it `inert`, which is the other half of that claim.
  *
  * Everything that moves is a logical property, so Arabic gets the rail on the right and a
  * drawer that slides in from the right with no second stylesheet — only the sign of the
@@ -67,6 +71,9 @@ export interface NavItem<T extends string = string> {
       <div
         class="nav__panel"
         [class.is-collapsed]="narrowed()"
+        [attr.role]="drawer() ? 'dialog' : null"
+        [attr.aria-modal]="drawer() ? 'true' : null"
+        [attr.aria-label]="drawer() ? label() : null"
         [cdkTrapFocus]="drawer() && open()"
         [cdkTrapFocusAutoCapture]="drawer() && open()"
         (mouseenter)="hovering.set(true)"
@@ -229,7 +236,7 @@ export interface NavItem<T extends string = string> {
     .nav__scrim {
       position: fixed;
       inset: 0;
-      z-index: var(--hq-z-dialog);
+      z-index: var(--hq-z-drawer-scrim);
       background: var(--hq-color-overlay);
       opacity: 0;
       pointer-events: none;
@@ -255,20 +262,6 @@ export interface NavItem<T extends string = string> {
 
     .nav__logo {
       object-fit: contain;
-    }
-
-    // A school with no logo yet still needs something in the 90 px strip, where the name is
-    // not rendered at all — its initial on the accent, which is the school's own colour.
-    .nav__logo--initial {
-      display: grid;
-      place-items: center;
-      inline-size: var(--hq-size-control-height);
-      block-size: var(--hq-size-control-height);
-      border-radius: var(--hq-radius-tile);
-      background: var(--hq-color-accent);
-      color: var(--hq-color-on-accent);
-      font-size: var(--hq-text-card-title);
-      font-weight: var(--hq-text-weight-semibold);
     }
 
     .nav__brand-text {
@@ -347,6 +340,22 @@ export interface NavItem<T extends string = string> {
       flex: none;
     }
 
+    // A school with no logo yet still needs something in the 90 px strip, where the name is
+    // not rendered at all — its initial on the accent, which is the school's own colour.
+    // **After** the rule above, not before it: the two match the same element at the same
+    // specificity, and the first version of this lost, so the tile rendered as a 24 px square.
+    .nav__logo--initial {
+      display: grid;
+      place-items: center;
+      inline-size: var(--hq-size-control-height);
+      block-size: var(--hq-size-control-height);
+      border-radius: var(--hq-radius-tile);
+      background: var(--hq-color-accent);
+      color: var(--hq-color-on-accent);
+      font-size: var(--hq-text-card-title);
+      font-weight: var(--hq-text-weight-semibold);
+    }
+
     .nav__icon {
       fill: none;
       stroke: currentcolor;
@@ -369,7 +378,7 @@ export interface NavItem<T extends string = string> {
 
     // §3's trailing badge: the success tint, brighter when the item is the current page.
     .nav__badge {
-      padding: var(--hq-space-4) var(--hq-space-8);
+      padding: var(--hq-space-badge);
       border-radius: var(--hq-radius-pill);
       background: var(--hq-color-success-soft);
       color: var(--hq-color-success-ink);

@@ -1,4 +1,15 @@
-import { DOCUMENT, DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  DOCUMENT,
+  DestroyRef,
+  Injectable,
+  Injector,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 
 /**
  * Below this the rail cannot be a column — it would leave the content under 700 px — so it
@@ -7,6 +18,13 @@ import { DOCUMENT, DestroyRef, Injectable, computed, effect, inject, signal, unt
  * make them agree is for the query to be built from the number rather than written twice.
  */
 export const DRAWER_BREAKPOINT = 1024;
+
+/**
+ * The rail's element id, shared by the two components that need it: the rail puts it on itself
+ * and the header's burger points `aria-controls` at it. One constant, so the two cannot drift
+ * into an `aria-controls` that names nothing — which is a failed audit, not a typo.
+ */
+export const SIDEBAR_ID = 'hq-sidebar';
 
 /** Per viewer, per browser — not a school setting and not on the account. */
 const STORAGE_KEY = 'hq.sidebar.collapsed';
@@ -40,6 +58,7 @@ function storedCollapsed(): boolean {
 @Injectable({ providedIn: 'root' })
 export class SidebarService {
   private readonly doc = inject(DOCUMENT);
+  private readonly injector = inject(Injector);
   private readonly collapsedState = signal(storedCollapsed());
   private readonly openState = signal(false);
   private readonly narrow = signal(false);
@@ -99,14 +118,20 @@ export class SidebarService {
    * that watches the URL. Read plainly, the read made `open` a dependency of that effect, so
    * opening the drawer immediately re-ran it and closed the drawer again — the burger looked
    * dead on every viewport under 1024 px.
+   *
+   * Focus goes back **after the next render**, not on the spot. The drawer is modal, so while
+   * it is open the whole of the shell behind it carries `inert` — including the burger it came
+   * from — and an inert element cannot take focus. The attribute comes off in the change
+   * detection pass this `set` schedules, and the focus has to land after it.
    */
   closeDrawer(): void {
     if (!untracked(this.openState)) return;
     this.openState.set(false);
     // Focus was inside a panel that is now gone; without this it falls to `<body>` and the
     // next Tab starts the page again from the top.
-    this.trigger?.focus();
+    const trigger = this.trigger;
     this.trigger = null;
+    if (trigger) afterNextRender({ read: () => trigger.focus() }, { injector: this.injector });
   }
 
   /** One control on a narrow viewport, another on a wide one — the header does not branch. */

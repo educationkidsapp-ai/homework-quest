@@ -123,6 +123,33 @@ describe('hq-nav', () => {
     expect(dismissals).toHaveLength(2);
   });
 
+  /**
+   * The drawer says what it is, and only while it is one. A column is a landmark; announcing it
+   * as a modal dialog would have a screen reader report a dialog nobody opened — and the claim
+   * has to be true, which is why the shell makes everything behind it inert.
+   */
+  it('is a named modal dialog as a drawer, and a plain landmark as a column', async () => {
+    const { fixture } = await renderHq(NavComponent, {
+      inputs: { items: links, active: 'week', label: 'Teacher', drawer: true, open: true },
+      providers: [provideRouter(routes)],
+    });
+    const host = fixture.nativeElement as HTMLElement;
+
+    const dialog = screen.getByRole('dialog', { name: 'Teacher' });
+    expect(dialog).toHaveClass('nav__panel');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    // The navigation landmark is still inside it, named the same way.
+    expect(screen.getByRole('navigation', { name: 'Teacher' })).toBeInTheDocument();
+
+    fixture.componentRef.setInput('drawer', false);
+    fixture.detectChanges();
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const panel = host.querySelector('.nav__panel');
+    expect(panel).not.toHaveAttribute('aria-modal');
+    expect(panel).not.toHaveAttribute('role');
+  });
+
   it('says nothing on Escape while it is a column', async () => {
     const dismissals: number[] = [];
     await renderHq(NavComponent, {
