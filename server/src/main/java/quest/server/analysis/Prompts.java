@@ -22,7 +22,13 @@ public final class Prompts {
         You answer with one JSON object only — no prose, no markdown fences.
         """;
 
-    public static String userA(String curriculum, int grade, String subject, String notes, String pageText, boolean imagesAttached) {
+    /**
+     * CR4: {@code markdown} says what {@code pageText} is. The uploads path converts every file to Markdown on our
+     * own machines and sends that and nothing else — the model never receives the PDF or the page images — so the
+     * prompt tells it where its text came from and how page boundaries are marked. The manual path passes the
+     * admin's typed text with {@code markdown = false}.
+     */
+    public static String userA(String curriculum, int grade, String subject, String notes, String pageText, boolean markdown) {
         return """
         Course: %s curriculum, grade %d, subject: %s.
         Admin notes (may be empty): %s
@@ -58,7 +64,8 @@ public final class Prompts {
         - Never write null for any field: omit optional keys instead. Skills: 1–5. Mark confidence < 0.7 as unsure with a question the admin can answer in one tap.
         - If the slides contain no teaching content at all (blank, logos, "thank you" only), answer {"error":"no_teaching_content"}.
         """.formatted(curriculum, grade, subject, notes == null || notes.isBlank() ? "(none)" : notes,
-                imagesAttached ? "The slides are attached as page images in order. The extracted text (may be partial) follows:\n" + pageText : "The slides' text, page by page:\n" + pageText,
+                markdown ? "The lesson's files, converted to Markdown on our side — this is everything you get, there are no images. Each file starts at a `--- filename ---` line, and where the converter found page or slide boundaries they are `## Page N` headings; when there are none, read the Markdown's own headings as the page breaks and number the pages in the order they appear:\n" + pageText
+                         : "The slides' text, page by page:\n" + pageText,
                 ILLUSTRATIONS);
     }
 

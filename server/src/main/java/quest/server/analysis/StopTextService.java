@@ -85,7 +85,12 @@ public class StopTextService {
         long usage = 0; List<String> errors = List.of(); ObjectNode accepted = null;
         for (int attempt = 0; attempt < 2; attempt++) {
             String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected by the validator:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
-            LlmClient.Result r = call(system, u);
+            LlmClient.Result r;
+            // The provider billed for the first attempt whether or not the second one answers. Charging it before the
+            // throw leaves that turn on the lesson through `LessonState`'s own REQUIRES_NEW transaction, which this
+            // one's rollback cannot take back; without it a second-attempt 429 made the first turn free.
+            try { r = call(system, u); }
+            catch (RuntimeException e) { if (usage > 0) state.addUsage(lesson.getId(), usage, 0); throw e; }
             usage += r.total();
             ObjectNode candidate;
             try {

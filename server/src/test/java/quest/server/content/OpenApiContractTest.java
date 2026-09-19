@@ -23,6 +23,7 @@ class OpenApiContractTest extends ApiTestSupport {
             "/children", "/children/{id}", "/children/{id}/map", "/children/{id}/attempts", "/children/{id}/stops/{stopId}/media", "/children/{id}/progress", "/lessons/{id}");
     static final List<String> ADMIN_API = List.of(
             "/admin/auth/sign-in", "/admin/lessons", "/admin/lessons/{id}", "/admin/lessons/{id}/files", "/admin/lessons/{id}/analyze", "/admin/lessons/{id}/skills",
+            "/admin/lessons/{id}/files/{fileId}/markdown", "/admin/lessons/{id}/files/{fileId}/retry-conversion",
             "/admin/stops/{stopId}", "/admin/stops/{stopId}/regenerate", "/admin/stops/{stopId}/from-text", "/admin/plays/{playId}/regenerate", "/admin/lessons/{id}/parent-panel",
             "/admin/lessons/{id}/publish", "/admin/lessons/{id}/unpublish", "/admin/cache", "/admin/usage", "/admin/calendar");
     /** `quest.api.dashboard.DashboardApi` (P1.3, P2.1): the Angular client is generated from exactly these. */
@@ -56,6 +57,7 @@ class OpenApiContractTest extends ApiTestSupport {
             "/teacher/lessons", "/teacher/lessons/{id}", "/teacher/lessons/{id}/copy",
             "/teacher/lessons/{id}/publish", "/teacher/lessons/{id}/unpublish",
             "/teacher/lessons/{id}/files", "/teacher/lessons/{id}/images", "/teacher/lessons/{id}/analyze",
+            "/teacher/lessons/{id}/files/{fileId}/markdown", "/teacher/lessons/{id}/files/{fileId}/retry-conversion",
             "/teacher/lessons/{id}/retry", "/teacher/lessons/{id}/steps/{step}/retry",
             "/teacher/lessons/{id}/skills", "/teacher/lessons/{id}/generate-from-text",
             "/teacher/lessons/{id}/parent-panel", "/teacher/lessons/{id}/plays",

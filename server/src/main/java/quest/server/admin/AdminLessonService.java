@@ -70,13 +70,13 @@ public class AdminLessonService {
     private final LessonRepository lessons; private final SourceFileRepository sourceFiles; private final SkillRepository skills; private final PlayRepository plays; private final StopRepository stops; private final ParentPanelRepository panels;
     private final AnalysisCacheRepository analysisCache; private final LessonStore store; private final AnalysisService analysisService; private final GenerationService generation; private final LessonPipeline pipeline; private final LessonState state;
     private final FileStore files; private final Json json; private final PageImageRepository pageImages; private final String publicUrl; private final LessonSteps steps;
-    private final TenantContext tenant; private final TenantGuard guard;
+    private final TenantContext tenant; private final TenantGuard guard; private final quest.server.analysis.ConversionService conversion;
     private final quest.server.schools.SchoolService schools;
     private final quest.server.tenancy.ClassRepository sections; private final quest.server.auth.UserRepository people;
 
-    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, TenantGuard guard, quest.server.schools.SchoolService schools, quest.server.tenancy.ClassRepository sections, quest.server.auth.UserRepository people) {
+    public AdminLessonService(LessonRepository lessons, SourceFileRepository sourceFiles, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, AnalysisCacheRepository analysisCache, LessonStore store, AnalysisService analysisService, GenerationService generation, LessonPipeline pipeline, LessonState state, FileStore files, Json json, PageImageRepository pageImages, quest.server.config.QuestProperties props, LessonSteps steps, TenantContext tenant, TenantGuard guard, quest.server.analysis.ConversionService conversion, quest.server.schools.SchoolService schools, quest.server.tenancy.ClassRepository sections, quest.server.auth.UserRepository people) {
         this.lessons = lessons; this.sourceFiles = sourceFiles; this.skills = skills; this.plays = plays; this.stops = stops; this.panels = panels; this.analysisCache = analysisCache; this.store = store; this.analysisService = analysisService; this.generation = generation; this.pipeline = pipeline; this.state = state; this.files = files; this.json = json;
-        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.guard = guard; this.schools = schools; this.sections = sections; this.people = people;
+        this.pageImages = pageImages; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl(); this.steps = steps; this.tenant = tenant; this.guard = guard; this.conversion = conversion; this.schools = schools; this.sections = sections; this.people = people;
     }
 
     /**
@@ -178,7 +178,7 @@ public class AdminLessonService {
         lesson.setSource(kinds.contains("pptx") ? "slides" : kinds.contains("pdf") ? "pdf" : kinds.isEmpty() ? lesson.getSource() : "images");
         lesson.setErrorCode(null); lesson.setErrorMessage(null);
         lessons.save(lesson);
-        steps.resetFrom(id, PipelineStep.ANALYZE); steps.done(id, PipelineStep.UPLOAD);
+        steps.resetFrom(id, PipelineStep.CONVERT); steps.done(id, PipelineStep.UPLOAD);
         return LessonStatus.DRAFT;
     }
 
@@ -452,10 +452,53 @@ public class AdminLessonService {
         return LessonState.status(get(id));
     }
 
+    // ---------------------------------------------------------------- CR4: the extracted text
+
+    /**
+     * What the model will read for this file. The lesson is resolved through {@link #get} first, so the file is
+     * reached through a lesson the caller's tenant scope already contains; an id from another lesson is a 404.
+     */
+    public String markdown(String lessonId, String fileId) {
+        var f = sourceFile(lessonId, fileId);
+        return conversion.markdown(f).orElseThrow(() -> new ApiException(org.springframework.http.HttpStatus.NOT_FOUND, quest.api.dto.ApiError.MARKDOWN_MISSING,
+                "\"" + f.getFileName() + "\" hasn't been converted to text yet."));
+    }
+
+    /**
+     * §4's fallback, on one file. `ocr` runs the pages through Tesseract whatever anydoc made of them; `text` takes
+     * the Markdown the teacher pasted. Either way the file ends `ready`, the Convert step is unblocked, and the
+     * steps after it are reset — the analysis would otherwise still be the one made from the old text.
+     */
+    public AdminLesson retryConversion(String lessonId, String fileId, String method, String markdown) {
+        var lesson = getForWrite(lessonId);
+        if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
+        if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw ApiException.badRequest("Unpublish the lesson first.");
+        var f = sourceFile(lessonId, fileId);
+        switch (method == null ? "" : method) {
+            case "ocr" -> conversion.convertWithOcr(f);
+            case "text" -> conversion.acceptMarkdown(f, markdown);
+            default -> throw ApiException.badRequest("method must be ocr or text.");
+        }
+        if (!manual(lesson)) { steps.ensure(lessonId); steps.resetFrom(lessonId, PipelineStep.CONVERT); steps.done(lessonId, PipelineStep.UPLOAD); }
+        lesson.setErrorCode(null); lesson.setErrorMessage(null); lesson.setStatus("draft"); lesson.setUpdatedAt(Instant.now());
+        return toAdmin(lessons.save(lesson), true);
+    }
+
+    private quest.server.content.Entities.SourceFileEntity sourceFile(String lessonId, String fileId) {
+        String id = get(lessonId).getId();
+        return sourceFiles.findByLessonIdOrderByCreatedAt(id).stream().filter(f -> f.getId().equals(fileId) && f.getDeletedAt() == null).findFirst()
+                .orElseThrow(() -> ApiException.notFound("file"));
+    }
+
     @Transactional
     public void deleteFiles(String id) {
         getForWrite(id);
-        for (var f : sourceFiles.findByLessonIdOrderByCreatedAt(id)) if (f.getDeletedAt() == null) { files.delete(f.getStoragePath()); f.setDeletedAt(Instant.now()); sourceFiles.save(f); }
+        for (var f : sourceFiles.findByLessonIdOrderByCreatedAt(id)) if (f.getDeletedAt() == null) {
+            files.delete(f.getStoragePath());
+            if (f.getMarkdownPath() != null) files.delete(f.getMarkdownPath());   // CR4: the extracted text goes with the file it came from
+            conversion.reset(f);
+            f.setDeletedAt(Instant.now()); sourceFiles.save(f);
+        }
     }
 
     /** Removes the lesson, its uploaded files and page images in the bucket, and (by cascade) skills, plays, stops, panel, steps. The AI caches are keyed by file hash and stay. */
@@ -495,7 +538,8 @@ public class AdminLessonService {
                         List<quest.server.content.Entities.LessonStepEntity> lessonSteps) {
         var course = Course.Companion.parse(l.getCourseId());
         var status = LessonState.status(l);
-        var fileInfos = lessonFiles.stream().map(f -> new SourceFileInfo(f.getId(), f.getFileName(), f.getFileHash(), f.getPageCount(), f.isCacheHit(), f.getDeletedAt() != null)).toList();
+        var fileInfos = lessonFiles.stream().map(f -> new SourceFileInfo(f.getId(), f.getFileName(), f.getFileHash(), f.getPageCount(), f.isCacheHit(), f.getDeletedAt() != null,
+                quest.api.ConvertStatus.valueOf(f.getConvertStatus().toUpperCase()), f.getConvertErrorCode(), f.getConvertMethod(), f.getMarkdownChars())).toList();
         var error = l.getErrorCode() == null ? null : new ApiError(l.getErrorCode(), l.getErrorMessage() == null ? "" : l.getErrorMessage());
         var source = LessonSource.valueOf(l.getSource().toUpperCase());
         if (full && !manual(l) && !lessonFiles.isEmpty()) { pipeline.backfill(l.getId()); lessonSteps = steps.list(l.getId()); }

@@ -94,8 +94,13 @@ is not named `.csv` needs `--format csv`. Exit codes: `0` converted; `1` could n
 signal to run Tesseract on those pages. **Never pass `--ocr hosted`**: that uploads the document to Firecrawl.
 Everything else anydoc does stays on the machine.
 
-When a binary is missing the server fails that conversion step with an error naming the binary rather than falling
-back to sending the original file to the model — that behaviour lives in the server, not in the image.
+When a binary is missing the server fails that conversion step with `tool_missing` and an error naming the variable,
+rather than falling back to sending the original file to the model. The one exception is
+`QUEST_CONVERT_ALLOW_BUILTIN_FALLBACK`, which is **off** in `qa` and `prod` and **on** in the `h2` and `test`
+profiles: there a missing binary falls back to the PDFBox/POI text extraction the server already does for the child's
+page images, recorded honestly as `convertMethod: "text"`. That is what lets `LLM_PROVIDER=fake` e2e runs and CI work
+on a machine with neither Node nor Tesseract. Never turn it on in a deployed environment: it would quietly downgrade
+every scanned PDF to "no text found".
 
 ## Tenancy model
 
@@ -607,6 +612,8 @@ Names only — never paste a value into a PR, a commit, a log or a chat. Values 
 | `CORS_ORIGINS` | every environment | only local dev origins matter; the panel is same-origin |
 | `PORT`, `APP_VERSION`, `PANEL_DIR`, `SPRING_PROFILES_ACTIVE`, `FAKE_AUTH` | runtime | the image sets `PANEL_DIR` |
 | `QUEST_ANYDOC_BIN`, `QUEST_TESSERACT_BIN` | every environment | paths to the two conversion binaries; the image sets both, elsewhere they fall back to `PATH` |
+| `QUEST_CONVERT_TIMEOUT_SECONDS`, `QUEST_CONVERT_MAX_MARKDOWN_CHARS` | every environment | time box per conversion (120 s) and the cap on one file's Markdown (400 000 characters, truncation noted in the text) |
+| `QUEST_CONVERT_ALLOW_BUILTIN_FALLBACK` | local only | `false` in `qa`/`prod`, `true` in `h2`/`test`: a missing binary falls back to PDFBox/POI text extraction instead of failing the step |
 
 `ADMIN_JWT_SECRET` has a placeholder default in `application.yml` so a developer can boot without one. **Any deployed
 environment must set it** — Terraform does, from `random_password.jwt`.

@@ -173,6 +173,28 @@ public class TeacherLessonController {
         service.deleteFiles(teacherLessons.requireId(TeacherScope.require(caller), id));
     }
 
+    /**
+     * CR4 §4: the Markdown her upload was converted into, which is the only thing the model will read. She sees it
+     * before pressing Analyse, and `requireLesson` is what keeps it to her own files.
+     */
+    @GetMapping(value = "/teacher/lessons/{id}/files/{fileId}/markdown", produces = MediaType.TEXT_MARKDOWN_VALUE)
+    @PreAuthorize("@permit.has('lesson.read')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.TEXT_MARKDOWN_VALUE, schema = @Schema(implementation = String.class)))
+    public String teacherFileMarkdown(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @PathVariable String fileId) {
+        return service.markdown(teacherLessons.requireId(TeacherScope.require(caller), id), fileId);
+    }
+
+    /** Her way out of a conversion that failed: `method=ocr` reads the pages as pictures, `method=text` takes what she pasted. */
+    @PostMapping(value = "/teacher/lessons/{id}/files/{fileId}/retry-conversion", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('lesson.write')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AdminLesson.class)))
+    public String teacherRetryConversion(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @PathVariable String fileId,
+                                  @RequestParam String method, @RequestBody(required = false) String body) {
+        String lessonId = teacherLessons.requireId(TeacherScope.require(caller), id);
+        var markdown = body == null || body.isBlank() ? null : decode(body, quest.api.RetryConversionRequest.Companion.serializer()).getMarkdown();
+        return lesson(service.retryConversion(lessonId, fileId, method, markdown));
+    }
+
     @PostMapping(value = "/teacher/lessons/{id}/analyze", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('lesson.write')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = JobRef.class)))

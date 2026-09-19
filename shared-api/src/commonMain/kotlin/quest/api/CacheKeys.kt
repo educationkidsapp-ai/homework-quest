@@ -9,7 +9,12 @@ import quest.api.validation.Sha256
  * Bump a prompt version to invalidate (old entries are kept).
  */
 object CacheKeys {
-    const val PROMPT_A_VERSION = "a1"
+    /**
+     * `a2` (CR4): Prompt A no longer receives the PDF or the page images, only the Markdown the server converted
+     * the upload into. The input representation changed, so an `a1` entry answers a different question and must not
+     * be reused; the old rows stay in `analysis_cache` and are simply never hit again.
+     */
+    const val PROMPT_A_VERSION = "a2"
     const val PROMPT_B_VERSION = "b2"
     const val PROMPT_C_VERSION = "c2"
 

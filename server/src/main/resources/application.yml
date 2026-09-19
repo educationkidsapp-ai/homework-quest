@@ -69,6 +69,18 @@ quest:
     model: ${DEEPSEEK_MODEL:deepseek-v4-pro}
     vision-model: ${DEEPSEEK_VISION_MODEL:deepseek-flash}
     max-tokens: ${DEEPSEEK_MAX_TOKENS:16384}
+  pipeline:
+    # CR4 §4: uploads are converted to Markdown before the model reads them. The two binaries come from the runtime
+    # image (Dockerfile) and their paths are the same environment variables the image sets; blank falls back to PATH.
+    convert:
+      anydoc-bin: ${QUEST_ANYDOC_BIN:anydoc}
+      tesseract-bin: ${QUEST_TESSERACT_BIN:tesseract}
+      timeout-seconds: ${QUEST_CONVERT_TIMEOUT_SECONDS:120}
+      max-markdown-chars: ${QUEST_CONVERT_MAX_MARKDOWN_CHARS:400000}
+      # Off everywhere a real deployment runs: a missing converter is an operator error, not something to paper over.
+      # The `h2` and `test` profiles turn it on so a laptop and CI (no Node, no Tesseract) still run the pipeline,
+      # extracting text with PDFBox/POI and recording the method as `text`.
+      allow-builtin-fallback: ${QUEST_CONVERT_ALLOW_BUILTIN_FALLBACK:false}
   storage:
     kind: ${STORAGE_KIND:local}
     local-dir: ${STORAGE_DIR:data/files}
@@ -107,6 +119,7 @@ quest:
   cors-origins: "*"
   llm.provider: ${LLM_PROVIDER:fake}
   seed.school: ${SEED_SCHOOL:true}
+  pipeline.convert.allow-builtin-fallback: ${QUEST_CONVERT_ALLOW_BUILTIN_FALLBACK:true}
 
 ---
 spring.config.activate.on-profile: test
@@ -123,6 +136,7 @@ quest:
   storage.local-dir: ${java.io.tmpdir}/quest-test-files
   admin.seed-email: admin@test.local
   admin.seed-password: admin1234
+  pipeline.convert.allow-builtin-fallback: true
 
 ---
 # QA on Cloud Run (project homework-quest-qa, branch develop): same wiring as prod, verbose logs, seeded sample lessons

@@ -88,6 +88,23 @@ public class AdminLessonController {
         return job(id, service.upload(id, uploads));
     }
 
+    /**
+     * CR4: the Markdown the model will actually read, so the teacher can check the extracted text before the AI uses
+     * it. The admin alias of `GET /teacher/lessons/{id}/files/{fileId}/markdown`.
+     */
+    @PreAuthorize("@permit.has('lesson.read')")
+    @GetMapping(value = "/admin/lessons/{id}/files/{fileId}/markdown", produces = MediaType.TEXT_MARKDOWN_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.TEXT_MARKDOWN_VALUE, schema = @Schema(implementation = String.class)))
+    public String fileMarkdown(@PathVariable String id, @PathVariable String fileId) { return service.markdown(id, fileId); }
+
+    /** CR4's fallback: `method=ocr` reads the pages as pictures, `method=text` takes the Markdown in `{ "markdown": … }`. */
+    @PreAuthorize("@permit.has('lesson.write')")
+    @PostMapping(value = "/admin/lessons/{id}/files/{fileId}/retry-conversion", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AdminLesson.class)))
+    public String retryConversion(@PathVariable String id, @PathVariable String fileId, @RequestParam String method, @RequestBody(required = false) String body) {
+        return json.encodeShared(service.retryConversion(id, fileId, method, markdownOf(body)), AdminLesson.Companion.serializer());
+    }
+
     @PreAuthorize("@permit.has('lesson.write')")
     @PostMapping(value = "/admin/lessons/{id}/analyze", produces = MediaType.APPLICATION_JSON_VALUE)
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = JobRef.class)))
@@ -214,4 +231,8 @@ public class AdminLessonController {
 
     private String job(String id, LessonStatus status) { return json.encodeShared(new JobRef(id, status), JobRef.Companion.serializer()); }
     private <T> T decode(String body, KSerializer<T> serializer) { try { return json.decodeShared(body, serializer); } catch (Exception e) { throw ApiException.badRequest("Malformed request: " + e.getMessage()); } }
+    /** `method=ocr` needs no body at all, so an absent or empty one is not an error — only a malformed one is. */
+    String markdownOf(String body) {
+        return body == null || body.isBlank() ? null : decode(body, quest.api.RetryConversionRequest.Companion.serializer()).getMarkdown();
+    }
 }

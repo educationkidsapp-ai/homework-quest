@@ -148,7 +148,17 @@ final class LlmJson {
             Play play = SchemaValidator.INSTANCE.getJson().decodeFromString(Play.Companion.serializer(), trialJson);
             return SchemaValidator.INSTANCE.validate(play, level, Set.of(), lenient).getErrors().stream()
                     .filter(e -> e.startsWith("stop " + stopId + ":")).toList();
-        } catch (Exception e) { return List.of(); }   // the play as a whole is not what this save is being judged on
+        } catch (Exception e) {
+            // A play that will not decode is usually a neighbour's problem, and that is not what this save is being
+            // judged on — but it may also be *this* stop, and returning nothing would accept whatever the model
+            // wrote. So the stop is decoded on its own: readable → the failure is elsewhere and she is not stopped;
+            // unreadable → one error, and Prompt D is asked again with it.
+            try {
+                JsonNode mine = MAPPER.readTree(trialJson).path("stops").path(index);
+                SchemaValidator.INSTANCE.getJson().decodeFromString(quest.api.dto.Stop.Companion.serializer(), mine.toString());
+                return List.of();
+            } catch (Exception stopBroken) { return List.of("stop " + stopId + ": the answer could not be read as a stop"); }
+        }
     }
 
     /** Schema errors from a `oneOf` are noisy; when the play decodes, the shared semantic rules explain the problem in one line each. */

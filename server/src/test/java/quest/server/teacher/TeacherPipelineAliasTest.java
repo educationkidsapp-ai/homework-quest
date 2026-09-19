@@ -133,6 +133,9 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
                 .file(new MockMultipartFile("files", "s.pdf", "application/pdf", new byte[] {1})), otherToken))
                 .andExpect(status().isForbidden());
         mvc.perform(as(delete("/teacher/lessons/tp-hers/files"), otherToken)).andExpect(status().isForbidden());
+        mvc.perform(as(get("/teacher/lessons/tp-hers/files/any/markdown"), otherToken)).andExpect(status().isForbidden());
+        mvc.perform(as(post("/teacher/lessons/tp-hers/files/any/retry-conversion?method=ocr")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"), otherToken)).andExpect(status().isForbidden());
         mvc.perform(as(post("/teacher/lessons/tp-hers/plays").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"level\":2,\"variant\":0}"), otherToken)).andExpect(status().isForbidden());
         mvc.perform(as(delete("/teacher/lessons/tp-hers"), otherToken)).andExpect(status().isForbidden());

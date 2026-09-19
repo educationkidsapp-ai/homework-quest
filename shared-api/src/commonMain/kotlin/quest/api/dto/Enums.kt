@@ -50,6 +50,10 @@ data class ApiError(val code: String, val message: String) {
         const val UNREADABLE_FILE = "unreadable_file"; const val NO_TEACHING_CONTENT = "no_teaching_content"; const val MODEL_FAILED = "model_failed"
         const val TOO_LARGE = "too_large"; const val NOT_FOUND = "not_found"; const val BAD_REQUEST = "bad_request"; const val NETWORK = "network"
         const val UNAUTHORIZED = "unauthorized"; const val FORBIDDEN = "forbidden"
+        /** CR4: what went wrong while turning one upload into Markdown (`source_files.convert_error_code`). */
+        const val ENCRYPTED = "encrypted"; const val UNSUPPORTED = "unsupported"; const val MALFORMED = "malformed"
+        const val NEEDS_OCR = "needs_ocr"; const val OCR_FAILED = "ocr_failed"; const val TOOL_MISSING = "tool_missing"; const val IO = "io"
+        const val MARKDOWN_MISSING = "markdown_missing"
     }
 }
 
