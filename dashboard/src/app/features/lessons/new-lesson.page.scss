@@ -63,18 +63,10 @@
   color: var(--hq-color-ink-soft);
 }
 
+// The box is `.hq-dropzone`; this one stacks, and sits under the field above it.
 .dropzone {
-  display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--hq-space-8);
   margin-block-start: var(--hq-space-16);
-  padding: var(--hq-space-32);
-  text-align: center;
-  background: var(--hq-color-surface-sunken);
-  border-radius: var(--hq-radius-card);
-  @include m.drag-lift;
 }
 
 .dropzone__title {

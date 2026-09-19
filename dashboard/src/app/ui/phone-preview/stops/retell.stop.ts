@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { PageImageDirective } from '../../media/page-image.directive';
 import { ChildButtonComponent } from '../child-button.component';
 import { ChildCardComponent } from '../child-card.component';
 import { IllustrationComponent } from '../illustration.component';
@@ -12,7 +13,7 @@ import { opened } from './answer-state';
  */
 @Component({
   selector: 'hq-stop-retell',
-  imports: [ChildButtonComponent, ChildCardComponent, IllustrationComponent],
+  imports: [ChildButtonComponent, ChildCardComponent, IllustrationComponent, PageImageDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="retell">
@@ -25,8 +26,8 @@ import { opened } from './answer-state';
           (pressed)="told.open(cue.stage)"
         >
           <div class="retell__cue">
-            @if (url(cue.pageImageId); as source) {
-              <img class="retell__image" [src]="source" alt="" />
+            @if (pictureId(cue.pageImageId); as pictureId) {
+              <img class="retell__image" [hqPageImage]="pictureId" alt="" />
             } @else if (cue.illustrationKey; as key) {
               <hq-illustration [key]="key" size="sm" />
             }
@@ -96,7 +97,7 @@ export class RetellStopComponent {
   protected readonly told = opened(() => this.stop().id);
   protected readonly allTold = computed(() => this.told.ids().length === this.stop().cues.length);
 
-  protected url(imageId: string | null | undefined): string | null {
-    return this.pictures?.url(imageId) ?? null;
+  protected pictureId(imageId: string | null | undefined): string | null {
+    return this.pictures?.has(imageId) ? (imageId ?? null) : null;
   }
 }

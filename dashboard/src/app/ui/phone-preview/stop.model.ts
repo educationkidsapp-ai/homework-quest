@@ -324,8 +324,12 @@ export type Stop =
 
 export type StopType = Stop['type'];
 
-/** How a stop is answered, which drives the player and the scoring. */
-export type StopCategory = 'INFO' | 'SINGLE' | 'MULTI' | 'OPEN' | 'EXIT';
+/**
+ * How a stop is answered — the app's own categories, kept here because they are what orders the
+ * map below. The dashboard previews a stop rather than scoring one, so nothing reads a category:
+ * what it needs from this table is its keys, in the order §5 lists them.
+ */
+type StopCategory = 'INFO' | 'SINGLE' | 'MULTI' | 'OPEN' | 'EXIT';
 
 const CATEGORY_OF: Readonly<Record<StopType, StopCategory>> = {
   readPage: 'INFO',
@@ -355,12 +359,6 @@ const CATEGORY_OF: Readonly<Record<StopType, StopCategory>> = {
 /** Every stop type, in the order §5 lists them — the source of the "+ Add stop" menu. */
 export const STOP_TYPES: readonly StopType[] = Object.keys(CATEGORY_OF) as StopType[];
 
-/** `writeSentence` is open when `free`, single otherwise — every other type is fixed. */
-export function categoryOf(stop: Stop): StopCategory {
-  if (stop.type === 'writeSentence') return stop.free === true ? 'OPEN' : 'SINGLE';
-  return CATEGORY_OF[stop.type];
-}
-
 /** The hint a wrong answer shows, for the stops that have one. */
 export function hintOf(stop: Stop): string | null {
   return 'hint' in stop && typeof stop.hint === 'string' ? stop.hint : null;
@@ -385,7 +383,14 @@ export interface Play {
   readonly id?: string | null;
 }
 
-/** A picture the preview can resolve a `imageId` against. */
+/**
+ * A picture the preview can resolve an `imageId` against — the contract's `PageImage`, handed
+ * in whole so a caller passes `lesson.images` and nothing else.
+ *
+ * `url` is the absolute `/media/pages/{id}` `LessonStore` builds. Nothing reads it: that route
+ * wants a bearer an `<img src>` cannot send, so `hqPageImage` fetches the bytes by id through
+ * `MediaService` instead. It stays on the shape because the contract has it.
+ */
 export interface PreviewImage {
   readonly id: string;
   readonly url: string;

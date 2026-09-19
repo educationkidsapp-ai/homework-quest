@@ -143,7 +143,7 @@ a first line that says what to do, instead of twenty minutes and a cancelled job
 
 ## 4. Open issues
 
-### 4.1 Page crops never load — the dashboard shows no lesson images at all
+### 4.1 Page crops never load — the dashboard shows no lesson images at all — **fixed in T5**
 
 - `server/src/main/java/quest/server/content/LessonStore.java:76` builds an **absolute**
   `"<publicUrl>/media/pages/<id>"`.
@@ -158,11 +158,22 @@ dashboard never gained the equivalent. This is not a restyle regression — it p
 packages — but it is the reason the editor's screenshots have no crops in them, and the console
 gate is what finally surfaced it.
 
-**Suggested fix** (backend + dashboard): either a short-lived signed URL on the lesson payload,
-so an `<img>` can carry its own authority, or a small loader in the dashboard that fetches with
-the token and hands the component an object URL. The first is cheaper for caching; the second
-needs no contract change. Until then the 401 is declared in
-`dashboard/e2e/local/lesson-editor.spec.ts`'s `beforeEach`, which says to delete it with the fix.
+**Fixed in T5**, dashboard-side and with no contract change. `core/media/media.service.ts` reads
+the crop through the generated `MediaApi`, so the auth interceptor attaches and refreshes the
+token as it does for every other call, and caches the answer by image id.
+`ui/media/page-image.directive.ts` is what an `<img>` takes instead of `[src]`: a transparent
+pixel until the bytes arrive, then the picture; nothing under 300 ms, the skeleton shimmer after
+that, and a neutral tile with the `alt` intact if the read is refused. The URL never enters the
+DOM, so `PreviewImages.url()` became `has()`.
+
+The carrier is a `data:` URL and not `URL.createObjectURL`: the shipped CSP is
+`img-src 'self' https: data:` (`DashboardController.java:55`, mirrored by `e2e/local/serve.mjs`)
+with no `blob:`, so an object URL would be refused by the browser on exactly the deployments this
+is meant to fix. A signed short-lived URL on the payload is still the cheaper answer for caching
+if the contract ever gains one.
+
+`lesson-editor.spec.ts` no longer declares the 401 and asserts instead that the attached crop is
+drawn with a non-zero `naturalWidth`.
 
 ### 4.2 `theme-t3/home-*.png` were pictures of the not-found screen — **fixed here**
 
@@ -192,11 +203,10 @@ to that mixin because those three components are its only callers; every other f
 already gets the halo from the global rule. Called out because it is a T3 file, and it was the
 difference between that test passing and failing.
 
-**Also worth the owner's decision** (the T3 reviewer raised it and it is untouched here): the
-outline is `var(--hq-size-focus-ring) solid var(--hq-color-focus)` (`_mixins.scss:72`) rather
-than §3's literal `border-color:#9cb9ff`, and `--hq-color-focus-border` is wired but used only by
-checkbox and toggle. The repo-wide outline is the more accessible of the two; the spec's is the
-prettier. It needs a ruling, not a patch.
+**Ruled in T5 as D19**: the repo-wide outline stays, over the spec's halo, and the `#9cb9ff`
+border is not adopted — it is 1.94:1 on white, and a focus indicator that cannot be seen is not
+one. `--hq-color-focus-border` keeps carrying it for the controls whose own border is part of the
+state. Written down as a "Deviations" footnote in `docs/prompts/tailadmin-spec.md`.
 
 ### 4.4 The styleguide's progress bars were 0 px wide — **fixed here**
 
@@ -229,11 +239,11 @@ The fix is the one line the rule was missing —
 `&:hover:not(:disabled):not([aria-selected='true'])` — and it is called out because
 `tabs.component.ts` is a T3 file. All the affected frames are regenerated on this branch.
 
-**Still open, same shape, lower stakes**: `tabs.component.ts:97` does the same to the *underline*
-variant — `&:hover:not(:disabled) { color: var(--hq-color-ink) }` at (0,4,0) overrides the
-selected `color: var(--hq-color-accent)` at (0,3,0), so a hovered selected tab loses its accent.
-It stays readable, so it is a taste defect rather than a contrast one, and it is left for the
-owner rather than folded into a test package.
+**The same in the *underline* variant — fixed in T5.** `&:hover:not(:disabled)` at (0,4,0) was
+overriding the selected `color` at (0,3,0), so a hovered selected tab lost its accent. Same one
+`:not([aria-selected='true'])`. `tabs.component.spec.ts` now asserts the *shape* of every tab
+hover selector rather than a colour, out of the stylesheet the component emitted — jsdom will not
+hover, and the defect is in the cascade — so both variants are guarded.
 
 ### 4.4c `shoot()` could photograph a colour mid-transition
 
@@ -250,7 +260,7 @@ value snaps to where it was going — including one already in flight, which is 
 restore matters: the tests that *assert* motion (the rail's width poll, the row collapse, the
 undo strip) share the page.
 
-### 4.5 Three colour roles are under AA in dark mode
+### 4.5 Three colour roles are under AA in dark mode — **two fixed in T5, one documented**
 
 Measured in the page on the deployed palette, against the `#171f2e` card:
 
@@ -267,19 +277,39 @@ body copy, where it is not. `error-ink` misses by 0.11. The accent is the intere
 deliberately lets a school's accent survive into dark mode, and a school picked that colour
 against a white page, so the result is whatever they chose — here, 3.07:1 for every link.
 
-**Suggested fix**: move `ink-muted` to `gray-400` in the dark block and let `ink-soft` take
-`gray-300`; take `error-ink` to `error-400`; and for the accent, either lighten it in dark mode
-the way `--hq-color-accent-strong` already does (`_theme.scss:320` uses `brand-400`) or accept it
-as the school's own choice and say so in the spec. The body text itself is comfortably clear, so
-none of this blocks the restyle.
+**Fixed in T5.** `--hq-color-error-ink` moved to a new `error-400` step (`#f97066`, **5.93:1**).
+The accent gained a role of its own, `--hq-color-accent-ink`. **In dark mode** it is the accent
+mixed 45 % into white, which clears 4.5:1 on the `#171f2e` card for *any* accent a school could
+send — pure black, the worst case, lands at 4.9:1, and the seeded school's `#cc2a0f` at
+**7.72:1**. **In light mode it is the raw accent**, unchanged: a school picked that colour
+against a white page, and what keeps it legible there is the server's own contrast check on the
+theme, not this role. So the "any accent" guarantee is a dark-mode one.
+
+It is used only where the accent is *text* (the selected underline tab, the week grid's played
+figure); as a fill the accent is untouched, so a button, a chip and the tab's own rule are still
+that school's colour.
+
+`ink-muted` stays at 3.32:1 and is now documented in `_theme.scss` rather than merely observed:
+it is `::placeholder`, disabled text, an out-of-month day, the empty state's second line — never
+body copy, which takes `ink` or `ink-soft`. The claim is checked rather than asserted: the
+styleguide grew a **contrast row** that measures every role ever set as text, composited, live,
+in whichever scheme is showing, and `styleguide.spec.ts` asserts the *list* of roles under 4.5:1
+is exactly `['--hq-color-ink-muted']`. `theme-flow.spec.ts` asks the same of every teacher screen
+in dark mode.
 
 ### 4.6 The reviewer's T3 notes, still open
 
-- **Component-style budgets.** `features/week/week.page.scss` is 6.38 kB and
-  `features/lessons/lesson.page.scss` 7.58 kB against a 6.00 kB budget; both print a build
-  warning on every production build. Both are pre-existing and both got *smaller* in T3. T4 adds
-  nothing to either. Suggested fix: lift the shared bits (the card grid, the status colours) into
-  `_mixins.scss`, or raise the budget once, deliberately, with a comment saying why.
+- **Component-style budgets — fixed in T5.** `week.page.scss` is **5.54 kB** and
+  `lesson.page.scss` **4.96 kB**; neither warns. Only rules with more than one caller moved
+  (`.hq-iconbutton`, `.hq-dropzone`, CDK's global drag classes), because a rule lifted out of a
+  lazy chunk into `styles.scss` is loaded on every screen — `.lesson__stop-item` stayed where it
+  is for that reason. A mixin would not have helped: the budget measures the *compiled*
+  stylesheet, and an `@include` expands into it. The `initial` warning in `angular.json` moved
+  from 490 kB to **500 kB** by planner decision, with the reason in `tools/budget.mjs`'s header
+  (JSON takes no comment): raw initial went 489.55 → 494.69 kB while the gzipped transfer stayed
+  flat at 103 kB, and two standing build warnings went away. The error stays 520 kB, and the
+  budget that means anything — 350 kB of gzipped JS per route — is unmoved at a worst case of
+  **152.2 kB** on the lesson editor.
 - **`statusTone()` returns `string`** at `features/lessons/lessons.page.ts:491` and
   `features/classes/my-classes.page.ts:114`. A `'primary' | 'success' | 'error' | 'warning' |
   'light'` union would let the compiler catch a typo in a badge class name that today just
@@ -290,10 +320,12 @@ none of this blocks the restyle.
 
 ### 4.7 Smaller things found while walking
 
-- **`btn--icon` has no caller.** `ui/button/button.component.ts:4` offers an `icon` variant and
-  nothing in `src/app/features/**` or `src/app/shell/**` uses it; the header rolls its own
-  `.header__icon`. It is now drawn in the styleguide, so at least it is photographed. Either
-  adopt it in the header or drop the variant.
+- **`btn--icon` has no caller — resolved in T5.** §3 has one "Icon button" row, `44 × 44` "or
+  `9999px` in the header", so it is one mixin (`m.icon-button`) with the radius and the ground as
+  its parameters, used by the kit's variant, the header's three pills and the `.hq-iconbutton`
+  class the pages take. They had already drifted — the header hovered to `--hq-color-hover` where
+  the spec says the sunken ground. The header keeps its own `<button>`: `cdkMenuTriggerFor` and
+  the suite's `data-hq-*` hooks have to sit on the real element.
 - **Profile cannot save anything.** `features/profile/profile.page.ts:24` explains why: the
   contract has `PATCH /admin/users/{id}` (an Admin editing someone) and **no self-edit**, so name
   and photo are shown disabled. That is the honest presentation, but it means the "profile save"

@@ -95,12 +95,20 @@ export interface Tab<T extends string = string> {
       border-block-end: var(--hq-size-selected-border) solid transparent;
       margin-block-end: calc(var(--hq-size-rule-thin) * -1);
 
-      &:hover:not(:disabled) {
+      // The :not([aria-selected='true']) is load-bearing, not decoration. Without it this rule
+      // is .tabs--underline .tabs__tab:hover:not(:disabled) — two classes and two
+      // pseudo-classes, specificity (0,4,0) — while the selected rule below is (0,3,0). So a
+      // pointer resting on the tab a teacher is already looking at took the accent off its
+      // label. Same shape as the chip fix in #82 (see the restyle report, §4.4b); this was the
+      // half of it left open.
+      &:hover:not(:disabled):not([aria-selected='true']) {
         color: var(--hq-color-ink);
       }
 
       &[aria-selected='true'] {
-        color: var(--hq-color-accent);
+        // The label takes the accent as *text* (AA-held in dark mode), the rule under it takes
+        // the accent itself — the school's colour where it is a fill, readable where it is a word.
+        color: var(--hq-color-accent-ink);
         border-block-end-color: var(--hq-color-accent);
       }
     }

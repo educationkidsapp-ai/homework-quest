@@ -1,5 +1,15 @@
 /* hq-flag: none (shell) — the styleguide is not a product feature and never ships to production. */
-import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChildren } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChildren,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { LanguageService } from '../core/i18n/language.service';
@@ -34,6 +44,14 @@ import {
   type Tab,
   type TableColumn,
 } from '../ui';
+
+/** One text role, measured against the card it is set on. */
+interface RoleContrast {
+  readonly role: string;
+  readonly ratio: number;
+  /** AA for normal text. `false` is not always a defect — see `contrastRoles` below. */
+  readonly aa: boolean;
+}
 
 /** One colour ramp, as the property suffixes it is published under. */
 interface Ramp {
@@ -110,6 +128,66 @@ export class StyleguidePage {
 
   protected readonly reduceMotion = signal(false);
 
+  constructor() {
+    afterNextRender(() => this.measureContrast());
+    effect(() => {
+      this.darkMode.isDark();
+      // After the class lands on `<html>`, so the probe resolves the scheme that is showing.
+      requestAnimationFrame(() => this.measureContrast());
+    });
+  }
+
+  /** The composited ratio of each text role against the card it is drawn on. */
+  private measureContrast(): void {
+    const card = this.host.nativeElement.querySelector<HTMLElement>('.sg__contrast');
+    if (!card) return;
+
+    const parse = (colour: string): readonly number[] => {
+      // `color-mix()` computes to `color(srgb r g b / a)` in Chrome, whose channels are 0–1 and
+      // whose colour space would otherwise be read as a number. Two of these roles are mixed
+      // from a school's accent, so this branch is the difference between a true reading and a
+      // black one.
+      const space = colour.startsWith('color(');
+      const parts =
+        (space ? colour.replace(/^color\(\s*[\w-]+/, '') : colour).match(/[\d.]+/g)?.map(Number) ?? [];
+      const scale = space ? 255 : 1;
+      return [(parts[0] ?? 0) * scale, (parts[1] ?? 0) * scale, (parts[2] ?? 0) * scale, parts[3] ?? 1];
+    };
+    const channel = (value: number): number => {
+      const v = value / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = (rgb: readonly number[]): number =>
+      0.2126 * channel(rgb[0]!) + 0.7152 * channel(rgb[1]!) + 0.0722 * channel(rgb[2]!);
+    const over = (top: readonly number[], bottom: readonly number[]): readonly number[] =>
+      [0, 1, 2].map((i) => top[3]! * top[i]! + (1 - top[3]!) * bottom[i]!);
+
+    // Every painted layer from the card up, flattened onto white — the dark card's surface is
+    // translucent, so the colour a reader sees is a composite and not a value in the file.
+    const stack: (readonly number[])[] = [];
+    for (let node: Element | null = card; node !== null; node = node.parentElement) {
+      const background = parse(getComputedStyle(node).backgroundColor);
+      if (background[3]! > 0) stack.push(background);
+    }
+    const surface = stack.reduceRight<readonly number[]>(
+      (under, layer) => over(layer, under),
+      [255, 255, 255],
+    );
+    const below = luminance(surface);
+
+    const probe = document.createElement('span');
+    probe.style.position = 'absolute';
+    card.append(probe);
+    const measured = this.contrastRoles.map((role) => {
+      probe.style.color = `var(${role})`;
+      const above = luminance(over(parse(getComputedStyle(probe).color), surface));
+      const ratio = (Math.max(above, below) + 0.05) / (Math.min(above, below) + 0.05);
+      return { role, ratio, aa: ratio >= 4.5 };
+    });
+    probe.remove();
+    this.contrast.set(measured);
+  }
+
   // --- Foundations --------------------------------------------------------
   // Read out of `_theme.scss` by property name rather than by value: a swatch that named its
   // own hex would go on looking right after the ramp beneath it had changed.
@@ -123,7 +201,7 @@ export class StyleguidePage {
       steps: ['25', '50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'],
     },
     { name: 'success', steps: ['50', '100', '500', '600', '700'] },
-    { name: 'error', steps: ['50', '100', '200', '300', '500', '600', '700'] },
+    { name: 'error', steps: ['50', '100', '200', '300', '400', '500', '600', '700'] },
     { name: 'warning', steps: ['50', '100', '300', '400', '500', '600', '700'] },
   ];
 
@@ -135,6 +213,29 @@ export class StyleguidePage {
     'theme-sm',
     'theme-xs',
   ];
+
+  // --- Contrast -----------------------------------------------------------
+  // Every role that is ever set as *text*, measured against the card it is measured on, in
+  // whichever scheme is showing. Read live rather than written down: two of these are derived
+  // at runtime with `color-mix` from a school's own accent, so the only true number is the one
+  // the browser computes — and the point of the row is to see it move when the school or the
+  // scheme does.
+  //
+  // `--hq-color-ink-muted` is expected to read under 4.5 and is not a defect: it is the
+  // placeholder and disabled ink, which WCAG exempts and which has to look unavailable.
+  protected readonly contrastRoles: readonly string[] = [
+    '--hq-color-ink',
+    '--hq-color-ink-strong',
+    '--hq-color-ink-soft',
+    '--hq-color-ink-muted',
+    '--hq-color-accent-ink',
+    '--hq-color-accent-strong',
+    '--hq-color-error-ink',
+    '--hq-color-success-ink',
+    '--hq-color-warning-ink',
+  ];
+  protected readonly contrast = signal<readonly RoleContrast[]>([]);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly radii: readonly string[] = ['xs', 'control', 'tile', 'card', 'pill'];
   protected readonly shadows: readonly string[] = ['xs', 'sm', 'md', 'lg', 'xl'];

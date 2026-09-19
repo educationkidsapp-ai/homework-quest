@@ -205,23 +205,7 @@
 }
 
 .week__played {
-  color: var(--hq-color-accent);
-}
-
-.week__overflow {
-  flex: none;
-  inline-size: var(--hq-size-touch-target);
-  border-radius: var(--hq-radius-control);
-  background: none;
-  border: 0;
-  color: var(--hq-color-ink-soft);
-  cursor: pointer;
-  @include m.focus-ring;
-
-  &:hover {
-    background: var(--hq-color-surface-sunken);
-    color: var(--hq-color-ink-strong);
-  }
+  color: var(--hq-color-accent-ink);
 }
 
 // ---- the exam card (N4.3 fills it; the shape exists so the grid is not reshaped later) --------
@@ -262,25 +246,12 @@
 }
 
 // ---- drag ---------------------------------------------------------------------------------------
-
-.cdk-drag-preview {
-  background: var(--hq-color-surface);
-  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
-  border-radius: var(--hq-radius-card);
-  box-shadow: var(--hq-shadow-lg);
-}
+// The preview and the settle are styled once, globally, in `styles.scss`. What is this grid's
+// own is the placeholder: a lesson card leaves a *hidden* gap rather than a faded one, because
+// the cell it came out of is already an outlined slot.
 
 .cdk-drag-placeholder {
   visibility: hidden;
-}
-
-// The 250 ms settle, on the system's one easing curve.
-.cdk-drag-animating {
-  transition: transform var(--hq-motion-base) var(--hq-motion-ease);
-
-  @include m.reduced-motion {
-    transition-duration: 0ms;
-  }
 }
 
 // ---- the summary strip --------------------------------------------------------------------------

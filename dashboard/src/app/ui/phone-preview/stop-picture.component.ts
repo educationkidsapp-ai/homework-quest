@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { PageImageDirective } from '../media/page-image.directive';
 import { PreviewImages } from './preview-images';
 
 /**
@@ -10,11 +11,12 @@ import { PreviewImages } from './preview-images';
  */
 @Component({
   selector: 'hq-stop-picture',
+  imports: [PageImageDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <figure class="picture">
-      @if (url(); as source) {
-        <img class="picture__img" [src]="source" [alt]="description() ?? ''" />
+      @if (has()) {
+        <img class="picture__img" [hqPageImage]="imageId()" [alt]="description() ?? ''" />
       } @else {
         <span class="picture__placeholder" aria-hidden="true">🖼️</span>
       }
@@ -56,7 +58,7 @@ export class StopPictureComponent {
   /** Overrides the description the caller gave with the image. */
   readonly alt = input<string | null>(null);
 
-  protected readonly url = computed(() => this.pictures?.url(this.imageId()) ?? null);
+  protected readonly has = computed(() => this.pictures?.has(this.imageId()) ?? false);
   protected readonly description = computed(
     () => this.alt() ?? this.pictures?.describe(this.imageId()) ?? null,
   );

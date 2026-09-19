@@ -25,35 +25,16 @@
   color: var(--hq-color-ink-soft);
 }
 
-.lesson__overflow-trigger {
-  inline-size: var(--hq-size-button-height);
-  block-size: var(--hq-size-button-height);
-  background: var(--hq-color-surface);
-  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
-  border-radius: var(--hq-radius-control);
-  color: var(--hq-color-ink-soft);
-  cursor: pointer;
-  @include m.hover-tint(var(--hq-color-surface-sunken));
-  @include m.focus-ring;
-}
-
+// The box is `.hq-dropzone`; what is this one's own is that its label and its button sit on
+// one line, and wrap rather than stack.
 .lesson__dropzone {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
   gap: var(--hq-space-16);
-  padding: var(--hq-space-32);
-  text-align: center;
-  background: var(--hq-color-surface-sunken);
-  border-radius: var(--hq-radius-card);
-  @include m.drag-lift;
 }
 
-// Shared by the replace-file dropzone's "Choose files" and the files card's "Upload more" —
-// both are a `<label for>` standing in for the file input's own button.
-// Both are a `<label for>` standing in for a file input's own button, so they take the
-// secondary box from `.hq-linkbutton` in the template and only keep the cursor here.
+// The replace-file dropzone's "Choose files" and the files card's "Upload more": both are a
+// `<label for>` standing in for a file input's own button, so they take the secondary box from
+// `.hq-linkbutton` in the template and only keep the cursor here.
 .lesson__dropzone-choose,
 .lesson__upload-more {
   cursor: pointer;
@@ -121,8 +102,6 @@
   font-size: var(--hq-font-label-size);
 }
 
-
-
 .lesson__skill-actions {
   display: flex;
   justify-content: space-between;
@@ -161,33 +140,16 @@
   min-inline-size: 0;
 }
 
-// The handle is the only draggable part: dragging from the row itself would fight the click
-// that selects a stop, and a keyboard user reorders with the list's own arrow keys instead.
-.lesson__stop-handle {
-  flex: none;
-  inline-size: var(--hq-size-button-height);
-  background: none;
-  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
-  border-radius: var(--hq-radius-control);
-  color: var(--hq-color-ink-soft);
-  cursor: grab;
-  @include m.focus-ring;
-}
-
-// CDK's own classes, the one place they are styled: the placeholder is the gap the row will
-// land in, and 250 ms is `--hq-motion-base`, the settle every other list in the system uses.
+// The rows a drag pushes out of the way. The rest of CDK's classes are styled once, globally,
+// in `styles.scss`; only this list's own selector belongs here.
 .cdk-drag-placeholder {
   opacity: 0.4;
 }
 
-.cdk-drag-animating,
 .lesson__stop-list.cdk-drop-list-dragging .lesson__stop-row:not(.cdk-drag-placeholder) {
   transition: transform var(--hq-motion-base) var(--hq-motion-ease);
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .cdk-drag-animating,
-  .lesson__stop-list.cdk-drop-list-dragging .lesson__stop-row:not(.cdk-drag-placeholder) {
+  @include m.reduced-motion {
     transition-duration: 0ms;
   }
 }

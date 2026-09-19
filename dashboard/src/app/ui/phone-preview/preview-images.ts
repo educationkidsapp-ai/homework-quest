@@ -18,10 +18,17 @@ export class PreviewImages {
     this.images.set(images);
   }
 
-  /** The URL for an image id, or `null` when the caller did not supply that picture. */
-  url(id: string | null | undefined): string | null {
-    if (!id) return null;
-    return this.images().find((image) => image.id === id)?.url ?? null;
+  /**
+   * Whether the caller supplied that picture at all.
+   *
+   * The bytes are not this service's business: an `<img>` cannot fetch `/media/pages/{id}`
+   * itself (it carries no bearer), so `hqPageImage` reads them by id through `MediaService`
+   * and `PageImage.url` is never put in the DOM. What a component still needs from here is the
+   * yes-or-no — a picture, or the app's own glyph in its place.
+   */
+  has(id: string | null | undefined): boolean {
+    if (!id) return false;
+    return this.images().some((image) => image.id === id);
   }
 
   /** The alternative text for an image id, if the caller gave one. */

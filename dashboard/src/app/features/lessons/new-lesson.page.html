@@ -107,7 +107,7 @@
           <p class="source-note">{{ 'lessons.new.manualHint' | transloco }}</p>
         } @else if (source() === 'pdf' || source() === 'slides' || source() === 'images') {
           <div
-            class="dropzone"
+            class="hq-dropzone dropzone"
             [class.is-drag-over]="dragging()"
             (dragover)="onDragOver($event)"
             (dragleave)="onDragLeave()"

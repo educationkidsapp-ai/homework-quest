@@ -19,4 +19,5 @@ export { EmptyStateComponent } from './empty-state/empty-state.component';
 export { PageComponent, type Breadcrumb } from './page/page.component';
 export { NavComponent, type NavItem } from './nav/nav.component';
 export { ShortcutsDialogComponent, type Shortcut } from './shortcuts-dialog/shortcuts-dialog.component';
+export { PageImageDirective, type MediaState } from './media/page-image.directive';
 export * from './motion';
