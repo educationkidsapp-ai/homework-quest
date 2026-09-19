@@ -1,7 +1,15 @@
 import { type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { expect, setLanguage, setScheme, shoot, signInAsSara, test } from './env';
+import {
+  expect,
+  setLanguage,
+  setScheme,
+  shoot,
+  signInAsSara,
+  teacherClasses,
+  test,
+} from './env';
 
 /**
  * The rail's rendered width, polled rather than measured once: `transition: width .3s ease` is
@@ -40,13 +48,30 @@ function burger(page: Page) {
   return page.locator('[data-hq-sidebar-toggle]');
 }
 
-/** 1A British's class page, reached the way she reaches it. */
+/** Her 1A British Math section, read once so the navigation below needs no guess. */
+let classId = '';
+
+test.beforeAll(async () => {
+  const rows = await teacherClasses();
+  const mine = rows.find((row) => /1A/i.test(row.className) && row.subject === 'math') ?? rows[0];
+  expect(mine, 'the seed should give Sara at least one Math section').toBeTruthy();
+  classId = mine!.classId;
+});
+
+/**
+ * Her class page, opened by its id.
+ *
+ * It used to be "the rail's My classes, then the first link in the first card", which is how a
+ * person reaches it — but which link is first depends on the data. On QA that click landed on a
+ * seed lesson's editor instead of the class page, so the class frames at 768 and below were
+ * photographing a screen with no calendar in it and `shoot` timed out on `role="grid"` thirty
+ * seconds later, naming the missing grid rather than the wrong page. The route is the subject
+ * here — this is the *shell*'s spec — so it is navigated to directly, and the assertion that
+ * the rail and the router are the same door stays where it belongs, in `shell.spec.ts`.
+ */
 async function openClass(page: Page): Promise<void> {
-  await rail(page)
-    .getByRole('link', { name: /My classes|فصولي/ })
-    .click();
-  await page.locator('hq-card').first().getByRole('link').first().click();
-  await expect(page.getByRole('grid')).toBeVisible();
+  await page.goto(`teacher/classes/${classId}?subject=math`);
+  await expect(page.getByRole('grid')).toBeVisible({ timeout: 30_000 });
 }
 
 test.describe('the sidebar', () => {

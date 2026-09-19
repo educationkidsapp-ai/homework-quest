@@ -92,9 +92,14 @@ async function pageScrollsSideways(page: Page): Promise<boolean> {
 function screens(page: Page) {
   return [
     {
+      // Her Home, which is the teacher area's root. `screens.ts:111` gives `home` the path `''`
+      // and redirects it to `week` — "Her Home *is* This week, so `/teacher` redirects rather
+      // than drawing a second landing". This used to open `teacher/home`, which matches no
+      // route, so all six `home-*.png` frames were the not-found page: the only barrier here is
+      // a level-1 heading, and "Nothing here" has one.
       name: 'home',
-      open: async () => void (await page.goto('teacher/home')),
-      marker: () => page.getByRole('heading', { level: 1 }),
+      open: async () => void (await page.goto('teacher')),
+      marker: () => page.getByRole('grid'),
     },
     {
       name: 'week',

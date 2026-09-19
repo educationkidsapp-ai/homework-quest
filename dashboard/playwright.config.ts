@@ -33,6 +33,10 @@ const deployed = process.env['E2E_BASE_URL'];
 const baseURL = deployed ? new URL(path, deployed).href : `http://localhost:4200${path}`;
 
 export default defineConfig({
+  // `./e2e` with no `E2E_BASE_URL` collects `e2e/local/**` as well, and those specs need a real
+  // API rather than the `ng serve` this config starts — which is why `pnpm e2e` names
+  // `e2e/styleguide.spec.ts` (`package.json`) rather than running bare. The local suite has its
+  // own config and its own command, `pnpm e2e:local`.
   testDir: deployed ? './e2e/local' : './e2e',
   outputDir: './e2e/.output',
   fullyParallel: !deployed,

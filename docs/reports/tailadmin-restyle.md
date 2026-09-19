@@ -51,7 +51,8 @@ From `git log --stat` of the three merges, screenshots omitted (they are ~300 of
 | Fail-fast sign-in against a deployment | `dashboard/e2e/global-setup.ts` |
 | The flow itself | `dashboard/e2e/local/theme-flow.spec.ts` (new) |
 | The kit's variants in the guide, and their keys | `src/app/styleguide/styleguide.page.{html,scss,ts}`, `src/assets/i18n/{en,ar}.json`, `dashboard/e2e/styleguide.spec.ts` |
-| One CSS fix, called out in §4 | `src/styles/_mixins.scss` |
+| Two CSS fixes, called out in §4.3 and §4.4b | `src/styles/_mixins.scss`, `src/app/ui/tabs/tabs.component.ts` |
+| `pnpm e2e` scoped to the suite it means | `dashboard/package.json`, `dashboard/playwright.config.ts` |
 | How to run it all | `dashboard/e2e/local/README.md`, this report |
 
 ---
@@ -98,11 +99,15 @@ All on this Mac unless stated. Durations are wall clock.
 | `pnpm lint` | clean | 8 s |
 | `pnpm test` | **63 files / 460 tests passed** | 7.4 s |
 | `pnpm build --configuration=production` | success, **initial total 489.55 kB** (102.98 kB transfer) — unchanged by T4, since the styleguide is file-replaced out of the production configuration | 26 s |
-| `pnpm e2e` (styleguide, `ng serve`) | **10 passed** — including the focus-ring test that had been failing, see §4.3 | 9 s |
-| `pnpm e2e:local` — run 1 | **65 passed, 1 skipped** | 5.5 min |
-| `pnpm e2e:local` — run 2 | **65 passed, 1 skipped** | 5.5 min |
-| `pnpm e2e:qa` against QA on `c9fe6f7` | **52 passed, 3 failed, 6 skipped** — see §3.1 and §4.8 | 8.4 min |
-| `pnpm e2e:qa theme-flow theme-shell my-classes` (after the one fix in §4.8) | **10 passed, 2 failed** — `theme-flow` green throughout, the two in §4.8 still red | 4.2 min |
+| `pnpm e2e` (the styleguide, behind `ng serve`) | **10 passed** — including the focus-ring test that had been failing, see §4.3 | 8 s |
+| `pnpm e2e:local` — the whole suite | **65 passed, 1 skipped** | 5.2 min |
+| `pnpm e2e:qa` against QA on `c9fe6f7` | **60 passed, 6 skipped, none failed** | 7.4 min |
+
+`pnpm e2e` now names `e2e/styleguide.spec.ts` rather than running bare. The config's `testDir`
+is `./e2e` when `E2E_BASE_URL` is unset (`playwright.config.ts:36`), which collects `e2e/local/**`
+too — and those specs need a real API rather than the `ng serve` this config starts. An earlier
+draft of this report quoted "10 passed" for the bare command, which was the number for
+`pnpm e2e styleguide`; the script now matches what is documented.
 
 The local runs are on the H2 one-school seed (`e2e/local/README.md`), `LLM_PROVIDER=fake`. The
 one skip is `lesson-retry.spec.ts`, which needs a server started with
@@ -159,16 +164,17 @@ the token and hands the component an object URL. The first is cheaper for cachin
 needs no contract change. Until then the 401 is declared in
 `dashboard/e2e/local/lesson-editor.spec.ts`'s `beforeEach`, which says to delete it with the fix.
 
-### 4.2 `theme-t3/home-*.png` are pictures of the not-found screen
+### 4.2 `theme-t3/home-*.png` were pictures of the not-found screen — **fixed here**
 
-`dashboard/e2e/local/theme-kit.spec.ts:96` opens `teacher/home`. That is not a route — a
-teacher's Home is This week (`dashboard/src/app/core/nav/screens.ts:111`) — so the six
-`home-*-1366.png` frames merged in #81 are the "Nothing here" page. The spec's barrier there is
+`theme-kit.spec.ts:96` opened `teacher/home`. That is not a route — `screens.ts:111` gives
+`home` the path `''` and redirects it to `week`, "Her Home *is* This week" — so the six
+`home-*.png` frames merged in #81 were the "Nothing here" page. The spec's barrier there was
 `getByRole('heading', { level: 1 })`, which that page satisfies, so nothing objected.
 
-**Suggested fix**: point that entry at `teacher/week` and rename the frames, or drop it, since
-This week is already in the set. `theme-flow.spec.ts` photographs This week and asserts the
-redirect; the T3 file is left alone here so its own package can correct its own screenshots.
+That entry now opens `teacher`, the area root, with the week grid as its barrier, and the six
+frames are regenerated on this branch. `theme-flow.spec.ts` asserts the redirect itself, so a
+change that gave teachers a second, empty Home would fail rather than quietly reappear as a
+screenshot of nothing.
 
 ### 4.3 The focus ring lost half of itself on inputs — **fixed here**
 
@@ -199,6 +205,50 @@ intrinsic width to nothing. The two bars in the step-strip card have been invisi
 and no assertion ever measured them. Fixed with a `.sg__bars` wrapper in
 `styleguide.page.scss`; the new `e2e/styleguide.spec.ts` asserts all four tones are visible, so
 it cannot come back.
+
+### 4.4b A selected chip was unreadable under the pointer — **fixed here**
+
+Every `class-*` frame in `theme-t2`, `theme-t3` and T4's first set showed the selected Calendar
+chip with the accent border, a near-white fill and a **white label on it**. It reads like a
+half-finished transition and it is not: the computed style of a selected chip, measured in the
+page, is `background rgb(204, 42, 15)` with white text — correct — *until the pointer is over
+it*.
+
+`ui/tabs/tabs.component.ts:117` was `&:hover:not(:disabled)`, which resolves to
+`.tabs--chips .tabs__tab:hover:not(:disabled)` — two classes and two pseudo-classes, specificity
+**(0,4,0)**. The selected rule three lines below is `.tabs--chips .tabs__tab[aria-selected='true']`
+— two classes and an attribute, **(0,3,0)**. Hover wins, so a selected chip under the pointer
+takes its background from the hover rule (`--hq-color-surface-sunken`, `#f9fafb`) while keeping
+`color: var(--hq-color-on-accent)` from the selected rule. White on `#f9fafb` is 1.05:1.
+
+Every spec reaches the class calendar by clicking that chip, and the pointer stays where a click
+left it, so every frame photographed the broken state. A teacher meets it whenever her mouse is
+on the tab she is looking at.
+
+The fix is the one line the rule was missing —
+`&:hover:not(:disabled):not([aria-selected='true'])` — and it is called out because
+`tabs.component.ts` is a T3 file. All the affected frames are regenerated on this branch.
+
+**Still open, same shape, lower stakes**: `tabs.component.ts:97` does the same to the *underline*
+variant — `&:hover:not(:disabled) { color: var(--hq-color-ink) }` at (0,4,0) overrides the
+selected `color: var(--hq-color-accent)` at (0,3,0), so a hovered selected tab loses its accent.
+It stays readable, so it is a taste defect rather than a contrast one, and it is left for the
+owner rather than folded into a test package.
+
+### 4.4c `shoot()` could photograph a colour mid-transition
+
+Found while chasing the chip, and real independently of it. `document.getAnimations()` includes
+`CSSTransition`s, but only once they have started, and a transition begins on the style recalc
+*after* the change that triggers it — so the barrier in `shoot()` was trivially true in the gap
+between the two. A capture taken immediately after the class page's tab is clicked shows the
+chip a washed pink, halfway from `surface` to the accent.
+
+`shoot()` now emulates `prefers-reduced-motion: reduce` for the capture and restores it
+afterwards. `m.reduced-motion` (`_mixins.scss:14`) answers the media query as well as the
+attribute, so every `motion-safe` transition collapses to `transition-property: opacity` and the
+value snaps to where it was going — including one already in flight, which is cancelled. The
+restore matters: the tests that *assert* motion (the rail's width poll, the row collapse, the
+undo strip) share the page.
 
 ### 4.5 Three colour roles are under AA in dark mode
 
@@ -265,7 +315,7 @@ none of this blocks the restyle.
 
 ---
 
-### 4.8 Two specs fail on QA and pass locally — the shared database, not the restyle
+### 4.8 Two specs failed on QA and passed locally — **fixed here**
 
 Both are deterministic (they failed their retry too) and both predate T4. Neither has been seen
 before, because the QA job has not completed a teacher spec since `4f67dc2`: `5c13cdf`'s run was
@@ -274,27 +324,31 @@ cancelled at the cap and `c9fe6f7`'s died at sign-in (§3.1).
 **`dashboard/e2e/local/my-classes.spec.ts:99`** says, in a comment, "The seed leaves 1B with no
 lesson at all, so the card offers the action rather than a status." That is true of the local H2
 seed and false of QA, which carries two published `Untitled lesson` rows dated today. So
-`my-classes.page.html:53`'s `@if (card.status === 'none')` is false, the "Add today's lesson"
-button is correctly not drawn, and the test waits 15 s for it. **Suggested fix**: pick the class
-to act on by reading the week first and choosing one whose status *is* `none`, or skip the test
-against a deployment the way `admin-classes-teachers.spec.ts` does. The screen is behaving
-correctly in both places.
+`my-classes.page.html:53`'s `@if (card.status === 'none')` was false, the "Add today's lesson"
+button was correctly not drawn, and the test waited 15 s for it.
 
-The same data caught `theme-flow.spec.ts` on its first QA run, for the same reason, and is fixed
-here: My classes' "main action" is now the class link (`.my-classes__link`), which is always
-there, rather than the conditional primary button.
+It now reads the section to act on instead of naming one. `classFreeToday()` in `env.ts` asks
+`GET /teacher/classes`, whose rows carry `todayLessonId`, and returns one that is free. When
+every section is taken it frees one — but only a row the suite itself left behind: a lesson the
+server created with no title reads back as `Untitled lesson`, and no seed writes one (every
+seeded lesson is named). QA was carrying five. Anything else is left alone and the failure names
+what it found, because a spec that deletes seed data to make itself pass is worse than a spec
+that fails.
+
+The same data caught `theme-flow.spec.ts` on its first QA run, for the same reason: My classes'
+"main action" is now the class link (`.my-classes__link`), which is always there, rather than
+the conditional primary button.
 
 **`dashboard/e2e/local/theme-shell.spec.ts:176`** cannot take the class frames at 768 and below.
 Playwright's captured page snapshot shows the browser is on a **lesson editor** ("Untitled
 lesson · 1A British · Sep 13, 2026", a seed row) rather than on the class page, so
-`getByRole('grid')` matches nothing. The helper at `theme-shell.spec.ts:48` reaches the class by
-clicking `hq-card.first().getByRole('link').first()`, which resolves to a different link against
-QA's data than against the local seed. **Suggested fix**: navigate to the class by its id, the
-way `theme-flow.spec.ts` does, instead of by "the first link in the first card"; or assert the
-URL after the click so the failure names the cause rather than the missing grid 30 s later.
+`getByRole('grid')` matched nothing. The helper reached the class by clicking
+`hq-card.first().getByRole('link').first()`, which resolves to a different link against QA's
+data than against the local seed.
 
-Until one of these is done the post-deploy QA job stays red on two tests, independently of
-anything in this package.
+It now reads her section from `GET /teacher/classes` in `beforeAll` and navigates to it by id.
+The route is the subject there — it is the *shell*'s spec — and the assertion that the rail and
+the router are the same door already lives in `shell.spec.ts`, where it belongs.
 
 ## 5. Lighthouse
 

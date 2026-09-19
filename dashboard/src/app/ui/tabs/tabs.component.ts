@@ -114,7 +114,14 @@ export interface Tab<T extends string = string> {
       background: var(--hq-color-surface);
       color: var(--hq-color-ink-strong);
 
-      &:hover:not(:disabled) {
+      // The :not([aria-selected='true']) is load-bearing, not tidiness. Without it this
+      // selector is two classes and two pseudo-classes — specificity (0,4,0) — against the
+      // selected rule below, which is two classes and an attribute, (0,3,0). Hover won, so the
+      // *selected* chip under the pointer kept its on-accent (white) label from that rule while
+      // taking its background from here: white on gray-50, unreadable. Every class-* frame in
+      // theme-t2, theme-t3 and T4's first set photographed it, because the pointer rests where
+      // the last click left it and the specs reach the calendar by clicking this chip.
+      &:hover:not(:disabled):not([aria-selected='true']) {
         background: var(--hq-color-surface-sunken);
       }
 

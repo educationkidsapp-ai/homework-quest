@@ -1,7 +1,11 @@
 import { type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { expect, shoot, test } from './env';
+// `ADMIN` is the shared one. This file used to keep its own copy, with its own `env()` beside
+// it, and read the password *eagerly* at module scope — so a shell without `E2E_ADMIN_PASSWORD`
+// failed Playwright's **collection** of the whole directory rather than this one file's tests,
+// and the error named the wrong thing. The shared account reads it through a getter.
+import { ADMIN, expect, shoot, test } from './env';
 
 /**
  * N1.2's acceptance (`docs/teacher-flow.md` §10 step 1), against the built bundle and a local
@@ -15,11 +19,6 @@ import { expect, shoot, test } from './env';
  */
 const SHOTS = resolve(process.cwd(), '../docs/screenshots/dashboard-n1.2');
 
-const ADMIN = {
-  email: process.env['E2E_ADMIN_EMAIL'] ?? 'admin@quest.local',
-  password: env('E2E_ADMIN_PASSWORD'),
-};
-
 /** The rail in Admin order: Home, Classes, Teachers, … — by position, so it reads in either language. */
 const CLASSES_ITEM = 1;
 const TEACHERS_ITEM = 2;
@@ -28,12 +27,6 @@ const TEACHERS_ITEM = 2;
 const RUN = Date.now().toString(36).slice(-4).toUpperCase();
 const SARA = `sara.${RUN}@alnoor.test`;
 const OMAR = `omar.${RUN}@alnoor.test`;
-
-function env(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set — see playwright.local.config.ts`);
-  return value;
-}
 
 async function signInAsAdmin(page: Page): Promise<void> {
   await page.goto('sign-in');

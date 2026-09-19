@@ -187,6 +187,78 @@ export async function signInForToken(who: Account): Promise<string> {
   }
 }
 
+/** One row of `GET /teacher/classes` — the same shape the My classes cards are built from. */
+export interface TeacherClass {
+  readonly classId: string;
+  readonly className: string;
+  readonly subject: string;
+  readonly curriculum: string;
+  readonly grade: number;
+  readonly todayLessonId: string | null;
+  readonly todayStatus: string | null;
+}
+
+/** Sara's sections, on her own token. */
+export async function teacherClasses(who: Account = SARA): Promise<readonly TeacherClass[]> {
+  const api = await request.newContext({ baseURL: API });
+  try {
+    const response = await api.get('/teacher/classes', {
+      headers: { Authorization: `Bearer ${await signInForToken(who)}` },
+    });
+    expect(response.ok(), `GET /teacher/classes: HTTP ${response.status()}`).toBeTruthy();
+    return (await response.json()) as readonly TeacherClass[];
+  } finally {
+    await api.dispose();
+  }
+}
+
+/**
+ * A section of hers with **nothing on today**, so the card offers "Add today's lesson".
+ *
+ * Read rather than hard-coded. `my-classes.spec.ts` used to name 1B and say in a comment that
+ * "the seed leaves 1B with no lesson at all" — true of the local H2 seed, false of QA, whose
+ * database is shared and never reset. Both of Sara's sections had a lesson dated today there, so
+ * `@if (card.status === 'none')` (`my-classes.page.html:53`) was correctly false, the button was
+ * correctly absent, and the test waited fifteen seconds for it on every deploy.
+ *
+ * When every section is taken, this frees one rather than giving up, and it is careful about
+ * which: only a lesson the suite itself left behind. A row the server created with no title
+ * reads back as `Untitled lesson`, and no seed writes one — every seeded lesson is named
+ * ("The sh sound + sight words"). QA was carrying five of them, from runs that predate the
+ * per-run title tag `removeLessonsOfThisRun` cleans by. Anything else is left alone and the
+ * failure names what it found, because a spec that deletes seed data to make itself pass is
+ * worse than a spec that fails.
+ */
+export async function classFreeToday(): Promise<TeacherClass> {
+  const rows = await teacherClasses();
+  const free = rows.find((row) => row.todayLessonId === null);
+  if (free) return free;
+
+  const api = await request.newContext({ baseURL: API });
+  try {
+    const staff = { Authorization: `Bearer ${await signInForToken(SARA)}` };
+    for (const row of rows) {
+      const lesson = await api.get(`/teacher/lessons/${row.todayLessonId}`, { headers: staff });
+      if (!lesson.ok()) continue;
+      const title = ((await lesson.json()) as { title?: string | null }).title ?? null;
+      if (title !== null && title !== 'Untitled lesson') continue;
+
+      // Unpublish first: `DELETE /admin/lessons/{id}` is a 409 while the lesson is live.
+      await api.post(`/teacher/lessons/${row.todayLessonId}/unpublish`, { headers: staff });
+      const gone = await api.delete(`/admin/lessons/${row.todayLessonId}`, {
+        headers: { Authorization: `Bearer ${await signInForToken(ADMIN)}` },
+      });
+      if (gone.ok()) return { ...row, todayLessonId: null, todayStatus: null };
+    }
+  } finally {
+    await api.dispose();
+  }
+
+  throw new Error(
+    `every one of Sara's sections (${rows.map((r) => `${r.className}: ${r.todayStatus}`).join(', ')}) has a lesson today, and none of them is an untitled leftover this suite may remove. Free one by hand, or teach this helper about the row it found.`,
+  );
+}
+
 /**
  * Puts the browser on the sign-in screen with no session behind it.
  *
@@ -266,12 +338,52 @@ export async function shoot(
     { timeout: 30_000 },
   );
   await page.evaluate(() => document.fonts.ready);
-  await page.waitForFunction(
-    () => document.getAnimations().every((animation) => animation.playState !== 'running'),
-    undefined,
-    { timeout: 10_000 },
-  );
 
+  // Motion off for the capture — a CSS *transition* cannot reliably be waited out.
+  //
+  // `document.getAnimations()` does include `CSSTransition`s, but only once they have started,
+  // and a transition begins on the style recalc *after* the change that triggers it lands. So
+  // the check below is trivially true in the gap between the two, and a frame taken in that gap
+  // catches a colour on its way. Measured rather than assumed: a capture of the class page's
+  // chips immediately after the tab is clicked shows the selected chip a washed pink, halfway
+  // from `surface` to the accent. Polling harder only narrows the window; nothing closes it.
+  //
+  // `prefers-reduced-motion: reduce` closes it. `m.reduced-motion` (`_mixins.scss:14`) answers
+  // the media query as well as the attribute, so every `motion-safe` transition collapses to
+  // `transition-property: opacity` and the property snaps to its resting value — including one
+  // already in flight, which is cancelled. That is the state a screenshot is meant to show.
+  // Restored afterwards, because the tests that *assert* motion (the rail's width poll in
+  // `theme-shell.spec.ts`, the row collapse, the undo strip) share this page.
+  //
+  // This is **not** what made the selected chip unreadable in the committed `class-*` frames;
+  // that was a specificity bug in `ui/tabs/tabs.component.ts`, fixed there. Chasing it is how
+  // this window came to light.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  try {
+    await page.waitForFunction(
+      () => document.getAnimations().every((animation) => animation.playState !== 'running'),
+      undefined,
+      { timeout: 10_000 },
+    );
+    // Two frames, so the recalc the line above triggered has been through style *and* paint.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await capture(page, path, options);
+  } finally {
+    await page.emulateMedia({ reducedMotion: null });
+  }
+}
+
+/** The photograph itself, once `shoot` has decided the screen is ready to be photographed. */
+async function capture(
+  page: Page,
+  path: string,
+  options: { readonly fullPage?: boolean },
+): Promise<void> {
   // A document that scrolls sideways is photographed whole.
   //
   // Chrome's *viewport* capture takes its origin from the scrollable area rather than from the
