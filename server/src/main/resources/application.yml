@@ -75,12 +75,15 @@ quest:
     convert:
       anydoc-bin: ${QUEST_ANYDOC_BIN:anydoc}
       tesseract-bin: ${QUEST_TESSERACT_BIN:tesseract}
-      timeout-seconds: ${QUEST_CONVERT_TIMEOUT_SECONDS:120}
+      timeout-seconds: ${QUEST_CONVERT_TIMEOUT_SECONDS:120}      # per file, OCR included
+      ocr-page-timeout-seconds: ${QUEST_CONVERT_OCR_PAGE_TIMEOUT_SECONDS:20}
       max-markdown-chars: ${QUEST_CONVERT_MAX_MARKDOWN_CHARS:400000}
       # Off everywhere a real deployment runs: a missing converter is an operator error, not something to paper over.
-      # The `h2` and `test` profiles turn it on so a laptop and CI (no Node, no Tesseract) still run the pipeline,
-      # extracting text with PDFBox/POI and recording the method as `text`.
-      allow-builtin-fallback: ${QUEST_CONVERT_ALLOW_BUILTIN_FALLBACK:false}
+      # No environment placeholder on purpose, and `ConversionService` additionally requires an active `h2` or `test`
+      # profile — so this cannot be switched on from the outside on a QA or production service, only by running a
+      # profile that has no model and no bucket behind it. Those two turn it on below, so a laptop and CI (neither
+      # has Node or Tesseract) still run the pipeline, extracting text with PDFBox/POI and recording method `text`.
+      allow-builtin-fallback: false
   storage:
     kind: ${STORAGE_KIND:local}
     local-dir: ${STORAGE_DIR:data/files}
@@ -119,7 +122,7 @@ quest:
   cors-origins: "*"
   llm.provider: ${LLM_PROVIDER:fake}
   seed.school: ${SEED_SCHOOL:true}
-  pipeline.convert.allow-builtin-fallback: ${QUEST_CONVERT_ALLOW_BUILTIN_FALLBACK:true}
+  pipeline.convert.allow-builtin-fallback: true
 
 ---
 spring.config.activate.on-profile: test

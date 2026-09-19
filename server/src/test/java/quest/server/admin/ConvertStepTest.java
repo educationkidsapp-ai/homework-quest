@@ -68,6 +68,35 @@ class ConvertStepTest extends ApiTestSupport {
         assertThat(step(after, "analyze").get("status").asText()).isEqualTo("pending");
     }
 
+    /**
+     * `method=ocr` is a job, not a write: reading a long scan is tens of seconds a page and would outlive any
+     * request Cloud Run holds open. The call records the request and returns `analyzing` at once, and the pipeline
+     * does the work on its own thread — which is what this asserts, by watching the lesson settle afterwards.
+     * Tesseract is not installed in CI, so where it settles is `tool_missing` on the file and on the Convert step;
+     * that the file moved at all, after the response came back, is the async path.
+     */
+    @Test void asking_for_ocr_starts_a_job_instead_of_working_on_the_request_thread() throws Exception {
+        String token = adminToken();
+        String id = create(token, "2026-12-06");
+        upload(token, id);
+        String fileId = json(mvc.perform(admin(get("/admin/lessons/" + id), token)).andReturn()).get("files").get(0).get("id").asText();
+
+        var enqueued = json(mvc.perform(admin(post("/admin/lessons/" + id + "/files/" + fileId + "/retry-conversion?method=ocr"), token)
+                .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isOk()).andReturn());
+        assertThat(enqueued.get("status").asText()).isEqualTo("analyzing");
+        assertThat(enqueued.get("files").get(0).get("convertStatus").asText()).isEqualTo("converting");
+
+        // the editor's follow-up Analyse must not be an error while that job runs
+        mvc.perform(admin(post("/admin/lessons/" + id + "/analyze"), token)).andExpect(status().isOk());
+
+        var settled = awaitLeaving(token, id, "analyzing");
+        assertThat(settled.get("status").asText()).isEqualTo("error");
+        assertThat(settled.get("files").get(0).get("convertStatus").asText()).isEqualTo("error");
+        assertThat(settled.get("files").get(0).get("convertErrorCode").asText()).isEqualTo("tool_missing");
+        assertThat(step(settled, "convert").get("status").asText()).isEqualTo("error");
+        assertThat(settled.get("error").get("message").asText()).contains("QUEST_TESSERACT_BIN");
+    }
+
     @Test void the_fallback_refuses_a_method_it_does_not_know_and_a_file_from_another_lesson() throws Exception {
         String token = adminToken();
         String mine = create(token, "2026-12-03"); upload(token, mine);
@@ -88,6 +117,16 @@ class ConvertStepTest extends ApiTestSupport {
         var out = new ArrayList<String>();
         for (var s : lesson.get("steps")) out.add(s.get("step").asText());
         return out;
+    }
+
+    /** Like {@code awaitStatus}, but the state we are waiting for is a failure — so `error` must not end the poll. */
+    private JsonNode awaitLeaving(String token, String id, String transient_) throws Exception {
+        for (int i = 0; i < 100; i++) {
+            var l = json(mvc.perform(admin(get("/admin/lessons/" + id), token)).andReturn());
+            if (!transient_.equals(l.get("status").asText())) return l;
+            Thread.sleep(100);
+        }
+        throw new AssertionError("the lesson never left " + transient_);
     }
 
     private JsonNode step(JsonNode lesson, String name) {

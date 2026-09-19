@@ -23,8 +23,8 @@ import quest.server.files.FileStore;
 
 /**
  * CR4 §4's central claim, tested where it is decided: Prompt A is handed the Markdown the Convert step wrote and
- * <em>nothing else</em>. The recording client says {@code acceptsPdf()}, which is what used to make the PDF go out
- * with the turn, and it still receives no attachment at all.
+ * <em>nothing else</em>. The recording client records every attachment it is offered, and is offered none — not the
+ * PDF a provider that takes one used to be sent, and not the page images that used to stand in for it.
  */
 class PromptAInputTest {
     private static final String MARKDOWN = "# Hot Soup for Mummy\n\n## Page 1\n\nMummy is in bed. She has a cold.";
@@ -53,7 +53,6 @@ class PromptAInputTest {
         private final SampleLlmClient inner = new SampleLlmClient();
         String user; List<Attachment> attachments;
         @Override public String name() { return "recording"; }
-        @Override public boolean acceptsPdf() { return true; }
         @Override public Result complete(String system, String user, List<Attachment> attachments) {
             this.user = user; this.attachments = attachments;
             return inner.complete(system, user, attachments);

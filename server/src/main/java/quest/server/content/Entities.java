@@ -113,6 +113,8 @@ public final class Entities {
         public String getConvertErrorCode() { return convertErrorCode; } public void setConvertErrorCode(String v) { convertErrorCode = v; }
         public String getConvertMethod() { return convertMethod; } public void setConvertMethod(String v) { convertMethod = v; }
         public Integer getMarkdownChars() { return markdownChars; } public void setMarkdownChars(Integer v) { markdownChars = v; }
+        /** CR4: forget the extracted text, because the file it was extracted from is gone or replaced. The caller deletes the `.md` blob and saves the row. */
+        public void clearMarkdown() { markdownPath = null; markdownChars = null; convertMethod = null; convertErrorCode = null; convertStatus = "pending"; }
     }
 
     @Entity @Table(name = "skills")

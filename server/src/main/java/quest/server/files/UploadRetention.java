@@ -21,9 +21,18 @@ public class UploadRetention {
     public void sweep() {
         var cutoff = Instant.now().minus(24, ChronoUnit.HOURS); int n = 0;
         for (var f : sourceFiles.findAll()) if (f.getDeletedAt() == null && f.getCreatedAt().isBefore(cutoff)) {
-            try { files.delete(f.getStoragePath()); } catch (Exception e) { log.warn("could not delete {}: {}", f.getStoragePath(), e.toString()); }
+            delete(f.getStoragePath());
+            // CR4: the Markdown we extracted is as much a copy of the upload as the upload is, and it lives a day
+            // beside it. Leaving it behind would keep a school's lesson text in the bucket after the file it came
+            // from was swept, and leave a row pointing at a blob the preview would 404 on.
+            if (f.getMarkdownPath() != null) delete(f.getMarkdownPath());
+            f.clearMarkdown();
             f.setDeletedAt(Instant.now()); sourceFiles.save(f); n++;
         }
         if (n > 0) log.info("expired {} uploaded file(s)", n);
+    }
+
+    private void delete(String path) {
+        try { files.delete(path); } catch (Exception e) { log.warn("could not delete {}: {}", path, e.toString()); }
     }
 }

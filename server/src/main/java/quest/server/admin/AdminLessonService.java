@@ -184,6 +184,9 @@ public class AdminLessonService {
 
     public LessonStatus analyze(String id) {
         var lesson = getForWrite(id);
+        // Idempotent while it is already running: the editor asks for the analysis after a conversion retry, and an
+        // OCR retry has started that same job itself. Pressing Analyse twice is not an error either.
+        if (LessonState.status(lesson) == LessonStatus.ANALYZING) return LessonStatus.ANALYZING;
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
         if (sourceFiles.findByLessonIdOrderByCreatedAt(id).stream().noneMatch(f -> f.getDeletedAt() == null)) throw ApiException.badRequest("Upload the slides first.");
         steps.ensure(id); steps.done(id, PipelineStep.UPLOAD);
@@ -465,23 +468,32 @@ public class AdminLessonService {
     }
 
     /**
-     * §4's fallback, on one file. `ocr` runs the pages through Tesseract whatever anydoc made of them; `text` takes
-     * the Markdown the teacher pasted. Either way the file ends `ready`, the Convert step is unblocked, and the
-     * steps after it are reset — the analysis would otherwise still be the one made from the old text.
+     * §4's fallback, on one file. The two methods differ in where the work happens, and that is the whole of it.
+     *
+     * <p>`text` is a write: the Markdown the teacher pasted is stored and the lesson goes back to `draft` for her to
+     * press Analyse, which is what the editor already does. `ocr` is a <em>job</em> — reading a forty-page scan is
+     * tens of seconds a page, far past any request timeout Cloud Run will hold open — so this only records the
+     * request on the file (`converting`, method `ocr`) and starts the pipeline, which converts and then analyses on
+     * its own thread. The lesson comes back `analyzing` and the editor polls it like any other job.
+     *
+     * <p>Either way the steps from Convert on are reset: the analysis that is there was made from text this call
+     * replaces.
      */
     public AdminLesson retryConversion(String lessonId, String fileId, String method, String markdown) {
         var lesson = getForWrite(lessonId);
         if (!editable(lesson)) throw ApiException.badRequest("Wait for the current job to finish.");
         if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw ApiException.badRequest("Unpublish the lesson first.");
         var f = sourceFile(lessonId, fileId);
-        switch (method == null ? "" : method) {
-            case "ocr" -> conversion.convertWithOcr(f);
-            case "text" -> conversion.acceptMarkdown(f, markdown);
+        boolean async = switch (method == null ? "" : method) {
+            case "ocr" -> { conversion.requestOcr(f); yield true; }
+            case "text" -> { conversion.acceptMarkdown(f, markdown); yield false; }
             default -> throw ApiException.badRequest("method must be ocr or text.");
-        }
+        };
         if (!manual(lesson)) { steps.ensure(lessonId); steps.resetFrom(lessonId, PipelineStep.CONVERT); steps.done(lessonId, PipelineStep.UPLOAD); }
         lesson.setErrorCode(null); lesson.setErrorMessage(null); lesson.setStatus("draft"); lesson.setUpdatedAt(Instant.now());
-        return toAdmin(lessons.save(lesson), true);
+        lessons.save(lesson);
+        if (async && !manual(lesson)) { state.set(lessonId, LessonStatus.ANALYZING); pipeline.retryAsync(lessonId); }
+        return toAdmin(get(lessonId), true);
     }
 
     private quest.server.content.Entities.SourceFileEntity sourceFile(String lessonId, String fileId) {

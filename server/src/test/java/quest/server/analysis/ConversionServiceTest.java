@@ -17,7 +17,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import quest.server.admin.AdminPipelineTest;
 import quest.server.config.ApiException;
+import quest.server.content.Entities.LessonEntity;
 import quest.server.content.Entities.SourceFileEntity;
+import quest.server.content.LessonRepository;
 import quest.server.content.SourceFileRepository;
 import quest.server.files.FileStore;
 
@@ -59,6 +61,11 @@ class ConversionServiceTest {
         assertThat(errorCodeFor("anydoc: malformed document: xref table broken")).isEqualTo("malformed");
         assertThat(errorCodeFor("anydoc: io error: disk full")).isEqualTo("io");
         assertThat(errorCodeFor("anydoc: something new we have never seen")).isEqualTo("malformed");
+        // the exact strings the image's binary writes, as `docs/runbook.md` records them
+        assertThat(ConversionService.codeOf("anydoc: unsupported input: application/vnd.oasis.opendocument.text")).isEqualTo("unsupported");
+        assertThat(ConversionService.codeOf("anydoc: malformed document: xref table broken")).isEqualTo("malformed");
+        assertThat(ConversionService.codeOf("anydoc: document is encrypted")).isEqualTo("encrypted");
+        assertThat(ConversionService.codeOf("anydoc: io error: disk full")).isEqualTo("io");
     }
 
     private String errorCodeFor(String stderr) {
@@ -135,6 +142,36 @@ class ConversionServiceTest {
         assertThat(fixture.store.text(second.getMarkdownPath())).isEqualTo("# Shared lesson");
     }
 
+    @Test void another_schools_markdown_is_never_reused_however_identical_the_bytes() {
+        var fixture = new Fixture();
+        fixture.schools.put("lesson-b", "school-b");
+        fixture.runner.answer(0, "# School A's reading of it", "");
+        fixture.service().convert(fixture.file("worksheet.pdf", "pdf", "application/pdf"));
+
+        fixture.runner.answer(0, "# School B converts it itself", "");
+        var theirs = fixture.file("lesson-b", "worksheet.pdf", "pdf", "application/pdf", "bytes of pdf".getBytes(StandardCharsets.UTF_8));
+        var converted = fixture.service().convert(theirs);
+
+        assertThat(theirs.getFileHash()).isEqualTo(fixture.rows.get(0).getFileHash());   // the same bytes, on purpose
+        assertThat(converted.cacheHit()).as("a hash is not a tenant boundary").isFalse();
+        assertThat(fixture.runner.commands).hasSize(2);
+        assertThat(fixture.store.text(theirs.getMarkdownPath())).isEqualTo("# School B converts it itself");
+    }
+
+    @Test void a_teachers_typed_text_is_hers_and_is_never_inherited_by_another_file() {
+        var fixture = new Fixture();
+        var typed = fixture.file("scan.pdf", "pdf", "application/pdf");
+        fixture.service().acceptMarkdown(typed, "# My own notes, which are not in the file at all");
+
+        fixture.runner.answer(0, "# What the file actually says", "");
+        var next = fixture.file("scan.pdf", "pdf", "application/pdf");   // same bytes, same school
+        var converted = fixture.service().convert(next);
+
+        assertThat(converted.cacheHit()).isFalse();
+        assertThat(converted.method()).isEqualTo("anydoc");
+        assertThat(fixture.store.text(next.getMarkdownPath())).isEqualTo("# What the file actually says");
+    }
+
     @Test void a_file_that_is_already_ready_is_not_converted_again() {
         var fixture = new Fixture();
         fixture.runner.answer(0, "# Once", "");
@@ -148,6 +185,15 @@ class ConversionServiceTest {
 
     @Test void a_missing_binary_is_an_operator_error_naming_the_environment_variable() {
         var fixture = new Fixture();
+        fixture.runner.missing = true;
+        var f = fixture.file("slides.pdf", "pdf", "application/pdf");
+
+        assertThatThrownBy(() -> fixture.service().convert(f)).isInstanceOf(ApiException.class).hasMessageContaining("QUEST_ANYDOC_BIN");
+        assertThat(f.getConvertErrorCode()).isEqualTo("tool_missing");
+    }
+
+    @Test void the_builtin_fallback_needs_the_profile_as_well_as_the_property() {
+        var fixture = new Fixture(true, 400_000).profile("qa");   // the property says yes, the profile does not
         fixture.runner.missing = true;
         var f = fixture.file("slides.pdf", "pdf", "application/pdf");
 
@@ -173,6 +219,36 @@ class ConversionServiceTest {
         assertThatThrownBy(() -> fixture.service().convert(f)).isInstanceOf(ApiException.class);
         assertThat(f.getConvertErrorCode()).isEqualTo("unsupported");
         assertThat(fixture.runner.commands).isEmpty();
+    }
+
+    @Test void a_bucket_that_refuses_the_write_leaves_the_row_in_error_rather_than_converting() {
+        var fixture = new Fixture();
+        fixture.runner.answer(0, "# Fine markdown, nowhere to put it", "");
+        var f = fixture.file("slides.pdf", "pdf", "application/pdf");
+        fixture.store.failWritesTo(".md");
+
+        assertThatThrownBy(() -> fixture.service().convert(f)).isInstanceOf(ApiException.class).hasMessageContaining("io");
+        assertThat(f.getConvertStatus()).as("a row left at `converting` is one the editor polls forever").isEqualTo("error");
+        assertThat(f.getConvertErrorCode()).isEqualTo("io");
+    }
+
+    @Test void an_ocr_request_is_recorded_on_the_file_and_honoured_by_the_next_convert() throws Exception {
+        var fixture = new Fixture();
+        var f = fixture.file("scan.pdf", "pdf", "application/pdf", AdminPipelineTest.pdf("one"));
+        var service = fixture.service();
+
+        service.requestOcr(f);
+        assertThat(f.getConvertStatus()).isEqualTo("converting");
+        assertThat(ConversionService.ocrRequested(f)).isTrue();
+        assertThat(fixture.runner.commands).as("recording the request runs nothing on this thread").isEmpty();
+
+        fixture.runner.answer(0, "Read from the picture.", "");
+        var converted = service.convert(f);
+
+        assertThat(converted.method()).isEqualTo("ocr");
+        assertThat(fixture.runner.commands).hasSize(1);
+        assertThat(fixture.runner.commands.get(0)).contains("tesseract");   // anydoc is not asked again
+        assertThat(fixture.store.text(f.getMarkdownPath())).contains("Read from the picture.");
     }
 
     @Test void the_teachers_pasted_text_is_stored_as_the_extracted_markdown() {
@@ -207,23 +283,37 @@ class ConversionServiceTest {
         final Store store = new Store();
         final StubRunner runner = new StubRunner();
         final List<SourceFileEntity> rows = new ArrayList<>();
-        private final boolean builtinFallback; private final int maxChars;
+        /** lesson id → the school it belongs to; `lesson` is the default one every `file()` lands in. */
+        final Map<String, String> schools = new HashMap<>(Map.of("lesson", "school-a"));
+        private final boolean builtinFallback; private final int maxChars; private String profile = "test";
 
         Fixture() { this(false, 400_000); }
         Fixture(boolean builtinFallback, int maxChars) { this.builtinFallback = builtinFallback; this.maxChars = maxChars; }
+
+        Fixture profile(String p) { this.profile = p; return this; }
 
         ConversionService service() {
             var repo = Mockito.mock(SourceFileRepository.class);
             Mockito.when(repo.findByFileHash(Mockito.anyString())).thenAnswer(i -> rows.stream().filter(r -> r.getFileHash().equals(i.getArgument(0))).toList());
             Mockito.when(repo.save(Mockito.any())).thenAnswer(i -> i.getArgument(0));
-            return new ConversionService(repo, store, new SlideProcessor(), runner, "anydoc", "tesseract", 120, maxChars, builtinFallback);
+            var lessonRepo = Mockito.mock(LessonRepository.class);
+            Mockito.when(lessonRepo.findById(Mockito.anyString())).thenAnswer(i -> {
+                String school = schools.get(i.<String>getArgument(0));
+                if (school == null) return Optional.empty();
+                var l = new LessonEntity(); l.setId(i.getArgument(0)); l.setSchoolId(school); return Optional.of(l);
+            });
+            var env = new org.springframework.mock.env.MockEnvironment();
+            env.setActiveProfiles(profile);
+            return new ConversionService(repo, lessonRepo, store, new SlideProcessor(), runner, "anydoc", "tesseract", 120, 20, maxChars, builtinFallback, env);
         }
 
         SourceFileEntity file(String name, String kind, String mime) { return file(name, kind, mime, ("bytes of " + kind).getBytes(StandardCharsets.UTF_8)); }
 
-        SourceFileEntity file(String name, String kind, String mime, byte[] bytes) {
+        SourceFileEntity file(String name, String kind, String mime, byte[] bytes) { return file("lesson", name, kind, mime, bytes); }
+
+        SourceFileEntity file(String lessonId, String name, String kind, String mime, byte[] bytes) {
             var e = new SourceFileEntity();
-            e.setId("f" + rows.size()); e.setLessonId("lesson"); e.setFileName(name); e.setKind(kind); e.setMimeType(mime);
+            e.setId("f" + rows.size()); e.setLessonId(lessonId); e.setFileName(name); e.setKind(kind); e.setMimeType(mime);
             e.setFileHash(quest.api.validation.Sha256.INSTANCE.hex(bytes));
             e.setStoragePath("uploads/lesson/" + e.getId() + "/" + name); e.setSizeBytes(bytes.length); e.setCreatedAt(Instant.now());
             store.put(e.getStoragePath(), bytes, mime);
@@ -234,7 +324,12 @@ class ConversionServiceTest {
 
     private static final class Store implements FileStore {
         private final Map<String, Blob> blobs = new HashMap<>();
-        @Override public Stored put(String path, byte[] bytes, String mimeType) { blobs.put(path, new Blob(bytes, mimeType)); return new Stored(path, mimeType, bytes.length); }
+        private String failSuffix;
+        void failWritesTo(String suffix) { failSuffix = suffix; }
+        @Override public Stored put(String path, byte[] bytes, String mimeType) {
+            if (failSuffix != null && path.endsWith(failSuffix)) throw new IllegalStateException("the bucket said no");
+            blobs.put(path, new Blob(bytes, mimeType)); return new Stored(path, mimeType, bytes.length);
+        }
         @Override public Optional<Blob> get(String path) { return Optional.ofNullable(blobs.get(path)); }
         @Override public void delete(String path) { blobs.remove(path); }
         String text(String path) { return new String(blobs.get(path).bytes(), StandardCharsets.UTF_8); }

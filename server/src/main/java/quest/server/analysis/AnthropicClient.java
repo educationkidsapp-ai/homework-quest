@@ -31,7 +31,6 @@ public class AnthropicClient implements LlmClient {
     }
 
     @Override public String name() { return "anthropic"; }
-    @Override public boolean acceptsPdf() { return true; }
 
     @Override public Result complete(String system, String user, List<Attachment> attachments) {
         List<ContentBlockParam> blocks = new ArrayList<>();
