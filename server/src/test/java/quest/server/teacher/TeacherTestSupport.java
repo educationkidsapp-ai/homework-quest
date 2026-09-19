@@ -240,7 +240,7 @@ abstract class TeacherTestSupport extends ApiTestSupport {
         return new Stop.Choice(id, title, "Which one is it?", new Ingredient("🥕", "carrot"),
                 new Bilingual("Ask them to count again.", "Ask them to count again."),
                 "Count them first.", "Which is bigger?",
-                List.of(new Tile("a", "A", null, null), new Tile("b", "B", null, null)), "a", null);
+                List.of(new Tile("a", "A", null, null), new Tile("b", "B", null, null)), "a", null, null);
     }
 
     /** The JSON a teacher's client posts as `stops`: the shared codec's encoding of a list of stops. */

@@ -47,8 +47,8 @@ import quest.server.config.Json;
 @RestController
 @Tag(name = "Admin lessons", description = "Lesson pipeline, plays and stops")
 public class AdminLessonController {
-    private final AdminLessonService service; private final Json json;
-    public AdminLessonController(AdminLessonService service, Json json) { this.service = service; this.json = json; }
+    private final AdminLessonService service; private final Json json; private final quest.server.analysis.StopTextService stopText;
+    public AdminLessonController(AdminLessonService service, Json json, quest.server.analysis.StopTextService stopText) { this.service = service; this.json = json; this.stopText = stopText; }
 
     @PreAuthorize("@permit.has('lesson.read')")
     @GetMapping(value = "/admin/lessons", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -106,6 +106,15 @@ public class AdminLessonController {
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Stop.class)))
     public String updateStop(@PathVariable String stopId, @RequestBody String body) {
         return json.encodeShared(service.updateStop(stopId, decode(body, Stop.Companion.serializer())), Stop.Companion.serializer());
+    }
+
+    /** CR5, the Admin alias of `/teacher/stops/{stopId}/from-text` — the same save, for the raw-JSON panel's owner. */
+    @PreAuthorize("@permit.has('stop.write')")
+    @PostMapping(value = "/admin/stops/{stopId}/from-text", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Stop.class)))
+    public String stopFromText(@PathVariable String stopId, @RequestBody String body) {
+        var req = decode(body, quest.api.GenerateFromTextRequest.Companion.serializer());
+        return json.encodeShared(stopText.fromText(stopId, req.getText()), Stop.Companion.serializer());
     }
 
     // ---- manual authoring

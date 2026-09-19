@@ -15,6 +15,7 @@ import quest.api.dto.PublishedLesson;
 import quest.api.dto.SkillRef;
 import quest.api.dto.SourceKind;
 import quest.api.dto.Stop;
+import quest.api.dto.StopKt;
 import quest.api.dto.Subject;
 import quest.api.dto.Theme;
 import quest.server.config.Json;
@@ -30,25 +31,59 @@ public class LessonStore {
         this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl();
     }
 
-    /** Stores a validated play (replacing any existing one for that level/variant) and its stop rows. */
+    /**
+     * Stores a validated play (replacing any existing one for that level/variant) and its stop rows.
+     *
+     * <p>CR5: {@code Stop.teacherText} is a server-side reading of the JSON, never part of it — `Play.schema.json`
+     * forbids the property — so the play is stripped of it before it is encoded. The prose already saved for a stop
+     * (`stops.text`, V9) survives this rewrite <em>only</em> when that stop's JSON comes out byte-identical: an
+     * edited stop's prose no longer describes what is stored, so it is dropped and the next read re-describes it,
+     * while reordering a play or editing its neighbour leaves every other stop's prose where the teacher left it.
+     */
     @Transactional
     public Entities.PlayEntity savePlay(String lessonId, Play play, String promptVersion, int seed) {
         var existing = plays.findByLessonIdAndLevelAndVariant(lessonId, play.getLevel(), play.getVariant());
-        existing.ifPresent(e -> { stops.deleteAll(stops.findByPlayIdOrderByPosition(e.getId())); plays.delete(e); });
+        var keptText = new java.util.HashMap<String, Entities.StopEntity>();
+        existing.ifPresent(e -> {
+            var old = stops.findByPlayIdOrderByPosition(e.getId());
+            for (var se : old) if (se.getText() != null) keptText.put(se.getId() + "\u0000" + se.getContentJson(), se);
+            stops.deleteAll(old); plays.delete(e);
+        });
+        Play stored = StopKt.withoutTeacherText(play);
         var e = new Entities.PlayEntity();
         e.setId(existing.map(Entities.PlayEntity::getId).orElse(UUID.randomUUID().toString()));
-        e.setLessonId(lessonId); e.setLevel(play.getLevel()); e.setVariant(play.getVariant());
-        e.setPlayJson(json.encodeShared(play, Play.Companion.serializer())); e.setPromptVersion(promptVersion); e.setSeed(seed); e.setGeneratedAt(Instant.now());
+        e.setLessonId(lessonId); e.setLevel(stored.getLevel()); e.setVariant(stored.getVariant());
+        e.setPlayJson(json.encodeShared(stored, Play.Companion.serializer())); e.setPromptVersion(promptVersion); e.setSeed(seed); e.setGeneratedAt(Instant.now());
         plays.save(e);
         int pos = 0;
-        for (Stop s : play.getStops()) {
+        for (Stop s : stored.getStops()) {
             var se = new Entities.StopEntity();
             se.setId(s.getId()); se.setPlayId(e.getId()); se.setLessonId(lessonId); se.setPosition(pos++); se.setType(s.getType()); se.setCategory(s.getCategory().name());
             se.setTitle(s.getTitle()); se.setIngredient(s.getIngredient().getEmoji() + " " + s.getIngredient().getName());
             se.setContentJson(json.encodeShared(s, Stop.Companion.serializer())); se.setParentTipEn(s.getParentTip().getEn()); se.setParentTipAr(s.getParentTip().getAr());
+            var kept = keptText.get(se.getId() + "\u0000" + se.getContentJson());
+            if (kept != null) { se.setText(kept.getText()); se.setTextUpdatedAt(kept.getTextUpdatedAt()); }
             stops.save(se);
         }
         return e;
+    }
+
+    /**
+     * The teacher-facing prose of every stop of a lesson: what she saved, or — for a stop nobody has put into words
+     * yet — the deterministic reading of its JSON. Returned, never written: a stop the pipeline rewrites describes
+     * itself afresh rather than carrying a sentence about content that has gone.
+     */
+    public java.util.Map<String, String> teacherText(String lessonId) {
+        var byId = new java.util.HashMap<String, String>();
+        for (var se : stops.findByLessonId(lessonId)) if (se.getText() != null) byId.put(se.getId(), se.getText());
+        return byId;
+    }
+
+    /** The play with each stop carrying its teacher-facing prose (saved, or described from the JSON). */
+    public Play withTeacherText(Play play, java.util.Map<String, String> saved) {
+        List<Stop> described = play.getStops().stream()
+                .map(s -> StopKt.withTeacherText(s, saved.getOrDefault(s.getId(), StopText.describe(s)))).toList();
+        return new Play(play.getLevel(), play.getVariant(), play.getKind(), play.getTheme(), described, play.getId());
     }
 
     @Transactional

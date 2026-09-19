@@ -10,6 +10,7 @@ import { BASE_PATH } from '../../api';
 import { ADMIN_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
+import { ViewModeService } from '../../core/view-mode/view-mode.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { LessonPage } from './lesson.page';
 
@@ -81,6 +82,16 @@ async function renderLesson(lesson: object, notice?: string) {
   return renderLessonAs(lesson, ADMIN_USER, ADMIN_PERMISSIONS, notice);
 }
 
+/**
+ * CR5: the Raw JSON panel is an Admin's, in debug view, and shut by default even for her. The
+ * three JSON tests below are about that panel, so they open it the way the account menu does.
+ */
+function openRawJson(): void {
+  TestBed.inject(ViewModeService).set('debug');
+  TestBed.tick();
+  document.querySelectorAll('details[data-hq-raw-json]').forEach((el) => el.setAttribute('open', ''));
+}
+
 async function renderLessonAs(
   lesson: object,
   user: typeof ADMIN_USER,
@@ -135,6 +146,8 @@ function choiceStop(id: string, title: string) {
       { id: 'b', label: 'Second' },
     ],
     correctOptionId: 'a',
+    // CR5: every read carries the stop in English — here the shape `StopText.describe` emits.
+    teacherText: `${title}\nPip says: Which one is right?\n\nQuestion: Which one is right?\nOptions:\n- First (correct)\n- Second`,
   };
 }
 
@@ -163,7 +176,12 @@ function lessonWithStops(extra: object = {}) {
 }
 
 describe('Lesson', () => {
-  beforeEach(() => localStorage.clear());
+  // `sessionStorage` too: `ViewModeService` remembers debug there, and it would leak into the
+  // next test's teacher view, where the whole point is that no JSON is on the page.
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
 
 
   it('renders the pipeline steps with their state, and the failed step\'s message in a band', async () => {
@@ -303,6 +321,8 @@ describe('Lesson', () => {
   it('saves the selected stop, quick field and JSON staying one document', async () => {
     const { backend } = await renderLesson(lessonWithStops());
 
+    openRawJson();
+
     const title = screen.getByLabelText(/^Title/);
     await userEvent.clear(title);
     await userEvent.type(title, 'Pick the biggest');
@@ -326,6 +346,7 @@ describe('Lesson', () => {
   /** Only the declared type's branch is reported, and Save stays off until it passes. */
   it('refuses to save a stop the schema would reject, naming the missing field only', async () => {
     await renderLesson(lessonWithStops());
+    openRawJson();
 
     const json = screen.getByLabelText(/The whole stop/);
     const { question, ...withoutQuestion } = JSON.parse((json as HTMLTextAreaElement).value) as Record<string, unknown>;
@@ -341,6 +362,7 @@ describe('Lesson', () => {
 
   it('will not save a stop whose id was edited, because the server addresses it by that id', async () => {
     await renderLesson(lessonWithStops());
+    openRawJson();
 
     const json = screen.getByLabelText(/The whole stop/);
     const parsed = JSON.parse((json as HTMLTextAreaElement).value) as Record<string, unknown>;
@@ -351,6 +373,110 @@ describe('Lesson', () => {
       'The id cannot change',
     );
     expect(screen.getByRole('button', { name: 'Save the stop' })).toBeDisabled();
+  });
+
+  // ---- CR5: the stop is prose, and the JSON is the server's problem ------------------------
+
+  it('shows the stop in English and posts the rewritten text to from-text', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    // The read-only rendering above the field, as elements rather than a data format: the
+    // description's `Options:` run has become a real list.
+    const rendering = document.querySelector('[data-hq-stop-prose]')!;
+    expect(rendering.textContent).toContain('Pip says: Which one is right?');
+    expect(within(rendering as HTMLElement).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'First (correct)',
+      'Second',
+    ]);
+
+    // Teacher view, which is everybody's default: no JSON on the page at all.
+    expect(screen.queryByLabelText(/The whole stop/)).toBeNull();
+    expect(document.querySelector('[data-hq-raw-json]')).toBeNull();
+
+    const prose = screen.getByLabelText(/This stop, in your words/);
+    await userEvent.clear(prose);
+    await userEvent.type(prose, 'Which shape has three sides?');
+
+    const save = screen.getByRole('button', { name: 'Save the stop' });
+    expect(save).toBeEnabled();
+    await userEvent.click(save);
+
+    const request = backend.expectOne('/admin/stops/st-1/from-text');
+    expect(request.request.method).toBe('POST');
+    expect(JSON.parse(request.request.body as string)).toEqual({ text: 'Which shape has three sides?' });
+
+    // The reread is what puts the saved prose back, so re-opening never re-converts.
+    request.flush({ ...choiceStop('st-1', 'Which shape'), teacherText: 'Which shape has three sides?' });
+    await Promise.resolve();
+    TestBed.tick();
+    backend.expectOne(lessonUrlFor(ADMIN_USER)).flush(lessonWithStops());
+  });
+
+  it('answers a 422 with "please rephrase" and keeps the text she wrote', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    const prose: HTMLTextAreaElement = screen.getByLabelText(/This stop, in your words/);
+    await userEvent.clear(prose);
+    await userEvent.type(prose, 'Draw a picture of whatever you like');
+    await userEvent.click(screen.getByRole('button', { name: 'Save the stop' }));
+
+    backend
+      .expectOne('/admin/stops/st-1/from-text')
+      .flush(
+        { code: 'rephrase', message: "Couldn't save, please rephrase. #/options: minItems" },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      );
+    await Promise.resolve();
+    TestBed.tick();
+
+    expect(screen.getByText("Couldn't save, please rephrase.")).toBeInTheDocument();
+    // The validator's own lines are not a teacher's problem, and never reach her.
+    expect(screen.queryByText(/minItems/)).toBeNull();
+    expect(prose.value).toBe('Draw a picture of whatever you like');
+  });
+
+  it('answers the 400 for a lesson still generating with the wait-for-the-pipeline message', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    const prose = screen.getByLabelText(/This stop, in your words/);
+    await userEvent.clear(prose);
+    await userEvent.type(prose, 'Count the apples');
+    await userEvent.click(screen.getByRole('button', { name: 'Save the stop' }));
+
+    backend
+      .expectOne('/admin/stops/st-1/from-text')
+      .flush(
+        { code: 'bad_request', message: 'Wait for this lesson to finish generating before editing a stop.' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    await Promise.resolve();
+    TestBed.tick();
+
+    expect(screen.getByText(/Wait for this lesson to finish generating/)).toBeInTheDocument();
+  });
+
+  it('shows the Raw JSON panel, and the last 422\u2019s validator lines, only in debug view', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    const prose = screen.getByLabelText(/This stop, in your words/);
+    await userEvent.clear(prose);
+    await userEvent.type(prose, 'Draw anything');
+    await userEvent.click(screen.getByRole('button', { name: 'Save the stop' }));
+    backend
+      .expectOne('/admin/stops/st-1/from-text')
+      .flush(
+        { code: 'rephrase', message: "Couldn't save, please rephrase. #/options: minItems 2; #/hint: required" },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      );
+    await Promise.resolve();
+    TestBed.tick();
+
+    expect(screen.queryByText(/minItems/)).toBeNull();
+
+    openRawJson();
+    expect(screen.getByLabelText(/The whole stop/)).toBeInTheDocument();
+    expect(screen.getByText('#/options: minItems 2')).toBeInTheDocument();
+    expect(screen.getByText('#/hint: required')).toBeInTheDocument();
   });
 
   it('adds a stop from the grouped template menu', async () => {

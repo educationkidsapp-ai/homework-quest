@@ -470,6 +470,7 @@
         "done": "Done",
         "error": "Failed"
       },
+      "stepFailed": "Something went wrong at this step. Press Retry and continue.",
       "pipeline": "Lesson pipeline",
       "retryContinue": "Retry and continue",
       "retryStepOnly": "Retry this step only",
@@ -491,7 +492,8 @@
         "creatingLevel": "Creating the level…",
         "generating": "Writing the other levels…",
         "savingPanel": "Saving the parent panel…",
-        "movingDate": "Moving the lesson…"
+        "movingDate": "Moving the lesson…",
+        "savingStopText": "Saving the stop…"
       },
       "files": {
         "title": "Files",
@@ -599,6 +601,21 @@
         "generateLabel": "What this lesson is about",
         "generateHint": "A few sentences is enough — the model writes Levels 2 and 3 and the Again variant from it.",
         "generate": "Generate the levels",
+        "text": {
+          "label": "This stop, in your words",
+          "hint": "Write it as you would say it. Start a line with # for a heading and with - for a list. The assistant turns it into the question the app plays.",
+          "saving": "Saving… the assistant is turning your words into a question.",
+          "rephrase": "Couldn't save, please rephrase.",
+          "generating": "Wait for this lesson to finish generating before editing a stop.",
+          "tooLong": "That is longer than one stop can hold — shorten it a little.",
+          "writeSomething": "Write what this stop should do first.",
+          "fieldsFirst": "Save or undo the fields below before rewriting this.",
+          "fieldsNote": "These five save straight away, with no assistant. Saving them rewrites the description above from the new question.",
+          "fieldProblem": "{{field}} is empty or too long — fix it before saving.",
+          "documentProblem": "One of the fields above is empty or too long — fix it before saving."
+        },
+        "raw": "Raw JSON",
+        "rawErrors": "What the validator said about the last save",
         "group": {
           "information": "Information",
           "oneAnswer": "One answer",
@@ -719,6 +736,10 @@
     },
     "sidebar": {
       "toggle": "Show or hide the menu"
+    },
+    "viewMode": {
+      "teacher": "Show the raw JSON",
+      "debug": "Hide the raw JSON"
     }
   },
   "shortcuts": {

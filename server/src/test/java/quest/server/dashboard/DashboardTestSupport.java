@@ -155,7 +155,7 @@ abstract class DashboardTestSupport extends ApiTestSupport {
         var tip = new Bilingual("Ask them to count again.", "Ask them to count again.");
         var stop = new Stop.Choice(stopId(id), "Pick one", "Which one is it?", new Ingredient("🥕", "carrot"), tip,
                 "Count them first.", "Which is bigger?",
-                List.of(new Tile("a", "A", null, null), new Tile("b", "B", null, null)), "a", null);
+                List.of(new Tile("a", "A", null, null), new Tile("b", "B", null, null)), "a", null, null);
         store.savePlay(id, new Play(1, 0, SourceKind.MATH,
                 new Theme("Pot", "Soup", "🍲", "Served!"), List.of(stop), null), "v1", 1);
         var skill = new SkillEntity();

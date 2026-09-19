@@ -129,6 +129,28 @@ final class LlmJson {
         return (cut > max / 2 ? t.substring(0, cut) : t).replaceAll("[,;:\\s]+$", "") + "…";
     }
 
+    /**
+     * CR5: what is wrong with <em>this one stop</em>, having dropped it into the play it belongs to.
+     *
+     * <p>The stop is validated in place rather than alone, because the schema reaches it through the play's `oneOf`
+     * and that is what picks the right `stop_&lt;type&gt;` branch. What comes back is filtered to the stop the
+     * teacher edited: a play that was already short of its six stops, or whose neighbour the model never saw, is not
+     * her problem, and telling her about it would make "save what I wrote" fail for a reason no rephrasing fixes.
+     * On her own stop it is exactly as strict as the raw-JSON `PUT` — the same JSON-Schema branch, then the same
+     * shared semantic rules, lenient for a hand-written lesson in the same way.
+     */
+    static List<String> stopErrors(String trialJson, int index, String stopId, int level, boolean lenient) {
+        String at = "/stops/" + index;
+        List<String> schema = SchemaValidator.INSTANCE.validatePlayJson(trialJson, level, Set.of()).getErrors().stream()
+                .filter(e -> e.startsWith(at + "/") || e.startsWith(at + ":")).toList();
+        if (!schema.isEmpty()) return schema;
+        try {
+            Play play = SchemaValidator.INSTANCE.getJson().decodeFromString(Play.Companion.serializer(), trialJson);
+            return SchemaValidator.INSTANCE.validate(play, level, Set.of(), lenient).getErrors().stream()
+                    .filter(e -> e.startsWith("stop " + stopId + ":")).toList();
+        } catch (Exception e) { return List.of(); }   // the play as a whole is not what this save is being judged on
+    }
+
     /** Schema errors from a `oneOf` are noisy; when the play decodes, the shared semantic rules explain the problem in one line each. */
     static ValidationResult validatePlay(String raw, int level, Set<String> excludedIds) {
         ValidationResult r = SchemaValidator.INSTANCE.validatePlayJson(raw, level, excludedIds);

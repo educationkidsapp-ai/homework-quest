@@ -27,6 +27,7 @@ public class SampleLlmClient implements LlmClient {
             ParentPanel p = math ? MathSeed.INSTANCE.getParentPanel() : phonics ? PhonicsSeed.INSTANCE.getParentPanel() : HotSoupSeed.INSTANCE.getParentPanel();
             return new Result(json.encodeToString(ParentPanel.Companion.serializer(), p), 3000, 600);
         }
+        if (system.startsWith(PROMPT_D)) return stopFromText(user);
         if (user.startsWith("Here is a Play you wrote earlier")) {
             int i = user.indexOf("different content:\n") + "different content:\n".length();
             String stop = user.substring(i, user.indexOf("\n\nDo not reuse", i)).trim();
@@ -37,5 +38,34 @@ public class SampleLlmClient implements LlmClient {
         boolean variant = user.contains("AGAIN variant");
         Play play = lesson.play(level, variant ? 1 : 0);
         return new Result(json.encodeToString(Play.Companion.serializer(), play), 4000, 2500);
+    }
+
+    /** The first line of {@link Prompts#SYSTEM_D}, which carries a schema and so cannot be matched whole. */
+    private static final String PROMPT_D = "You turn a teacher's description of one practice stop";
+
+    /**
+     * CR5's text → JSON turn without a model: the stop exactly as it was stored, with the heading line the teacher
+     * wrote as its `title` and her "Pip says:" line as `speak`. Deterministic, which is what lets the e2e press Save
+     * and assert on the result; every other field survives, which is the behaviour the real Prompt D is asked for.
+     */
+    private Result stopFromText(String user) {
+        String current = between(user, "did not ask you to change):\n", "\n\nWHAT THE TEACHER WROTE");
+        String text = between(user, "follow the teacher):\n", "\n\nRules:");
+        List<String> lines = text.lines().map(String::strip).filter(l -> !l.isEmpty()).toList();
+        try {
+            var node = (com.fasterxml.jackson.databind.node.ObjectNode) new com.fasterxml.jackson.databind.ObjectMapper().readTree(current);
+            if (!lines.isEmpty()) node.put("title", cut(lines.get(0), 40));
+            if (lines.size() > 1) node.put("speak", cut(lines.get(1).replaceFirst("^Pip says:\\s*", ""), 90));
+            return new Result(node.toString(), 900, 300);
+        } catch (Exception e) { return new Result(current, 900, 300); }
+    }
+
+    private static String cut(String s, int max) { return s.length() <= max ? s : s.substring(0, max).strip(); }
+
+    private static String between(String whole, String after, String before) {
+        int from = whole.indexOf(after); if (from < 0) return "{}";
+        from += after.length();
+        int to = whole.indexOf(before, from);
+        return (to < 0 ? whole.substring(from) : whole.substring(from, to)).strip();
     }
 }

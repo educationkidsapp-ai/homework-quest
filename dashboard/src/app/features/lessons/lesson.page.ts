@@ -18,8 +18,11 @@ import {
   AdminLessonSubjectEnum,
   LessonStepInfoStatusEnum,
   TeacherApi,
+  apiErrorOf,
+  readableServerText,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { MediaService } from '../../core/media/media.service';
 import { CanDirective } from '../../core/permissions/can.directive';
@@ -57,9 +60,10 @@ import {
   parentPanelBody,
   reorderBody,
   stopBody,
+  stopFromTextBody,
 } from './lessons.models';
 import { ParentPanelEditorComponent } from './parent-panel-editor.component';
-import { StopEditorComponent } from './stop-editor.component';
+import { StopEditorComponent, type StopSaveFailure } from './stop-editor.component';
 import { STOP_TEMPLATES, STOP_TEMPLATE_GROUPS, type StopTemplateGroup, templatesByGroup } from './stop-templates';
 
 const POLL_MS = 2500;
@@ -144,6 +148,7 @@ export class LessonPage {
   private readonly api = inject(LessonApiService);
   private readonly teacherApi = inject(TeacherApi);
   private readonly auth = inject(AuthService);
+  private readonly band = inject(BandService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly transloco = inject(TranslocoService);
@@ -294,9 +299,19 @@ export class LessonPage {
     return lesson?.steps.find((step) => step.status === LessonStepInfoStatusEnum.ERROR) ?? null;
   });
 
-  protected readonly stepErrorMessage = computed(
-    () => this.erroredStep()?.errorMessage ?? this.lesson()?.error?.message ?? '',
-  );
+  /**
+   * The failed step's sentence, with any JSON taken out of it (CR5).
+   *
+   * `LessonSteps.Messages.of` appends the underlying exception in parentheses, and for a schema
+   * or model failure that is the JSON that did not validate, truncated mid-brace. What is left
+   * after `readableServerText` is the step's own advice — "Retry, or edit Level 1 by hand" — and
+   * when nothing is left, the generic sentence says more than a fragment would.
+   */
+  protected readonly stepErrorMessage = computed(() => {
+    this.lang();
+    const raw = this.erroredStep()?.errorMessage ?? this.lesson()?.error?.message ?? '';
+    return readableServerText(raw) || this.t('lessons.detail.stepFailed');
+  });
 
   protected readonly isErrorStatus = computed(() => this.lesson()?.status === AdminLessonStatusEnum.ERROR);
   protected readonly isPublished = computed(() => this.lesson()?.status === AdminLessonStatusEnum.PUBLISHED);
@@ -597,7 +612,54 @@ export class LessonPage {
     this.stopDirty.set(dirty);
   }
 
+  /** True while `from-text` is in flight; the editor says what the wait is for. */
+  protected readonly savingStopText = signal(false);
+  /** The last text save's refusal, in the two shapes the editor can explain. */
+  protected readonly stopSaveFailure = signal<StopSaveFailure | null>(null);
+  /** The 422's own validator lines — the Raw JSON panel's, and nobody else's. */
+  protected readonly stopValidatorErrors = signal<readonly string[]>([]);
+
+  /**
+   * CR5: save the stop as the English the teacher wrote, and let the server (and Prompt D) make
+   * the JSON.
+   *
+   * The request is `silentErrors()`, so the two answers this screen can explain — 422
+   * `rephrase` and the 400 for a lesson still generating — become a band *under the editor* with
+   * her text still in it, rather than a red band at the top of the page carrying the validator's
+   * own lines. Anything else (the model being down, a lost session) is still a band, raised here
+   * with the same sentence the interceptor would have used.
+   */
+  protected saveStopText(text: string): void {
+    const stop = this.selectedStop();
+    if (!stop) return;
+    this.savingStopText.set(true);
+    this.stopSaveFailure.set(null);
+    this.stopValidatorErrors.set([]);
+    this.busy.set(this.t('lessons.detail.busy.savingStopText'));
+    this.api.stopFromText(stop.id, stopFromTextBody(text)).subscribe({
+      next: () => {
+        this.savingStopText.set(false);
+        this.busy.set(null);
+        this.stopDirty.set(false);
+        this.lessonRes.reload();
+      },
+      error: (error: unknown) => {
+        this.savingStopText.set(false);
+        this.busy.set(null);
+        const status = error instanceof HttpErrorResponse ? error.status : 0;
+        if (status === 422) {
+          this.stopSaveFailure.set('rephrase');
+          this.stopValidatorErrors.set(validatorLinesOf(error));
+        }
+        else if (status === 400) this.stopSaveFailure.set('generating');
+        else this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
+      },
+    });
+  }
+
   protected saveStop(stop: Stop): void {
+    this.stopSaveFailure.set(null);
+    this.stopValidatorErrors.set([]);
     this.busy.set(this.t('lessons.detail.busy.savingStop'));
     this.api.updateStop(stop.id, stopBody(stop)).subscribe({
       next: () => {
@@ -1217,4 +1279,24 @@ export class LessonPage {
     const text = this.t(key);
     return text === key ? '' : text;
   }
+}
+
+/**
+ * The validator's own lines out of a 422, for the Raw JSON panel.
+ *
+ * `StopTextService` answers `"Couldn't save, please rephrase. <up to five errors, joined by
+ * '; '>"`. The sentence is what the teacher reads, translated; these are what an Admin in debug
+ * mode needs to see the shape of, so they are taken from the **raw** body rather than from
+ * `apiErrorOf`, which strips exactly this.
+ */
+function validatorLinesOf(error: unknown): readonly string[] {
+  if (!(error instanceof HttpErrorResponse)) return [];
+  const body: unknown = error.error;
+  const message = typeof body === 'object' && body !== null ? (body as { message?: unknown }).message : null;
+  if (typeof message !== 'string') return [];
+  const detail = message.replace(/^[^.]*\.\s*/, '');
+  return detail
+    .split(';')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
 }

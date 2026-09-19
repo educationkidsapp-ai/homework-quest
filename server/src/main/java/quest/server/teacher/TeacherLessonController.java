@@ -65,10 +65,10 @@ import quest.server.tenancy.TeacherScope;
 @RestController
 @Tag(name = "Teacher lessons", description = "A teacher's own lessons: create, move, copy, publish and the pipeline")
 public class TeacherLessonController {
-    private final TeacherLessonService teacherLessons; private final AdminLessonService service; private final Json json;
+    private final TeacherLessonService teacherLessons; private final AdminLessonService service; private final Json json; private final quest.server.analysis.StopTextService stopText;
 
-    public TeacherLessonController(TeacherLessonService teacherLessons, AdminLessonService service, Json json) {
-        this.teacherLessons = teacherLessons; this.service = service; this.json = json;
+    public TeacherLessonController(TeacherLessonService teacherLessons, AdminLessonService service, Json json, quest.server.analysis.StopTextService stopText) {
+        this.teacherLessons = teacherLessons; this.service = service; this.json = json; this.stopText = stopText;
     }
 
     // ---------------------------------------------------------------- her lessons (§8)
@@ -242,6 +242,21 @@ public class TeacherLessonController {
     public String teacherUpdateStop(@AuthenticationPrincipal Principals.User caller, @PathVariable String stopId, @RequestBody String body) {
         requireStop(caller, stopId);
         return json.encodeShared(service.updateStop(stopId, decode(body, Stop.Companion.serializer())), Stop.Companion.serializer());
+    }
+
+    /**
+     * CR5: the teacher saves a stop as the English she just edited, and the JSON is the server's problem. The
+     * scope check is the same one the raw-JSON `PUT` above makes, and the permission is the same `stop.write` — this
+     * is that write, in the words she can read. A text the schema will not take twice over comes back as
+     * `422 {"code":"rephrase"}`, with the validator's own lines in `message` for the raw-JSON panel.
+     */
+    @PostMapping(value = "/teacher/stops/{stopId}/from-text", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('stop.write')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Stop.class)))
+    public String teacherStopFromText(@AuthenticationPrincipal Principals.User caller, @PathVariable String stopId, @RequestBody String body) {
+        requireStop(caller, stopId);
+        var req = decode(body, quest.api.GenerateFromTextRequest.Companion.serializer());
+        return json.encodeShared(stopText.fromText(stopId, req.getText()), Stop.Companion.serializer());
     }
 
     @PostMapping(value = "/teacher/stops/{stopId}/regenerate", produces = MediaType.APPLICATION_JSON_VALUE)

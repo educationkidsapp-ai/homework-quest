@@ -2,8 +2,11 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, ou
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
-import { ButtonComponent, InputComponent, SelectComponent, type SelectOption, TextareaComponent } from '../../ui';
+import { ViewModeService } from '../../core/view-mode/view-mode.service';
+import { BandComponent, ButtonComponent, InputComponent, SelectComponent, type SelectOption, TextareaComponent } from '../../ui';
 import { STOP_TYPES, type Stop, type StopType } from '../../ui/phone-preview';
+import { stopJson } from './lessons.models';
+import { StopProseComponent } from './stop-prose.component';
 import { declaredStopType, validateStop } from './stop-validator';
 
 /** A picture already attached to the lesson — `LessonImage` from the contract. */
@@ -12,42 +15,107 @@ export interface EditorImage {
   readonly url: string;
 }
 
+/**
+ * Why the last save did not land, in the two shapes a teacher can act on.
+ *
+ * `rephrase` is the server's 422: the model could not turn this wording into a stop the schema
+ * accepts, twice. `generating` is its 400 for a lesson whose pipeline is still running.
+ * Everything else is a red band from the error interceptor and never reaches here.
+ */
+export type StopSaveFailure = 'rephrase' | 'generating';
+
 /** Ajv and the schema are both lazy, so validation settles a tick late; this debounces typing. */
 const VALIDATE_DEBOUNCE_MS = 250;
+
+/** `StopTextService.MAX_TEXT` — the server's 400 for a longer text, refused here instead. */
+const MAX_TEXT = 8000;
+
+/** The five quick fields, by the `instancePath` Ajv reports them under. */
+const QUICK_FIELDS = [
+  { path: '/title', labelKey: 'lessons.detail.editor.title' },
+  { path: '/speak', labelKey: 'lessons.detail.editor.speak' },
+  { path: '/parentTip/en', labelKey: 'lessons.detail.editor.parentTipEn' },
+  { path: '/parentTip/ar', labelKey: 'lessons.detail.editor.parentTipAr' },
+  { path: '/imageId', labelKey: 'lessons.detail.editor.image' },
+] as const;
 
 /**
  * The stop editor, to the right of the stop list (dev prompt §4.4; teacher flow §4 step 6).
  *
- * Five quick fields sit above the full JSON document because those five are what a teacher
- * actually changes — the wording the pot says, the tip the parent reads, the picture — and
- * making her find them inside forty lines of JSON would be the whole reason the old admin panel
- * was unusable. Editing either half writes the same document: a quick field re-serializes the
- * parsed JSON, so the textarea is always the truth and there is no second copy to reconcile.
+ * **CR5 turned this inside out.** It used to be a JSON document with five quick fields above it,
+ * which asked a teacher to read a data format to find out what her own question says. Now the
+ * surface is the stop in English — `Stop.teacherText`, which the server either saved when she
+ * last wrote it or described from the stored JSON — rendered above as headings, paragraphs and
+ * lists, and editable below in a plain textarea. Saving posts it to
+ * `POST /{teacher,admin}/stops/{id}/from-text`, and turning it back into schema-valid JSON is the
+ * server's problem (and the model's). JSON appears on this screen only in the Raw panel, which
+ * `ViewModeService` opens for an Admin in debug mode and for nobody else.
  *
- * **Save is disabled until the document validates** against the declared type's branch
- * (`stop-validator.ts`), and the id is immutable: the server addresses the stop by it, so a
- * changed id would silently create nothing and update nothing. Both refusals say why.
+ * **The quick fields stay** (title, what the pot says, the parent tip in both languages, the
+ * picture). They are the five things a teacher changes without rewriting anything, they are
+ * exact rather than interpreted, and they still go through the raw-JSON `PUT` — no model call, no
+ * wait. The cost is that the `PUT` clears the saved prose, so the description she reads
+ * afterwards is the server's re-description of the new JSON; the hint under the fields says so.
+ *
+ * **Only one half is live at a time.** Editing the prose disables the quick fields and editing a
+ * quick field disables the prose, because the two saves are different requests with different
+ * inputs: Prompt D is handed the *stored* JSON as context, so an unsaved quick-field edit would
+ * be silently dropped by a text save, and a `PUT` would silently drop the typed prose. Refusing
+ * to be in both states at once is the only version of this that cannot lose work.
  */
 @Component({
   selector: 'hq-stop-editor',
-  imports: [ButtonComponent, InputComponent, SelectComponent, TextareaComponent, CanDirective, TranslocoPipe],
+  imports: [
+    BandComponent,
+    ButtonComponent,
+    InputComponent,
+    SelectComponent,
+    TextareaComponent,
+    StopProseComponent,
+    CanDirective,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="editor">
+      <hq-stop-prose [text]="prose()" />
+
+      <hq-textarea
+        [label]="'lessons.detail.editor.text.label' | transloco"
+        [rows]="8"
+        [autoGrow]="true"
+        [required]="true"
+        [value]="prose()"
+        (valueChange)="prose.set($event)"
+        [hint]="proseHint()"
+        [error]="proseError()"
+        [disabled]="disabled() || jsonDirty()"
+      />
+
+      @if (saving()) {
+        <p class="editor__saving" role="status">{{ 'lessons.detail.editor.text.saving' | transloco }}</p>
+      }
+
+      @if (failure(); as why) {
+        <hq-band variant="error" [open]="true" [dismissible]="false" [title]="'band.failed' | transloco">
+          {{ 'lessons.detail.editor.text.' + why | transloco }}
+        </hq-band>
+      }
+
       <div class="editor__quick">
         <hq-input
           [label]="'lessons.detail.editor.title' | transloco"
           [required]="true"
           [value]="field('title')"
           (valueChange)="patchString('title', $event)"
-          [disabled]="disabled()"
+          [disabled]="fieldsDisabled()"
         />
         <hq-input
           [label]="'lessons.detail.editor.speak' | transloco"
           [required]="true"
           [value]="field('speak')"
           (valueChange)="patchString('speak', $event)"
-          [disabled]="disabled()"
+          [disabled]="fieldsDisabled()"
         />
         <hq-textarea
           [label]="'lessons.detail.editor.parentTipEn' | transloco"
@@ -56,7 +124,7 @@ const VALIDATE_DEBOUNCE_MS = 250;
           [required]="true"
           [value]="tip('en')"
           (valueChange)="patchTip('en', $event)"
-          [disabled]="disabled()"
+          [disabled]="fieldsDisabled()"
         />
         <hq-textarea
           [label]="'lessons.detail.editor.parentTipAr' | transloco"
@@ -65,7 +133,7 @@ const VALIDATE_DEBOUNCE_MS = 250;
           [required]="true"
           [value]="tip('ar')"
           (valueChange)="patchTip('ar', $event)"
-          [disabled]="disabled()"
+          [disabled]="fieldsDisabled()"
         />
         <div class="editor__image">
           <hq-select
@@ -74,7 +142,7 @@ const VALIDATE_DEBOUNCE_MS = 250;
             [placeholder]="'lessons.detail.editor.noImage' | transloco"
             [value]="imageId()"
             (valueChange)="patchImage($event)"
-            [disabled]="disabled() || images().length === 0"
+            [disabled]="fieldsDisabled() || images().length === 0"
           />
           <div class="editor__image-actions">
             <label class="editor__attach" *hqCan="'stop.write'">
@@ -91,7 +159,7 @@ const VALIDATE_DEBOUNCE_MS = 250;
               <hq-button
                 *hqCan="'stop.write'"
                 variant="quiet"
-                [disabled]="disabled()"
+                [disabled]="fieldsDisabled()"
                 (pressed)="patchImage('')"
               >
                 {{ 'lessons.detail.editor.detach' | transloco }}
@@ -99,20 +167,44 @@ const VALIDATE_DEBOUNCE_MS = 250;
             }
           </div>
         </div>
+        <p class="editor__note">{{ 'lessons.detail.editor.text.fieldsNote' | transloco }}</p>
       </div>
 
-      <hq-textarea
-        [label]="'lessons.detail.editor.json' | transloco"
-        [rows]="16"
-        [mono]="true"
-        [required]="true"
-        dir="ltr"
-        [value]="text()"
-        (valueChange)="text.set($event)"
-        [hint]="'lessons.detail.editor.jsonHint' | transloco"
-        [error]="errorText()"
-        [disabled]="disabled()"
-      />
+      @if (fieldProblem(); as problem) {
+        <hq-band variant="error" [open]="true" [dismissible]="false" [title]="'band.failed' | transloco">
+          {{ problem }}
+        </hq-band>
+      }
+
+      @if (viewMode.debug()) {
+        <details class="editor__raw" data-hq-raw-json>
+          <summary class="editor__raw-summary">{{ 'lessons.detail.editor.raw' | transloco }}</summary>
+          <div class="editor__raw-body">
+            <hq-textarea
+              [label]="'lessons.detail.editor.json' | transloco"
+              [rows]="16"
+              [mono]="true"
+              [required]="true"
+              dir="ltr"
+              [value]="text()"
+              (valueChange)="text.set($event)"
+              [hint]="'lessons.detail.editor.jsonHint' | transloco"
+              [error]="errorText()"
+              [disabled]="fieldsDisabled()"
+            />
+            @if (validatorErrors().length > 0) {
+              <div>
+                <p class="editor__raw-title">{{ 'lessons.detail.editor.rawErrors' | transloco }}</p>
+                <ul class="editor__raw-list">
+                  @for (line of validatorErrors(); track $index) {
+                    <li>{{ line }}</li>
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+        </details>
+      }
 
       <div class="editor__actions" *hqCan="'stop.write'">
         <hq-button variant="primary" [disabled]="!canSave()" [reason]="saveReason()" (pressed)="save()">
@@ -134,10 +226,22 @@ const VALIDATE_DEBOUNCE_MS = 250;
       gap: var(--hq-space-16);
     }
 
+    .editor__saving {
+      font-size: var(--hq-font-label-size);
+      font-weight: var(--hq-font-label-weight);
+      color: var(--hq-color-ink-soft);
+    }
+
     .editor__quick {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: var(--hq-space-12) var(--hq-space-16);
+    }
+
+    .editor__note {
+      grid-column: 1 / -1;
+      font-size: var(--hq-font-label-size);
+      color: var(--hq-color-ink-soft);
     }
 
     .editor__image {
@@ -186,6 +290,39 @@ const VALIDATE_DEBOUNCE_MS = 250;
       outline-offset: var(--hq-space-4);
     }
 
+    .editor__raw {
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      padding: var(--hq-space-12) var(--hq-space-16);
+    }
+
+    .editor__raw-summary {
+      font-size: var(--hq-font-label-size);
+      font-weight: var(--hq-font-label-weight);
+      color: var(--hq-color-ink-soft);
+      cursor: pointer;
+    }
+
+    .editor__raw-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--hq-space-12);
+      padding-block-start: var(--hq-space-12);
+    }
+
+    .editor__raw-title {
+      font-size: var(--hq-font-label-size);
+      font-weight: var(--hq-font-label-weight);
+      color: var(--hq-color-error-ink);
+    }
+
+    .editor__raw-list {
+      margin: 0;
+      padding-inline-start: var(--hq-space-24);
+      font-family: var(--hq-font-family-mono);
+      font-size: var(--hq-text-theme-xs);
+      color: var(--hq-color-error-ink);
+    }
+
     .editor__actions {
       display: flex;
       flex-wrap: wrap;
@@ -202,30 +339,49 @@ const VALIDATE_DEBOUNCE_MS = 250;
 export class StopEditorComponent {
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
+  /** `debug` is an Admin's, and opens the Raw JSON panel below the fields. */
+  protected readonly viewMode = inject(ViewModeService);
 
   readonly stop = input.required<Stop | null>();
   readonly images = input<readonly EditorImage[]>([]);
   /** The page is mid-request: every control locks rather than racing the server. */
   readonly disabled = input(false);
+  /** True while `from-text` is in flight — the model is writing, and it takes seconds. */
+  readonly saving = input(false);
+  /** Why the last text save did not land; cleared by the page when the next one starts. */
+  readonly failure = input<StopSaveFailure | null>(null);
+  /** The validator's own lines from the last 422 — the Raw panel's, never a teacher's. */
+  readonly validatorErrors = input<readonly string[]>([]);
 
-  /** The stop document to `PUT`, already valid — the page turns it into the request body. */
+  /** The quick fields / raw JSON path: the stop document to `PUT`, already schema-valid. */
   readonly saved = output<Stop>();
+  /** The CR5 path: the teacher's English, for `POST …/stops/{id}/from-text`. */
+  readonly textSaved = output<string>();
   readonly regenerated = output<void>();
   readonly deleted = output<void>();
   readonly imageAttached = output<File>();
-  /** True while the draft differs from the stop the server last gave us. */
+  /** True while either draft differs from the stop the server last gave us. */
   readonly dirtyChange = output<boolean>();
 
-  /** The document being edited — the single source of truth for both halves of the editor. */
+  /** What the teacher reads and writes — the main surface. */
+  protected readonly prose = signal('');
+  /** The JSON document behind the quick fields and the raw panel. */
   protected readonly text = signal('');
   private readonly validation = signal<{ readonly valid: boolean; readonly errors: readonly string[] } | null>(null);
 
+  private readonly serverProse = computed(() => this.stop()?.teacherText ?? '');
+
   private readonly serverText = computed(() => {
     const stop = this.stop();
-    return stop ? `${JSON.stringify(stop, null, 2)}\n` : '';
+    return stop ? `${JSON.stringify(stopJson(stop), null, 2)}\n` : '';
   });
 
-  protected readonly dirty = computed(() => this.text() !== this.serverText());
+  protected readonly proseDirty = computed(() => this.prose() !== this.serverProse());
+  protected readonly jsonDirty = computed(() => this.text() !== this.serverText());
+  private readonly dirty = computed(() => this.proseDirty() || this.jsonDirty());
+
+  /** One half at a time — see the class comment on why this is a refusal and not a merge. */
+  protected readonly fieldsDisabled = computed(() => this.disabled() || this.proseDirty());
 
   private readonly parsed = computed<Record<string, unknown> | null>(() => {
     try {
@@ -255,20 +411,57 @@ export class StopEditorComponent {
     return errors.length > 0 ? errors.join('\n') : null;
   });
 
-  protected readonly canSave = computed(
-    () =>
-      !this.disabled() &&
-      this.dirty() &&
-      !this.idChanged() &&
-      this.declaredType() !== null &&
-      this.validation()?.valid === true,
+  protected readonly proseError = computed(() => {
+    this.lang();
+    return this.prose().length > MAX_TEXT ? this.t('lessons.detail.editor.text.tooLong') : null;
+  });
+
+  protected readonly proseHint = computed(() => {
+    this.lang();
+    if (this.jsonDirty()) return this.t('lessons.detail.editor.text.fieldsFirst');
+    return this.t('lessons.detail.editor.text.hint');
+  });
+
+  /** Valid JSON is what the `PUT` needs; the text path needs only something non-empty. */
+  private readonly jsonSavable = computed(
+    () => this.jsonDirty() && !this.idChanged() && this.declaredType() !== null && this.validation()?.valid === true,
   );
+
+  private readonly proseSavable = computed(
+    () => this.proseDirty() && this.prose().trim() !== '' && this.proseError() === null,
+  );
+
+  protected readonly canSave = computed(
+    () => !this.disabled() && !this.saving() && (this.proseSavable() || this.jsonSavable()),
+  );
+
+  /**
+   * A quick field the schema will not take, named — because in teacher view the JSON that
+   * carries the reason is not on screen.
+   *
+   * `Play.schema.json` holds every one of the five to `minLength: 1` and a maximum (40 for a
+   * title, 90 for what the pot says, 200 for a tip), and emptying one is the ordinary way to
+   * make the document invalid. The Raw panel shows Ajv's own lines; this says which field,
+   * which is the whole of what a teacher can act on.
+   */
+  protected readonly fieldProblem = computed(() => {
+    this.lang();
+    if (this.viewMode.debug() || !this.jsonDirty()) return null;
+    if (this.idChanged()) return this.t('lessons.detail.editor.idImmutable');
+    const errors = this.validation()?.valid === false ? (this.validation()?.errors ?? []) : [];
+    if (errors.length === 0) return null;
+    const field = QUICK_FIELDS.find((entry) => errors.some((error) => error.startsWith(entry.path)));
+    return field
+      ? this.t('lessons.detail.editor.text.fieldProblem', { field: this.t(field.labelKey) })
+      : this.t('lessons.detail.editor.text.documentProblem');
+  });
 
   protected readonly saveReason = computed(() => {
     this.lang();
-    if (this.canSave() || this.disabled()) return null;
+    if (this.canSave() || this.disabled() || this.saving()) return null;
     if (!this.dirty()) return this.t('lessons.detail.editor.noChanges');
-    return this.t('lessons.detail.editor.fixFirst');
+    if (this.proseDirty()) return this.t('lessons.detail.editor.text.writeSomething');
+    return this.fieldProblem() ?? this.t('lessons.detail.editor.fixFirst');
   });
 
   protected readonly imageOptions = computed<readonly SelectOption[]>(() => {
@@ -285,8 +478,9 @@ export class StopEditorComponent {
   });
 
   constructor() {
-    // A different stop (or the same one saved and re-read) reseeds the draft. Selecting a stop,
+    // A different stop (or the same one saved and re-read) reseeds both drafts. Selecting a stop,
     // typing, then selecting it again is meant to lose the edit — the confirm lives on the page.
+    effect(() => this.prose.set(this.serverProse()));
     effect(() => this.text.set(this.serverText()));
 
     effect((onCleanup) => {
@@ -360,13 +554,19 @@ export class StopEditorComponent {
     if (file) this.imageAttached.emit(file);
   }
 
+  /** The prose is the surface, so it wins: the other half is disabled while it is dirty. */
   protected save(): void {
+    if (!this.canSave()) return;
+    if (this.proseSavable()) {
+      this.textSaved.emit(this.prose());
+      return;
+    }
     const parsed = this.parsed();
-    if (!this.canSave() || parsed === null) return;
-    this.saved.emit(parsed as unknown as Stop);
+    if (parsed !== null) this.saved.emit(parsed as unknown as Stop);
   }
 
   private t(key: string, params?: Record<string, unknown>): string {
     return this.transloco.translate<string>(key, params);
   }
 }
+

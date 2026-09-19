@@ -14,6 +14,7 @@ import { LANGUAGES, LanguageService } from '../core/i18n/language.service';
 import { SIDEBAR_ID, SidebarService } from '../core/shell/sidebar.service';
 import { DarkModeService } from '../core/theme/dark-mode.service';
 import { TourService } from '../core/tour/tour.service';
+import { ViewModeService } from '../core/view-mode/view-mode.service';
 
 /**
  * The bar above every screen (spec §2 "Header"): sticky, the raised surface, a 1 px rule under
@@ -172,6 +173,19 @@ import { TourService } from '../core/tour/tour.service';
         <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="showMeAround()">
           {{ 'shell.showMeAround' | transloco }}
         </button>
+        <!-- CR5: the raw surfaces, for the one role that is expected to read them. -->
+        @if (viewMode.allowed()) {
+          <button
+            type="button"
+            cdkMenuItem
+            class="hq-menu__item"
+            data-hq-view-mode
+            [attr.aria-pressed]="viewMode.debug()"
+            (cdkMenuItemTriggered)="viewMode.toggle()"
+          >
+            {{ 'shell.viewMode.' + viewMode.mode() | transloco }}
+          </button>
+        }
         <button
           type="button"
           cdkMenuItem
@@ -361,6 +375,7 @@ export class ShellHeaderComponent {
   protected readonly sidebarId = SIDEBAR_ID;
   protected readonly auth = inject(AuthService);
   protected readonly language = inject(LanguageService);
+  protected readonly viewMode = inject(ViewModeService);
   protected readonly languages = LANGUAGES;
 
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');

@@ -182,5 +182,35 @@ public final class Prompts {
         """.formatted(analysisJson, playsJson);
     }
 
+    // ------------------------------------------------------------------ Prompt D (CR5)
+    /**
+     * The one direction CR5 cannot do in code: the teacher's own words back into the stop JSON. The system turn says
+     * only what must never be negotiable — one JSON object, matching the schema branch that is inlined beneath it —
+     * and the user turn carries her text, the stop as it stands, and the two fields she may not move (`type`, `id`).
+     * Giving the model the current JSON is what lets her rewrite one line without losing the twelve she never read.
+     */
+    public static final String SYSTEM_D = """
+        You turn a teacher's description of one practice stop into the JSON the app plays.
+        Return only JSON matching this schema — one object, no prose, no explanation, no markdown fences.
+        %s
+        """;
+
+    public static String userD(String stopType, String stopId, String currentJson, String text) {
+        return """
+        THE STOP AS IT IS STORED NOW (keep every field the teacher did not ask you to change):
+        %s
+
+        WHAT THE TEACHER WROTE (this is the truth; where it disagrees with the JSON above, follow the teacher):
+        %s
+
+        Rules:
+        - "type" must stay "%s" and "id" must stay "%s".
+        - Keep every field the teacher's text says nothing about exactly as it is above — do not drop, rename or reorder them.
+        - Where her text adds or changes something, write it into the right field rather than into a new one: the schema allows no other properties.
+        - Never write null for a field the schema requires. Keep illustration keys that are already there; new ones must come from: %s
+        Answer with the stop object only.
+        """.formatted(currentJson, text, stopType, stopId, ILLUSTRATIONS);
+    }
+
     static String join(List<String> xs) { return xs.stream().collect(Collectors.joining(", ")); }
 }

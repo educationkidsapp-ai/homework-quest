@@ -7,10 +7,11 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../api';
 import { renderHq } from '../../testing/render';
-import { TEACHER_USER } from '../../testing/fixtures';
+import { ADMIN_USER, TEACHER_USER } from '../../testing/fixtures';
 import { AuthService } from '../core/auth/auth.service';
 import { SidebarService } from '../core/shell/sidebar.service';
 import { DarkModeService } from '../core/theme/dark-mode.service';
+import { ViewModeService } from '../core/view-mode/view-mode.service';
 import { ShellHeaderComponent } from './shell-header.component';
 
 const providers = [
@@ -24,15 +25,18 @@ const providers = [
  * Signs someone in through the real service and the real `GET /me`, rather than writing to a
  * private signal: the header's whole job is to render what that response says.
  */
-function signIn(): void {
+function signIn(user: typeof TEACHER_USER = TEACHER_USER): void {
   TestBed.inject(AuthService).loadMe().subscribe();
   TestBed.inject(HttpTestingController)
     .expectOne((request) => request.url.endsWith('/me'))
-    .flush(TEACHER_USER);
+    .flush(user);
 }
 
 describe('hq-shell-header', () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
 
   it('offers the rail, the language, the scheme and the account, and nothing else', async () => {
     await renderHq(ShellHeaderComponent, { providers });
@@ -94,6 +98,33 @@ describe('hq-shell-header', () => {
       expect(menu).toHaveTextContent('sara@alnoor.test');
       expect(screen.getByRole('menuitem', { name: 'Profile' })).toHaveAttribute('href', '/profile');
       expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeInTheDocument();
+    });
+
+    /**
+     * CR5: the raw surfaces belong to the one role expected to read them, and the switch that
+     * opens them is in the same menu — not a URL a teacher could be sent, and not a preference
+     * that survives her tab.
+     */
+    it('offers the raw-JSON switch to an Admin and not to a teacher', async () => {
+      const teacher = await renderHq(ShellHeaderComponent, { providers });
+      signIn();
+      teacher.fixture.detectChanges();
+      await userEvent.click(screen.getByRole('button', { name: /Ms Sara/ }));
+      expect(screen.queryByRole('menuitem', { name: /raw JSON/i })).toBeNull();
+      await userEvent.keyboard('{Escape}');
+
+      TestBed.resetTestingModule();
+      const admin = await renderHq(ShellHeaderComponent, { providers });
+      signIn(ADMIN_USER);
+      admin.fixture.detectChanges();
+      await userEvent.click(screen.getByRole('button', { name: /Platform Admin/ }));
+
+      const toggle = await screen.findByRole('menuitem', { name: 'Show the raw JSON' });
+      expect(toggle).toHaveAttribute('aria-pressed', 'false');
+      await userEvent.click(toggle);
+      admin.fixture.detectChanges();
+
+      expect(TestBed.inject(ViewModeService).debug()).toBe(true);
     });
 
     /**

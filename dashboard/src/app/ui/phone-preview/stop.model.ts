@@ -125,6 +125,15 @@ interface StopBase {
   readonly parentTip: Bilingual;
   /** A page image or an admin-attached picture, shown above the stop. */
   readonly imageId?: string | null;
+  /**
+   * CR5: this stop in English, for the teacher to read and rewrite.
+   *
+   * Read-only and **not part of the document** — `Play.schema.json` is `additionalProperties:
+   * false`, so it is not in the schema and the drift spec does not look for it. `GET
+   * /{teacher,admin}/lessons/{id}` always fills it (the prose she last saved, else a
+   * deterministic description of this JSON); every write strips it again (`stopBody`).
+   */
+  readonly teacherText?: string | null;
 }
 
 // ---------------------------------------------------------------- information stops

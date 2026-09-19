@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, afterRenderEffect, computed, input, model, viewChild } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ShakeDirective } from '../motion';
 
@@ -11,7 +11,9 @@ let nextId = 0;
  * It exists because three N2.4 surfaces need prose rather than a line — the stop editor's JSON
  * document, the parent panel's EN/AR paragraphs and "Generate the other levels" — and pushing
  * a `type` onto `hq-input` would mean one component with two shapes and two sets of styles.
- * `mono` switches to the code face for JSON, where a proportional font hides a stray comma.
+ * `mono` switches to the code face for JSON, where a proportional font hides a stray comma;
+ * `autoGrow` (CR5) makes the field as tall as its text, for prose a teacher reads back while she
+ * writes it — `rows` then sets the floor rather than the height, and the scrollbar never appears.
  */
 @Component({
   selector: 'hq-textarea',
@@ -26,7 +28,9 @@ let nextId = 0;
         }
       </label>
       <textarea
+        #control
         class="field__control"
+        [class.field__control--grow]="autoGrow()"
         [class.field__control--mono]="mono()"
         [class.is-invalid]="error() !== null && error() !== ''"
         [id]="id"
@@ -86,6 +90,12 @@ let nextId = 0;
       font-family: inherit;
       background: var(--hq-color-surface);
       resize: vertical;
+
+      &--grow {
+        resize: none;
+        overflow-y: hidden;
+      }
+
       @include m.motion-safe('border-color, background-color, box-shadow');
       @include m.focus-ring;
 
@@ -137,8 +147,25 @@ export class TextareaComponent {
   readonly required = input(false);
   /** JSON and other code: the mono face, no spellcheck, LTR whatever the page direction. */
   readonly mono = input(false);
+  /** Grow to fit the text instead of scrolling inside `rows`, which becomes the minimum height. */
+  readonly autoGrow = input(false);
   /** `rtl` on the Arabic half of a bilingual pair; `null` follows the page. */
   readonly dir = input<'ltr' | 'rtl' | null>(null);
+
+  private readonly control = viewChild<ElementRef<HTMLTextAreaElement>>('control');
+
+  constructor() {
+    // After render, not on the value signal alone: the height is `scrollHeight`, which is only
+    // right once the new text is laid out. `height: auto` first, or a field that has just lost a
+    // line keeps the taller box for ever.
+    afterRenderEffect(() => {
+      const element = this.control()?.nativeElement;
+      this.value();
+      if (!this.autoGrow() || !element) return;
+      element.style.height = 'auto';
+      element.style.height = `${element.scrollHeight}px`;
+    });
+  }
 
   protected readonly describedBy = computed(() => {
     const ids = [this.hint() ? `${this.id}-hint` : null, this.error() ? `${this.id}-error` : null];
