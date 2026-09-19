@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,6 +49,25 @@ public class TeacherRosterController {
     public ClassDto.RosterChild addToMyClass(@AuthenticationPrincipal Principals.User caller, @PathVariable String classId,
                                              @RequestBody @Valid ClassDto.CreateRosterChildRequest body) {
         return rosters.add(TeacherScope.require(caller), classId, body);
+    }
+
+    /**
+     * The teacher's own half of §3's attach: a child a parent registered in the app, put onto one of <em>her</em>
+     * sections so she sees the child's work and the child sees her lessons once rather than once per section.
+     * {@link TeacherScope} makes a class she holds no assignment on a 403 and another school's a 404.
+     */
+    @PostMapping(value = "/teacher/classes/{classId}/roster/attach", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('roster.teacher')")
+    public ClassDto.RosterChild attachToMyClass(@AuthenticationPrincipal Principals.User caller, @PathVariable String classId,
+                                                @RequestBody @Valid ClassDto.AttachChildRequest body) {
+        return rosters.attach(TeacherScope.require(caller), classId, body.childId());
+    }
+
+    @DeleteMapping(value = "/teacher/classes/{classId}/roster/{childId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('roster.teacher')")
+    public ClassDto.RosterChild detachFromMyClass(@AuthenticationPrincipal Principals.User caller, @PathVariable String classId,
+                                                  @PathVariable String childId) {
+        return rosters.detach(TeacherScope.require(caller), classId, childId);
     }
 
     @PatchMapping(value = "/teacher/classes/{classId}/children/{childId}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)

@@ -41,6 +41,13 @@ import quest.server.tenancy.TenantContext;
  * and a re-run adds nothing: a section is matched by curriculum + grade + name, a teacher by email and a child by her
  * name within her class, so the second run logs the same counts and writes no row.
  *
+ * <p><strong>Two profiles.</strong> `quest.seed.profile` (SEED_PROFILE) picks which four files are read: `full`
+ * (the default, `resources/seed/`) is the school above, which the automated e2e suite needs; `acceptance`
+ * (`resources/seed/acceptance/`) is the owner's own environment — three sections, two teachers, three assignments and
+ * no children at all, because the children arrive when he registers as a parent in the app and are attached to a
+ * section with `POST /admin/classes/{id}/roster/attach`. Everything below is the same either way: the same reconcile,
+ * the same matching on a lower-cased email, the same shared password.
+ *
  * <p><strong>The files are the truth, and a broken one is not an outage.</strong> QA is not re-created between
  * deploys, so a run whose `assignments.csv` has moved a slot meets the school still holding the old one: the seed
  * reconciles what the seeded teachers teach to the file rather than adding to it (see {@link #assignments}). And
@@ -81,6 +88,7 @@ public class SchoolSeed implements CommandLineRunner {
     @Override public void run(String... args) {
         var seed = props.seed();
         if (seed == null || !seed.school()) return;
+        log.info("school seed: the {} profile, from {}", seed.profileOrFull(), seed.directory());
         load(TenantContext.DEFAULT_SCHOOL, seed.staffPassword(), true);
     }
 
@@ -107,13 +115,18 @@ public class SchoolSeed implements CommandLineRunner {
      * that asked for the load itself still gets the refusal, so the tests below can still read it.
      */
     Counts load(String schoolId, String staffPassword, boolean lenient) {
+        return load(schoolId, staffPassword, lenient, props.seed() == null ? "seed/" : props.seed().directory());
+    }
+
+    /** The same load with the directory named rather than configured — how the tests load one profile per school. */
+    Counts load(String schoolId, String staffPassword, boolean lenient, String dir) {
         tenant.set("ADMIN", null, schoolId);
         try {
             var caller = new Principals.User(ACTOR, ACTOR + "@" + schoolId, "ADMIN", null);
-            var sections = phase("classes", lenient, () -> classes(caller), new Sections(Map.of(), 0));  // the order matters: the three below name a class
-            int teachers = phase("teachers", lenient, () -> teachers(caller, staffPassword), 0);
-            int assignments = phase("assignments", lenient, () -> assignments(caller, sections.byName()), 0);
-            int children = phase("children", lenient, () -> children(caller, sections.byName()), 0);
+            var sections = phase("classes", lenient, () -> classes(caller, dir), new Sections(Map.of(), 0));  // the order matters: the three below name a class
+            int teachers = phase("teachers", lenient, () -> teachers(caller, staffPassword, dir), 0);
+            int assignments = phase("assignments", lenient, () -> assignments(caller, sections.byName(), dir), 0);
+            int children = phase("children", lenient, () -> children(caller, sections.byName(), dir), 0);
             var counts = new Counts(sections.created(), teachers, assignments, children);
             log.info("school seed {} ready: {} new classes, {} new teachers, {} new assignments, {} new children",
                     schoolId, counts.classes(), counts.teachers(), counts.assignments(), counts.children());
@@ -133,12 +146,12 @@ public class SchoolSeed implements CommandLineRunner {
     // ---------------------------------------------------------------- the four files
 
     /** The sections, by lower-cased name: `assignments.csv` and `children.csv` name a class and nothing else. */
-    private Sections classes(Principals.User caller) {
+    private Sections classes(Principals.User caller, String dir) {
         var byKey = new LinkedHashMap<String, String>();
         for (var k : sections.list(null, null)) byKey.put(key(k.curriculum(), k.grade(), k.name()), k.id());
         var byName = new LinkedHashMap<String, String>();
         int created = 0;
-        for (var row : rows("classes.csv", 3)) {
+        for (var row : rows(dir, "classes.csv", 3)) {
             String curriculum = row.at(0), name = row.at(2);
             int grade = row.number(1);
             String id = byKey.get(key(curriculum, grade, name));
@@ -157,12 +170,12 @@ public class SchoolSeed implements CommandLineRunner {
      * put on the teachers a previous run created as well as on the new ones. With no password configured nothing
      * touches an existing account — a teacher who has since chosen her own password keeps it.
      */
-    private int teachers(Principals.User caller, String staffPassword) {
+    private int teachers(Principals.User caller, String staffPassword, String dir) {
         String hash = staffPassword == null || staffPassword.isBlank() ? null : encoder.encode(staffPassword);
         var known = new LinkedHashMap<String, String>();                        // email -> user id
         for (var t : staff.list()) known.put(t.email().toLowerCase(Locale.ROOT), t.userId());
         int created = 0, signable = 0;
-        for (var row : rows("teachers.csv", 4)) {
+        for (var row : rows(dir, "teachers.csv", 4)) {
             String fullName = row.at(0), email = row.at(1).toLowerCase(Locale.ROOT), curriculum = row.at(3);
             var subjects = Arrays.stream(row.at(2).split(";")).map(String::strip).filter(s -> !s.isEmpty()).toList();
             String userId = known.get(email);
@@ -191,14 +204,14 @@ public class SchoolSeed implements CommandLineRunner {
      * meet QA as a 409. A seeded teacher the file no longer names ends with nothing; a slot held by a teacher an
      * Admin created by hand is hers, and the seed says so at WARN and leaves both of them alone.
      */
-    private int assignments(Principals.User caller, Map<String, String> classIds) {
+    private int assignments(Principals.User caller, Map<String, String> classIds, String dir) {
         var seeded = new LinkedHashSet<String>();
-        for (var row : rows("teachers.csv", 4)) seeded.add(row.at(1).toLowerCase(Locale.ROOT));
+        for (var row : rows(dir, "teachers.csv", 4)) seeded.add(row.at(1).toLowerCase(Locale.ROOT));
         var names = new LinkedHashMap<String, String>();                        // class id -> the name the files call it
         classIds.forEach((name, id) -> names.put(id, name));
         var wanted = new LinkedHashMap<String, LinkedHashSet<String>>();        // email -> the slots the file gives her
         var slots = new LinkedHashMap<String, String>();                        // slot -> the email the file gives it to
-        for (var row : rows("assignments.csv", 3)) {
+        for (var row : rows(dir, "assignments.csv", 3)) {
             String email = row.at(0).toLowerCase(Locale.ROOT), subject = row.at(2);
             String classId = classIds.get(row.at(1).toLowerCase(Locale.ROOT));
             if (classId == null) throw row.bad("no class is named " + row.at(1));
@@ -257,10 +270,10 @@ public class SchoolSeed implements CommandLineRunner {
     private static String classOf(String slot) { return slot.substring(0, slot.lastIndexOf('/')); }
     private static String subjectOf(String slot) { return slot.substring(slot.lastIndexOf('/') + 1); }
 
-    private int children(Principals.User caller, Map<String, String> classIds) {
+    private int children(Principals.User caller, Map<String, String> classIds, String dir) {
         var rostered = new LinkedHashMap<String, Set<String>>();
         int created = 0, total = 0;
-        for (var row : rows("children.csv", 3)) {
+        for (var row : rows(dir, "children.csv", 3)) {
             String classId = classIds.get(row.at(0).toLowerCase(Locale.ROOT));
             if (classId == null) throw row.bad("no class is named " + row.at(0));
             String name = row.at(1), parentEmail = row.at(2).isEmpty() ? null : row.at(2);
@@ -291,16 +304,16 @@ public class SchoolSeed implements CommandLineRunner {
         int number(int column) {
             try { return Integer.parseInt(at(column)); } catch (NumberFormatException e) { throw bad(at(column) + " is not a number"); }
         }
-        ApiException bad(String why) { return ApiException.badRequest("seed/" + file + " line " + line + ": " + why); }
+        ApiException bad(String why) { return ApiException.badRequest("seed/" + file.replaceFirst("^seed/", "") + " line " + line + ": " + why); }
         /** A service refusal is this row's fault; the line number is what turns it into something fixable. */
         <T> T attempt(Supplier<T> call) {
             try { return call.get(); } catch (ApiException e) { throw bad(e.getMessage()); }
         }
     }
 
-    private static List<Row> rows(String file, int columns) {
-        try (InputStream in = new ClassPathResource("seed/" + file).getInputStream()) {
-            return parse(file, new String(in.readAllBytes(), StandardCharsets.UTF_8), columns);
+    private static List<Row> rows(String dir, String file, int columns) {
+        try (InputStream in = new ClassPathResource(dir + file).getInputStream()) {
+            return parse(dir + file, new String(in.readAllBytes(), StandardCharsets.UTF_8), columns);
         } catch (IOException e) { throw ApiException.badRequest("seed/" + file + " cannot be read: " + e.getMessage()); }
     }
 

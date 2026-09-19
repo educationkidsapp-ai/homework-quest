@@ -47,6 +47,22 @@ public record QuestProperties(Auth auth, Llm llm, Anthropic anthropic, DeepSeek 
      * default school; it is off everywhere but `qa` and `h2`, and `prod` cannot switch it on because the seed is not a
      * bean there. `staff-password` (SEED_STAFF_PASSWORD) is the one password the seeded teachers share so an e2e run
      * can sign in as any of them — blank leaves each of them with her own one-time password, which nothing prints.
+     *
+     * <p>`profile` (SEED_PROFILE) picks <em>which</em> four files: `full` is the 30-class QA school the automated e2e
+     * suite needs, `acceptance` the owner's three sections and two teachers with no children at all. `reset`
+     * (SEED_RESET) is the one-shot wipe {@link quest.server.classes.SeedReset} runs before the seed — it is refused
+     * outright under `prod`, and the deploy turns it back off once it has run.
      */
-    public record Seed(boolean school, String staffPassword) {}
+    public record Seed(boolean school, String profile, boolean reset, String staffPassword) {
+        /** The 30-class QA school of `resources/seed/*.csv`. */
+        public static final String FULL = "full";
+        /** The owner's acceptance school of `resources/seed/acceptance/*.csv`: 3 sections, 2 teachers, no children. */
+        public static final String ACCEPTANCE = "acceptance";
+
+        /** `full` unless the deploy asked for `acceptance`; an unknown name is `full`, never a failed start. */
+        public String profileOrFull() { return ACCEPTANCE.equalsIgnoreCase(profile) ? ACCEPTANCE : FULL; }
+
+        /** Where {@link quest.server.classes.SchoolSeed} reads its four files from, classpath-relative. */
+        public String directory() { return ACCEPTANCE.equals(profileOrFull()) ? "seed/acceptance/" : "seed/"; }
+    }
 }

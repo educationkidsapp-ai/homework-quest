@@ -61,6 +61,9 @@ public final class ClassDto {
     public record UpdateRosterChildRequest(String name, String parentEmail, String photoUrl, Boolean active,
                                            String classId) {}
 
+    /** `POST …/classes/{classId}/roster/attach`: a child who already exists, put onto this section's roster. */
+    public record AttachChildRequest(@NotBlank String childId) {}
+
     /** One line of an uploaded roster; `line` is the 1-based row in the file, header included. */
     public record ImportRow(int line, String name, String parentEmail, String status, String reason) {}
 

@@ -96,6 +96,11 @@ quest:
     # on in `qa` and `h2`; `prod` has no such bean at all. SEED_STAFF_PASSWORD is the one password the seeded teachers
     # share (must_change_password cleared) so an e2e run can sign in as any of them; blank = per-teacher, unprintable.
     school: ${SEED_SCHOOL:false}
+    # Which four files: `full` (the 30-class school the e2e suite needs) or `acceptance` (the owner's three sections,
+    # two teachers and no children, resources/seed/acceptance/*.csv). An unknown name falls back to `full`.
+    profile: ${SEED_PROFILE:full}
+    # One-shot wipe of every school-scoped row, run once before the seed and then turned back off. Refused under `prod`.
+    reset: ${SEED_RESET:false}
     staff-password: ${SEED_STAFF_PASSWORD:}
 
 logging.level:

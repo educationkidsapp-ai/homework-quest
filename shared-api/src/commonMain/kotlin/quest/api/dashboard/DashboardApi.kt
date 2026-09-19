@@ -355,7 +355,13 @@ interface DashboardApi {
 
     suspend fun classChildren(classId: String): List<RosterChild>
     suspend fun addChildToClass(classId: String, request: CreateRosterChildRequest): RosterChild
+    /** The school's children; `unassigned = true` is the ones on no section's roster yet. */
+    suspend fun schoolChildren(unassigned: Boolean = false): List<RosterChild>
     suspend fun updateRosterChild(childId: String, request: UpdateRosterChildRequest): RosterChild
+
+    /** Puts an app-registered child on a section's roster, and takes her off it again; both answer the child. */
+    suspend fun attachChildToClass(classId: String, request: AttachChildRequest): RosterChild
+    suspend fun detachChildFromClass(classId: String, childId: String): RosterChild
 
     /** CSV or XLSX with `name,parentEmail`; `dryRun` returns the preview without writing anything. */
     suspend fun importRoster(classId: String, fileName: String, bytes: ByteArray, dryRun: Boolean = true): ImportPreview
@@ -364,6 +370,8 @@ interface DashboardApi {
     suspend fun myClassChildren(classId: String): List<RosterChild>
     suspend fun addChildToMyClass(classId: String, request: CreateRosterChildRequest): RosterChild
     suspend fun updateMyRosterChild(classId: String, childId: String, request: UpdateRosterChildRequest): RosterChild
+    suspend fun attachChildToMyClass(classId: String, request: AttachChildRequest): RosterChild
+    suspend fun detachChildFromMyClass(classId: String, childId: String): RosterChild
 
     /** Public: what a parent sees after typing a join code. Unknown or disabled is a uniform 404. */
     suspend fun classByJoinCode(request: ClassLookupRequest): ClassLookup
