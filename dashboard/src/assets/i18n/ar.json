@@ -1054,13 +1054,6 @@
       "ribbon": "اختبار",
       "window": "{{opens}} – {{closes}}"
     },
-    "summary": {
-      "title": "أسبوعك باختصار",
-      "gap": "{{class}} بلا درس يوم {{day}}",
-      "noGaps": "لا توجد فجوات حتى الآن هذا الأسبوع",
-      "examsClosing": "اختبارات تُغلق هذا الأسبوع: {{count}}",
-      "marksWaiting": "محطات مفتوحة بانتظار التصحيح: {{count}}"
-    },
     "copyConfirm": {
       "title": "نسخ هذا الدرس؟",
       "message": "نسخ «{{title}}» إلى {{class}} يوم {{day}}؟",

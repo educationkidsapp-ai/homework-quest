@@ -19,14 +19,7 @@ import {
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import {
-  type AdminLesson,
-  TeacherApi,
-  TeacherLessonsApi,
-  type TeacherWeek,
-  type WeekGap,
-  apiErrorOf,
-} from '../../api';
+import { type AdminLesson, TeacherApi, TeacherLessonsApi, type TeacherWeek, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PlatformService } from '../../core/platform/platform.service';
@@ -36,7 +29,6 @@ import {
   ButtonComponent,
   CardComponent,
   EmptyStateComponent,
-  ListStaggerDirective,
   PageComponent,
   SkeletonComponent,
 } from '../../ui';
@@ -103,7 +95,6 @@ interface CopyRequest {
     EmptyStateComponent,
     SkeletonComponent,
     StatusSquareComponent,
-    ListStaggerDirective,
     CdkDropListGroup,
     CdkDropList,
     CdkDrag,
@@ -241,18 +232,6 @@ export class WeekPage {
   private goTo(start: string): void {
     void this.router.navigate([], { relativeTo: this.route, queryParams: { start } });
   }
-
-  // ---- the summary strip ----------------------------------------------------------------------
-
-  protected readonly gaps = computed<readonly string[]>(() => {
-    this.lang();
-    return (this.week.value().summary?.gaps ?? []).map((gap: WeekGap) =>
-      this.t('week.summary.gap', { class: gap.className ?? '', day: this.dayName(gap.date ?? '') }),
-    );
-  });
-
-  protected readonly examsClosing = computed(() => this.week.value().summary?.examsClosing?.length ?? 0);
-  protected readonly marksWaiting = computed(() => this.week.value().summary?.marksWaiting ?? 0);
 
   // ---- links out --------------------------------------------------------------------------------
 

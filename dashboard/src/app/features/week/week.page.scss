@@ -21,8 +21,7 @@
   font-weight: var(--hq-text-weight-medium);
 }
 
-.week__range,
-.week__summary-title {
+.week__range {
   @include m.card-title;
 }
 
@@ -252,27 +251,4 @@
 
 .cdk-drag-placeholder {
   visibility: hidden;
-}
-
-// ---- the summary strip --------------------------------------------------------------------------
-
-.week__summary {
-  padding: var(--hq-space-16) var(--hq-space-24);
-  @include m.surface;
-}
-
-.week__summary-title {
-  margin-block-end: var(--hq-space-8);
-}
-
-.week__summary-list {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--hq-space-8) var(--hq-space-24);
-  list-style: none;
-}
-
-.week__summary-item {
-  color: var(--hq-color-ink-soft);
 }

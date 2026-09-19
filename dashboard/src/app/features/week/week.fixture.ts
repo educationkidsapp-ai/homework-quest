@@ -6,7 +6,10 @@ import type { TeacherWeek } from '../../api';
  * Sunday 20 September 2026 to Thursday the 24th — the default Gulf school week — with three
  * assignments: 1A and 1B are siblings (Grade 1, British, Math), 3A is not. 1A has a draft on the
  * Sunday and 3A a published lesson on the Tuesday, so both the movable and the immovable case
- * are in the fixture, and 1B's Tuesday is the gap the summary strip names.
+ * are in the fixture.
+ *
+ * `summary` stays because `GET /teacher/week` still answers with it (CR1 removed the strip that
+ * read it, not the endpoint): the fixture is the API's shape and not the screen's.
  */
 export const DAYS = ['2026-09-20', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24'] as const;
 

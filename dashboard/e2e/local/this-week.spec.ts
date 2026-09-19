@@ -167,19 +167,6 @@ test('dropping the card on the sibling row offers a copy, and the copy appears t
   await expect(rowOf(page, SIBLING).getByText(TITLE)).toBeVisible({ timeout: 15_000 });
 });
 
-test('the summary strip names the class and the day of every gap', async ({ page }) => {
-  await signInAsSara(page);
-
-  const strip = page.getByRole('region', { name: 'This week at a glance' });
-  await expect(strip).toBeVisible();
-  // Every school day a section has nothing on, named by class and by day rather than counted.
-  const gaps = strip.getByText(
-    new RegExp(`1[AB] British has no lesson (Sunday|Monday|Tuesday|Wednesday|Thursday)`),
-  );
-  expect(await gaps.count()).toBeGreaterThan(0);
-  await expect(gaps.first()).toBeVisible();
-});
-
 test('the screenshot set, EN and AR', async ({ page }) => {
   test.setTimeout(120_000);
   await mkdir(SHOTS, { recursive: true });
@@ -190,16 +177,7 @@ test('the screenshot set, EN and AR', async ({ page }) => {
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
     await expect(page.getByRole('grid')).toBeVisible();
-    const strip = page.getByRole('region', { name: /at a glance|باختصار/ });
-    await expect(strip).toBeVisible();
-    // `shoot` waits for the grid, then for the strip's `listStagger` (30 ms apart, 250 ms each)
-    // to finish, rather than for a number big enough to cover it.
     await shoot(page, `${SHOTS}/01-this-week-${language}.png`, page.getByRole('grid'));
-
-    // The summary strip sits under the fold behind the sticky footer, so it gets its own frame.
-    await strip.scrollIntoViewIfNeeded();
-    await shoot(page, `${SHOTS}/03-summary-${language}.png`, strip);
-    await page.mouse.wheel(0, -800);
 
     // The card's menu open — the keyboard twin of the drag.
     await page
