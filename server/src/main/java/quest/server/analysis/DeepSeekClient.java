@@ -24,12 +24,12 @@ import quest.server.config.QuestProperties;
 public class DeepSeekClient implements LlmClient {
     private static final Logger log = LoggerFactory.getLogger(DeepSeekClient.class);
     private final ObjectMapper mapper = new ObjectMapper();
-    private final QuestProperties.DeepSeek cfg; private final HttpClient http; private final Duration timeout;
+    private final QuestProperties.DeepSeek cfg; private final HttpClient http; private final Duration timeout; private final Duration oneCall;
 
     public DeepSeekClient(QuestProperties.DeepSeek cfg, QuestProperties.Llm llm) {
         if (cfg == null || cfg.apiKey() == null || cfg.apiKey().isBlank()) throw new IllegalStateException("DEEPSEEK_API_KEY is not set");
         var limits = llm == null ? QuestProperties.Llm.defaults() : llm;
-        this.cfg = cfg; this.timeout = limits.timeout();
+        this.cfg = cfg; this.timeout = limits.timeout(); this.oneCall = limits.connectTimeout().plus(limits.timeout());
         this.http = HttpClient.newBuilder().connectTimeout(limits.connectTimeout()).build();
         log.info("DeepSeek timeouts: connect {}s, read {}s", limits.connectTimeout().toSeconds(), timeout.toSeconds());
     }
@@ -60,9 +60,16 @@ public class DeepSeekClient implements LlmClient {
                 .timeout(timeout).POST(HttpRequest.BodyPublishers.ofString(body.toString())).build();
         IOException last = null;
         for (int attempt = 0; attempt < 3; attempt++) {
+            // The step's remaining deadline, not only the attempt count, decides whether there is another try: three
+            // attempts of 120 s with backoff is 374 s and a generate step is bounded at 360 s, so the last one could
+            // only ever be cut off mid-flight. Give up while there is still time to say `model_unavailable`.
+            if (attempt > 0 && !StepBudget.allows(oneCall)) {
+                log.warn("DeepSeek: {} left of this step, less than one call ({}s) — not retrying", StepBudget.remaining(), oneCall.toSeconds());
+                throw new LlmException("DeepSeek unreachable or busy, and the step has no time left for another try", last, true);
+            }
             try {
                 HttpResponse<String> res = http.send(request, HttpResponse.BodyHandlers.ofString());
-                if (res.statusCode() >= 500 || res.statusCode() == 429) { log.warn("DeepSeek {} (attempt {}): {}", res.statusCode(), attempt + 1, abbreviate(res.body())); sleep(2000L << attempt); continue; }
+                if (res.statusCode() >= 500 || res.statusCode() == 429) { log.warn("DeepSeek {} (attempt {}): {}", res.statusCode(), attempt + 1, abbreviate(res.body())); backoff(attempt); continue; }
                 if (res.statusCode() != 200) throw new LlmException("DeepSeek " + res.statusCode() + ": " + abbreviate(res.body()));
                 JsonNode json = mapper.readTree(res.body());
                 String text = json.path("choices").path(0).path("message").path("content").asText("");
@@ -73,7 +80,7 @@ public class DeepSeekClient implements LlmClient {
             // java.net.http.HttpTimeoutException is an IOException: a call that ran past `quest.llm.timeout-seconds`
             // lands here, is retried like any other I/O failure and then leaves as a transient failure — which is
             // what the step's retry and, past the deadline, the watchdog are for.
-            } catch (IOException e) { last = e; log.warn("DeepSeek I/O error (attempt {}): {}", attempt + 1, e.toString()); sleep(2000L << attempt); }
+            } catch (IOException e) { last = e; log.warn("DeepSeek I/O error (attempt {}): {}", attempt + 1, e.toString()); backoff(attempt); }
             catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new LlmException("interrupted", e); }
         }
         throw new LlmException("DeepSeek unreachable or busy after 3 attempts", last, true);
@@ -95,5 +102,8 @@ public class DeepSeekClient implements LlmClient {
         } else if (node instanceof ArrayNode a) for (JsonNode n : a) dropNulls(n);
     }
     private static String abbreviate(String s) { return s == null ? "" : s.length() > 400 ? s.substring(0, 400) + "…" : s; }
+    /** Exponential backoff — skipped outright when the step has no room for the call it would lead to. */
+    private void backoff(int attempt) { if (StepBudget.allows(oneCall)) sleep(2000L << attempt); }
+
     private static void sleep(long ms) { try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
 }

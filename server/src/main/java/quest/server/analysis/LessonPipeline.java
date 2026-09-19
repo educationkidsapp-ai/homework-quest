@@ -63,14 +63,7 @@ public class LessonPipeline {
         boolean converted = files.findByLessonIdOrderByCreatedAt(lessonId).stream().filter(f -> f.getDeletedAt() == null).allMatch(f -> "ready".equals(f.getConvertStatus()));
         if (hasFiles && (analysed || converted)) steps.done(lessonId, PipelineStep.CONVERT);
         if (hasFiles && analysed) steps.done(lessonId, PipelineStep.ANALYZE);
-        if (hasFiles && analysed && confirmed) {
-            steps.done(lessonId, PipelineStep.SKILLS);
-            for (var p : store.plays(lessonId)) if (!store.play(p).getStops().isEmpty()) {
-                PipelineStep s = p.getVariant() == 1 ? PipelineStep.GENERATE_AGAIN : switch (p.getLevel()) { case 1 -> PipelineStep.GENERATE_L1; case 2 -> PipelineStep.GENERATE_L2; default -> PipelineStep.GENERATE_L3; };
-                steps.done(lessonId, s);
-            }
-            if (panels.findById(lessonId).isPresent()) steps.done(lessonId, PipelineStep.PANEL);
-        }
+        if (hasFiles && analysed && confirmed) { steps.done(lessonId, PipelineStep.SKILLS); markExistingWork(lessonId); }
         // the recorded error belongs to the first step that is not done
         if (lesson.getErrorCode() != null) for (var e : steps.list(lessonId)) if (!"done".equals(e.getStatus())) { steps.mark(lessonId, LessonSteps.parse(e.getStep()), "error", lesson.getErrorCode(), lesson.getErrorMessage()); break; }
     }
@@ -156,18 +149,49 @@ public class LessonPipeline {
         if (!failOnceAt.isEmpty() && failOnceAt.equals(LessonSteps.stepName(step)) && failed.add(lessonId + ":" + step)) throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", "injected failure at " + failOnceAt);
     }
 
-    /** Manual lessons: Prompt A on the admin's text, then the missing levels and the panel (no step ledger — one job). */
+    /** The levels and the panel a lesson already has, marked done — nothing regenerates work that is already there. */
+    private void markExistingWork(String lessonId) {
+        for (var p : store.plays(lessonId)) if (!store.play(p).getStops().isEmpty()) {
+            PipelineStep s = p.getVariant() == 1 ? PipelineStep.GENERATE_AGAIN : switch (p.getLevel()) { case 1 -> PipelineStep.GENERATE_L1; case 2 -> PipelineStep.GENERATE_L2; default -> PipelineStep.GENERATE_L3; };
+            steps.done(lessonId, s);
+        }
+        if (panels.findById(lessonId).isPresent()) steps.done(lessonId, PipelineStep.PANEL);
+    }
+
+    /**
+     * Manual lessons: Prompt A on the admin's text, then the missing levels and the panel.
+     *
+     * <p>This used to be the one job with no ledger and no deadline — which made it the last way left to strand a
+     * lesson in `generating`: nothing bounded the model calls as a whole, and the watchdog could not age out a row
+     * that was never written. It walks the same steps as an uploaded lesson now, so every call is inside a step
+     * deadline and the admin panel's strip shows where it stopped. Upload and Convert are done by definition (the
+     * admin typed the text, there is no file), the skills need no confirming because she chose the content herself,
+     * and a level she wrote by hand is marked done so it is kept rather than regenerated, which is what the old
+     * `generateMissing` did by hand.
+     *
+     * <p>A hand-written lesson still has no <em>Retry</em> — {@link quest.server.admin.AdminLessonService#retryStep}
+     * refuses one, and that is unchanged. What the ledger buys is that the lesson leaves `generating` at all, so
+     * pressing <em>Generate from text</em> again works, and the levels already written are not paid for twice.
+     */
     @Async
     public void generateFromTextAsync(String lessonId, String text) {
         live.add(lessonId);
         try {
-            var lesson = lessons.findById(lessonId).orElseThrow();
-            analysis.analyzeText(lesson, text);
-            generation.generateMissing(lessons.findById(lessonId).orElseThrow());
-            state.set(lessonId, LessonStatus.REVIEW);
+            steps.ensure(lessonId);
+            steps.resetFrom(lessonId, PipelineStep.ANALYZE);              // this is new text: analyse it again
+            steps.done(lessonId, PipelineStep.UPLOAD); steps.done(lessonId, PipelineStep.CONVERT);
+            state.set(lessonId, LessonStatus.ANALYZING);
+            if (!steps.run(lessonId, PipelineStep.ANALYZE, () -> analysis.analyzeText(lessons.findById(lessonId).orElseThrow(), text))) {
+                var row = steps.get(lessonId, PipelineStep.ANALYZE).orElseThrow();
+                state.fail(lessonId, row.getErrorCode(), row.getErrorMessage());
+                return;
+            }
+            steps.done(lessonId, PipelineStep.SKILLS);
+            markExistingWork(lessonId);
+            // …and the levels and the panel are the ordinary pipeline, step by step and deadline by deadline.
+            runFrom(lessonId, PipelineStep.GENERATE_L1, true);
         } catch (ApiException e) { log.warn("text generation for {} failed: {}", lessonId, e.getMessage()); state.fail(lessonId, e.error().code(), LessonSteps.Messages.of(e.error().code(), e.error().message())); }
-        catch (LessonSteps.TransientFailure e) { state.fail(lessonId, "model_unavailable", LessonSteps.Messages.of("model_unavailable", e.getMessage())); }
-        catch (Exception e) { log.error("text generation for {} crashed", lessonId, e); state.fail(lessonId, "model_failed", LessonSteps.Messages.of("model_failed", e.getMessage())); }
+        catch (RuntimeException e) { log.error("text generation for {} crashed", lessonId, e); state.fail(lessonId, "model_failed", LessonSteps.Messages.of("model_failed", e.getMessage())); }
         finally { live.remove(lessonId); }
     }
 }

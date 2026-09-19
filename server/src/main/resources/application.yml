@@ -121,6 +121,9 @@ quest:
     profile: ${SEED_PROFILE:full}
     # One-shot wipe of every school-scoped row, run once before the seed and then turned back off. Refused under `prod`.
     reset: ${SEED_RESET:false}
+    # Which run of the wipe this is: blank is the original one-shot, any new value runs it again once and is recorded
+    # in `seed_resets` under that name. Re-deploying with a value already there deletes nothing.
+    reset-token: ${SEED_RESET_TOKEN:}
     staff-password: ${SEED_STAFF_PASSWORD:}
 
 logging.level:

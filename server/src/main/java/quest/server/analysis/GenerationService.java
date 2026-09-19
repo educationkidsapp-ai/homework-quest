@@ -80,32 +80,6 @@ public class GenerationService {
         panel(lesson, hash, analysisJson, canonicalPlays);
     }
 
-    /**
-     * Manual lessons: writes only the levels that are still empty (the admin's own levels stay as they are) and the
-     * parent panel if missing. The admin's Level 1 is what Prompt C sees for level 1; its stop ids are excluded
-     * from the Again variant.
-     */
-    public void generateMissing(LessonEntity lesson) {
-        String hash = requireHash(lesson);
-        String analysisJson = analysisJson(hash);
-        String skillsJson = confirmedSkillsJson(lesson);
-        var existing = new HashMap<String, PlayEntity>();
-        for (var p : store.plays(lesson.getId())) if (!store.play(p).getStops().isEmpty()) existing.put(p.getLevel() + ":" + p.getVariant(), p);
-        Map<String, String> canonicalPlays = new HashMap<>();
-        Set<String> level1Ids = new HashSet<>();
-        var l1 = existing.get("1:0");
-        if (l1 != null) { canonicalPlays.put("1:0", l1.getPlayJson()); store.play(l1).getStops().forEach(s -> level1Ids.add(s.getId())); }
-        for (int[] t : TARGETS) {
-            int level = t[0], variant = t[1];
-            if (existing.containsKey(level + ":" + variant)) { canonicalPlays.putIfAbsent(level + ":" + variant, existing.get(level + ":" + variant).getPlayJson()); continue; }
-            String canonical = playJson(lesson, hash, analysisJson, skillsJson, level, variant, 0, variant == 1 ? level1Ids : Set.of());
-            if (level == 1 && variant == 0) level1Ids.addAll(stopIds(canonical));
-            canonicalPlays.put(level + ":" + variant, canonical);
-            attach(lesson, canonical, level, variant, 0);
-        }
-        if (panels.findById(lesson.getId()).isEmpty()) panel(lesson, hash, analysisJson, canonicalPlays);
-    }
-
     /** Regenerate one level with the next seed (a fresh cache slot). */
     public Play regeneratePlay(LessonEntity lesson, PlayEntity existing) {
         String hash = requireHash(lesson);
@@ -126,20 +100,22 @@ public class GenerationService {
         Set<String> used = new HashSet<>(); for (Stop s : play.getStops()) { used.add(s.getId()); if (s instanceof Stop.ExitTicket et) et.getQuestions().forEach(q -> used.add(q.getId())); }
         String user = Prompts.userStop(playNode.toString(), stops.get(index).toString(), new ArrayList<>(used));
         long usage = 0; List<String> errors = List.of(); ObjectNode replacement = null;
-        for (int attempt = 0; attempt < 2; attempt++) {
-            String u = attempt == 0 ? user : user + "\n\nYour previous stop was rejected:\n- " + String.join("\n- ", errors) + "\nAnswer again with the corrected stop JSON only.";
-            LlmClient.Result r = call(Prompts.SYSTEM_B, u);
-            usage += r.total();
-            ObjectNode candidate;
-            try { candidate = (ObjectNode) json.tree(LlmJson.dropUnknownStopFields(LlmJson.cleanIllustrations(r.text()))); } catch (Exception e) { errors = List.of("not valid JSON"); continue; }
-            if (candidate.has("stops")) { errors = List.of("answer with the single stop, not the whole play"); continue; }
-            StopIds.relabelStop(candidate, StopIds.prefix(lesson.getId(), playEntity.getLevel(), playEntity.getVariant()));
-            if (used.contains(candidate.path("id").asText())) candidate.put("id", candidate.path("id").asText() + "r" + (attempt + 1));
-            ObjectNode trial = playNode.deepCopy(); ((ArrayNode) trial.get("stops")).set(index, candidate);
-            ValidationResult v = LlmJson.validatePlay(trial.toString(), playEntity.getLevel(), Set.of());
-            if (v.getErrors().isEmpty()) { replacement = candidate; break; }
-            errors = v.getErrors();
-        }
+        try {
+            for (int attempt = 0; attempt < 2; attempt++) {
+                String u = attempt == 0 ? user : user + "\n\nYour previous stop was rejected:\n- " + String.join("\n- ", errors) + "\nAnswer again with the corrected stop JSON only.";
+                LlmClient.Result r = call(Prompts.SYSTEM_B, u);
+                usage += r.total();
+                ObjectNode candidate;
+                try { candidate = (ObjectNode) json.tree(LlmJson.dropUnknownStopFields(LlmJson.cleanIllustrations(r.text()))); } catch (Exception e) { errors = List.of("not valid JSON"); continue; }
+                if (candidate.has("stops")) { errors = List.of("answer with the single stop, not the whole play"); continue; }
+                StopIds.relabelStop(candidate, StopIds.prefix(lesson.getId(), playEntity.getLevel(), playEntity.getVariant()));
+                if (used.contains(candidate.path("id").asText())) candidate.put("id", candidate.path("id").asText() + "r" + (attempt + 1));
+                ObjectNode trial = playNode.deepCopy(); ((ArrayNode) trial.get("stops")).set(index, candidate);
+                ValidationResult v = LlmJson.validatePlay(trial.toString(), playEntity.getLevel(), Set.of());
+                if (v.getErrors().isEmpty()) { replacement = candidate; break; }
+                errors = v.getErrors();
+            }
+        } catch (RuntimeException e) { if (usage > 0) state.addUsage(lesson.getId(), usage, 0); throw e; }
         state.addUsage(lesson.getId(), usage, 0);
         if (replacement == null) throw new ApiException(HttpStatus.BAD_GATEWAY, "model_failed", "Couldn't regenerate this stop: " + String.join("; ", errors.subList(0, Math.min(5, errors.size()))));
         stops.set(index, replacement);
@@ -156,16 +132,20 @@ public class GenerationService {
         String user = Prompts.userB(level, variant, analysisJson, skillsJson, lesson.getNotes(), lesson.getPracticeLength(), new ArrayList<>(excludedIds));
         if (seed > 0) user += "\n\nThis is regeneration #" + seed + ": make every question different from what you would write first.";
         long usage = 0; List<String> errors = List.of(); String text = null;
-        for (int attempt = 0; attempt < 2; attempt++) {
-            String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected by the validator:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
-            LlmClient.Result r = call(Prompts.SYSTEM_B, u);
-            usage += r.total();
-            String cleaned = LlmJson.dropUnknownStopFields(LlmJson.cleanIllustrations(r.text()));
-            ValidationResult v = LlmJson.validatePlay(cleaned, level, excludedIds);
-            if (v.getErrors().isEmpty()) { text = cleaned; break; }
-            errors = v.getErrors(); log.warn("Prompt B L{}v{} attempt {} invalid: {}", level, variant, attempt + 1, errors);
-            LlmFailures.keep("B-L" + level + "v" + variant, r.text(), errors);
-        }
+        // As in `AnalysisService.promptA`: a first attempt that was answered and paid for is booked even when the
+        // second one never comes back, so an abandoned step still shows what it cost.
+        try {
+            for (int attempt = 0; attempt < 2; attempt++) {
+                String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected by the validator:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
+                LlmClient.Result r = call(Prompts.SYSTEM_B, u);
+                usage += r.total();
+                String cleaned = LlmJson.dropUnknownStopFields(LlmJson.cleanIllustrations(r.text()));
+                ValidationResult v = LlmJson.validatePlay(cleaned, level, excludedIds);
+                if (v.getErrors().isEmpty()) { text = cleaned; break; }
+                errors = v.getErrors(); log.warn("Prompt B L{}v{} attempt {} invalid: {}", level, variant, attempt + 1, errors);
+                LlmFailures.keep("B-L" + level + "v" + variant, r.text(), errors);
+            }
+        } catch (RuntimeException e) { if (usage > 0) state.addUsage(lesson.getId(), usage, 0); throw e; }
         state.addUsage(lesson.getId(), usage, 0);
         if (text == null) throw new ApiException(HttpStatus.BAD_GATEWAY, "model_failed", "Level " + level + " didn't match the schema: " + String.join("; ", errors.subList(0, Math.min(5, errors.size()))));
         var e = new CacheEntities.GenerationCacheEntity();
@@ -194,14 +174,16 @@ public class GenerationService {
             for (int[] t : TARGETS) if (t[1] == 0) plays.add(json.tree(canonicalPlays.get(t[0] + ":0")));
             String user = Prompts.userC(analysisJson, plays.toString());
             long usage = 0; List<String> errors = List.of(); text = null;
-            for (int attempt = 0; attempt < 2; attempt++) {
-                String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
-                LlmClient.Result r = call(Prompts.SYSTEM_C, u);
-                usage += r.total();
-                ValidationResult v = SchemaValidator.INSTANCE.validatePanelJson(r.text());
-                if (v.getErrors().isEmpty()) { text = r.text(); break; }
-                errors = v.getErrors(); LlmFailures.keep("C", r.text(), errors);
-            }
+            try {
+                for (int attempt = 0; attempt < 2; attempt++) {
+                    String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
+                    LlmClient.Result r = call(Prompts.SYSTEM_C, u);
+                    usage += r.total();
+                    ValidationResult v = SchemaValidator.INSTANCE.validatePanelJson(r.text());
+                    if (v.getErrors().isEmpty()) { text = r.text(); break; }
+                    errors = v.getErrors(); LlmFailures.keep("C", r.text(), errors);
+                }
+            } catch (RuntimeException e) { if (usage > 0) state.addUsage(lesson.getId(), usage, 0); throw e; }
             state.addUsage(lesson.getId(), usage, 0);
             if (text == null) throw new ApiException(HttpStatus.BAD_GATEWAY, "model_failed", "The parent panel didn't match the schema: " + String.join("; ", errors.subList(0, Math.min(5, errors.size()))));
             var e = new CacheEntities.GenerationCacheEntity();

@@ -142,11 +142,14 @@ public class LessonSteps {
      * The step body, bounded by its deadline. It runs on a virtual thread of its own so that the deadline can
      * actually end it: interrupting the worker unblocks the HTTP call or the process wait it is sitting in, so the
      * job stops instead of waking up later and writing `done` over the error the teacher was just shown.
+     *
+     * <p>The same deadline is published on that thread as a {@link StepBudget}, so the LLM client can stop retrying
+     * while there is still time to fail properly instead of starting a call the join will cut off.
      */
     private void bounded(String lessonId, PipelineStep s, Runnable body) {
         var thrown = new java.util.concurrent.atomic.AtomicReference<Throwable>();
         Thread worker = Thread.ofVirtual().name("pipeline-" + stepName(s) + "-" + lessonId)
-                .unstarted(() -> { try { body.run(); } catch (Throwable t) { thrown.set(t); } });
+                .unstarted(() -> { try { StepBudget.within(deadlines.of(s), body); } catch (Throwable t) { thrown.set(t); } });
         worker.start();
         boolean finished;
         try { finished = worker.join(deadlines.of(s)); }

@@ -84,8 +84,17 @@ public final class TeacherDto {
     /** The strip under the grid; `examsClosing` and `marksWaiting` stay empty until N4. */
     public record WeekSummary(List<WeekGap> gaps, List<WeekGap> examsClosing, int marksWaiting) {}
 
-    /** `GET /teacher/week`: `start` is the requested day snapped back to the week's first teaching day. */
-    public record TeacherWeek(String start, List<String> days, List<WeekRow> rows, WeekSummary summary) {}
+    /**
+     * `GET /teacher/week`: `start` is the requested day snapped back to the week's first teaching day.
+     *
+     * <p>`days` are the columns and every row has one cell per column, which is the one rule the grid is built on.
+     * On a Friday or a Saturday the school week is over and today is not one of its teaching days, so today is
+     * appended to `days` as a sixth column and named in `weekendDays` — the grid renders it without knowing what it
+     * is, and a client that reads the new field can tint it. `today` is today in the school's timezone when the
+     * week on screen contains it, and null when she has paged to another week.
+     */
+    public record TeacherWeek(String start, List<String> days, List<WeekRow> rows, WeekSummary summary,
+                              String today, List<String> weekendDays) {}
 
     /** `GET /teacher/classes` (§7): one card per assignment. */
     public record TeacherClassCard(String classId, String className, String curriculum, int grade, String subject,

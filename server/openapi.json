@@ -3950,6 +3950,15 @@
           },
           "summary" : {
             "$ref" : "#/components/schemas/WeekSummary"
+          },
+          "today" : {
+            "type" : "string"
+          },
+          "weekendDays" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
           }
         },
         "type" : "object"

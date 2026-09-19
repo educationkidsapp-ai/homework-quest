@@ -44,9 +44,17 @@ import quest.server.tenancy.TenantContext;
  * it; her children are school rows, so the row would be left pointing at nothing. Everyone re-registers in the app
  * after the wipe — `docs/runbook.md` says so, because the owner is the first person it happens to.
  *
+ * <p><strong>The three §6 sample lessons go with them</strong> (`lesson-counting-by-2s`, `lesson-sh-sound`,
+ * `lesson-hot-soup-1`): they are `default`-school lessons and the pass above already names them. What they needed
+ * was not another statement here but {@link quest.server.content.ContentSeed} not running on QA at all — it is a
+ * `CommandLineRunner` ordered after this one, so it wrote all three back the moment the wipe had finished, and the
+ * owner's acceptance environment started with three lessons nobody had written.
+ *
  * <p><strong>One-shot.</strong> A deploy that forgets to put SEED_RESET back to `false` must not wipe the owner's
  * work on the next revision, so the run writes a `seed_resets` row and every later start finds it and does nothing.
  * The second start therefore deletes nothing and — the seed reconciling rather than adding — seeds nothing either.
+ * `SEED_RESET_TOKEN` is the way to ask for another wipe: the row is named after the token, so a value nobody has
+ * used runs the wipe once, and the same value again does nothing.
  *
  * <p><strong>Never under `prod`.</strong> The check is in the constructor, so a production revision configured with
  * SEED_RESET=true fails to start with the reason rather than starting and emptying the database.
@@ -61,8 +69,6 @@ import quest.server.tenancy.TenantContext;
 public class SeedReset implements CommandLineRunner {
     /** The environment variable, for the message the refusal under `prod` prints. */
     static final String ENV = "SEED_RESET";
-    /** The single `seed_resets` row: the wipe has run against this database. */
-    static final String MARK = "once";
     private static final Logger log = LoggerFactory.getLogger(SeedReset.class);
     private static final String STAFF = "'TEACHER','MANAGERIAL'";
     /** The lessons of one school, as a subquery every lesson-child statement below reuses. */
@@ -88,8 +94,10 @@ public class SeedReset implements CommandLineRunner {
 
     @Override public void run(String... args) {
         if (!enabled(props)) return;
-        if (!jdbc.queryForList("SELECT id FROM seed_resets WHERE id = ?", String.class, MARK).isEmpty()) {
-            log.info("{}=true, but the wipe has already run against this database — nothing deleted", ENV);
+        String mark = props.seed().resetMark();
+        if (!jdbc.queryForList("SELECT id FROM seed_resets WHERE id = ?", String.class, mark).isEmpty()) {
+            log.info("{}=true, but `{}` has already run against this database — nothing deleted. Set {}_TOKEN to a "
+                    + "new value to wipe again.", ENV, mark, ENV);
             return;
         }
         var counts = new LinkedHashMap<String, Integer>();
@@ -114,7 +122,7 @@ public class SeedReset implements CommandLineRunner {
             try { files.delete(path); gone++; } catch (RuntimeException e) { log.warn("seed reset: {} not deleted: {}", path, e.toString()); }
         }
         tx.executeWithoutResult(status -> jdbc.update("INSERT INTO seed_resets (id, ran_at, deleted_json) VALUES (?, ?, ?)",
-                MARK, Timestamp.from(Instant.now()), json(counts)));
+                mark, Timestamp.from(Instant.now()), json(counts)));
         log.info("seed reset: {} school(s), {} stored file(s) deleted; the default school, the platform admin, "
                 + "platform settings, the flag defaults and the permanent caches were kept", schools.size(), gone);
     }

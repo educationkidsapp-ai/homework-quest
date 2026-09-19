@@ -419,6 +419,12 @@ data class WeekSummary(
  * [start] is the request's `start` snapped back to the first day of the school week in the school's timezone, and
  * [days] are the school's teaching days — Sunday–Thursday unless Platform settings or the school says otherwise, so
  * nothing on the client may assume a length or a first day.
+ *
+ * [today] is today in the school's timezone when the week on screen contains it, and null when she has paged
+ * elsewhere. On a Friday or a Saturday today is not a teaching day at all, so it is appended to [days] as an extra
+ * column and listed in [weekendDays] — otherwise a lesson published that morning has nowhere to appear. Every row
+ * still has one cell per entry in [days], which is the only rule the grid needs; [weekendDays] is there so a client
+ * that wants to can tint the column, and a client that ignores it is still correct.
  */
 @Serializable
 data class TeacherWeek(
@@ -426,6 +432,8 @@ data class TeacherWeek(
     val days: List<LocalDate> = emptyList(),
     val rows: List<WeekRow> = emptyList(),
     val summary: WeekSummary = WeekSummary(),
+    val today: LocalDate? = null,
+    val weekendDays: List<LocalDate> = emptyList(),
 )
 
 /** `GET /teacher/classes` (§7): one card per assignment, with today's lesson and how much of the class has played. */

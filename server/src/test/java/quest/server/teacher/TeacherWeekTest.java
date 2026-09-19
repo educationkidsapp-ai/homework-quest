@@ -91,6 +91,69 @@ class TeacherWeekTest extends TeacherTestSupport {
         assertThat(days(week)).hasSize(5).first().isEqualTo(wednesday.minusDays(2).toString());
     }
 
+    // ---------------------------------------------------------------- the weekend
+
+    /**
+     * <strong>Friday.</strong> Sunday–Thursday is over, `startOf` snaps a Friday back to the week that ended on
+     * Thursday, and a lesson published this morning had no column to appear in — the owner read it as lost during
+     * the acceptance pass. Today is a sixth column now, flagged in `weekendDays`, and it is not a gap.
+     *
+     * <p>CI does not run on a Friday to order, so the school week is rotated instead of the date: five teaching days
+     * beginning two days after today make today exactly the Friday of that week, which is the same arithmetic a
+     * Sunday–Thursday school gives a real Friday.
+     */
+    @Test void a_lesson_published_today_is_on_the_grid_on_a_friday() throws Exception {
+        var today = calendar.today(SCHOOL);
+        schoolWeekStartingIn(2);
+        lesson("tw-lesson-friday", SCHOOL, "tw-class-1", "british", 1, "math", today, "published");
+
+        var week = week(null);
+        assertThat(week.get("start").asText()).as("the week that just ended").isEqualTo(today.minusDays(5).toString());
+        assertThat(days(week)).as("five teaching days and today").hasSize(6).last().isEqualTo(today.toString());
+        assertThat(week.get("today").asText()).isEqualTo(today.toString());
+        assertThat(week.get("weekendDays")).hasSize(1);
+        assertThat(week.get("weekendDays").get(0).asText()).isEqualTo(today.toString());
+        assertThat(week.get("rows").get(0).get("cells")).as("a cell per column, which is all the grid asks")
+                .hasSize(days(week).size());
+        assertThat(cellFor(week, today)).isNotNull();
+        assertThat(cellFor(week, today).get("id").asText()).isEqualTo("tw-lesson-friday");
+        for (JsonNode gap : week.get("summary").get("gaps"))
+            assertThat(gap.get("date").asText()).as("nobody teaches on the weekend column").isNotEqualTo(today.toString());
+    }
+
+    /** <strong>Saturday.</strong> The same, one day further out: today is `start + 6`, the last day the week spans. */
+    @Test void a_lesson_published_today_is_on_the_grid_on_a_saturday() throws Exception {
+        var today = calendar.today(SCHOOL);
+        schoolWeekStartingIn(1);
+        lesson("tw-lesson-saturday", SCHOOL, "tw-class-1", "british", 1, "math", today, "published");
+
+        var week = week(null);
+        assertThat(week.get("start").asText()).isEqualTo(today.minusDays(6).toString());
+        assertThat(days(week)).hasSize(6).last().isEqualTo(today.toString());
+        assertThat(week.get("weekendDays").get(0).asText()).isEqualTo(today.toString());
+        assertThat(cellFor(week, today).get("id").asText()).isEqualTo("tw-lesson-saturday");
+    }
+
+    /** Paging away from the week today is in drops the extra column again: `today` is null and there are five days. */
+    @Test void another_week_has_no_weekend_column_and_no_today() throws Exception {
+        var today = calendar.today(SCHOOL);
+        schoolWeekStartingIn(2);
+
+        var week = week(today.minusDays(12).toString());
+        assertThat(days(week)).hasSize(5);
+        assertThat(week.get("today").isNull()).as("she is not looking at this week").isTrue();
+        assertThat(week.get("weekendDays")).isEmpty();
+    }
+
+    /** Five teaching days beginning `offset` days after today — so today is not one of them. */
+    private void schoolWeekStartingIn(int offset) {
+        var names = new ArrayList<String>();
+        var today = calendar.today(SCHOOL);
+        for (int i = 0; i < 5; i++) names.add("\"" + today.plusDays(offset + i).getDayOfWeek().name().substring(0, 3) + "\"");
+        var school = schools.findById(SCHOOL).orElseThrow();
+        school.setSchoolWeekJson("[" + String.join(",", names) + "]"); schools.save(school);
+    }
+
     /**
      * The one assertion that has to be exact whatever hour CI runs at: the school's zone is set to an offset far
      * enough from UTC that the two are never on the same date, and "today" has to follow the school.

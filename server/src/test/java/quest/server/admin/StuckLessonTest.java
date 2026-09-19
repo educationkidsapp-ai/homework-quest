@@ -95,6 +95,42 @@ class StuckLessonTest extends ApiTestSupport {
         assertThat(stepRows.findById(fresh + ":generate_L1").orElseThrow().getStatus()).isEqualTo("running");
     }
 
+    /**
+     * "Type the text instead" was the last job with no ledger and no deadline: one `@Async` method that called
+     * Prompt A and then every missing level in a row, so nothing bounded it and the watchdog had no `running` row to
+     * age out — a hang there left the lesson `generating` for good. It walks the same steps as an uploaded lesson
+     * now, which is why the hang injected at `generate_L3` ends it here too, with a ledger that says where.
+     */
+    @Test void a_typed_lesson_walks_the_ledger_and_is_bounded_like_any_other() throws Exception {
+        String token = adminToken();
+        String id = json(mvc.perform(admin(post("/admin/lessons"), token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"curriculum\":\"british\",\"grade\":1,\"subject\":\"english\",\"date\":\"2026-11-05\",\"source\":\"manual\",\"title\":\"Hot soup\"}"))
+                .andReturn()).get("id").asText();
+
+        mvc.perform(admin(post("/admin/lessons/" + id + "/generate-from-text"), token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"text\":\"Alan makes hot soup for Mummy, who is in bed with a cold. He stirs it slowly and carries it up.\"}"))
+                .andExpect(status().isOk());
+
+        var l = awaitTerminal(token, id);
+        assertThat(step(l, "upload")).as("there is no file, so Upload and Convert are done by definition").isEqualTo("done");
+        assertThat(step(l, "convert")).isEqualTo("done");
+        assertThat(step(l, "analyze")).isEqualTo("done");
+        assertThat(step(l, "skills")).as("she chose the content herself: nothing to confirm").isEqualTo("done");
+        assertThat(step(l, "generate_L1")).isEqualTo("done");
+        assertThat(step(l, "generate_L3")).as("and the hang is bounded here too, instead of running forever").isEqualTo("error");
+        assertThat(l.get("status").asText()).isEqualTo("error");
+        assertThat(l.get("error").get("code").asText()).isEqualTo("timeout");
+        // which is the point: the lesson is editable again, so the way out — pressing "Generate from text" once
+        // more — is open, and the two levels already written are kept rather than paid for twice.
+        mvc.perform(admin(post("/admin/lessons/" + id + "/generate-from-text"), token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"text\":\"Alan makes hot soup for Mummy, who is in bed with a cold. He stirs it slowly and carries it up.\"}"))
+                .andExpect(status().isOk());
+        var again = awaitTerminal(token, id);
+        assertThat(step(again, "generate_L1")).isEqualTo("done");
+        assertThat(step(again, "generate_L2")).isEqualTo("done");
+        assertThat(again.get("error").get("code").asText()).isEqualTo("timeout");
+    }
+
     // ---------------------------------------------------------------- helpers
 
     @Autowired quest.server.analysis.LessonSteps lessonSteps;

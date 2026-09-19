@@ -363,6 +363,36 @@ interface DashboardApi {
     suspend fun attachChildToClass(classId: String, request: AttachChildRequest): RosterChild
     suspend fun detachChildFromClass(classId: String, childId: String): RosterChild
 
+    /**
+     * The same two, named as the dashboard's roster screen calls them and taking the child's id rather than the
+     * one-field request body, plus the two routes this interface had no name for at all — `GET /admin/children`
+     * with `unassigned=true`, and the hard `DELETE /admin/children/{id}`. Together they are every roster route in
+     * `server/openapi.json`, which is what the generated Angular client is built from: a route with no method here
+     * is one the two clients can disagree about.
+     */
+    suspend fun attachRosterChild(classId: String, childId: String): RosterChild =
+        attachChildToClass(classId, AttachChildRequest(childId))
+
+    suspend fun detachRosterChild(classId: String, childId: String): RosterChild =
+        detachChildFromClass(classId, childId)
+
+    /** The children a parent registered with the school's join code and nobody has put in a section yet. */
+    suspend fun listUnassignedChildren(): List<RosterChild> = schoolChildren(unassigned = true)
+
+    /**
+     * `DELETE /admin/children/{id}` — the row and everything that was only ever hers (attempts, completions,
+     * unlocks, stickers, streak, recordings, drawings). It is how acceptance data is cleaned out; a child who has
+     * simply left the school is retired with [updateRosterChild] and `active = false` instead, which keeps her work.
+     */
+    suspend fun deleteRosterChild(childId: String)
+
+    /** The teacher's aliases for the two the `teacher.rosterEdit` flag gives her; there is no teacher-side delete. */
+    suspend fun attachRosterChildToMyClass(classId: String, childId: String): RosterChild =
+        attachChildToMyClass(classId, AttachChildRequest(childId))
+
+    suspend fun detachRosterChildFromMyClass(classId: String, childId: String): RosterChild =
+        detachChildFromMyClass(classId, childId)
+
     /** CSV or XLSX with `name,parentEmail`; `dryRun` returns the preview without writing anything. */
     suspend fun importRoster(classId: String, fileName: String, bytes: ByteArray, dryRun: Boolean = true): ImportPreview
 
