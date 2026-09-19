@@ -2,7 +2,6 @@ package quest.server.analysis;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -30,17 +29,19 @@ import quest.server.files.FileStore;
 /**
  * Uploads (hash, store, render pages) and Prompt A. The permanent cache is checked first: the same slides for the same
  * course never cost a second model call.
+ *
+ * <p>Since CR4 Prompt A reads only the Markdown {@link ConversionService} wrote beside each upload — no PDF and no
+ * page images are attached — which is why {@code CacheKeys.PROMPT_A_VERSION} moved to `a2`.
  */
 @Service
 public class AnalysisService {
     private static final Logger log = LoggerFactory.getLogger(AnalysisService.class);
-    public static final int MAX_IMAGES_PER_CALL = 20;
 
     private final LessonRepository lessons; private final SourceFileRepository sourceFiles; private final PageImageRepository pageImages; private final SkillRepository skills;
-    private final AnalysisCacheRepository cache; private final FileStore files; private final SlideProcessor slides; private final LlmClient llm; private final Json json; private final LessonState state;
+    private final AnalysisCacheRepository cache; private final FileStore files; private final SlideProcessor slides; private final ConversionService conversion; private final LlmClient llm; private final Json json; private final LessonState state;
 
-    public AnalysisService(LessonRepository lessons, SourceFileRepository sourceFiles, PageImageRepository pageImages, SkillRepository skills, AnalysisCacheRepository cache, FileStore files, SlideProcessor slides, LlmClient llm, Json json, LessonState state) {
-        this.lessons = lessons; this.sourceFiles = sourceFiles; this.pageImages = pageImages; this.skills = skills; this.cache = cache; this.files = files; this.slides = slides; this.llm = llm; this.json = json; this.state = state;
+    public AnalysisService(LessonRepository lessons, SourceFileRepository sourceFiles, PageImageRepository pageImages, SkillRepository skills, AnalysisCacheRepository cache, FileStore files, SlideProcessor slides, ConversionService conversion, LlmClient llm, Json json, LessonState state) {
+        this.lessons = lessons; this.sourceFiles = sourceFiles; this.pageImages = pageImages; this.skills = skills; this.cache = cache; this.files = files; this.slides = slides; this.conversion = conversion; this.llm = llm; this.json = json; this.state = state;
     }
 
     public record Upload(String fileName, String mimeType, byte[] bytes) {}
@@ -124,7 +125,7 @@ public class AnalysisService {
         if (cached != null) { cached.setHits(cached.getHits() + 1); cache.save(cached); state.addUsage(lesson.getId(), 0, cached.getTokenUsage()); analysisJson = cached.getAnalysisJson(); }
         else {
             var src = new SlideProcessor.Source("text", List.of(new SlideProcessor.Page(1, text, new byte[0], 0, 0)));
-            analysisJson = promptA(lesson, src, List.of(), hash, key);
+            analysisJson = promptA(lesson, src.textDump(), false, hash, key);
         }
         lesson.setSourceHash(hash); lesson.setAnalysisCacheHit(before); lessons.save(lesson);
         var analysis = json.decodeShared(analysisJson, SourceAnalysis.Companion.serializer());
@@ -133,28 +134,30 @@ public class AnalysisService {
         return analysis;
     }
 
+    /**
+     * CR4 §4: the model reads the Markdown the Convert step wrote and nothing else — no PDF, no page images. The
+     * pages are still rendered and stored, because the child's player shows them and OCR reads them; they simply
+     * never leave the server. A file with no Markdown is a Convert step that has not run, which is an error the
+     * teacher can act on rather than a silent fall back to the binary.
+     */
     private String runPromptA(LessonEntity lesson, List<SourceFileEntity> activeFiles, String hash, String key) {
-        List<SlideProcessor.Page> pages = new ArrayList<>(); List<LlmClient.Attachment> attachments = new ArrayList<>();
-        int offset = 0;
+        var sb = new StringBuilder();
         for (var f : activeFiles) {
-            var blob = files.get(f.getStoragePath()).orElseThrow(() -> new ApiException(org.springframework.http.HttpStatus.GONE, "unreadable_file", "The uploaded file has expired (files are kept 24 hours). Upload it again."));
-            if (llm.acceptsPdf() && "pdf".equals(f.getKind())) attachments.add(new LlmClient.Attachment("application/pdf", blob.bytes(), f.getFileName()));
-            var source = slides.process(f.getFileName(), f.getMimeType(), blob.bytes());
-            for (var p : source.pages()) pages.add(new SlideProcessor.Page(offset + p.number(), p.text(), p.png(), p.width(), p.height()));
-            offset += source.pages().size();
+            String md = conversion.markdown(f).orElseThrow(() -> new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, quest.api.dto.ApiError.MARKDOWN_MISSING,
+                    "\"" + f.getFileName() + "\" hasn't been converted to text yet."));
+            sb.append("--- ").append(f.getFileName()).append(" ---\n").append(md.strip()).append("\n\n");
         }
-        if (attachments.isEmpty()) for (var p : pages) { if (attachments.size() >= MAX_IMAGES_PER_CALL) break; attachments.add(new LlmClient.Attachment("image/png", p.png(), "page-" + p.number())); }
-        return promptA(lesson, new SlideProcessor.Source("mixed", pages), attachments, hash, key);
+        return promptA(lesson, sb.toString(), true, hash, key);
     }
 
-    private String promptA(LessonEntity lesson, SlideProcessor.Source src, List<LlmClient.Attachment> attachments, String hash, String key) {
+    private String promptA(LessonEntity lesson, String sourceText, boolean markdown, String hash, String key) {
         String[] course = lesson.getCourseId().split("/");
-        String user = Prompts.userA(course[0], Integer.parseInt(course[1]), lesson.getSubject(), lesson.getNotes(), src.textDump(), !attachments.isEmpty());
+        String user = Prompts.userA(course[0], Integer.parseInt(course[1]), lesson.getSubject(), lesson.getNotes(), sourceText, markdown);
         long used = 0; String text = null; List<String> errors = List.of();
         for (int attempt = 0; attempt < 2; attempt++) {
             String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected by the validator:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
             LlmClient.Result r;
-            try { r = llm.complete(Prompts.SYSTEM_A, u, attachments); }
+            try { r = llm.complete(Prompts.SYSTEM_A, u, List.of()); }
             catch (LlmClient.LlmException e) { if (e.isTransient()) throw new LessonSteps.TransientFailure(e.getMessage(), e); throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", e.getMessage()); }
             used += r.total();
             JsonNode probe = tryTree(r.text());

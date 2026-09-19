@@ -41,7 +41,7 @@ public class LessonSteps {
         this.steps = steps; this.lessons = lessons; this.retryDelayMs = retryDelayMs;
     }
 
-    public static String stepName(PipelineStep s) { return switch (s) { case UPLOAD -> "upload"; case ANALYZE -> "analyze"; case SKILLS -> "skills"; case GENERATE_L1 -> "generate_L1"; case GENERATE_L2 -> "generate_L2"; case GENERATE_L3 -> "generate_L3"; case GENERATE_AGAIN -> "generate_again"; case PANEL -> "panel"; }; }
+    public static String stepName(PipelineStep s) { return switch (s) { case UPLOAD -> "upload"; case CONVERT -> "convert"; case ANALYZE -> "analyze"; case SKILLS -> "skills"; case GENERATE_L1 -> "generate_L1"; case GENERATE_L2 -> "generate_L2"; case GENERATE_L3 -> "generate_L3"; case GENERATE_AGAIN -> "generate_again"; case PANEL -> "panel"; }; }
     public static PipelineStep parse(String name) { for (var s : ORDER) if (stepName(s).equals(name)) return s; throw ApiException.badRequest("Unknown step: " + name); }
     private static String id(String lessonId, PipelineStep s) { return lessonId + ":" + stepName(s); }
 
@@ -139,6 +139,15 @@ public class LessonSteps {
                 case "model_failed" -> "The AI returned an invalid answer twice. Retry, or edit Level 1 by hand and press Generate the other levels." + d;
                 case "model_unavailable" -> "The AI service didn't answer after three tries (busy or unreachable). Wait a minute and press Retry and continue." + d;
                 case "network" -> "The network dropped while talking to the AI service. Press Retry and continue." + d;
+                // CR4: the Convert step. Each one names the way out the teacher has on the file itself.
+                case "encrypted" -> "This file is password-protected, so we can't read the text out of it. Save it again without the password, or paste the lesson's text with \"Type the text instead\"." + d;
+                case "unsupported" -> "We can't read this kind of file. Upload a PDF, PowerPoint, Word, Excel or CSV file, a photo of the pages, or paste the text with \"Type the text instead\"." + d;
+                case "malformed" -> "This file looks damaged, so we couldn't read it. Open it, save a fresh copy and upload that — or paste the text with \"Type the text instead\"." + d;
+                case "needs_ocr" -> "There is no text in this file, only pictures of it. Press \"Read the pictures\" to read it with OCR, or paste the text with \"Type the text instead\"." + d;
+                case "ocr_failed" -> "We tried to read the pictures and found no words. Upload a clearer scan, or paste the text with \"Type the text instead\"." + d;
+                case "tool_missing" -> "The document converter isn't installed on this server. An operator needs to check QUEST_ANYDOC_BIN and QUEST_TESSERACT_BIN." + d;
+                case "io" -> "The document converter stopped before it finished. Press Retry and continue; if it happens again, paste the text with \"Type the text instead\"." + d;
+                case "markdown_missing" -> "This lesson's files haven't been converted to text yet. Press Retry and continue to convert them." + d;
                 default -> (detail == null || detail.isBlank() ? "Something went wrong at this step. Press Retry and continue." : detail);
             };
         }

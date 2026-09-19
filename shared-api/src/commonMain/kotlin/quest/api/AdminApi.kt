@@ -82,11 +82,20 @@ interface AdminApi {
 
 /** The pipeline every uploaded lesson goes through; each step is idempotent and cache-first, so a retry resumes where it failed. */
 @Serializable enum class PipelineStep {
-    @SerialName("upload") UPLOAD, @SerialName("analyze") ANALYZE, @SerialName("skills") SKILLS,
+    @SerialName("upload") UPLOAD, @SerialName("convert") CONVERT, @SerialName("analyze") ANALYZE, @SerialName("skills") SKILLS,
     @SerialName("generate_L1") GENERATE_L1, @SerialName("generate_L2") GENERATE_L2, @SerialName("generate_L3") GENERATE_L3,
     @SerialName("generate_again") GENERATE_AGAIN, @SerialName("panel") PANEL;
-    val label: String get() = when (this) { UPLOAD -> "Upload"; ANALYZE -> "Read the pages"; SKILLS -> "Confirm skills"; GENERATE_L1 -> "Level 1"; GENERATE_L2 -> "Level 2"; GENERATE_L3 -> "Level 3"; GENERATE_AGAIN -> "Again variant"; PANEL -> "Parent panel" }
-    val short: String get() = when (this) { UPLOAD -> "upload"; ANALYZE -> "analyze"; SKILLS -> "skills"; GENERATE_L1 -> "generate L1"; GENERATE_L2 -> "generate L2"; GENERATE_L3 -> "generate L3"; GENERATE_AGAIN -> "generate Again"; PANEL -> "parent panel" }
+    val label: String get() = when (this) { UPLOAD -> "Upload"; CONVERT -> "Convert to text"; ANALYZE -> "Read the pages"; SKILLS -> "Confirm skills"; GENERATE_L1 -> "Level 1"; GENERATE_L2 -> "Level 2"; GENERATE_L3 -> "Level 3"; GENERATE_AGAIN -> "Again variant"; PANEL -> "Parent panel" }
+    val short: String get() = when (this) { UPLOAD -> "upload"; CONVERT -> "convert"; ANALYZE -> "analyze"; SKILLS -> "skills"; GENERATE_L1 -> "generate L1"; GENERATE_L2 -> "generate L2"; GENERATE_L3 -> "generate L3"; GENERATE_AGAIN -> "generate Again"; PANEL -> "parent panel" }
+}
+
+/**
+ * CR4 §4: where one uploaded file is on its way to the Markdown the model reads. `PENDING` is a file that was
+ * uploaded before the Convert step ran (including every file uploaded before CR4); `READY` means `markdownChars`
+ * characters of Markdown are stored beside the original and the preview endpoint will serve them.
+ */
+@Serializable enum class ConvertStatus {
+    @SerialName("pending") PENDING, @SerialName("converting") CONVERTING, @SerialName("ready") READY, @SerialName("error") ERROR
 }
 @Serializable enum class StepStatus { @SerialName("pending") PENDING, @SerialName("running") RUNNING, @SerialName("done") DONE, @SerialName("error") ERROR }
 @Serializable data class LessonStepInfo(val step: PipelineStep, val status: StepStatus, val attempt: Int = 0, val errorCode: String? = null, val errorMessage: String? = null, val updatedAt: Long = 0)
@@ -94,7 +103,23 @@ interface AdminApi {
 @Serializable data class ReorderRequest(val stopIds: List<String>)
 @Serializable data class CreatePlayRequest(val level: Int, val variant: Int = 0)
 @Serializable data class ConfirmedSkill(val id: String? = null, val name: String, val subject: Subject, val method: String? = null)
-@Serializable data class SourceFileInfo(val id: String, val fileName: String, val fileHash: String, val pageCount: Int, val cacheHit: Boolean, val deleted: Boolean)
+/**
+ * One uploaded file. [convertStatus] and the three fields after it are CR4's conversion ledger:
+ * [convertErrorCode] is one of `encrypted | unsupported | malformed | needs_ocr | ocr_failed | tool_missing | io`
+ * (only when [convertStatus] is `error`), [convertMethod] one of `anydoc | ocr | text` (only once ready), and
+ * [markdownChars] the size of the stored Markdown, which `GET …/files/{fileId}/markdown` serves.
+ */
+@Serializable data class SourceFileInfo(
+    val id: String, val fileName: String, val fileHash: String, val pageCount: Int, val cacheHit: Boolean, val deleted: Boolean,
+    val convertStatus: ConvertStatus = ConvertStatus.PENDING, val convertErrorCode: String? = null,
+    val convertMethod: String? = null, val markdownChars: Int? = null,
+)
+
+/**
+ * The teacher's way out of a conversion that failed (CR4 §4 "fallback"): `method=ocr` runs the pages through OCR,
+ * `method=text` stores the Markdown she pasted in [markdown] as the file's extracted text.
+ */
+@Serializable data class RetryConversionRequest(val markdown: String? = null)
 @Serializable data class AdminPlay(val id: String, val level: Int, val variant: Int, val play: Play, val promptVersion: String, val generatedAt: Long)
 
 @Serializable

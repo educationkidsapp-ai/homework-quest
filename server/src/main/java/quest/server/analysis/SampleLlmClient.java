@@ -12,7 +12,6 @@ import quest.api.validation.SchemaValidator;
 /** No network: answers with the seeded Hot Soup / math / phonics content. Used with FAKE_LLM=true and in tests. */
 public class SampleLlmClient implements LlmClient {
     @Override public String name() { return "sample"; }
-    @Override public boolean acceptsPdf() { return true; }
 
     @Override public Result complete(String system, String user, List<Attachment> attachments) {
         var json = SchemaValidator.INSTANCE.getJson();

@@ -46,34 +46,6 @@
   gap: var(--hq-space-12);
 }
 
-.lesson__files {
-  border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-divider);
-}
-
-.lesson__file {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--hq-space-12);
-  min-block-size: var(--hq-size-row-height);
-  padding-block: var(--hq-space-8);
-  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
-}
-
-.lesson__file--deleted {
-  color: var(--hq-color-ink-soft);
-  text-decoration: line-through;
-}
-
-.lesson__file-name {
-  font-weight: var(--hq-font-label-weight);
-}
-
-.lesson__file-meta {
-  font-size: var(--hq-font-label-size);
-  color: var(--hq-color-ink-soft);
-}
-
 .lesson__skills {
   display: flex;
   flex-direction: column;

@@ -36,8 +36,41 @@ describe('parseProse', () => {
   });
 
   it('treats an unknown line as prose rather than losing it', () => {
-    expect(parseProse('> quoted\n#### four hashes')).toEqual([
-      { kind: 'paragraph', text: '> quoted\n#### four hashes' },
+    expect(parseProse('> quoted\nplain again')).toEqual([{ kind: 'paragraph', text: '> quoted\nplain again' }]);
+  });
+
+  // ---- CR4: the same renderer, over a converted file's Markdown ------------------------------
+
+  it('clamps a deeper heading rather than printing its hashes', () => {
+    expect(parseProse('#### four hashes')).toEqual([{ kind: 'heading', level: 3, text: 'four hashes' }]);
+  });
+
+  it('keeps a converter\u2019s page headings, which are what a teacher navigates by', () => {
+    expect(parseProse('## Page 2\n\nShapes we know')).toEqual([
+      { kind: 'heading', level: 2, text: 'Page 2' },
+      { kind: 'paragraph', text: 'Shapes we know' },
+    ]);
+  });
+
+  it('keeps the word and drops its emphasis marks', () => {
+    expect(parseProse('**Shapes** we `know`, and 3 * 4 = 12')).toEqual([
+      { kind: 'paragraph', text: 'Shapes we know, and 3 * 4 = 12' },
+    ]);
+    expect(parseProse('- __one__ apple')).toEqual([
+      { kind: 'list', ordered: false, items: ['one apple'] },
+    ]);
+  });
+
+  it('leaves a name with underscores in it alone', () => {
+    expect(parseProse('the file is lesson_one_final.pdf')).toEqual([
+      { kind: 'paragraph', text: 'the file is lesson_one_final.pdf' },
+    ]);
+  });
+
+  it('draws no horizontal rule, because it has none to draw', () => {
+    expect(parseProse('one\n\n---\n\ntwo')).toEqual([
+      { kind: 'paragraph', text: 'one' },
+      { kind: 'paragraph', text: 'two' },
     ]);
   });
 });

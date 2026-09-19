@@ -1,0 +1,2 @@
+# Installed by `npm --prefix tools/anydoc ci` for local development, and inside the image by the Dockerfile.
+node_modules/

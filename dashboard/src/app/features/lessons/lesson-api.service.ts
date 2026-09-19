@@ -15,6 +15,7 @@ import {
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { silentErrors } from '../../core/http/error.interceptor';
+import { type RetryMethod, retryConversionBody } from './file-conversion';
 import { type NewLessonRequest, createLessonBody } from './lessons.models';
 
 /** What both list endpoints narrow by. `schoolId` is Admin-only — a teacher has exactly one. */
@@ -212,6 +213,42 @@ export class LessonApiService {
 
   uploadImage(id: string, file: File): Observable<LessonImage> {
     return this.isAdmin() ? this.admin.uploadImage(id, file) : this.teacher.teacherUploadImage(id, file);
+  }
+
+  // ---- CR4: the Markdown the model will read ------------------------------------------------
+
+  /**
+   * What the model will be handed for this file, as `text/markdown`.
+   *
+   * 404 `markdown_missing` until the convert step has run, which is exactly the case the
+   * preview link is not rendered in — the caller shows it only on a `ready` file. It is still a
+   * 404 the error interceptor must not turn into "not found" navigation, so the caller passes
+   * `silentErrors` and puts its own sentence in the dialog.
+   */
+  fileMarkdown(lessonId: string, fileId: string): Observable<string> {
+    const options = { context: silentErrors() };
+    return this.isAdmin()
+      ? this.admin.fileMarkdown(lessonId, fileId, 'body', false, options)
+      : this.teacher.teacherFileMarkdown(lessonId, fileId, 'body', false, options);
+  }
+
+  /**
+   * The teacher's two ways out of a file we could not read: OCR it, or type it.
+   *
+   * Answers the **whole lesson** rather than a job, because the server resets the pipeline from
+   * `convert` — so the caller replaces its lesson with this and the step strip, the file's pill
+   * and the status all move together, with no reload in between that could show a half-state.
+   */
+  retryConversion(
+    lessonId: string,
+    fileId: string,
+    method: RetryMethod,
+    markdown?: string,
+  ): Observable<AdminLesson> {
+    const body = retryConversionBody(markdown);
+    return this.isAdmin()
+      ? this.admin.retryConversion(lessonId, fileId, method, body)
+      : this.teacher.teacherRetryConversion(lessonId, fileId, method, body);
   }
 
   // ---- plays and stops ----------------------------------------------------------------------

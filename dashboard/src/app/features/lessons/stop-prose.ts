@@ -36,9 +36,38 @@ export interface ProseList {
 
 export type ProseBlock = ProseHeading | ProseParagraph | ProseList;
 
-const HEADING = /^ {0,3}(#{1,3})\s+(.*)$/;
+const HEADING = /^ {0,3}(#{1,6})\s+(.*)$/;
 const BULLET = /^\s*[-*]\s+(.*)$/;
 const NUMBERED = /^\s*\d+[.)]\s+(.*)$/;
+/** `---`, `***`, `___` on a line of their own: a rule, and this renderer draws no rules. */
+const THEMATIC_BREAK = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
+
+/**
+ * CR4: the emphasis marks, removed rather than rendered.
+ *
+ * A stop's text is written by hand and rarely carries any; a **converted file's** Markdown is
+ * full of them, because that is what a heading in a PowerPoint or a bold run in a Word document
+ * becomes. Leaving them in would show a teacher `**Photosynthesis**` where the document said
+ * Photosynthesis — raw syntax, which is the one thing the preview exists to prevent — and
+ * rendering them would mean `innerHTML`, which is the one thing `parseProse` exists to prevent.
+ * So the word survives and its decoration does not, which is the right trade for a page whose
+ * question is "what does the AI read?" rather than "how did it look?".
+ *
+ * Only paired, non-spaced runs are touched, so `a * b` and `snake_case_name` are left alone:
+ * a lone `*` is arithmetic far more often than it is emphasis.
+ */
+const INLINE_MARKS = /(\*\*|__|\*|`)(?=\S)([\s\S]*?\S)\1/g;
+
+function stripInlineMarks(text: string): string {
+  let previous = text;
+  // Nested runs (`**a `b`**`) need more than one pass; three is past anything a document produces.
+  for (let pass = 0; pass < 3; pass += 1) {
+    const next = previous.replace(INLINE_MARKS, '$2');
+    if (next === previous) return next;
+    previous = next;
+  }
+  return previous;
+}
 
 /**
  * The teacher's text as headings, paragraphs and lists.
@@ -73,10 +102,18 @@ export function parseProse(text: string): readonly ProseBlock[] {
       continue;
     }
 
+    if (THEMATIC_BREAK.test(line)) {
+      flush();
+      continue;
+    }
+
     const heading = HEADING.exec(line);
     if (heading) {
       flush();
-      blocks.push({ kind: 'heading', level: heading[1]!.length as 1 | 2 | 3, text: heading[2]!.trim() });
+      // Four `#` and deeper are clamped: this editor offers three rungs, and a literal `####`
+      // on the page would be exactly the raw syntax the renderer is here to absorb.
+      const level = Math.min(heading[1]!.length, 3) as 1 | 2 | 3;
+      blocks.push({ kind: 'heading', level, text: stripInlineMarks(heading[2]!.trim()) });
       continue;
     }
 
@@ -89,12 +126,12 @@ export function parseProse(text: string): readonly ProseBlock[] {
       // continuation: the two say different things about order and must not be merged.
       if (items.length > 0 && ordered !== isOrdered) flushList();
       ordered = isOrdered;
-      items.push((bullet?.[1] ?? numbered![1]!).trim());
+      items.push(stripInlineMarks((bullet?.[1] ?? numbered![1]!).trim()));
       continue;
     }
 
     flushList();
-    paragraph.push(line.trim());
+    paragraph.push(stripInlineMarks(line.trim()));
   }
 
   flush();

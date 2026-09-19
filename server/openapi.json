@@ -39,7 +39,7 @@
             "type" : "integer"
           },
           "currentStep" : {
-            "enum" : [ "upload", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel" ],
+            "enum" : [ "upload", "convert", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel" ],
             "type" : "string"
           },
           "date" : {
@@ -1537,7 +1537,7 @@
             "type" : "string"
           },
           "step" : {
-            "enum" : [ "upload", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel" ],
+            "enum" : [ "upload", "convert", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel" ],
             "type" : "string"
           },
           "updatedAt" : {
@@ -3092,6 +3092,16 @@
           "cacheHit" : {
             "type" : "boolean"
           },
+          "convertErrorCode" : {
+            "type" : "string"
+          },
+          "convertMethod" : {
+            "type" : "string"
+          },
+          "convertStatus" : {
+            "enum" : [ "pending", "converting", "ready", "error" ],
+            "type" : "string"
+          },
           "deleted" : {
             "type" : "boolean"
           },
@@ -3104,12 +3114,16 @@
           "id" : {
             "type" : "string"
           },
+          "markdownChars" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "pageCount" : {
             "format" : "int32",
             "type" : "integer"
           }
         },
-        "required" : [ "cacheHit", "deleted", "fileHash", "fileName", "id", "pageCount" ],
+        "required" : [ "cacheHit", "convertStatus", "deleted", "fileHash", "fileName", "id", "pageCount" ],
         "type" : "object"
       },
       "Stop" : {
@@ -5393,6 +5407,88 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/JobRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Admin lessons" ]
+      }
+    },
+    "/admin/lessons/{id}/files/{fileId}/markdown" : {
+      "get" : {
+        "operationId" : "fileMarkdown",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "fileId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/markdown" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Admin lessons" ]
+      }
+    },
+    "/admin/lessons/{id}/files/{fileId}/retry-conversion" : {
+      "post" : {
+        "operationId" : "retryConversion",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "fileId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "method",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminLesson"
                 }
               }
             },
@@ -8369,6 +8465,88 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/JobRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/files/{fileId}/markdown" : {
+      "get" : {
+        "operationId" : "teacherFileMarkdown",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "fileId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/markdown" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/files/{fileId}/retry-conversion" : {
+      "post" : {
+        "operationId" : "teacherRetryConversion",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "fileId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "method",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminLesson"
                 }
               }
             },

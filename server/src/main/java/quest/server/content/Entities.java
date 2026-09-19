@@ -90,6 +90,12 @@ public final class Entities {
         @Column(name = "cache_hit", nullable = false) private boolean cacheHit;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
         @Column(name = "deleted_at") private Instant deletedAt;
+        /** CR4 (V10): the Markdown the model reads instead of this file. See {@code ConversionService}. */
+        @Column(name = "markdown_path") private String markdownPath;
+        @Column(name = "convert_status", nullable = false) private String convertStatus = "pending";
+        @Column(name = "convert_error_code") private String convertErrorCode;
+        @Column(name = "convert_method") private String convertMethod;
+        @Column(name = "markdown_chars") private Integer markdownChars;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getLessonId() { return lessonId; } public void setLessonId(String v) { lessonId = v; }
         public String getFileName() { return fileName; } public void setFileName(String v) { fileName = v; }
@@ -102,6 +108,13 @@ public final class Entities {
         public boolean isCacheHit() { return cacheHit; } public void setCacheHit(boolean v) { cacheHit = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
         public Instant getDeletedAt() { return deletedAt; } public void setDeletedAt(Instant v) { deletedAt = v; }
+        public String getMarkdownPath() { return markdownPath; } public void setMarkdownPath(String v) { markdownPath = v; }
+        public String getConvertStatus() { return convertStatus; } public void setConvertStatus(String v) { convertStatus = v; }
+        public String getConvertErrorCode() { return convertErrorCode; } public void setConvertErrorCode(String v) { convertErrorCode = v; }
+        public String getConvertMethod() { return convertMethod; } public void setConvertMethod(String v) { convertMethod = v; }
+        public Integer getMarkdownChars() { return markdownChars; } public void setMarkdownChars(Integer v) { markdownChars = v; }
+        /** CR4: forget the extracted text, because the file it was extracted from is gone or replaced. The caller deletes the `.md` blob and saves the row. */
+        public void clearMarkdown() { markdownPath = null; markdownChars = null; convertMethod = null; convertErrorCode = null; convertStatus = "pending"; }
     }
 
     @Entity @Table(name = "skills")

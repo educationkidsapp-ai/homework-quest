@@ -24,14 +24,14 @@ import quest.server.content.SourceFileRepository;
 @Service
 public class LessonPipeline {
     private static final Logger log = LoggerFactory.getLogger(LessonPipeline.class);
-    private final LessonRepository lessons; private final SourceFileRepository files; private final AnalysisService analysis; private final GenerationService generation; private final LessonState state; private final LessonSteps steps;
+    private final LessonRepository lessons; private final SourceFileRepository files; private final AnalysisService analysis; private final ConversionService conversion; private final GenerationService generation; private final LessonState state; private final LessonSteps steps;
     private final quest.server.content.SkillRepository skills; private final quest.server.content.PlayRepository plays; private final quest.server.content.ParentPanelRepository panels; private final AnalysisCacheRepository analyses; private final quest.server.content.LessonStore store;
     /** Test hook: `quest.pipeline.fail-once-at=generate_L2` makes that step fail the first time it runs for each lesson. */
     private final String failOnceAt; private final Set<String> failed = ConcurrentHashMap.newKeySet();
 
-    public LessonPipeline(LessonRepository lessons, SourceFileRepository files, AnalysisService analysis, GenerationService generation, LessonState state, LessonSteps steps, @Value("${quest.pipeline.fail-once-at:}") String failOnceAt,
+    public LessonPipeline(LessonRepository lessons, SourceFileRepository files, AnalysisService analysis, ConversionService conversion, GenerationService generation, LessonState state, LessonSteps steps, @Value("${quest.pipeline.fail-once-at:}") String failOnceAt,
                           quest.server.content.SkillRepository skills, quest.server.content.PlayRepository plays, quest.server.content.ParentPanelRepository panels, AnalysisCacheRepository analyses, quest.server.content.LessonStore store) {
-        this.lessons = lessons; this.files = files; this.analysis = analysis; this.generation = generation; this.state = state; this.steps = steps; this.failOnceAt = failOnceAt == null ? "" : failOnceAt.trim();
+        this.lessons = lessons; this.files = files; this.analysis = analysis; this.conversion = conversion; this.generation = generation; this.state = state; this.steps = steps; this.failOnceAt = failOnceAt == null ? "" : failOnceAt.trim();
         this.skills = skills; this.plays = plays; this.panels = panels; this.analyses = analyses; this.store = store;
     }
 
@@ -47,6 +47,10 @@ public class LessonPipeline {
         boolean analysed = lesson.getSourceHash() != null && analyses.existsById(quest.api.CacheKeys.INSTANCE.analysisKey(lesson.getSourceHash()));
         boolean confirmed = !skills.findByLessonIdAndConfirmedTrueOrderByPosition(lessonId).isEmpty();
         if (hasFiles) steps.done(lessonId, PipelineStep.UPLOAD);
+        // CR4: a lesson analysed before the Convert step existed keeps its analysis — it was paid for, and
+        // re-converting would not change it — so Convert counts as done exactly when Analyse does.
+        boolean converted = files.findByLessonIdOrderByCreatedAt(lessonId).stream().filter(f -> f.getDeletedAt() == null).allMatch(f -> "ready".equals(f.getConvertStatus()));
+        if (hasFiles && (analysed || converted)) steps.done(lessonId, PipelineStep.CONVERT);
         if (hasFiles && analysed) steps.done(lessonId, PipelineStep.ANALYZE);
         if (hasFiles && analysed && confirmed) {
             steps.done(lessonId, PipelineStep.SKILLS);
@@ -101,6 +105,13 @@ public class LessonPipeline {
     private void body(LessonEntity lesson, PipelineStep step) {
         switch (step) {
             case UPLOAD -> { if (files.findByLessonIdOrderByCreatedAt(lesson.getId()).stream().noneMatch(f -> f.getDeletedAt() == null)) throw ApiException.badRequest("Upload the slides first."); }
+            // CR4 §4: every active file becomes Markdown before Prompt A sees anything. One file's refusal fails the
+            // step with that file's own code, which is the message the editor shows beside it.
+            case CONVERT -> {
+                int reused = 0, n = 0;
+                for (var f : files.findByLessonIdOrderByCreatedAt(lesson.getId())) if (f.getDeletedAt() == null) { n++; if (conversion.convert(f).cacheHit()) reused++; }
+                log.info("lesson {} converted {} file(s) to Markdown, {} reused from an identical upload", lesson.getId(), n, reused);
+            }
             case ANALYZE -> analysis.analyze(lesson);
             case SKILLS -> { }
             case GENERATE_L1 -> generation.generatePlay(lesson, 1, 0);

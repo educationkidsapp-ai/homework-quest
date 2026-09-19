@@ -187,26 +187,12 @@
             />
           </ng-container>
         </div>
-        @if (files().length === 0) {
-          <p class="lesson__empty">{{ 'lessons.detail.files.empty' | transloco }}</p>
-        } @else {
-          <ul class="lesson__files">
-            @for (file of files(); track file.id) {
-              <li class="lesson__file" [class.lesson__file--deleted]="file.deleted">
-                <span class="lesson__file-name">{{ file.fileName }}</span>
-                <span class="lesson__file-meta">
-                  {{ 'lessons.detail.files.pages' | transloco: { count: file.pageCount } }}
-                  @if (file.cacheHit) {
-                    · {{ 'lessons.detail.files.cacheHit' | transloco }}
-                  }
-                  @if (file.deleted) {
-                    · {{ 'lessons.detail.files.deleted' | transloco }}
-                  }
-                </span>
-              </li>
-            }
-          </ul>
-        }
+        <hq-lesson-sources
+          [lessonId]="lessonId"
+          [files]="files()"
+          [checkNow]="convertDoneBeforeAnalyze()"
+          (lessonChanged)="onLessonReconverted($event)"
+        />
       </hq-card>
 
       @if (isNeedsReview()) {

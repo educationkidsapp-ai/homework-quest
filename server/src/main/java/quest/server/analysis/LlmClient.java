@@ -9,8 +9,6 @@ public interface LlmClient {
     record Result(String text, long inputTokens, long outputTokens) { public long total() { return inputTokens + outputTokens; } }
 
     String name();
-    /** Whether PDFs can be attached directly (otherwise pages are rendered to PNG first). */
-    default boolean acceptsPdf() { return false; }
     Result complete(String system, String user, List<Attachment> attachments);
 
     /** {@code transientFailure}: the provider was busy/unreachable (429, 5xx, timeout) — worth retrying later; false = it answered but wrongly. */
