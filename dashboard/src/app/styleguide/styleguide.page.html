@@ -94,6 +94,19 @@
           }
         </div>
 
+        <h3 class="hq-label sg__heading">{{ 'styleguide.foundations.contrast' | transloco }}</h3>
+        <p class="sg__note">{{ 'styleguide.foundations.contrastHint' | transloco }}</p>
+        <div class="sg__contrast" data-hq-contrast>
+          @for (role of contrast(); track role.role) {
+            <p class="sg__contrast-role" [attr.data-hq-role]="role.role" [attr.data-hq-aa]="role.aa">
+              <span class="sg__contrast-sample" [style.color]="'var(' + role.role + ')'">{{
+                role.role
+              }}</span>
+              <span class="sg__contrast-ratio">{{ role.ratio.toFixed(2) }}:1</span>
+            </p>
+          }
+        </div>
+
         <h3 class="hq-label sg__heading">{{ 'styleguide.foundations.focus' | transloco }}</h3>
         <p class="sg__note">{{ 'styleguide.foundations.focusHint' | transloco }}</p>
         <div class="sg__row">

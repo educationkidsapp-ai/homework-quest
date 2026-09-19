@@ -934,7 +934,9 @@
       "focusHint": "Every focusable element takes the same ring: an accent outline over the spec's soft halo, with a brand-300 border.",
       "typeSample": "Every screen is built from these six sizes",
       "darkMode": "Dark mode",
-      "darkModeHint": "Remembered under localStorage['theme']; a school's accent still applies, its ground and ink do not."
+      "darkModeHint": "Remembered under localStorage['theme']; a school's accent still applies, its ground and ink do not.",
+      "contrast": "Contrast",
+      "contrastHint": "Every role that is ever set as text, measured live against this card in the scheme showing. 4.5:1 is AA for normal text; ink-muted is the placeholder and disabled ink, which WCAG exempts."
     },
     "badge": {
       "soft": "Soft",

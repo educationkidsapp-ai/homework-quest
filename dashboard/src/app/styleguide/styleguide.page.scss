@@ -123,6 +123,39 @@
   margin-block-start: var(--hq-space-24);
 }
 
+// The contrast row: one line per text role, the role's own colour on the card it is measured
+// against, and the number the browser computed for it.
+.sg__contrast {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--hq-size-contrast-row), 1fr));
+  gap: var(--hq-space-8) var(--hq-space-16);
+  margin-block-start: var(--hq-space-12);
+}
+
+.sg__contrast-role {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--hq-space-8);
+  margin: 0;
+  font-size: var(--hq-text-theme-xs);
+}
+
+.sg__contrast-sample {
+  font-weight: var(--hq-text-weight-medium);
+}
+
+.sg__contrast-ratio {
+  color: var(--hq-color-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+// Under AA. Said with a word rather than only a colour, because the row is about contrast.
+.sg__contrast-role[data-hq-aa='false'] .sg__contrast-ratio::after {
+  content: ' ·';
+  color: var(--hq-color-error-ink);
+}
+
 .sg__ramp {
   display: flex;
   align-items: center;

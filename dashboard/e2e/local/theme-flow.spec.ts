@@ -268,8 +268,13 @@ async function bodyTextContrast(page: Page): Promise<Contrast> {
     type Rgba = readonly [number, number, number, number];
 
     const parse = (colour: string): Rgba => {
-      const parts = colour.match(/[\d.]+/g)?.map(Number) ?? [];
-      return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0, parts[3] ?? 1];
+      // `color-mix()` computes to `color(srgb r g b / a)` in Chrome, whose channels are 0–1 and
+      // whose colour space would otherwise be read as a number.
+      const space = colour.startsWith('color(');
+      const parts =
+        (space ? colour.replace(/^color\(\s*[\w-]+/, '') : colour).match(/[\d.]+/g)?.map(Number) ?? [];
+      const scale = space ? 255 : 1;
+      return [(parts[0] ?? 0) * scale, (parts[1] ?? 0) * scale, (parts[2] ?? 0) * scale, parts[3] ?? 1];
     };
     const channel = (value: number): number => {
       const v = value / 255;
@@ -341,6 +346,64 @@ async function bodyTextContrast(page: Page): Promise<Contrast> {
   });
 }
 
+/**
+ * The contrast of a **colour role used as text**, composited on the surface of the card it sits
+ * on, computed in the page.
+ *
+ * {@link bodyTextContrast} above measures `--hq-color-ink` where a teacher is actually reading
+ * it. These three are the roles §4.5 of `docs/reports/tailadmin-restyle.md` measured by hand and
+ * found short in dark mode, so they are asked the same question directly — a role is a promise
+ * the theme makes whether or not this screen happens to be wearing it, and two of the three are
+ * derived at runtime (`color-mix` on a school's own accent), which no reading of `_theme.scss`
+ * would resolve.
+ */
+async function roleContrast(page: Page, roles: readonly string[]): Promise<Record<string, number>> {
+  await settled(page);
+  return page.evaluate((properties: readonly string[]) => {
+    type Rgba = readonly [number, number, number, number];
+    const parse = (colour: string): Rgba => {
+      // `color-mix()` computes to `color(srgb r g b / a)` in Chrome, whose channels are 0–1 and
+      // whose colour space would otherwise be read as a number.
+      const space = colour.startsWith('color(');
+      const parts =
+        (space ? colour.replace(/^color\(\s*[\w-]+/, '') : colour).match(/[\d.]+/g)?.map(Number) ?? [];
+      const scale = space ? 255 : 1;
+      return [(parts[0] ?? 0) * scale, (parts[1] ?? 0) * scale, (parts[2] ?? 0) * scale, parts[3] ?? 1];
+    };
+    const channel = (value: number): number => {
+      const v = value / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = (rgb: readonly number[]): number =>
+      0.2126 * channel(rgb[0]!) + 0.7152 * channel(rgb[1]!) + 0.0722 * channel(rgb[2]!);
+    const over = (top: Rgba, bottom: readonly number[]): number[] =>
+      [0, 1, 2].map((i) => top[3] * top[i]! + (1 - top[3]) * bottom[i]!);
+
+    // A real card if the screen has one, the page ground if it does not — the darker of the
+    // two grounds is the card, so this is the harder of the two questions.
+    const host = document.querySelector('hq-card') ?? document.querySelector('main') ?? document.body;
+    const stack: Rgba[] = [];
+    for (let node: Element | null = host; node !== null; node = node.parentElement) {
+      const background = parse(getComputedStyle(node).backgroundColor);
+      if (background[3] > 0) stack.push(background);
+    }
+    const surface = stack.reduceRight<number[]>((under, layer) => over(layer, under), [255, 255, 255]);
+    const below = luminance(surface);
+
+    const probe = document.createElement('span');
+    probe.style.position = 'absolute';
+    host.append(probe);
+    const answers: Record<string, number> = {};
+    for (const property of properties) {
+      probe.style.color = `var(${property})`;
+      const above = luminance(over(parse(getComputedStyle(probe).color), surface));
+      answers[property] = (Math.max(above, below) + 0.05) / (Math.min(above, below) + 0.05);
+    }
+    probe.remove();
+    return answers;
+  }, roles);
+}
+
 /** The four questions, asked of one screen at one size in one scheme. */
 async function check(
   page: Page,
@@ -380,6 +443,23 @@ async function check(
       contrast.ratio,
       `${where}: body text fails AA — ${contrast.ratio.toFixed(2)}:1 against the surface under it, over ${contrast.measured} elements. Worst: ${contrast.sample}`,
     ).toBeGreaterThanOrEqual(AA_NORMAL);
+
+    // T5.2: the two roles §4.5 caught short, now held to the same floor on every screen.
+    // `--hq-color-accent-ink` is the school's own accent mixed toward white until it is a
+    // colour you can set words in; `--hq-color-error-ink` is one step up the error ramp.
+    // `--hq-color-ink-muted` is *reported* and not asserted: it is the placeholder and
+    // disabled ink, which WCAG exempts and which has to read as unavailable.
+    const roles = await roleContrast(page, [
+      '--hq-color-accent-ink',
+      '--hq-color-error-ink',
+      '--hq-color-ink-muted',
+    ]);
+    for (const role of ['--hq-color-accent-ink', '--hq-color-error-ink']) {
+      expect(
+        roles[role],
+        `${where}: ${role} fails AA as text — ${roles[role]?.toFixed(2) ?? '?'}:1 on the card under it`,
+      ).toBeGreaterThanOrEqual(AA_NORMAL);
+    }
   }
 }
 

@@ -100,7 +100,9 @@ export interface Tab<T extends string = string> {
       }
 
       &[aria-selected='true'] {
-        color: var(--hq-color-accent);
+        // The label takes the accent as *text* (AA-held in dark mode), the rule under it takes
+        // the accent itself — the school's colour where it is a fill, readable where it is a word.
+        color: var(--hq-color-accent-ink);
         border-block-end-color: var(--hq-color-accent);
       }
     }

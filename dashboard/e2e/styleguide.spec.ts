@@ -117,6 +117,32 @@ test.describe('styleguide', () => {
     });
   }
 
+  /**
+   * T5.2: the contrast row, and the one role allowed to be under it.
+   *
+   * The guide measures every role that is ever set as text against the card it is drawn on,
+   * composited, in the scheme showing — which is the only way to get a true number for the two
+   * that are `color-mix`ed from a school's accent at runtime, and for the dark card, whose
+   * surface is translucent. The assertion is the *list* of roles under 4.5:1 rather than a
+   * floor, so a new one appearing is a failure and the known exemption stays named.
+   */
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`every role set as text clears AA, ${scheme}`, async ({ page }) => {
+      await openStyleguide(page, 'en', scheme);
+
+      const rows = page.locator('.sg__contrast-role');
+      expect(await rows.count(), 'the contrast row measured nothing').toBeGreaterThan(5);
+
+      const under = await page
+        .locator(".sg__contrast-role[data-hq-aa='false']")
+        .evaluateAll((elements) => elements.map((el) => el.getAttribute('data-hq-role') ?? '?'));
+
+      // `ink-muted` is the placeholder and disabled ink, which WCAG exempts and which has to
+      // read as unavailable next to `ink-soft`. Everything else is body copy or a label.
+      expect(under, `roles under AA as text in ${scheme}`).toEqual(['--hq-color-ink-muted']);
+    });
+  }
+
   // The halo comes from the global `:focus-visible` and the outline from each component's
   // `focus-ring` mixin. They are different properties, which is the only reason the global one
   // survives a component stylesheet — worth a test, because the day a component sets its own

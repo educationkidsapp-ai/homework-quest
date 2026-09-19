@@ -56,6 +56,7 @@
   --hq-color-error-100: #fee4e2;
   --hq-color-error-200: #fecdca;
   --hq-color-error-300: #fda29b;
+  --hq-color-error-400: #f97066;
   --hq-color-error-500: #f04438;
   --hq-color-error-600: #d92d20;
   --hq-color-error-700: #b42318;
@@ -95,6 +96,10 @@
   // purposes and a school's is its own.
   --hq-color-accent-soft: color-mix(in srgb, var(--hq-color-accent) 10%, #ffffff);
   --hq-color-accent-on-soft: var(--hq-color-accent); // text on that tint
+  // The accent used as *text* rather than as a fill — a selected tab's label, a highlighted
+  // figure. On a white page a school's own accent is what it chose and what it gets; the dark
+  // block re-derives it, because the same colour on `#171f2e` is not the same contrast.
+  --hq-color-accent-ink: var(--hq-color-accent);
   --hq-color-disabled: var(--hq-color-gray-400);
   // §3 Filter chip, on: the count pill is the accent held back by 22 % of the label's white.
   --hq-color-on-accent-soft: rgb(255 255 255 / 0.22);
@@ -270,6 +275,7 @@
   --hq-size-switch: 36px;
   --hq-size-switch-travel: 16px;
   --hq-size-empty-tile: 56px;
+  --hq-size-contrast-row: 280px; // the styleguide's contrast row — a role name plus its ratio
 
   // §2: the sidebar takes .3s, the drawer .22s, a dropdown .18s. All three run on the
   // system's easing and all three collapse to 0 ms under `prefers-reduced-motion`.
@@ -307,6 +313,11 @@ html.dark {
   --hq-color-surface-raised: var(--hq-color-gray-dark);
   --hq-color-bezel: var(--hq-color-gray-950);
   --hq-color-ink-soft: var(--hq-color-gray-400);
+  // 3.32:1 on the dark card, and deliberately so: this is the disabled and placeholder ink,
+  // which WCAG exempts, and it has to read as *unavailable* next to `ink-soft`'s 6.41:1. It is
+  // never body copy — `::placeholder`, a disabled control, an out-of-month day in the calendar,
+  // the empty state's second line. Anything a teacher is meant to read takes `ink` or
+  // `ink-soft`, and `theme-flow.spec.ts` measures every one of those on every screen.
   --hq-color-ink-muted: var(--hq-color-gray-500);
   --hq-color-ink-strong: var(--hq-color-ink);
   --hq-color-divider: var(--hq-color-gray-800);
@@ -323,13 +334,23 @@ html.dark {
   // a step, and on a school's accent it is that school's colour, brought up off the ground.
   --hq-color-accent-soft: color-mix(in srgb, var(--hq-color-accent) 12%, transparent);
   --hq-color-accent-on-soft: color-mix(in srgb, var(--hq-color-accent) 70%, #ffffff);
+  // The accent as text, held up to AA. A school's accent was picked against a white page, so
+  // it arrives here as whatever it is — the seeded school's `#cc2a0f` measures **3.07:1** on
+  // the `#171f2e` card, which is not a colour to set words in (§4.5 of
+  // `docs/reports/tailadmin-restyle.md`). Mixed 45 % into white it clears 4.5:1 for *any*
+  // accent a school could send, including pure black, which is the worst case at **4.9:1**;
+  // `#cc2a0f` itself lands near 6.7:1 and still reads as that school's red. The accent is
+  // untouched as a fill — a button, a chip, the rail's marker are all still the school's.
+  --hq-color-accent-ink: color-mix(in srgb, var(--hq-color-accent) 45%, #ffffff);
   --hq-color-focus-border: var(--hq-color-brand-400);
 
   // Badge tints: 15 % of the ramp's 500 behind the 500 itself.
   --hq-color-success-soft: rgb(18 183 106 / 0.15);
   --hq-color-success-ink: var(--hq-color-success-500);
   --hq-color-error-soft: rgb(240 68 56 / 0.15);
-  --hq-color-error-ink: var(--hq-color-error-500);
+  // `error-500` measures 4.39:1 on the dark card — a tenth under AA, and the one ramp ink that
+  // missed. One step lighter carries the same red at 5.9:1.
+  --hq-color-error-ink: var(--hq-color-error-400);
   --hq-color-warning-soft: rgb(247 144 9 / 0.15);
   --hq-color-warning-ink: var(--hq-color-warning-500);
   --hq-color-neutral-soft: rgb(255 255 255 / 0.05);
