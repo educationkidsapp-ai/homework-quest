@@ -131,7 +131,7 @@ public class GenerationService {
             LlmClient.Result r = call(Prompts.SYSTEM_B, u);
             usage += r.total();
             ObjectNode candidate;
-            try { candidate = (ObjectNode) json.tree(LlmJson.cleanIllustrations(r.text())); } catch (Exception e) { errors = List.of("not valid JSON"); continue; }
+            try { candidate = (ObjectNode) json.tree(LlmJson.dropUnknownStopFields(LlmJson.cleanIllustrations(r.text()))); } catch (Exception e) { errors = List.of("not valid JSON"); continue; }
             if (candidate.has("stops")) { errors = List.of("answer with the single stop, not the whole play"); continue; }
             StopIds.relabelStop(candidate, StopIds.prefix(lesson.getId(), playEntity.getLevel(), playEntity.getVariant()));
             if (used.contains(candidate.path("id").asText())) candidate.put("id", candidate.path("id").asText() + "r" + (attempt + 1));
@@ -160,7 +160,7 @@ public class GenerationService {
             String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected by the validator:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
             LlmClient.Result r = call(Prompts.SYSTEM_B, u);
             usage += r.total();
-            String cleaned = LlmJson.cleanIllustrations(r.text());
+            String cleaned = LlmJson.dropUnknownStopFields(LlmJson.cleanIllustrations(r.text()));
             ValidationResult v = LlmJson.validatePlay(cleaned, level, excludedIds);
             if (v.getErrors().isEmpty()) { text = cleaned; break; }
             errors = v.getErrors(); log.warn("Prompt B L{}v{} attempt {} invalid: {}", level, variant, attempt + 1, errors);

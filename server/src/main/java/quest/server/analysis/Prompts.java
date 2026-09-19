@@ -135,6 +135,8 @@ public final class Prompts {
         - Every child-facing string is short and uses the words the slides use. No percentages, no "wrong", no "fail".
         - Numbers stay within the range the slides use (Level 3 may go one step further). Options must be plausible; exactly one correct for single-answer stops.
         - Stop ids must be unique across the play, including exitTicket questions (e.g. "s9q1"). Never write null for any field: omit optional keys instead.
+        - "hint" exists only on choice, trueFalse, sequence, count, compare, sound, word, readTap and trace; every other type (readPage, storyPieces, wordCards, move, explain,
+          multiSelect, selectAll, match, order, retell, openAnswer, writeSentence, exitTicket — and the questions inside an exitTicket follow their own type) must omit it. A stop carries no key its type does not list above.
         - Arabic parentTip is Modern Standard Arabic, written for a parent in the UAE.
         """.formatted(levelBrief, variantBrief, analysisJson, confirmedSkillsJson, notes == null || notes.isBlank() ? "(none)" : notes,
                 level, variant, practiceLength, ILLUSTRATIONS);
