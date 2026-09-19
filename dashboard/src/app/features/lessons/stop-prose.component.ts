@@ -90,12 +90,27 @@ import { type ProseBlock, parseProse } from './stop-prose';
       margin: 0;
     }
 
+    /* The app's reset strips markers from every list; this is a list, so it has them back —
+       without the disc a "- " line reads as another paragraph, which is the one thing the
+       renderer exists to prevent. Block flow rather than flex: a flex item is not a
+       list item, so the marker would go again. */
     .prose__list {
       margin: 0;
       padding-inline-start: var(--hq-space-24);
-      display: flex;
-      flex-direction: column;
-      gap: var(--hq-space-4);
+      list-style-position: outside;
+    }
+
+    .prose__list li {
+      display: list-item;
+      list-style-type: disc;
+    }
+
+    .prose__list li + li {
+      margin-block-start: var(--hq-space-4);
+    }
+
+    ol.prose__list li {
+      list-style-type: decimal;
     }
   `,
 })

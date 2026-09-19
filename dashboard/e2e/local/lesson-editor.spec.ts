@@ -2,6 +2,7 @@ import { request, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
+  ADMIN,
   API,
   dayFromNow,
   expect,
@@ -11,6 +12,7 @@ import {
   setLanguage,
   setScheme,
   shoot,
+  signIn,
   signInAsSara,
   signInForToken,
   test,
@@ -28,6 +30,8 @@ import {
  * The server runs on H2 with `SEED_SCHOOL=true` and `LLM_PROVIDER=fake` (see `README.md`).
  */
 const SHOTS = resolve(process.cwd(), '../docs/screenshots/dashboard-n2.4');
+/** CR5's own set: the editor as a teacher sees it, and as an Admin in debug view does. */
+const CR5_SHOTS = resolve(process.cwd(), '../docs/screenshots/cr5');
 const SQUARE_PNG = resolve(process.cwd(), 'e2e/fixtures/square.png');
 const TITLE = `Sorting shapes ${RUN}`;
 
@@ -172,33 +176,80 @@ test('she adds three kinds of stop from the grouped menu', async ({ page }) => {
   await expect(stopRows(page)).toHaveCount(before + 3);
 });
 
-test('she rewrites a stop in the inline editor, and the schema holds her to the contract', async ({
-  page,
-}) => {
+/** CR5: the editor's own surface. The label is the teacher's, not a data format's. */
+function proseField(page: Page): Locator {
+  return editor(page).getByLabel('This stop, in your words');
+}
+
+/**
+ * CR5's acceptance: **no element on this page reads as JSON**.
+ *
+ * Asserted on the text of every element that has no element children, so a `{` nested three
+ * divs deep still counts, and the Raw JSON panel is checked by name as well — it is an Admin's,
+ * behind debug view, and a teacher must not be able to reach it at all.
+ */
+async function expectNoJsonOnThePage(page: Page): Promise<void> {
+  await expect(page.locator('[data-hq-raw-json]')).toHaveCount(0);
+  await expect(page.getByLabel('The whole stop')).toHaveCount(0);
+  const jsonish = await page.evaluate(() =>
+    [...document.querySelectorAll('body *')]
+      .filter((el) => el.children.length === 0)
+      .map((el) => (el.textContent ?? '').trim())
+      .filter((text) => /^[{[]/.test(text) || /"[A-Za-z]+"\s*:/.test(text)),
+  );
+  expect(jsonish, `these elements read as JSON: ${jsonish.join(' | ')}`).toEqual([]);
+}
+
+test('she rewrites a stop in her own words, and no JSON is anywhere on the page', async ({ page }) => {
   test.setTimeout(120_000);
   await openTheLesson(page);
 
   await stopRows(page).filter({ hasText: 'Pick the answer' }).click();
-  const json = editor(page).getByLabel('The whole stop');
-  // `toHaveValue`, not `toContainText`: a textarea's text node is its *initial* markup, and
-  // this one is bound to a signal, so its text content is empty however full the field looks.
-  await expect(json).toHaveValue(/"type": "choice"/);
 
-  // A document the server would refuse: Save goes off and the error names the missing field.
-  const valid = (await json.inputValue()).trim();
-  const broken = JSON.parse(valid) as Record<string, unknown>;
-  delete broken['question'];
-  await json.fill(JSON.stringify(broken, null, 2));
+  // The stop as the server describes it, rendered as a page rather than a document.
+  const prose = proseField(page);
+  await expect(prose).toHaveValue(/Pip says:/);
+  await expect(editor(page).locator('[data-hq-stop-prose] li').first()).toBeVisible();
+  await expectNoJsonOnThePage(page);
+
+  // The fake provider answers Prompt D with the stop as stored, taking `title` and `speak` from
+  // the first two lines — so what comes back names itself, and the stop list is the proof.
+  const title = `Which shape ${RUN}`;
+  await prose.fill(`${title}\nPick the shape with three sides.\n\nOptions:\n- a triangle (correct)\n- a circle`);
   const save = page.getByRole('button', { name: 'Save the stop' });
-  await expect(page.getByRole('alert')).toContainText('question', { timeout: 15_000 });
-  await expect(save).toBeDisabled();
-
-  await json.fill(valid);
-  await editor(page).getByLabel('Title').fill(`Which shape ${RUN}`);
-  await expect(save).toBeEnabled({ timeout: 15_000 });
+  await expect(save).toBeEnabled();
   await save.click();
 
-  await expect(stopRows(page).filter({ hasText: `Which shape ${RUN}` })).toBeVisible({ timeout: 15_000 });
+  await expect(stopRows(page).filter({ hasText: title })).toBeVisible({ timeout: 30_000 });
+
+  // Re-opened, the prose is the prose she saved — the server stored both halves, so nothing
+  // was re-described and nothing churned.
+  await page.reload();
+  await expect(page.getByRole('button', { name: '+ Add stop' })).toBeVisible({ timeout: 15_000 });
+  await stopRows(page).filter({ hasText: title }).click();
+  await expect(proseField(page)).toHaveValue(new RegExp(`^${title}`));
+  await expectNoJsonOnThePage(page);
+});
+
+test('an Admin in debug view gets the Raw JSON panel, and a teacher never does', async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page, ADMIN);
+  await page.goto(lessonUrl.replace('teacher/', 'admin/'));
+  await expect(page.getByRole('button', { name: '+ Add stop' })).toBeVisible({ timeout: 20_000 });
+  await stopRows(page).first().click();
+
+  // Shut by default, even for her: teacher view is what everybody opens on.
+  await expect(page.locator('[data-hq-raw-json]')).toHaveCount(0);
+
+  await page.locator('[data-hq-tour="profile"]').click();
+  await page.getByRole('menuitem', { name: 'Show the raw JSON' }).click();
+
+  const panel = page.locator('[data-hq-raw-json]');
+  await expect(panel).toBeVisible();
+  await panel.locator('summary').click();
+  await expect(editor(page).getByLabel('The whole stop')).toHaveValue(/"type":/);
+  // The read side-channel is not part of the document the server validates.
+  await expect(editor(page).getByLabel('The whole stop')).not.toHaveValue(/teacherText/);
 });
 
 test('she reorders the stops by dragging the handle', async ({ page }) => {
@@ -238,7 +289,9 @@ test('she attaches a picture and puts it on the stop', async ({ page }) => {
   await expect(save).toBeEnabled({ timeout: 15_000 });
   await save.click();
 
-  await expect(editor(page).getByLabel('The whole stop')).toHaveValue(/"imageId"/, { timeout: 15_000 });
+  // CR5: the confirmation a teacher gets is the description, re-rendered from the new JSON —
+  // `StopText.describe` names an attached picture on its own line. There is no JSON to read.
+  await expect(proseField(page)).toHaveValue(/Picture:/, { timeout: 15_000 });
 
   // And the crop is actually drawn. `/media/pages/{id}` wants a bearer, which an `<img src>`
   // cannot send, so every picture in this editor used to answer 401 and draw nothing
@@ -292,26 +345,48 @@ test('she asks for the other levels, then edits the parent panel that comes with
 test('screenshots: the editor in English and in Arabic, light and dark', async ({ page }) => {
   test.setTimeout(180_000);
   await mkdir(SHOTS, { recursive: true });
+  await mkdir(CR5_SHOTS, { recursive: true });
   await openTheLesson(page);
   await stopRows(page).first().click();
-  await expect(editor(page).getByLabel('The whole stop')).toBeVisible();
+  await expect(proseField(page)).toBeVisible();
   // The element, not its English label: the same barrier has to hold for the Arabic frame below.
   await shoot(page, resolve(SHOTS, 'lesson-editor-en.png'), editor(page), { fullPage: true });
+  await shoot(page, resolve(CR5_SHOTS, 'stop-editor-teacher-en.png'), editor(page), { fullPage: true });
 
   // Dark is the screen most worth photographing here: the editor is the one place a phone
   // preview sits inside a dashboard card, and the two schemes meet on the same page.
   await setScheme(page, 'dark');
   await shoot(page, resolve(SHOTS, 'lesson-editor-en-dark.png'), editor(page), { fullPage: true });
+  await shoot(page, resolve(CR5_SHOTS, 'stop-editor-teacher-en-dark.png'), editor(page), { fullPage: true });
   await setScheme(page, 'light');
 
   // Through the header's language control, the way a teacher switches — not by writing
   // localStorage. T2 moved it out of the account menu.
   await setLanguage(page, 'ar');
   await shoot(page, resolve(SHOTS, 'lesson-editor-ar.png'), editor(page), { fullPage: true });
+  await shoot(page, resolve(CR5_SHOTS, 'stop-editor-teacher-ar.png'), editor(page), { fullPage: true });
 
   await setScheme(page, 'dark');
   await shoot(page, resolve(SHOTS, 'lesson-editor-ar-dark.png'), editor(page), { fullPage: true });
   await setScheme(page, 'light');
+});
+
+test('screenshots: the same editor as an Admin in debug view', async ({ page }) => {
+  test.setTimeout(180_000);
+  await mkdir(CR5_SHOTS, { recursive: true });
+  await signIn(page, ADMIN);
+  await page.goto(lessonUrl.replace('teacher/', 'admin/'));
+  await expect(page.getByRole('button', { name: '+ Add stop' })).toBeVisible({ timeout: 20_000 });
+  await stopRows(page).first().click();
+
+  await page.locator('[data-hq-tour="profile"]').click();
+  await page.getByRole('menuitem', { name: 'Show the raw JSON' }).click();
+  await page.locator('[data-hq-raw-json] summary').click();
+  await expect(editor(page).getByLabel('The whole stop')).toBeVisible();
+  await shoot(page, resolve(CR5_SHOTS, 'stop-editor-admin-debug-en.png'), editor(page), { fullPage: true });
+
+  await setLanguage(page, 'ar');
+  await shoot(page, resolve(CR5_SHOTS, 'stop-editor-admin-debug-ar.png'), editor(page), { fullPage: true });
 });
 
 /** The lessons this file wrote, off the shared database again (`env.ts`). */
