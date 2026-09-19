@@ -152,18 +152,28 @@ which is why the suite is green on QA today.
 | `admin-classes-teachers.spec.ts` | §10 step 1: an Admin creates 1A/1B and Sara, the one-time password shows once, a second Math teacher for 1A is refused (**local only** — see below) |
 | `lesson-retry.spec.ts` | that a failed pipeline step really retries past its failure (opt-in, below) |
 | `theme-shell.spec.ts` | T2's shell: the 290/90 px sidebar and that it is remembered, the drawer under 1024 px (scrim, Escape, focus back on the burger, Tab trapped), the rail on the inline-start edge in Arabic, the header's controls and the account menu's keyboard contract — plus the three-width screenshot matrix |
+| `theme-kit.spec.ts` | T3's kit and the teacher screens: that **no screen scrolls the page sideways** at 1366, 768 or 375 in either language — a pane scrolls, the document never does — plus the seven-screen screenshot set |
 
 Screenshots land in `docs/screenshots/dashboard-p3.1/`, `dashboard-n1.2/`, `dashboard-n2.2/`,
 `dashboard-n2.3/`, `dashboard-n2.4/` and `dashboard-n2.4b/` (1366 × 768, EN and AR) and are
 committed. `theme-t2/` is the shell's own set and is the exception to the one viewport: the
 package gave the shell a collapsed rail and a drawer, so it is photographed at 1366, at 768
 with the drawer shut **and** open, and at 375, each in EN and AR and in both schemes.
+`theme-t3/` is the kit's: the seven teacher screens at 1366 in EN and AR, light and dark, plus
+a light English frame at 768 and at 375 — the two widths where the week grid and the class
+calendar change shape.
 
 `shoot()` falls back to a full-page frame when the document scrolls sideways. Chrome's viewport
 capture takes its origin from the scrollable area rather than the layout viewport, and in an RTL
 document that range runs from negative to zero — a class page at 375 px came out as empty ground
 with a sliver of the shell at one edge, identically on every run, while the page itself was
-laid out correctly. The overflow underneath it is the class calendar's own, under about 900 px.
+laid out correctly.
+
+The overflow that used to trigger it — the class calendar's, under about 900 px — **is fixed**
+(T3): the month's tracks are `minmax(0, 1fr)` and its floor moved to a grid inside an
+`overflow-x` pane, so it scrolls inside its own card. `theme-kit.spec.ts` now asserts that no
+teacher screen scrolls the *page* sideways at any of the three widths, so the fallback should
+no longer fire on a teacher screen; it stays for the screens that have not been measured.
 
 ### Retired with D13 (N2.5)
 

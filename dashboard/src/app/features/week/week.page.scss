@@ -62,7 +62,14 @@
 // The scroll lives on the pane, never on the page: `overflow-x` on the grid itself does
 // nothing, because `1fr` tracks shrink instead of overflowing. The floor below is what makes
 // a day column readable at 375 px — under it the week scrolls sideways inside its card.
+//
+// `position: relative` is load-bearing here. A `.hq-sr-only` inside a card is `position:
+// absolute`, and an absolutely positioned box is clipped by an ancestor's overflow only when
+// that ancestor is its containing block — so without this the screen-reader line beside a
+// published lesson escaped the pane at its static position, 700-odd pixels along a grid that
+// scrolls, and gave the *page* a horizontal scrollbar at 375 px with nothing visible to blame.
 .week__scroll {
+  position: relative;
   max-inline-size: 100%;
   overflow-x: auto;
 }
@@ -75,8 +82,13 @@
     );
   gap: var(--hq-size-rule-thin);
   background: var(--hq-color-divider);
-  min-inline-size: 100%;
-  inline-size: max-content;
+  // The floor, written out rather than left to `max-content`: `inline-size: max-content` would
+  // widen the grid at *every* width, because a cell's max-content is its whole lesson title, and
+  // a week that scrolls on a 1366 px screen is not a week anyone can read.
+  min-inline-size: calc(
+    var(--hq-size-course-card) + var(--hq-week-columns, 5) *
+      (var(--hq-size-grade-card) + var(--hq-size-rule-thin))
+  );
 }
 
 .week__head,

@@ -272,6 +272,24 @@ hq-stop-editor {
   font-weight: var(--hq-font-label-weight);
 }
 
+// Under 640 px the editor is one column, and the phone goes under the stop list rather than
+// beside it. The device is a fixed 416 px by design — it is a phone, and a phone that resized
+// with the window would stop being a preview — so at these widths it scrolls inside its own
+// pane. Same rule as the tables and the week grid: a pane scrolls, the page never does.
+@include m.below(m.$compact-breakpoint) {
+  .lesson__play {
+    flex-direction: column;
+  }
+
+  .lesson__preview {
+    position: static;
+    align-self: stretch;
+    align-items: flex-start;
+    max-inline-size: 100%;
+    overflow-x: auto;
+  }
+}
+
 .lesson__copies {
   display: flex;
   flex-wrap: wrap;

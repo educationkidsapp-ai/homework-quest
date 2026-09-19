@@ -163,6 +163,13 @@ import type { CalendarCell } from './classes.models';
     // explicit 'min-inline-size' on the grid inside an 'overflow-x' pane — so under it the
     // month scrolls inside its own card and the page never does.
     .cal__scroll {
+    // 'position: relative' is load-bearing, not decoration. A '.hq-sr-only' inside a card here
+    // is 'position: absolute', and an absolutely positioned box is clipped by an ancestor's
+    // overflow only when that ancestor is its containing block. Without this, the screen-reader
+    // line beside a published lesson escaped the pane at its static position — 700-odd pixels
+    // along a grid that scrolls — and gave the *page* a horizontal scrollbar at 375 px, with
+    // nothing visible anywhere to explain it.
+      position: relative;
       max-inline-size: 100%;
       overflow-x: auto;
     }
