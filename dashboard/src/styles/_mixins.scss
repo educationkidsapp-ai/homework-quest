@@ -76,10 +76,65 @@
   }
 }
 
-/// A white panel behind a 2 px ink rule — the system's only container treatment.
+/// §4: "Every container is `border-radius:16px`, 1px `#e4e7ec`, white, on a `#f9fafb` page."
+///
+/// The name is the old language's; the treatment is the spec's, so every container that already
+/// asks for `m.surface` — the week's cards, the class gallery, the source picker — becomes a
+/// spec card without a line changing in the screen that draws it. Cards cast no shadow: they
+/// are a rule on a ground.
 @mixin surface {
   background: var(--hq-color-surface);
-  border: var(--hq-size-rule) solid var(--hq-color-line);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-card);
+}
+
+/// §1: a 44 px, radius-8 control on a 1 px rule with the `xs` elevation — input, select,
+/// textarea and the secondary button all start here.
+@mixin control {
+  min-block-size: var(--hq-size-control-height);
+  padding: var(--hq-space-control);
+  font-size: var(--hq-text-theme-sm);
+  line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
+  color: var(--hq-color-ink);
+  background: transparent;
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-control);
+  box-shadow: var(--hq-shadow-xs);
+}
+
+/// §2 "Card with header": 18/600 over an optional 14/400 sub.
+@mixin card-title {
+  font-size: var(--hq-text-card-title);
+  line-height: calc(var(--hq-text-card-title-line) / var(--hq-text-card-title));
+  font-weight: var(--hq-text-weight-semibold);
+  color: var(--hq-color-ink);
+}
+
+/// §3 Badge / status pill. The colours are the caller's; this is only the box.
+@mixin badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hq-space-badge-gap);
+  padding: var(--hq-space-badge);
+  border-radius: var(--hq-radius-pill);
+  font-size: var(--hq-text-theme-xs);
+  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+  font-weight: var(--hq-text-weight-medium);
+  white-space: nowrap;
+}
+
+/// §1 Input "Keycap" — the `/` hint in a search field and every key in the shortcut sheet.
+@mixin keycap {
+  display: inline-block;
+  padding: var(--hq-space-keycap);
+  font-family: inherit;
+  font-size: var(--hq-text-theme-xs);
+  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+  letter-spacing: -0.2px;
+  color: var(--hq-color-ink-soft);
+  background: var(--hq-color-surface-sunken);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-control);
 }
 
 @mixin title {

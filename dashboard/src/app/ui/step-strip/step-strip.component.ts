@@ -12,12 +12,12 @@ export interface PipelineStep {
 }
 
 /**
- * The lesson pipeline, as a strip of steps.
+ * The lesson pipeline, as §3's timeline: a 22 px round marker tinted from the matching ramp,
+ * a 2 px connector between markers, and a 14/500 name over a 13 px secondary note.
  *
- * Each state has one unambiguous signal: pending is an empty square, running spins a
- * pulsing accent arc, done draws its tick with a stroke animation, error shakes once
- * and stays red. The strip is a `<ol>` and each step announces its state, so the
- * pipeline is followable without seeing the animation.
+ * Each state keeps one unambiguous signal on top of the tint — `–` pending, a pulsing arc
+ * running, `✓` done, `!` error — so the pipeline is followable in greyscale and without seeing
+ * the animation. The strip is an `<ol>` and each step announces its state.
  */
 @Component({
   selector: 'hq-step-strip',
@@ -38,7 +38,10 @@ export interface PipelineStep {
                 </svg>
               }
               @case ('error') {
-                <span class="steps__cross"></span>
+                !
+              }
+              @default {
+                –
               }
             }
           </span>
@@ -67,10 +70,23 @@ export interface PipelineStep {
     }
 
     .steps__step {
+      position: relative;
       display: flex;
       align-items: flex-start;
       gap: var(--hq-space-12);
       color: var(--hq-color-ink-soft);
+    }
+
+    // §3's 2 px connector. It runs from this marker to the next one, so the last step has
+    // none — and it sits behind the markers, which are opaque.
+    .steps__step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      inset-block-start: calc(var(--hq-size-timeline-marker) / 2);
+      inset-inline-start: var(--hq-size-timeline-marker);
+      inline-size: var(--hq-space-24);
+      block-size: var(--hq-size-rule);
+      background: var(--hq-color-rule);
     }
 
     .steps__step--running,
@@ -79,25 +95,46 @@ export interface PipelineStep {
     }
 
     .steps__step--error {
-      color: var(--hq-color-accent-strong);
+      color: var(--hq-color-error-ink);
     }
 
     .steps__glyph {
       position: relative;
+      z-index: 1;
       flex: none;
       display: grid;
       place-items: center;
-      inline-size: var(--hq-space-24);
-      block-size: var(--hq-space-24);
-      border: var(--hq-size-rule) solid currentColor;
-      background: var(--hq-color-surface);
+      inline-size: var(--hq-size-timeline-marker);
+      block-size: var(--hq-size-timeline-marker);
+      border-radius: var(--hq-radius-pill);
+      font-size: var(--hq-text-theme-xs);
+      font-weight: var(--hq-text-weight-semibold);
+      line-height: 1;
+      background: var(--hq-color-neutral-soft);
+      color: var(--hq-color-ink-muted);
+    }
+
+    .steps__step--running .steps__glyph {
+      background: var(--hq-color-accent-soft);
+      color: var(--hq-color-accent-on-soft);
+    }
+
+    .steps__step--done .steps__glyph {
+      background: var(--hq-color-success-soft);
+      color: var(--hq-color-success-ink);
+    }
+
+    .steps__step--error .steps__glyph {
+      background: var(--hq-color-error-soft);
+      color: var(--hq-color-error-ink);
     }
 
     // Running: a pulsing accent arc, one full turn per 400 ms slot.
     .steps__arc {
       position: absolute;
-      inset: calc(var(--hq-size-rule) * -1);
+      inset: 0;
       border: var(--hq-size-rule) solid transparent;
+      border-radius: var(--hq-radius-pill);
       border-block-start-color: var(--hq-color-accent);
       border-inline-end-color: var(--hq-color-accent);
       animation: hq-pulse-arc var(--hq-motion-slow) linear infinite;
@@ -111,12 +148,13 @@ export interface PipelineStep {
     // Done: the tick draws itself.
     .steps__tick {
       --hq-tick-length: 24;
-      inline-size: var(--hq-space-16);
-      block-size: var(--hq-space-16);
+      inline-size: var(--hq-space-12);
+      block-size: var(--hq-space-12);
       fill: none;
-      stroke: var(--hq-color-ink);
-      stroke-width: var(--hq-size-rule);
-      stroke-linecap: square;
+      stroke: currentColor;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
 
       path {
         stroke-dasharray: var(--hq-tick-length);
@@ -130,23 +168,18 @@ export interface PipelineStep {
       }
     }
 
-    .steps__cross {
-      inline-size: var(--hq-space-12);
-      block-size: var(--hq-space-12);
-      background: var(--hq-color-accent);
-    }
-
     .steps__text {
       display: flex;
       flex-direction: column;
     }
 
     .steps__label {
-      font-weight: var(--hq-font-label-weight);
+      font-size: var(--hq-text-theme-sm);
+      font-weight: var(--hq-text-weight-medium);
     }
 
     .steps__detail {
-      font-size: var(--hq-font-label-size);
+      font-size: var(--hq-text-note);
       color: var(--hq-color-ink-soft);
     }
   `,

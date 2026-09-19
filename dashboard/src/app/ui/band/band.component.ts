@@ -58,24 +58,28 @@ let nextBandId = 0;
       gap: var(--hq-space-16);
       overflow: hidden;
       padding: var(--hq-space-12) var(--hq-space-16);
+      border-radius: var(--hq-radius-card);
       // The band is the system's failure and confirmation surface (§0: no toasts), so it is
       // the error ramp rather than the accent — which is now brand-500 and says nothing.
-      border: var(--hq-size-rule) solid var(--hq-color-error-500);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-error-rule);
       background: var(--hq-color-error-soft);
       color: var(--hq-color-error-ink);
     }
 
     .band--notice {
-      border-color: var(--hq-color-line);
+      border-color: var(--hq-color-rule);
       background: var(--hq-color-surface);
+      color: var(--hq-color-ink);
     }
 
+    // A destructive confirmation: the same tint, with the ramp's own 500 as a 4 px spine so it
+    // is the one band on a screen that cannot be skimmed past.
     .band--confirm {
-      border-inline-start-width: var(--hq-size-selected-border);
+      border-inline-start: var(--hq-size-selected-border) solid var(--hq-color-error-500);
     }
 
     .band__title {
-      font-weight: var(--hq-font-label-weight);
+      font-weight: var(--hq-text-weight-semibold);
     }
 
     .band__message {

@@ -17,13 +17,16 @@ export interface Tab<T extends string = string> {
  * A tab strip following the WAI-ARIA tabs pattern: arrow keys move, Home/End jump,
  * and only the selected tab is in the tab order.
  *
- * The selected tab is marked by the red rule underneath it, the same accent the nav uses.
+ * Two skins, one behaviour. `underline` (the default) is the classic strip, selected by the
+ * accent rule beneath it. `chips` is §3's filter chip — a row of radius-8 boxes that fill with
+ * the brand when on, with the count in a pill — for the strips that are a *filter* over one
+ * list rather than a switch between different panels.
  */
 @Component({
   selector: 'hq-tabs',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="tabs" role="tablist" [attr.aria-label]="label()">
+    <div class="tabs" [class]="'tabs--' + variant()" role="tablist" [attr.aria-label]="label()">
       @for (tab of tabs(); track tab.id) {
         <button
           #tab
@@ -55,40 +58,88 @@ export interface Tab<T extends string = string> {
 
     .tabs {
       display: flex;
+      flex-wrap: wrap;
+      gap: var(--hq-space-8);
+    }
+
+    .tabs--underline {
       gap: var(--hq-space-24);
-      border-block-end: var(--hq-size-rule) solid var(--hq-color-line);
+      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
     }
 
     .tabs__tab {
       display: inline-flex;
       align-items: center;
       gap: var(--hq-space-8);
-      min-block-size: var(--hq-size-touch-target);
-      padding: 0 var(--hq-space-4);
       background: none;
       border: 0;
-      border-block-end: var(--hq-size-selected-border) solid transparent;
-      margin-block-end: calc(var(--hq-size-rule) * -1);
-      font-weight: var(--hq-font-label-weight);
+      font-size: var(--hq-text-theme-sm);
+      line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
+      font-weight: var(--hq-text-weight-medium);
       color: var(--hq-color-ink-soft);
       cursor: pointer;
-      @include m.motion-safe('color, border-color');
+      @include m.motion-safe('color, background-color, border-color');
       @include m.focus-ring;
 
       &:disabled {
         color: var(--hq-color-disabled);
         cursor: not-allowed;
       }
+    }
+
+    // --- underline ----------------------------------------------------------
+
+    .tabs--underline .tabs__tab {
+      min-block-size: var(--hq-size-touch-target);
+      padding: 0 var(--hq-space-4);
+      border-block-end: var(--hq-size-selected-border) solid transparent;
+      margin-block-end: calc(var(--hq-size-rule-thin) * -1);
+
+      &:hover:not(:disabled) {
+        color: var(--hq-color-ink);
+      }
 
       &[aria-selected='true'] {
-        color: var(--hq-color-ink);
+        color: var(--hq-color-accent);
         border-block-end-color: var(--hq-color-accent);
       }
     }
 
+    // --- §3 filter chip -----------------------------------------------------
+
+    .tabs--chips .tabs__tab {
+      padding: var(--hq-space-chip);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-control-rule);
+      border-radius: var(--hq-radius-control);
+      background: var(--hq-color-surface);
+      color: var(--hq-color-ink-strong);
+
+      &:hover:not(:disabled) {
+        background: var(--hq-color-surface-sunken);
+      }
+
+      &[aria-selected='true'] {
+        background: var(--hq-color-accent);
+        border-color: var(--hq-color-accent);
+        color: var(--hq-color-on-accent);
+      }
+    }
+
     .tabs__badge {
-      font-size: var(--hq-font-label-size);
+      padding: 0 var(--hq-space-8);
+      border-radius: var(--hq-radius-pill);
+      font-size: var(--hq-text-theme-xs);
+      line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
       color: var(--hq-color-ink-soft);
+    }
+
+    .tabs--chips .tabs__badge {
+      background: var(--hq-color-divider);
+    }
+
+    .tabs--chips .tabs__tab[aria-selected='true'] .tabs__badge {
+      background: var(--hq-color-on-accent-soft);
+      color: var(--hq-color-on-accent);
     }
   `,
 })
@@ -99,6 +150,8 @@ export class TabsComponent<T extends string = string> {
   readonly selected = model.required<T>();
   /** Accessible name for the tablist — say what is being switched, not "Tabs". */
   readonly label = input.required<string>();
+  /** `underline` switches between panels; `chips` filters one list (§3 Filter chip). */
+  readonly variant = input<'underline' | 'chips'>('underline');
 
   protected select(id: T): void {
     this.selected.set(id);

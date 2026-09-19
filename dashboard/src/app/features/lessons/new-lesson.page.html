@@ -11,7 +11,7 @@
       <p class="busy-text" role="status">{{ busyText }}</p>
     }
 
-    <hq-card [eyebrow]="'lessons.new.course' | transloco">
+    <hq-card [title]="'lessons.new.course' | transloco">
       @if (optionsLoading()) {
         <hq-skeleton [loading]="true" [lines]="3" [label]="'lessons.loading' | transloco" />
       } @else if (noClasses()) {
@@ -58,7 +58,7 @@
     </hq-card>
 
     @if (step1Valid()) {
-      <hq-card [eyebrow]="'lessons.new.lesson' | transloco">
+      <hq-card [title]="'lessons.new.lesson' | transloco">
         <div class="lesson-fields">
           <hq-input
             type="date"
@@ -85,7 +85,7 @@
         </div>
       </hq-card>
 
-      <hq-card [eyebrow]="'lessons.new.content' | transloco">
+      <hq-card [title]="'lessons.new.content' | transloco">
         <div class="sources">
           @for (card of sourceCards(); track card.id) {
             <button

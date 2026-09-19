@@ -7,7 +7,11 @@ let nextId = 0;
 export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 'tel' | 'url' | 'date';
 
 /**
- * A labelled text field: 17 px text, 2 px rule, hint and error below.
+ * §3's input: 44 px, radius 8, a 1 px rule, `--hq-shadow-xs`, 14 px text and a muted
+ * placeholder, with the label above and hint and error below.
+ *
+ * A leading icon (`[input-icon]`) pushes the text to 48 px; a trailing `keycap` — the `/` on a
+ * search field — reserves 56 px, so neither ever sits under the caret.
  *
  * The error is announced (`role="alert"`) and shakes once, because the system has
  * no toasts — a failure has to be visible where it happened.
@@ -18,28 +22,38 @@ export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 't
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="field" [hqShake]="error() ?? null">
-      <label class="field__label hq-label" [attr.for]="id">
+      <label class="field__label" [attr.for]="id">
         {{ label() }}
         @if (!required()) {
           <span class="field__optional">{{ 'ui.optional' | transloco }}</span>
         }
       </label>
-      <input
-        class="field__control"
-        [class.is-invalid]="error() !== null && error() !== ''"
-        [id]="id"
-        [type]="type()"
-        [value]="value()"
-        [attr.name]="name()"
-        [attr.placeholder]="placeholder() || null"
-        [attr.autocomplete]="autocomplete() || null"
-        [disabled]="disabled()"
-        [required]="required()"
-        [attr.aria-invalid]="error() ? 'true' : null"
-        [attr.aria-describedby]="describedBy()"
-        (input)="onInput($event)"
-        (keydown.enter)="onEnter()"
-      />
+      <div class="field__shell">
+        @if (icon()) {
+          <span class="field__icon" aria-hidden="true"><ng-content select="[input-icon]" /></span>
+        }
+        <input
+          class="field__control"
+          [class.field__control--icon]="icon()"
+          [class.field__control--keycap]="keycap() !== null"
+          [class.is-invalid]="error() !== null && error() !== ''"
+          [id]="id"
+          [type]="type()"
+          [value]="value()"
+          [attr.name]="name()"
+          [attr.placeholder]="placeholder() || null"
+          [attr.autocomplete]="autocomplete() || null"
+          [disabled]="disabled()"
+          [required]="required()"
+          [attr.aria-invalid]="error() ? 'true' : null"
+          [attr.aria-describedby]="describedBy()"
+          (input)="onInput($event)"
+          (keydown.enter)="onEnter()"
+        />
+        @if (keycap(); as key) {
+          <kbd class="field__keycap" aria-hidden="true">{{ key }}</kbd>
+        }
+      </div>
       @if (hint(); as hintText) {
         <p class="field__hint" [id]="id + '-hint'">{{ hintText }}</p>
       }
@@ -62,11 +76,13 @@ export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 't
     }
 
     .field__label {
-      @include m.label;
+      font-size: var(--hq-text-theme-sm);
+      line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
+      font-weight: var(--hq-text-weight-medium);
       display: flex;
       align-items: baseline;
       gap: var(--hq-space-8);
-      color: var(--hq-color-ink);
+      color: var(--hq-color-ink-strong);
     }
 
     .field__optional {
@@ -75,29 +91,59 @@ export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 't
       color: var(--hq-color-ink-soft);
     }
 
-    .field__control {
-      block-size: var(--hq-size-input-height);
-      inline-size: 100%;
-      padding-inline: var(--hq-space-12);
-      font-size: var(--hq-font-input-size);
-      background: var(--hq-color-surface);
-      border: var(--hq-size-rule) solid var(--hq-color-line);
-      @include m.motion-safe('border-color, background-color');
-      @include m.focus-ring;
+    .field__shell {
+      position: relative;
+      display: block;
+    }
 
-      &::placeholder {
-        color: var(--hq-color-disabled);
-      }
+    .field__control {
+      @include m.control;
+      display: block;
+      inline-size: 100%;
+      background: var(--hq-color-surface);
+      @include m.motion-safe('border-color, background-color, box-shadow');
+      @include m.focus-ring;
 
       &:disabled {
         color: var(--hq-color-disabled);
-        border-color: var(--hq-color-rule);
+        background: var(--hq-color-surface-sunken);
       }
 
+      // §5's error state is the ramp, not the accent: on this palette the accent is brand-500,
+      // and a field that turns blue when it is wrong is a field nobody reads as wrong.
       &.is-invalid {
-        border-color: var(--hq-color-accent);
-        background: var(--hq-color-accent-soft);
+        border-color: var(--hq-color-error-500);
+        background: var(--hq-color-error-soft);
+        color: var(--hq-color-error-ink);
       }
+    }
+
+    .field__control--icon {
+      padding-inline-start: var(--hq-space-48);
+    }
+
+    .field__control--keycap {
+      padding-inline-end: calc(var(--hq-space-48) + var(--hq-space-8));
+    }
+
+    .field__icon {
+      position: absolute;
+      inset-block-start: 50%;
+      inset-inline-start: var(--hq-space-16);
+      inline-size: var(--hq-size-icon-control);
+      block-size: var(--hq-size-icon-control);
+      transform: translateY(-50%);
+      color: var(--hq-color-ink-muted);
+      pointer-events: none;
+    }
+
+    .field__keycap {
+      @include m.keycap;
+      position: absolute;
+      inset-block-start: 50%;
+      inset-inline-end: var(--hq-space-12);
+      transform: translateY(-50%);
+      pointer-events: none;
     }
 
     .field__hint {
@@ -108,7 +154,7 @@ export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 't
     .field__error {
       font-size: var(--hq-font-label-size);
       font-weight: var(--hq-font-label-weight);
-      color: var(--hq-color-accent-strong);
+      color: var(--hq-color-error-ink);
     }
   `,
 })
@@ -125,6 +171,10 @@ export class InputComponent {
   readonly disabled = input(false);
   readonly required = input(false);
   readonly autocomplete = input<string | null>(null);
+  /** Reserve the leading 48 px for a glyph projected into `[input-icon]` (§3 Input). */
+  readonly icon = input(false);
+  /** The trailing key hint, e.g. `/` on the shell's search field. */
+  readonly keycap = input<string | null>(null);
   /** When true, Enter emits `enterSubmit` — screens wire it to their one primary action. */
   readonly enterSubmit = input(false);
 

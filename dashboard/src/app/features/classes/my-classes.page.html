@@ -15,32 +15,35 @@
         <div class="my-classes__cards" hqListStagger>
           @for (card of group.items; track trackCard(card)) {
             <hq-card class="my-classes__card">
+              <!-- §3's metric card: a tile, then the label over the number it counts. -->
+              <span class="my-classes__tile" aria-hidden="true">{{ cardInitial(card) }}</span>
+
               <h3 class="my-classes__title">
                 <a class="my-classes__link" [routerLink]="classLink(card)" [queryParams]="classParams(card)">
                   {{ cardTitle(card) }}
                 </a>
               </h3>
 
-              <p class="my-classes__today">
-                <hq-status-square [status]="card.status" />
-                <span>
-                  {{ 'week.status.' + card.status | transloco }}
-                  @if (card.showsPlayed) {
-                    <span class="my-classes__played">
-                      {{
-                        'classes.playedToday'
-                          | transloco: { played: card.playedToday, total: card.childrenCount }
-                      }}
-                    </span>
-                  }
-                </span>
-              </p>
-
               <p class="my-classes__children">
                 <span class="my-classes__count" [hqCountUp]="card.childrenCount">{{
                   card.childrenCount
                 }}</span>
-                {{ 'classes.childrenCount' | transloco }}
+                <span class="my-classes__children-label">{{ 'classes.childrenCount' | transloco }}</span>
+              </p>
+
+              <p class="my-classes__today">
+                <span class="hq-badge" [class]="'hq-badge--' + statusTone(card.status)">
+                  <hq-status-square [status]="card.status" />
+                  {{ 'week.status.' + card.status | transloco }}
+                </span>
+                @if (card.showsPlayed) {
+                  <span class="my-classes__played">
+                    {{
+                      'classes.playedToday'
+                        | transloco: { played: card.playedToday, total: card.childrenCount }
+                    }}
+                  </span>
+                }
               </p>
 
               <!--
@@ -49,7 +52,7 @@
               -->
               @if (card.status === 'none') {
                 <a
-                  class="my-classes__action"
+                  class="hq-linkbutton hq-linkbutton--primary my-classes__action"
                   [routerLink]="newLessonLink"
                   [queryParams]="addTodayParams(card)"
                 >

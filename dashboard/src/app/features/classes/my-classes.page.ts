@@ -102,6 +102,28 @@ export class MyClassesPage {
     });
   }
 
+  /** The tile's glyph: the class's own name, which is already short ("1A", "6 Blue"). */
+  protected cardInitial(card: ClassCardView): string {
+    return card.className.slice(0, 2);
+  }
+
+  /**
+   * Which §3 badge a day's state wears. Never the only signal — the word is inside the pill
+   * and the status square beside it keeps the shape a colour-blind reader can tell apart.
+   */
+  protected statusTone(status: ClassCardView['status']): string {
+    switch (status) {
+      case 'published':
+        return 'success';
+      case 'ready':
+        return 'warning';
+      case 'draft':
+        return 'error';
+      default:
+        return 'light';
+    }
+  }
+
   protected gradeLabel(grade: number): string {
     this.lang();
     return this.t('week.grade', { grade });

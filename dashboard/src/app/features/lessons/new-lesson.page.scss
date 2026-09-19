@@ -12,14 +12,14 @@
 .chooser,
 .lesson-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--hq-size-grade-card), 1fr));
   gap: var(--hq-space-16);
 }
 
 .sources {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--hq-space-12);
+  grid-template-columns: repeat(auto-fit, minmax(var(--hq-size-stop-list-width), 1fr));
+  gap: var(--hq-space-16);
 }
 
 .source-card {
@@ -30,9 +30,8 @@
   text-align: start;
   cursor: pointer;
   @include m.surface;
-  @include m.hover-tint;
+  @include m.hover-tint(var(--hq-color-surface-sunken));
   @include m.focus-ring;
-  @include m.motion-safe('border-color, border-width');
 
   &:disabled {
     cursor: not-allowed;
@@ -40,17 +39,22 @@
   }
 }
 
+// Selected is a 2 px accent rule on the accent tint, not a 4 px one: at radius 16 a border
+// that thick reads as a different shape rather than as the same card, chosen.
 .source-card--selected {
-  border-width: var(--hq-size-selected-border);
+  border-width: var(--hq-size-rule);
   border-color: var(--hq-color-accent);
+  background: var(--hq-color-accent-soft);
 }
 
 .source-card__title {
-  font-weight: var(--hq-font-label-weight);
+  font-weight: var(--hq-text-weight-medium);
+  color: var(--hq-color-ink);
 }
 
 .source-card__hint {
-  font-size: var(--hq-font-label-size);
+  font-size: var(--hq-text-theme-xs);
+  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
   color: var(--hq-color-ink-soft);
 }
 
@@ -68,35 +72,38 @@
   margin-block-start: var(--hq-space-16);
   padding: var(--hq-space-32);
   text-align: center;
-  background: var(--hq-color-bg);
+  background: var(--hq-color-surface-sunken);
+  border-radius: var(--hq-radius-card);
   @include m.drag-lift;
 }
 
 .dropzone__title {
-  font-weight: var(--hq-font-label-weight);
+  font-size: var(--hq-text-lead);
+  font-weight: var(--hq-text-weight-medium);
+  color: var(--hq-color-ink-strong);
 }
 
 .dropzone__or {
-  font-size: var(--hq-font-label-size);
+  font-size: var(--hq-text-theme-sm);
   color: var(--hq-color-ink-soft);
 }
 
 .file-list {
   margin-block-start: var(--hq-space-16);
-  border-block-start: var(--hq-size-rule) solid var(--hq-color-line);
+  border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-divider);
 }
 
 .file-list__row {
   display: flex;
   align-items: center;
   gap: var(--hq-space-12);
-  padding-block: var(--hq-space-8);
-  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  padding-block: var(--hq-space-12);
+  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
 }
 
 .file-list__name {
   flex: 1;
-  font-weight: var(--hq-font-label-weight);
+  font-weight: var(--hq-text-weight-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -104,7 +111,7 @@
 
 .file-list__size {
   flex: none;
-  font-size: var(--hq-font-label-size);
+  font-size: var(--hq-text-theme-xs);
   color: var(--hq-color-ink-soft);
 }
 

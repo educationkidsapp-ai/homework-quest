@@ -1,8 +1,10 @@
-<div class="children">
-  <div class="children__toolbar">
-    <p class="children__count">
-      {{ 'classes.children.count' | transloco: { count: rows().length } }}
-    </p>
+<hq-card
+  class="children"
+  [flush]="true"
+  [title]="'classes.children.title' | transloco"
+  [eyebrow]="'classes.children.count' | transloco: { count: rows().length }"
+>
+  <div card-actions>
     <!-- Behind both gates: the school must have roster editing, and the account must hold the key. -->
     <span *hqFeature="rosterFlag">
       <span *hqCan="'roster.teacher'">
@@ -15,6 +17,7 @@
 
   @if (loading()) {
     <hq-skeleton
+      class="children__skeleton"
       [loading]="true"
       [lines]="6"
       height="var(--hq-size-row-height)"
@@ -31,7 +34,7 @@
       <hq-empty-state table-empty [message]="'classes.children.empty' | transloco" />
     </hq-table>
   }
-</div>
+</hq-card>
 
 <ng-template #cell let-row let-column="column">
   @switch (column.key) {
@@ -43,12 +46,13 @@
           (valueChange)="draftName.set($event)"
         />
       } @else {
-        {{ row.name }}
-        @if (row.active === false) {
-          <span class="children__status children__status--off">
-            {{ 'classes.children.inactive' | transloco }}
-          </span>
-        }
+        <span class="hq-cell">
+          <span class="hq-cell__tile" aria-hidden="true">{{ initialOf(row) }}</span>
+          <span class="hq-cell__title">{{ row.name }}</span>
+          @if (row.active === false) {
+            <span class="hq-badge hq-badge--light">{{ 'classes.children.inactive' | transloco }}</span>
+          }
+        </span>
       }
     }
     @case ('starsThisWeek') {
@@ -61,7 +65,7 @@
       @if (row.weakSkills.length) {
         <span class="children__chips">
           @for (skill of row.weakSkills; track skill) {
-            <span class="children__chip">{{ skill }}</span>
+            <span class="hq-badge hq-badge--warning">{{ skill }}</span>
           }
         </span>
       } @else {

@@ -2,17 +2,11 @@
   display: block;
 }
 
-.children__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--hq-space-16);
-  margin-block-end: var(--hq-space-16);
-}
-
-.children__count {
-  font-size: var(--hq-font-label-size);
-  color: var(--hq-color-ink-soft);
+// A card-with-header whose body is a table: the toolbar row is the card's own header, so the
+// count and the one action sit above the `--hq-color-divider` rule §2 puts there.
+.children__skeleton {
+  display: block;
+  padding: var(--hq-space-card);
 }
 
 .children__chips {
@@ -21,21 +15,9 @@
   gap: var(--hq-space-4);
 }
 
-.children__chip {
-  padding: var(--hq-space-4) var(--hq-space-8);
-  font-size: var(--hq-font-label-size);
-  border: var(--hq-size-rule-thin) solid var(--hq-color-line);
-  background: var(--hq-color-bg);
-}
-
-.children__none,
-.children__status {
-  font-size: var(--hq-font-label-size);
+.children__none {
+  font-size: var(--hq-text-theme-xs);
   color: var(--hq-color-ink-soft);
-}
-
-.children__status--off {
-  color: var(--hq-color-accent-strong);
 }
 
 .children__actions {

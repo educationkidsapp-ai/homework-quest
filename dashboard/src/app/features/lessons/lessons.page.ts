@@ -18,6 +18,7 @@ import { CanDirective } from '../../core/permissions/can.directive';
 import {
   BandComponent,
   ButtonComponent,
+  CardComponent,
   EmptyStateComponent,
   InputComponent,
   PageComponent,
@@ -76,6 +77,7 @@ const POLL_MS = 2500;
   selector: 'hq-lessons-page',
   imports: [
     PageComponent,
+    CardComponent,
     SelectComponent,
     InputComponent,
     ButtonComponent,
@@ -480,6 +482,18 @@ export class LessonsPage {
   }
 
   protected trackRow = (row: LessonRowView): string => row.id;
+
+  /**
+   * Which §3 badge a lesson's status wears. Failed is the error ramp, published the success
+   * one, a job still running the brand, and everything waiting on a person the light pill —
+   * and the word is always inside the pill, so the colour is never carrying it alone.
+   */
+  protected statusTone(status: LessonStatus): string {
+    if (status === 'error') return 'error';
+    if (status === 'published') return 'success';
+    if (isRunningStatus(status)) return 'primary';
+    return 'light';
+  }
 
   private toRowView(row: AdminLesson): LessonRowView {
     const step = row.status === AdminLessonStatusEnum.ERROR ? errorStepOf(row) : null;

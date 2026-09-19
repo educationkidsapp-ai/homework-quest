@@ -1,6 +1,7 @@
 <hq-page [title]="pageTitle()" [subtitle]="courseSubtitle()">
   <div class="lessons">
-    <div class="lessons__chooser">
+    <hq-card class="lessons__chooser-card">
+      <div class="lessons__chooser">
       <hq-select
         class="lessons__chooser-field"
         [label]="'lessons.chooser.curriculum' | transloco"
@@ -18,7 +19,8 @@
         [disabled]="!curriculum()"
         (valueChange)="onGradeChange($event)"
       />
-    </div>
+      </div>
+    </hq-card>
 
     @if (confirmMode()) {
       <hq-band
@@ -47,6 +49,8 @@
       <div class="lessons__toolbar">
         <div data-hq-search>
           <hq-input
+            type="search"
+            keycap="/"
             [label]="'lessons.filter.label' | transloco"
             [placeholder]="'lessons.filter.placeholder' | transloco"
             [value]="filterText()"
@@ -55,6 +59,7 @@
         </div>
 
         <hq-tabs
+          variant="chips"
           class="lessons__view-tabs"
           [tabs]="viewTabs()"
           [selected]="view()"
@@ -78,6 +83,7 @@
             [label]="'lessons.loading' | transloco"
           />
         } @else {
+          <hq-card [flush]="true">
           <hq-table
             [rows]="rows()"
             [columns]="columns()"
@@ -93,6 +99,7 @@
               (action)="openNewLesson()"
             />
           </hq-table>
+          </hq-card>
         }
       } @else {
         <hq-lessons-calendar
@@ -129,7 +136,7 @@
       }
       @case ('status') {
         <div class="lessons__status">
-          <span class="lessons__status-word" [class.lessons__status-word--error]="row.status === 'error'">
+          <span class="hq-badge" [class]="'hq-badge--' + statusTone(row.status)">
             {{ 'lessons.status.' + row.status | transloco }}
           </span>
           @if (row.status === 'error') {
@@ -156,11 +163,11 @@
   </ng-template>
 
   <ng-template #rowMenu>
-    <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
+    <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
       <button
         type="button"
         cdkMenuItem
-        class="menu__item menu__item--danger"
+        class="hq-menu__item hq-menu__item--danger"
         *hqCan="'lesson.delete'"
         (cdkMenuItemTriggered)="requestDelete(menuRow())"
       >

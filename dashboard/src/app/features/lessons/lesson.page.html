@@ -18,8 +18,8 @@
       </div>
 
       <ng-template #overflowMenu>
-        <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
-          <button type="button" cdkMenuItem class="menu__item menu__item--danger" (cdkMenuItemTriggered)="requestDelete()">
+        <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
+          <button type="button" cdkMenuItem class="hq-menu__item hq-menu__item--danger" (cdkMenuItemTriggered)="requestDelete()">
             {{ 'lessons.delete' | transloco }}
           </button>
         </div>
@@ -119,7 +119,7 @@
       @if (replacing()) {
         <hq-card [title]="'lessons.detail.replaceFile' | transloco">
           <div class="lesson__dropzone" (dragover)="onReplaceDragOver($event)" (drop)="onReplaceDrop($event)">
-            <label for="lesson-replace-input" class="lesson__dropzone-choose">
+            <label for="lesson-replace-input" class="hq-linkbutton lesson__dropzone-choose">
               {{ 'lessons.new.dropzone.choose' | transloco }}
             </label>
             <input id="lesson-replace-input" class="hq-sr-only" type="file" multiple (change)="onReplaceInput($event)" />
@@ -136,7 +136,7 @@
             </hq-button>
           }
           <ng-container *hqCan="'lesson.write'">
-            <label for="lesson-upload-more" class="lesson__upload-more">
+            <label for="lesson-upload-more" class="hq-linkbutton lesson__upload-more">
               {{ 'lessons.detail.files.uploadMore' | transloco }}
             </label>
             <input id="lesson-upload-more" class="hq-sr-only" type="file" multiple (change)="onUploadMoreInput($event)" />
@@ -199,7 +199,7 @@
                       <p class="lesson__skill-question">{{ question }}</p>
                     }
                     @for (candidate of row.candidates; track candidate) {
-                      <span class="lesson__chip">{{ candidate }}</span>
+                      <span class="hq-badge">{{ candidate }}</span>
                     }
                   </div>
                 }
@@ -217,8 +217,9 @@
         </hq-card>
       }
 
-      <hq-card [title]="'lessons.detail.plays.title' | transloco">
+      <hq-card [nested]="true" [title]="'lessons.detail.plays.title' | transloco">
         <hq-tabs
+          variant="chips"
           [tabs]="playTabs()"
           [selected]="playTab()"
           (selectedChange)="selectPlayTab($event)"
@@ -346,11 +347,11 @@
       }
 
       <ng-template #addStopMenu>
-        <div cdkMenu class="menu menu--tall" [attr.aria-label]="'lessons.detail.editor.addStop' | transloco">
+        <div cdkMenu class="hq-menu hq-menu--wide" [attr.aria-label]="'lessons.detail.editor.addStop' | transloco">
           @for (group of templateGroups(); track group.id) {
-            <p class="menu__group">{{ group.label }}</p>
+            <p class="hq-menu__group">{{ group.label }}</p>
             @for (entry of group.entries; track entry.type) {
-              <button type="button" class="menu__item" cdkMenuItem (cdkMenuItemTriggered)="addStop(entry.type)">
+              <button type="button" class="hq-menu__item" cdkMenuItem (cdkMenuItemTriggered)="addStop(entry.type)">
                 {{ entry.label }}
               </button>
             }
