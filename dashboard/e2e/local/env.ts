@@ -439,6 +439,39 @@ export async function setLanguage(page: Page, language: 'en' | 'ar'): Promise<vo
   await expect(html).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
 }
 
+/**
+ * Adds one stop through CR2's Add stop form, and waits until the list has it.
+ *
+ * Here rather than in a spec because CR2 (#90) replaced the twenty-two-template menu with this
+ * form and `lesson-publish.spec.ts` was still clicking a `menuitem` that no longer exists — a
+ * second copy of "how a stop is added" that nothing kept honest. `add-stop.spec.ts` is the file
+ * that *tests* the form and keeps its own longer walk through it; this is the one every other
+ * spec uses when a stop is merely a precondition.
+ *
+ * The trigger is found by attribute, not by name, for the same reason `setLanguage` is: the
+ * button's accessible name is translated, and a caller may be in Arabic.
+ */
+export async function addStopThroughForm(
+  page: Page,
+  stop: { readonly title: string; readonly question: string; readonly type: string },
+): Promise<void> {
+  const rows = page.getByRole('listbox', { name: 'Stops' }).getByRole('option');
+  const before = await rows.count();
+
+  await page.locator('[data-hq-add-stop-trigger] button').click();
+  const form = page.locator('[data-hq-add-stop]');
+  await expect(form).toBeVisible();
+  await form.getByLabel('Title', { exact: true }).fill(stop.title);
+  await form.getByLabel('Question / what the child does', { exact: true }).fill(stop.question);
+  await form.getByLabel('Type', { exact: true }).selectOption(stop.type);
+  await page.getByRole('button', { name: 'Save the question' }).click();
+
+  // The one toast in this system: a success, politely announced, with no Undo on it.
+  await expect(page.getByText('Question added')).toBeVisible({ timeout: 30_000 });
+  await expect(form).toBeHidden();
+  await expect(rows).toHaveCount(before + 1, { timeout: 30_000 });
+}
+
 /** An ISO day `days` from today, in UTC — the format every lesson date field uses. */
 export function dayFromNow(days: number): string {
   const day = new Date();

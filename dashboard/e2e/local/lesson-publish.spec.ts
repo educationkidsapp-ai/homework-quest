@@ -2,6 +2,7 @@ import { request, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
+  addStopThroughForm,
   API,
   dayFromNow,
   expect,
@@ -123,12 +124,18 @@ async function createDraft(title: string, date: string): Promise<string> {
   return `teacher/lessons/${lesson.id}`;
 }
 
-/** One stop is all "ready to publish" takes for a manual lesson (`publishReady`). */
+/**
+ * One stop is all "ready to publish" takes for a manual lesson (`publishReady`).
+ *
+ * Through CR2's form, which is the only way there is: #90 replaced the template menu this used
+ * to click, and `lesson-editor.spec.ts` asserts the menu is gone. What the stop *says* does not
+ * matter here — the publish sheet only needs the lesson to have one.
+ */
 async function addOneStop(page: Page): Promise<void> {
-  await page.getByRole('button', { name: '+ Add stop' }).click();
-  await page.getByRole('menuitem', { name: 'Multiple choice', exact: true }).click();
-  await expect(page.getByRole('listbox', { name: 'Stops' }).getByRole('option')).toHaveCount(1, {
-    timeout: 20_000,
+  await addStopThroughForm(page, {
+    title: `Which shape has three sides ${RUN}`,
+    question: 'Pip says: show a triangle and a circle, and ask which one has three sides.',
+    type: 'choice',
   });
 }
 
