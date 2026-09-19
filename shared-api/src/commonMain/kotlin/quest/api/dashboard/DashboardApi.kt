@@ -522,6 +522,36 @@ interface DashboardApi {
 
     /** The lesson she is editing, with its plays, skills, panel and pipeline ledger. */
     suspend fun teacherLesson(lessonId: String): quest.api.AdminLesson
+
+    // ---------------------------------------------------------------- results, marking and the gradebook (N4.1, §7)
+
+    /**
+     * `GET /teacher/lessons/{id}/results`: who played, every stop's accuracy, the computed score, what still needs
+     * marking, and whether the results have been released. Behind the `gradebook` flag.
+     */
+    suspend fun lessonResults(lessonId: String): LessonResults
+
+    /**
+     * `PUT /teacher/marks`: a page of marking in one request — stars and a comment per open stop, and the
+     * lesson-level score override and the line to the parent. **409 while the lesson is released**; withdraw the
+     * release first. Behind the `openStopMarking` flag.
+     */
+    suspend fun saveMarks(request: SaveMarksRequest): List<TeacherMark>
+
+    /**
+     * `POST /teacher/lessons/{id}/release`: releases the results to the parents of the whole section at once, or
+     * withdraws the release with `released = false`. Nothing a parent sees changes until this is called.
+     */
+    suspend fun releaseLesson(lessonId: String, request: ReleaseRequest = ReleaseRequest()): LessonRelease
+
+    /**
+     * `GET /teacher/classes/{id}/gradebook?from&to`: the children × lessons grid with scores, bands, overrides and
+     * the needs-marking count. The window defaults to the last 30 days and is capped at a year.
+     */
+    suspend fun gradebook(classId: String, from: String? = null, to: String? = null): Gradebook
+
+    /** `GET /teacher/children/{id}`: band and trend per subject, the score chart, the comments and the saved work. */
+    suspend fun childReport(childId: String): ChildReport
 }
 
 /** `PUT /admin/platform-settings` (§A): only the fields that are present are written. */

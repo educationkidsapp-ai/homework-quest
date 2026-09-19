@@ -64,6 +64,33 @@ data class ProgressResponse(
     val streakDays: Int,
     val lastPlayedDate: LocalDate?,
     val stickers: List<String>,
+    /**
+     * N4.1 (teacher prompt §7): the lessons whose results the teacher has **released**, with the score, the band and
+     * her comment. Empty until she releases one, and it carries nothing about a lesson she has not.
+     *
+     * Parent mode only. §6's rule is unchanged: the child sees stars, a sticker and a certificate, never a number,
+     * so this belongs behind the parent gate in the app and must not reach a child-mode screen.
+     */
+    val results: List<ReleasedResult> = emptyList(),
+)
+
+/**
+ * One released homework or exam result as a parent sees it (teacher prompt §7, `docs/teacher-flow.md` step 9).
+ *
+ * [score] is 0-100 — the teacher's override when she set one, the automatic score otherwise — and [band] is one of
+ * `emerging`, `developing`, `secure`, `exceeding` (`server/.../grading/Bands.java`). [comment] is the one line she
+ * wrote to the parent, or null.
+ */
+@Serializable
+data class ReleasedResult(
+    val lessonId: String,
+    val title: String?,
+    val date: LocalDate,
+    val subject: Subject,
+    val score: Int?,
+    val band: String?,
+    val comment: String? = null,
+    val releasedAt: Long,
 )
 
 @Serializable
