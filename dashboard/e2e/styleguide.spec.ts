@@ -73,6 +73,22 @@ test.describe('styleguide', () => {
     }
   }
 
+  // The halo comes from the global `:focus-visible` and the outline from each component's
+  // `focus-ring` mixin. They are different properties, which is the only reason the global one
+  // survives a component stylesheet — worth a test, because the day a component sets its own
+  // box-shadow the ring disappears silently from that control alone.
+  test('gives a focused control both halves of the ring', async ({ page }) => {
+    await openStyleguide(page, 'en');
+
+    // A text field rather than a button: Chrome matches `:focus-visible` on a text field
+    // however it was focused, while a button only matches it after a keyboard interaction.
+    const field = page.getByLabel('School name');
+    await field.focus();
+
+    await expect(field).toHaveCSS('box-shadow', /rgba\(70, 95, 255/);
+    await expect(field).toHaveCSS('outline-width', '3px');
+  });
+
   test('opens the shortcuts sheet with ?', async ({ page }) => {
     await openStyleguide(page, 'en');
 

@@ -63,14 +63,16 @@
   }
 }
 
-/// The one visible focus ring in the system: the spec's soft `rgba(70,95,255,0.1)` halo and
-/// `brand-300` border (§4), over an outline in the accent itself so the ring clears 3:1.
+/// The one visible focus ring in the system.
+///
+/// Only the outline is here. The spec's soft `rgba(70,95,255,0.1)` halo and its `brand-300`
+/// border come from the global `:focus-visible` in `styles.scss`, which a component rule does
+/// not override because it sets different properties — and repeating them in every component
+/// stylesheet that focuses something cost `lesson.page.scss` its 10 kB budget.
 @mixin focus-ring($color: var(--hq-color-focus)) {
   &:focus-visible {
     outline: var(--hq-size-focus-ring) solid $color;
     outline-offset: var(--hq-size-focus-ring-offset);
-    border-color: var(--hq-color-focus-border);
-    box-shadow: var(--hq-focus-ring);
   }
 }
 
