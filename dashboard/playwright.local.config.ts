@@ -29,6 +29,11 @@ export default defineConfig({
   forbidOnly: !!process.env['CI'],
   workers: 1,
   reporter: [['list']],
+  // `e2e/global-setup.ts` waits for the API on `HQ_API` to be *seeded*, not merely answering:
+  // `SchoolSeed` is a `CommandLineRunner`, so `/health` is 200 while it is still writing classes,
+  // assignments and children, and a suite started with the server failed its first test or two on
+  // a cold start and passed on a re-run. The gate polls Sara's two sections and her roster.
+  globalSetup: './e2e/global-setup.ts',
   use: {
     baseURL: 'http://localhost:4300/dashboard/',
     viewport: { width: 1366, height: 768 },
