@@ -1,0 +1,11 @@
+className,childName,stop,attemptNumber,correct,mistakes,stars
+1A British,Amina Al Amin,1,1,true,0,3
+1A British,Amina Al Amin,2,1,true,0,3
+1A British,Amina Al Amin,3,1,true,0,2
+1A British,Zain Lutfi,1,1,true,0,3
+1A British,Zain Lutfi,2,1,false,2,1
+1A British,Zain Lutfi,2,2,true,0,2
+1A British,Zain Lutfi,3,1,true,0,3
+1B British,Rasha Hensley,1,1,false,1,1
+1B British,Rasha Hensley,2,1,true,0,3
+1B British,Rasha Hensley,3,1,true,0,2

@@ -651,6 +651,49 @@ generated one, which nothing logs or prints, and the start-up line says only tha
 boots are instant. This school is separate from the Al Noor / Green Valley fixture below, which lives in its own two
 schools and is untouched by it.
 
+**Attempts to score (`seed/attempts.csv`).** The dashboard's Results page and gradebook are empty until some child
+has actually played something, so `quest.server.grading.AttemptSeed` reads
+`server/src/main/resources/seed/attempts.csv` right after the school seed and gives three children of `1A British`
+and `1B British` a handful of attempts. It brings its own lesson — one published homework per class named in the
+file ("Counting to ten": two single-answer stops and one retell), because a fresh QA database has no lessons until a
+teacher writes one — and the lesson id, the stop ids and the attempt ids are all derived from the class id, so a
+re-run writes nothing. It runs for the **`full` profile only**: `acceptance` is the owner's own environment, where
+the children arrive when he registers in the app and the lessons are the ones he posts himself, and a fixture
+putting scores on that board would be inventing work nobody did. A row naming a class or a child the school does not
+have stops the load naming the line; as with the school seed, a broken fixture costs QA its seed, never its revision.
+
+## Results, marking and release
+
+`docs/teacher-flow.md` step 9. Three things are worth knowing when QA looks wrong.
+
+**The two flags.** Every route below is behind `gradebook`, and `PUT /teacher/marks` is behind `openStopMarking` as
+well. Both are seeded **off** (V7), so a school sees 404 from the whole area until an Admin turns them on:
+
+```bash
+curl -X PUT "$API/admin/schools/$SCHOOL/flags/gradebook" -H "Authorization: Bearer $ADMIN" \
+     -H 'Content-Type: application/json' -d '{"enabled":true}'
+curl -X PUT "$API/admin/schools/$SCHOOL/flags/openStopMarking" -H "Authorization: Bearer $ADMIN" \
+     -H 'Content-Type: application/json' -d '{"enabled":true}'
+```
+
+**Nothing reaches a parent until the release.** A score exists as soon as a child uploads attempts, and the teacher
+sees it immediately on `GET /teacher/lessons/{id}/results`. The parent's `GET /children/{id}/progress` carries it in
+`results[]` only after `POST /teacher/lessons/{id}/release`. The child never sees a number at all — that is §6's
+rule and this changes nothing about it.
+
+**Re-marking a released lesson is refused.** `PUT /teacher/marks` answers **409** while the lesson is released,
+because the score and the comment a parent has already been shown must not change under her. Withdraw the release,
+mark, release again:
+
+```bash
+curl -X POST "$API/teacher/lessons/$LESSON/release" -H "Authorization: Bearer $TEACHER" \
+     -H 'Content-Type: application/json' -d '{"released":false}'
+```
+
+Scores are computed from the attempts on every read — there is no `homework_scores` table to rebuild, and no cache
+to clear. The thresholds behind the four bands (`emerging`, `developing`, `secure`, `exceeding`) are constants in
+`server/src/main/java/quest/server/grading/Bands.java`.
+
 `e2e/` holds the fixture and the assertions over it — three Node-and-bash scripts, no dependencies beyond Node 22,
 `curl` and optionally `jq`. Full detail in [e2e/README.md](../e2e/README.md).
 
