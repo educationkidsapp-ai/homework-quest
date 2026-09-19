@@ -12,8 +12,8 @@ public class LlmConfig {
         String provider = props.llm() == null || props.llm().provider() == null ? "deepseek" : props.llm().provider().toLowerCase();
         LlmClient client = switch (provider) {
             case "fake", "sample" -> new SampleLlmClient();
-            case "anthropic" -> new AnthropicClient(props.anthropic());
-            default -> new DeepSeekClient(props.deepseek());
+            case "anthropic" -> new AnthropicClient(props.anthropic(), props.llm());
+            default -> new DeepSeekClient(props.deepseek(), props.llm());
         };
         LoggerFactory.getLogger(LlmConfig.class).info("LLM provider: {}", client.name());
         return client;

@@ -617,6 +617,9 @@ Names only — never paste a value into a PR, a commit, a log or a chat. Values 
 | `PORT`, `APP_VERSION`, `PANEL_DIR`, `SPRING_PROFILES_ACTIVE`, `FAKE_AUTH` | runtime | the image sets `PANEL_DIR` |
 | `QUEST_ANYDOC_BIN`, `QUEST_TESSERACT_BIN` | every environment | paths to the two conversion binaries; the image sets both, elsewhere they fall back to `PATH` |
 | `QUEST_CONVERT_TIMEOUT_SECONDS`, `QUEST_CONVERT_OCR_PAGE_TIMEOUT_SECONDS`, `QUEST_CONVERT_MAX_MARKDOWN_CHARS` | every environment | total time box per file (120 s), per OCR page (20 s), and the cap on one file's Markdown (400 000 characters, truncation noted in the text) |
+| `QUEST_LLM_TIMEOUT_SECONDS`, `QUEST_LLM_CONNECT_TIMEOUT_SECONDS` | every environment | per model call: read (120 s, and 120 s is also the cap) and connect (10 s) — see [Stuck lessons](#stuck-lessons) |
+| `QUEST_PIPELINE_DEADLINE_GENERATE_SECONDS`, `QUEST_PIPELINE_DEADLINE_ANALYZE_SECONDS`, `QUEST_PIPELINE_DEADLINE_CONVERT_SECONDS` | every environment | how long one step may run before it is `error`/`timeout` (360 / 240 / 180 s) |
+| `QUEST_PIPELINE_WATCHDOG_ENABLED`, `QUEST_PIPELINE_WATCHDOG_INTERVAL_SECONDS`, `QUEST_PIPELINE_WATCHDOG_GRACE_SECONDS` | every environment | the sweep that recovers a job a recycled instance left behind (on, every 60 s, 60 s of slack) |
 | `quest.pipeline.convert.allow-builtin-fallback` | `h2`/`test` profiles only | not an environment variable: hard `false` in the base config, `true` only under those two profiles, and the code checks the profile too |
 
 `ADMIN_JWT_SECRET` has a placeholder default in `application.yml` so a developer can boot without one. **Any deployed
@@ -811,6 +814,42 @@ curl -s -X POST "${AUTH[@]}" "$API/admin/classes/$CLASS_ID/roster/attach" -d '{"
 
 5. Sign in as `maya@test.com`, publish a lesson to `1A British`, and it appears for the child on that roster; when
    the child finishes it, her stars appear on Ms Maya's dashboard.
+
+### Stuck lessons
+
+A lesson stays in `analyzing` or `generating` only while a job is running. Two things used to leave one there for
+good, and both are now bounded:
+
+- **A model call that hangs.** Every LLM client has a connect timeout of 10 s and a read timeout of
+  `quest.llm.timeout-seconds` (`QUEST_LLM_TIMEOUT_SECONDS`, default and maximum **120 s**). A call past it is a
+  transient failure: the step retries it three times and then fails with `model_unavailable`.
+- **A job whose instance is gone.** Cloud Run scales to zero and recycles instances, and the `@Async` job goes with
+  the instance — leaving a `lesson_steps` row saying `running` that nothing will ever finish. Each step has a
+  deadline (`quest.pipeline.deadline.generate-seconds` **360**, `analyze-seconds` **240**, `convert-seconds` **180**,
+  the last also covering Upload and Skills), and a sweep runs at startup and every
+  `quest.pipeline.watchdog.interval-seconds` (**60**) plus `watchdog.grace-seconds` (**60**) on top of the deadline.
+  Anything past that is marked `error` with code `timeout` and the message *"This step took too long. Retry it."*
+
+Either way the lesson leaves the transient status, the step strip shows where it stopped, and **Retry, Retry this
+step and Delete all work again** — "Wait for the current job to finish" is now only ever about a job this instance is
+really running. Set `QUEST_PIPELINE_WATCHDOG_ENABLED=false` to turn the sweep off (debugging only).
+
+To see what is stuck right now: `GET /admin/lessons` and look for `status` `analyzing`/`generating` with an old
+`updatedAt`, or `currentStep` set. Nothing needs to be done by hand — wait one interval.
+
+### Cleaning up acceptance data
+
+Both are ADMIN, scoped with `X-School-Id`, and both are **hard** deletes:
+
+```bash
+curl -s -X DELETE "${AUTH[@]}" "$API/admin/lessons/$LESSON_ID"     # 204 · 409 while published (unpublish first)
+curl -s -X DELETE "${AUTH[@]}" "$API/admin/children/$CHILD_ID"     # 204 · 404 for another school's child
+```
+
+Deleting a child removes her row and everything that was only ever hers — roster place, attempts, stop and lesson
+completions, parent unlocks, stickers, streak, recordings and drawings, and her answers to teacher questions. For a
+child who has simply left the school, use `PATCH /admin/children/{id}` with `{"active":false}` instead: she is
+retired from the roster and her work is kept. The AI caches are keyed by file hash and survive both.
 
 **The automated e2e suite needs `SEED_PROFILE=full`.** `e2e/` asserts against the 30-class school and the two-school
 fixture; run it on the acceptance profile and it fails for want of data. Switching back to `full` re-seeds the

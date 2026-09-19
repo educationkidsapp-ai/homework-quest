@@ -188,6 +188,7 @@
     { "method": "DELETE", "path": "/admin/classes/{id}/roster/{childId}", "permission": "roster.write" },
     { "method": "GET", "path": "/admin/children", "permission": "roster.read" },
     { "method": "PATCH", "path": "/admin/children/{id}", "permission": "roster.write" },
+    { "method": "DELETE", "path": "/admin/children/{id}", "permission": "roster.write" },
 
     { "method": "GET", "path": "/admin/teachers", "permission": "teacher.read" },
     { "method": "POST", "path": "/admin/teachers", "permission": "teacher.manage" },

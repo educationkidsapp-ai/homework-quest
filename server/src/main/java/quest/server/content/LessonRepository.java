@@ -23,6 +23,13 @@ public interface LessonRepository extends JpaRepository<Entities.LessonEntity, S
     List<Entities.LessonEntity> findAllByOrderByDateDescCreatedAtDesc();
     List<Entities.LessonEntity> findBySourceHash(String sourceHash);
 
+    /**
+     * Every lesson sitting in one of the transient statuses. Read by {@link quest.server.analysis.PipelineWatchdog}
+     * only, which runs on the scheduler with no caller and therefore no school: a job left behind by a recycled
+     * instance belongs to whichever school it belongs to, and the sweep has to be able to see all of them.
+     */
+    List<Entities.LessonEntity> findByStatusIn(Collection<String> statuses);
+
     /** Every published lesson of the given classes — the §2 map, assembled from Classes rather than from a Course. */
     List<Entities.LessonEntity> findByClassIdInAndStatusOrderByDateAsc(Collection<String> classIds, String status);
 
