@@ -173,14 +173,10 @@
   // Cards carry none of these: they are a border on a ground. Controls take `xs`,
   // dropdowns `lg`, drawers `xl`.
   --hq-shadow-xs: 0px 1px 2px 0px rgb(16 24 40 / 0.05);
-  --hq-shadow-sm:
-    0px 1px 3px 0px rgb(16 24 40 / 0.1), 0px 1px 2px 0px rgb(16 24 40 / 0.06);
-  --hq-shadow-md:
-    0px 4px 8px -2px rgb(16 24 40 / 0.1), 0px 2px 4px -2px rgb(16 24 40 / 0.06);
-  --hq-shadow-lg:
-    0px 12px 16px -4px rgb(16 24 40 / 0.08), 0px 4px 6px -2px rgb(16 24 40 / 0.03);
-  --hq-shadow-xl:
-    0px 20px 24px -4px rgb(16 24 40 / 0.08), 0px 8px 8px -4px rgb(16 24 40 / 0.03);
+  --hq-shadow-sm: 0px 1px 3px 0px rgb(16 24 40 / 0.1), 0px 1px 2px 0px rgb(16 24 40 / 0.06);
+  --hq-shadow-md: 0px 4px 8px -2px rgb(16 24 40 / 0.1), 0px 2px 4px -2px rgb(16 24 40 / 0.06);
+  --hq-shadow-lg: 0px 12px 16px -4px rgb(16 24 40 / 0.08), 0px 4px 6px -2px rgb(16 24 40 / 0.03);
+  --hq-shadow-xl: 0px 20px 24px -4px rgb(16 24 40 / 0.08), 0px 8px 8px -4px rgb(16 24 40 / 0.03);
 
   // --- Rhythm ------------------------------------------------------------- §1 Spacing
   --hq-space-grid-gap: 24px;

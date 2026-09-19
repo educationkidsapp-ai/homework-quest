@@ -55,7 +55,12 @@ const ARABIC = ARABIC_RANGES.flatMap(([start, end]) =>
 const FACES = [
   { dir: OWN, from: 'Outfit[wght].ttf', to: 'outfit_variable.woff2', text: LATIN },
   { dir: SHARED, from: 'ibmplexsansarabic_regular.ttf', to: 'ibmplexsansarabic_regular.woff2', text: ARABIC },
-  { dir: SHARED, from: 'ibmplexsansarabic_semibold.ttf', to: 'ibmplexsansarabic_semibold.woff2', text: ARABIC },
+  {
+    dir: SHARED,
+    from: 'ibmplexsansarabic_semibold.ttf',
+    to: 'ibmplexsansarabic_semibold.woff2',
+    text: ARABIC,
+  },
 ];
 
 async function main() {

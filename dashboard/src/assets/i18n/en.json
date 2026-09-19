@@ -700,6 +700,7 @@
     "MANAGERIAL": "Management"
   },
   "shell": {
+    "darkMode": "Dark mode",
     "signOut": "Sign out",
     "showMeAround": "Show me around",
     "viewingAs": "You are viewing as {{name}} — this view is read-only.",

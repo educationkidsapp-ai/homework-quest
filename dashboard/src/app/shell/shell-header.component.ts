@@ -11,6 +11,7 @@ import { SchoolScopeStore } from '../core/auth/school-scope.store';
 import { FeatureDirective } from '../core/flags/feature.directive';
 import { FLAGS, FlagService } from '../core/flags/flag.service';
 import { LANGUAGES, LanguageService } from '../core/i18n/language.service';
+import { DarkModeService } from '../core/theme/dark-mode.service';
 import { ThemeService } from '../core/theme/theme.service';
 import { TourService } from '../core/tour/tour.service';
 
@@ -52,6 +53,32 @@ import { TourService } from '../core/tour/tour.service';
       </div>
 
       <div class="header__actions">
+        <!--
+          T1 parks the scheme switch here so dark mode is reachable while the shell is still
+          the old one; T2 moves it into the new header beside the search and the bell.
+          aria-pressed rather than a switch role: it is a button that is currently on.
+        -->
+        <button
+          type="button"
+          class="header__button header__button--icon"
+          [attr.aria-pressed]="darkMode.isDark()"
+          [attr.aria-label]="'shell.darkMode' | transloco"
+          (click)="darkMode.toggle()"
+        >
+          @if (darkMode.isDark()) {
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <circle cx="12" cy="12" r="4" />
+              <path
+                d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"
+              />
+            </svg>
+          } @else {
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />
+            </svg>
+          }
+        </button>
+
         @if (isAdmin()) {
           <button
             *hqFeature="'multiSchool'"
@@ -183,6 +210,30 @@ import { TourService } from '../core/tour/tour.service';
       }
     }
 
+    .header__button--icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      inline-size: var(--hq-size-touch-target);
+      padding-inline: 0;
+      color: var(--hq-color-ink-soft);
+
+      svg {
+        inline-size: var(--hq-size-icon-control);
+        block-size: var(--hq-size-icon-control);
+        fill: none;
+        stroke: currentcolor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      &[aria-pressed='true'] {
+        color: var(--hq-color-accent-on-soft);
+        background: var(--hq-color-accent-soft);
+      }
+    }
+
     // Rendered into the CDK overlay container, but instantiated by this component — so the
     // emulated-encapsulation attribute travels with it and these rules still apply.
     .menu {
@@ -231,6 +282,7 @@ export class ShellHeaderComponent {
   private readonly flags = inject(FlagService);
   protected readonly scope = inject(SchoolScopeStore);
   private readonly theme = inject(ThemeService);
+  protected readonly darkMode = inject(DarkModeService);
   private readonly tour = inject(TourService);
 
   protected readonly auth = inject(AuthService);

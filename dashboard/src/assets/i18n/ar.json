@@ -700,6 +700,7 @@
     "MANAGERIAL": "الإدارة"
   },
   "shell": {
+    "darkMode": "الوضع الداكن",
     "signOut": "تسجيل الخروج",
     "showMeAround": "جولة سريعة",
     "viewingAs": "أنت تشاهد باسم {{name}} — هذا العرض للقراءة فقط.",
