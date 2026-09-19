@@ -135,6 +135,8 @@ function choiceStop(id: string, title: string) {
       { id: 'b', label: 'Second' },
     ],
     correctOptionId: 'a',
+    // CR5: every read carries the stop in English — here the shape `StopText.describe` emits.
+    teacherText: `${title}\nPip says: Which one is right?\n\nQuestion: Which one is right?\nOptions:\n- First (correct)\n- Second`,
   };
 }
 
@@ -351,6 +353,82 @@ describe('Lesson', () => {
       'The id cannot change',
     );
     expect(screen.getByRole('button', { name: 'Save the stop' })).toBeDisabled();
+  });
+
+  // ---- CR5: the stop is prose, and the JSON is the server's problem ------------------------
+
+  it('shows the stop in English and posts the rewritten text to from-text', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    // The read-only rendering above the field, as elements rather than a data format: the
+    // description's `Options:` run has become a real list.
+    const rendering = document.querySelector('[data-hq-stop-prose]')!;
+    expect(rendering.textContent).toContain('Pip says: Which one is right?');
+    expect(within(rendering as HTMLElement).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'First (correct)',
+      'Second',
+    ]);
+
+    const prose = screen.getByLabelText(/This stop, in your words/);
+    await userEvent.clear(prose);
+    await userEvent.type(prose, 'Which shape has three sides?');
+
+    const save = screen.getByRole('button', { name: 'Save the stop' });
+    expect(save).toBeEnabled();
+    await userEvent.click(save);
+
+    const request = backend.expectOne('/admin/stops/st-1/from-text');
+    expect(request.request.method).toBe('POST');
+    expect(JSON.parse(request.request.body as string)).toEqual({ text: 'Which shape has three sides?' });
+
+    // The reread is what puts the saved prose back, so re-opening never re-converts.
+    request.flush({ ...choiceStop('st-1', 'Which shape'), teacherText: 'Which shape has three sides?' });
+    await Promise.resolve();
+    TestBed.tick();
+    backend.expectOne(lessonUrlFor(ADMIN_USER)).flush(lessonWithStops());
+  });
+
+  it('answers a 422 with "please rephrase" and keeps the text she wrote', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    const prose: HTMLTextAreaElement = screen.getByLabelText(/This stop, in your words/);
+    await userEvent.clear(prose);
+    await userEvent.type(prose, 'Draw a picture of whatever you like');
+    await userEvent.click(screen.getByRole('button', { name: 'Save the stop' }));
+
+    backend
+      .expectOne('/admin/stops/st-1/from-text')
+      .flush(
+        { code: 'rephrase', message: "Couldn't save, please rephrase. #/options: minItems" },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      );
+    await Promise.resolve();
+    TestBed.tick();
+
+    expect(screen.getByText("Couldn't save, please rephrase.")).toBeInTheDocument();
+    // The validator's own lines are not a teacher's problem, and never reach her.
+    expect(screen.queryByText(/minItems/)).toBeNull();
+    expect(prose.value).toBe('Draw a picture of whatever you like');
+  });
+
+  it('answers the 400 for a lesson still generating with the wait-for-the-pipeline message', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    const prose = screen.getByLabelText(/This stop, in your words/);
+    await userEvent.clear(prose);
+    await userEvent.type(prose, 'Count the apples');
+    await userEvent.click(screen.getByRole('button', { name: 'Save the stop' }));
+
+    backend
+      .expectOne('/admin/stops/st-1/from-text')
+      .flush(
+        { code: 'bad_request', message: 'Wait for this lesson to finish generating before editing a stop.' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    await Promise.resolve();
+    TestBed.tick();
+
+    expect(screen.getByText(/Wait for this lesson to finish generating/)).toBeInTheDocument();
   });
 
   it('adds a stop from the grouped template menu', async () => {

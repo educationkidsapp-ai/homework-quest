@@ -18,8 +18,10 @@ import {
   AdminLessonSubjectEnum,
   LessonStepInfoStatusEnum,
   TeacherApi,
+  apiErrorOf,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { MediaService } from '../../core/media/media.service';
 import { CanDirective } from '../../core/permissions/can.directive';
@@ -57,9 +59,10 @@ import {
   parentPanelBody,
   reorderBody,
   stopBody,
+  stopFromTextBody,
 } from './lessons.models';
 import { ParentPanelEditorComponent } from './parent-panel-editor.component';
-import { StopEditorComponent } from './stop-editor.component';
+import { StopEditorComponent, type StopSaveFailure } from './stop-editor.component';
 import { STOP_TEMPLATES, STOP_TEMPLATE_GROUPS, type StopTemplateGroup, templatesByGroup } from './stop-templates';
 
 const POLL_MS = 2500;
@@ -144,6 +147,7 @@ export class LessonPage {
   private readonly api = inject(LessonApiService);
   private readonly teacherApi = inject(TeacherApi);
   private readonly auth = inject(AuthService);
+  private readonly band = inject(BandService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly transloco = inject(TranslocoService);
@@ -597,7 +601,47 @@ export class LessonPage {
     this.stopDirty.set(dirty);
   }
 
+  /** True while `from-text` is in flight; the editor says what the wait is for. */
+  protected readonly savingStopText = signal(false);
+  /** The last text save's refusal, in the two shapes the editor can explain. */
+  protected readonly stopSaveFailure = signal<StopSaveFailure | null>(null);
+
+  /**
+   * CR5: save the stop as the English the teacher wrote, and let the server (and Prompt D) make
+   * the JSON.
+   *
+   * The request is `silentErrors()`, so the two answers this screen can explain — 422
+   * `rephrase` and the 400 for a lesson still generating — become a band *under the editor* with
+   * her text still in it, rather than a red band at the top of the page carrying the validator's
+   * own lines. Anything else (the model being down, a lost session) is still a band, raised here
+   * with the same sentence the interceptor would have used.
+   */
+  protected saveStopText(text: string): void {
+    const stop = this.selectedStop();
+    if (!stop) return;
+    this.savingStopText.set(true);
+    this.stopSaveFailure.set(null);
+    this.busy.set(this.t('lessons.detail.busy.savingStopText'));
+    this.api.stopFromText(stop.id, stopFromTextBody(text)).subscribe({
+      next: () => {
+        this.savingStopText.set(false);
+        this.busy.set(null);
+        this.stopDirty.set(false);
+        this.lessonRes.reload();
+      },
+      error: (error: unknown) => {
+        this.savingStopText.set(false);
+        this.busy.set(null);
+        const status = error instanceof HttpErrorResponse ? error.status : 0;
+        if (status === 422) this.stopSaveFailure.set('rephrase');
+        else if (status === 400) this.stopSaveFailure.set('generating');
+        else this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
+      },
+    });
+  }
+
   protected saveStop(stop: Stop): void {
+    this.stopSaveFailure.set(null);
     this.busy.set(this.t('lessons.detail.busy.savingStop'));
     this.api.updateStop(stop.id, stopBody(stop)).subscribe({
       next: () => {

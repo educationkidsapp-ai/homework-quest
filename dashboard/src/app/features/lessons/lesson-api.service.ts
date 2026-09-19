@@ -14,6 +14,7 @@ import {
   TeacherLessonsApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { silentErrors } from '../../core/http/error.interceptor';
 import { type NewLessonRequest, createLessonBody } from './lessons.models';
 
 /** What both list endpoints narrow by. `schoolId` is Admin-only — a teacher has exactly one. */
@@ -237,6 +238,20 @@ export class LessonApiService {
     return this.isAdmin()
       ? this.admin.updateStop(stopId, body)
       : this.teacher.teacherUpdateStop(stopId, body);
+  }
+
+  /**
+   * CR5: save one stop from the teacher's English (`POST …/stops/{stopId}/from-text`).
+   *
+   * `silentErrors()` because two of its answers belong to the editor rather than to a band at the
+   * top of the page: 422 `rephrase` (the model could not make this wording fit the schema, twice)
+   * and 400 while the lesson is still generating. The page raises a band itself for the rest.
+   */
+  stopFromText(stopId: string, body: string): Observable<Stop> {
+    const options = { context: silentErrors() };
+    return this.isAdmin()
+      ? this.admin.stopFromText(stopId, body, 'body', false, options)
+      : this.teacher.teacherStopFromText(stopId, body, 'body', false, options);
   }
 
   deleteStop(stopId: string): Observable<unknown> {

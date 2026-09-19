@@ -491,7 +491,8 @@
         "creatingLevel": "Creating the level…",
         "generating": "Writing the other levels…",
         "savingPanel": "Saving the parent panel…",
-        "movingDate": "Moving the lesson…"
+        "movingDate": "Moving the lesson…",
+        "savingStopText": "Saving the stop…"
       },
       "files": {
         "title": "Files",
@@ -599,6 +600,17 @@
         "generateLabel": "What this lesson is about",
         "generateHint": "A few sentences is enough — the model writes Levels 2 and 3 and the Again variant from it.",
         "generate": "Generate the levels",
+        "text": {
+          "label": "This stop, in your words",
+          "hint": "Write it as you would say it. Start a line with # for a heading and with - for a list. The assistant turns it into the question the app plays.",
+          "saving": "Saving… the assistant is turning your words into a question.",
+          "rephrase": "Couldn't save, please rephrase.",
+          "generating": "Wait for this lesson to finish generating before editing a stop.",
+          "tooLong": "That is longer than one stop can hold — shorten it a little.",
+          "writeSomething": "Write what this stop should do first.",
+          "fieldsFirst": "Save or undo the fields below before rewriting this.",
+          "fieldsNote": "These five save straight away, with no assistant. Saving them rewrites the description above from the new question."
+        },
         "group": {
           "information": "Information",
           "oneAnswer": "One answer",

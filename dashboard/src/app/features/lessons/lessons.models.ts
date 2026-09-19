@@ -104,9 +104,29 @@ export function confirmSkillsBody(skills: readonly ConfirmedSkillRequest[]): str
   return JSON.stringify(skills);
 }
 
-/** `POST /{admin,teacher}/plays/{playId}/stops` and `PUT …/stops/{stopId}`: the stop verbatim. */
+/**
+ * `POST /{admin,teacher}/plays/{playId}/stops` and `PUT …/stops/{stopId}`: the stop verbatim,
+ * minus `teacherText`.
+ *
+ * CR5 gave every stop a `teacherText` on the way *out*. It is not a field of the document —
+ * `Play.schema.json` is `additionalProperties: false` on all 22 branches — so a write that echoed
+ * it back would be refused by the server's validator and by the editor's own live check.
+ */
 export function stopBody(stop: unknown): string {
-  return JSON.stringify(stop);
+  return JSON.stringify(stopJson(stop));
+}
+
+/** The stop as the schema has it: every field except the CR5 read side-channel. */
+export function stopJson(stop: unknown): unknown {
+  if (typeof stop !== 'object' || stop === null || Array.isArray(stop)) return stop;
+  const { teacherText, ...rest } = stop as Record<string, unknown>;
+  void teacherText;
+  return rest;
+}
+
+/** `POST /{teacher,admin}/stops/{stopId}/from-text`'s body — the English she wrote. */
+export function stopFromTextBody(text: string): string {
+  return JSON.stringify({ text });
 }
 
 /** `PUT …/plays/{playId}/order`'s body (`ReorderRequest`) — a permutation of the play's stop ids. */
