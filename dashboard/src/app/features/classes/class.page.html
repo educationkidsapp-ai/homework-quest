@@ -4,7 +4,11 @@
       {{ 'classes.allLessons' | transloco }}
     </a>
     <!-- One primary action on this screen: the lesson she came here to plan. -->
-    <a class="hq-linkbutton hq-linkbutton--primary class-page__primary" [routerLink]="newLessonLink" [queryParams]="newLessonParams()">
+    <a
+      class="hq-linkbutton hq-linkbutton--primary class-page__primary"
+      [routerLink]="newLessonLink"
+      [queryParams]="newLessonParams()"
+    >
       {{ 'classes.newLesson' | transloco }}
     </a>
   </div>
@@ -33,7 +37,7 @@
         />
       }
       @case ('children') {
-        <hq-class-children [classId]="classId()" />
+        <hq-class-children [classId]="classId()" [className]="className()" />
       }
       @default {
         <hq-empty-state [message]="comingSoon()" />

@@ -1,7 +1,8 @@
+import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { TeacherApi, TeacherRosterApi, apiErrorOf } from '../../api';
+import { type RosterChild, TeacherApi, TeacherRosterApi, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
 import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
@@ -10,6 +11,7 @@ import { CanDirective } from '../../core/permissions/can.directive';
 import { PermissionService } from '../../core/permissions/permission.service';
 import { UndoService } from '../../core/undo/undo.service';
 import {
+  BandComponent,
   ButtonComponent,
   CardComponent,
   DialogComponent,
@@ -17,9 +19,11 @@ import {
   InputComponent,
   SkeletonComponent,
   TableComponent,
+  ToastComponent,
   type TableColumn,
 } from '../../ui';
 import { type RosterRow, rosterRows } from './classes.models';
+import { PlaceChildComponent } from './place-child.component';
 
 /**
  * The class page's **Children** tab (`docs/teacher-flow.md` §4 step 3): who is in the class and
@@ -45,8 +49,14 @@ import { type RosterRow, rosterRows } from './classes.models';
     ButtonComponent,
     InputComponent,
     DialogComponent,
+    BandComponent,
+    ToastComponent,
     EmptyStateComponent,
     SkeletonComponent,
+    PlaceChildComponent,
+    CdkMenu,
+    CdkMenuItem,
+    CdkMenuTrigger,
     FeatureDirective,
     CanDirective,
     TranslocoPipe,
@@ -66,6 +76,8 @@ export class ClassChildrenComponent {
   private readonly lang = activeLang();
 
   readonly classId = input.required<string>();
+  /** The section's own name — "1A British" — for the sentences that name where a child went. */
+  readonly className = input('');
 
   /** The flag key both the request and the `*hqFeature` on every control read. */
   protected readonly rosterFlag = FLAGS.teacherRosterEdit;
@@ -107,10 +119,10 @@ export class ClassChildrenComponent {
       { key: 'weakSkills', header: this.t('classes.children.table.weakSkills') },
       { key: 'lastPlayed', header: this.t('classes.children.table.lastPlayed') },
     ];
-    if (this.canEdit()) {
+    // No actions *column*: the row's verbs live in `hq-table`'s own overflow cell, which is
+    // narrow and fixed, so six columns of data still fit the card at 1024 px.
+    if (this.canEdit())
       base.push({ key: 'parentEmail', header: this.t('classes.children.table.parentEmail') });
-      base.push({ key: 'childId', header: this.t('classes.children.table.actions') });
-    }
     return base;
   });
 
@@ -131,6 +143,9 @@ export class ClassChildrenComponent {
       new Date(row.lastPlayed),
     );
   }
+
+  /** The row whose ⋯ menu is open — the menu is one template, shared by every row. */
+  protected readonly menuRow = signal<RosterRow | null>(null);
 
   // ---- inline edit ---------------------------------------------------------------------------
 
@@ -230,6 +245,77 @@ export class ClassChildrenComponent {
         this.fail(error);
       },
     });
+  }
+
+  // ---- place a child who is already in the school ------------------------------------------------
+
+  protected readonly placeOpen = signal(false);
+  /** "Amina placed in 1A British", for four seconds. A success with nothing to undo — see CR2. */
+  protected readonly placedToast = signal('');
+
+  protected openPlace(): void {
+    this.placeOpen.set(true);
+  }
+
+  /**
+   * She is on the roster now: both lists are refetched, because the progress endpoint decides
+   * what the other five columns say and the roster decides that she is there at all.
+   */
+  protected onPlaced(child: RosterChild): void {
+    this.children.reload();
+    this.students.reload();
+    this.placedToast.set(
+      this.t('classes.children.place.done', { name: child.name ?? '', class: this.sectionName() }),
+    );
+  }
+
+  // ---- take a child off this section ----------------------------------------------------------
+
+  /** The row the red band is asking about. Never a `hidden` band — see the P3.2b note. */
+  protected readonly removing = signal<RosterRow | null>(null);
+
+  protected readonly removeMessage = computed(() => {
+    this.lang();
+    const row = this.removing();
+    return row
+      ? this.t('classes.children.remove.message', { name: row.name, class: this.sectionName() })
+      : '';
+  });
+
+  protected askRemove(row: RosterRow): void {
+    this.removing.set(row);
+  }
+
+  protected cancelRemove(): void {
+    this.removing.set(null);
+  }
+
+  /**
+   * `DELETE …/roster/{childId}` — off this section, still in the school.
+   *
+   * Not undoable by the ten-second strip: the child is gone from the list the moment the server
+   * answers, and an Undo on a row that is no longer drawn is a promise the screen cannot keep.
+   * The way back is Place an existing child, which is where she now is.
+   */
+  protected confirmRemove(): void {
+    const row = this.removing();
+    this.removing.set(null);
+    if (!row) return;
+    this.rosterApi.detachFromMyClass(this.classId(), row.childId).subscribe({
+      next: () => {
+        this.children.reload();
+        this.students.reload();
+        this.placedToast.set(
+          this.t('classes.children.remove.done', { name: row.name, class: this.sectionName() }),
+        );
+      },
+      error: (error: unknown) => this.fail(error),
+    });
+  }
+
+  /** The section's name, or the one word that stands in for it before the header has loaded. */
+  private sectionName(): string {
+    return this.className().trim() || this.t('classes.children.thisClass');
   }
 
   private fail(error: unknown): void {

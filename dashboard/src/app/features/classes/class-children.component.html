@@ -7,13 +7,38 @@
   <div card-actions>
     <!-- Behind both gates: the school must have roster editing, and the account must hold the key. -->
     <span *hqFeature="rosterFlag">
-      <span *hqCan="'roster.teacher'">
+      <span class="children__toolbar" *hqCan="'roster.teacher'">
+        <!--
+          Place comes first and is the quiet one: the child a parent has already registered is
+          the common case, but Add a child is the tab's one primary action (§3's rule), and two
+          filled buttons side by side would be two.
+        -->
+        <hq-button variant="secondary" (pressed)="openPlace()">
+          {{ 'classes.children.place.action' | transloco }}
+        </hq-button>
         <hq-button variant="primary" (pressed)="openAdd()">
           {{ 'classes.children.add.action' | transloco }}
         </hq-button>
       </span>
     </span>
   </div>
+
+  <!-- Off the roster, still in the school: destructive, so it asks in a red band, never a dialog. -->
+  @if (removing()) {
+    <hq-band
+      class="children__confirm"
+      variant="confirm"
+      [open]="true"
+      [title]="'classes.children.remove.title' | transloco"
+      [confirmLabel]="'classes.children.remove.confirm' | transloco"
+      (confirmed)="confirmRemove()"
+      (dismissed)="cancelRemove()"
+    >
+      {{ removeMessage() }}
+    </hq-band>
+  }
+
+  <hq-toast [open]="placedToast() !== ''" [message]="placedToast()" (expired)="placedToast.set('')" />
 
   @if (loading()) {
     <hq-skeleton
@@ -28,6 +53,9 @@
       [rows]="rows()"
       [columns]="columns()"
       [cellTemplate]="cell"
+      [wrapHeaders]="true"
+      [overflowTemplate]="canEdit() ? rowActions : null"
+      [overflowLabel]="'classes.children.table.actions' | transloco"
       [trackBy]="trackRow"
       [label]="'classes.children.title' | transloco"
     >
@@ -50,7 +78,7 @@
           <span class="hq-cell__tile" aria-hidden="true">{{ initialOf(row) }}</span>
           <span class="hq-cell__title">{{ row.name }}</span>
           @if (row.active === false) {
-            <span class="hq-badge hq-badge--light">{{ 'classes.children.inactive' | transloco }}</span>
+            <span class="hq-badge">{{ 'classes.children.inactive' | transloco }}</span>
           }
         </span>
       }
@@ -84,33 +112,67 @@
           (valueChange)="draftEmail.set($event)"
         />
       } @else {
-        {{ row.parentEmail ?? '—' }}
+        <span class="children__email">{{ row.parentEmail ?? '—' }}</span>
       }
     }
-    @case ('childId') {
-      <span class="children__actions" *hqCan="'roster.teacher'">
-        @if (editing() === row.childId) {
-          <hq-button variant="primary" [loading]="saving()" (pressed)="saveEdit(row)">
-            {{ 'classes.children.save' | transloco }}
-          </hq-button>
-          <hq-button variant="quiet" (pressed)="cancelEdit()">
-            {{ 'classes.children.cancel' | transloco }}
-          </hq-button>
-        } @else {
-          <hq-button variant="quiet" (pressed)="startEdit(row)">
-            {{ 'classes.children.edit' | transloco }}
-            <span class="hq-sr-only">{{ 'classes.children.editOf' | transloco: { name: row.name } }}</span>
-          </hq-button>
-          <hq-button variant="quiet" (pressed)="toggleActive(row)">
-            {{
-              (row.active === false ? 'classes.children.activate' : 'classes.children.deactivate') | transloco
-            }}
-            <span class="hq-sr-only">{{ 'classes.children.editOf' | transloco: { name: row.name } }}</span>
-          </hq-button>
-        }
-      </span>
-    }
   }
+</ng-template>
+
+<!--
+  One ⋯ per row rather than three buttons in a column of their own.
+
+  Three verbs beside six columns pushed the actions past the card's inline edge, where the only
+  way to them was to scroll the table sideways — an action a teacher cannot see is an action she
+  does not have. `hq-table`'s own overflow slot puts them in the row's last cell, in a menu the
+  keyboard opens with Enter and walks with the arrow keys (CDK's `cdkMenu`), and the trigger
+  names the child so a screen reader hears whose row it is.
+
+  While a row is being edited the same cell carries Save and Cancel instead: the menu's verbs
+  are the ones that start something, and these two end what is already started.
+-->
+<ng-template #rowActions let-row>
+  @if (editing() === row.childId) {
+    <span class="children__actions">
+      <hq-button variant="primary" [loading]="saving()" (pressed)="saveEdit(row)">
+        {{ 'classes.children.save' | transloco }}
+      </hq-button>
+      <hq-button variant="quiet" (pressed)="cancelEdit()">
+        {{ 'classes.children.cancel' | transloco }}
+      </hq-button>
+    </span>
+  } @else {
+    <button
+      type="button"
+      class="hq-iconbutton hq-iconbutton--quiet"
+      [cdkMenuTriggerFor]="rowMenu"
+      (click)="menuRow.set(row)"
+      [attr.aria-label]="'classes.children.rowActions' | transloco: { name: row.name }"
+    >
+      ⋯
+    </button>
+  }
+</ng-template>
+
+<ng-template #rowMenu>
+  <div cdkMenu class="hq-menu" [attr.aria-label]="'classes.children.table.actions' | transloco">
+    <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="startEdit(menuRow()!)">
+      {{ 'classes.children.edit' | transloco }}
+    </button>
+    <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="toggleActive(menuRow()!)">
+      {{
+        (menuRow()?.active === false ? 'classes.children.activate' : 'classes.children.deactivate')
+          | transloco
+      }}
+    </button>
+    <button
+      type="button"
+      cdkMenuItem
+      class="hq-menu__item hq-menu__item--danger"
+      (cdkMenuItemTriggered)="askRemove(menuRow()!)"
+    >
+      {{ 'classes.children.remove.action' | transloco }}
+    </button>
+  </div>
 </ng-template>
 
 <hq-dialog
@@ -138,3 +200,5 @@
     />
   </div>
 </hq-dialog>
+
+<hq-place-child [(open)]="placeOpen" [classId]="classId()" (placed)="onPlaced($event)" />

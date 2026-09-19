@@ -56,15 +56,17 @@ import { ButtonComponent } from '../button/button.component';
           <hq-button variant="quiet" (pressed)="requestClose()">{{
             cancelLabel() ?? ('ui.cancel' | transloco)
           }}</hq-button>
-          <hq-button
-            variant="primary"
-            type="submit"
-            [disabled]="confirmDisabled()"
-            [loading]="loading()"
-            [reason]="confirmReason()"
-          >
-            {{ confirmLabel() }}
-          </hq-button>
+          @if (confirmLabel(); as label) {
+            <hq-button
+              variant="primary"
+              type="submit"
+              [disabled]="confirmDisabled()"
+              [loading]="loading()"
+              [reason]="confirmReason()"
+            >
+              {{ label }}
+            </hq-button>
+          }
         </footer>
       </form>
     </dialog>
@@ -155,7 +157,14 @@ export class DialogComponent {
 
   readonly open = model(false);
   readonly title = input.required<string>();
-  readonly confirmLabel = input.required<string>();
+  /**
+   * The primary action's words, or `null` for a dialog that has none.
+   *
+   * A list whose decision is taken on a row — "Place" next to each child — has no single thing
+   * the footer could commit, and a disabled primary action in that footer would read as a step
+   * the person has failed to complete. Every *form* dialog still passes one.
+   */
+  readonly confirmLabel = input<string | null>(null);
   /** The dismissing action's words when "Cancel" is not what it does. */
   readonly cancelLabel = input<string | null>(null);
   readonly confirmDisabled = input(false);

@@ -4,6 +4,7 @@ import { EnvironmentProviders, Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../../api';
 import { TEACHER_USER } from '../../../testing/fixtures';
@@ -36,6 +37,12 @@ const STUDENT = {
   weakSkills: [{ skillId: 's-1', name: 'Place value' }],
 };
 
+/** The row's ⋯ — the one way to Edit, Deactivate and Remove since they left the column. */
+async function openRowMenu(name: string): Promise<void> {
+  await userEvent.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+  await settle();
+}
+
 async function settle(): Promise<void> {
   await Promise.resolve();
   TestBed.tick();
@@ -52,7 +59,7 @@ async function settle(): Promise<void> {
 async function renderTab(rosterEdit: boolean, permissions = TEACHER_PERMISSIONS) {
   const rendered = await renderHq(ClassChildrenComponent, {
     providers,
-    inputs: { classId: 'c-1a' },
+    inputs: { classId: 'c-1a', className: '1A British' },
   });
   const backend = TestBed.inject(HttpTestingController);
 
@@ -84,7 +91,7 @@ describe('the class page Children tab', () => {
     // for a list its teachers may not change.
     backend.expectNone('/teacher/classes/c-1a/children');
     expect(screen.queryByRole('button', { name: /add a child/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /edit/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Actions for/ })).toBeNull();
     backend.verify();
   });
 
@@ -98,7 +105,67 @@ describe('the class page Children tab', () => {
 
     expect(screen.getByRole('button', { name: /add a child/i })).toBeTruthy();
     expect(screen.getByText('p@x.test')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /deactivate/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Place an existing child' })).toBeTruthy();
+
+    // The row's verbs are behind one ⋯ per row, named for the child whose row it is.
+    await openRowMenu('Amina');
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Deactivate' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Remove' })).toBeTruthy();
+    backend.verify();
+  });
+
+  /**
+   * Off the section, still in the school — and the red band asks first, because a roster a
+   * colleague reads tomorrow is not a thing to change by brushing past a button.
+   */
+  it('asks in a red band before it takes a child off the section, then detaches her', async () => {
+    const { backend } = await renderTab(true);
+
+    backend
+      .expectOne('/teacher/classes/c-1a/children')
+      .flush([{ id: 'ch-1', classId: 'c-1a', name: 'Amina', active: true }]);
+    await settle();
+
+    await openRowMenu('Amina');
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Remove' }));
+    await settle();
+    expect(
+      screen.getByText(
+        'Amina comes off 1A British and stays in the school. You can place her again at any time.',
+      ),
+    ).toBeTruthy();
+    // Nothing has been sent yet: the question is the whole point.
+    backend.expectNone('/teacher/classes/c-1a/roster/ch-1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove from class' }));
+    const request = backend.expectOne('/teacher/classes/c-1a/roster/ch-1');
+    expect(request.request.method).toBe('DELETE');
+    request.flush({ id: 'ch-1', name: 'Amina' });
+    await settle();
+
+    backend.expectOne('/teacher/classes/c-1a/students').flush([]);
+    backend.expectOne('/teacher/classes/c-1a/children').flush([]);
+    await settle();
+    expect(screen.getByText('Amina was removed from 1A British.')).toBeTruthy();
+    backend.verify();
+  });
+
+  it('leaves the roster alone when the red band is dismissed', async () => {
+    const { backend } = await renderTab(true);
+
+    backend
+      .expectOne('/teacher/classes/c-1a/children')
+      .flush([{ id: 'ch-1', classId: 'c-1a', name: 'Amina', active: true }]);
+    await settle();
+
+    await openRowMenu('Amina');
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Remove' }));
+    await settle();
+    await userEvent.click(screen.getByRole('button', { name: /dismiss|cancel|close/i }));
+    await settle();
+
+    backend.expectNone('/teacher/classes/c-1a/roster/ch-1');
     backend.verify();
   });
 

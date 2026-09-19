@@ -56,54 +56,54 @@ import type { CalendarCell } from './classes.models';
       } @else {
         <div class="cal__scroll">
           <div class="cal__grid" role="grid" [attr.aria-label]="monthLabel()">
-          <div class="cal__row" role="row">
-            @for (weekday of weekdays(); track weekday) {
-              <div class="cal__weekday" role="columnheader">{{ weekday }}</div>
-            }
-          </div>
-          @for (week of weeks(); track $index) {
             <div class="cal__row" role="row">
-              @for (cell of week; track cell.iso) {
-                <div
-                  class="cal__cell"
-                  role="gridcell"
-                  [attr.data-date]="cell.iso"
-                  [class.cal__cell--outside]="!cell.inMonth"
-                  [class.cal__cell--off]="cell.inMonth && !cell.schoolDay"
-                  [class.cal__cell--gap]="cell.gap"
-                >
-                  <span class="cal__day">{{ cell.day }}</span>
-
-                  @if (cell.lessonId; as lessonId) {
-                    <a class="cal__lesson" [routerLink]="['/teacher/lessons', lessonId]">
-                      <hq-status-square [status]="cell.status" />
-                      <span class="cal__lesson-text">
-                        <span class="cal__lesson-title">{{ titleOf(cell) }}</span>
-                        <span class="cal__lesson-meta">{{ 'week.status.' + cell.status | transloco }}</span>
-                      </span>
-                      <span class="hq-sr-only">{{ dayLabel(cell.iso) }}</span>
-                    </a>
-                    <!-- The Results column of §4 step 3 until N4 fills it in: how many played. -->
-                    <span class="cal__results">
-                      {{ 'classes.calendar.played' | transloco: { count: cell.playedCount } }}
-                    </span>
-                  } @else if (cell.schoolDay) {
-                    <a
-                      class="cal__add"
-                      [routerLink]="['/teacher/lessons/new']"
-                      [queryParams]="newLessonParams(cell)"
-                      [attr.aria-label]="'classes.calendar.addOn' | transloco: { day: dayLabel(cell.iso) }"
-                    >
-                      +
-                    </a>
-                    @if (cell.gap) {
-                      <span class="cal__gap-label">{{ 'classes.calendar.gap' | transloco }}</span>
-                    }
-                  }
-                </div>
+              @for (weekday of weekdays(); track weekday) {
+                <div class="cal__weekday" role="columnheader">{{ weekday }}</div>
               }
             </div>
-          }
+            @for (week of weeks(); track $index) {
+              <div class="cal__row" role="row">
+                @for (cell of week; track cell.iso) {
+                  <div
+                    class="cal__cell"
+                    role="gridcell"
+                    [attr.data-date]="cell.iso"
+                    [class.cal__cell--outside]="!cell.inMonth"
+                    [class.cal__cell--off]="cell.inMonth && !cell.schoolDay"
+                    [class.cal__cell--gap]="cell.gap"
+                  >
+                    <span class="cal__day">{{ cell.day }}</span>
+
+                    @if (cell.lessonId; as lessonId) {
+                      <a class="cal__lesson" [routerLink]="['/teacher/lessons', lessonId]">
+                        <hq-status-square [status]="cell.status" />
+                        <span class="cal__lesson-text">
+                          <span class="cal__lesson-title">{{ titleOf(cell) }}</span>
+                          <span class="cal__lesson-meta">{{ 'week.status.' + cell.status | transloco }}</span>
+                        </span>
+                        <span class="hq-sr-only">{{ dayLabel(cell.iso) }}</span>
+                      </a>
+                      <!-- The Results column of §4 step 3 until N4 fills it in: how many played. -->
+                      <span class="cal__results">
+                        {{ 'classes.calendar.played' | transloco: { count: cell.playedCount } }}
+                      </span>
+                    } @else if (cell.schoolDay) {
+                      <a
+                        class="cal__add"
+                        [routerLink]="['/teacher/lessons/new']"
+                        [queryParams]="newLessonParams(cell)"
+                        [attr.aria-label]="'classes.calendar.addOn' | transloco: { day: dayLabel(cell.iso) }"
+                      >
+                        +
+                      </a>
+                      @if (cell.gap) {
+                        <span class="cal__gap-label">{{ 'classes.calendar.gap' | transloco }}</span>
+                      }
+                    }
+                  </div>
+                }
+              </div>
+            }
           </div>
         </div>
       }
@@ -163,12 +163,12 @@ import type { CalendarCell } from './classes.models';
     // explicit 'min-inline-size' on the grid inside an 'overflow-x' pane — so under it the
     // month scrolls inside its own card and the page never does.
     .cal__scroll {
-    // 'position: relative' is load-bearing, not decoration. A '.hq-sr-only' inside a card here
-    // is 'position: absolute', and an absolutely positioned box is clipped by an ancestor's
-    // overflow only when that ancestor is its containing block. Without this, the screen-reader
-    // line beside a published lesson escaped the pane at its static position — 700-odd pixels
-    // along a grid that scrolls — and gave the *page* a horizontal scrollbar at 375 px, with
-    // nothing visible anywhere to explain it.
+      // 'position: relative' is load-bearing, not decoration. A '.hq-sr-only' inside a card here
+      // is 'position: absolute', and an absolutely positioned box is clipped by an ancestor's
+      // overflow only when that ancestor is its containing block. Without this, the screen-reader
+      // line beside a published lesson escaped the pane at its static position — 700-odd pixels
+      // along a grid that scrolls — and gave the *page* a horizontal scrollbar at 375 px, with
+      // nothing visible anywhere to explain it.
       position: relative;
       max-inline-size: 100%;
       overflow-x: auto;

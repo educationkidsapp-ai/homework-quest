@@ -38,6 +38,12 @@ export interface GridCell {
    * that does not exist).
    */
   readonly pending: boolean;
+  /**
+   * A day the school does not teach on, appended to the week only because today is that day
+   * (`TeacherWeek.weekendDays`). It is drawn so a lesson published this morning is not invisible,
+   * and it takes nothing: no drop, no `+`. The server answers 409 `not_teaching_day` to both.
+   */
+  readonly weekend: boolean;
 }
 
 export interface GridRow {
@@ -90,12 +96,25 @@ export function daysOf(week: TeacherWeek | null | undefined): readonly string[] 
   return [...(week?.days ?? [])].filter((day) => day.length > 0).sort();
 }
 
-export function rowsOf(week: TeacherWeek | null | undefined): readonly GridRow[] {
-  const days = daysOf(week);
-  return (week?.rows ?? []).map((row) => toRow(row, days));
+/**
+ * The columns that are not teaching days — at most one, today, and only when today is a Friday
+ * or a Saturday at a Sunday–Thursday school (`TeacherWeekService.week`).
+ *
+ * Read off the server rather than derived from the school week: the calendar is the school's
+ * own row, a second copy of that rule here would be the one that goes stale, and a column
+ * wrongly called a weekend is a column a teacher cannot put a lesson on.
+ */
+export function weekendDaysOf(week: TeacherWeek | null | undefined): ReadonlySet<string> {
+  return new Set((week?.weekendDays ?? []).filter((day) => day.length > 0));
 }
 
-function toRow(row: WeekRow, days: readonly string[]): GridRow {
+export function rowsOf(week: TeacherWeek | null | undefined): readonly GridRow[] {
+  const days = daysOf(week);
+  const weekend = weekendDaysOf(week);
+  return (week?.rows ?? []).map((row) => toRow(row, days, weekend));
+}
+
+function toRow(row: WeekRow, days: readonly string[], weekend: ReadonlySet<string>): GridRow {
   const byDate = new Map<string, WeekCell>((row.cells ?? []).map((cell) => [cell.date ?? '', cell]));
   return {
     classId: row.classId ?? '',
@@ -103,11 +122,11 @@ function toRow(row: WeekRow, days: readonly string[]): GridRow {
     curriculum: row.curriculum ?? '',
     grade: row.grade ?? 0,
     subject: row.subject ?? '',
-    cells: days.map((date) => toCell(date, byDate.get(date))),
+    cells: days.map((date) => toCell(date, byDate.get(date), weekend.has(date))),
   };
 }
 
-function toCell(date: string, cell: WeekCell | undefined): GridCell {
+function toCell(date: string, cell: WeekCell | undefined, weekend: boolean): GridCell {
   const lesson = cell?.lesson ?? null;
   const pending = isPendingId(lesson?.id);
   return {
@@ -115,8 +134,11 @@ function toCell(date: string, cell: WeekCell | undefined): GridCell {
     lesson,
     exam: cell?.exam ?? null,
     status: statusOf(lesson),
-    movable: !pending && isMovable(lesson),
+    // A weekend column takes no card, so nothing in it is movable either — the server would
+    // refuse the PATCH that put a lesson back on it.
+    movable: !weekend && !pending && isMovable(lesson),
     pending,
+    weekend,
   };
 }
 
@@ -182,13 +204,13 @@ export function withMovedLesson(
       ...row,
       cells: row.cells.map((cell) =>
         cell.date === from
-          ? toCell(cell.date, { date: cell.date, exam: cell.exam ?? undefined })
+          ? toCell(cell.date, { date: cell.date, exam: cell.exam ?? undefined }, cell.weekend)
           : cell.date === to
-            ? toCell(cell.date, {
-                date: cell.date,
-                lesson: source.lesson ?? undefined,
-                exam: cell.exam ?? undefined,
-              })
+            ? toCell(
+                cell.date,
+                { date: cell.date, lesson: source.lesson ?? undefined, exam: cell.exam ?? undefined },
+                cell.weekend,
+              )
             : cell,
       ),
     };
@@ -216,7 +238,9 @@ export function withCopiedLesson(
     return {
       ...row,
       cells: row.cells.map((cell) =>
-        cell.date === date ? toCell(cell.date, { date, lesson: copy, exam: cell.exam ?? undefined }) : cell,
+        cell.date === date
+          ? toCell(cell.date, { date, lesson: copy, exam: cell.exam ?? undefined }, cell.weekend)
+          : cell,
       ),
     };
   });
@@ -242,7 +266,7 @@ export function withSettledCopy(
       ...row,
       cells: row.cells.map((cell) =>
         cell.date === date && cell.pending
-          ? toCell(date, { date, lesson, exam: cell.exam ?? undefined })
+          ? toCell(date, { date, lesson, exam: cell.exam ?? undefined }, cell.weekend)
           : cell,
       ),
     };

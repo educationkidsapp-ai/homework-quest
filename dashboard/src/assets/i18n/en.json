@@ -226,6 +226,7 @@
       "inactive": "Inactive",
       "edit": "Edit",
       "editOf": "{{name}}",
+      "rowActions": "Actions for {{name}}",
       "save": "Save",
       "cancel": "Cancel",
       "activate": "Activate",
@@ -251,6 +252,28 @@
         "renamed": "{{name}} updated.",
         "activated": "{{name}} is active again.",
         "deactivated": "{{name}} was deactivated."
+      },
+      "thisClass": "this class",
+      "place": {
+        "action": "Place an existing child",
+        "actionOf": "{{name}}",
+        "place": "Place",
+        "title": "Place an existing child",
+        "loading": "Looking for children who are not in a class yet",
+        "search": "Search",
+        "searchPlaceholder": "Name or parent email",
+        "noMatch": "No child matches “{{query}}”.",
+        "empty": "No unplaced children of this grade yet — a parent adds a child in the app first.",
+        "fromApp": "Registered from the app",
+        "done": "{{name}} placed in {{class}}.",
+        "retry": "Try again"
+      },
+      "remove": {
+        "action": "Remove",
+        "title": "Remove from this class?",
+        "message": "{{name}} comes off {{class}} and stays in the school. You can place her again at any time.",
+        "confirm": "Remove from class",
+        "done": "{{name}} was removed from {{class}}."
       }
     }
   },
@@ -1172,7 +1195,11 @@
     },
     "moveToDay": "Move to {{day}}",
     "copyToClass": "Copy to {{class}}",
-    "copying": "Copying…"
+    "copying": "Copying…",
+    "weekend": {
+      "label": "Weekend",
+      "cell": "No lessons on {{day}} — the school does not teach that day."
+    }
   },
   "player": {
     "gallery": {

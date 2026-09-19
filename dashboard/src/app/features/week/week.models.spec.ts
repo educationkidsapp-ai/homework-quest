@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DAYS, WEEK } from './week.fixture';
+import { DAYS, FRIDAY, WEEK, WEEK_ON_A_FRIDAY } from './week.fixture';
 import {
   areSiblings,
   daysOf,
@@ -13,6 +13,7 @@ import {
   statusOf,
   withCopiedLesson,
   withMovedLesson,
+  weekendDaysOf,
   withSettledCopy,
 } from './week.models';
 
@@ -166,5 +167,38 @@ describe('the optimistic copy', () => {
   it('never overwrites a settled card — only the cell still holding a placeholder', () => {
     const settled = withSettledCopy(rows, 'c-3a', DAYS[2], { id: 'intruder', status: 'ready' });
     expect(settled[2]!.cells[2]!.lesson?.id).toBe('l-2');
+  });
+});
+
+/**
+ * #98 appends today to the grid when today is a Friday or a Saturday, so a lesson published
+ * this morning is visible. The cell it appends is a cell nothing may be put in.
+ */
+describe('a weekend column', () => {
+  const friday = rowsOf(WEEK_ON_A_FRIDAY);
+
+  it('is read off the server rather than derived from the school week', () => {
+    expect([...weekendDaysOf(WEEK_ON_A_FRIDAY)]).toEqual([FRIDAY]);
+    expect(weekendDaysOf(WEEK).size).toBe(0);
+  });
+
+  it('is a column like any other, flagged', () => {
+    const cells = friday[0]!.cells;
+    expect(cells).toHaveLength(DAYS.length + 1);
+    expect(cells.at(-1)).toMatchObject({ date: FRIDAY, weekend: true, lesson: null });
+    expect(cells.slice(0, -1).every((cell) => !cell.weekend)).toBe(true);
+  });
+
+  it('holds nothing movable, so no card can be dragged back onto it', () => {
+    const weekendCard = rowsOf({
+      ...WEEK_ON_A_FRIDAY,
+      rows: [
+        {
+          ...WEEK_ON_A_FRIDAY.rows![0]!,
+          cells: [{ date: FRIDAY, lesson: { id: 'l-9', title: 'Stray', status: 'draft' } }],
+        },
+      ],
+    });
+    expect(weekendCard[0]!.cells.at(-1)).toMatchObject({ weekend: true, movable: false });
   });
 });

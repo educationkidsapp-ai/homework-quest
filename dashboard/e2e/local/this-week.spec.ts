@@ -1,7 +1,18 @@
 import { type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { expect, removeLessonsOfThisRun, RUN, shoot, signInAsSara, test } from './env';
+import { request } from '@playwright/test';
+import {
+  API,
+  expect,
+  removeLessonsOfThisRun,
+  RUN,
+  SARA,
+  shoot,
+  signInAsSara,
+  signInForToken,
+  test,
+} from './env';
 
 /**
  * N2.2's acceptance (`docs/teacher-flow.md` §4 step 2): the week grid, the `+`, the drag that
@@ -189,6 +200,38 @@ test('the screenshot set, EN and AR', async ({ page }) => {
   }
 
   await page.evaluate(() => localStorage.setItem('hq.language', 'en'));
+});
+
+/**
+ * Today's column on a Friday or a Saturday (#98, and the grid's half of it).
+ *
+ * Conditional by necessity: the column only exists when the run happens on a day the school
+ * does not teach, and a suite that only proved this two days in seven would prove it on no CI
+ * run at all. The condition is the server's own `weekendDays` rather than the runner's clock —
+ * the school week is an Admin setting and the runner is not in the school's timezone.
+ */
+test('a weekend column is on the grid, named, and takes nothing', async ({ page }) => {
+  const api = await request.newContext({ baseURL: API });
+  const response = await api.get('/teacher/week', {
+    headers: { Authorization: `Bearer ${await signInForToken(SARA)}` },
+  });
+  expect(response.ok(), `GET /teacher/week: HTTP ${response.status()}`).toBeTruthy();
+  const weekend = ((await response.json()) as { weekendDays?: string[] }).weekendDays ?? [];
+  await api.dispose();
+  test.skip(weekend.length === 0, 'today is a school day — there is no weekend column to check');
+
+  await signInAsSara(page);
+  const column = page.getByRole('columnheader').filter({ hasText: 'Weekend' });
+  await expect(column).toHaveCount(1);
+
+  // Whatever that day is called, no cell of it offers to start a lesson: the server answers
+  // 409 `not_teaching_day` to that form, and an invitation to be refused is not an invitation.
+  const day = new Date(`${weekend[0]}T00:00:00Z`).toLocaleDateString('en-US', {
+    weekday: 'long',
+    timeZone: 'UTC',
+  });
+  await expect(page.getByRole('link', { name: new RegExp(`Add a lesson for .* on ${day}`) })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /^Add a lesson for/ }).first()).toBeVisible();
 });
 
 /**
