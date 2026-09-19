@@ -2,8 +2,8 @@ package quest.server.dashboard;
 
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -318,7 +318,7 @@ public class HomeService {
         if (value != null && !value.isBlank()) params.put("lessonTitle", value);
     }
 
-    private static LocalDateTime startOfWeek(LocalDate today) { return midnight(Reports.weekOf(today)); }
+    private static Instant startOfWeek(LocalDate today) { return midnight(Reports.weekOf(today)); }
 
-    private static LocalDateTime midnight(LocalDate day) { return day.atStartOfDay(); }
+    private static Instant midnight(LocalDate day) { return Reports.startOf(day); }
 }

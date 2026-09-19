@@ -47,8 +47,7 @@ public class UsageService {
     public SchoolDataDto.SchoolUsage schoolUsage(SchoolEntity school, String from, String to) {
         var window = Reports.window(from, to, today());
         var scope = Map.<String, Object>of("schoolId", school.getId(),
-                "windowFrom", window.fromInstant().atZone(ZoneOffset.UTC).toLocalDateTime(),
-                "windowEnd", window.toExclusive().atZone(ZoneOffset.UTC).toLocalDateTime());
+                "windowFrom", window.fromInstant(), "windowEnd", window.toExclusive());
 
         int children = (int) one("SELECT COUNT(*) FROM children WHERE school_id = :schoolId AND deleted_at IS NULL", scope);
         int activeFamilies = (int) one("SELECT COUNT(DISTINCT c.parent_id) FROM children c JOIN attempts a ON a.child_id = c.id"
@@ -124,7 +123,7 @@ public class UsageService {
         int wanted = Math.clamp(months == null || months <= 0 ? Reports.DEFAULT_MONTHS : months, 1, Reports.MAX_MONTHS);
         LocalDate today = today();
         LocalDate firstMonth = today.withDayOfMonth(1).minusMonths(wanted - 1L);
-        var scope = Map.<String, Object>of("schoolId", school.getId(), "windowFrom", firstMonth.atStartOfDay());
+        var scope = Map.<String, Object>of("schoolId", school.getId(), "windowFrom", Reports.startOf(firstMonth));
 
         var buckets = new LinkedHashMap<String, long[]>();                       // month -> [tokens, saved]
         for (LocalDate m = firstMonth; !m.isAfter(today.withDayOfMonth(1)); m = m.plusMonths(1))
@@ -155,9 +154,7 @@ public class UsageService {
     @Transactional(readOnly = true)
     public SchoolDataDto.PlatformUsage platformUsage(String from, String to) {
         var window = Reports.window(from, to, today());
-        var scope = Map.<String, Object>of(
-                "windowFrom", window.fromInstant().atZone(ZoneOffset.UTC).toLocalDateTime(),
-                "windowEnd", window.toExclusive().atZone(ZoneOffset.UTC).toLocalDateTime());
+        var scope = Map.<String, Object>of("windowFrom", window.fromInstant(), "windowEnd", window.toExclusive());
 
         int schools = (int) one("SELECT COUNT(*) FROM schools", Map.of());
         int children = (int) one("SELECT COUNT(*) FROM children WHERE deleted_at IS NULL", Map.of());
