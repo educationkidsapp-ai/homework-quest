@@ -65,11 +65,16 @@ import { PlatformService } from '../../core/platform/platform.service';
       padding: var(--hq-size-page-padding);
     }
 
+    // §4: a container is a 16 px radius, a 1 px '--hq-color-rule' border and the surface, on
+    // the '--hq-color-bg' ground — the same card the signed-in side is built from, so the two
+    // halves of the product read as one system. No shadow: cards do not cast one.
     .auth__panel {
       inline-size: 100%;
       max-inline-size: var(--hq-size-stop-list-width);
-      padding: var(--hq-space-32);
-      @include m.surface;
+      padding: var(--hq-space-card);
+      background: var(--hq-color-surface);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      border-radius: var(--hq-radius-card);
     }
 
     .auth__logo {
@@ -86,8 +91,10 @@ import { PlatformService } from '../../core/platform/platform.service';
     // The name arrives from the API a beat after first paint; reserving its line keeps the
     // heading below from jumping when it lands.
     .auth__name {
-      @include m.label;
-      min-block-size: var(--hq-font-label-line);
+      min-block-size: var(--hq-text-theme-sm-line);
+      font-size: var(--hq-text-theme-sm);
+      line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
+      font-weight: var(--hq-text-weight-medium);
       color: var(--hq-color-ink-soft);
     }
 
@@ -99,7 +106,7 @@ import { PlatformService } from '../../core/platform/platform.service';
     .auth__footer {
       display: flex;
       gap: var(--hq-space-16);
-      font-size: var(--hq-font-label-size);
+      font-size: var(--hq-text-theme-sm);
       color: var(--hq-color-ink-soft);
     }
   `,
