@@ -61,6 +61,11 @@ function componentFor(screen: Screen, role: Role) {
     return import('../../features/lessons/new-lesson.page').then((m) => m.NewLessonPage);
   }
   if (screen.id === 'lesson') return import('../../features/lessons/lesson.page').then((m) => m.LessonPage);
+  // N4.2: both are their own lazy chunks. Results pulls in the marking editor and the media
+  // reader, the child page the SVG chart — none of which a teacher who never opens a score
+  // should download, and none of which may land in the initial bundle (the 520 kB budget).
+  if (screen.id === 'results')
+    return import('../../features/results/results.page').then((m) => m.ResultsPage);
   if (screen.id === 'classes')
     return role === 'TEACHER'
       ? import('../../features/classes/my-classes.page').then((m) => m.MyClassesPage)

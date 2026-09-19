@@ -36,6 +36,8 @@ import { AuthService } from '../../core/auth/auth.service';
 import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { MediaService } from '../../core/media/media.service';
+import { FLAGS } from '../../core/flags/flag.service';
+import { FeatureDirective } from '../../core/flags/feature.directive';
 import { CanDirective } from '../../core/permissions/can.directive';
 import {
   BandComponent,
@@ -142,6 +144,7 @@ type PendingAction =
     LessonSourcesComponent,
     TextareaComponent,
     CanDirective,
+    FeatureDirective,
     CdkMenu,
     CdkMenuItem,
     CdkMenuTrigger,
@@ -171,6 +174,14 @@ export class LessonPage {
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
   protected readonly basePath = computed(() => (this.isAdmin() ? '/admin/lessons' : '/teacher/lessons'));
   protected readonly lessonId = this.route.snapshot.paramMap.get('id') ?? '';
+
+  // N4.2: the way in to §4 step 9. Only from a teacher's copy of this screen and only once the
+  // lesson is published — `/teacher/lessons/{id}/results` is a teacher route, and an unpublished
+  // lesson has no attempts to show. `gradebook` + `results.read` gate the link itself, the same
+  // pair the route and the server check, so the three cannot disagree.
+  protected readonly gradebookFlag = FLAGS.gradebook;
+  protected readonly resultsLink = computed(() => ['/teacher/lessons', this.lessonId, 'results']);
+  protected readonly hasResults = computed(() => !this.isAdmin() && this.isPublished());
 
   /**
    * The role decides which family of routes this reads — `/admin/**` or `/teacher/**` — so the

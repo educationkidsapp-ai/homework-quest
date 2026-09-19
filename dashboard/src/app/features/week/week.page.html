@@ -201,6 +201,14 @@
   -->
   <ng-template #cardMenu>
     <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
+      <!-- N4.2: who played and what they scored — only once there is something to score. -->
+      @if (menuResultsLink(); as link) {
+        <span *hqFeature="gradebookFlag">
+          <a *hqCan="'results.read'" cdkMenuItem class="hq-menu__item" [routerLink]="link">
+            {{ 'results.title' | transloco }}
+          </a>
+        </span>
+      }
       @for (target of moveTargets(); track target.date) {
         <button
           type="button"

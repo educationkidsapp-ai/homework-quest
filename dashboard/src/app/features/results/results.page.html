@@ -1,0 +1,211 @@
+<hq-page [title]="title()" [subtitle]="subtitle()" [breadcrumbs]="breadcrumbs()">
+  <div page-actions>
+    <a class="hq-linkbutton" [routerLink]="lessonLink()">{{ 'results.openLesson' | transloco }}</a>
+  </div>
+
+  <!-- §3's metric row: what she came to find out, before any table. -->
+  <div class="results__metrics">
+    <hq-card class="results__metric">
+      <span class="results__metric-label">{{ 'results.metric.played' | transloco }}</span>
+      <strong class="results__metric-value">{{ playedLabel() }}</strong>
+    </hq-card>
+    <hq-card class="results__metric">
+      <span class="results__metric-label">{{ 'results.metric.average' | transloco }}</span>
+      <strong class="results__metric-value">{{ averageLabel() }}</strong>
+    </hq-card>
+    <hq-card class="results__metric">
+      <span class="results__metric-label">{{ 'results.metric.needsMarking' | transloco }}</span>
+      <strong class="results__metric-value">{{ summary().needsMarking }}</strong>
+    </hq-card>
+    <hq-card class="results__metric">
+      <span class="results__metric-label">{{ 'results.metric.release' | transloco }}</span>
+      <strong class="results__metric-value results__metric-value--words">{{ releasedLabel() }}</strong>
+    </hq-card>
+  </div>
+
+  <!-- Withdrawing takes a score off a report a parent may already have read: it asks, in the
+       red band, and never in a toast after the fact. -->
+  @if (withdrawing()) {
+    <hq-band
+      variant="confirm"
+      [open]="true"
+      [title]="'results.release.withdrawTitle' | transloco"
+      [confirmLabel]="'results.release.withdrawConfirm' | transloco"
+      (confirmed)="confirmWithdraw()"
+      (dismissed)="cancelWithdraw()"
+    >
+      {{ 'results.release.withdrawMessage' | transloco }}
+    </hq-band>
+  }
+
+  <hq-card class="results__release" [title]="'results.release.title' | transloco">
+    <hq-toggle
+      *hqCan="'results.write'"
+      data-hq-release
+      [label]="'results.release.toggle' | transloco"
+      [hint]="'results.release.explain' | transloco"
+      [checked]="summary().released"
+      [disabled]="releasing()"
+      (checkedChange)="onReleaseToggled($event)"
+    />
+  </hq-card>
+
+  <hq-card
+    class="results__table"
+    [flush]="true"
+    [title]="'results.table.title' | transloco"
+    [eyebrow]="'results.table.count' | transloco: { count: visibleRows().length }"
+  >
+    <div card-actions class="results__toolbar">
+      <hq-checkbox
+        [label]="'results.filter.needsMarking' | transloco"
+        [(checked)]="onlyUnmarked"
+        data-hq-needs-marking
+      />
+      <hq-button variant="secondary" [loading]="exporting()" (pressed)="exportCsv()">
+        {{ 'results.export.csv' | transloco }}
+      </hq-button>
+    </div>
+
+    @if (results.isLoading()) {
+      <hq-skeleton
+        [loading]="true"
+        [lines]="6"
+        height="var(--hq-size-row-height)"
+        [label]="'results.loading' | transloco"
+      />
+    } @else {
+      <hq-table
+        [rows]="visibleRows()"
+        [columns]="columns()"
+        [cellTemplate]="cell"
+        [expandedTemplate]="panel"
+        [isExpanded]="isOpen"
+        [wrapHeaders]="true"
+        [trackBy]="trackRow"
+        [label]="'results.table.title' | transloco"
+      >
+        <hq-empty-state
+          table-empty
+          [message]="(onlyUnmarked() ? 'results.empty.allMarked' : 'results.empty.noneYet') | transloco"
+        />
+      </hq-table>
+    }
+  </hq-card>
+</hq-page>
+
+<ng-template #cell let-row let-column="column">
+  @if (isStopColumn(column.key)) {
+    @if (stopOf(row, column.key); as stop) {
+      <span
+        class="results__stop"
+        [class.is-weak]="isWeak(stop.stopId)"
+        [attr.title]="headerTitleOf(column.key)"
+      >
+        @if (!stop.attempted) {
+          <span class="results__dash" aria-hidden="true">–</span>
+          <span class="hq-sr-only">{{ 'results.table.notAttempted' | transloco }}</span>
+        } @else if (stop.needsMarking) {
+          <span class="hq-badge hq-badge--warning">{{ 'results.table.mark' | transloco }}</span>
+        } @else {
+          <span aria-hidden="true">{{ starsText(stop.markStars ?? stop.stars) }}</span>
+          <span class="hq-sr-only">
+            {{ 'results.marking.stars' | transloco: { count: stop.markStars ?? stop.stars ?? 0 } }}
+          </span>
+        }
+      </span>
+    }
+  } @else {
+    @switch (column.key) {
+      @case ('name') {
+        <button
+          type="button"
+          class="results__child"
+          [attr.aria-expanded]="isOpen(row)"
+          (click)="toggleChild(row)"
+        >
+          <span class="results__chevron" aria-hidden="true">{{ isOpen(row) ? '▾' : '▸' }}</span>
+          <span class="hq-cell__title">{{ row.name }}</span>
+          @if (row.needsMarking > 0) {
+            <span class="hq-badge hq-badge--warning">
+              {{ 'results.table.needsMarking' | transloco: { count: row.needsMarking } }}
+            </span>
+          }
+        </button>
+      }
+      @case ('levelReached') {
+        {{ row.attempted ? row.levelReached : '–' }}
+      }
+      @case ('score') {
+        @if (row.teacherScore !== null && row.autoScore !== null) {
+          <span class="results__auto">{{ row.autoScore }}</span>
+        }
+        <strong>{{ score(row.score) }}</strong>
+      }
+      @case ('band') {
+        <hq-level-band [band]="row.band" />
+      }
+    }
+  }
+</ng-template>
+
+<!-- The panel a row opens onto: her open stops, then the one override and the one comment. -->
+<ng-template #panel let-row>
+  <div class="mark">
+    @for (stop of openStopsOf(row); track stop.stopId) {
+      <section class="mark__stop">
+        <h3 class="mark__title">{{ stop.title }}</h3>
+        <hq-child-work [url]="stop.workUrl" [stopType]="stop.type" [childName]="row.name" />
+        <!-- Shown to anyone who may read results; editable only behind `*hqFeature` +
+             `*hqCan` — a MANAGERIAL account reads the marks and changes none of them. -->
+        <hq-stars-input
+          [label]="'results.marking.starsFor' | transloco: { stop: stop.title }"
+          [stars]="starsOf(stop.stopId)"
+          [disabled]="saving() || !canMark()"
+          (starsChange)="setStars(stop.stopId, $event)"
+        />
+        <hq-input
+          [label]="'results.marking.stopComment' | transloco"
+          [value]="commentOf(stop.stopId)"
+          [disabled]="saving() || !canMark()"
+          (valueChange)="setStopComment(stop.stopId, $event)"
+        />
+      </section>
+    } @empty {
+      <p class="mark__none">{{ 'results.marking.noOpenStops' | transloco }}</p>
+    }
+
+    <section class="mark__lesson">
+      <hq-input
+        type="number"
+        [label]="'results.marking.override' | transloco"
+        [hint]="'results.marking.overrideHint' | transloco: { auto: score(row.autoScore) }"
+        [value]="overrideText()"
+        [disabled]="saving() || !canMark()"
+        (valueChange)="setOverride($event)"
+      />
+      <hq-textarea
+        [label]="'results.marking.parentComment' | transloco"
+        [hint]="'results.marking.parentCommentHint' | transloco"
+        [rows]="2"
+        [value]="draft()?.comment ?? ''"
+        [disabled]="saving() || !canMark()"
+        (valueChange)="setParentComment($event)"
+      />
+    </section>
+
+    <div class="mark__actions">
+      <span *hqFeature="markingFlag">
+        <hq-button
+          *hqCan="'results.write'"
+          variant="primary"
+          [disabled]="!dirty()"
+          [loading]="saving()"
+          (pressed)="save(row)"
+        >
+          {{ 'results.marking.save' | transloco }}
+        </hq-button>
+      </span>
+    </div>
+  </div>
+</ng-template>

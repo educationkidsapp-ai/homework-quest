@@ -21,4 +21,5 @@ export { PageComponent, type Breadcrumb } from './page/page.component';
 export { NavComponent, type NavItem } from './nav/nav.component';
 export { ShortcutsDialogComponent, type Shortcut } from './shortcuts-dialog/shortcuts-dialog.component';
 export { PageImageDirective, type MediaState } from './media/page-image.directive';
+export { ChildImageDirective } from './media/child-image.directive';
 export * from './motion';

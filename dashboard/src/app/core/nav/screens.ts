@@ -123,6 +123,17 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       { id: 'lessons', path: 'lessons', permission: 'lesson.read' },
       { id: 'new-lesson', path: 'lessons/new', permission: 'lesson.write' },
       { id: 'lesson', path: 'lessons/:id', permission: 'lesson.read' },
+      // N4.2 (§4 step 9). Neither is a rail item: Results is opened from the lesson she is
+      // looking at — its header, its card in This week, its square in the calendar — and the
+      // child page from a gradebook row or the Children tab. Both are behind `gradebook`,
+      // which is the flag the server's `GradingController` carries, so a school without it
+      // gets the same answer from the router as from the API instead of a screen of red bands.
+      {
+        id: 'results',
+        path: 'lessons/:id/results',
+        flag: FLAGS.gradebook,
+        permission: 'results.read',
+      },
       // No permission yet: `child.read` in permissions.json belongs to PARENT, and the key for
       // a teacher reading her own students arrives with P4.0's endpoints. Gating on the
       // parent's key would hide the item from every teacher.

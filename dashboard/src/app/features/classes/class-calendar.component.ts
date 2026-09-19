@@ -1,7 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { FLAGS } from '../../core/flags/flag.service';
+import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
+import { CanDirective } from '../../core/permissions/can.directive';
 import { SkeletonComponent } from '../../ui';
 import { StatusSquareComponent } from '../week/status-square.component';
 import type { CalendarCell } from './classes.models';
@@ -23,7 +26,14 @@ import type { CalendarCell } from './classes.models';
  */
 @Component({
   selector: 'hq-class-calendar',
-  imports: [RouterLink, SkeletonComponent, StatusSquareComponent, TranslocoPipe],
+  imports: [
+    RouterLink,
+    SkeletonComponent,
+    StatusSquareComponent,
+    FeatureDirective,
+    CanDirective,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="cal">
@@ -83,10 +93,23 @@ import type { CalendarCell } from './classes.models';
                         </span>
                         <span class="hq-sr-only">{{ dayLabel(cell.iso) }}</span>
                       </a>
-                      <!-- The Results column of §4 step 3 until N4 fills it in: how many played. -->
-                      <span class="cal__results">
-                        {{ 'classes.calendar.played' | transloco: { count: cell.playedCount } }}
-                      </span>
+                      <!-- §4 step 3's Results column: how many played, and the way in to their
+                           scores once the lesson is published (N4.2). -->
+                      @if (cell.status === 'published') {
+                        <span *hqFeature="gradebookFlag">
+                          <a
+                            *hqCan="'results.read'"
+                            class="cal__results cal__results--link"
+                            [routerLink]="['/teacher/lessons', lessonId, 'results']"
+                          >
+                            {{ 'classes.calendar.played' | transloco: { count: cell.playedCount } }}
+                          </a>
+                        </span>
+                      } @else {
+                        <span class="cal__results">
+                          {{ 'classes.calendar.played' | transloco: { count: cell.playedCount } }}
+                        </span>
+                      }
                     } @else if (cell.schoolDay) {
                       <a
                         class="cal__add"
@@ -259,6 +282,14 @@ import type { CalendarCell } from './classes.models';
       color: var(--hq-color-ink-soft);
     }
 
+    // A link, but the quiet sort: the cell's own lesson link is the loud one, and two buttons
+    // in a 100 px square would make the square a menu.
+    .cal__results--link {
+      display: block;
+      color: var(--hq-color-accent-strong);
+      text-decoration: underline;
+    }
+
     .cal__add {
       display: flex;
       align-items: center;
@@ -280,6 +311,8 @@ import type { CalendarCell } from './classes.models';
 export class ClassCalendarComponent {
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
+  /** N4.2: the Results link on a published day carries the same flag the route does. */
+  protected readonly gradebookFlag = FLAGS.gradebook;
 
   readonly classId = input.required<string>();
   readonly curriculum = input('');

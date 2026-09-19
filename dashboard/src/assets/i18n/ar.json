@@ -820,6 +820,90 @@
     "passwordHint": "كلمات المرور عشرة أحرف على الأقل ولا تُعرض أبدًا.",
     "help": "المساعدة"
   },
+  "results": {
+    "title": "النتائج",
+    "subtitle": "{{class}} · {{date}}",
+    "openLesson": "فتح الدرس",
+    "loading": "جارٍ تحميل النتائج",
+    "metric": {
+      "played": "لعبوا",
+      "playedValue": "{{played}} من {{roster}}",
+      "average": "متوسط الفصل",
+      "needsMarking": "بانتظار التصحيح",
+      "release": "أولياء الأمور"
+    },
+    "release": {
+      "title": "إظهار النتائج لأولياء الأمور",
+      "toggle": "ظاهرة",
+      "explain": "يرى أولياء الأمور الدرجات والملاحظات بعد الإظهار، وسحب الإظهار يخفيها من جديد.",
+      "notReleased": "غير ظاهرة",
+      "released": "ظاهرة",
+      "releasedOn": "ظهرت في {{date}}",
+      "withdrawTitle": "سحب النتائج؟",
+      "withdrawMessage": "لن يرى أولياء الأمور درجة هذا الدرس ولا ملاحظته بعد الآن.",
+      "withdrawConfirm": "سحب",
+      "doneOn": "ظهرت النتائج لأولياء الأمور.",
+      "doneOff": "سُحبت النتائج من أولياء الأمور."
+    },
+    "table": {
+      "title": "الأطفال",
+      "count": "{{count}} طفلًا",
+      "child": "الطفل",
+      "stop": "المحطة {{number}}",
+      "level": "المستوى",
+      "score": "الدرجة",
+      "band": "الفئة",
+      "notAttempted": "لم يُحاول",
+      "mark": "صحّحي",
+      "needsMarking": "{{count}} بانتظار التصحيح"
+    },
+    "filter": {
+      "needsMarking": "بانتظار التصحيح فقط"
+    },
+    "export": {
+      "csv": "تصدير CSV",
+      "xlsx": "تصدير Excel"
+    },
+    "empty": {
+      "allMarked": "لم يبقَ شيء بانتظار التصحيح.",
+      "noneYet": "لم يلعب أحد هذا الدرس بعد."
+    },
+    "marking": {
+      "stars": "{{count}} نجوم",
+      "starsFor": "نجوم {{stop}}",
+      "stopComment": "ملاحظة على هذه المحطة",
+      "override": "تعديل الدرجة",
+      "overrideHint": "اتركيها فارغة لإبقاء {{auto}}",
+      "parentComment": "ملاحظة لوليّ الأمر",
+      "parentCommentHint": "تُرسَل مع الدرجة عند إظهار النتائج.",
+      "save": "حفظ التصحيح",
+      "saved": "حُفظ تصحيح {{name}}.",
+      "openChild": "فتح صفحته",
+      "noOpenStops": "لا توجد في هذا الدرس محطة تحتاج تصحيحًا يدويًا."
+    },
+    "work": {
+      "none": "لم يُحفَظ شيء لهذه المحطة.",
+      "download": "حفظ التسجيل",
+      "cannotPlay": "لن يشغّل هذا المتصفح التسجيل هنا، احفظيه للاستماع إليه.",
+      "recordingOf": "تسجيل {{name}}",
+      "drawingOf": "عمل {{name}}"
+    },
+    "band": {
+      "emerging": "مبتدئ",
+      "developing": "نامٍ",
+      "secure": "متمكّن",
+      "exceeding": "متفوّق",
+      "none": "لا درجة بعد",
+      "score": "الدرجة {{score}}"
+    },
+    "bandShort": {
+      "emerging": "مب",
+      "developing": "نا",
+      "secure": "مت",
+      "exceeding": "تف",
+      "none": "–"
+    }
+  },
   "role": {
     "ADMIN": "المشرف",
     "TEACHER": "المعلّم",

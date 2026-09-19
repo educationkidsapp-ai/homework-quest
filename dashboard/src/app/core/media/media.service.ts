@@ -75,16 +75,37 @@ export class MediaService {
 
   /** The page crop as a `data:` URL. Multicast: repeat callers share one request. */
   pageImage(id: string): Observable<string> {
-    const cached = this.cache.get(id);
+    return this.remember(id, (key) =>
+      this.read(key, this.media.pageImage(id, 'body', false, { context: silentErrors() })),
+    );
+  }
+
+  /**
+   * A child's saved work — a retell recording, a drawing, a photographed answer — as a `data:`
+   * URL (N4.2). `/media/child/{id}` is behind the bearer like every other media route, so an
+   * `<img src>` or an `<audio src>` pointed straight at it answers 401: the bytes have to come
+   * through the generated client, which is what this does.
+   *
+   * Keyed apart from the crops (`child:`) because the two id spaces are different tables, and a
+   * collision would serve a drawing where a page was asked for.
+   */
+  childMedia(id: string): Observable<string> {
+    return this.remember(`child:${id}`, (key) =>
+      this.read(key, this.media.childMedia(id, 'body', false, { context: silentErrors() })),
+    );
+  }
+
+  private remember(key: string, read: (key: string) => Observable<string>): Observable<string> {
+    const cached = this.cache.get(key);
     if (cached) {
       // Re-inserting is what makes the map an LRU: the oldest entry is the one at the front.
-      this.cache.delete(id);
-      this.cache.set(id, cached);
+      this.cache.delete(key);
+      this.cache.set(key, cached);
       return cached.bytes;
     }
 
-    const entry: Entry = { bytes: this.read(id), size: 0 };
-    this.cache.set(id, entry);
+    const entry: Entry = { bytes: read(key), size: 0 };
+    this.cache.set(key, entry);
     return entry.bytes;
   }
 
@@ -109,18 +130,14 @@ export class MediaService {
     return this.held;
   }
 
-  private read(id: string): Observable<string> {
+  private read(key: string, request: Observable<string>): Observable<string> {
     // The generated signature says `string` because the contract's response is `*/*`; the
     // generator picks `responseType: 'blob'` for it, so what actually arrives is a Blob.
-    return (
-      this.media.pageImage(id, 'body', false, {
-        context: silentErrors(),
-      }) as unknown as Observable<Blob>
-    ).pipe(
+    return (request as unknown as Observable<Blob>).pipe(
       switchMap((blob) => dataUrlOf(blob)),
-      tap((dataUrl) => this.account(id, dataUrl.length)),
+      tap((dataUrl) => this.account(key, dataUrl.length)),
       catchError((error: unknown) => {
-        this.cache.delete(id);
+        this.cache.delete(key);
         return throwError(() => error);
       }),
       shareReplay({ bufferSize: 1, refCount: false }),
@@ -141,6 +158,20 @@ export class MediaService {
       this.cache.delete(oldest.value);
     }
   }
+}
+
+/**
+ * The `{id}` out of a `…/media/child/{id}` link, or `null` if the URL is not one.
+ *
+ * The server hands out **absolute** media links, built from its own `publicUrl` — a QA hostname
+ * in QA, a localhost port in the e2e run. The dashboard must not fetch them as given: the
+ * generated client resolves against `BASE_PATH`, which is same-origin, and that is what carries
+ * the bearer and survives a token refresh. So the link is read for its id and thrown away.
+ */
+export function childMediaIdOf(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const match = /\/media\/child\/([^/?#]+)/.exec(url);
+  return match?.[1] ?? null;
 }
 
 function dataUrlOf(blob: Blob): Observable<string> {
