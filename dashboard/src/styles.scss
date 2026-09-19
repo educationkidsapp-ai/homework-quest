@@ -4,15 +4,21 @@
 @use 'styles/motion' as motion;
 
 // --- Fonts -----------------------------------------------------------------
-// Archivo (variable, Latin) and IBM Plex Sans Arabic, converted to woff2 from the TTFs in
-// shared-ui/src/commonMain/composeResources/font so both front-ends use one set of faces.
-// `pnpm fonts` subsets each face to the script it is used for and compresses to woff2:
-// 1.1 MB of TTF becomes ~200 kB, which is the difference between the first paint waiting
-// on a font and not. The Archivo unicode-range keeps Arabic text on IBM Plex.
+// Outfit (variable, Latin) and IBM Plex Sans Arabic. `pnpm fonts` subsets each face to the
+// script it is used for and compresses it to woff2 — Outfit's variable TTF is 108 kB and the
+// two Arabic faces another 471 kB; subset, the set is a fraction of that, which is the
+// difference between the first paint waiting on a font and not.
+//
+// Outfit is the spec's family (§1) and is self-hosted rather than loaded from the Google
+// Fonts CDN: the server's CSP is `default-src 'self'` and a third-party stylesheet in the
+// critical path is render-blocking besides. The TTF and its OFL licence are in
+// `dashboard/fonts/`; the Arabic faces come from the set shared with the mobile app.
+//
+// The Outfit unicode-range keeps Arabic text on IBM Plex.
 
 @font-face {
-  font-family: 'Archivo';
-  src: url('assets/fonts/archivo_variable.woff2') format('woff2-variations');
+  font-family: 'Outfit';
+  src: url('assets/fonts/outfit_variable.woff2') format('woff2-variations');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
