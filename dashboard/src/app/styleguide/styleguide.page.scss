@@ -70,6 +70,16 @@
   gap: var(--hq-space-16);
 }
 
+// The stack, for children that have to fill the column. `.sg__stack` holds its children to
+// their own width, which is right for buttons and wrong for anything with no intrinsic one —
+// a progress bar in there is 0 px wide and draws nothing at all.
+.sg__bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-16);
+  inline-size: 100%;
+}
+
 .sg__note {
   margin-block-start: var(--hq-space-12);
   color: var(--hq-color-ink-soft);

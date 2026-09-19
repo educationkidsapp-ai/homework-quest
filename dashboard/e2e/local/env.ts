@@ -14,9 +14,128 @@
  * `SEED_STAFF_PASSWORD` on the server side; the two must be the same value wherever the suite
  * runs, including the `qa` GitHub environment.
  */
-import { expect, request, type Locator, type Page } from '@playwright/test';
+import { expect, request, test as base, type Locator, type Page, type TestInfo } from '@playwright/test';
 
 export const API = process.env['E2E_BASE_URL'] ?? process.env['HQ_API'] ?? 'http://localhost:18080';
+
+/**
+ * Noise the gate below is allowed to ignore, each with the reason it is not ours to fix.
+ *
+ * The list is short on purpose and every entry names something outside `src/app/**`. Anything
+ * the dashboard itself logs — an `NG0` warning, a failed subscription, a template error — is a
+ * defect to report, not an entry here. A pattern that stops matching anything is dead weight:
+ * delete it rather than leave it as cover for a future regression.
+ */
+const ALLOWED_NOISE: readonly { readonly pattern: RegExp; readonly why: string }[] = [
+  {
+    pattern: /Download the Angular DevTools/i,
+    why: "Angular's own development-mode banner; it is a console.log in dev builds and never ships",
+  },
+  {
+    pattern: /\[Violation\]|Forced reflow/i,
+    why: 'Chrome performance advisories, not errors — emitted by the scheduler, not by the app',
+  },
+  {
+    // Narrow on purpose: this status, on this one route. A 429 anywhere else, or any other
+    // status here, still fails.
+    pattern: /status of 429 .*\(https?:\S*\/schools\/logo\)/,
+    why:
+      "the server's own throttle, not the dashboard: `POST /schools/logo` is the sign-in page's " +
+      'unauthenticated school lookup and it sits in a per-email/per-IP bucket ' +
+      '(`server/.../SchoolController.java:117`). One suite run signs in a dozen times from one ' +
+      'address, so the bucket empties; the screen handles the refusal correctly by drawing no ' +
+      'logo, and what Chrome logs is the response, which no application code can suppress.',
+  },
+];
+
+/**
+ * Noise one test expects, declared by that test.
+ *
+ * Some tests are *about* a refusal — `shell.spec.ts` types a wrong password to prove the screen
+ * answers with a band rather than a toast, and the 401 it asks for is the whole point. That is
+ * not a defect and it is not global noise either, so it is declared where it happens instead of
+ * widening `ALLOWED_NOISE` for every other test in the directory.
+ */
+const EXPECTED: WeakMap<TestInfo, RegExp[]> = new WeakMap();
+
+/**
+ * "This test deliberately causes that console error." Call it inside the test, before or after
+ * the thing that logs — the gate filters at teardown, so the order does not matter.
+ */
+export function expectConsoleError(pattern: RegExp, why: string): void {
+  const info = base.info();
+  EXPECTED.set(info, [...(EXPECTED.get(info) ?? []), pattern]);
+  info.annotations.push({ type: 'expected-console-error', description: `${pattern.source} — ${why}` });
+}
+
+function isAllowed(text: string, testInfo: TestInfo): boolean {
+  if (ALLOWED_NOISE.some((entry) => entry.pattern.test(text))) return true;
+  return (EXPECTED.get(testInfo) ?? []).some((pattern) => pattern.test(text));
+}
+
+/**
+ * The browser console, read as a test result.
+ *
+ * Every test in this directory gets this for free: `console.error`, any `console.warn` carrying
+ * an `NG0` code, and an uncaught `pageerror` are collected for the whole test and asserted empty
+ * at teardown. That is T4's console gate — the owner's "no console errors, no NG0xxx warnings"
+ * turned into something that fails a run rather than something somebody has to remember to look
+ * at. Angular's runtime warnings are the interesting half: `NG0100` (expression changed after it
+ * was checked), `NG0913` (an image without dimensions), `NG0955` (a duplicate `track`) are all
+ * warnings that a screen renders straight through, so no assertion about the screen would ever
+ * see them.
+ *
+ * Two deliberate choices:
+ *
+ * - **Only `NG0` warnings**, not every warning. A `console.warn` from a library is not this
+ *   suite's business, and a gate that fires on everything is a gate somebody disables.
+ * - **Silent when the test already failed.** A failing test usually leaves a broken page behind
+ *   it, and the console it then fills is the symptom, not the cause; reporting both puts the
+ *   wrong one at the bottom of the log where the eye lands. The gate speaks only for a test that
+ *   otherwise passed.
+ */
+async function withConsoleGate(page: Page, testInfo: TestInfo, run: () => Promise<void>): Promise<void> {
+  // Everything is collected and filtered at the end rather than as it arrives, so a test may
+  // declare what it expects with `expectConsoleError` at any point in its body.
+  const seen: string[] = [];
+  const note = (text: string) => void seen.push(text);
+
+  page.on('console', (message) => {
+    const type = message.type();
+    // The URL is carried along because Chrome's own text for a bad response — "Failed to load
+    // resource: the server responded with a status of …" — never says *which* resource, and an
+    // allow-list entry that cannot name the route is a blanket one.
+    const where = message.location().url;
+    const text = where ? `${message.text()} (${where})` : message.text();
+    if (type === 'error') note(`console.error — ${text}`);
+    else if (type === 'warning' && text.includes('NG0')) note(`console.warn (Angular) — ${text}`);
+  });
+  page.on('pageerror', (error) => note(`pageerror — ${error.stack ?? error.message}`));
+
+  await run();
+
+  if (testInfo.status === 'failed' || testInfo.status === 'timedOut') return;
+  const noise = seen.filter((text) => !isAllowed(text, testInfo));
+  expect(
+    noise,
+    `the browser console was not clean during "${testInfo.title}" — each line below is a defect in the dashboard, not in the test (add to ALLOWED_NOISE in e2e/local/env.ts only with a reason that names something outside src/app/**)`,
+  ).toEqual([]);
+}
+
+/**
+ * The suite's `test`. Every spec in `e2e/local` imports it from here rather than from
+ * `@playwright/test`, which is what puts the console gate on all of them at once.
+ */
+export const test = base.extend<{ consoleGate: void }>({
+  consoleGate: [
+    async ({ page }, use, testInfo) => {
+      await withConsoleGate(page, testInfo, () => use());
+    },
+    { auto: true },
+  ],
+});
+
+export { expect };
 
 export function env(name: string): string {
   const value = process.env[name];

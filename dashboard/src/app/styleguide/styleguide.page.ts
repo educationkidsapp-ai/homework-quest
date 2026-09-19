@@ -272,6 +272,14 @@ export class StyleguidePage {
     return lesson.id;
   }
 
+  /**
+   * `hq-table`'s selected-row tint (T3), on one row so the frame shows both states at once.
+   *
+   * An arrow property rather than a method: the input takes the predicate itself, so `this`
+   * would otherwise be lost the moment the table called it.
+   */
+  protected readonly isSelectedLesson = (lesson: DemoLesson): boolean => lesson.id === '2';
+
   /** The `rowCollapse` contract: animate first, then drop the model. */
   protected async removeRow(row: string): Promise<void> {
     const index = this.collapsibleRows().indexOf(row);

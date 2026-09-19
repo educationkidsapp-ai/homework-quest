@@ -1,7 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { setLanguage, setScheme, shoot, signInAsSara } from './env';
+import { expect, setLanguage, setScheme, shoot, signInAsSara, test } from './env';
 
 /**
  * The rail's rendered width, polled rather than measured once: `transition: width .3s ease` is

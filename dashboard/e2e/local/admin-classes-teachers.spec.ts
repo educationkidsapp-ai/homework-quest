@@ -1,7 +1,7 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { shoot } from './env';
+import { expect, shoot, test } from './env';
 
 /**
  * N1.2's acceptance (`docs/teacher-flow.md` §10 step 1), against the built bundle and a local

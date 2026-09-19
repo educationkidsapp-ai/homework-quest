@@ -1,7 +1,7 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { RUN, removeLessonsOfThisRun, shoot, signInAsSara } from './env';
+import { expect, removeLessonsOfThisRun, RUN, shoot, signInAsSara, test } from './env';
 
 /**
  * N2.2's acceptance (`docs/teacher-flow.md` §4 step 2): the week grid, the `+`, the drag that
