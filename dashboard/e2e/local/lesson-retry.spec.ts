@@ -2,11 +2,11 @@ import { request } from '@playwright/test';
 import { resolve } from 'node:path';
 import {
   API,
-  dayFromNow,
   expect,
   removeLessonsOfThisRun,
   RUN,
   SARA,
+  schoolDayFromNow,
   signInAsSara,
   signInForToken,
   test,
@@ -58,7 +58,7 @@ test('retries a lesson past an injected failure at generate_L2', async ({ page }
   test.setTimeout(180_000);
   await signInAsSara(page);
 
-  const query = new URLSearchParams({ classId, subject: 'math', date: dayFromNow(400) });
+  const query = new URLSearchParams({ classId, subject: 'math', date: schoolDayFromNow(400) });
   await page.goto(`teacher/lessons/new?${query.toString()}`);
   await expect(page.getByRole('heading', { name: 'New lesson' })).toBeVisible();
   await page.getByLabel('Title').fill(TITLE);

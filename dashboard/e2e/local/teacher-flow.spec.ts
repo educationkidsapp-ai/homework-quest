@@ -2,12 +2,12 @@ import { request, type Locator, type Page } from '@playwright/test';
 import { resolve } from 'node:path';
 import {
   API,
-  dayFromNow,
   expect,
   OMAR,
   removeLessonsOfThisRun,
   RUN,
   SARA,
+  schoolDayFromNow,
   signIn,
   signInAsSara,
   signInForToken,
@@ -36,9 +36,9 @@ import {
 const ONE_PAGE_PDF = resolve(process.cwd(), 'e2e/fixtures/one-page.pdf');
 
 const TITLE = `Teacher flow ${RUN}`;
-/** Far enough out that the cell is empty, and a different stretch on every run. */
+/** Far enough out that the cell is empty, and a different stretch of teaching days per run. */
 const BASE = 60 + (Math.floor(Date.now() / 1000) % 60);
-const LESSON_DAY = dayFromNow(BASE);
+const LESSON_DAY = schoolDayFromNow(BASE);
 
 /** Filled by `beforeAll` from her own token — the two sections the seed gives her. */
 let saraToken = '';

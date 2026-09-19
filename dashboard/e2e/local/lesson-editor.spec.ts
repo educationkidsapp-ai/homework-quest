@@ -4,11 +4,11 @@ import { resolve } from 'node:path';
 import {
   ADMIN,
   API,
-  dayFromNow,
   expect,
   removeLessonsOfThisRun,
   RUN,
   SARA,
+  schoolDayFromNow,
   setLanguage,
   setScheme,
   shoot,
@@ -42,7 +42,7 @@ const TITLE = `Sorting shapes ${RUN}`;
  * "Add today's lesson" builds — rather than from a `+` on the calendar, because whether a `+`
  * is there at all depends on what the week already holds, and this file should not care.
  */
-const DATE = dayFromNow(300 + (Math.floor(Date.now() / 1000) % 60));
+const DATE = schoolDayFromNow(300 + (Math.floor(Date.now() / 1000) % 60));
 let classId = '';
 
 /** Sara's own 1A British Math section, read with her token — never the Admin's. */

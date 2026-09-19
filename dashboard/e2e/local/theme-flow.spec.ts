@@ -2,12 +2,13 @@ import { request, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
+  addStopThroughForm,
   API,
-  dayFromNow,
   expect,
   removeLessonsOfThisRun,
   RUN,
   SARA,
+  schoolDayFromNow,
   setLanguage,
   setScheme,
   shoot,
@@ -58,10 +59,10 @@ const TABLET = { width: 768, height: 1024 };
 const PHONE = { width: 375, height: 812 };
 
 const TITLE = `Shapes and sides ${RUN}`;
-/** A stretch of days this run owns: a class holds one lesson per day, and QA is never reset. */
+/** A stretch of teaching days this run owns: one lesson per day per class, and QA is never reset. */
 const BASE = 400 + (Math.floor(Date.now() / 1000) % 40);
-const LESSON_DAY = dayFromNow(BASE);
-const MOVED_DAY = dayFromNow(BASE + 1);
+const LESSON_DAY = schoolDayFromNow(BASE);
+const MOVED_DAY = schoolDayFromNow(BASE + 1);
 
 /** WCAG AA for body text. The spec's own floor, and the one the owner asked dark mode to meet. */
 const AA_NORMAL = 4.5;
@@ -512,8 +513,14 @@ test('the walk — every teacher screen, every form on the path, and out again',
   lessonPath = new URL(page.url()).pathname.replace(/^\/dashboard\//, '');
 
   // --- form 2: the stop editor --------------------------------------------------------------
-  await page.getByRole('button', { name: '+ Add stop' }).click();
-  await page.getByRole('menuitem', { name: 'Multiple choice', exact: true }).click();
+  // Through CR2's form: #90 replaced the twenty-two-entry template menu this used to click, and
+  // `lesson-editor.spec.ts` asserts the menu is gone. This walk was left on the old menu item and
+  // had been hanging here for five minutes until the test timed out.
+  await addStopThroughForm(page, {
+    title: `How many sides ${RUN}`,
+    question: 'Pip says: show a triangle and a circle, and ask which one has three sides.',
+    type: 'choice',
+  });
   const stops = page.getByRole('listbox', { name: 'Stops' }).getByRole('option');
   await expect(stops).toHaveCount(1, { timeout: 30_000 });
   await stops.first().click();
