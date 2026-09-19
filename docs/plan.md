@@ -136,6 +136,7 @@ Owner prompts: `docs/prompts/dashboard-first-one-school.md` (the build order), `
 | D17 | The dashboard is on Angular 22 (D1) although the prompt says 20. | unchanged |
 | D18 | Initial-bundle budget raised 420/480 → 500 kB warn / 520 kB error for the TailAdmin restyle (T1 #79, T5 #83); Lighthouse ≥ 0.9 on every QA deploy stays the real performance gate (97/100 on c9fe6f7). | the spec is rebuilt in SCSS without Tailwind, the shell and kit live in the initial chunk |
 | D19 | Focus ring: the repo-wide accessible outline (brand-500, ≥ 3:1) plus the spec's `rgba(70,95,255,0.1)` halo; the spec's `#9cb9ff` border (1.94:1 on white) is not adopted. Other deviations are listed in `docs/prompts/tailadmin-spec.md` → Deviations. | accessibility over literal fidelity |
+| D20 | QA doubles as the owner's acceptance environment on the `acceptance` seed; the automated e2e suite is parked (`E2E_ON_QA=false`) until a second environment or a self-seeding suite exists. | owner request 2026-09-19 |
 
 ### What already exists (reused as is)
 Tenancy + filter + roles (P1.x), auth with refresh/forced change/forgot password (P1.3), flags with `@FeatureFlag`/`*hqFeature`/`FlagService` (P2.1/P3.1), themes + platform settings (P2.1), typed OpenAPI client (P3.0b), dashboard shell/Homes/profile (P3.1), lessons list / new lesson / lesson page with step strip, skills, plays + phone preview, publish (P3.2b–d), 22 stop-type previews (P3.2a), teacher profile/options/questions/announcements/students (P4.0 — the questions/announcements routes stay behind their flags, hidden from this build's navigation).
@@ -191,7 +192,7 @@ Spec: `docs/prompts/tailadmin-spec.md` (literal values; §5 dark mode is a plann
 
 ## Status
 
-**Phase 1: done 2026-09-16.** **Phase 2: done 2026-09-16** (server flags/themes/platform settings, app join-school/theme/gates, e2e, docs). QA runs `cb49991`; both QA schools themed. Phase 3 partly done, then replanned (2026-09-18) into N1–N6. **N1–N2 done 2026-09-19: the teacher flow is on QA** (`0b800fc`, e2e 47/0 from the planner's machine; the post-deploy job needs the `qa` secret `E2E_STAFF_PASSWORD` set to the seeded staff password). **Restyle T1–T5 done 2026-09-19** (`2c12c5a`, Lighthouse 97/100). Open: N3 web player, N4 gradebook/exams, N5, N6, N1.2b; owner decision on the mobile app vs web player; repo back to private at the end.
+**Phase 1: done 2026-09-16.** **Phase 2: done 2026-09-16** (server flags/themes/platform settings, app join-school/theme/gates, e2e, docs). QA runs `cb49991`; both QA schools themed. Phase 3 partly done, then replanned (2026-09-18) into N1–N6. **N1–N2 done 2026-09-19: the teacher flow is on QA** (`0b800fc`, e2e 47/0 from the planner's machine; the post-deploy job needs the `qa` secret `E2E_STAFF_PASSWORD` set to the seeded staff password). **Restyle T1–T5 done 2026-09-19** (`2c12c5a`, Lighthouse 97/100). **Change request CR1–CR5 done 2026-09-19** (`2753d2e`; Markdown-first pipeline proven on QA). **QA is the owner's acceptance environment since 2026-09-19**: `SEED_PROFILE=acceptance` (Maya math 1A+1B British, Rami english 1A American, join code `HQ0001`, no children), the automated QA e2e job parked via the repository variable `E2E_ON_QA=false` until QA is back on the full seed; the mobile parent flow passes on the emulator (`docs/reports/mobile-parent-acceptance.md`). Open: N3 web player, N4 gradebook/exams, N5, N6, N1.2b; owner decision on the mobile app vs web player; repo back to private at the end.
 
 | Pkg | Branch / PR | State | Notes |
 |---|---|---|---|
@@ -233,3 +234,12 @@ Spec: `docs/prompts/tailadmin-spec.md` (literal values; §5 dark mode is a plann
 | T3 | #81 | merged, on QA | kit + teacher screens; calendar/week overflow fixed |
 | T4 | #82 | merged, on QA | verification; found page-crop 401, chip hover specificity, non-route home frames → fixed in T4/T5 |
 | T5 | #83 | merged | page crops via bearer, dark AA, LRU media cache ended by sign-out, budgets 500/520 (D18), D19 |
+| T-infra | #84, #85, #86 | merged | plan status; styleguide e2e in CI; e2e seed-ready gate |
+| CR3 | #87 | merged, on QA | readability tokens: body 16, secondary 14, titles 26/19, well 1760, ink-soft gray-600 |
+| CR1 | #88 | merged, on QA | "This week at a glance" removed (rebased after the #87 squash) |
+| CR5 | #89 | merged, on QA | stops carry `teacherText`; `POST /teacher/stops/{id}/from-text` (strict schema, one retry, 422 rephrase); prose editor; Raw JSON only for ADMIN via `viewMode` |
+| CR2 | #90 | merged, on QA | Add stop is one form (title, question, type, picture, parent tip); template menu retired |
+| CR4 | #91 | merged, on QA | `convert` step: anydoc / Tesseract → `.md` beside the upload; Prompt A reads Markdown only; preview + OCR/typed fallbacks; review fixed school-scoped reuse, profile-gated fallback, retention, async OCR |
+| acceptance | #92, #93, #94 | merged, on QA | `SEED_PROFILE`/`SEED_RESET` (one-shot, refused on prod, PostgreSQL-tested), roster attach/detach, `GET /admin/children?unassigned=true`; QA wiped and reseeded; e2e job parked |
+| mobile check | #95 | merged | parent flow passes; found the generation hang |
+| watchdog | #96 | merged, on QA | LLM connect 10 s / read 120 s, step deadlines, 60 s sweep → `error/timeout` + retry; `DELETE /admin/children/{id}` |

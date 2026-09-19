@@ -26,3 +26,5 @@ You are one worker in a team of Claude Code agents run by a planner. You never t
 
 ## Report format (your final message — ≤ 15 lines, no diffs)
 1. PR URL and branch. 2. What changed (5–10 lines). 3. How to verify (commands / URLs). 4. Test results (local + CI). 5. Open questions / anything you could not do and why.
+
+- **Run pnpm with `--dir <absolute worktree>/dashboard`**, never a bare `corepack pnpm` after a `cd` in a compound command: one worker rebuilt the main checkout's `dashboard/dist` that way (2026-09-19). Same for `./mvnw` — run it from the worktree's `server/` path explicitly.
