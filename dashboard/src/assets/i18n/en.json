@@ -359,6 +359,7 @@
     "errorAt": "Error at: {{step}}",
     "step": {
       "upload": "upload",
+      "convert": "Convert to text",
       "analyze": "analyze",
       "skills": "skills",
       "generate_L1": "generate L1",
@@ -502,7 +503,26 @@
         "empty": "No files uploaded.",
         "pages": "{{count}} pages",
         "cacheHit": "cached",
-        "deleted": "deleted"
+        "deleted": "deleted",
+        "convert": {
+          "pending": "Not read yet",
+          "converting": "Converting…",
+          "ready": "Ready · {{words}} words",
+          "readyEmpty": "Ready",
+          "failed": "Couldn't read this file",
+          "method": {
+            "anydoc": "read as text",
+            "ocr": "read with OCR",
+            "text": "typed in"
+          },
+          "reason": {
+            "encrypted": "This PDF is password-protected. Remove the password and upload again, or type the text.",
+            "unsupported": "This file type can't be read. Upload a PDF, PowerPoint, Word, Excel, CSV or an image.",
+            "malformed": "This file seems damaged. Try exporting it again.",
+            "pictures": "The pages are pictures, not text. Try reading with OCR, or type the text.",
+            "unavailable": "Reading is unavailable right now. Try again in a minute."
+          }
+        }
       },
       "skills": {
         "title": "Skills",

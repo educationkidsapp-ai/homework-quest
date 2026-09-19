@@ -27,6 +27,7 @@ import {
   AdminLessonStatusEnum,
   AdminLessonSubjectEnum,
   LessonStepInfoStatusEnum,
+  LessonStepInfoStepEnum,
   TeacherApi,
   apiErrorOf,
   readableServerText,
@@ -57,8 +58,10 @@ import {
 } from '../../ui';
 import { type Play, type Stop, PhonePreviewComponent } from '../../ui/phone-preview';
 import { AddStopComponent } from './add-stop.component';
+import { anyConverting, reasonKeyOf } from './file-conversion';
 import { LessonApiService } from './lesson-api.service';
 import { toPreviewPlay } from './lesson-preview.mapper';
+import { LessonSourcesComponent } from './lesson-sources.component';
 import {
   type ConfirmedSkillRequest,
   type Subject,
@@ -136,6 +139,7 @@ type PendingAction =
     PhonePreviewComponent,
     StopEditorComponent,
     ParentPanelEditorComponent,
+    LessonSourcesComponent,
     TextareaComponent,
     CanDirective,
     CdkMenu,
@@ -316,7 +320,12 @@ export class LessonPage {
    */
   protected readonly stepErrorMessage = computed(() => {
     this.lang();
-    const raw = this.erroredStep()?.errorMessage ?? this.lesson()?.error?.message ?? '';
+    const step = this.erroredStep();
+    // CR4: a failed conversion has a friendly sentence of its own per code, and it is the same
+    // one the file's own pill carries. The server's message here names anydoc's exit status and
+    // the operator's environment variable, which is true and useless to a teacher.
+    if (step?.step === LessonStepInfoStepEnum.CONVERT) return this.t(reasonKeyOf(step.errorCode));
+    const raw = step?.errorMessage ?? this.lesson()?.error?.message ?? '';
     return readableServerText(raw) || this.t('lessons.detail.stepFailed');
   });
 
@@ -1274,9 +1283,16 @@ export class LessonPage {
 
     // Poll while a job is running; the interval clears itself on the next run, on a terminal
     // status, and (the `onCleanup` the effect gets for free) when the page is destroyed.
+    //
+    // CR4 adds the second reason to keep asking: a file may still be `converting` while the
+    // lesson's own status has already settled — a retry from a failed conversion puts one file
+    // back to work without moving the lesson out of `error`. Both conditions are terminal-only
+    // by construction: `converting` is the single non-terminal file state, so the last file to
+    // finish stops the timer.
     effect((onCleanup) => {
-      const status = this.lesson()?.status;
-      if (!status || !isRunningStatus(status)) return;
+      const lesson = this.lesson();
+      const running = lesson !== null && isRunningStatus(lesson.status);
+      if (!running && !anyConverting(lesson?.files ?? [])) return;
       const timer = setInterval(() => this.lessonRes.reload(), POLL_MS);
       onCleanup(() => clearInterval(timer));
     });
