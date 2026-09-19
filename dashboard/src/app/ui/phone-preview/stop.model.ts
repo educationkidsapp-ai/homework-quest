@@ -385,7 +385,14 @@ export interface Play {
   readonly id?: string | null;
 }
 
-/** A picture the preview can resolve a `imageId` against. */
+/**
+ * A picture the preview can resolve an `imageId` against — the contract's `PageImage`, handed
+ * in whole so a caller passes `lesson.images` and nothing else.
+ *
+ * `url` is the absolute `/media/pages/{id}` `LessonStore` builds. Nothing reads it: that route
+ * wants a bearer an `<img src>` cannot send, so `hqPageImage` fetches the bytes by id through
+ * `MediaService` instead. It stays on the shape because the contract has it.
+ */
 export interface PreviewImage {
   readonly id: string;
   readonly url: string;

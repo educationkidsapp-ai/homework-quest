@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import { PageImageDirective } from '../media/page-image.directive';
 import { IllustrationComponent } from './illustration.component';
 import { PreviewImages } from './preview-images';
 import { Tile } from './stop.model';
@@ -20,7 +21,8 @@ interface RenderedTile extends TileSpec {
   readonly dimmed: boolean;
   readonly lit: boolean;
   readonly selected: boolean;
-  readonly url: string | null;
+  /** The page-image id to draw, when the caller supplied that picture. */
+  readonly pictureId: string | null;
   readonly long: boolean;
 }
 
@@ -33,7 +35,7 @@ interface RenderedTile extends TileSpec {
  */
 @Component({
   selector: 'hq-tile-grid',
-  imports: [IllustrationComponent],
+  imports: [IllustrationComponent, PageImageDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="grid" role="group">
@@ -50,8 +52,8 @@ interface RenderedTile extends TileSpec {
           [disabled]="tile.dimmed"
           (click)="tapped.emit(tile.id)"
         >
-          @if (tile.url; as url) {
-            <img class="tile__image" [src]="url" [alt]="tile.label ?? ''" />
+          @if (tile.pictureId; as pictureId) {
+            <img class="tile__image" [hqPageImage]="pictureId" [alt]="tile.label ?? ''" />
           } @else if (tile.picture; as key) {
             <hq-illustration [key]="key" [size]="tile.label ? 'sm' : 'md'" />
           }
@@ -145,7 +147,7 @@ export class TileGridComponent {
       dimmed: this.dimmed().includes(tile.id),
       lit: this.lit().includes(tile.id),
       selected: this.selected().includes(tile.id),
-      url: this.pictures?.url(tile.imageId) ?? null,
+      pictureId: this.pictures?.has(tile.imageId) ? (tile.imageId ?? null) : null,
       long: (tile.label?.length ?? 0) > 8,
     })),
   );

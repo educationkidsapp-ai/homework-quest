@@ -5,7 +5,6 @@ import {
   API,
   dayFromNow,
   expect,
-  expectConsoleError,
   removeLessonsOfThisRun,
   RUN,
   SARA,
@@ -121,29 +120,6 @@ async function dragHandle(page: Page, handle: Locator, target: Locator): Promise
   await page.mouse.move(endX, endY, { steps: 5 });
   await page.mouse.up();
 }
-
-/**
- * KNOWN DEFECT, and not this file's (T4).
- *
- * Every page crop in this editor answers 401. The server hands out an absolute
- * `/media/pages/{id}` URL (`LessonStore.java:76`), the preview puts it straight into an
- * `<img src>` (`preview-images.ts:23`), and an `<img>` cannot carry the bearer token that route
- * has required since P1.9 (`MediaController.java:44`) — so the dashboard shows no page images at
- * all, here or on QA. `webAdmin` fetched the bytes with its JWT instead; the dashboard never
- * gained the equivalent.
- *
- * Declared here rather than left to fail the console gate, which would otherwise report the same
- * known thing on every run of the only file that attaches a picture. The fix is a signed
- * short-lived URL or a blob fetched with the token; it is written up in
- * `docs/reports/tailadmin-restyle.md`. **Delete this hook with the fix** — the gate is then the
- * thing that proves it stayed fixed.
- */
-test.beforeEach(() => {
-  expectConsoleError(
-    /status of 401 .*\/media\/pages\//,
-    'page crops 401 because <img src> cannot send the token — see docs/reports/tailadmin-restyle.md',
-  );
-});
 
 test.describe.configure({ mode: 'serial' });
 
@@ -263,6 +239,15 @@ test('she attaches a picture and puts it on the stop', async ({ page }) => {
   await save.click();
 
   await expect(editor(page).getByLabel('The whole stop')).toHaveValue(/"imageId"/, { timeout: 15_000 });
+
+  // And the crop is actually drawn. `/media/pages/{id}` wants a bearer, which an `<img src>`
+  // cannot send, so every picture in this editor used to answer 401 and draw nothing
+  // (`docs/reports/tailadmin-restyle.md` §4.1). `hqAuthSrc` fetches the bytes through the
+  // HttpClient the interceptor decorates and paints them; `data-hq-media` is what it says it is
+  // showing, and `naturalWidth` is the browser saying it decoded real pixels.
+  const crop = page.locator('hq-phone-preview img[data-hq-media]').first();
+  await expect(crop).toHaveAttribute('data-hq-media', 'ready', { timeout: 20_000 });
+  expect(await crop.evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
 });
 
 test('she asks for the other levels, then edits the parent panel that comes with them', async ({ page }) => {

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { glyphOf, tintOf } from '../illustrations';
 import { PreviewImages } from '../preview-images';
+import { PageImageDirective } from '../../media/page-image.directive';
 import { ChildButtonComponent } from '../child-button.component';
 import { ReadPageStop } from '../stop.model';
 import { cursor, opened } from './answer-state';
@@ -11,7 +12,7 @@ import { cursor, opened } from './answer-state';
  */
 @Component({
   selector: 'hq-stop-read-page',
-  imports: [ChildButtonComponent],
+  imports: [ChildButtonComponent, PageImageDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -21,8 +22,8 @@ import { cursor, opened } from './answer-state';
         [attr.aria-label]="stop().pictureDescription ?? 'picture'"
         role="img"
       >
-        @if (url(); as source) {
-          <img class="page__img" [src]="source" [alt]="stop().pictureDescription ?? ''" />
+        @if (pictureId(); as pictureId) {
+          <img class="page__img" [hqPageImage]="pictureId" [alt]="stop().pictureDescription ?? ''" />
         } @else if (!stop().tapTask) {
           <span class="page__glyph" aria-hidden="true">{{ glyph() }}</span>
         }
@@ -170,9 +171,10 @@ export class ReadPageStopComponent {
   protected readonly found = opened(() => this.stop().id);
   protected readonly readingIndex = cursor(() => this.stop().id, -1);
 
-  protected readonly url = computed(
-    () => this.pictures?.url(this.stop().imageId ?? this.stop().pageImageId) ?? null,
-  );
+  protected readonly pictureId = computed(() => {
+    const id = this.stop().imageId ?? this.stop().pageImageId ?? null;
+    return this.pictures?.has(id) ? id : null;
+  });
   protected readonly glyph = computed(() => glyphOf(this.stop().illustrationKey ?? 'book'));
   protected readonly tint = computed(() => tintOf(this.stop().illustrationKey ?? 'book'));
   protected readonly taskDone = computed(() => {

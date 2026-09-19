@@ -1,3 +1,5 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
@@ -153,16 +155,20 @@ describe('hq-stop-preview', () => {
 
   it('shows the picture a stop carries above the stop itself', async () => {
     await renderHq(StopPreviewComponent, {
+      providers: [provideHttpClient(), provideHttpClientTesting()],
       inputs: {
         stop: { ...SEED_STOPS.choice, imageId: 'page-7' },
         images: [{ id: 'page-7', url: 'https://example.test/page-7.png', description: 'page 7' }],
       },
     });
 
-    expect(screen.getByRole('img', { name: 'page 7' })).toHaveAttribute(
-      'src',
-      'https://example.test/page-7.png',
-    );
+    // The URL the caller gave never reaches the DOM: `/media/pages/{id}` wants a bearer an
+    // `<img src>` cannot send, so `hqPageImage` reads the bytes by id instead (§4.1 of
+    // `docs/reports/tailadmin-restyle.md`). What the picture is *for* — its description — is
+    // still the element's `alt`, which is what this preview is here to show.
+    const picture = screen.getByRole('img', { name: 'page 7' });
+    expect(picture).toHaveAttribute('data-hq-media', 'pending');
+    expect(picture.getAttribute('src')).not.toContain('example.test');
   });
 
   it('dims a wrong tile and leaves it where it was', async () => {

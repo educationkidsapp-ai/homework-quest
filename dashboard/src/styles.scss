@@ -474,3 +474,38 @@ a {
     transition-duration: 0ms;
   }
 }
+
+// --- Protected pictures ----------------------------------------------------
+// `img[hqAuthSrc]` (ui/media/auth-src.directive.ts) fetches `/media/pages/{id}` with the bearer
+// the route requires and writes what it is showing onto the element as `data-hq-media`. The
+// element keeps its own classes and box; only the ground under it changes, so these rules are
+// global rather than per-component — four call sites in the phone preview share them.
+//
+// There is no rule for `pending`: under 300 ms the element stays transparent, because a crop
+// that arrives quickly must not flash a placeholder first.
+img[data-hq-media='loading'] {
+  background-image: linear-gradient(
+    90deg,
+    var(--hq-color-skeleton) 0%,
+    var(--hq-color-skeleton-shine) 50%,
+    var(--hq-color-skeleton) 100%
+  );
+  background-size: 250% 100%;
+  animation: hq-shimmer var(--hq-motion-shimmer) linear infinite;
+}
+
+// A neutral tile, not a broken-image icon: the picture is missing, the layout is not.
+img[data-hq-media='error'] {
+  background-color: var(--hq-color-surface-sunken);
+  box-shadow: inset 0 0 0 var(--hq-size-rule-thin) var(--hq-color-rule);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  img[data-hq-media='loading'] {
+    animation: none;
+  }
+}
+
+:root[data-hq-reduced-motion='true'] img[data-hq-media='loading'] {
+  animation: none;
+}
