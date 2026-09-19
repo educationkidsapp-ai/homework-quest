@@ -470,6 +470,7 @@
         "done": "Done",
         "error": "Failed"
       },
+      "stepFailed": "Something went wrong at this step. Press Retry and continue.",
       "pipeline": "Lesson pipeline",
       "retryContinue": "Retry and continue",
       "retryStepOnly": "Retry this step only",

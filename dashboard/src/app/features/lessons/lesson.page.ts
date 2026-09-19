@@ -19,6 +19,7 @@ import {
   LessonStepInfoStatusEnum,
   TeacherApi,
   apiErrorOf,
+  readableServerText,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { BandService } from '../../core/band/band.service';
@@ -298,9 +299,19 @@ export class LessonPage {
     return lesson?.steps.find((step) => step.status === LessonStepInfoStatusEnum.ERROR) ?? null;
   });
 
-  protected readonly stepErrorMessage = computed(
-    () => this.erroredStep()?.errorMessage ?? this.lesson()?.error?.message ?? '',
-  );
+  /**
+   * The failed step's sentence, with any JSON taken out of it (CR5).
+   *
+   * `LessonSteps.Messages.of` appends the underlying exception in parentheses, and for a schema
+   * or model failure that is the JSON that did not validate, truncated mid-brace. What is left
+   * after `readableServerText` is the step's own advice — "Retry, or edit Level 1 by hand" — and
+   * when nothing is left, the generic sentence says more than a fragment would.
+   */
+  protected readonly stepErrorMessage = computed(() => {
+    this.lang();
+    const raw = this.erroredStep()?.errorMessage ?? this.lesson()?.error?.message ?? '';
+    return readableServerText(raw) || this.t('lessons.detail.stepFailed');
+  });
 
   protected readonly isErrorStatus = computed(() => this.lesson()?.status === AdminLessonStatusEnum.ERROR);
   protected readonly isPublished = computed(() => this.lesson()?.status === AdminLessonStatusEnum.PUBLISHED);
