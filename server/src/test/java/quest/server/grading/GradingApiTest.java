@@ -132,13 +132,19 @@ class GradingApiTest extends GradingTestSupport {
 
     // ---------------------------------------------------------------- release (§7)
 
-    @Test void a_released_lesson_refuses_a_new_mark_until_the_release_is_withdrawn() throws Exception {
+    /**
+     * §7 says only that a parent sees the score and the comment after release. Since a homework is released the
+     * moment it is published, freezing a released lesson would make §7's own marking flow impossible — so a mark
+     * lands on a released lesson and reaches the parent on her next read.
+     */
+    @Test void a_released_lesson_can_still_be_marked_and_the_parent_sees_the_mark() throws Exception {
         release(sara, true).andExpect(status().isOk());
 
-        mark(sara, maya, 3, 2, "Too late.").andExpect(status().isConflict());
+        mark(sara, maya, 3, 2, "Lovely retelling.").andExpect(status().isOk());
 
-        release(sara, false).andExpect(status().isOk());
-        mark(sara, maya, 3, 2, "Now it lands.").andExpect(status().isOk());
+        var results = parentGet("/children/" + maya + "/progress").get("results");
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).get("score").asInt()).as("the marked retell is in the score the parent reads").isEqualTo(57);
     }
 
     @Test void the_release_covers_the_whole_section_at_once() throws Exception {
@@ -173,6 +179,20 @@ class GradingApiTest extends GradingTestSupport {
                 .as("withdrawing the release takes it back off the parent's report").isNullOrEmpty();
     }
 
+    /** §7's "default on for homework": publishing releases it, and an exam is left for the teacher to release. */
+    @Test void publishing_a_homework_releases_it_and_publishing_an_exam_does_not() throws Exception {
+        var homework = readyLesson("gr-ready-homework", "homework");
+        var exam = readyLesson("gr-ready-exam", "exam");
+
+        publish(sara, homework).andExpect(status().isOk());
+        publish(sara, exam).andExpect(status().isOk());
+
+        assertThat(lessons.findById(homework).orElseThrow().getReleasedAt())
+                .as("a homework's results reach the parent without a second action").isNotNull();
+        assertThat(lessons.findById(exam).orElseThrow().getReleasedAt())
+                .as("§8 gives an exam its own release").isNull();
+    }
+
     @Test void an_unpublished_lesson_cannot_be_released() throws Exception {
         var draft = lesson("gr-lesson-draft", A, section1a, LocalDate.now().minusDays(1));
         draft.setStatus("draft"); draft.setPublishedAt(null); lessons.save(draft);
@@ -202,6 +222,32 @@ class GradingApiTest extends GradingTestSupport {
         var empty = row(book, omar);
         assertThat(empty.get("cells").get(0).get("attempted").asBoolean()).isFalse();
         assertThat(empty.get("average").isNull()).isTrue();
+    }
+
+    /** §7's per-child average column over two lessons: the plain mean of the cells, not a weighted measure. */
+    @Test void the_per_child_average_is_the_plain_mean_of_the_scored_cells() throws Exception {
+        lesson("gr-lesson-2", A, section1a, LocalDate.now().minusDays(1));
+        attempt(maya, "gr-lesson-2", 1, 1, true, 3);
+        attempt(maya, "gr-lesson-2", 2, 1, true, 3);                            // 100 on the second lesson
+
+        var row = row(json(mvc.perform(as(get("/teacher/classes/" + CLASS_1A + "/gradebook"), sara))
+                .andExpect(status().isOk()).andReturn()), maya);
+
+        assertThat(row.get("cells")).hasSize(2);
+        assertThat(row.get("average").asInt()).as("(50 + 100) / 2, and not the recency-weighted 67").isEqualTo(75);
+        assertThat(row.get("band").asText()).isEqualTo(Bands.SECURE);
+    }
+
+    /** The child page's level score is the weighted one, so the same two lessons give a different number. */
+    @Test void the_child_pages_level_score_leans_on_the_recent_lesson() throws Exception {
+        lesson("gr-lesson-2", A, section1a, LocalDate.now().minusDays(1));
+        attempt(maya, "gr-lesson-2", 1, 1, true, 3);
+        attempt(maya, "gr-lesson-2", 2, 1, true, 3);
+
+        var page = json(mvc.perform(as(get("/teacher/children/" + maya), sara)).andExpect(status().isOk()).andReturn());
+
+        assertThat(page.get("levels").get(0).get("levelScore").asInt())
+                .as("100 newest weighs 2, 50 oldest weighs 1: (200 + 50) / 3").isEqualTo(83);
     }
 
     @Test void a_window_the_lesson_falls_outside_of_leaves_an_empty_grid() throws Exception {
@@ -245,6 +291,15 @@ class GradingApiTest extends GradingTestSupport {
                 + stopId(LESSON, stop) + "\"" + (stars == null ? "" : ",\"stars\":" + stars)
                 + (comment == null ? "" : ",\"comment\":\"" + comment + "\"") + "}]}";
         return mvc.perform(as(put("/teacher/marks").contentType(MediaType.APPLICATION_JSON).content(body), token));
+    }
+
+    private String readyLesson(String id, String type) {
+        return readyToPublish(id, A, section1a, LocalDate.now().minusDays(3), type).getId();
+    }
+
+    private org.springframework.test.web.servlet.ResultActions publish(String token, String lessonId) throws Exception {
+        return mvc.perform(as(post("/teacher/lessons/" + lessonId + "/publish").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"classIds\":[\"" + CLASS_1A + "\"]}"), token));
     }
 
     private org.springframework.test.web.servlet.ResultActions release(String token, boolean released) throws Exception {

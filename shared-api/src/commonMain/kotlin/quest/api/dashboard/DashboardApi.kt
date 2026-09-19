@@ -533,14 +533,15 @@ interface DashboardApi {
 
     /**
      * `PUT /teacher/marks`: a page of marking in one request — stars and a comment per open stop, and the
-     * lesson-level score override and the line to the parent. **409 while the lesson is released**; withdraw the
-     * release first. Behind the `openStopMarking` flag.
+     * lesson-level score override and the line to the parent. A released lesson can still be marked, and the mark
+     * reaches the parent on her next read. Behind the `openStopMarking` flag.
      */
     suspend fun saveMarks(request: SaveMarksRequest): List<TeacherMark>
 
     /**
      * `POST /teacher/lessons/{id}/release`: releases the results to the parents of the whole section at once, or
-     * withdraws the release with `released = false`. Nothing a parent sees changes until this is called.
+     * withdraws the release with `released = false`. Publishing a homework already releases it (§7's "default on
+     * for homework"); an exam stays unreleased until this is called.
      */
     suspend fun releaseLesson(lessonId: String, request: ReleaseRequest = ReleaseRequest()): LessonRelease
 

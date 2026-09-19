@@ -502,14 +502,14 @@
       },
       "ChildLevel" : {
         "properties" : {
-          "average" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
           "band" : {
             "type" : "string"
           },
           "lessons" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "levelScore" : {
             "format" : "int32",
             "type" : "integer"
           },

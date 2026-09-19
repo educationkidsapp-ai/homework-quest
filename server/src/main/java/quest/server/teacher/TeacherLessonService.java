@@ -70,14 +70,15 @@ public class TeacherLessonService {
     private final ParentPanelRepository panels; private final PageImageRepository pageImages;
     private final quest.server.content.StopRepository stops;
     private final Json json; private final FeatureFlags flags; private final SchoolCalendar calendar;
+    private final quest.server.grading.GradingService grading;
 
     public TeacherLessonService(AdminLessonService admin, TeacherScope scope, LessonRepository lessons, LessonStore store,
                                 PlayRepository plays, SkillRepository skills, ParentPanelRepository panels,
                                 PageImageRepository pageImages, quest.server.content.StopRepository stops, Json json,
-                                FeatureFlags flags, SchoolCalendar calendar) {
+                                FeatureFlags flags, SchoolCalendar calendar, quest.server.grading.GradingService grading) {
         this.admin = admin; this.scope = scope; this.lessons = lessons; this.store = store; this.plays = plays;
         this.skills = skills; this.panels = panels; this.pageImages = pageImages; this.stops = stops; this.json = json;
-        this.flags = flags; this.calendar = calendar;
+        this.flags = flags; this.calendar = calendar; this.grading = grading;
     }
 
     /** The scope check every `/teacher/lessons/{id}/**` alias runs before it delegates: owner, or assigned. */
@@ -298,6 +299,8 @@ public class TeacherLessonService {
                 targetId = copyIn(target.getId(), lesson).orElseGet(() -> copyInto(caller, lesson, target).getId());
             }
             results.add(new TeacherDto.PublishedCopy(classId, targetId, republish(targetId).getVersion()));
+            grading.releaseOnPublish(targetId);                                 // §7: release is default on for homework
+
         }
         return List.copyOf(results);
     }

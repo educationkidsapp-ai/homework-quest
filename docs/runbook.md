@@ -676,19 +676,30 @@ curl -X PUT "$API/admin/schools/$SCHOOL/flags/openStopMarking" -H "Authorization
      -H 'Content-Type: application/json' -d '{"enabled":true}'
 ```
 
-**Nothing reaches a parent until the release.** A score exists as soon as a child uploads attempts, and the teacher
-sees it immediately on `GET /teacher/lessons/{id}/results`. The parent's `GET /children/{id}/progress` carries it in
-`results[]` only after `POST /teacher/lessons/{id}/release`. The child never sees a number at all — that is §6's
-rule and this changes nothing about it.
+**A homework is released when it is published; an exam is not.** §7's release is "default on for homework", so
+`POST /teacher/lessons/{id}/publish` stamps `released_at` on every copy it takes live whose `type` is not `exam` —
+a parent sees the score her child earned without the teacher remembering a second action. An exam stays unreleased
+until `POST /teacher/lessons/{id}/release` (§8 gives it its own release, automatic on close or manual). Rows that
+existed before V13 are untouched and stay unreleased until something publishes or releases them.
 
-**Re-marking a released lesson is refused.** `PUT /teacher/marks` answers **409** while the lesson is released,
-because the score and the comment a parent has already been shown must not change under her. Withdraw the release,
-mark, release again:
+The parent's `GET /children/{id}/progress` carries the score, band and comment in `results[]` for released lessons
+only. The child never sees a number at all — that is §6's rule and this changes nothing about it. To take a lesson
+back off the parent's report:
 
 ```bash
 curl -X POST "$API/teacher/lessons/$LESSON/release" -H "Authorization: Bearer $TEACHER" \
      -H 'Content-Type: application/json' -d '{"released":false}'
 ```
+
+**Marking a released lesson is allowed.** §7 says only that a parent sees the score and the comment *after* release;
+it does not freeze a released lesson, and since a homework is released the moment it is published, refusing marks on
+one would make §7's own marking flow impossible. So `PUT /teacher/marks` always lands, and the new mark reaches the
+parent on her next read.
+
+**Two different numbers, on purpose.** The gradebook's per-child `average` is the plain arithmetic mean of her
+scored cells in the window on screen — a teacher who adds the row up by hand gets the same number. The child page's
+`levelScore` is §7's rolling `ChildLevel`: weighted toward recent lessons, an exam counted twice, the newest ten
+only. It answers "where is she now" rather than "what do her marks come to", and the two can differ by a band.
 
 Scores are computed from the attempts on every read — there is no `homework_scores` table to rebuild, and no cache
 to clear. The thresholds behind the four bands (`emerging`, `developing`, `secure`, `exceeding`) are constants in

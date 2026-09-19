@@ -134,9 +134,11 @@ public class GradingService {
         var childIds = roster.stream().map(ChildEntity::getId).toList();
 
         var stopsByLesson = stopsByLevel(lessonIds);
+        // Narrowed to the window's lessons in SQL rather than in Java: a class's whole attempt history is every
+        // lesson it has ever played, and the grid is asking about one month of it.
         var attemptsByChildLesson = new HashMap<String, Map<String, List<AttemptEntity>>>();
-        if (!childIds.isEmpty())
-            for (var a : attempts.findByChildIdIn(childIds))
+        if (!childIds.isEmpty() && !lessonIds.isEmpty())
+            for (var a : attempts.findByChildIdInAndLessonIdIn(childIds, lessonIds))
                 attemptsByChildLesson.computeIfAbsent(a.getChildId(), k -> new HashMap<>())
                         .computeIfAbsent(a.getLessonId(), k -> new ArrayList<>()).add(a);
         var marksByChild = marksByChild(lessonIds.isEmpty() ? List.of() : marks.findByLessonIdIn(lessonIds));
@@ -149,23 +151,26 @@ public class GradingService {
             var byLesson = attemptsByChildLesson.getOrDefault(child.getId(), Map.of());
             var childMarks = marksByChild.getOrDefault(child.getId(), Map.of());
             var cells = new ArrayList<GradingDto.GradebookCell>(published.size());
-            var newestFirst = new ArrayList<Double>(); var exams = new ArrayList<Boolean>();
-            for (int i = published.size() - 1; i >= 0; i--) {                   // newest first: §7 weights toward recent
-                var l = published.get(i);
+            var scoredInWindow = new ArrayList<Double>();                       // every scored cell, in column order
+            for (var l : published) {
                 var mine = perStop(childMarks, l.getId());
                 var score = Scoring.of(child.getId(), l.getId(), stopsByLesson.getOrDefault(l.getId(), Map.of()),
                         byLesson.getOrDefault(l.getId(), List.of()), stopMarks(mine), lessonMark(mine));
-                if (score.score() != null && newestFirst.size() < Bands.WINDOW) {
-                    newestFirst.add((double) score.score()); exams.add("exam".equals(l.getType()));
+                if (score.score() != null) {
+                    scoredInWindow.add((double) score.score());
+                    perLessonScores.computeIfAbsent(l.getId(), k -> new ArrayList<>()).add(score.score());
                 }
-                if (score.score() != null) perLessonScores.computeIfAbsent(l.getId(), k -> new ArrayList<>()).add(score.score());
                 if (score.needsMarking() > 0) perLessonMarking.merge(l.getId(), 1, Integer::sum);
                 needsMarking += score.needsMarking();
                 cells.add(new GradingDto.GradebookCell(l.getId(), score.attempted(), score.autoScore(),
                         score.teacherScore(), score.score(), score.band(), score.needsMarking() > 0));
             }
-            java.util.Collections.reverse(cells);                               // back into the grid's own column order
-            var average = Bands.average(newestFirst, exams);
+            // §7's "a per-child average column": the plain mean of the scored cells of the window she asked for, so
+            // a teacher who adds the row up by hand gets the same number. The recency-weighted, exam-weighted,
+            // ten-lesson `Bands.average` answers a different question and lives on the child page's `levelScore`.
+            var average = Bands.mean(scoredInWindow);
+            var newestFirst = new ArrayList<>(scoredInWindow);
+            java.util.Collections.reverse(newestFirst);
             rows.add(new GradingDto.GradebookChild(child.getId(), child.getName(),
                     average == null ? null : (int) Math.round(average), average == null ? null : Bands.band(average),
                     Bands.trend(newestFirst), List.copyOf(cells)));
@@ -188,8 +193,11 @@ public class GradingService {
         var child = childService.scoped(childId);
         requireTeaches(caller, child);
         var section = child.getClassId() == null ? null : classes.findById(child.getClassId()).orElse(null);
-        var published = child.getClassId() == null ? List.<LessonEntity>of()
+        // The last N of her section's published lessons, not every lesson it has ever had: the page is a band, a
+        // chart of the same window §7 rolls the level over, and the comments and work that hang off them.
+        var all = child.getClassId() == null ? List.<LessonEntity>of()
                 : lessons.findByClassIdInAndStatusOrderByDateAsc(List.of(child.getClassId()), "published");
+        var published = all.size() <= TREND_LESSONS ? all : all.subList(all.size() - TREND_LESSONS, all.size());
         var scores = scoresOf(child, published);
 
         var levels = new ArrayList<GradingDto.ChildLevel>();
@@ -199,14 +207,15 @@ public class GradingService {
             var newestFirst = list.stream().sorted(Comparator.comparing((Scored s) -> s.lesson().getDate()).reversed()).toList();
             var values = newestFirst.stream().map(s -> (double) s.score().score()).toList();
             var exams = newestFirst.stream().map(s -> "exam".equals(s.lesson().getType())).toList();
-            var average = Bands.average(values, exams);
-            levels.add(new GradingDto.ChildLevel(subject, average == null ? null : Bands.band(average),
-                    Bands.trend(values), average == null ? null : (int) Math.round(average), values.size()));
+            // §7's rolling `ChildLevel`: weighted toward the recent lessons, an exam counted twice, the newest ten
+            // only. Named `levelScore` rather than `average` because it is not the mean of anything on screen.
+            var levelScore = Bands.average(values, exams);
+            levels.add(new GradingDto.ChildLevel(subject, levelScore == null ? null : Bands.band(levelScore),
+                    Bands.trend(values), levelScore == null ? null : (int) Math.round(levelScore), values.size()));
         });
 
         var trend = scores.stream().filter(s -> s.score().score() != null)
                 .sorted(Comparator.comparing(s -> s.lesson().getDate()))
-                .skip(Math.max(0, scores.stream().filter(s -> s.score().score() != null).count() - TREND_LESSONS))
                 .map(s -> new GradingDto.ChildTrendPoint(s.lesson().getId(), s.lesson().getTitle(),
                         s.lesson().getDate().toString(), s.lesson().getSubject(), s.score().score(),
                         s.score().band(), s.lesson().getReleasedAt() != null))
@@ -233,13 +242,7 @@ public class GradingService {
     @Transactional
     public List<GradingDto.TeacherMark> saveMarks(Principals.User caller, GradingDto.SaveMarksRequest body) {
         var checked = new LinkedHashMap<String, LessonEntity>();
-        for (var input : body.marks())
-            checked.computeIfAbsent(input.lessonId(), id -> {
-                var lesson = scope.requireLesson(caller, id);
-                if (lesson.getReleasedAt() != null)
-                    throw ApiException.conflict("\"" + lesson.getTitle() + "\" is released — withdraw the release before changing its marks.");
-                return lesson;
-            });
+        for (var input : body.marks()) checked.computeIfAbsent(input.lessonId(), id -> scope.requireLesson(caller, id));
         var out = new ArrayList<GradingDto.TeacherMark>(body.marks().size());
         for (var input : body.marks()) {
             var lesson = checked.get(input.lessonId());
@@ -270,6 +273,24 @@ public class GradingService {
     }
 
     // ---------------------------------------------------------------- release (§7)
+
+    /**
+     * §7's "default on for homework": a homework's results are released the moment it is published, so a parent
+     * sees the score her child earned without the teacher having to remember a second action. An <strong>exam</strong>
+     * is left alone — §8 gives it its own release, automatic on close or manual, and a mark pending on an exam is
+     * the normal case rather than an oversight.
+     *
+     * <p>Called for every copy a publish produces, because each copy is its own lesson with its own results. A
+     * re-publish re-releases, which is right: the version a parent is looking at is the one that is live.
+     */
+    @Transactional
+    public void releaseOnPublish(String lessonId) {
+        var lesson = lessons.findById(lessonId).orElse(null);
+        if (lesson == null || "exam".equals(lesson.getType()) || lesson.getReleasedAt() != null) return;
+        lesson.setReleasedAt(Instant.now());
+        lesson.setUpdatedAt(Instant.now());
+        lessons.save(lesson);
+    }
 
     @Transactional
     public GradingDto.LessonRelease release(Principals.User caller, String lessonId, GradingDto.ReleaseRequest body) {
@@ -302,7 +323,7 @@ public class GradingService {
         var ids = released.stream().map(LessonEntity::getId).toList();
         var stopsByLesson = stopsByLevel(ids);
         var byLesson = new HashMap<String, List<AttemptEntity>>();
-        for (var a : attempts.findByChildIdOrderByAnsweredAtDesc(child.getId()))
+        for (var a : attempts.findByChildIdAndLessonIdIn(child.getId(), ids))
             byLesson.computeIfAbsent(a.getLessonId(), k -> new ArrayList<>()).add(a);
         var mine = marksByChild(marks.findByLessonIdIn(ids)).getOrDefault(child.getId(), Map.of());
 
@@ -331,7 +352,7 @@ public class GradingService {
         var ids = published.stream().map(LessonEntity::getId).toList();
         var stopsByLesson = stopsByLevel(ids);
         var byLesson = new HashMap<String, List<AttemptEntity>>();
-        for (var a : attempts.findByChildIdOrderByAnsweredAtDesc(child.getId()))
+        for (var a : attempts.findByChildIdAndLessonIdIn(child.getId(), ids))
             byLesson.computeIfAbsent(a.getLessonId(), k -> new ArrayList<>()).add(a);
         var mine = marksByChild(marks.findByLessonIdIn(ids)).getOrDefault(child.getId(), Map.of());
         var out = new ArrayList<Scored>(published.size());
@@ -370,7 +391,7 @@ public class GradingService {
         extra.removeAll(roster.keySet());
         if (!extra.isEmpty())
             for (var c : children.findAllById(extra))
-                if (c.getDeletedAt() == null && c.getClassId() == null) roster.put(c.getId(), c);
+                if (c.getDeletedAt() == null && c.getClassId() == null) { logUnsectioned(c); roster.put(c.getId(), c); }
         return roster.values().stream().sorted(Comparator.comparing(ChildEntity::getName)).toList();
     }
 
@@ -428,6 +449,18 @@ public class GradingService {
                 && scope.classesOf(caller).stream().anyMatch(k -> k.getId().equals(child.getClassId()));
         if (!teaches) throw ApiException.forbidden("That child is not in one of your classes.");
     }
+
+    /**
+     * A child of the school who sits on no roster is read by MANAGERIAL and ADMIN and belongs to no teacher, which
+     * is N2.3b's rule rather than a hole — but it is the one place a lesson's results can name a child no class
+     * check ever ran over, so it says so rather than passing quietly.
+     */
+    private void logUnsectioned(ChildEntity child) {
+        if (child.getClassId() == null)
+            log.debug("child {} is on no roster — counted under the class whose lesson copy she played", child.getId());
+    }
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GradingService.class);
 
     private static LocalDate parse(String value, LocalDate fallback) {
         if (value == null || value.isBlank()) return fallback;

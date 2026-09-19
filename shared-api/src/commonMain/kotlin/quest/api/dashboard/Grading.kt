@@ -73,10 +73,13 @@ data class TeacherMark(
 
 /**
  * `POST /teacher/lessons/{id}/release`: releases the lesson's results to the parents of the whole section at once.
+ * `released = false` withdraws it.
  *
- * `released = false` withdraws it. That is the only way to re-mark a released lesson — while it is released, `PUT
- * /teacher/marks` answers 409, because the score and the comment a parent has already been shown must not change
- * under her.
+ * **A homework is released when it is published** (§7's "default on for homework"), so this route is for an exam,
+ * for withdrawing a release, and for putting one back. **Marking is never refused because a lesson is released** —
+ * §7 says only that a parent sees the score and the comment after release, and since a homework is released the
+ * moment it is published, freezing it would make §7's own marking flow impossible. A mark on a released lesson
+ * reaches the parent on her next read.
  */
 @Serializable
 data class ReleaseRequest(val released: Boolean = true)
@@ -193,7 +196,13 @@ data class GradebookCell(
     val needsMarking: Boolean = false,
 )
 
-/** One row: a child, her cells in the same order as [Gradebook.lessons], and the level §7 rolls up from them. */
+/**
+ * One row: a child, her cells in the same order as [Gradebook.lessons], and §7's per-child average column.
+ *
+ * [average] is the plain arithmetic mean of her scored cells **in the requested window** — nothing weighted,
+ * nothing dropped — so a teacher who adds the row up by hand gets the same number, and [band] colours it. The
+ * rolling, weighted measure is [ChildLevel.levelScore].
+ */
 @Serializable
 data class GradebookChild(
     val childId: String,
@@ -221,13 +230,19 @@ data class Gradebook(
 // The child page (§7)
 // -------------------------------------------------------------------------------------------------------------
 
-/** §7's `ChildLevel(childId, subject, band, trend, computedAt)`, one per subject she has been scored in. */
+/**
+ * §7's `ChildLevel(childId, subject, band, trend, computedAt)`, one per subject she has been scored in.
+ *
+ * [levelScore] is deliberately not called an average: it is weighted toward her recent lessons, counts an exam
+ * twice and looks at the newest ten only, because §7 asks where a child *is* rather than what her marks add up to.
+ * The mean of a column is [GradebookChild.average].
+ */
 @Serializable
 data class ChildLevel(
     val subject: Subject,
     val band: Level? = null,
     val trend: Trend? = null,
-    val average: Int? = null,
+    val levelScore: Int? = null,
     val lessons: Int = 0,
 )
 

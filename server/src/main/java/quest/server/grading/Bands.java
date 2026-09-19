@@ -68,7 +68,24 @@ public final class Bands {
         return 1.0 + RECENCY_RANGE * (size - 1 - index) / (double) (size - 1);
     }
 
-    /** A weighted mean of the newest {@link #WINDOW} scores, newest first, or null when there are none. */
+    /**
+     * The plain arithmetic mean of every score given, or null when there are none.
+     *
+     * <p>This is what the <strong>gradebook's</strong> per-child average column and its "Average" export column are:
+     * §7 asks that grid for "a per-child average" over the month on screen, and a teacher who adds up the row
+     * herself must get the same number. Nothing is weighted, nothing is dropped, and the window is the one she
+     * asked for — {@link #average} below is a different measure for a different question.
+     */
+    public static Double mean(List<Double> scores) {
+        return scores.isEmpty() ? null : mean0(scores);
+    }
+
+    /**
+     * A recency-weighted mean of the newest {@link #WINDOW} scores, newest first, with an exam counted
+     * {@link #EXAM_WEIGHT} times a homework — §7's rolling `ChildLevel`, and <strong>only</strong> that. It answers
+     * "where is this child now", which is why it leans on the recent lessons and caps its window; it is not the
+     * average of a column and must never be shown as one.
+     */
     public static Double average(List<Double> newestFirst, List<Boolean> isExam) {
         int size = Math.min(WINDOW, newestFirst.size());
         if (size == 0) return null;
@@ -85,12 +102,12 @@ public final class Bands {
         int size = Math.min(WINDOW, newestFirst.size());
         if (size < TREND_POINTS) return null;
         int half = size / 2;
-        double recent = mean(newestFirst.subList(0, half)), older = mean(newestFirst.subList(half, size));
+        double recent = mean0(newestFirst.subList(0, half)), older = mean0(newestFirst.subList(half, size));
         if (recent - older > TREND_EPSILON) return UP;
         return older - recent > TREND_EPSILON ? DOWN : FLAT;
     }
 
-    private static double mean(List<Double> values) {
+    private static double mean0(List<Double> values) {
         double sum = 0;
         for (double v : values) sum += v;
         return sum / values.size();

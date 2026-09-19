@@ -177,6 +177,31 @@ abstract class GradingTestSupport extends ApiTestSupport {
 
     static String stopId(String lessonId, int stop) { return lessonId + ":s" + stop; }
 
+    /**
+     * A lesson `POST /teacher/lessons/{id}/publish` will accept: three levels, the "Again" variant, a parent panel
+     * and one confirmed skill — what `LessonStore.assemble` insists on — left in `review`.
+     */
+    LessonEntity readyToPublish(String id, String schoolId, ClassEntity section, LocalDate date, String type) {
+        var l = lesson(id, schoolId, section, date);
+        l.setStatus("review"); l.setVersion(0); l.setPublishedAt(null); l.setType(type);
+        l.setSourceHash("hash-" + id);
+        lessons.save(l);
+        for (int level = 2; level <= 3; level++) store.savePlay(id, levelPlay(id, level, 0), "v1", level);
+        store.savePlay(id, levelPlay(id, 1, 1), "v1", 9);
+        store.savePanel(id, new quest.api.dto.ParentPanel(
+                new quest.api.dto.BilingualList(List.of("Practise together."), List.of("تدرّبوا معًا.")),
+                List.of(new Bilingual("Count them out loud.", "عدّوا بصوت عالٍ.")),
+                List.of(new Bilingual("Try the next ten.", "جرّبوا العشرة التالية.")),
+                List.of(new quest.api.dto.StopTip(stopId(id, 1), "Ask them to count again.", "اطلبوا العدّ مجددًا.")),
+                List.of()));
+        return l;
+    }
+
+    private static Play levelPlay(String lessonId, int level, int variant) {
+        return new Play(level, variant, SourceKind.MATH, new Theme("Pot", "Soup", "S", "Served!"),
+                List.of(choice(lessonId + ":L" + level + "v" + variant + ":s1")), null);
+    }
+
     void attempt(String childId, String lessonId, int stop, int number, boolean correct, int stars) {
         var a = new AttemptEntity();
         a.setId(prefix() + UUID.randomUUID()); a.setChildId(childId); a.setLessonId(lessonId);

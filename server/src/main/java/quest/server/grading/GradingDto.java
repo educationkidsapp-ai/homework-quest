@@ -26,6 +26,8 @@ public final class GradingDto {
      *
      * <p>Sending `stars`, `score` and `comment` all null <strong>deletes</strong> the mark, which is how a teacher
      * takes back a star she gave by accident without a second route.
+     *
+     * <p>A released lesson can still be marked; see {@link ReleaseRequest}.
      */
     public record MarkInput(@NotBlank String childId, @NotBlank String lessonId, String stopId,
                             @Min(0) @Max(3) Integer stars, @Min(0) @Max(100) Integer score,
@@ -39,7 +41,16 @@ public final class GradingDto {
 
     // ---------------------------------------------------------------- release (§7)
 
-    /** `POST /teacher/lessons/{id}/release`. `released` false withdraws it again so the lesson can be re-marked. */
+    /**
+     * `POST /teacher/lessons/{id}/release`; `released` false withdraws it.
+     *
+     * <p>Publishing a homework releases it (§7's "default on for homework"), so this route is for an exam, for
+     * withdrawing a release, and for putting one back. <strong>Marking is never refused because a lesson is
+     * released.</strong> §7 says only that a parent sees the score and the comment after release; it says nothing
+     * about freezing a lesson, and since a homework is released the moment it is published, refusing marks on a
+     * released lesson would make §7's own marking flow impossible. A mark on a released lesson therefore reaches
+     * the parent on her next read, which is what "the teacher's comment for each lesson" asks for.
+     */
     public record ReleaseRequest(Boolean released) {}
 
     /** What the release did: the whole section at once, which is how §7's toggle works. */
@@ -76,7 +87,13 @@ public final class GradingDto {
     public record GradebookCell(String lessonId, boolean attempted, Integer autoScore, Integer teacherScore,
                                 Integer score, String band, boolean needsMarking) {}
 
-    /** One row: a child, her cells in the same order as `lessons`, and the level §7 rolls up from them. */
+    /**
+     * One row: a child, her cells in the same order as `lessons`, and §7's per-child average column.
+     *
+     * <p>`average` is the plain arithmetic mean of her scored cells <strong>in the requested window</strong> —
+     * nothing weighted, nothing dropped — so a teacher who adds the row up by hand gets the same number. `band`
+     * colours that average. The rolling, weighted measure is `ChildLevel.levelScore` on the child page.
+     */
     public record GradebookChild(String childId, String name, Integer average, String band, String trend,
                                  List<GradebookCell> cells) {}
 
@@ -86,8 +103,14 @@ public final class GradingDto {
 
     // ---------------------------------------------------------------- the child page (§7)
 
-    /** §7's `ChildLevel(childId, subject, band, trend, computedAt)`, one per subject she has been scored in. */
-    public record ChildLevel(String subject, String band, String trend, Integer average, int lessons) {}
+    /**
+     * §7's `ChildLevel(childId, subject, band, trend, computedAt)`, one per subject she has been scored in.
+     *
+     * <p>`levelScore` is deliberately not called an average: it is weighted toward her recent lessons, counts an
+     * exam twice and looks at the newest ten only, because §7 asks where a child <em>is</em> rather than what her
+     * marks add up to. The mean of a column is {@link GradebookChild#average}.
+     */
+    public record ChildLevel(String subject, String band, String trend, Integer levelScore, int lessons) {}
 
     /** One point of the score chart, oldest first, so the dashboard plots it without sorting. */
     public record ChildTrendPoint(String lessonId, String title, String date, String subject, Integer score,
