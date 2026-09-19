@@ -134,6 +134,8 @@ Owner prompts: `docs/prompts/dashboard-first-one-school.md` (the build order), `
 | D15 | Workers back on **Opus 5** (owner, 2026-09-18); Fable 5.1 plans. The rest of D12 stands: one agent at a time, small packages, quiet tooling, CI as the gate. | owner instruction |
 | D16 | No `shared/`, `androidApp/`, `iosApp/` changes in this build; `POST /children` and `GET /classes/lookup?code=` are added server-side so the app can adopt them later. The old P4.1/P4.2/P5.2 mobile packages are dropped from the queue. | prompt §1 |
 | D17 | The dashboard is on Angular 22 (D1) although the prompt says 20. | unchanged |
+| D18 | Initial-bundle budget raised 420/480 → 500 kB warn / 520 kB error for the TailAdmin restyle (T1 #79, T5 #83); Lighthouse ≥ 0.9 on every QA deploy stays the real performance gate (97/100 on c9fe6f7). | the spec is rebuilt in SCSS without Tailwind, the shell and kit live in the initial chunk |
+| D19 | Focus ring: the repo-wide accessible outline (brand-500, ≥ 3:1) plus the spec's `rgba(70,95,255,0.1)` halo; the spec's `#9cb9ff` border (1.94:1 on white) is not adopted. Other deviations are listed in `docs/prompts/tailadmin-spec.md` → Deviations. | accessibility over literal fidelity |
 
 ### What already exists (reused as is)
 Tenancy + filter + roles (P1.x), auth with refresh/forced change/forgot password (P1.3), flags with `@FeatureFlag`/`*hqFeature`/`FlagService` (P2.1/P3.1), themes + platform settings (P2.1), typed OpenAPI client (P3.0b), dashboard shell/Homes/profile (P3.1), lessons list / new lesson / lesson page with step strip, skills, plays + phone preview, publish (P3.2b–d), 22 stop-type previews (P3.2a), teacher profile/options/questions/announcements/students (P4.0 — the questions/announcements routes stay behind their flags, hidden from this build's navigation).
@@ -175,9 +177,21 @@ Tenancy + filter + roles (P1.x), auth with refresh/forced change/forgot password
 
 Superseded: P3.2e (→ N2.4), P3.3 (→ N1.2 + N5.1), P3.5/P3.6 (→ N6.2 / after N6), P4.1/P4.2/P5.x/P6.x old numbering (mobile parts dropped per D16).
 
+### Restyle — the TailAdmin spec, rebuilt without Tailwind (owner, 2026-09-19)
+
+Spec: `docs/prompts/tailadmin-spec.md` (literal values; §5 dark mode is a planner addendum). Report: `docs/reports/tailadmin-restyle.md`.
+
+| Pkg | Owner | Scope | Done when |
+|---|---|---|---|
+| T1 `dashboard/theme-foundations` | dashboard | ramps/roles/type/radii/shadows/spacing as `--hq-*` over the generated tokens; Outfit (Latin) + Plex Arabic; `DarkModeService` (`dark` class, `localStorage.theme`); styleguide | school theme still overrides at runtime; no light flash; D18 |
+| T2 `dashboard/theme-shell` | dashboard | sidebar 290/90 + drawer < 1024 (dialog, inert), header (burger, language, scheme, account menu), content well 1536 | routes/guards/`screens.ts` untouched; RTL; a11y |
+| T3 `dashboard/theme-kit-pages` | dashboard | every `hq-*` component to §3; the eight teacher screens; calendar/week overflow fixed | no sideways page scroll at 1366/768/375 EN+AR |
+| T4 `test/theme-verification` | test | console/NG0 gate on the suite, fail-fast sign-in, `theme-flow.spec.ts`, styleguide variants, the report | QA green, Lighthouse ≥ 90 |
+| T5 `dashboard/theme-polish` | dashboard | page crops fetched with the bearer (`hqPageImage`, LRU cache ended by sign-out), dark AA roles, tabs hover, budgets, D19 | report §4 resolved |
+
 ## Status
 
-**Phase 1: done 2026-09-16.** **Phase 2: done 2026-09-16** (server flags/themes/platform settings, app join-school/theme/gates, e2e, docs). QA runs `cb49991`; both QA schools themed. Phase 3 in progress (P3.0 merged; P3.1, P3.4a, P3.4 running).
+**Phase 1: done 2026-09-16.** **Phase 2: done 2026-09-16** (server flags/themes/platform settings, app join-school/theme/gates, e2e, docs). QA runs `cb49991`; both QA schools themed. Phase 3 partly done, then replanned (2026-09-18) into N1–N6. **N1–N2 done 2026-09-19: the teacher flow is on QA** (`0b800fc`, e2e 47/0 from the planner's machine; the post-deploy job needs the `qa` secret `E2E_STAFF_PASSWORD` set to the seeded staff password). **Restyle T1–T5 done 2026-09-19** (`2c12c5a`, Lighthouse 97/100). Open: N3 web player, N4 gradebook/exams, N5, N6, N1.2b; owner decision on the mobile app vs web player; repo back to private at the end.
 
 | Pkg | Branch / PR | State | Notes |
 |---|---|---|---|
@@ -201,3 +215,21 @@ Superseded: P3.2e (→ N2.4), P3.3 (→ N1.2 + N5.1), P3.5/P3.6 (→ N6.2 / afte
 | P2.6 | #48 | merged | PLATFORM_NAME dropped from Terraform/deploy README; QA plan: no changes |
 | #43 | #43 | merged | unplanned: shellcheck for `e2e/` in CI |
 | P3.0 | #44 | merged, on QA | review: unbounded teacher Home, prose in payload, `schoolName` null, dead overload → fixed; 218 tests; 71 OpenAPI paths |
+| P3.1/P3.1b/P3.4/P3.4a | #50, #52, #53, #56 | merged | Angular shell, sign-in, screenshots, dashboard served at `/dashboard/` (D10), Lighthouse job |
+| P3.0b/P3.2a–d | #59, #57, #58, #60, #61 | merged | lesson pipeline port: list, detail, new lesson, step strip, retry, publish/undo |
+| P-CI | #54 | merged | Actions minutes −73 %; path filters; one agent at a time (D12) |
+| plan | #55, #62 | merged | token economy; dashboard-first one-school build order (D13–D17) |
+| N1.1a/b, N1.4, N1.2a | #63, #64, #65, #66 | merged, on QA | V7 sections/assignments/rosters, `TeacherScope`, `SchoolSeed` (31 classes / 40 teachers / 600 children), Admin classes + teachers |
+| N2.1 | #67 | merged, on QA | `/teacher/week`, classes, lessons create/move/copy/publish-to-siblings, V8 lineage, `analyzedBefore` |
+| N2.2 | #68 | merged, on QA | This week grid, drag move/copy |
+| N2.3 / N2.3b | #69, #70 | merged, on QA | My classes, class page; review found grade-scoped students leak → section-scoped `/students` |
+| hotfix | #71 | merged, on QA | `SchoolSeed` reconciles assignments, never aborts startup |
+| N2.4a / N2.4b-api / N2.4b | #72, #73, #76 | merged, on QA | stop editor (22 templates, precompiled Ajv — CSP forbids `new Function`), parent panel, role façade; `GET /teacher/lessons` assignment-scoped + last aliases; publish sheet with siblings, lifecycle, badge, `ar` deep-reload fix |
+| hotfix | #74, #75 | merged | Docker: shared-api schemas into the dashboard stage; `pnpm schemas` creates its output dir |
+| N2.5 | #77 | merged, on QA | QA suite rewritten around the teacher flow; two-school specs retired; `shoot()` render barrier; **teacher flow on QA** |
+| N2.6 | #78 | merged, on QA | stray stop properties (`hint`) dropped before the play validator — cold-cache uploads no longer fail 3/4 |
+| T1 | #79 | merged, on QA | foundations + dark mode; review: bezel/overlay surfaces in dark → fixed; D18 |
+| T2 | #80 | merged, on QA | shell; review: drawer dialog semantics + `aria-controls` → fixed |
+| T3 | #81 | merged, on QA | kit + teacher screens; calendar/week overflow fixed |
+| T4 | #82 | merged, on QA | verification; found page-crop 401, chip hover specificity, non-route home frames → fixed in T4/T5 |
+| T5 | #83 | merged | page crops via bearer, dark AA, LRU media cache ended by sign-out, budgets 500/520 (D18), D19 |
