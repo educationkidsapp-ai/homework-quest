@@ -11,26 +11,35 @@ import { SchoolScopeStore } from '../core/auth/school-scope.store';
 import { FeatureDirective } from '../core/flags/feature.directive';
 import { FLAGS, FlagService } from '../core/flags/flag.service';
 import { LANGUAGES, LanguageService } from '../core/i18n/language.service';
+import { SIDEBAR_ID, SidebarService } from '../core/shell/sidebar.service';
 import { DarkModeService } from '../core/theme/dark-mode.service';
-import { ThemeService } from '../core/theme/theme.service';
 import { TourService } from '../core/tour/tour.service';
 
 /**
- * The bar above every screen: whose dashboard this is, which school is in scope, and who is
- * signed in.
+ * The bar above every screen (spec §2 "Header"): sticky, the raised surface, a 1 px rule under
+ * it, `padding: 0 24px` outside and `16px 0` inside.
  *
- * The **school switcher** is Admin-only and is the whole of multi-tenancy in the UI: picking a
- * school stores an id, the auth interceptor turns it into `X-School-Id`, and the flag map,
- * the theme and every screen follow because they key on the school in scope. Nothing here
- * filters anything itself.
+ * Four controls and nothing else, because the brand moved to the sidebar's logo block where the
+ * spec puts it:
  *
- * The **View as** banner is not decoration. An impersonated session is read-only on the
- * server (`ReadOnlyGuard` refuses every non-GET) and audit-logged; without the banner an
- * Admin would be typing into a screen that will refuse to save, wondering why.
+ * - the **rail control** on the inline-start edge — a burger under 1024 px, where it opens the
+ *   drawer, and the collapse toggle above it. One button, because it answers one question ("show
+ *   me the rail") and the viewport decides what that means;
+ * - the **school switcher**, Admin-only and behind `multiSchool`. It is the whole of
+ *   multi-tenancy in the UI: picking a school stores an id, the auth interceptor turns it into
+ *   `X-School-Id`, and the flags, the theme and every screen follow;
+ * - the **language switch** and the **scheme toggle**, both round icon buttons per §3's header
+ *   variant. The scheme toggle keeps `data-hq-scheme-toggle` and `aria-pressed`, which is what
+ *   the screenshot helper drives and what says "on" without a switch role;
+ * - the **user dropdown** (§2 "Dropdown panel").
  *
- * Both menus are CDK menus rather than hand-rolled popups: the roving tab index, Esc, arrow
- * keys and `aria-expanded` are the platform's job, and this is exactly what §0 allows the CDK
- * for.
+ * The **View as** banner is not decoration. An impersonated session is read-only on the server
+ * (`ReadOnlyGuard` refuses every non-GET) and audit-logged; without the banner an Admin would be
+ * typing into a screen that will refuse to save, wondering why.
+ *
+ * Both menus are CDK menus rather than hand-rolled popups: the roving tab index, Esc, arrow keys,
+ * `aria-expanded` and the focus return to the trigger are the platform's job, and this is exactly
+ * what §0 allows the CDK for.
  */
 @Component({
   selector: 'hq-shell-header',
@@ -45,95 +54,128 @@ import { TourService } from '../core/tour/tour.service';
     }
 
     <header class="header">
-      <div class="header__brand">
-        @if (logoUrl(); as logo) {
-          <img class="header__logo" [src]="logo" alt="" />
-        }
-        <span class="header__name">{{ name() }}</span>
-      </div>
-
-      <div class="header__actions">
-        <!--
-          T1 parks the scheme switch here so dark mode is reachable while the shell is still
-          the old one; T2 moves it into the new header beside the search and the bell.
-          aria-pressed rather than a switch role: it is a button that is currently on.
-        -->
+      <div class="header__row">
         <button
           type="button"
-          class="header__button header__button--icon"
-          data-hq-scheme-toggle
-          [attr.aria-pressed]="darkMode.isDark()"
-          [attr.aria-label]="'shell.darkMode' | transloco"
-          (click)="darkMode.toggle()"
+          class="header__icon"
+          data-hq-sidebar-toggle
+          [attr.aria-controls]="sidebarId"
+          [attr.aria-label]="'shell.sidebar.toggle' | transloco"
+          [attr.aria-expanded]="sidebar.expanded()"
+          (click)="toggleSidebar($event)"
         >
-          @if (darkMode.isDark()) {
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <circle cx="12" cy="12" r="4" />
-              <path
-                d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"
-              />
-            </svg>
-          } @else {
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />
-            </svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
+
+        <div class="header__actions">
+          @if (isAdmin()) {
+            <button
+              *hqFeature="'multiSchool'"
+              type="button"
+              class="header__pill"
+              data-hq-tour="switcher"
+              [cdkMenuTriggerFor]="schoolMenu"
+              [attr.aria-label]="'shell.switcher.label' | transloco"
+            >
+              {{ scope.scope()?.name ?? ('shell.switcher.all' | transloco) }}
+            </button>
           }
-        </button>
 
-        @if (isAdmin()) {
           <button
-            *hqFeature="'multiSchool'"
             type="button"
-            class="header__button"
-            data-hq-tour="switcher"
-            [cdkMenuTriggerFor]="schoolMenu"
-            [attr.aria-label]="'shell.switcher.label' | transloco"
+            class="header__icon"
+            data-hq-language
+            [cdkMenuTriggerFor]="languageMenu"
+            [attr.aria-label]="'shell.language.label' | transloco"
           >
-            {{ scope.scope()?.name ?? ('shell.switcher.all' | transloco) }}
+            <span class="header__icon-text">{{ language.language() }}</span>
           </button>
-        }
 
-        <button type="button" class="header__button" data-hq-tour="profile" [cdkMenuTriggerFor]="profileMenu">
-          {{ auth.displayName() }}
-        </button>
+          <!-- aria-pressed rather than a switch role: it is a button that is currently on. -->
+          <button
+            type="button"
+            class="header__icon"
+            data-hq-scheme-toggle
+            [attr.aria-pressed]="darkMode.isDark()"
+            [attr.aria-label]="'shell.darkMode' | transloco"
+            (click)="darkMode.toggle()"
+          >
+            @if (darkMode.isDark()) {
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"
+                />
+              </svg>
+            } @else {
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />
+              </svg>
+            }
+          </button>
+
+          <button type="button" class="header__user" data-hq-tour="profile" [cdkMenuTriggerFor]="profileMenu">
+            <span class="header__avatar" aria-hidden="true">{{ monogram() }}</span>
+            <span class="header__user-name">{{ auth.displayName() }}</span>
+            <svg class="header__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="m7 10 5 5 5-5" />
+            </svg>
+          </button>
+        </div>
       </div>
     </header>
 
     <ng-template #schoolMenu>
-      <div cdkMenu class="menu" [attr.aria-label]="'shell.switcher.label' | transloco">
-        <button type="button" cdkMenuItem class="menu__item" (cdkMenuItemTriggered)="choose(null)">
+      <div cdkMenu class="hq-menu" [attr.aria-label]="'shell.switcher.label' | transloco">
+        <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="choose(null)">
           {{ 'shell.switcher.all' | transloco }}
         </button>
         @for (school of schools.value(); track school.id) {
-          <button type="button" cdkMenuItem class="menu__item" (cdkMenuItemTriggered)="choose(school)">
+          <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="choose(school)">
             {{ school.name }}
-            <span class="menu__hint">{{ school.code }}</span>
+            <span class="hq-menu__hint">{{ school.code }}</span>
           </button>
         }
       </div>
     </ng-template>
 
-    <ng-template #profileMenu>
-      <div cdkMenu class="menu" [attr.aria-label]="'shell.profile.label' | transloco">
-        <a cdkMenuItem class="menu__item" routerLink="/profile">{{ 'shell.profile.open' | transloco }}</a>
+    <ng-template #languageMenu>
+      <div cdkMenu class="hq-menu" [attr.aria-label]="'shell.language.label' | transloco">
         @for (option of languages; track option) {
           <button
             type="button"
             cdkMenuItem
-            class="menu__item"
+            class="hq-menu__item"
             [attr.aria-current]="option === language.language() ? 'true' : null"
             (cdkMenuItemTriggered)="language.use(option)"
           >
             {{ 'shell.language.' + option | transloco }}
           </button>
         }
-        <button type="button" cdkMenuItem class="menu__item" (cdkMenuItemTriggered)="showMeAround()">
+      </div>
+    </ng-template>
+
+    <ng-template #profileMenu>
+      <div cdkMenu class="hq-menu hq-menu--wide" [attr.aria-label]="'shell.profile.label' | transloco">
+        <div class="hq-menu__head">
+          <p class="hq-menu__head-name">{{ auth.displayName() }}</p>
+          @if (auth.role(); as role) {
+            <p class="hq-menu__head-meta">{{ 'nav.label.' + role | transloco }}</p>
+          }
+          @if (email(); as address) {
+            <p class="hq-menu__head-meta">{{ address }}</p>
+          }
+        </div>
+        <a cdkMenuItem class="hq-menu__item" routerLink="/profile">{{ 'shell.profile.open' | transloco }}</a>
+        <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="showMeAround()">
           {{ 'shell.showMeAround' | transloco }}
         </button>
         <button
           type="button"
           cdkMenuItem
-          class="menu__item menu__item--danger"
+          class="hq-menu__item hq-menu__item--danger"
           (cdkMenuItemTriggered)="signOut.emit()"
         >
           {{ 'shell.signOut' | transloco }}
@@ -146,15 +188,21 @@ import { TourService } from '../core/tour/tour.service';
 
     :host {
       display: block;
+      position: sticky;
+      inset-block-start: 0;
+      z-index: var(--hq-z-header);
+      background: var(--hq-color-surface-raised);
+      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
     }
 
     .header__viewas {
       display: flex;
       gap: var(--hq-space-8);
-      padding: var(--hq-space-8) var(--hq-size-page-padding);
+      padding: var(--hq-space-8) var(--hq-space-header-inline);
       background: var(--hq-color-accent-soft);
-      border-block-end: var(--hq-size-rule) solid var(--hq-color-accent);
-      font-size: var(--hq-font-label-size);
+      color: var(--hq-color-accent-on-soft);
+      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      font-size: var(--hq-text-theme-sm);
     }
 
     .header__viewas-actor {
@@ -162,62 +210,39 @@ import { TourService } from '../core/tour/tour.service';
     }
 
     .header {
+      padding-inline: var(--hq-space-header-inline);
+    }
+
+    .header__row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--hq-space-16);
-      min-block-size: var(--hq-size-row-height);
-      padding-inline: var(--hq-size-page-padding);
-      border-block-end: var(--hq-size-rule) solid var(--hq-color-line);
-    }
-
-    .header__brand {
-      display: flex;
-      align-items: center;
-      gap: var(--hq-space-12);
-      min-inline-size: 0;
-    }
-
-    .header__logo {
-      inline-size: var(--hq-size-logo-size);
-      block-size: var(--hq-size-logo-size);
-      object-fit: contain;
-    }
-
-    .header__name {
-      font-weight: var(--hq-font-label-weight);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      padding-block: var(--hq-space-header-row);
     }
 
     .header__actions {
       display: flex;
       align-items: center;
       gap: var(--hq-space-8);
+      min-inline-size: 0;
     }
 
-    .header__button {
-      min-block-size: var(--hq-size-touch-target);
-      padding-inline: var(--hq-space-12);
-      background: none;
-      border: var(--hq-size-rule) solid transparent;
-      cursor: pointer;
-      @include m.hover-tint;
-      @include m.focus-ring;
-
-      &[aria-expanded='true'] {
-        border-color: var(--hq-color-line);
-      }
-    }
-
-    .header__button--icon {
+    // §3 Button, icon variant — 44 × 44, and the round form the header takes.
+    .header__icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      inline-size: var(--hq-size-touch-target);
-      padding-inline: 0;
+      inline-size: var(--hq-size-control-height);
+      block-size: var(--hq-size-control-height);
+      flex: none;
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      border-radius: var(--hq-radius-pill);
+      background: var(--hq-color-surface-raised);
       color: var(--hq-color-ink-soft);
+      cursor: pointer;
+      @include m.motion-safe('background-color, color, border-color');
+      @include m.focus-ring;
 
       svg {
         inline-size: var(--hq-size-icon-control);
@@ -229,72 +254,130 @@ import { TourService } from '../core/tour/tour.service';
         stroke-linejoin: round;
       }
 
-      &[aria-pressed='true'] {
+      &:hover {
+        background: var(--hq-color-hover);
+        color: var(--hq-color-ink);
+      }
+
+      &[aria-pressed='true'],
+      &[aria-expanded='true'] {
         color: var(--hq-color-accent-on-soft);
         background: var(--hq-color-accent-soft);
       }
     }
 
-    // Rendered into the CDK overlay container, but instantiated by this component — so the
-    // emulated-encapsulation attribute travels with it and these rules still apply.
-    .menu {
-      min-inline-size: var(--hq-size-course-card);
-      max-block-size: 60vh;
-      overflow: auto;
-      // A floating panel: it sits on the CDK overlay with nothing opaque behind it, so it
-      // takes the raised surface rather than the card one (§5 gives both, and they differ).
-      background: var(--hq-color-surface-raised);
-      border: var(--hq-size-rule) solid var(--hq-color-line);
-      box-shadow: var(--hq-shadow-dialog);
+    // The language switch says which language it is on rather than drawing a globe nobody can
+    // read a language off. Upper-cased by CSS so 'ar'/'en' stay the codes the service uses.
+    .header__icon-text {
+      font-size: var(--hq-text-theme-xs);
+      line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+      font-weight: var(--hq-text-weight-semibold);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
     }
 
-    .menu__item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--hq-space-16);
-      inline-size: 100%;
-      min-block-size: var(--hq-size-touch-target);
-      padding-inline: var(--hq-space-16);
-      background: none;
-      border: 0;
-      color: var(--hq-color-ink);
-      text-align: start;
-      text-decoration: none;
+    .header__pill {
+      min-block-size: var(--hq-size-control-height);
+      padding: var(--hq-space-button);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-control-rule);
+      border-radius: var(--hq-radius-control);
+      background: var(--hq-color-surface-raised);
+      color: var(--hq-color-ink-strong);
+      font-size: var(--hq-text-theme-sm);
+      font-weight: var(--hq-text-weight-medium);
+      box-shadow: var(--hq-shadow-xs);
       cursor: pointer;
-      @include m.hover-tint;
+      @include m.motion-safe('background-color, color');
       @include m.focus-ring;
 
-      &[aria-current='true'] {
-        font-weight: var(--hq-font-label-weight);
+      &:hover {
+        background: var(--hq-color-gray-50);
+        color: var(--hq-color-ink);
       }
     }
 
-    .menu__item--danger {
-      color: var(--hq-color-accent-strong);
+    .header__user {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--hq-space-8);
+      min-block-size: var(--hq-size-control-height);
+      min-inline-size: 0;
+      padding-inline: var(--hq-space-8);
+      border: var(--hq-size-rule-thin) solid transparent;
+      border-radius: var(--hq-radius-pill);
+      background: none;
+      color: var(--hq-color-ink);
+      font-size: var(--hq-text-theme-sm);
+      font-weight: var(--hq-text-weight-medium);
+      cursor: pointer;
+      @include m.motion-safe('background-color, border-color');
+      @include m.focus-ring;
+
+      &:hover,
+      &[aria-expanded='true'] {
+        background: var(--hq-color-hover);
+        border-color: var(--hq-color-rule);
+      }
     }
 
-    .menu__hint {
-      font-size: var(--hq-font-label-size);
+    .header__avatar {
+      display: grid;
+      place-items: center;
+      inline-size: var(--hq-size-icon-nav);
+      block-size: var(--hq-size-icon-nav);
+      flex: none;
+      border-radius: var(--hq-radius-pill);
+      background: var(--hq-color-accent-soft);
+      color: var(--hq-color-accent-on-soft);
+      font-size: var(--hq-text-theme-xs);
+      font-weight: var(--hq-text-weight-semibold);
+    }
+
+    .header__user-name {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .header__chevron {
+      inline-size: var(--hq-size-icon-button);
+      block-size: var(--hq-size-icon-button);
+      flex: none;
+      fill: none;
+      stroke: currentcolor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
       color: var(--hq-color-ink-soft);
+    }
+
+    // The name and the chevron are the first things to go on a phone; the avatar and the menu
+    // behind it are the affordance, and the name is the first line of the panel anyway.
+    @include m.below(m.$compact-breakpoint) {
+      .header__user-name,
+      .header__chevron {
+        display: none;
+      }
     }
   `,
 })
 export class ShellHeaderComponent {
   private readonly schoolsApi = inject(SchoolsApi);
   private readonly flags = inject(FlagService);
-  protected readonly scope = inject(SchoolScopeStore);
-  private readonly theme = inject(ThemeService);
-  protected readonly darkMode = inject(DarkModeService);
   private readonly tour = inject(TourService);
 
+  protected readonly scope = inject(SchoolScopeStore);
+  protected readonly darkMode = inject(DarkModeService);
+  protected readonly sidebar = inject(SidebarService);
+  protected readonly sidebarId = SIDEBAR_ID;
   protected readonly auth = inject(AuthService);
   protected readonly language = inject(LanguageService);
   protected readonly languages = LANGUAGES;
 
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
-  protected readonly logoUrl = computed(() => this.theme.logoUrl());
-  protected readonly name = computed(() => this.scope.scope()?.name ?? this.theme.appName());
+  protected readonly email = computed(() => this.auth.user()?.email ?? '');
+  /** `[...name]` rather than `name[0]`: an Arabic first character is not one UTF-16 unit. */
+  protected readonly monogram = computed(() => [...this.auth.displayName().trim()][0] ?? '');
 
   /**
    * Only an Admin may list schools, and only an Admin has a switcher — so the request is
@@ -313,6 +396,14 @@ export class ShellHeaderComponent {
 
   /** Emitted rather than handled here: signing out is the shell's business, not the header's. */
   readonly signOut = output<void>();
+
+  /**
+   * The button is handed to the service so that closing the drawer — by Escape, by the scrim or
+   * by a navigation — can put focus back where it came from.
+   */
+  protected toggleSidebar(event: Event): void {
+    this.sidebar.toggle(event.currentTarget as HTMLElement | null);
+  }
 
   protected choose(school: SchoolSummary | null): void {
     if (school?.id && school.name) this.scope.select({ id: school.id, name: school.name });

@@ -151,10 +151,19 @@ which is why the suite is green on QA today.
 | `lesson-publish.spec.ts` | the publish sheet, Unpublish + Undo, moving and deleting a draft, "Analyzed before · 0 tokens", and the `ar` deep-reload regression |
 | `admin-classes-teachers.spec.ts` | §10 step 1: an Admin creates 1A/1B and Sara, the one-time password shows once, a second Math teacher for 1A is refused (**local only** — see below) |
 | `lesson-retry.spec.ts` | that a failed pipeline step really retries past its failure (opt-in, below) |
+| `theme-shell.spec.ts` | T2's shell: the 290/90 px sidebar and that it is remembered, the drawer under 1024 px (scrim, Escape, focus back on the burger, Tab trapped), the rail on the inline-start edge in Arabic, the header's controls and the account menu's keyboard contract — plus the three-width screenshot matrix |
 
 Screenshots land in `docs/screenshots/dashboard-p3.1/`, `dashboard-n1.2/`, `dashboard-n2.2/`,
 `dashboard-n2.3/`, `dashboard-n2.4/` and `dashboard-n2.4b/` (1366 × 768, EN and AR) and are
-committed.
+committed. `theme-t2/` is the shell's own set and is the exception to the one viewport: the
+package gave the shell a collapsed rail and a drawer, so it is photographed at 1366, at 768
+with the drawer shut **and** open, and at 375, each in EN and AR and in both schemes.
+
+`shoot()` falls back to a full-page frame when the document scrolls sideways. Chrome's viewport
+capture takes its origin from the scrollable area rather than the layout viewport, and in an RTL
+document that range runs from negative to zero — a class page at 375 px came out as empty ground
+with a sliver of the shell at one edge, identically on every run, while the page itself was
+laid out correctly. The overflow underneath it is the class calendar's own, under about 900 px.
 
 ### Retired with D13 (N2.5)
 

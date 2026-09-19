@@ -29,14 +29,18 @@ import { activeLang } from '../core/i18n/active-lang';
 import { ClassContextService } from '../core/nav/class-context.service';
 import { navScreens } from '../core/nav/screens';
 import { PermissionService } from '../core/permissions/permission.service';
+import { SchoolScopeStore } from '../core/auth/school-scope.store';
+import { SIDEBAR_ID, SidebarService } from '../core/shell/sidebar.service';
+import { ThemeService } from '../core/theme/theme.service';
 import { TourComponent } from '../core/tour/tour.component';
 import { TourService } from '../core/tour/tour.service';
 import { UndoService } from '../core/undo/undo.service';
 import { ShellHeaderComponent } from './shell-header.component';
 
 /**
- * The authenticated frame: 240 px rail, header, one screen, and the four things that belong
- * to no screen in particular — the red band, the Undo strip, the shortcut sheet and the tour.
+ * The authenticated frame: the 290 px sidebar, the header, one screen, and the four things that
+ * belong to no screen in particular — the red band, the Undo strip, the shortcut sheet and the
+ * tour (spec §2 "App shell").
  *
  * **The rail is filtered, not fixed.** An item appears only when its flag is on for the
  * school in scope *and* the account holds its permission, which is why the same component
@@ -70,15 +74,28 @@ import { ShellHeaderComponent } from './shell-header.component';
     <div class="shell">
       <hq-nav
         class="shell__nav"
+        [id]="sidebarId"
         data-hq-tour="nav"
         [items]="items()"
         [active]="activeId()"
         [label]="'nav.label.' + (auth.role() ?? 'ADMIN') | transloco"
+        [collapsed]="sidebar.collapsed()"
+        [drawer]="sidebar.drawer()"
+        [open]="sidebar.open()"
+        [brandName]="brandName()"
+        [brandLogo]="brandLogo()"
+        (dismissed)="sidebar.closeDrawer()"
       >
         <span nav-brand class="shell__brand">{{ 'nav.brand' | transloco }}</span>
       </hq-nav>
 
-      <div class="shell__main">
+      <!--
+        Everything behind a modal drawer is inert: not merely untabbable but out of reach of a
+        click, a pointer and the accessibility tree, which is what aria-modal="true" on the
+        panel is promising. The focus trap alone keeps Tab inside; inert is what makes the
+        promise true for a screen reader and for a stray tap on the header.
+      -->
+      <div class="shell__main" [attr.inert]="drawerOpen() ? '' : null">
         <hq-shell-header (signOut)="signOut()" />
 
         @if (band.current(); as message) {
@@ -122,18 +139,16 @@ import { ShellHeaderComponent } from './shell-header.component';
       min-block-size: 100vh;
     }
 
-    .shell__nav {
-      position: sticky;
-      inset-block-start: 0;
-      block-size: 100vh;
-      z-index: var(--hq-z-nav);
-    }
+    // The rail's own sticky/width behaviour, and its stacking, are the component's; the shell
+    // only places it. It carries **no** z-index here on purpose: 'z-index' applies to a flex
+    // item whatever its position, so the 20 this used to hold made the rail a stacking context
+    // and sealed its drawer — z-index 60, fixed, over everything — inside a level *below* the
+    // header's 40. The drawer opened underneath the bar that opened it.
 
+    // The role's name, under the school's in the sidebar's logo block.
     .shell__brand {
-      font-size: var(--hq-font-label-size);
-      font-weight: var(--hq-font-label-weight);
-      letter-spacing: var(--hq-font-letter-spacing-label);
-      text-transform: uppercase;
+      font-size: var(--hq-text-theme-xs);
+      line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
       color: var(--hq-color-ink-soft);
     }
 
@@ -145,11 +160,19 @@ import { ShellHeaderComponent } from './shell-header.component';
     }
 
     .shell__band {
-      padding: var(--hq-space-16) var(--hq-size-page-padding) 0;
+      padding: var(--hq-space-24) var(--hq-space-24) 0;
     }
 
+    // §2 Content well. 'hq-page' keeps its own header and its sticky footer; its padding and
+    // its reading measure are handed to it here, so there is one well and not two.
     .shell__content {
       flex: 1;
+      inline-size: 100%;
+      max-inline-size: var(--hq-size-content-well);
+      padding: var(--hq-space-24);
+      margin-inline: auto;
+      --hq-page-padding: 0;
+      --hq-page-max-width: 100%;
     }
   `,
 })
@@ -165,9 +188,21 @@ export class ShellComponent {
   /** The rail's labels are built in a computed, so they need the language as a dependency. */
   private readonly lang = activeLang();
 
+  private readonly theme = inject(ThemeService);
+  private readonly scope = inject(SchoolScopeStore);
+
   protected readonly auth = inject(AuthService);
   protected readonly band = inject(BandService);
   protected readonly undo = inject(UndoService);
+  protected readonly sidebar = inject(SidebarService);
+  protected readonly sidebarId = SIDEBAR_ID;
+  /** The one condition the shell behind the rail is inert under. */
+  protected readonly drawerOpen = computed(() => this.sidebar.drawer() && this.sidebar.open());
+
+  // §2's logo block: the school in scope, or the platform when there is none. The same two
+  // values the header used to carry — the brand belongs to the rail now, not to the bar.
+  protected readonly brandName = computed(() => this.scope.scope()?.name ?? this.theme.appName());
+  protected readonly brandLogo = computed(() => this.theme.logoUrl());
 
   /** The current URL, as a signal, so the rail's rule follows the router rather than clicks. */
   private readonly url = toSignal(
@@ -224,6 +259,8 @@ export class ShellComponent {
     effect(() => {
       this.url();
       this.band.dismiss();
+      // A drawer is modal; the screen behind it just changed, so it has done its job.
+      this.sidebar.closeDrawer();
     });
 
     // After the new screen has rendered, not before: the heading it moves to does not exist

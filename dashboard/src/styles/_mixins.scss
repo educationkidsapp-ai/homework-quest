@@ -96,3 +96,23 @@
   letter-spacing: var(--hq-font-letter-spacing-label);
   text-transform: uppercase;
 }
+
+// --- Breakpoints ------------------------------------------------------------
+//
+// A media query cannot read a custom property, so the two numbers the shell needs are Sass
+// variables here — declared once, `@use`d by every component that branches on width — and
+// mirrored in `_theme.scss` as `--hq-size-drawer-breakpoint` for the parts that read them from
+// JavaScript (`SidebarService` matches the same query through `matchMedia`).
+
+/// Below this the 290 px rail would leave the content under 700 px, so it becomes a drawer.
+$drawer-breakpoint: 1024px;
+/// Below this a header row cannot hold a name beside its controls.
+$compact-breakpoint: 640px;
+
+/// `max-width` one hundredth of a pixel below the breakpoint, so `below()` and a `min-width`
+/// query at the same number never both match on a fractional viewport.
+@mixin below($breakpoint) {
+  @media (max-width: #{$breakpoint - 0.02px}) {
+    @content;
+  }
+}

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { ADMIN, SARA, shoot, signIn } from './env';
+import { ADMIN, SARA, setLanguage, shoot, signIn } from './env';
 
 /**
  * P3.1's acceptance — the shell itself: branding, the Content-Security-Policy, where each role
@@ -57,8 +57,9 @@ test('the built bundle runs clean under the API’s Content-Security-Policy', as
 
   await signIn(page, SARA);
   await expect(page.getByRole('heading', { level: 1, name: 'This week' })).toBeVisible();
-  // The stylesheet applied: the rail has its width, so no CSP-blocked onload handler.
-  await expect(page.getByRole('navigation')).toHaveCSS('flex-grow', '0');
+  // The stylesheet applied: the rail is the spec's 290 px, so no CSP-blocked onload handler.
+  const rail = await page.locator('hq-nav .nav__panel').boundingBox();
+  expect(rail?.width).toBe(290);
 
   expect(violations).toEqual([]);
 });
@@ -93,8 +94,8 @@ test('EN/AR flips dir and the whole dashboard without a reload', async ({ page }
   await page.evaluate(() => ((window as unknown as { __hqMark?: boolean }).__hqMark = true));
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
 
-  await page.getByRole('button', { name: /Sara/ }).click();
-  await page.getByRole('menuitem', { name: 'العربية' }).click();
+  // T2 gave the language switch a control of its own beside the scheme toggle.
+  await setLanguage(page, 'ar');
 
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   // The rail came from `ar.json`, not from the key table. Asserted as "the Arabic words are

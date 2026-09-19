@@ -59,12 +59,15 @@ export interface Breadcrumb {
       display: block;
     }
 
+    // The well around the page is the shell's (spec §2 "Content well"), so both values are
+    // handed down as custom properties and only defaulted here — a screen rendered outside the
+    // shell (the styleguide) still gets its own padding and reading measure.
     .page {
       display: flex;
       flex-direction: column;
       gap: var(--hq-space-24);
-      max-inline-size: var(--hq-size-content-max-width);
-      padding: var(--hq-size-page-padding);
+      max-inline-size: var(--hq-page-max-width, var(--hq-size-content-max-width));
+      padding: var(--hq-page-padding, var(--hq-size-page-padding));
       margin-inline: auto;
     }
 
