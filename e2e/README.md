@@ -1,5 +1,19 @@
 # e2e — QA fixture, cross-school isolation, flags and themes
 
+> **Legacy (N2.5).** Everything in this directory builds and asserts the **two-school** fixture of
+> the P1.6 prompt: Al Noor and Green Valley, a teacher and a managerial user each, a parent and a
+> child each. QA does not run any of it. Since D13 the product is one school with `multiSchool`
+> off, QA is seeded by the server itself (`SEED_SCHOOL=true`, `server/src/main/resources/seed/*.csv`
+> — 31 classes, 40 teachers, ~600 children), and the post-deploy job runs `dashboard/e2e/local/`
+> instead: `teacher-flow.spec.ts` carries `docs/teacher-flow.md` §10 end to end and covers the same
+> isolation ground `isolation.sh` did, one teacher against another rather than one school against
+> another. `seed.mjs` also stops at its lesson step since N1.1, because publishing now needs an
+> assignment.
+>
+> Keep these scripts for the day `multiSchool` comes back on; do not wire them into a deploy, and
+> do not run them against QA — `seed.mjs` writes schools, staff and children into a shared
+> database that nothing cleans up.
+
 Four scripts, no dependencies beyond Node 22 (built-ins only), `bash`, `curl` and — optionally — `jq`:
 
 | File | What it does |

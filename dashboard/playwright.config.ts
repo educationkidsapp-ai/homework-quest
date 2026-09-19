@@ -14,11 +14,19 @@ import { defineConfig, devices } from '@playwright/test';
  * created is slower than this Mac at everything, and a timeout there says "the assertion is
  * wrong" when the truth is "the box is cold".
  *
- * Against a deployment the suite is `e2e/local/` — sign-in per role, the switcher, RTL, the
- * screenshots (P3.1). `e2e/styleguide.spec.ts` stays behind `ng serve`: both the `qa` and the
- * `production` configuration replace `styleguide.route.ts`, so that route is not in any built
- * bundle. Those specs share one seeded database and the school switcher, so they run serially
+ * Against a deployment the suite is `e2e/local/` — the teacher flow of `docs/teacher-flow.md`
+ * §10, sign-in per role, RTL and the screenshots. `e2e/styleguide.spec.ts` stays behind
+ * `ng serve`: both the `qa` and the `production` configuration replace `styleguide.route.ts`, so
+ * that route is not in any built bundle. Those specs share one database, so they run serially
  * exactly as `playwright.local.config.ts` runs them locally.
+ *
+ * N2.5: one retry, not two (`pnpm e2e:qa`), and a two-minute ceiling per test, which only the
+ * pipeline spec raises. The QA job is capped at 20 minutes and was cancelled at the cap on every
+ * deploy after 4f67dc2, because two pre-D13 specs waited three minutes for a school switcher that
+ * `multiSchool` off no longer draws and then retried twice more. A run that cannot say what broke
+ * is worse than no run — a cancelled job uploads no report and `if: failure()` never fires — so
+ * every wait here is bounded, and the retry budget is there for a flake, not for a spec that will
+ * never pass.
  */
 const path = '/dashboard/'; // where the API serves the dashboard — one place, so every target moves together
 const deployed = process.env['E2E_BASE_URL'];
@@ -34,6 +42,9 @@ export default defineConfig({
   reporter: process.env['CI'] ? [['github'], ['list']] : [['list']],
   globalSetup: deployed ? './e2e/global-setup.ts' : undefined,
   expect: { timeout: deployed ? 15_000 : 5_000 },
+  // A ceiling for everything that should not need one. The pipeline specs raise it themselves
+  // with `test.setTimeout`, so a test that hangs on a selector costs two minutes, not ten.
+  timeout: deployed ? 120_000 : 60_000,
   use: {
     baseURL,
     viewport: { width: 1366, height: 768 },

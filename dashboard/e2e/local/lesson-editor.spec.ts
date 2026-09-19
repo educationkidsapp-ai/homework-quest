@@ -1,6 +1,16 @@
 import { expect, request, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import {
+  API,
+  RUN,
+  SARA,
+  dayFromNow,
+  removeLessonsOfThisRun,
+  shoot,
+  signInAsSara,
+  signInForToken,
+} from './env';
 
 /**
  * N2.4a's acceptance (`docs/teacher-flow.md` §4 steps 4–8): Sara writes a lesson by hand.
@@ -13,43 +23,24 @@ import { resolve } from 'node:path';
  *
  * The server runs on H2 with `SEED_SCHOOL=true` and `LLM_PROVIDER=fake` (see `README.md`).
  */
-const API = process.env['HQ_API'] ?? 'http://localhost:18080';
 const SHOTS = resolve(process.cwd(), '../docs/screenshots/dashboard-n2.4');
 const SQUARE_PNG = resolve(process.cwd(), 'e2e/fixtures/square.png');
-const SARA = { email: 'sara.al-harbi@school.test', password: env('E2E_STAFF_PASSWORD') };
-
-/** Unique per run: the H2 database outlives a single test file. */
-const RUN = Date.now().toString(36).slice(-4).toUpperCase();
 const TITLE = `Sorting shapes ${RUN}`;
 
 /**
- * A day far enough out that no earlier run has taken it. The lesson is created from the
- * `lessons/new` route with the class in the query — the same link the Home's "Add today's
- * lesson" builds — rather than from a `+` on the calendar, because whether a `+` is there at
- * all depends on what previous runs left in the week, and this file should not.
+ * A day far out, and a *different* one on every run: a class holds one lesson per day, and QA's
+ * database is shared and never reset, so a fixed day would be taken by the run before. The
+ * lesson is created from the `lessons/new` route with the class in the query — the same link
+ * "Add today's lesson" builds — rather than from a `+` on the calendar, because whether a `+`
+ * is there at all depends on what the week already holds, and this file should not care.
  */
-const DATE = nextYear();
+const DATE = dayFromNow(300 + (Math.floor(Date.now() / 1000) % 60));
 let classId = '';
-
-function nextYear(): string {
-  const day = new Date();
-  day.setUTCFullYear(day.getUTCFullYear() + 1);
-  return day.toISOString().slice(0, 10);
-}
-
-function env(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set — see playwright.local.config.ts`);
-  return value;
-}
 
 /** Sara's own 1A British Math section, read with her token — never the Admin's. */
 test.beforeAll(async () => {
+  const token = await signInForToken(SARA);
   const api = await request.newContext({ baseURL: API });
-  const signIn = await api.post('/admin/auth/sign-in', { data: SARA });
-  expect(signIn.ok(), 'Sara could not sign in — is the server seeded with SEED_STAFF_PASSWORD?').toBeTruthy();
-  const token = ((await signIn.json()) as { token: string }).token;
-
   const classes = await api.get('/teacher/classes', { headers: { Authorization: `Bearer ${token}` } });
   const rows = (await classes.json()) as { classId: string; className: string; subject: string }[];
   const mine = rows.find((row) => /1A British/i.test(row.className) && row.subject === 'math');
@@ -57,19 +48,6 @@ test.beforeAll(async () => {
   classId = mine!.classId;
   await api.dispose();
 });
-
-async function signInAsSara(page: Page): Promise<void> {
-  await page.goto('sign-in');
-  await page.evaluate(() => localStorage.clear());
-  await page.goto('sign-in');
-  await page.getByLabel('Email').fill(SARA.email);
-  await page.getByLabel('Password').fill(SARA.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  const skip = page.getByRole('button', { name: 'Skip' });
-  await skip.waitFor({ state: 'visible', timeout: 30_000 });
-  await skip.click();
-  await expect(page.getByRole('dialog').first()).toBeHidden();
-}
 
 /** The one lesson this file writes, created once and carried through every test below. */
 async function openTheLesson(page: Page): Promise<void> {
@@ -114,6 +92,9 @@ async function dragHandle(page: Page, handle: Locator, target: Locator): Promise
   // viewport, and a handle scrolled to just-visible ends up underneath it, where the mousedown
   // lands on the footer and no drag ever starts.
   await handle.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  // The one sleep left here, and deliberately so: `scrollIntoView` is smooth, and CDK reads the
+  // handle's bounding box at mousedown. There is no DOM signal for "the scroll has stopped", and
+  // a box read mid-scroll starts the drag from the wrong place.
   await page.waitForTimeout(300);
   const from = await handle.boundingBox();
   const to = await target.boundingBox();
@@ -246,6 +227,15 @@ test('she attaches a picture and puts it on the stop', async ({ page }) => {
 });
 
 test('she asks for the other levels, then edits the parent panel that comes with them', async ({ page }) => {
+  // Local only. This is the parent-panel editor's test; the generation in front of it is just
+  // how a panel comes to exist. Under the local `fake` provider that costs seconds — against QA
+  // it is the real model writing three levels, an Again variant and a panel, which took longer
+  // than this whole file's budget and put the post-deploy job back near its 20-minute cap. The
+  // pipeline itself is proved on QA by `teacher-flow.spec.ts`, which is written to wait for it.
+  test.skip(
+    !!process.env['E2E_BASE_URL'],
+    'the real model writes the levels too slowly to belong in the QA budget — teacher-flow.spec.ts covers the pipeline there',
+  );
   test.setTimeout(240_000);
   await openTheLesson(page);
 
@@ -279,12 +269,15 @@ test('screenshots: the editor in English and in Arabic', async ({ page }) => {
   await openTheLesson(page);
   await stopRows(page).first().click();
   await expect(editor(page).getByLabel('The whole stop')).toBeVisible();
-  await page.screenshot({ path: resolve(SHOTS, 'lesson-editor-en.png'), fullPage: true });
+  // The element, not its English label: the same barrier has to hold for the Arabic frame below.
+  await shoot(page, resolve(SHOTS, 'lesson-editor-en.png'), editor(page), { fullPage: true });
 
   // Through the account menu, the way a teacher switches — not by writing localStorage.
   await page.getByRole('button', { name: /Sara/ }).click();
   await page.getByRole('menuitem', { name: 'العربية' }).click();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: resolve(SHOTS, 'lesson-editor-ar.png'), fullPage: true });
+  await shoot(page, resolve(SHOTS, 'lesson-editor-ar.png'), editor(page), { fullPage: true });
 });
+
+/** The lessons this file wrote, off the shared database again (`env.ts`). */
+test.afterAll(removeLessonsOfThisRun);

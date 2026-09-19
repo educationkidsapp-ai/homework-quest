@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { shoot } from './env';
 
 /**
  * N1.2's acceptance (`docs/teacher-flow.md` §10 step 1), against the built bundle and a local
@@ -90,6 +91,18 @@ async function createTeacher(page: Page, fullName: string, email: string): Promi
   await dialog.getByRole('button', { name: 'Save' }).click();
 }
 
+/**
+ * Local only (N2.5). This file creates classes and a teacher on every run, and there is no
+ * `DELETE /admin/classes/{id}` or `/admin/teachers/{id}` to take them back — the rest of the
+ * suite cleans up after itself, and this one cannot. Against a local H2 database that is a fresh
+ * start every time; against QA's shared, never-reset database it would leave a `1A<run>`, a
+ * `1B<run>` and a `sara.<run>@…` behind on every deploy, for good.
+ */
+test.skip(
+  !!process.env['E2E_BASE_URL'],
+  'creates classes and teachers that no endpoint can delete — local only, never against a shared database',
+);
+
 test.describe.configure({ mode: 'serial' });
 
 test('an Admin creates 1A and 1B, and each gets its own join code', async ({ page }) => {
@@ -162,21 +175,15 @@ test('the screenshot set, EN and AR', async ({ page }) => {
     await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
 
     await page.getByRole('navigation').getByRole('link').nth(CLASSES_ITEM).click();
-    await expect(page.getByRole('table')).toBeVisible();
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: `${SHOTS}/01-classes-${language}.png` });
+    await shoot(page, `${SHOTS}/01-classes-${language}.png`, page.getByRole('table'));
 
     await page.getByRole('navigation').getByRole('link').nth(TEACHERS_ITEM).click();
-    await expect(page.getByRole('table')).toBeVisible();
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: `${SHOTS}/02-teachers-${language}.png` });
+    await shoot(page, `${SHOTS}/02-teachers-${language}.png`, page.getByRole('table'));
 
     // The picker open, which is the screen this package exists for.
     await page.getByRole('button', { name: /Sara/ }).first().click();
     await page.getByRole('menuitem').first().click();
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: `${SHOTS}/03-assignment-picker-${language}.png` });
+    await shoot(page, `${SHOTS}/03-assignment-picker-${language}.png`, page.getByRole('dialog'));
     await page.keyboard.press('Escape');
   }
 

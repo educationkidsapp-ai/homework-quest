@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { RUN, removeLessonsOfThisRun, shoot, signInAsSara } from './env';
 
 /**
  * N2.3's acceptance (`docs/teacher-flow.md` §4 step 3 and §5), against the built bundle and a
@@ -22,27 +23,6 @@ import { resolve } from 'node:path';
  * covered by `class-children.component.spec.ts` against both maps.
  */
 const SHOTS = resolve(process.cwd(), '../docs/screenshots/dashboard-n2.3');
-const SARA = { email: 'sara.al-harbi@school.test', password: env('E2E_STAFF_PASSWORD') };
-const RUN = Date.now().toString(36).slice(-4).toUpperCase();
-
-function env(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set — see playwright.local.config.ts`);
-  return value;
-}
-
-async function signInAsSara(page: Page): Promise<void> {
-  await page.goto('sign-in');
-  await page.evaluate(() => localStorage.clear());
-  await page.goto('sign-in');
-  await page.getByLabel('Email').fill(SARA.email);
-  await page.getByLabel('Password').fill(SARA.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  const skip = page.getByRole('button', { name: 'Skip' });
-  await skip.waitFor({ state: 'visible', timeout: 30_000 });
-  await skip.click();
-  await expect(page.getByRole('dialog').first()).toBeHidden();
-}
 
 /** My classes, reached the way she reaches it: the rail's second item. */
 async function openMyClasses(page: Page): Promise<void> {
@@ -214,21 +194,18 @@ test('the screenshot set, EN and AR', async ({ page }) => {
     await page.evaluate((lang) => localStorage.setItem('hq.language', lang), language);
     await page.goto('teacher/classes');
     await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
-    await expect(page.locator('hq-card').first()).toBeVisible();
-    // Long enough for `listStagger` and `countUp` to settle (30 ms apart, 250/600 ms each).
-    await page.waitForTimeout(1500);
-    await page.screenshot({ path: `${SHOTS}/01-my-classes-${language}.png` });
+    // `shoot` waits out `listStagger` and `countUp` (30 ms apart, 250/600 ms each).
+    await shoot(page, `${SHOTS}/01-my-classes-${language}.png`, page.locator('hq-card').first());
 
     await page.locator('hq-card').first().getByRole('link').first().click();
-    await expect(page.getByRole('grid')).toBeVisible();
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: `${SHOTS}/02-class-calendar-${language}.png` });
+    await shoot(page, `${SHOTS}/02-class-calendar-${language}.png`, page.getByRole('grid'));
 
     await page.getByRole('tab').nth(1).click();
-    await expect(page.getByRole('table')).toBeVisible();
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: `${SHOTS}/03-class-children-${language}.png` });
+    await shoot(page, `${SHOTS}/03-class-children-${language}.png`, page.getByRole('table'));
   }
 
   await page.evaluate(() => localStorage.setItem('hq.language', 'en'));
 });
+
+/** The one lesson this file writes, off the shared database again (`env.ts`). */
+test.afterAll(removeLessonsOfThisRun);
