@@ -1,8 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import type { SourceFileInfo } from '../../api';
 import { activeLang } from '../../core/i18n/active-lang';
+import { ButtonComponent, DialogComponent, SkeletonComponent } from '../../ui';
 import { type FileConvertView, viewOf } from './file-conversion';
+import { LessonApiService } from './lesson-api.service';
+import { StopProseComponent } from './stop-prose.component';
 
 /** One row: the file, its pill, and the words that go with it, all resolved for the template. */
 interface SourceRow {
@@ -15,28 +18,38 @@ interface SourceRow {
   readonly reason: string | null;
 }
 
+/** Whether the preview is open, and over which file. */
+type OpenDialog =
+  | { readonly kind: 'none' }
+  | { readonly kind: 'preview'; readonly file: SourceFileInfo };
+
 /**
  * CR4 §4: the lesson's source files, and what became of each of them.
  *
  * Between Upload and Analyse the pipeline now turns every file into text on our own machines,
  * and this is the only place a teacher meets that: a pill that says *Converting…*, then *Ready ·
- * 1,240 words*, or *Couldn't read this file* with one sentence saying what to do about it. She
- * never reads the words Markdown, anydoc or OCR-failed; `file-conversion.ts` is where those
- * become hers.
+ * 1,240 words*, or *Couldn't read this file* with one sentence saying what to do. Three things
+ * hang off it; this change set brings the first — a preview of the exact text the model will be
+ * given, before it is given it.
  *
- * Its own component rather than more of `lesson.page.html` because the mapping it renders is the
- * thing under test — `file-conversion.spec.ts` covers every error code without a screen, and
- * this only puts words to it — and because the two ways out of a failure that follow in this
- * change set bring state the page has no other use for.
+ * Its own component rather than more of `lesson.page.html` because it owns state the page has no
+ * other use for (two dialogs, a fetched Markdown body, a per-file busy flag) and because the
+ * mapping it renders is the thing under test: `file-conversion.spec.ts` covers every error code
+ * without a screen, and this only puts words to it.
+ *
  */
 @Component({
   selector: 'hq-lesson-sources',
-  imports: [TranslocoPipe],
+  imports: [ButtonComponent, DialogComponent, SkeletonComponent, StopProseComponent, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (files().length === 0) {
       <p class="sources__empty">{{ 'lessons.detail.files.empty' | transloco }}</p>
     } @else {
+      @if (showCheckNow()) {
+        <p class="sources__helper">{{ 'lessons.detail.files.convert.checkNow' | transloco }}</p>
+      }
+
       <ul class="sources" data-hq-sources>
         @for (row of rows(); track row.file.id) {
           <li
@@ -72,6 +85,11 @@ interface SourceRow {
                   · {{ 'lessons.detail.files.deleted' | transloco }}
                 }
               </span>
+              @if (row.view.canPreview && !row.file.deleted) {
+                <hq-button data-hq-preview variant="quiet" (pressed)="openPreview(row.file)">
+                  {{ 'lessons.detail.files.convert.preview' | transloco }}
+                </hq-button>
+              }
             </div>
 
             @if (row.reason) {
@@ -81,14 +99,49 @@ interface SourceRow {
         }
       </ul>
     }
+
+    @if (dialog().kind === 'preview') {
+      <hq-dialog
+        data-hq-preview-dialog
+        [open]="true"
+        [sheet]="true"
+        [title]="dialogTitle()"
+        [confirmLabel]="'lessons.detail.files.convert.previewUse' | transloco"
+        (confirmed)="closeDialog()"
+        (openChange)="onDialogOpenChange($event)"
+      >
+        <div class="sources__preview-bar">
+          <p class="sources__preview-caption">
+            {{ 'lessons.detail.files.convert.previewCaption' | transloco }}
+          </p>
+        </div>
+        @if (markdownLoading()) {
+          <hq-skeleton [loading]="true" [lines]="6" [label]="'lessons.loading' | transloco" />
+        } @else if (markdownError(); as message) {
+          <p class="sources__reason">{{ message }}</p>
+        } @else if (markdown().trim() === '') {
+          <p class="sources__reason">{{ 'lessons.detail.files.convert.previewEmpty' | transloco }}</p>
+        } @else {
+          <!-- dir="auto": a converted file's language is the document's, not the screen's. -->
+          <hq-stop-prose [text]="markdown()" dir="auto" data-hq-markdown-preview />
+        }
+      </hq-dialog>
+    }
+
   `,
   styles: `
     :host {
       display: block;
     }
 
-    .sources__empty {
+    .sources__empty,
+    .sources__helper {
       color: var(--hq-color-ink-soft);
+    }
+
+    .sources__helper {
+      margin-block-end: var(--hq-space-12);
+      font-size: var(--hq-font-label-size);
     }
 
     .sources {
@@ -159,14 +212,48 @@ interface SourceRow {
       color: var(--hq-color-ink-strong);
       font-size: var(--hq-font-label-size);
     }
+
+    .sources__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--hq-space-12);
+      margin-block-start: var(--hq-space-4);
+    }
+
+    .sources__preview-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--hq-space-12);
+      flex-wrap: wrap;
+    }
+
+    .sources__preview-caption {
+      color: var(--hq-color-ink-soft);
+      font-size: var(--hq-font-label-size);
+    }
   `,
 })
 export class LessonSourcesComponent {
+  private readonly api = inject(LessonApiService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
 
   readonly lessonId = input.required<string>();
   readonly files = input.required<readonly SourceFileInfo[]>();
+  /**
+   * Whether "this is the moment to check" is worth saying: the text exists and the model has
+   * not read it yet. Once Analyse is running the sentence would be advice about a door that has
+   * already shut, so the page — which knows the step states — decides and this only renders.
+   */
+  readonly checkNow = input(false);
+
+  protected readonly dialog = signal<OpenDialog>({ kind: 'none' });
+  protected readonly markdown = signal('');
+  protected readonly markdownLoading = signal(false);
+  protected readonly markdownError = signal<string | null>(null);
+
+  protected readonly showCheckNow = computed(() => this.checkNow() && this.rows().some((r) => r.view.canPreview));
 
   protected readonly rows = computed<readonly SourceRow[]>(() => {
     this.lang();
@@ -182,6 +269,52 @@ export class LessonSourcesComponent {
       };
     });
   });
+
+  protected readonly dialogTitle = computed(() => {
+    this.lang();
+    const open = this.dialog();
+    if (open.kind === 'none') return '';
+    return this.t('lessons.detail.files.convert.previewTitle', { file: open.file.fileName });
+  });
+
+  // ---- the preview ---------------------------------------------------------------------------
+
+  protected openPreview(file: SourceFileInfo): void {
+    this.dialog.set({ kind: 'preview', file });
+    this.loadMarkdown(file);
+  }
+
+  protected onDialogOpenChange(open: boolean): void {
+    if (!open) this.closeDialog();
+  }
+
+  protected closeDialog(): void {
+    this.dialog.set({ kind: 'none' });
+    this.markdownError.set(null);
+  }
+
+  /**
+   * What the model will read, fetched as `text/markdown`.
+   *
+   * The link is rendered only on a `ready` file, so a 404 here is not the ordinary case it is on
+   * the endpoint — it is the conversion having been undone underneath her, and it gets a
+   * sentence in the dialog rather than a band over the page.
+   */
+  private loadMarkdown(file: SourceFileInfo): void {
+    this.markdown.set('');
+    this.markdownError.set(null);
+    this.markdownLoading.set(true);
+    this.api.fileMarkdown(this.lessonId(), file.id).subscribe({
+      next: (text) => {
+        this.markdownLoading.set(false);
+        this.markdown.set(text);
+      },
+      error: () => {
+        this.markdownLoading.set(false);
+        this.markdownError.set(this.t('lessons.detail.files.convert.previewMissing'));
+      },
+    });
+  }
 
   private t(key: string, params?: Record<string, unknown>): string {
     return this.transloco.translate<string>(key, params);

@@ -521,7 +521,14 @@
             "malformed": "This file seems damaged. Try exporting it again.",
             "pictures": "The pages are pictures, not text. Try reading with OCR, or type the text.",
             "unavailable": "Reading is unavailable right now. Try again in a minute."
-          }
+          },
+          "checkNow": "This is the moment to check: open Preview text and see exactly what the AI will read.",
+          "preview": "Preview text",
+          "previewTitle": "What the AI will read — {{file}}",
+          "previewCaption": "This is the text itself, not the file.",
+          "previewUse": "Use this text",
+          "previewEmpty": "This file came out empty. Type the text instead.",
+          "previewMissing": "The text isn't ready yet. Wait for the file to finish, or type the text."
         }
       },
       "skills": {

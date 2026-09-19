@@ -187,7 +187,11 @@
             />
           </ng-container>
         </div>
-        <hq-lesson-sources [lessonId]="lessonId" [files]="files()" />
+        <hq-lesson-sources
+          [lessonId]="lessonId"
+          [files]="files()"
+          [checkNow]="convertDoneBeforeAnalyze()"
+        />
       </hq-card>
 
       @if (isNeedsReview()) {

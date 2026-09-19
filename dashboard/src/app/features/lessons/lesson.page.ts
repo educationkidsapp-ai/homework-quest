@@ -329,6 +329,24 @@ export class LessonPage {
     return readableServerText(raw) || this.t('lessons.detail.stepFailed');
   });
 
+  // ---- CR4: the moment to check what the model will read -------------------------------------
+
+  /**
+   * The window in which the preview is worth opening: the text exists and the model has not read
+   * it yet. `analyze` pending is the whole of it — once it is running, what it was given is
+   * settled, and inviting her to "check what the AI will read" would be an invitation to close
+   * the stable door.
+   */
+  protected readonly convertDoneBeforeAnalyze = computed(() => {
+    const steps = this.lesson()?.steps ?? [];
+    const convert = steps.find((step) => step.step === LessonStepInfoStepEnum.CONVERT);
+    const analyze = steps.find((step) => step.step === LessonStepInfoStepEnum.ANALYZE);
+    return (
+      convert?.status === LessonStepInfoStatusEnum.DONE &&
+      analyze?.status === LessonStepInfoStatusEnum.PENDING
+    );
+  });
+
   protected readonly isErrorStatus = computed(() => this.lesson()?.status === AdminLessonStatusEnum.ERROR);
   protected readonly isPublished = computed(() => this.lesson()?.status === AdminLessonStatusEnum.PUBLISHED);
   protected readonly canReplaceFile = computed(() => this.lesson()?.source !== AdminLessonSourceEnum.MANUAL);

@@ -214,6 +214,23 @@ export class LessonApiService {
     return this.isAdmin() ? this.admin.uploadImage(id, file) : this.teacher.teacherUploadImage(id, file);
   }
 
+  // ---- CR4: the Markdown the model will read ------------------------------------------------
+
+  /**
+   * What the model will be handed for this file, as `text/markdown`.
+   *
+   * 404 `markdown_missing` until the convert step has run — which is the case the preview link
+   * is not rendered in, since it appears only on a `ready` file. It is still a 404 the error
+   * interceptor must not turn into "not found" navigation, so this is `silentErrors()` and the
+   * caller puts its own sentence inside the dialog.
+   */
+  fileMarkdown(lessonId: string, fileId: string): Observable<string> {
+    const options = { context: silentErrors() };
+    return this.isAdmin()
+      ? this.admin.fileMarkdown(lessonId, fileId, 'body', false, options)
+      : this.teacher.teacherFileMarkdown(lessonId, fileId, 'body', false, options);
+  }
+
   // ---- plays and stops ----------------------------------------------------------------------
 
   createPlay(lessonId: string, body: string): Observable<AdminPlay> {
