@@ -1,29 +1,39 @@
 @if (loading() && !lesson()) {
   <hq-page [title]="'lessons.loading' | transloco">
-    <hq-skeleton [loading]="true" [lines]="8" height="var(--hq-size-row-height)" [label]="'lessons.loading' | transloco" />
+    <hq-skeleton
+      [loading]="true"
+      [lines]="8"
+      height="var(--hq-size-row-height)"
+      [label]="'lessons.loading' | transloco"
+    />
   </hq-page>
 } @else if (lesson(); as l) {
   <hq-page [title]="pageTitle()" [subtitle]="subtitleLine()" [breadcrumbs]="breadcrumbs()">
     <ng-container *hqCan="'lesson.delete'">
       @if (canDelete()) {
-      <div page-actions>
-        <button
-          type="button"
-          class="hq-iconbutton"
-          [cdkMenuTriggerFor]="overflowMenu"
-          [attr.aria-label]="'lessons.rowActions' | transloco: { title: pageTitle() }"
-        >
-          ⋮
-        </button>
-      </div>
-
-      <ng-template #overflowMenu>
-        <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
-          <button type="button" cdkMenuItem class="hq-menu__item hq-menu__item--danger" (cdkMenuItemTriggered)="requestDelete()">
-            {{ 'lessons.delete' | transloco }}
+        <div page-actions>
+          <button
+            type="button"
+            class="hq-iconbutton"
+            [cdkMenuTriggerFor]="overflowMenu"
+            [attr.aria-label]="'lessons.rowActions' | transloco: { title: pageTitle() }"
+          >
+            ⋮
           </button>
         </div>
-      </ng-template>
+
+        <ng-template #overflowMenu>
+          <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
+            <button
+              type="button"
+              cdkMenuItem
+              class="hq-menu__item hq-menu__item--danger"
+              (cdkMenuItemTriggered)="requestDelete()"
+            >
+              {{ 'lessons.delete' | transloco }}
+            </button>
+          </div>
+        </ng-template>
       }
     </ng-container>
 
@@ -49,13 +59,22 @@
         (undone)="undoUnpublish()"
         (expired)="undoExpired()"
       />
+      <!-- CR2's one success notice. There is nothing to undo — the new stop is selected and
+           editable right below — so it is a toast, and it is the only one on this page. -->
+      <hq-toast
+        [open]="stopAddedToast()"
+        [message]="'lessons.detail.addStop.added' | transloco"
+        (expired)="stopAddedToast.set(false)"
+      />
 
       @if (publishedCopies().length > 0) {
         <hq-band variant="notice" [open]="true" (dismissed)="dismissPublishedCopies()">
           <span>{{ 'lessons.detail.publishSheet.done' | transloco }}</span>
           <ul class="lesson__copies">
             @for (copy of publishedCopies(); track copy.id) {
-              <li><a [routerLink]="[basePath(), copy.id]">{{ copy.name }}</a></li>
+              <li>
+                <a [routerLink]="[basePath(), copy.id]">{{ copy.name }}</a>
+              </li>
             }
           </ul>
         </hq-band>
@@ -105,7 +124,12 @@
             {{ 'lessons.detail.retryStepOnly' | transloco }}
           </hq-button>
           @if (canReplaceFile()) {
-            <hq-button *hqCan="'lesson.write'" variant="quiet" [disabled]="busy() !== null" (pressed)="startReplace()">
+            <hq-button
+              *hqCan="'lesson.write'"
+              variant="quiet"
+              [disabled]="busy() !== null"
+              (pressed)="startReplace()"
+            >
               {{ 'lessons.detail.replaceFile' | transloco }}
             </hq-button>
           }
@@ -118,11 +142,21 @@
 
       @if (replacing()) {
         <hq-card [title]="'lessons.detail.replaceFile' | transloco">
-          <div class="hq-dropzone lesson__dropzone" (dragover)="onReplaceDragOver($event)" (drop)="onReplaceDrop($event)">
+          <div
+            class="hq-dropzone lesson__dropzone"
+            (dragover)="onReplaceDragOver($event)"
+            (drop)="onReplaceDrop($event)"
+          >
             <label for="lesson-replace-input" class="hq-linkbutton lesson__dropzone-choose">
               {{ 'lessons.new.dropzone.choose' | transloco }}
             </label>
-            <input id="lesson-replace-input" class="hq-sr-only" type="file" multiple (change)="onReplaceInput($event)" />
+            <input
+              id="lesson-replace-input"
+              class="hq-sr-only"
+              type="file"
+              multiple
+              (change)="onReplaceInput($event)"
+            />
             <hq-button variant="quiet" (pressed)="cancelReplace()">{{ 'ui.dismiss' | transloco }}</hq-button>
           </div>
         </hq-card>
@@ -131,7 +165,12 @@
       <hq-card [title]="'lessons.detail.files.title' | transloco">
         <div card-actions class="lesson__files-actions">
           @if (hasUndeletedFiles()) {
-            <hq-button *hqCan="'lesson.write'" variant="quiet" [disabled]="busy() !== null" (pressed)="deleteAllFiles()">
+            <hq-button
+              *hqCan="'lesson.write'"
+              variant="quiet"
+              [disabled]="busy() !== null"
+              (pressed)="deleteAllFiles()"
+            >
               {{ 'lessons.detail.files.deleteAll' | transloco }}
             </hq-button>
           }
@@ -139,7 +178,13 @@
             <label for="lesson-upload-more" class="hq-linkbutton lesson__upload-more">
               {{ 'lessons.detail.files.uploadMore' | transloco }}
             </label>
-            <input id="lesson-upload-more" class="hq-sr-only" type="file" multiple (change)="onUploadMoreInput($event)" />
+            <input
+              id="lesson-upload-more"
+              class="hq-sr-only"
+              type="file"
+              multiple
+              (change)="onUploadMoreInput($event)"
+            />
           </ng-container>
         </div>
         @if (files().length === 0) {
@@ -250,7 +295,9 @@
                     >
                       <span class="lesson__stop-pos">{{ i + 1 }}</span>
                       <span class="lesson__stop-title">{{ stop.title }}</span>
-                      <span class="lesson__stop-type">{{ 'lessons.detail.stopType.' + stop.type | transloco }}</span>
+                      <span class="lesson__stop-type">{{
+                        'lessons.detail.stopType.' + stop.type | transloco
+                      }}</span>
                     </button>
                     <button
                       *hqCan="'play.write'"
@@ -270,19 +317,14 @@
 
               <div class="lesson__stop-actions">
                 <ng-container *hqCan="'play.write'">
-                  <!-- `[attr.role]="null"` undoes CdkMenuTrigger's own `role="button"` on this
-                       host: it would nest a button inside `hq-button`'s real one, and the pair
-                       announce twice. The trigger's keyboard handling still works — the keydown
-                       bubbles up from the inner button — and `menu`/`expanded` put the popup
-                       announcement on the control that actually takes focus. -->
+                  <!-- CR2: one button, one form. It used to open a CDK menu of the twenty-two
+                       stop templates, which asked for the shape of a question before anybody
+                       had written one. -->
                   <hq-button
-                    #addStopTrigger="cdkMenuTriggerFor"
                     variant="secondary"
-                    [attr.role]="null"
-                    [menu]="true"
-                    [expanded]="addStopTrigger.isOpen()"
+                    data-hq-add-stop-trigger
                     [disabled]="busy() !== null"
-                    [cdkMenuTriggerFor]="addStopMenu"
+                    (pressed)="addStopOpen.set(true)"
                   >
                     {{ 'lessons.detail.editor.addStop' | transloco }}
                   </hq-button>
@@ -350,18 +392,17 @@
         </hq-card>
       }
 
-      <ng-template #addStopMenu>
-        <div cdkMenu class="hq-menu hq-menu--wide" [attr.aria-label]="'lessons.detail.editor.addStop' | transloco">
-          @for (group of templateGroups(); track group.id) {
-            <p class="hq-menu__group">{{ group.label }}</p>
-            @for (entry of group.entries; track entry.type) {
-              <button type="button" class="hq-menu__item" cdkMenuItem (cdkMenuItemTriggered)="addStop(entry.type)">
-                {{ entry.label }}
-              </button>
-            }
-          }
-        </div>
-      </ng-template>
+      @if (currentAdminPlay(); as addToPlay) {
+        <hq-add-stop
+          *hqCan="'play.write'"
+          [(open)]="addStopOpen"
+          [playId]="addToPlay.id"
+          [subject]="previewSubject()"
+          [images]="l.images"
+          (added)="onStopAdded($event)"
+          (imageAttached)="attachImage($event)"
+        />
+      }
 
       @if (l.parentPanel; as panel) {
         <hq-card [title]="'lessons.detail.panel.title' | transloco">
@@ -384,7 +425,12 @@
         </a>
       }
       @if (isPublished()) {
-        <hq-button *hqCan="'lesson.publish'" variant="secondary" [disabled]="busy() !== null" (pressed)="unpublish()">
+        <hq-button
+          *hqCan="'lesson.publish'"
+          variant="secondary"
+          [disabled]="busy() !== null"
+          (pressed)="unpublish()"
+        >
           {{ 'lessons.detail.unpublish' | transloco }}
         </hq-button>
       } @else {

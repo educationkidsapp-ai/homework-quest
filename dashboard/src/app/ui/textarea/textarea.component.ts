@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, ElementRef, afterRenderEffect, computed, input, model, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  afterRenderEffect,
+  computed,
+  input,
+  model,
+  output,
+  viewChild,
+} from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ShakeDirective } from '../motion';
 
@@ -42,9 +52,11 @@ let nextId = 0;
         [attr.dir]="dir()"
         [disabled]="disabled()"
         [required]="required()"
+        [attr.maxlength]="maxLength()"
         [attr.aria-invalid]="error() ? 'true' : null"
         [attr.aria-describedby]="describedBy()"
         (input)="onInput($event)"
+        (blur)="blurred.emit()"
       ></textarea>
       @if (hint(); as hintText) {
         <p class="field__hint" [id]="id + '-hint'">{{ hintText }}</p>
@@ -151,6 +163,11 @@ export class TextareaComponent {
   readonly autoGrow = input(false);
   /** `rtl` on the Arabic half of a bilingual pair; `null` follows the page. */
   readonly dir = input<'ltr' | 'rtl' | null>(null);
+  /** Maximum characters, enforced by the field as well as counted by the form. */
+  readonly maxLength = input<number | null>(null);
+
+  /** The field lost focus — what a form validates one field on, rather than on every keystroke. */
+  readonly blurred = output<void>();
 
   private readonly control = viewChild<ElementRef<HTMLTextAreaElement>>('control');
 

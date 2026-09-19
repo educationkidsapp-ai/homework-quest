@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, input, model } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
+import { ShakeDirective } from '../motion';
 
 let nextId = 0;
 
@@ -6,6 +8,12 @@ export interface SelectOption<T extends string = string> {
   readonly value: T;
   readonly label: string;
   readonly disabled?: boolean;
+}
+
+/** A headed run of options — an `<optgroup>`, for a list long enough to need signposts. */
+export interface SelectOptionGroup<T extends string = string> {
+  readonly label: string;
+  readonly options: readonly SelectOption<T>[];
 }
 
 /**
@@ -17,18 +25,28 @@ export interface SelectOption<T extends string = string> {
  */
 @Component({
   selector: 'hq-select',
+  imports: [TranslocoPipe, ShakeDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="field">
-      <label class="field__label" [attr.for]="id">{{ label() }}</label>
+    <div class="field" [hqShake]="error() ?? null">
+      <label class="field__label" [attr.for]="id">
+        {{ label() }}
+        @if (optionalMark()) {
+          <span class="field__optional">{{ 'ui.optional' | transloco }}</span>
+        }
+      </label>
       <div class="field__shell">
         <select
           class="field__control"
+          [class.is-invalid]="error() !== null && error() !== ''"
           [id]="id"
           [disabled]="disabled()"
+          [required]="required()"
           [attr.name]="name()"
-          [attr.aria-describedby]="hint() ? id + '-hint' : null"
+          [attr.aria-invalid]="error() ? 'true' : null"
+          [attr.aria-describedby]="describedBy()"
           (change)="onChange($event)"
+          (blur)="blurred.emit()"
         >
           @if (placeholder(); as placeholderText) {
             <!--
@@ -46,15 +64,35 @@ export interface SelectOption<T extends string = string> {
             <option value="" [selected]="value() === ''">{{ placeholderText }}</option>
           }
           @for (option of options(); track option.value) {
-            <option [value]="option.value" [selected]="option.value === value()" [disabled]="option.disabled ?? false">
+            <option
+              [value]="option.value"
+              [selected]="option.value === value()"
+              [disabled]="option.disabled ?? false"
+            >
               {{ option.label }}
             </option>
+          }
+          @for (group of groups(); track group.label) {
+            <optgroup [label]="group.label">
+              @for (option of group.options; track option.value) {
+                <option
+                  [value]="option.value"
+                  [selected]="option.value === value()"
+                  [disabled]="option.disabled ?? false"
+                >
+                  {{ option.label }}
+                </option>
+              }
+            </optgroup>
           }
         </select>
         <span class="field__chevron" aria-hidden="true"></span>
       </div>
       @if (hint(); as hintText) {
         <p class="field__hint" [id]="id + '-hint'">{{ hintText }}</p>
+      }
+      @if (error(); as errorText) {
+        <p class="field__error" [id]="id + '-error'" role="alert">{{ errorText }}</p>
       }
     </div>
   `,
@@ -78,6 +116,12 @@ export interface SelectOption<T extends string = string> {
       color: var(--hq-color-ink-strong);
     }
 
+    .field__optional {
+      font-weight: var(--hq-font-body-weight);
+      text-transform: none;
+      color: var(--hq-color-ink-soft);
+    }
+
     .field__shell {
       position: relative;
       display: block;
@@ -96,6 +140,13 @@ export interface SelectOption<T extends string = string> {
       &:disabled {
         color: var(--hq-color-disabled);
         background: var(--hq-color-surface-sunken);
+      }
+
+      // §5's error state is the ramp, not the accent — the same one hq-input wears.
+      &.is-invalid {
+        border-color: var(--hq-color-error-500);
+        background: var(--hq-color-error-soft);
+        color: var(--hq-color-error-ink);
       }
     }
 
@@ -116,18 +167,44 @@ export interface SelectOption<T extends string = string> {
       font-size: var(--hq-font-label-size);
       color: var(--hq-color-ink-soft);
     }
+
+    .field__error {
+      font-size: var(--hq-font-label-size);
+      font-weight: var(--hq-font-label-weight);
+      color: var(--hq-color-error-ink);
+    }
   `,
 })
 export class SelectComponent<T extends string = string> {
   protected readonly id = `hq-select-${nextId++}`;
 
   readonly label = input.required<string>();
-  readonly options = input.required<readonly SelectOption<T>[]>();
+  /** Flat options. A caller with signposted runs passes `groups` instead (or as well). */
+  readonly options = input<readonly SelectOption<T>[]>([]);
+  readonly groups = input<readonly SelectOptionGroup<T>[]>([]);
   readonly value = model<T | ''>('');
   readonly placeholder = input<string | null>(null);
   readonly hint = input<string | null>(null);
+  /** What is wrong with the choice, announced and shaken exactly as `hq-input`'s is. */
+  readonly error = input<string | null>(null);
   readonly name = input<string | null>(null);
   readonly disabled = input(false);
+  readonly required = input(false);
+  /**
+   * Opt-in, unlike `hq-input`'s: most selects on this dashboard predate `required` and would
+   * suddenly all read "(optional)". A form that marks its required fields asks for it.
+   */
+  readonly markOptional = input(false);
+
+  readonly blurred = output<void>();
+
+  protected readonly optionalMark = computed(() => this.markOptional() && !this.required());
+
+  protected readonly describedBy = computed(() => {
+    const ids = [this.hint() ? `${this.id}-hint` : null, this.error() ? `${this.id}-error` : null];
+    const joined = ids.filter(Boolean).join(' ');
+    return joined === '' ? null : joined;
+  });
 
   protected onChange(event: Event): void {
     this.value.set((event.target as HTMLSelectElement).value as T);

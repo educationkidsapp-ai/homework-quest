@@ -151,6 +151,25 @@ function choiceStop(id: string, title: string) {
   };
 }
 
+/** Zoneless: a signal written from an HTTP response renders on a later microtask than the flush. */
+async function settle(): Promise<void> {
+  await Promise.resolve();
+  TestBed.tick();
+}
+
+/**
+ * CR2's form: the three required fields, by the labels a teacher reads.
+ *
+ * Scoped to the form rather than the page, because the stop editor behind it has a "Title" of
+ * its own. A browser makes the page inert while a modal is up; jsdom does not.
+ */
+async function fillAddStopForm(title: string, question: string, type: string): Promise<void> {
+  const form = within(document.querySelector<HTMLElement>('[data-hq-add-stop]')!);
+  await userEvent.type(form.getByLabelText(/^Title/), title);
+  await userEvent.type(form.getByLabelText(/^Question \/ what the child does/), question);
+  await userEvent.selectOptions(form.getByLabelText(/^Type/), type);
+}
+
 function lessonWithStops(extra: object = {}) {
   return {
     ...BASE_LESSON,
@@ -183,8 +202,7 @@ describe('Lesson', () => {
     sessionStorage.clear();
   });
 
-
-  it('renders the pipeline steps with their state, and the failed step\'s message in a band', async () => {
+  it("renders the pipeline steps with their state, and the failed step's message in a band", async () => {
     await renderLesson({
       ...BASE_LESSON,
       status: 'error',
@@ -193,7 +211,13 @@ describe('Lesson', () => {
         { step: 'upload', status: 'done', attempt: 1, updatedAt: 0 },
         { step: 'analyze', status: 'done', attempt: 1, updatedAt: 0 },
         { step: 'generate_L1', status: 'running', attempt: 1, updatedAt: 0 },
-        { step: 'generate_L2', status: 'error', attempt: 1, errorMessage: 'The model timed out.', updatedAt: 0 },
+        {
+          step: 'generate_L2',
+          status: 'error',
+          attempt: 1,
+          errorMessage: 'The model timed out.',
+          updatedAt: 0,
+        },
       ],
     });
 
@@ -261,8 +285,12 @@ describe('Lesson', () => {
     // next request the moment the previous one flushes; the final `reload()` that re-fetches
     // the lesson is the resource's own async scheduling, so it needs a tick of its own.
     backend.expectOne((req) => req.url === '/admin/lessons/l-1/files' && req.method === 'DELETE').flush(null);
-    backend.expectOne((req) => req.url === '/admin/lessons/l-1/files' && req.method === 'POST').flush({ jobId: 'j-1', status: 'uploading' });
-    backend.expectOne((req) => req.url === '/admin/lessons/l-1/analyze' && req.method === 'POST').flush({ jobId: 'j-1', status: 'analyzing' });
+    backend
+      .expectOne((req) => req.url === '/admin/lessons/l-1/files' && req.method === 'POST')
+      .flush({ jobId: 'j-1', status: 'uploading' });
+    backend
+      .expectOne((req) => req.url === '/admin/lessons/l-1/analyze' && req.method === 'POST')
+      .flush({ jobId: 'j-1', status: 'analyzing' });
     TestBed.tick();
     await new Promise((resolve) => setTimeout(resolve, 0));
     backend.expectOne('/admin/lessons/l-1').flush({ ...BASE_LESSON, status: 'analyzing' });
@@ -274,7 +302,17 @@ describe('Lesson', () => {
     const { backend } = await renderLesson({
       ...BASE_LESSON,
       status: 'needs_review',
-      skills: [{ id: 's-1', name: 'Counting to ten', subject: 'math', method: 'concrete', confidence: 0.9, examples: [], slideNumbers: [] }],
+      skills: [
+        {
+          id: 's-1',
+          name: 'Counting to ten',
+          subject: 'math',
+          method: 'concrete',
+          confidence: 0.9,
+          examples: [],
+          slideNumbers: [],
+        },
+      ],
     });
 
     await screen.findByDisplayValue('Counting to ten');
@@ -285,7 +323,9 @@ describe('Lesson', () => {
     fireEvent.click(screen.getByLabelText('Keep'));
     await userEvent.click(screen.getByRole('button', { name: 'Make the quest' }));
 
-    const request = backend.expectOne((req) => req.url === '/admin/lessons/l-1/skills' && req.method === 'POST');
+    const request = backend.expectOne(
+      (req) => req.url === '/admin/lessons/l-1/skills' && req.method === 'POST',
+    );
     expect(JSON.parse(request.request.body as string)).toEqual([
       { id: 's-1', name: 'Counting to ten', subject: 'math', method: 'concrete' },
     ]);
@@ -340,7 +380,10 @@ describe('Lesson', () => {
 
     const request = backend.expectOne('/admin/stops/st-1');
     expect(request.request.method).toBe('PUT');
-    expect(JSON.parse(request.request.body as string)).toMatchObject({ id: 'st-1', title: 'Pick the biggest' });
+    expect(JSON.parse(request.request.body as string)).toMatchObject({
+      id: 'st-1',
+      title: 'Pick the biggest',
+    });
   });
 
   /** Only the declared type's branch is reported, and Save stays off until it passes. */
@@ -349,7 +392,10 @@ describe('Lesson', () => {
     openRawJson();
 
     const json = screen.getByLabelText(/The whole stop/);
-    const { question, ...withoutQuestion } = JSON.parse((json as HTMLTextAreaElement).value) as Record<string, unknown>;
+    const { question, ...withoutQuestion } = JSON.parse((json as HTMLTextAreaElement).value) as Record<
+      string,
+      unknown
+    >;
     expect(question).toBeDefined();
     await userEvent.clear(json);
     await userEvent.paste(JSON.stringify(withoutQuestion, null, 2));
@@ -384,10 +430,11 @@ describe('Lesson', () => {
     // description's `Options:` run has become a real list.
     const rendering = document.querySelector('[data-hq-stop-prose]')!;
     expect(rendering.textContent).toContain('Pip says: Which one is right?');
-    expect(within(rendering as HTMLElement).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'First (correct)',
-      'Second',
-    ]);
+    expect(
+      within(rendering as HTMLElement)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['First (correct)', 'Second']);
 
     // Teacher view, which is everybody's default: no JSON on the page at all.
     expect(screen.queryByLabelText(/The whole stop/)).toBeNull();
@@ -465,7 +512,10 @@ describe('Lesson', () => {
     backend
       .expectOne('/admin/stops/st-1/from-text')
       .flush(
-        { code: 'rephrase', message: "Couldn't save, please rephrase. #/options: minItems 2; #/hint: required" },
+        {
+          code: 'rephrase',
+          message: "Couldn't save, please rephrase. #/options: minItems 2; #/hint: required",
+        },
         { status: 422, statusText: 'Unprocessable Entity' },
       );
     await Promise.resolve();
@@ -479,16 +529,38 @@ describe('Lesson', () => {
     expect(screen.getByText('#/hint: required')).toBeInTheDocument();
   });
 
-  it('adds a stop from the grouped template menu', async () => {
+  /** CR2: "+ Add stop" opens the form, and the form is the only way to add one. */
+  it('adds a stop from the form, and offers no template menu', async () => {
     const { backend } = await renderLesson(lessonWithStops());
 
     await userEvent.click(screen.getByRole('button', { name: '+ Add stop' }));
-    expect(screen.getByText('Several answers')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Match pairs' }));
+    expect(screen.queryByRole('menuitem', { name: 'Match pairs' })).not.toBeInTheDocument();
 
-    const request = backend.expectOne('/admin/plays/p-1/stops');
-    expect(request.request.method).toBe('POST');
-    expect(JSON.parse(request.request.body as string) as { type: string }).toMatchObject({ type: 'match' });
+    await fillAddStopForm('Match the pairs', 'Join each word to its picture.', 'match');
+    await userEvent.click(screen.getByRole('button', { name: /Save the question$/ }));
+
+    const created = backend.expectOne('/admin/plays/p-1/stops');
+    expect(created.request.method).toBe('POST');
+    expect(JSON.parse(created.request.body as string) as { type: string; title: string }).toMatchObject({
+      type: 'match',
+      title: 'Match the pairs',
+    });
+    created.flush({ id: 'st-9', type: 'match', title: 'Match the pairs' });
+    await settle();
+
+    backend
+      .expectOne('/admin/stops/st-9/from-text')
+      .flush({ id: 'st-9', type: 'match', title: 'Match the pairs' });
+    await settle();
+
+    // The one toast this page has: a success with nothing to undo, announced politely.
+    expect(screen.getByText('Question added').getAttribute('role')).toBe('status');
+    // The lesson is re-read and the new stop is the selected one.
+    const reloaded = lessonWithStops();
+    reloaded.plays[0]!.play.stops.push(choiceStop('st-9', 'Match the pairs'));
+    backend.expectOne('/admin/lessons/l-1').flush(reloaded);
+    await settle();
+    expect(screen.getByRole('option', { name: /Match the pairs/ })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('deletes a stop only behind the red confirm band, and offers no Undo', async () => {
@@ -518,11 +590,17 @@ describe('Lesson', () => {
 
   it('skips the step strip for a manual lesson and offers "Generate the other levels" instead', async () => {
     const { backend } = await renderLesson(
-      lessonWithStops({ source: 'manual', steps: [{ step: 'upload', status: 'done', attempt: 1, updatedAt: 0 }] }),
+      lessonWithStops({
+        source: 'manual',
+        steps: [{ step: 'upload', status: 'done', attempt: 1, updatedAt: 0 }],
+      }),
     );
 
     expect(screen.queryByRole('list', { name: /pipeline/i })).not.toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText(/What this lesson is about/), 'Adding to ten with number bonds.');
+    await userEvent.type(
+      screen.getByLabelText(/What this lesson is about/),
+      'Adding to ten with number bonds.',
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Generate the levels' }));
 
     const request = backend.expectOne('/admin/lessons/l-1/generate-from-text');
@@ -533,7 +611,8 @@ describe('Lesson', () => {
     const { backend } = await renderLessonAs(lessonWithStops(), TEACHER_USER, TEACHER_PERMISSIONS);
 
     await userEvent.click(screen.getByRole('button', { name: '+ Add stop' }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'True or false' }));
+    await fillAddStopForm('Is it true?', 'Say whether ten is bigger than five.', 'trueFalse');
+    await userEvent.click(screen.getByRole('button', { name: 'Save the question' }));
 
     backend.expectOne('/teacher/plays/p-1/stops');
     backend.expectNone('/admin/plays/p-1/stops');
@@ -558,7 +637,20 @@ describe('Lesson', () => {
             level: 1,
             variant: 0,
             theme: { potName: 'Soup', dishName: 'Stew', potEmoji: '🍲', servedText: 'Served!' },
-            stops: [{ id: 'st-1', type: 'choice', title: 'A stop', speak: '', ingredient: { emoji: '🥕', name: 'c' }, parentTip: { en: '', ar: '' }, hint: '', question: '', options: [], correctOptionId: '' }],
+            stops: [
+              {
+                id: 'st-1',
+                type: 'choice',
+                title: 'A stop',
+                speak: '',
+                ingredient: { emoji: '🥕', name: 'c' },
+                parentTip: { en: '', ar: '' },
+                hint: '',
+                question: '',
+                options: [],
+                correctOptionId: '',
+              },
+            ],
           },
         },
       ],
@@ -598,9 +690,9 @@ describe('Lesson', () => {
     expect(await screen.findByText(/Published/)).toBeInTheDocument();
   });
 
-  it('shows the wizard\'s notice band from the `?notice=` query key', async () => {
+  it("shows the wizard's notice band from the `?notice=` query key", async () => {
     await renderLesson({ ...BASE_LESSON, status: 'draft' }, 'lessons.new.createdManual');
-    expect(screen.getByText("Lesson created — write its questions below.")).toBeInTheDocument();
+    expect(screen.getByText('Lesson created — write its questions below.')).toBeInTheDocument();
   });
 
   it('deletes the lesson from the overflow menu behind a confirm band', async () => {
@@ -694,10 +786,7 @@ describe('Lesson', () => {
     );
 
     // One link per copy, named after its class: the point of the fan-out is the other class.
-    expect(await screen.findByRole('link', { name: '1B' })).toHaveAttribute(
-      'href',
-      '/teacher/lessons/l-9',
-    );
+    expect(await screen.findByRole('link', { name: '1B' })).toHaveAttribute('href', '/teacher/lessons/l-9');
     expect(screen.getByRole('link', { name: '1A' })).toHaveAttribute('href', '/teacher/lessons/l-1');
   });
 

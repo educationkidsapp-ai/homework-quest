@@ -205,6 +205,8 @@
 $drawer-breakpoint: 1024px;
 /// Below this a header row cannot hold a name beside its controls.
 $compact-breakpoint: 640px;
+/// Below this a floating dialog has no page left around it, so a form dialog becomes a sheet.
+$sheet-breakpoint: 768px;
 
 /// `max-width` one hundredth of a pixel below the breakpoint, so `below()` and a `min-width`
 /// query at the same number never both match on a fractional viewport.

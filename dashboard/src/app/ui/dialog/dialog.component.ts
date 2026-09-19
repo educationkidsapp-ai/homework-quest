@@ -28,11 +28,24 @@ import { ButtonComponent } from '../button/button.component';
   imports: [ButtonComponent, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <dialog #dialog class="dialog" [attr.aria-label]="title()" (close)="onClose()">
-      <form method="dialog" class="dialog__form" (submit)="onSubmit($event)">
+    <dialog
+      #dialog
+      class="dialog"
+      [class.dialog--sheet]="sheet()"
+      [attr.aria-label]="title()"
+      (cancel)="onCancel($event)"
+      (close)="onClose()"
+    >
+      <!--
+        novalidate: this system says what is wrong under the field, in its own words and its own
+        language, and a native validation bubble would both duplicate that and, worse, silently
+        swallow the submit event a form with an empty required field never fires. The primary
+        action's own guard (confirmDisabled) and the host's validation are what refuse a save.
+      -->
+      <form method="dialog" class="dialog__form" novalidate (submit)="onSubmit($event)">
         <header class="dialog__header">
           <h2 class="dialog__title">{{ title() }}</h2>
-          <hq-button variant="quiet" (pressed)="open.set(false)">{{ 'ui.close' | transloco }}</hq-button>
+          <hq-button variant="quiet" (pressed)="requestClose()">{{ 'ui.close' | transloco }}</hq-button>
         </header>
 
         <div class="dialog__body">
@@ -40,7 +53,9 @@ import { ButtonComponent } from '../button/button.component';
         </div>
 
         <footer class="dialog__footer">
-          <hq-button variant="quiet" (pressed)="open.set(false)">{{ 'ui.cancel' | transloco }}</hq-button>
+          <hq-button variant="quiet" (pressed)="requestClose()">{{
+            cancelLabel() ?? ('ui.cancel' | transloco)
+          }}</hq-button>
           <hq-button
             variant="primary"
             type="submit"
@@ -59,6 +74,7 @@ import { ButtonComponent } from '../button/button.component';
 
     .dialog {
       inline-size: min(var(--hq-size-content-max-width), 90vw);
+      max-inline-size: 100%;
       padding: 0;
       border-radius: var(--hq-radius-card);
       // A floating panel: it sits on the CDK overlay with nothing opaque behind it, so it
@@ -70,6 +86,31 @@ import { ButtonComponent } from '../button/button.component';
 
       &::backdrop {
         background: var(--hq-color-overlay);
+      }
+    }
+
+    // A phone has no room for a floating panel with a page behind it: the same dialog becomes a
+    // full-screen sheet, so the form gets the whole viewport and the body scrolls rather than
+    // the 60vh well a 12-inch screen can afford. the :modal guard keeps it off the non-modal fallback,
+    // which is not on top of anything and must not cover the page.
+    @include m.below(m.$sheet-breakpoint) {
+      .dialog--sheet:modal {
+        inline-size: 100vw;
+        max-inline-size: 100vw;
+        block-size: 100dvh;
+        max-block-size: 100dvh;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+
+        .dialog__form {
+          block-size: 100%;
+        }
+
+        .dialog__body {
+          flex: 1;
+          max-block-size: none;
+        }
       }
     }
 
@@ -115,12 +156,24 @@ export class DialogComponent {
   readonly open = model(false);
   readonly title = input.required<string>();
   readonly confirmLabel = input.required<string>();
+  /** The dismissing action's words when "Cancel" is not what it does. */
+  readonly cancelLabel = input<string | null>(null);
   readonly confirmDisabled = input(false);
+  /** Under 768 px this becomes a full-screen sheet rather than a floating panel. */
+  readonly sheet = input(false);
+  /**
+   * When set, nothing closes this dialog by itself — Esc, the backdrop, Close and Cancel all
+   * emit `closeRequested` and the host decides. That is how a form with unsaved words gets to
+   * ask before it throws them away; without it the platform's Esc is unconditional.
+   */
+  readonly guarded = input(false);
   /** Why the primary action is disabled, shown on it rather than left to be guessed. */
   readonly confirmReason = input<string | null>(null);
   readonly loading = input(false);
 
   readonly confirmed = output<void>();
+  /** Only while `guarded`: somebody asked to close this, and the host has to answer. */
+  readonly closeRequested = output<void>();
 
   /**
    * Whatever had focus when this opened.
@@ -155,6 +208,22 @@ export class DialogComponent {
     event.preventDefault();
     if (this.confirmDisabled() || this.loading()) return;
     this.confirmed.emit();
+  }
+
+  /** The Close and Cancel buttons: shut, or hand the decision to the host. */
+  protected requestClose(): void {
+    if (this.guarded()) this.closeRequested.emit();
+    else this.open.set(false);
+  }
+
+  /**
+   * Esc (and a light-dismiss backdrop) fire `cancel` before `close`, so this is the one place a
+   * guard can stop the platform closing a form somebody is still writing in.
+   */
+  protected onCancel(event: Event): void {
+    if (!this.guarded()) return;
+    event.preventDefault();
+    this.closeRequested.emit();
   }
 
   /** Esc and the backdrop close the element itself; the signal has to hear about it. */
