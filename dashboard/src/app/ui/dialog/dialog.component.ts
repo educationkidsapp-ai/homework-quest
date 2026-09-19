@@ -60,10 +60,11 @@ import { ButtonComponent } from '../button/button.component';
     .dialog {
       inline-size: min(var(--hq-size-content-max-width), 90vw);
       padding: 0;
+      border-radius: var(--hq-radius-card);
       // A floating panel: it sits on the CDK overlay with nothing opaque behind it, so it
       // takes the raised surface rather than the card one (§5 gives both, and they differ).
       background: var(--hq-color-surface-raised);
-      border: var(--hq-size-rule) solid var(--hq-color-line);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
       color: var(--hq-color-ink);
       box-shadow: var(--hq-shadow-dialog);
 
@@ -82,12 +83,12 @@ import { ButtonComponent } from '../button/button.component';
       align-items: center;
       justify-content: space-between;
       gap: var(--hq-space-16);
-      padding: var(--hq-space-16) var(--hq-space-24);
-      border-block-end: var(--hq-size-rule) solid var(--hq-color-line);
+      padding: var(--hq-space-card-header);
+      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
     }
 
     .dialog__title {
-      @include m.title;
+      @include m.card-title;
     }
 
     .dialog__body {
@@ -103,8 +104,8 @@ import { ButtonComponent } from '../button/button.component';
       display: flex;
       justify-content: flex-end;
       gap: var(--hq-space-12);
-      padding: var(--hq-space-16) var(--hq-space-24);
-      border-block-start: var(--hq-size-rule) solid var(--hq-color-line);
+      padding: var(--hq-space-card-header);
+      border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-rule);
     }
   `,
 })

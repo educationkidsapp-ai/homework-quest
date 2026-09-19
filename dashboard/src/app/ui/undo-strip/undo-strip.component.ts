@@ -47,9 +47,15 @@ const TICK_MS = 100;
       align-items: center;
       justify-content: space-between;
       gap: var(--hq-space-16);
+      overflow: hidden;
       padding: var(--hq-space-8) var(--hq-space-16);
-      background: var(--hq-color-ink);
-      color: var(--hq-color-on-ink);
+      // A strip that floats over the page, so it takes the raised surface and the 'lg'
+      // elevation rather than the card's flat rule (§1 Elevation, §5).
+      background: var(--hq-color-surface-raised);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      border-radius: var(--hq-radius-card);
+      box-shadow: var(--hq-shadow-lg);
+      color: var(--hq-color-ink);
       z-index: var(--hq-z-undo);
     }
 
@@ -57,13 +63,13 @@ const TICK_MS = 100;
       position: absolute;
       inset-block-end: 0;
       inset-inline-start: 0;
-      block-size: var(--hq-size-progress-bar);
+      block-size: var(--hq-size-rule);
       background: var(--hq-color-accent);
       @include m.motion-safe('inline-size');
     }
 
     .undo__message {
-      font-size: var(--hq-font-body-size);
+      font-size: var(--hq-text-theme-sm);
     }
   `,
 })

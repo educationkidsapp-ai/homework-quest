@@ -5,7 +5,8 @@ let nextId = 0;
 /**
  * An on/off switch — used for feature flags, so it has to read as on or off at a glance.
  *
- * No sliding pill: the square glyph fills, scaling from 0.6 to 1 over 150 ms.
+ * §1 says badges are the only pills; a switch is the exception the shape itself makes, so this
+ * is a 36 × 20 pill whose knob slides 150 ms and whose track fills with the brand when on.
  * `role="switch"` on a real button keeps Space/Enter and the announced state native.
  */
 @Component({
@@ -58,31 +59,49 @@ let nextId = 0;
     }
 
     .toggle__box {
+      position: relative;
       flex: none;
-      display: grid;
-      place-items: center;
-      inline-size: var(--hq-space-32);
-      block-size: var(--hq-space-24);
-      border: var(--hq-size-rule) solid var(--hq-color-line);
-      background: var(--hq-color-surface);
+      inline-size: var(--hq-size-switch);
+      block-size: var(--hq-size-icon-control);
+      padding: 2px;
+      border: var(--hq-size-rule-thin) solid var(--hq-color-control-rule);
+      border-radius: var(--hq-radius-pill);
+      background: var(--hq-color-surface-sunken);
+      @include m.motion-safe('background-color, border-color, box-shadow');
     }
 
     .toggle__glyph {
-      inline-size: var(--hq-space-16);
+      display: block;
+      inline-size: var(--hq-space-12);
       block-size: var(--hq-space-12);
+      border-radius: var(--hq-radius-pill);
+      background: var(--hq-color-ink-muted);
+      @include m.motion-safe('transform, background-color');
+    }
+
+    .toggle__control[aria-checked='true'] .toggle__box {
       background: var(--hq-color-accent);
-      opacity: 0;
-      transform: scale(0.6);
-      @include m.motion-safe('transform, opacity');
+      border-color: var(--hq-color-accent);
     }
 
     .toggle__control[aria-checked='true'] .toggle__glyph {
-      opacity: 1;
-      transform: scale(1);
+      background: var(--hq-color-on-accent);
+      transform: translateX(var(--hq-size-switch-travel));
+    }
+
+    // RTL: the knob travels the other way, and 'translateX' does not flip itself.
+    :host-context([dir='rtl']) .toggle__control[aria-checked='true'] .toggle__glyph {
+      transform: translateX(calc(var(--hq-size-switch-travel) * -1));
+    }
+
+    .toggle__control:focus-visible .toggle__box {
+      border-color: var(--hq-color-focus-border);
+      box-shadow: var(--hq-focus-ring);
     }
 
     .toggle__control:disabled .toggle__box {
       border-color: var(--hq-color-rule);
+      background: var(--hq-color-surface-sunken);
     }
 
     .toggle__control:disabled .toggle__glyph {
@@ -90,7 +109,7 @@ let nextId = 0;
     }
 
     .toggle__hint {
-      margin-inline-start: calc(var(--hq-space-32) + var(--hq-space-12));
+      margin-inline-start: calc(var(--hq-size-switch) + var(--hq-space-12));
       font-size: var(--hq-font-label-size);
       color: var(--hq-color-ink-soft);
     }

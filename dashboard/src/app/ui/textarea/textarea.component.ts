@@ -19,7 +19,7 @@ let nextId = 0;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="field" [hqShake]="error() ?? null">
-      <label class="field__label hq-label" [attr.for]="id">
+      <label class="field__label" [attr.for]="id">
         {{ label() }}
         @if (!required()) {
           <span class="field__optional">{{ 'ui.optional' | transloco }}</span>
@@ -64,11 +64,13 @@ let nextId = 0;
     }
 
     .field__label {
-      @include m.label;
+      font-size: var(--hq-text-theme-sm);
+      line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
+      font-weight: var(--hq-text-weight-medium);
       display: flex;
       align-items: baseline;
       gap: var(--hq-space-8);
-      color: var(--hq-color-ink);
+      color: var(--hq-color-ink-strong);
     }
 
     .field__optional {
@@ -78,34 +80,33 @@ let nextId = 0;
     }
 
     .field__control {
+      @include m.control;
+      display: block;
       inline-size: 100%;
-      padding: var(--hq-space-8) var(--hq-space-12);
       font-family: inherit;
-      font-size: var(--hq-font-input-size);
-      line-height: var(--hq-font-body-line);
       background: var(--hq-color-surface);
-      border: var(--hq-size-rule) solid var(--hq-color-line);
       resize: vertical;
-      @include m.motion-safe('border-color, background-color');
+      @include m.motion-safe('border-color, background-color, box-shadow');
       @include m.focus-ring;
 
       &--mono {
         font-family: var(--hq-font-family-mono);
-        font-size: var(--hq-font-label-size);
+        font-size: var(--hq-text-theme-xs);
       }
 
       &::placeholder {
-        color: var(--hq-color-disabled);
+        color: var(--hq-color-ink-muted);
       }
 
       &:disabled {
         color: var(--hq-color-disabled);
-        border-color: var(--hq-color-rule);
+        background: var(--hq-color-surface-sunken);
       }
 
       &.is-invalid {
-        border-color: var(--hq-color-accent);
-        background: var(--hq-color-accent-soft);
+        border-color: var(--hq-color-error-500);
+        background: var(--hq-color-error-soft);
+        color: var(--hq-color-error-ink);
       }
     }
 
@@ -117,7 +118,7 @@ let nextId = 0;
     .field__error {
       font-size: var(--hq-font-label-size);
       font-weight: var(--hq-font-label-weight);
-      color: var(--hq-color-accent-strong);
+      color: var(--hq-color-error-ink);
       white-space: pre-line;
     }
   `,

@@ -207,15 +207,120 @@ a {
   border: 0;
 }
 
-// A small boxed note beside a title — "Analyzed before · 0 tokens" on the lesson header and on
-// the list's rows. Global rather than per-screen because it is the same badge in both places and
-// `lesson.page.scss` is already at its 10 kB budget; anything that appears twice belongs here.
+// §3's badge / status pill, global rather than a kit component for the same reason `.hq-menu`
+// is: it is drawn *inside* a caller's own cell template, where a component's encapsulation
+// would not reach, and it is six declarations that four screens already share.
+//
+// The two colours are custom properties so a variant is one line rather than a block, and so a
+// caller can tint one badge without a modifier nobody else will ever use. Colour never carries
+// the meaning on its own — every use pairs the pill with a word.
 .hq-badge {
-  padding: var(--hq-space-4) var(--hq-space-8);
-  border: var(--hq-size-rule) solid var(--hq-color-line);
-  background: var(--hq-color-accent-soft);
-  font-size: var(--hq-font-label-size);
+  --hq-badge-bg: var(--hq-color-neutral-soft);
+  --hq-badge-fg: var(--hq-color-neutral-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hq-space-badge-gap);
+  padding: var(--hq-space-badge);
+  border-radius: var(--hq-radius-pill);
+  font-size: var(--hq-text-theme-xs);
+  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+  font-weight: var(--hq-text-weight-medium);
   white-space: nowrap;
+  background: var(--hq-badge-bg);
+  color: var(--hq-badge-fg);
+}
+
+.hq-badge--primary {
+  --hq-badge-bg: var(--hq-color-accent-soft);
+  --hq-badge-fg: var(--hq-color-accent-on-soft);
+}
+
+.hq-badge--success {
+  --hq-badge-bg: var(--hq-color-success-soft);
+  --hq-badge-fg: var(--hq-color-success-ink);
+}
+
+.hq-badge--error {
+  --hq-badge-bg: var(--hq-color-error-soft);
+  --hq-badge-fg: var(--hq-color-error-ink);
+}
+
+.hq-badge--warning {
+  --hq-badge-bg: var(--hq-color-warning-soft);
+  --hq-badge-fg: var(--hq-color-warning-ink);
+}
+
+// The solid half of §3's table: the ramp's own 500 with white on it, for a pill that is the
+// only thing in its cell and has to hold its own against a row of text.
+.hq-badge--solid {
+  --hq-badge-bg: var(--hq-color-ink-muted);
+  --hq-badge-fg: var(--hq-color-on-accent);
+
+  &.hq-badge--primary {
+    --hq-badge-bg: var(--hq-color-accent);
+  }
+
+  &.hq-badge--success {
+    --hq-badge-bg: var(--hq-color-success-500);
+  }
+
+  &.hq-badge--error {
+    --hq-badge-bg: var(--hq-color-error-500);
+  }
+
+  &.hq-badge--warning {
+    --hq-badge-bg: var(--hq-color-warning-500);
+  }
+}
+
+// §1 Input "Keycap": the `/` hint beside a search field, every key in the shortcut sheet.
+.hq-keycap {
+  display: inline-block;
+  padding: var(--hq-space-keycap);
+  font-family: inherit;
+  font-size: var(--hq-text-theme-xs);
+  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+  letter-spacing: -0.2px;
+  color: var(--hq-color-ink-soft);
+  background: var(--hq-color-surface-sunken);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-control);
+}
+
+// §3 Data table, "leading cell pattern": a 40 px tinted tile beside a 14/500 title over a
+// 12 px secondary sub-line. Global for the same reason the badge is — `hq-table`'s cells come
+// from the caller's own template.
+.hq-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-12);
+  min-inline-size: 0;
+}
+
+.hq-cell__tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--hq-size-cell-tile);
+  block-size: var(--hq-size-cell-tile);
+  border-radius: var(--hq-radius-control);
+  background: var(--hq-color-accent-soft);
+  color: var(--hq-color-accent-on-soft);
+  font-weight: var(--hq-text-weight-semibold);
+}
+
+.hq-cell__title {
+  font-weight: var(--hq-text-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hq-cell__sub {
+  display: block;
+  font-size: var(--hq-text-theme-xs);
+  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+  color: var(--hq-color-ink-soft);
 }
 
 // `hq-button`'s secondary box on an `<a>`. A control that navigates has to be a link — so that
@@ -224,13 +329,37 @@ a {
 .hq-linkbutton {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  gap: var(--hq-space-8);
   min-block-size: var(--hq-size-button-height);
-  padding-inline: var(--hq-space-16);
-  border: var(--hq-size-rule) solid var(--hq-color-ink);
+  padding: var(--hq-space-button);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-control-rule);
+  border-radius: var(--hq-radius-control);
   background: var(--hq-color-surface);
-  color: var(--hq-color-ink);
-  font-weight: var(--hq-font-label-weight);
+  box-shadow: var(--hq-shadow-xs);
+  color: var(--hq-color-ink-strong);
+  font-size: var(--hq-text-theme-sm);
+  font-weight: var(--hq-text-weight-medium);
   text-decoration: none;
+
+  &:hover {
+    background: var(--hq-color-surface-sunken);
+    color: var(--hq-color-ink);
+  }
+}
+
+// The same box filled with the brand: the one primary action on a screen where that action
+// navigates rather than submits (the class page's "New lesson", the class gallery's card).
+.hq-linkbutton--primary {
+  background: var(--hq-color-accent);
+  border-color: var(--hq-color-accent);
+  color: var(--hq-color-on-accent);
+
+  &:hover {
+    background: var(--hq-color-accent-strong);
+    border-color: var(--hq-color-accent-strong);
+    color: var(--hq-color-on-accent);
+  }
 }
 
 // A group of checkboxes with a caption: the semantics a screen reader wants, without the
@@ -326,7 +455,7 @@ a {
     color var(--hq-motion-fast) var(--hq-motion-ease);
 
   &:hover {
-    background: var(--hq-color-gray-50);
+    background: var(--hq-color-surface-sunken);
     color: var(--hq-color-ink);
   }
 
@@ -348,12 +477,6 @@ a {
 .hq-menu__hint {
   font-size: var(--hq-text-theme-xs);
   color: var(--hq-color-ink-soft);
-}
-
-// `gray-50` is a light-mode tint; in dark mode the row hover is §5's translucent one. The
-// label needs no override — `--hq-color-ink-strong` already moves with the scheme.
-html.dark .hq-menu__item:hover {
-  background: var(--hq-color-hover);
 }
 
 @media (prefers-reduced-motion: reduce) {

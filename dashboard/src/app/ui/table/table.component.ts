@@ -13,8 +13,12 @@ export interface TableColumn<Row> {
 }
 
 /**
- * The data table: 56 px rows, a sticky header, one optional overflow menu per row,
- * and an empty state that replaces the body rather than leaving a blank grid.
+ * §3's data table: a `--hq-color-surface-sunken` header row of 12/18/500 labels, 14 px cells,
+ * inner-divider row rules, a `gray-50` hover, one optional overflow menu per row and an empty
+ * state that replaces the body rather than leaving a blank grid.
+ *
+ * The scroll wrapper is `overflow-x: auto`, so a wide table scrolls *inside* the card it sits
+ * in and never gives the page a horizontal scrollbar.
  *
  * Cells come from a single template the caller provides (`cellTemplate`), switching on
  * `column.key` — that keeps the table generic without a column-component-per-type API.
@@ -47,7 +51,7 @@ export interface TableColumn<Row> {
         @if (rows().length > 0) {
           <tbody hqListStagger>
             @for (row of rows(); track trackBy()(row)) {
-              <tr class="table__row">
+              <tr class="table__row" [class.is-selected]="isSelected()(row)">
                 @for (column of columns(); track column.key) {
                   <td [style.text-align]="column.align ?? 'start'">
                     <ng-container
@@ -75,55 +79,74 @@ export interface TableColumn<Row> {
     }
   `,
   styles: `
+    @use 'mixins' as m;
+
     :host {
       display: block;
     }
 
     .table__scroll {
-      overflow: auto;
+      max-inline-size: 100%;
+      overflow-x: auto;
+      overflow-y: auto;
       max-block-size: 100%;
     }
 
     .table {
       inline-size: 100%;
       border-collapse: collapse;
-      font-size: var(--hq-font-body-size);
+      font-size: var(--hq-text-theme-sm);
+      line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
     }
 
     .table__head {
       position: sticky;
       inset-block-start: 0;
       z-index: var(--hq-z-sticky);
-      background: var(--hq-color-bg);
+      background: var(--hq-color-surface-sunken);
     }
 
     th {
-      block-size: var(--hq-size-row-height);
-      padding-inline: var(--hq-space-16);
-      font-size: var(--hq-font-label-size);
-      font-weight: var(--hq-font-label-weight);
-      letter-spacing: var(--hq-font-letter-spacing-label);
-      text-transform: uppercase;
+      padding: var(--hq-space-cell);
+      font-size: var(--hq-text-theme-xs);
+      line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+      font-weight: var(--hq-text-weight-medium);
       color: var(--hq-color-ink-soft);
-      border-block-end: var(--hq-size-rule) solid var(--hq-color-line);
+      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
       white-space: nowrap;
     }
 
     td {
       block-size: var(--hq-size-row-height);
-      padding-inline: var(--hq-space-16);
-      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      padding: var(--hq-space-cell);
+      color: var(--hq-color-ink);
+      border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+    }
+
+    // The header already draws the rule under itself; a second one on the first row would be
+    // the only double line in the system.
+    tbody tr:first-child td {
+      border-block-start: 0;
+    }
+
+    .table__row {
+      @include m.motion-safe('background-color');
+
+      &:hover,
+      &.is-selected {
+        background: var(--hq-color-surface-sunken);
+      }
     }
 
     .table__overflow-head,
     .table__overflow {
       inline-size: var(--hq-size-touch-target);
+      padding-inline: var(--hq-space-12);
       text-align: end;
     }
 
     .table__empty {
-      border: var(--hq-size-rule) solid var(--hq-color-line);
-      border-block-start: 0;
+      border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-divider);
     }
   `,
 })
@@ -139,4 +162,6 @@ export class TableComponent<Row> {
   /** Accessible name for the overflow column; falls back to the translated default. */
   readonly overflowLabel = input<string | null>(null);
   readonly trackBy = input<(row: Row) => unknown>((row) => row);
+  /** Which rows read as selected — §3 gives selected and hover the same tint. */
+  readonly isSelected = input<(row: Row) => boolean>(() => false);
 }

@@ -72,7 +72,10 @@ export interface SelectOption<T extends string = string> {
     }
 
     .field__label {
-      @include m.label;
+      font-size: var(--hq-text-theme-sm);
+      line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
+      font-weight: var(--hq-text-weight-medium);
+      color: var(--hq-color-ink-strong);
     }
 
     .field__shell {
@@ -81,19 +84,18 @@ export interface SelectOption<T extends string = string> {
     }
 
     .field__control {
+      @include m.control;
       appearance: none;
       inline-size: 100%;
-      block-size: var(--hq-size-input-height);
-      padding-inline: var(--hq-space-12) var(--hq-space-32);
-      font-size: var(--hq-font-input-size);
+      block-size: var(--hq-size-control-height);
+      padding-inline: var(--hq-space-16) var(--hq-space-32);
       background: var(--hq-color-surface);
-      border: var(--hq-size-rule) solid var(--hq-color-line);
-      @include m.motion-safe('border-color, background-color');
+      @include m.motion-safe('border-color, background-color, box-shadow');
       @include m.focus-ring;
 
       &:disabled {
         color: var(--hq-color-disabled);
-        border-color: var(--hq-color-rule);
+        background: var(--hq-color-surface-sunken);
       }
     }
 
@@ -104,8 +106,8 @@ export interface SelectOption<T extends string = string> {
       inset-inline-end: var(--hq-space-16);
       inline-size: var(--hq-space-8);
       block-size: var(--hq-space-8);
-      border-inline-end: var(--hq-size-rule) solid var(--hq-color-ink);
-      border-block-end: var(--hq-size-rule) solid var(--hq-color-ink);
+      border-inline-end: var(--hq-size-rule-thin) solid var(--hq-color-ink-soft);
+      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-ink-soft);
       transform: translateY(-75%) rotate(45deg);
       pointer-events: none;
     }

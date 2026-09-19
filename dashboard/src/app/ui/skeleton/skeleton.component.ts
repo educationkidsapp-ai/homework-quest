@@ -10,7 +10,7 @@ import {
 import { MOTION_MS } from '../motion';
 
 /**
- * Square grey placeholder blocks with a 1.2 s shimmer.
+ * Radius-8 blocks off the gray ramp, with a 1.2 s shimmer.
  *
  * Shown only after 300 ms: a fast response should never flash a skeleton, which reads
  * as a slower page than no placeholder at all.
@@ -47,6 +47,7 @@ import { MOTION_MS } from '../motion';
 
     .skeleton__block {
       display: block;
+      border-radius: var(--hq-radius-control);
       background: linear-gradient(
         90deg,
         var(--hq-color-skeleton) 0%,

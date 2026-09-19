@@ -96,6 +96,8 @@
   --hq-color-accent-soft: color-mix(in srgb, var(--hq-color-accent) 10%, #ffffff);
   --hq-color-accent-on-soft: var(--hq-color-accent); // text on that tint
   --hq-color-disabled: var(--hq-color-gray-400);
+  // §3 Filter chip, on: the count pill is the accent held back by 22 % of the label's white.
+  --hq-color-on-accent-soft: rgb(255 255 255 / 0.22);
 
   // The child's device in the phone preview. Not the ink colour: ink is near-white in dark
   // mode and a white phone bezel is not a phone.
@@ -123,6 +125,14 @@
   --hq-color-warning-ink: var(--hq-color-warning-700);
   --hq-color-neutral-soft: var(--hq-color-gray-100);
   --hq-color-neutral-ink: var(--hq-color-gray-700);
+
+  // A surface one step *under* the card: §3 gives the data-table header row, the keycap and
+  // the secondary button's hover the same `gray-50`, and §5 turns all three into the same
+  // translucent step in dark mode. One role rather than three literals.
+  --hq-color-surface-sunken: var(--hq-color-gray-50);
+  // The danger-outline button's border (§3 Button) — `error-200` on white; on a dark ground a
+  // 200-step pink reads as a highlight, so it becomes the ramp's own 500 held back to a rule.
+  --hq-color-error-rule: var(--hq-color-error-200);
 
   // The progress band's three thresholds (§3 Progress bar) and the skeleton blocks.
   --hq-color-band-good: var(--hq-color-success-500);
@@ -192,6 +202,12 @@
   --hq-shadow-lg: 0px 12px 16px -4px rgb(16 24 40 / 0.08), 0px 4px 6px -2px rgb(16 24 40 / 0.03);
   --hq-shadow-xl: 0px 20px 24px -4px rgb(16 24 40 / 0.08), 0px 8px 8px -4px rgb(16 24 40 / 0.03);
 
+  // `--hq-shadow-dialog` and `--hq-shadow-drag` are generated tokens and still read as the old
+  // language's hard 4 px ink offset. Re-pointed like the colour roles above: a drawer or a
+  // modal is §1's `xl`, a card lifted under the cursor is `md`.
+  --hq-shadow-dialog: var(--hq-shadow-xl);
+  --hq-shadow-drag: var(--hq-shadow-md);
+
   // --- Rhythm ------------------------------------------------------------- §1 Spacing
   --hq-space-grid-gap: 24px;
   --hq-space-card: 24px;
@@ -204,6 +220,7 @@
   --hq-size-icon-nav: 24px;
   --hq-size-icon-control: 20px;
   --hq-size-icon-button: 18px;
+  --hq-size-progress-bar: 8px; // §3 Progress bar — the generated token is the old 6 px rail
   --hq-size-control-height: 44px;
   --hq-size-button-height: var(--hq-size-control-height);
   --hq-size-input-height: var(--hq-size-control-height);
@@ -238,6 +255,21 @@
 
   // §3's badge and status pill.
   --hq-space-badge: 2px 10px;
+  --hq-space-badge-gap: 6px;
+  --hq-space-control: 10px 16px; // §1: the input's own padding, one step inside the button's
+  --hq-space-keycap: 4.5px 7px; // §3 Keycap
+  --hq-space-chip: 8px 14px; // §3 Filter chip
+  --hq-text-note: 13px; // §3 Timeline's sub-line, the one size between `theme-xs` and `sm`
+  --hq-text-lead: 16px; // §3 Empty state's headline — the one step above body text
+  // §3 Data table: `14px 24px` at the card edge is the cell; the leading tile is 40 px at the
+  // control radius, the metric tile 48 px at the tile radius.
+  --hq-size-cell-tile: 40px;
+  --hq-size-metric-tile: 48px;
+  --hq-size-timeline-marker: 22px;
+  // The switch: a 36 × 20 pill whose 12 px knob travels 16 px.
+  --hq-size-switch: 36px;
+  --hq-size-switch-travel: 16px;
+  --hq-size-empty-tile: 56px;
 
   // §2: the sidebar takes .3s, the drawer .22s, a dropdown .18s. All three run on the
   // system's easing and all three collapse to 0 ms under `prefers-reduced-motion`.
@@ -303,6 +335,9 @@ html.dark {
   --hq-color-neutral-soft: rgb(255 255 255 / 0.05);
   --hq-color-neutral-ink: var(--hq-color-gray-300);
 
+  --hq-color-surface-sunken: rgb(255 255 255 / 0.03);
+  --hq-color-error-rule: rgb(240 68 56 / 0.35);
+
   --hq-color-skeleton: var(--hq-color-gray-800);
   --hq-color-skeleton-shine: var(--hq-color-gray-700);
   --hq-color-scrollbar-thumb: var(--hq-color-gray-700);
@@ -333,6 +368,8 @@ html.dark {
   --hq-color-hover: var(--hq-color-gray-100);
   --hq-color-disabled: var(--hq-color-gray-400);
   --hq-color-on-ink: #ffffff;
+  --hq-color-surface-sunken: var(--hq-color-gray-50);
+  --hq-color-error-rule: var(--hq-color-error-200);
   --hq-color-skeleton: var(--hq-color-gray-100);
   --hq-color-skeleton-shine: var(--hq-color-gray-50);
 

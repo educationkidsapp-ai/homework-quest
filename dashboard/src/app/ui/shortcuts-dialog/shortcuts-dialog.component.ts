@@ -52,10 +52,11 @@ export interface Shortcut {
     .sheet {
       inline-size: min(var(--hq-size-content-max-width), 90vw);
       padding: 0;
+      border-radius: var(--hq-radius-card);
       // A floating panel: it sits on the CDK overlay with nothing opaque behind it, so it
       // takes the raised surface rather than the card one (§5 gives both, and they differ).
       background: var(--hq-color-surface-raised);
-      border: var(--hq-size-rule) solid var(--hq-color-line);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
       color: var(--hq-color-ink);
       box-shadow: var(--hq-shadow-dialog);
 
@@ -69,12 +70,12 @@ export interface Shortcut {
       align-items: center;
       justify-content: space-between;
       gap: var(--hq-space-16);
-      padding: var(--hq-space-16) var(--hq-space-24);
-      border-block-end: var(--hq-size-rule) solid var(--hq-color-line);
+      padding: var(--hq-space-card-header);
+      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
     }
 
     .sheet__title {
-      @include m.title;
+      @include m.card-title;
     }
 
     .sheet__list {
@@ -87,7 +88,11 @@ export interface Shortcut {
       align-items: center;
       gap: var(--hq-space-16);
       min-block-size: var(--hq-size-touch-target);
-      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+    }
+
+    .sheet__row:last-child {
+      border-block-end: 0;
     }
 
     .sheet__keys {
@@ -96,11 +101,7 @@ export interface Shortcut {
     }
 
     kbd {
-      display: inline-block;
-      padding: var(--hq-space-4) var(--hq-space-8);
-      font-family: var(--hq-font-family-mono);
-      font-size: var(--hq-font-label-size);
-      border: var(--hq-size-rule-thin) solid var(--hq-color-line);
+      @include m.keycap;
     }
 
     .sheet__description {
