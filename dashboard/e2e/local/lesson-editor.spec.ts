@@ -7,6 +7,7 @@ import {
   SARA,
   dayFromNow,
   removeLessonsOfThisRun,
+  setScheme,
   shoot,
   signInAsSara,
   signInForToken,
@@ -44,7 +45,10 @@ test.beforeAll(async () => {
   const classes = await api.get('/teacher/classes', { headers: { Authorization: `Bearer ${token}` } });
   const rows = (await classes.json()) as { classId: string; className: string; subject: string }[];
   const mine = rows.find((row) => /1A British/i.test(row.className) && row.subject === 'math');
-  expect(mine, `no 1A British Math among ${rows.map((r) => `${r.className}/${r.subject}`).join(', ')}`).toBeTruthy();
+  expect(
+    mine,
+    `no 1A British Math among ${rows.map((r) => `${r.className}/${r.subject}`).join(', ')}`,
+  ).toBeTruthy();
   classId = mine!.classId;
   await api.dispose();
 });
@@ -120,7 +124,13 @@ test('Sara writes a lesson by hand and it opens on the editor', async ({ page })
   test.setTimeout(120_000);
   await signInAsSara(page);
 
-  const query = new URLSearchParams({ classId, curriculum: 'british', grade: '1', subject: 'math', date: DATE });
+  const query = new URLSearchParams({
+    classId,
+    curriculum: 'british',
+    grade: '1',
+    subject: 'math',
+    date: DATE,
+  });
   await page.goto(`teacher/lessons/new?${query.toString()}`);
 
   await expect(page.getByRole('heading', { name: 'New lesson' })).toBeVisible();
@@ -159,7 +169,9 @@ test('she adds three kinds of stop from the grouped menu', async ({ page }) => {
   await expect(stopRows(page)).toHaveCount(before + 3);
 });
 
-test('she rewrites a stop in the inline editor, and the schema holds her to the contract', async ({ page }) => {
+test('she rewrites a stop in the inline editor, and the schema holds her to the contract', async ({
+  page,
+}) => {
   test.setTimeout(120_000);
   await openTheLesson(page);
 
@@ -239,7 +251,9 @@ test('she asks for the other levels, then edits the parent panel that comes with
   test.setTimeout(240_000);
   await openTheLesson(page);
 
-  await page.getByLabel('What this lesson is about').fill('Sorting two-dimensional shapes by their number of sides.');
+  await page
+    .getByLabel('What this lesson is about')
+    .fill('Sorting two-dimensional shapes by their number of sides.');
   await page.getByRole('button', { name: 'Generate the levels' }).click();
 
   // The pipeline runs for real behind the fake provider; the page's own 2.5 s poll moves it on,
@@ -263,8 +277,8 @@ test('she asks for the other levels, then edits the parent panel that comes with
   await expect(page).toHaveURL(/\/teacher\/week/);
 });
 
-test('screenshots: the editor in English and in Arabic', async ({ page }) => {
-  test.setTimeout(120_000);
+test('screenshots: the editor in English and in Arabic, light and dark', async ({ page }) => {
+  test.setTimeout(180_000);
   await mkdir(SHOTS, { recursive: true });
   await openTheLesson(page);
   await stopRows(page).first().click();
@@ -272,11 +286,21 @@ test('screenshots: the editor in English and in Arabic', async ({ page }) => {
   // The element, not its English label: the same barrier has to hold for the Arabic frame below.
   await shoot(page, resolve(SHOTS, 'lesson-editor-en.png'), editor(page), { fullPage: true });
 
+  // Dark is the screen most worth photographing here: the editor is the one place a phone
+  // preview sits inside a dashboard card, and the two schemes meet on the same page.
+  await setScheme(page, 'dark');
+  await shoot(page, resolve(SHOTS, 'lesson-editor-en-dark.png'), editor(page), { fullPage: true });
+  await setScheme(page, 'light');
+
   // Through the account menu, the way a teacher switches — not by writing localStorage.
   await page.getByRole('button', { name: /Sara/ }).click();
   await page.getByRole('menuitem', { name: 'العربية' }).click();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await shoot(page, resolve(SHOTS, 'lesson-editor-ar.png'), editor(page), { fullPage: true });
+
+  await setScheme(page, 'dark');
+  await shoot(page, resolve(SHOTS, 'lesson-editor-ar-dark.png'), editor(page), { fullPage: true });
+  await setScheme(page, 'light');
 });
 
 /** The lessons this file wrote, off the shared database again (`env.ts`). */

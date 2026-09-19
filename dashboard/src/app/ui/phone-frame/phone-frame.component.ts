@@ -6,6 +6,10 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
  * The frame is the one rounded thing in the system — it is a picture of a device, not
  * a panel — and its content scrolls on its own so a long lesson preview never scrolls
  * the dashboard page underneath it.
+ *
+ * The screen carries `hq-scheme-light` because what is inside it is the **child's app**, and
+ * the child's app has no dark mode. A teacher previewing a lesson at midnight should see the
+ * screen the child will see in the morning, not a recoloured copy of it.
  */
 @Component({
   selector: 'hq-phone-frame',
@@ -13,7 +17,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   template: `
     <figure class="phone">
       <div class="phone__device">
-        <div class="phone__screen" [attr.aria-label]="label()" role="group" tabindex="0">
+        <div class="phone__screen hq-scheme-light" [attr.aria-label]="label()" role="group" tabindex="0">
           <ng-content />
         </div>
       </div>
@@ -41,7 +45,9 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       inline-size: calc(var(--hq-size-phone-width) + var(--hq-size-phone-bezel) * 2);
       block-size: calc(var(--hq-size-phone-height) + var(--hq-size-phone-bezel) * 2);
       padding: var(--hq-size-phone-bezel);
-      background: var(--hq-color-ink);
+      // Its own role, not the ink colour: ink is near-white in dark mode and a white bezel is
+      // not a phone — and the screen inside it composited over that to a light grey.
+      background: var(--hq-color-bezel);
       border-radius: var(--hq-size-phone-corner);
     }
 

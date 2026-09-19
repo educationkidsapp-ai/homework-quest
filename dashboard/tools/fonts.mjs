@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 /**
- * Builds `src/assets/fonts/*.woff2` from the TTFs in
- * `shared-ui/src/commonMain/composeResources/font/`, so both front-ends ship the same faces.
+ * Builds `src/assets/fonts/*.woff2` from TTFs in two places:
+ *
+ *   - `shared-ui/src/commonMain/composeResources/font/` — the faces the mobile app also ships,
+ *     which is why they live there and are not this workspace's to change (D16);
+ *   - `dashboard/fonts/` — faces only the dashboard uses. Outfit, the TailAdmin spec's family
+ *     (docs/prompts/tailadmin-spec.md §1), is here with its OFL licence: it is self-hosted
+ *     rather than fetched from the Google Fonts CDN because the server's CSP is
+ *     `default-src 'self'`, and a stylesheet in the critical path blocks the first render.
  *
  *   node tools/fonts.mjs           write the woff2 files
  *   node tools/fonts.mjs --check   fail when a committed file is missing or a different size
  *
- * Why not ship the TTFs directly: Archivo's variable TTF is 644 kB and the two Arabic
- * faces another 471 kB. Compressed to woff2 and subset to the scripts each face is
- * actually used for, the set drops to roughly a fifth of that — which is the difference
- * between the dashboard's first paint waiting on a font and not.
+ * Why not ship the TTFs directly: Outfit's variable TTF is 108 kB and the two Arabic faces
+ * another 471 kB. Compressed to woff2 and subset to the script each face is actually used
+ * for, the set drops to a fraction of that — the difference between the dashboard's first
+ * paint waiting on a font and not.
  */
 import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -17,7 +23,10 @@ import { fileURLToPath } from 'node:url';
 import subsetFont from 'subset-font';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SOURCE = resolve(here, '../../shared-ui/src/commonMain/composeResources/font');
+/** Shared with the mobile app — read-only from here. */
+const SHARED = resolve(here, '../../shared-ui/src/commonMain/composeResources/font');
+/** The dashboard's own, with their licences beside them. */
+const OWN = resolve(here, '../fonts');
 const TARGET = resolve(here, '../src/assets/fonts');
 
 const LATIN =
@@ -44,9 +53,14 @@ const ARABIC = ARABIC_RANGES.flatMap(([start, end]) =>
 ).join('');
 
 const FACES = [
-  { from: 'archivo_variable.ttf', to: 'archivo_variable.woff2', text: LATIN },
-  { from: 'ibmplexsansarabic_regular.ttf', to: 'ibmplexsansarabic_regular.woff2', text: ARABIC },
-  { from: 'ibmplexsansarabic_semibold.ttf', to: 'ibmplexsansarabic_semibold.woff2', text: ARABIC },
+  { dir: OWN, from: 'Outfit[wght].ttf', to: 'outfit_variable.woff2', text: LATIN },
+  { dir: SHARED, from: 'ibmplexsansarabic_regular.ttf', to: 'ibmplexsansarabic_regular.woff2', text: ARABIC },
+  {
+    dir: SHARED,
+    from: 'ibmplexsansarabic_semibold.ttf',
+    to: 'ibmplexsansarabic_semibold.woff2',
+    text: ARABIC,
+  },
 ];
 
 async function main() {
@@ -56,7 +70,7 @@ async function main() {
   const problems = [];
   for (const face of FACES) {
     const target = resolve(TARGET, face.to);
-    const built = await subsetFont(readFileSync(resolve(SOURCE, face.from)), face.text, {
+    const built = await subsetFont(readFileSync(resolve(face.dir, face.from)), face.text, {
       targetFormat: 'woff2',
     });
 

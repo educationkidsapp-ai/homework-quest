@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -8,6 +9,18 @@ import tokens from '../../../design/tokens.json';
 const generated = readFileSync(resolve(process.cwd(), 'src/styles/_tokens.generated.scss'), 'utf8');
 
 describe('design tokens', () => {
+  // The generator itself, not only its output: `design/tokens.json` is shared with the mobile
+  // app, and a token added there without a regeneration here is a property the dashboard reads
+  // and gets nothing for.
+  it('has no drift between design/tokens.json and the committed stylesheet', () => {
+    expect(() =>
+      execFileSync(process.execPath, ['tools/tokens.mjs', '--check'], {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+      }),
+    ).not.toThrow();
+  });
+
   it('generates a custom property for every colour, keeping the same value', () => {
     for (const [name, token] of Object.entries(tokens.color)) {
       expect(generated).toContain(`--hq-color-${name}: ${token.value};`);

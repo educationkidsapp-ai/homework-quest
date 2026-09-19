@@ -100,15 +100,18 @@ let nextReasonId = 0;
       background: var(--hq-color-accent-soft);
     }
 
-    // accent-strong, not accent: white on the brand red is 4.2:1 — below AA for a label.
+    // The error ramp, not the accent. The accent used to be the brand red and carried both
+    // jobs; on the TailAdmin palette it is brand-500, and a blue Delete button is a button
+    // nobody hesitates over. error-600 because white on error-500 is 3.8:1 — below AA for a
+    // label — and on error-600 it is 4.9:1.
     .btn--danger {
-      background: var(--hq-color-accent-strong);
-      border-color: var(--hq-color-accent-strong);
+      background: var(--hq-color-error-600);
+      border-color: var(--hq-color-error-600);
       color: var(--hq-color-on-accent);
 
       &:hover:not(:disabled) {
-        background: var(--hq-color-ink);
-        border-color: var(--hq-color-ink);
+        background: var(--hq-color-error-700);
+        border-color: var(--hq-color-error-700);
       }
     }
 

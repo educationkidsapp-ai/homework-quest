@@ -7,6 +7,7 @@ import {
   SARA,
   dayFromNow,
   removeLessonsOfThisRun,
+  setScheme,
   shoot,
   signInAsSara,
   signInForToken,
@@ -276,10 +277,12 @@ test('the same file uploaded twice is badged "Analyzed before · 0 tokens"', asy
     // `uploading` for its first seconds, so the text is not on the page yet and `toBeHidden`
     // returns at once — under the local `fake` provider the analysis was over by the time it
     // mattered, against QA's real model it was not. The status the server reports is the fact.
-    await expect.poll(() => analyzedStatusOf(new URL(page.url()).pathname.split('/').pop()!), {
-      timeout: 150_000,
-      intervals: [2_000],
-    }).toBe(true);
+    await expect
+      .poll(() => analyzedStatusOf(new URL(page.url()).pathname.split('/').pop()!), {
+        timeout: 150_000,
+        intervals: [2_000],
+      })
+      .toBe(true);
   }
 
   await expect(page.getByText('Analyzed before · 0 tokens')).toBeVisible({ timeout: 30_000 });
@@ -330,19 +333,29 @@ test('the screenshot set, EN and AR', async ({ page }) => {
   for (const language of ['en', 'ar'] as const) {
     await page.evaluate((lang) => localStorage.setItem('hq.language', lang), language);
 
-    await page.goto(lessonUrl);
-    await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
-    await shoot(
-      page,
-      `${SHOTS}/01-published-lesson-${language}.png`,
-      page.getByRole('heading', { level: 1, name: TITLE }),
-    );
+    // The sheet is a CDK overlay panel with nothing opaque behind it, which is exactly the
+    // thing dark mode gets wrong if a floating panel is given the card surface — so it is
+    // photographed in both schemes, not only in both languages.
+    for (const scheme of ['light', 'dark'] as const) {
+      const suffix = scheme === 'dark' ? `${language}-dark` : language;
 
-    await page.goto(sheetDrafts[language]);
-    // The footer's last control is the primary one — Publish, whatever it is called here.
-    await page.locator('[page-footer]').getByRole('button').last().click();
-    await shoot(page, `${SHOTS}/02-publish-sheet-${language}.png`, page.getByRole('dialog'));
-    await page.keyboard.press('Escape');
+      await page.goto(lessonUrl);
+      await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
+      await setScheme(page, scheme);
+      await shoot(
+        page,
+        `${SHOTS}/01-published-lesson-${suffix}.png`,
+        page.getByRole('heading', { level: 1, name: TITLE }),
+      );
+
+      await page.goto(sheetDrafts[language]);
+      await setScheme(page, scheme);
+      // The footer's last control is the primary one — Publish, whatever it is called here.
+      await page.locator('[page-footer]').getByRole('button').last().click();
+      await shoot(page, `${SHOTS}/02-publish-sheet-${suffix}.png`, page.getByRole('dialog'));
+      await page.keyboard.press('Escape');
+    }
+    await setScheme(page, 'light');
   }
 
   await page.evaluate(() => localStorage.setItem('hq.language', 'en'));

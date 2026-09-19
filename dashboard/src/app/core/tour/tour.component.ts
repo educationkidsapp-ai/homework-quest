@@ -105,7 +105,9 @@ interface Spotlight {
       inline-size: var(--hq-size-stop-list-width);
       max-inline-size: 90vw;
       padding: var(--hq-space-24);
-      background: var(--hq-color-surface);
+      // A floating panel: it sits on the CDK overlay with nothing opaque behind it, so it
+      // takes the raised surface rather than the card one (§5 gives both, and they differ).
+      background: var(--hq-color-surface-raised);
       border: var(--hq-size-rule) solid var(--hq-color-line);
       box-shadow: var(--hq-shadow-dialog);
     }

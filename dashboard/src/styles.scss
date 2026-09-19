@@ -1,18 +1,27 @@
 // Global styles. Everything visual resolves through the custom properties in
 // styles/_tokens.generated.scss so a school theme is a runtime override of `:root`.
 @use 'styles/tokens.generated';
+// After the generated contract, never before it: `_theme.scss` re-points the defaults of the
+// role properties at the TailAdmin spec (docs/prompts/tailadmin-spec.md).
+@use 'styles/theme';
 @use 'styles/motion' as motion;
 
 // --- Fonts -----------------------------------------------------------------
-// Archivo (variable, Latin) and IBM Plex Sans Arabic, converted to woff2 from the TTFs in
-// shared-ui/src/commonMain/composeResources/font so both front-ends use one set of faces.
-// `pnpm fonts` subsets each face to the script it is used for and compresses to woff2:
-// 1.1 MB of TTF becomes ~200 kB, which is the difference between the first paint waiting
-// on a font and not. The Archivo unicode-range keeps Arabic text on IBM Plex.
+// Outfit (variable, Latin) and IBM Plex Sans Arabic. `pnpm fonts` subsets each face to the
+// script it is used for and compresses it to woff2 — Outfit's variable TTF is 108 kB and the
+// two Arabic faces another 471 kB; subset, the set is a fraction of that, which is the
+// difference between the first paint waiting on a font and not.
+//
+// Outfit is the spec's family (§1) and is self-hosted rather than loaded from the Google
+// Fonts CDN: the server's CSP is `default-src 'self'` and a third-party stylesheet in the
+// critical path is render-blocking besides. The TTF and its OFL licence are in
+// `dashboard/fonts/`; the Arabic faces come from the set shared with the mobile app.
+//
+// The Outfit unicode-range keeps Arabic text on IBM Plex.
 
 @font-face {
-  font-family: 'Archivo';
-  src: url('assets/fonts/archivo_variable.woff2') format('woff2-variations');
+  font-family: 'Outfit';
+  src: url('assets/fonts/outfit_variable.woff2') format('woff2-variations');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -41,8 +50,15 @@
 *::before,
 *::after {
   box-sizing: border-box;
-  // Square corners everywhere. The phone frame opts back in explicitly.
-  border-radius: var(--hq-size-radius);
+}
+
+// Square corners were the old design language's tell; the spec's is the opposite — "nothing is
+// sharp, nothing is a pill except badges" (§1 Shape). The universal reset that forced
+// `border-radius: 0` onto every element is gone, and the controls take the 8 px control radius
+// here so a UA's own button and input corners are still not what decides the shape. Containers
+// ask for `--hq-radius-card` themselves.
+:where(button, input, select, textarea, [role='button']) {
+  border-radius: var(--hq-radius-control);
 }
 
 html,
@@ -127,14 +143,28 @@ svg {
 }
 
 a {
-  // accent-strong: link text needs 4.5:1 against the ground, which the brand red misses.
+  // accent-strong: link text needs 4.5:1 against the ground, which `brand-500` misses.
   color: var(--hq-color-accent-strong);
   text-underline-offset: var(--hq-space-4);
 }
 
+// §4: "Every interactive element needs an explicit hover and a `rgba(70,95,255,0.1)` focus
+// ring — no browser defaults." The spec's ring is a soft 3 px halo with a `brand-300` border;
+// the outline stays the brand itself, because `brand-300` alone is under 3:1 on white and the
+// ring has to be *seen* before it can be tasteful.
 :focus-visible {
   outline: var(--hq-size-focus-ring) solid var(--hq-color-focus);
   outline-offset: var(--hq-size-focus-ring-offset);
+  border-color: var(--hq-color-focus-border);
+  box-shadow: var(--hq-focus-ring);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+:where(a, button, [role='button'], summary):not(:disabled):not([aria-disabled='true']):hover {
+  cursor: pointer;
 }
 
 // --- Typography helpers ----------------------------------------------------

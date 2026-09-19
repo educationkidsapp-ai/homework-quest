@@ -39,7 +39,69 @@
           [checked]="reduceMotion()"
           (checkedChange)="setReduceMotion($event)"
         />
+        <hq-toggle
+          [label]="'styleguide.foundations.darkMode' | transloco"
+          [hint]="'styleguide.foundations.darkModeHint' | transloco"
+          [checked]="darkMode.isDark()"
+          (checkedChange)="setDark($event)"
+        />
       </div>
+
+      <!-- Foundations: the layer everything else resolves through -->
+      <hq-card [title]="'styleguide.sections.foundations' | transloco">
+        <h3 class="hq-label">{{ 'styleguide.foundations.colour' | transloco }}</h3>
+        @for (ramp of ramps; track ramp.name) {
+          <div class="sg__ramp">
+            <span class="sg__ramp-name">{{ ramp.name }}</span>
+            <div class="sg__swatches">
+              @for (step of ramp.steps; track step) {
+                <span class="sg__swatch" [title]="'--hq-color-' + ramp.name + '-' + step">
+                  <span
+                    class="sg__chip"
+                    [style.background]="'var(--hq-color-' + ramp.name + '-' + step + ')'"
+                  ></span>
+                  {{ step }}
+                </span>
+              }
+            </div>
+          </div>
+        }
+
+        <h3 class="hq-label sg__heading">{{ 'styleguide.foundations.type' | transloco }}</h3>
+        @for (size of typeRamp; track size) {
+          <p class="sg__type" [style.font-size]="'var(--hq-text-' + size + ')'">
+            {{ size }} — {{ 'styleguide.foundations.typeSample' | transloco }}
+          </p>
+        }
+
+        <h3 class="hq-label sg__heading">{{ 'styleguide.foundations.radius' | transloco }}</h3>
+        <div class="sg__row">
+          @for (radius of radii; track radius) {
+            <span class="sg__shape" [style.border-radius]="'var(--hq-radius-' + radius + ')'">{{
+              radius
+            }}</span>
+          }
+        </div>
+
+        <h3 class="hq-label sg__heading">{{ 'styleguide.foundations.shadow' | transloco }}</h3>
+        <div class="sg__row">
+          @for (shadow of shadows; track shadow) {
+            <span
+              class="sg__shape sg__shape--raised"
+              [style.box-shadow]="'var(--hq-shadow-' + shadow + ')'"
+              >{{ shadow }}</span
+            >
+          }
+        </div>
+
+        <h3 class="hq-label sg__heading">{{ 'styleguide.foundations.focus' | transloco }}</h3>
+        <p class="sg__note">{{ 'styleguide.foundations.focusHint' | transloco }}</p>
+        <div class="sg__row">
+          <span class="sg__shape sg__shape--focused">{{
+            'styleguide.foundations.focusRing' | transloco
+          }}</span>
+        </div>
+      </hq-card>
 
       <!-- Button -->
       <hq-card [title]="'styleguide.sections.button' | transloco">
