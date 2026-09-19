@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { fireEvent, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BASE_PATH } from '../../api';
 import { ADMIN_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
@@ -873,5 +873,103 @@ describe('Lesson', () => {
     expect(screen.queryByText('Upload more')).not.toBeInTheDocument();
     expect(document.querySelector('#lesson-upload-more')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Actions for Adding to ten' })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * CR4: the convert step, and the one reason the page keeps asking after the job is over.
+ *
+ * Fake timers rather than a wait: the poll is 2.5 s, and the thing under test is *whether* a
+ * second request is made at all — waiting for one that must never come is a test that can only
+ * be slow or wrong.
+ */
+describe('Lesson — the files being converted', () => {
+  const CONVERTING = {
+    ...BASE_LESSON,
+    status: 'draft',
+    files: [
+      { id: 'f-1', fileName: 'Shapes.pdf', fileHash: 'h', pageCount: 4, cacheHit: false, deleted: false, convertStatus: 'converting' },
+    ],
+    steps: [
+      { step: 'upload', status: 'done', attempt: 1, updatedAt: 0 },
+      { step: 'convert', status: 'running', attempt: 1, updatedAt: 0 },
+      { step: 'analyze', status: 'pending', attempt: 1, updatedAt: 0 },
+    ],
+  };
+
+  const READY = {
+    ...CONVERTING,
+    files: [{ ...CONVERTING.files[0], convertStatus: 'ready', convertMethod: 'anydoc', markdownChars: 6200 }],
+    steps: [
+      { step: 'upload', status: 'done', attempt: 1, updatedAt: 0 },
+      { step: 'convert', status: 'done', attempt: 1, updatedAt: 0 },
+      { step: 'analyze', status: 'pending', attempt: 1, updatedAt: 0 },
+    ],
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('names the new step in the strip, between Upload and Analyze', async () => {
+    await renderLesson(READY);
+
+    const strip = await screen.findByRole('list', { name: 'Lesson pipeline' });
+    expect(within(strip).getAllByRole('listitem').map((step) => step.textContent?.trim())).toEqual([
+      expect.stringContaining('upload'),
+      expect.stringContaining('Convert to text'),
+      expect.stringContaining('analyze'),
+    ]);
+  });
+
+  it('keeps asking while a file is still converting, though the lesson itself is idle', async () => {
+    // Before the render: the poll's `setInterval` is scheduled by an effect that runs during it,
+    // and a timer created on the real clock is not one `advanceTimersByTime` can reach.
+    vi.useFakeTimers();
+    const { backend } = await renderLesson(CONVERTING);
+
+    vi.advanceTimersByTime(2_600);
+    await Promise.resolve();
+    backend.expectOne('/admin/lessons/l-1').flush(READY);
+    await Promise.resolve();
+    TestBed.tick();
+
+    // Ready is terminal: the timer that would have fired again is gone.
+    vi.advanceTimersByTime(10_000);
+    await Promise.resolve();
+    backend.verify();
+    expect(await screen.findByText('Ready · 1,240 words')).toBeInTheDocument();
+  });
+
+  it('says what went wrong at Convert in the teacher\u2019s words, not the converter\u2019s', async () => {
+    await renderLesson({
+      ...CONVERTING,
+      status: 'error',
+      files: [{ ...CONVERTING.files[0], convertStatus: 'error', convertErrorCode: 'encrypted' }],
+      steps: [
+        { step: 'upload', status: 'done', attempt: 1, updatedAt: 0 },
+        {
+          step: 'convert',
+          status: 'error',
+          attempt: 1,
+          updatedAt: 0,
+          errorCode: 'encrypted',
+          errorMessage: 'Conversion failed. (anydoc exited 1: encrypted document)',
+        },
+      ],
+    });
+
+    // Twice, and both are wanted: the red band under the strip, and the file's own row.
+    expect(
+      await screen.findAllByText(
+        'This PDF is password-protected. Remove the password and upload again, or type the text.',
+      ),
+    ).toHaveLength(2);
+    expect(screen.queryByText(/anydoc/)).not.toBeInTheDocument();
   });
 });
