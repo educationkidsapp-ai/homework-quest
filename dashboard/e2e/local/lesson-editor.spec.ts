@@ -7,7 +7,7 @@ import {
   SARA,
   dayFromNow,
   removeLessonsOfThisRun,
-  settled,
+  shoot,
   signInAsSara,
   signInForToken,
 } from './env';
@@ -92,6 +92,9 @@ async function dragHandle(page: Page, handle: Locator, target: Locator): Promise
   // viewport, and a handle scrolled to just-visible ends up underneath it, where the mousedown
   // lands on the footer and no drag ever starts.
   await handle.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  // The one sleep left here, and deliberately so: `scrollIntoView` is smooth, and CDK reads the
+  // handle's bounding box at mousedown. There is no DOM signal for "the scroll has stopped", and
+  // a box read mid-scroll starts the drag from the wrong place.
   await page.waitForTimeout(300);
   const from = await handle.boundingBox();
   const to = await target.boundingBox();
@@ -266,14 +269,14 @@ test('screenshots: the editor in English and in Arabic', async ({ page }) => {
   await openTheLesson(page);
   await stopRows(page).first().click();
   await expect(editor(page).getByLabel('The whole stop')).toBeVisible();
-  await page.screenshot({ path: resolve(SHOTS, 'lesson-editor-en.png'), fullPage: true });
+  // The element, not its English label: the same barrier has to hold for the Arabic frame below.
+  await shoot(page, resolve(SHOTS, 'lesson-editor-en.png'), editor(page), { fullPage: true });
 
   // Through the account menu, the way a teacher switches — not by writing localStorage.
   await page.getByRole('button', { name: /Sara/ }).click();
   await page.getByRole('menuitem', { name: 'العربية' }).click();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await settled(page);
-  await page.screenshot({ path: resolve(SHOTS, 'lesson-editor-ar.png'), fullPage: true });
+  await shoot(page, resolve(SHOTS, 'lesson-editor-ar.png'), editor(page), { fullPage: true });
 });
 
 /** The lessons this file wrote, off the shared database again (`env.ts`). */

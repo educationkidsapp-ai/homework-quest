@@ -7,7 +7,7 @@ import {
   SARA,
   dayFromNow,
   removeLessonsOfThisRun,
-  settled,
+  shoot,
   signInAsSara,
   signInForToken,
 } from './env';
@@ -332,16 +332,16 @@ test('the screenshot set, EN and AR', async ({ page }) => {
 
     await page.goto(lessonUrl);
     await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
-    await expect(page.getByRole('heading', { level: 1, name: TITLE })).toBeVisible({ timeout: 20_000 });
-    await settled(page);
-    await page.screenshot({ path: `${SHOTS}/01-published-lesson-${language}.png` });
+    await shoot(
+      page,
+      `${SHOTS}/01-published-lesson-${language}.png`,
+      page.getByRole('heading', { level: 1, name: TITLE }),
+    );
 
     await page.goto(sheetDrafts[language]);
     // The footer's last control is the primary one — Publish, whatever it is called here.
     await page.locator('[page-footer]').getByRole('button').last().click();
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await settled(page);
-    await page.screenshot({ path: `${SHOTS}/02-publish-sheet-${language}.png` });
+    await shoot(page, `${SHOTS}/02-publish-sheet-${language}.png`, page.getByRole('dialog'));
     await page.keyboard.press('Escape');
   }
 

@@ -14,7 +14,7 @@
  * `SEED_STAFF_PASSWORD` on the server side; the two must be the same value wherever the suite
  * runs, including the `qa` GitHub environment.
  */
-import { expect, request, type Page } from '@playwright/test';
+import { expect, request, type Locator, type Page } from '@playwright/test';
 
 export const API =
   process.env['E2E_BASE_URL'] ?? process.env['HQ_API'] ?? 'http://localhost:18080';
@@ -116,20 +116,49 @@ export function signInAsSara(page: Page): Promise<void> {
 }
 
 /**
- * Waits until nothing on the page is still animating.
+ * Takes a screenshot only once there is something on screen worth photographing.
  *
- * What the screenshot tests actually want before they press the shutter, in place of a sleep
- * long enough to cover the slowest animation on the slowest machine. `document.getAnimations()`
- * is every running CSS animation, CSS transition and Web Animations player on the document, so
- * the count-ups, the list staggers and the sheet's slide are all covered by the same condition —
- * and on a fast machine it returns at once instead of waiting out a guess.
+ * The render barrier is the point. `document.getAnimations()` being quiet is trivially true
+ * *before* Angular paints at all — nothing is animating because nothing exists — so a settle on
+ * animations alone let four screenshots through as identical 4 255-byte blank grey frames, and
+ * they were committed. The barrier here is, in order:
+ *
+ *   1. `marker` visible — the screen's own heading, table, dialog or grid, passed by every
+ *      caller, so the wait is on the content of *this* page rather than on a sign of life;
+ *   2. the main landmark grown to a real height, which rules out a painted shell with nothing
+ *      under it (its *first child* will not do: Angular leaves a zero-size `<router-outlet>`
+ *      there and the screen is its sibling);
+ *   3. `document.fonts.ready`, so no frame is captured mid-swap with fallback metrics;
+ *   4. and only then the animations, so count-ups and list staggers have finished.
+ *
+ * The byte-length assertion at the end is the backstop. The blank frames were 4 255 bytes; the
+ * sparsest real screen here, sign-in, is about 19 kB. 10 kB sits between them with roughly a
+ * factor of two either way, which is the most a size check can honestly claim.
  */
-export async function settled(page: Page): Promise<void> {
+export async function shoot(
+  page: Page,
+  path: string,
+  marker: Locator,
+  options: { readonly fullPage?: boolean } = {},
+): Promise<void> {
+  await expect(marker, `nothing to photograph for ${path}`).toBeVisible({ timeout: 30_000 });
+  await page.waitForFunction(
+    () => (document.querySelector('main')?.getBoundingClientRect().height ?? 0) > 200,
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.evaluate(() => document.fonts.ready);
   await page.waitForFunction(
     () => document.getAnimations().every((animation) => animation.playState !== 'running'),
     undefined,
     { timeout: 10_000 },
   );
+
+  const shot = await page.screenshot({ path, fullPage: options.fullPage ?? false });
+  expect(
+    shot.byteLength,
+    `${path} is a blank frame (${shot.byteLength} bytes) — the screen had not painted`,
+  ).toBeGreaterThan(10_000);
 }
 
 /** An ISO day `days` from today, in UTC — the format every lesson date field uses. */

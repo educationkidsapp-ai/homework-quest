@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { RUN, removeLessonsOfThisRun, settled, signInAsSara } from './env';
+import { RUN, removeLessonsOfThisRun, shoot, signInAsSara } from './env';
 
 /**
  * N2.2's acceptance (`docs/teacher-flow.md` §4 step 2): the week grid, the `+`, the drag that
@@ -43,7 +43,10 @@ async function dragTo(page: Page, card: Locator, target: Locator): Promise<void>
   await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 15 });
   await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2 + 2, { steps: 3 });
   await page.mouse.up();
-  // The 250 ms settle, then the optimistic paint.
+  // The one sleep left, and deliberately so: CDK's drop animation has no DOM signal to wait on —
+  // the card is already at its new index in the DOM when the drop fires, so every locator
+  // assertion is true *before* the 250 ms transition has run and the optimistic paint landed.
+  // The caller asserts the result; this only lets the gesture finish.
   await page.waitForTimeout(600);
 }
 
@@ -189,26 +192,21 @@ test('the screenshot set, EN and AR', async ({ page }) => {
     await expect(page.getByRole('grid')).toBeVisible();
     const strip = page.getByRole('region', { name: /at a glance|باختصار/ });
     await expect(strip).toBeVisible();
-    // The summary strip's `listStagger` runs 30 ms apart, 250 ms each; `settled` waits for the
-    // last of them rather than for a number big enough to cover them all.
-    await settled(page);
-    await page.screenshot({ path: `${SHOTS}/01-this-week-${language}.png` });
+    // `shoot` waits for the grid, then for the strip's `listStagger` (30 ms apart, 250 ms each)
+    // to finish, rather than for a number big enough to cover it.
+    await shoot(page, `${SHOTS}/01-this-week-${language}.png`, page.getByRole('grid'));
 
     // The summary strip sits under the fold behind the sticky footer, so it gets its own frame.
     await strip.scrollIntoViewIfNeeded();
-    await settled(page);
-    await page.screenshot({ path: `${SHOTS}/03-summary-${language}.png` });
+    await shoot(page, `${SHOTS}/03-summary-${language}.png`, strip);
     await page.mouse.wheel(0, -800);
-    await settled(page);
 
     // The card's menu open — the keyboard twin of the drag.
     await page
       .getByRole('button', { name: new RegExp(TITLE) })
       .first()
       .click();
-    await expect(page.getByRole('menu').first()).toBeVisible();
-    await settled(page);
-    await page.screenshot({ path: `${SHOTS}/02-card-menu-${language}.png` });
+    await shoot(page, `${SHOTS}/02-card-menu-${language}.png`, page.getByRole('menu').first());
     await page.keyboard.press('Escape');
   }
 

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { ADMIN, SARA, settled, signIn } from './env';
+import { ADMIN, SARA, shoot, signIn } from './env';
 
 /**
  * P3.1's acceptance — the shell itself: branding, the Content-Security-Policy, where each role
@@ -36,7 +36,12 @@ test('the sign-in page is branded from PlatformSettings, not from a literal', as
   // §A: the name comes from the database. Whatever it is, the tab title is the same string.
   // `textContent`, not `innerText`: the brand line is upper-cased by CSS, and the title is the
   // string itself.
-  const name = ((await page.locator('.auth__name').textContent()) ?? '').trim();
+  // Waited for, not read on the spot: the brand line comes from `PlatformSettings` over the
+  // wire, so a synchronous `textContent` can catch the element before it has one.
+  const brand = page.locator('.auth__name');
+  await expect(brand).toBeVisible();
+  await expect(brand).not.toBeEmpty();
+  const name = ((await brand.textContent()) ?? '').trim();
   expect(name.length).toBeGreaterThan(0);
   await expect(page).toHaveTitle(name);
 });
@@ -163,7 +168,9 @@ test('a cold start on a guarded bookmark is let through, not bounced', async ({ 
   // The real test: reload that URL, so every guard runs before any answer has arrived.
   await page.reload();
   await expect(page).toHaveURL(/\/dashboard\/admin\/users$/);
-  await expect(page.getByRole('heading', { name: 'Coming soon' })).toBeVisible();
+  // A cold boot re-runs every guard before any answer has arrived, so the screen lands later
+  // than it does on a client-side navigation.
+  await expect(page.getByRole('heading', { name: 'Coming soon' })).toBeVisible({ timeout: 30_000 });
 });
 
 test('the tour is modal in fact, not just in its attributes', async ({ page }) => {
@@ -213,24 +220,23 @@ test('the screenshot set, EN and AR', async ({ page }) => {
   test.setTimeout(120_000);
   await mkdir(SHOTS, { recursive: true });
 
+  // `level: 1` rather than a name: the same barrier has to work in both languages.
+  const heading = page.getByRole('heading', { level: 1 });
+
   await page.goto('sign-in');
-  await settled(page);
-  await page.screenshot({ path: `${SHOTS}/01-sign-in-en.png` });
+  await shoot(page, `${SHOTS}/01-sign-in-en.png`, heading);
 
   for (const [name, who, marker] of [
     ['02-admin-home', ADMIN, /^Hello,/],
     ['03-teacher-home', SARA, /^This week$/],
   ] as const) {
     await signIn(page, who);
-    await expect(page.getByRole('heading', { level: 1, name: marker })).toBeVisible();
-    await settled(page); // the count-up has finished, so the shot is never mid-animation
-    await page.screenshot({ path: `${SHOTS}/${name}-en.png` });
+    await shoot(page, `${SHOTS}/${name}-en.png`, page.getByRole('heading', { level: 1, name: marker }));
 
     await page.evaluate(() => localStorage.setItem('hq.language', 'ar'));
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await settled(page);
-    await page.screenshot({ path: `${SHOTS}/${name}-ar.png` });
+    await shoot(page, `${SHOTS}/${name}-ar.png`, heading);
     await page.evaluate(() => localStorage.setItem('hq.language', 'en'));
   }
 
@@ -239,6 +245,5 @@ test('the screenshot set, EN and AR', async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('hq.language', 'ar'));
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await settled(page);
-  await page.screenshot({ path: `${SHOTS}/01-sign-in-ar.png` });
+  await shoot(page, `${SHOTS}/01-sign-in-ar.png`, heading);
 });

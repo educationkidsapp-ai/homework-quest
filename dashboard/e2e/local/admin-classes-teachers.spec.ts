@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { settled } from './env';
+import { shoot } from './env';
 
 /**
  * N1.2's acceptance (`docs/teacher-flow.md` §10 step 1), against the built bundle and a local
@@ -175,21 +175,15 @@ test('the screenshot set, EN and AR', async ({ page }) => {
     await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
 
     await page.getByRole('navigation').getByRole('link').nth(CLASSES_ITEM).click();
-    await expect(page.getByRole('table')).toBeVisible();
-    await settled(page);
-    await page.screenshot({ path: `${SHOTS}/01-classes-${language}.png` });
+    await shoot(page, `${SHOTS}/01-classes-${language}.png`, page.getByRole('table'));
 
     await page.getByRole('navigation').getByRole('link').nth(TEACHERS_ITEM).click();
-    await expect(page.getByRole('table')).toBeVisible();
-    await settled(page);
-    await page.screenshot({ path: `${SHOTS}/02-teachers-${language}.png` });
+    await shoot(page, `${SHOTS}/02-teachers-${language}.png`, page.getByRole('table'));
 
     // The picker open, which is the screen this package exists for.
     await page.getByRole('button', { name: /Sara/ }).first().click();
     await page.getByRole('menuitem').first().click();
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await settled(page);
-    await page.screenshot({ path: `${SHOTS}/03-assignment-picker-${language}.png` });
+    await shoot(page, `${SHOTS}/03-assignment-picker-${language}.png`, page.getByRole('dialog'));
     await page.keyboard.press('Escape');
   }
 
