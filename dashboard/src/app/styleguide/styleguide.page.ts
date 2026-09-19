@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { LanguageService } from '../core/i18n/language.service';
+import { DarkModeService } from '../core/theme/dark-mode.service';
 import {
   BandComponent,
   ButtonComponent,
@@ -33,6 +34,12 @@ import {
   type Tab,
   type TableColumn,
 } from '../ui';
+
+/** One colour ramp, as the property suffixes it is published under. */
+interface Ramp {
+  readonly name: string;
+  readonly steps: readonly string[];
+}
 
 interface DemoLesson {
   readonly id: string;
@@ -99,7 +106,38 @@ export class StyleguidePage {
     return (key: string): string => (loaded ? this.transloco.translate(key) : '');
   });
 
+  protected readonly darkMode = inject(DarkModeService);
+
   protected readonly reduceMotion = signal(false);
+
+  // --- Foundations --------------------------------------------------------
+  // Read out of `_theme.scss` by property name rather than by value: a swatch that named its
+  // own hex would go on looking right after the ramp beneath it had changed.
+  protected readonly ramps: readonly Ramp[] = [
+    {
+      name: 'brand',
+      steps: ['25', '50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'],
+    },
+    {
+      name: 'gray',
+      steps: ['25', '50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'],
+    },
+    { name: 'success', steps: ['50', '100', '500', '600', '700'] },
+    { name: 'error', steps: ['50', '100', '200', '300', '500', '600', '700'] },
+    { name: 'warning', steps: ['50', '100', '300', '400', '500', '600', '700'] },
+  ];
+
+  protected readonly typeRamp: readonly string[] = [
+    'title-sm',
+    'theme-xl',
+    'page-title',
+    'card-title',
+    'theme-sm',
+    'theme-xs',
+  ];
+
+  protected readonly radii: readonly string[] = ['xs', 'control', 'tile', 'card', 'pill'];
+  protected readonly shadows: readonly string[] = ['xs', 'sm', 'md', 'lg', 'xl'];
 
   // --- Form state ---------------------------------------------------------
   protected readonly schoolName = signal('');
@@ -220,6 +258,10 @@ export class StyleguidePage {
       description: t(`styleguide.shortcuts.${key}`),
     }));
   });
+
+  protected setDark(value: boolean): void {
+    this.darkMode.set(value ? 'dark' : 'light');
+  }
 
   protected setReduceMotion(value: boolean): void {
     this.reduceMotion.set(value);

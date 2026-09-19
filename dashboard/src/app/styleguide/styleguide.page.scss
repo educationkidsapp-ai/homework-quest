@@ -104,3 +104,85 @@
     border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-rule);
   }
 }
+
+// --- Foundations -----------------------------------------------------------
+// Swatches, the type ramp, the radii and the elevations. Everything here reads a property by
+// name; nothing quotes a value, so the page cannot drift away from `_theme.scss`.
+
+.sg__heading {
+  margin-block-start: var(--hq-space-24);
+}
+
+.sg__ramp {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-12);
+
+  & + & {
+    margin-block-start: var(--hq-space-8);
+  }
+}
+
+.sg__ramp-name {
+  inline-size: var(--hq-size-grade-card);
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-xs);
+}
+
+.sg__swatches {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--hq-space-4);
+}
+
+.sg__swatch {
+  display: flex;
+  flex: 1 1 var(--hq-size-spinner);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--hq-space-4);
+  // Beside the chip rather than on it: no single ink colour stays legible across a whole ramp.
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-xs);
+  text-align: center;
+}
+
+.sg__chip {
+  block-size: var(--hq-size-button-height);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-control);
+}
+
+.sg__type {
+  line-height: 1.3;
+}
+
+.sg__shape {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--hq-size-course-card);
+  block-size: var(--hq-size-control-height);
+  padding-inline: var(--hq-space-16);
+  background: var(--hq-color-surface);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  font-size: var(--hq-text-theme-xs);
+  color: var(--hq-color-ink-soft);
+}
+
+.sg__shape--raised {
+  border-color: transparent;
+  border-radius: var(--hq-radius-card);
+  box-shadow: var(--hq-shadow-xs);
+}
+
+// The focus treatment as a still, so a screenshot carries it: `:focus-visible` needs a real
+// focus and a keyboard, and neither survives a page capture.
+.sg__shape--focused {
+  border-radius: var(--hq-radius-control);
+  border-color: var(--hq-color-focus-border);
+  outline: var(--hq-size-focus-ring) solid var(--hq-color-focus);
+  outline-offset: var(--hq-size-focus-ring-offset);
+  box-shadow: var(--hq-focus-ring);
+}

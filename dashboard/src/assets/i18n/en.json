@@ -758,7 +758,8 @@
       "nav": "Navigation",
       "shortcuts": "Shortcuts",
       "countUp": "Count up",
-      "motion": "Motion"
+      "motion": "Motion",
+      "foundations": "Foundations"
     },
     "button": {
       "primary": "Primary",
@@ -895,6 +896,18 @@
       "shake": "Shake",
       "replay": "Replay",
       "body": "Every animation goes through one switch. With reduced motion on, each of these becomes an instant cross-fade."
+    },
+    "foundations": {
+      "colour": "Colour ramps",
+      "type": "Type ramp",
+      "radius": "Radii",
+      "shadow": "Elevation",
+      "focus": "Focus",
+      "focusRing": "Focused control",
+      "focusHint": "Every focusable element takes the same ring: an accent outline over the spec's soft halo, with a brand-300 border.",
+      "typeSample": "Every screen is built from these six sizes",
+      "darkMode": "Dark mode",
+      "darkModeHint": "Remembered under localStorage['theme']; a school's accent still applies, its ground and ink do not."
     }
   },
   "subject": {
