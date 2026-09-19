@@ -706,7 +706,8 @@
     "viewingAs": "You are viewing as {{name}} — this view is read-only.",
     "language": {
       "en": "English",
-      "ar": "العربية"
+      "ar": "العربية",
+      "label": "Language"
     },
     "switcher": {
       "label": "School",
@@ -715,6 +716,9 @@
     "profile": {
       "label": "Your account",
       "open": "Profile"
+    },
+    "sidebar": {
+      "toggle": "Show or hide the menu"
     }
   },
   "shortcuts": {
