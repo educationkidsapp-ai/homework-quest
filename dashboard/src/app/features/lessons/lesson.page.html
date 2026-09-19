@@ -9,7 +9,7 @@
       <div page-actions>
         <button
           type="button"
-          class="lesson__overflow-trigger"
+          class="hq-iconbutton"
           [cdkMenuTriggerFor]="overflowMenu"
           [attr.aria-label]="'lessons.rowActions' | transloco: { title: pageTitle() }"
         >
@@ -118,7 +118,7 @@
 
       @if (replacing()) {
         <hq-card [title]="'lessons.detail.replaceFile' | transloco">
-          <div class="lesson__dropzone" (dragover)="onReplaceDragOver($event)" (drop)="onReplaceDrop($event)">
+          <div class="hq-dropzone lesson__dropzone" (dragover)="onReplaceDragOver($event)" (drop)="onReplaceDrop($event)">
             <label for="lesson-replace-input" class="hq-linkbutton lesson__dropzone-choose">
               {{ 'lessons.new.dropzone.choose' | transloco }}
             </label>
@@ -255,7 +255,7 @@
                     <button
                       *hqCan="'play.write'"
                       type="button"
-                      class="lesson__stop-handle"
+                      class="hq-iconbutton hq-iconbutton--grab"
                       cdkDragHandle
                       [attr.aria-label]="'lessons.detail.plays.dragHandle' | transloco: { title: stop.title }"
                     >

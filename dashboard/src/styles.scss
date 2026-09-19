@@ -5,6 +5,7 @@
 // role properties at the TailAdmin spec (docs/prompts/tailadmin-spec.md).
 @use 'styles/theme';
 @use 'styles/motion' as motion;
+@use 'styles/mixins' as m;
 
 // --- Fonts -----------------------------------------------------------------
 // Outfit (variable, Latin) and IBM Plex Sans Arabic. `pnpm fonts` subsets each face to the
@@ -473,6 +474,72 @@ a {
   .hq-menu__item {
     transition-duration: 0ms;
   }
+}
+
+// --- Icon buttons ----------------------------------------------------------
+// §3's "Icon button" row as a class, for the places a `<button>` has to be the real element —
+// a CDK menu trigger, a `cdkDragHandle`, a control the suite addresses by attribute — and so
+// cannot be `hq-button`. One rule rather than a copy per page: the lesson editor's overflow,
+// the week grid's, and the stop list's drag handle were three drifting versions of it.
+.hq-iconbutton {
+  @include m.icon-button;
+  cursor: pointer;
+  @include m.motion-safe('background-color, color, border-color');
+  @include m.focus-ring;
+}
+
+// No box until the pointer is on it — a control inside a card that is already a box.
+.hq-iconbutton--quiet {
+  background: none;
+  border: 0;
+}
+
+// A drag handle says what it does with the cursor, and carries no fill of its own.
+.hq-iconbutton--grab {
+  background: none;
+  cursor: grab;
+}
+
+// --- Drop zone -------------------------------------------------------------
+// The sunken panel a file is dragged onto, and the `drag-lift` state it takes while one is
+// over it. Two screens ask for a file — "New lesson" and the lesson editor's replace — and
+// they had a copy of this box each; what is actually theirs is the direction it stacks in.
+.hq-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hq-space-8);
+  padding: var(--hq-space-32);
+  text-align: center;
+  background: var(--hq-color-surface-sunken);
+  border-radius: var(--hq-radius-card);
+  @include m.drag-lift;
+}
+
+// --- Drag and drop ---------------------------------------------------------
+// CDK's own classes, styled once. The preview is cloned into the overlay container, outside
+// every component, so a component stylesheet only ever reached it by accident of the cloned
+// encapsulation attribute — here the rule is simply global, which is what it always was.
+.cdk-drag-preview {
+  background: var(--hq-color-surface);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-card);
+  box-shadow: var(--hq-shadow-lg);
+}
+
+// The 250 ms settle, on the system's one easing curve.
+.cdk-drag-animating {
+  transition: transform var(--hq-motion-base) var(--hq-motion-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cdk-drag-animating {
+    transition-duration: 0ms;
+  }
+}
+
+:root[data-hq-reduced-motion='true'] .cdk-drag-animating {
+  transition-duration: 0ms;
 }
 
 // --- Protected pictures ----------------------------------------------------
