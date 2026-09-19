@@ -7,13 +7,38 @@
   <div card-actions>
     <!-- Behind both gates: the school must have roster editing, and the account must hold the key. -->
     <span *hqFeature="rosterFlag">
-      <span *hqCan="'roster.teacher'">
+      <span class="children__toolbar" *hqCan="'roster.teacher'">
+        <!--
+          Place comes first and is the quiet one: the child a parent has already registered is
+          the common case, but Add a child is the tab's one primary action (§3's rule), and two
+          filled buttons side by side would be two.
+        -->
+        <hq-button variant="secondary" (pressed)="openPlace()">
+          {{ 'classes.children.place.action' | transloco }}
+        </hq-button>
         <hq-button variant="primary" (pressed)="openAdd()">
           {{ 'classes.children.add.action' | transloco }}
         </hq-button>
       </span>
     </span>
   </div>
+
+  <!-- Off the roster, still in the school: destructive, so it asks in a red band, never a dialog. -->
+  @if (removing()) {
+    <hq-band
+      class="children__confirm"
+      variant="confirm"
+      [open]="true"
+      [title]="'classes.children.remove.title' | transloco"
+      [confirmLabel]="'classes.children.remove.confirm' | transloco"
+      (confirmed)="confirmRemove()"
+      (dismissed)="cancelRemove()"
+    >
+      {{ removeMessage() }}
+    </hq-band>
+  }
+
+  <hq-toast [open]="placedToast() !== ''" [message]="placedToast()" (expired)="placedToast.set('')" />
 
   @if (loading()) {
     <hq-skeleton
@@ -107,6 +132,10 @@
             }}
             <span class="hq-sr-only">{{ 'classes.children.editOf' | transloco: { name: row.name } }}</span>
           </hq-button>
+          <hq-button variant="quiet" (pressed)="askRemove(row)">
+            {{ 'classes.children.remove.action' | transloco }}
+            <span class="hq-sr-only">{{ 'classes.children.editOf' | transloco: { name: row.name } }}</span>
+          </hq-button>
         }
       </span>
     }
@@ -138,3 +167,5 @@
     />
   </div>
 </hq-dialog>
+
+<hq-place-child [(open)]="placeOpen" [classId]="classId()" (placed)="onPlaced($event)" />
