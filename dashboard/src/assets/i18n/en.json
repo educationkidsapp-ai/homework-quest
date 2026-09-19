@@ -902,6 +902,26 @@
       "secure": "Se",
       "exceeding": "Ex",
       "none": "–"
+    },
+    "gradebook": {
+      "title": "Gradebook",
+      "count": "{{count}} children",
+      "loading": "Loading the gradebook",
+      "empty": "No published lesson in this range.",
+      "off": "This school does not have the gradebook yet.",
+      "from": "From",
+      "to": "To",
+      "average": "Average",
+      "auto": "automatic {{score}}",
+      "apply": "Apply",
+      "cancel": "Cancel",
+      "saved": "{{name}} set to {{score}}.",
+      "pending": "{{count}} marks are still waiting for you.",
+      "trend": {
+        "up": "Going up",
+        "flat": "Steady",
+        "down": "Going down"
+      }
     }
   },
   "role": {

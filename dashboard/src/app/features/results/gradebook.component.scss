@@ -1,0 +1,195 @@
+@use 'mixins' as m;
+
+:host {
+  display: block;
+}
+
+.gb__toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--hq-space-12);
+  flex-wrap: wrap;
+}
+
+.gb__date {
+  inline-size: 170px;
+}
+
+.gb__pending {
+  margin: 0;
+  padding: var(--hq-space-cell);
+  color: var(--hq-color-warning-ink);
+  background: var(--hq-color-warning-soft);
+  font-size: var(--hq-text-theme-xs);
+  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+}
+
+// The card is the only thing that scrolls sideways. The page keeps its rail and its width.
+.gb__scroll {
+  max-inline-size: 100%;
+  overflow: auto;
+  max-block-size: 70vh;
+}
+
+.gb__grid {
+  border-collapse: separate; // `collapse` drops the borders of a sticky cell in every browser
+  border-spacing: 0;
+  font-size: var(--hq-text-theme-sm);
+  line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
+}
+
+.gb__grid th,
+.gb__grid td {
+  padding: var(--hq-space-cell-inner);
+  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+  text-align: center;
+  vertical-align: middle;
+}
+
+// ---- the two sticky edges --------------------------------------------------------------------
+
+.gb__grid thead th,
+.gb__grid thead td {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--hq-z-sticky);
+  background: var(--hq-color-surface-sunken);
+}
+
+.gb__class-row th,
+.gb__class-row td {
+  inset-block-start: calc(var(--hq-size-row-height) + var(--hq-space-8));
+}
+
+.gb__corner,
+.gb__name {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: var(--hq-z-sticky);
+  min-inline-size: 180px;
+  max-inline-size: 220px;
+  padding-inline: var(--hq-space-16);
+  background: var(--hq-color-surface);
+  text-align: start;
+  font-weight: var(--hq-text-weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-inline-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+}
+
+// Where the two sticky edges cross, the corner has to win both.
+.gb__corner {
+  z-index: calc(var(--hq-z-sticky) + 1);
+  background: var(--hq-color-surface-sunken);
+}
+
+// ---- the heading row ----------------------------------------------------------------------------
+
+.gb__column {
+  min-inline-size: 92px;
+  max-inline-size: 120px;
+  font-size: var(--hq-text-theme-2xs);
+  line-height: calc(var(--hq-text-theme-2xs-line) / var(--hq-text-theme-2xs));
+  font-weight: var(--hq-text-weight-medium);
+  color: var(--hq-color-ink-soft);
+}
+
+.gb__column-date {
+  display: block;
+  color: var(--hq-color-ink);
+}
+
+.gb__column-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gb__class-average,
+.gb__average-head {
+  font-size: var(--hq-text-theme-2xs);
+  color: var(--hq-color-ink-soft);
+}
+
+// ---- the squares -----------------------------------------------------------------------------------
+
+.gb__cell-wrap {
+  min-inline-size: 92px;
+}
+
+.gb__cell {
+  @include m.motion-safe('box-shadow');
+
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--hq-space-4);
+  inline-size: 100%;
+  min-block-size: var(--hq-size-touch-target);
+  padding: var(--hq-space-4);
+  border: 0;
+  border-radius: var(--hq-radius-xs);
+  background: none;
+  font: inherit;
+  color: inherit;
+}
+
+.gb__cell.is-editable:not(:disabled) {
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    box-shadow: inset 0 0 0 var(--hq-size-rule-thin) var(--hq-color-accent);
+  }
+}
+
+// §7: an override never hides what the machine worked out.
+.gb__auto {
+  color: var(--hq-color-ink-muted);
+  font-size: var(--hq-text-theme-2xs);
+  text-decoration: line-through;
+}
+
+.gb__absent {
+  color: var(--hq-color-ink-muted);
+}
+
+.gb__editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-8);
+  min-inline-size: 150px;
+  padding: var(--hq-space-8);
+  background: var(--hq-color-surface-sunken);
+  border-radius: var(--hq-radius-tile);
+}
+
+.gb__editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--hq-space-4);
+}
+
+// ---- the row's own summary -----------------------------------------------------------------------------
+
+.gb__average {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hq-space-8);
+  white-space: nowrap;
+}
+
+.gb__trend[data-trend='up'] {
+  color: var(--hq-color-success-ink);
+}
+
+.gb__trend[data-trend='down'] {
+  color: var(--hq-color-error-ink);
+}
+
+.gb__trend[data-trend='flat'] {
+  color: var(--hq-color-ink-soft);
+}

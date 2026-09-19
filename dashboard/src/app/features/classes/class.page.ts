@@ -15,9 +15,11 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TeacherApi } from '../../api';
 import { activeLang } from '../../core/i18n/active-lang';
+import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { ClassContextService } from '../../core/nav/class-context.service';
 import { EmptyStateComponent, PageComponent, TabsComponent, type Breadcrumb, type Tab } from '../../ui';
 import { ClassCalendarComponent } from './class-calendar.component';
+import { GradebookComponent } from '../results/gradebook.component';
 import { ClassChildrenComponent } from './class-children.component';
 import { calendarCells, monthParam, shiftMonth } from './classes.models';
 
@@ -50,6 +52,7 @@ function isTabId(value: string | null): value is TabId {
     EmptyStateComponent,
     ClassCalendarComponent,
     ClassChildrenComponent,
+    GradebookComponent,
     RouterLink,
     TranslocoPipe,
   ],
@@ -63,6 +66,7 @@ export class ClassPage {
   private readonly router = inject(Router);
   private readonly transloco = inject(TranslocoService);
   private readonly classContext = inject(ClassContextService);
+  private readonly flags = inject(FlagService);
   private readonly lang = activeLang();
 
   private readonly path = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
@@ -151,6 +155,9 @@ export class ClassPage {
       { id: 'exams', label: this.t('classes.tabs.exams'), controls: 'hq-class-panel' },
     ];
   });
+
+  /** N4.2: the Gradebook tab's own gate — the flag the grid's endpoints carry. */
+  protected readonly gradebookOn = computed(() => this.flags.isOn(FLAGS.gradebook));
 
   protected readonly comingSoon = computed(() => {
     this.lang();
