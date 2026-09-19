@@ -1,0 +1,275 @@
+// The TailAdmin foundations layer — see docs/prompts/tailadmin-spec.md.
+//
+// `_tokens.generated.scss` is the *contract*: it is generated from `design/tokens.json`, which
+// the mobile app shares, drift-checked by `pnpm tokens --check`, and must not be edited here.
+// This file is loaded immediately after it and does two things:
+//
+//   1. adds what the spec has and the token file does not — the four colour ramps, the type
+//      ramp, the radii, the five elevations and the spacing rhythm;
+//   2. **re-points the defaults** of the role properties the dashboard already consumes
+//      (`--hq-color-bg`, `--hq-color-surface`, `--hq-color-ink`, `--hq-color-rule`,
+//      `--hq-color-accent`, …) at the spec's roles.
+//
+// Re-pointing rather than renaming is the whole trick: `ThemeService` still writes a school's
+// six colours onto `<html>` as inline custom properties, an inline declaration still beats a
+// `:root` rule, and so a school theme still wins at runtime with no change to that service.
+//
+// Literal hex belongs in this file and nowhere else. Everything downstream reads a property.
+
+:root {
+  // --- Ramps -------------------------------------------------------------- §1 Colour
+  --hq-color-brand-25: #f2f7ff;
+  --hq-color-brand-50: #ecf3ff;
+  --hq-color-brand-100: #dde9ff;
+  --hq-color-brand-200: #c2d6ff;
+  --hq-color-brand-300: #9cb9ff;
+  --hq-color-brand-400: #7592ff;
+  --hq-color-brand-500: #465fff;
+  --hq-color-brand-600: #3641f5;
+  --hq-color-brand-700: #2a31d8;
+  --hq-color-brand-800: #252dae;
+  --hq-color-brand-900: #262e89;
+  --hq-color-brand-950: #161950;
+
+  --hq-color-gray-25: #fcfcfd;
+  --hq-color-gray-50: #f9fafb;
+  --hq-color-gray-100: #f2f4f7;
+  --hq-color-gray-200: #e4e7ec;
+  --hq-color-gray-300: #d0d5dd;
+  --hq-color-gray-400: #98a2b3;
+  --hq-color-gray-500: #667085;
+  --hq-color-gray-600: #475467;
+  --hq-color-gray-700: #344054;
+  --hq-color-gray-800: #1d2939;
+  --hq-color-gray-900: #101828;
+  --hq-color-gray-950: #0c111d;
+  // The one colour outside the ramps: the sidebar and header surface in dark mode.
+  --hq-color-gray-dark: #1a2231;
+
+  --hq-color-success-50: #ecfdf3;
+  --hq-color-success-100: #d1fadf;
+  --hq-color-success-500: #12b76a;
+  --hq-color-success-600: #039855;
+  --hq-color-success-700: #027a48;
+
+  --hq-color-error-50: #fef3f2;
+  --hq-color-error-100: #fee4e2;
+  --hq-color-error-200: #fecdca;
+  --hq-color-error-300: #fda29b;
+  --hq-color-error-500: #f04438;
+  --hq-color-error-600: #d92d20;
+  --hq-color-error-700: #b42318;
+
+  --hq-color-warning-50: #fffaeb;
+  --hq-color-warning-100: #fef0c7;
+  --hq-color-warning-300: #fec84b;
+  --hq-color-warning-400: #fdb022;
+  --hq-color-warning-500: #f79009;
+  --hq-color-warning-600: #dc6803;
+  --hq-color-warning-700: #b54708;
+
+  // --- Roles -------------------------------------------------------------- §1, §4
+  // The five properties a school may override (`ThemeService.THEME_PROPERTIES`) keep their
+  // names and get the spec's values as their defaults; the roles the spec adds are new.
+  --hq-color-bg: var(--hq-color-gray-50); // page ground — school `ground`
+  --hq-color-surface: #ffffff; // card, sidebar, header — school `primary`
+  --hq-color-surface-raised: #ffffff; // sidebar/header, which part company in dark mode
+  --hq-color-ink: var(--hq-color-gray-800); // primary text — school `primaryInk`
+  --hq-color-ink-soft: var(--hq-color-gray-500); // secondary text
+  --hq-color-ink-muted: var(--hq-color-gray-400); // muted text and placeholders
+  --hq-color-rule: var(--hq-color-gray-200); // container border — school `softBorder`
+  --hq-color-divider: var(--hq-color-gray-100); // the divider *inside* a container
+  --hq-color-control-rule: var(--hq-color-gray-300); // input and secondary-button border
+  --hq-color-hover: var(--hq-color-gray-100); // row and nav hover
+  --hq-color-accent: var(--hq-color-brand-500); // school `accent`
+  --hq-color-accent-strong: var(--hq-color-brand-600); // accent hover, and link text
+  --hq-color-accent-soft: var(--hq-color-brand-50); // accent tint: badges, nav active
+  --hq-color-accent-on-soft: var(--hq-color-brand-500); // text on that tint
+  --hq-color-disabled: var(--hq-color-gray-400);
+
+  // `--hq-color-line` is the 2 px rule the current components draw with. It was the ink
+  // colour; on the spec's palette a container border is `gray-200`, so it moves there and the
+  // containers read soft until T2 drops them to the 1 px `--hq-size-rule-thin`.
+  --hq-color-line: var(--hq-color-gray-200);
+
+  // §4 focus. The ring is the spec's; the *outline* keeps the brand rather than the spec's
+  // `#9cb9ff`, which is below 3:1 against white and is the one place the spec loses an
+  // accessibility argument. `--hq-color-focus-border` carries `#9cb9ff` for the control
+  // borders that take it.
+  --hq-color-focus: var(--hq-color-brand-500);
+  --hq-color-focus-border: var(--hq-color-brand-300);
+  --hq-focus-ring: 0 0 0 3px rgb(70 95 255 / 0.1);
+
+  // Status tints — badge, band and pill backgrounds with the text colour that goes on them.
+  --hq-color-success-soft: var(--hq-color-success-50);
+  --hq-color-success-ink: var(--hq-color-success-700);
+  --hq-color-error-soft: var(--hq-color-error-50);
+  --hq-color-error-ink: var(--hq-color-error-700);
+  --hq-color-warning-soft: var(--hq-color-warning-50);
+  --hq-color-warning-ink: var(--hq-color-warning-700);
+  --hq-color-neutral-soft: var(--hq-color-gray-100);
+  --hq-color-neutral-ink: var(--hq-color-gray-700);
+
+  // The progress band's three thresholds (§3 Progress bar) and the skeleton blocks.
+  --hq-color-band-good: var(--hq-color-success-500);
+  --hq-color-band-mid: var(--hq-color-warning-400);
+  --hq-color-band-look: var(--hq-color-error-500);
+  --hq-color-skeleton: var(--hq-color-gray-100);
+  --hq-color-skeleton-shine: var(--hq-color-gray-50);
+  --hq-color-scrollbar-thumb: var(--hq-color-gray-200);
+  --hq-color-overlay: rgb(16 24 40 / 0.45);
+
+  // --- Type --------------------------------------------------------------- §1 Typography
+  --hq-font-family-latin: Outfit, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+  --hq-text-title-2xl: 72px;
+  --hq-text-title-2xl-line: 90px;
+  --hq-text-title-xl: 60px;
+  --hq-text-title-xl-line: 72px;
+  --hq-text-title-lg: 48px;
+  --hq-text-title-lg-line: 60px;
+  --hq-text-title-md: 36px;
+  --hq-text-title-md-line: 44px;
+  --hq-text-title-sm: 30px; // metric values and big numbers
+  --hq-text-title-sm-line: 38px;
+  --hq-text-theme-xl: 20px;
+  --hq-text-theme-xl-line: 30px;
+  --hq-text-theme-sm: 14px; // body, table cells, nav labels, buttons
+  --hq-text-theme-sm-line: 20px;
+  --hq-text-theme-xs: 12px; // table headers, captions, badges
+  --hq-text-theme-xs-line: 18px;
+  --hq-text-page-title: 24px;
+  --hq-text-page-title-line: 32px;
+  --hq-text-card-title: 18px;
+  --hq-text-card-title-line: 26px;
+  --hq-text-weight-medium: 500;
+  --hq-text-weight-semibold: 600;
+  --hq-text-weight-bold: 700;
+
+  // The generated type tokens are the same ramp under the names the components already use.
+  --hq-font-body-size: var(--hq-text-theme-sm);
+  --hq-font-body-line: var(--hq-text-theme-sm-line);
+  --hq-font-input-size: var(--hq-text-theme-sm);
+  --hq-font-label-size: var(--hq-text-theme-sm);
+  --hq-font-label-line: var(--hq-text-theme-sm-line);
+  --hq-font-label-weight: var(--hq-text-weight-medium);
+  --hq-font-title-size: var(--hq-text-page-title);
+  --hq-font-title-line: var(--hq-text-page-title-line);
+  --hq-font-title-weight: var(--hq-text-weight-semibold);
+  --hq-font-letter-spacing-title: -0.01em;
+  --hq-font-letter-spacing-label: 0;
+
+  // --- Shape -------------------------------------------------------------- §1 Shape
+  --hq-radius-xs: 4px; // chart bar caps
+  --hq-radius-control: 8px; // buttons, inputs, nav items, dropdown rows
+  --hq-radius-tile: 12px; // icon tiles, inner panels
+  --hq-radius-card: 16px; // every card container
+  --hq-radius-pill: 9999px; // badges, status pills, progress tracks
+  // The generated token still reads 0 px (square corners were the old tell); anything that
+  // asks for it gets the control radius now. Cards ask for `--hq-radius-card` themselves (T2).
+  --hq-size-radius: var(--hq-radius-control);
+
+  // --- Elevation ---------------------------------------------------------- §1 Elevation
+  // Cards carry none of these: they are a border on a ground. Controls take `xs`,
+  // dropdowns `lg`, drawers `xl`.
+  --hq-shadow-xs: 0px 1px 2px 0px rgb(16 24 40 / 0.05);
+  --hq-shadow-sm:
+    0px 1px 3px 0px rgb(16 24 40 / 0.1), 0px 1px 2px 0px rgb(16 24 40 / 0.06);
+  --hq-shadow-md:
+    0px 4px 8px -2px rgb(16 24 40 / 0.1), 0px 2px 4px -2px rgb(16 24 40 / 0.06);
+  --hq-shadow-lg:
+    0px 12px 16px -4px rgb(16 24 40 / 0.08), 0px 4px 6px -2px rgb(16 24 40 / 0.03);
+  --hq-shadow-xl:
+    0px 20px 24px -4px rgb(16 24 40 / 0.08), 0px 8px 8px -4px rgb(16 24 40 / 0.03);
+
+  // --- Rhythm ------------------------------------------------------------- §1 Spacing
+  --hq-space-grid-gap: 24px;
+  --hq-space-card: 24px;
+  --hq-space-card-header: 20px 24px;
+  --hq-space-button: 11px 16px;
+  --hq-space-cell: 14px 24px; // table cell at the card edge
+  --hq-space-cell-inner: 14px 12px;
+  // §4: icons are 24 px in navigation and metric tiles, 20 px in controls and table cells,
+  // 18 px inside buttons.
+  --hq-size-icon-nav: 24px;
+  --hq-size-icon-control: 20px;
+  --hq-size-icon-button: 18px;
+  --hq-size-control-height: 44px;
+  --hq-size-button-height: var(--hq-size-control-height);
+  --hq-size-input-height: var(--hq-size-control-height);
+}
+
+// --- Dark mode ------------------------------------------------------------- §5
+//
+// `DarkModeService` puts `dark` on `<html>` before first paint. Only the *roles* move; the
+// ramps, the type, the shape and the rhythm are the same system in both schemes, and the
+// shadows are left alone because on a dark surface they are invisible by design.
+//
+// `!important` on four of these is deliberate and is the rule the service documents: a
+// school's theme is written as an inline style on `<html>`, an inline declaration normally
+// beats a `:root` rule, and an important author declaration beats an inline one. So in dark
+// mode a school's **accent still applies** (no `!important` on it) while its surface, ground,
+// rule and ink do not — a school picked those against a white page, and on `#101828` they
+// would be unreadable rather than branded.
+html.dark {
+  --hq-color-bg: var(--hq-color-gray-900) !important;
+  --hq-color-surface: rgb(255 255 255 / 0.03) !important;
+  --hq-color-ink: rgb(255 255 255 / 0.9) !important;
+  --hq-color-rule: var(--hq-color-gray-800) !important;
+
+  --hq-color-surface-raised: var(--hq-color-gray-dark);
+  --hq-color-ink-soft: var(--hq-color-gray-400);
+  --hq-color-ink-muted: var(--hq-color-gray-500);
+  --hq-color-divider: var(--hq-color-gray-800);
+  --hq-color-control-rule: var(--hq-color-gray-700);
+  --hq-color-line: var(--hq-color-gray-800);
+  --hq-color-hover: rgb(255 255 255 / 0.05);
+  --hq-color-disabled: var(--hq-color-gray-600);
+
+  --hq-color-accent-strong: var(--hq-color-brand-400);
+  --hq-color-accent-soft: rgb(70 95 255 / 0.12);
+  --hq-color-accent-on-soft: var(--hq-color-brand-400);
+  --hq-color-focus-border: var(--hq-color-brand-400);
+
+  // Badge tints: 15 % of the ramp's 500 behind the 500 itself.
+  --hq-color-success-soft: rgb(18 183 106 / 0.15);
+  --hq-color-success-ink: var(--hq-color-success-500);
+  --hq-color-error-soft: rgb(240 68 56 / 0.15);
+  --hq-color-error-ink: var(--hq-color-error-500);
+  --hq-color-warning-soft: rgb(247 144 9 / 0.15);
+  --hq-color-warning-ink: var(--hq-color-warning-500);
+  --hq-color-neutral-soft: rgb(255 255 255 / 0.05);
+  --hq-color-neutral-ink: var(--hq-color-gray-300);
+
+  --hq-color-skeleton: var(--hq-color-gray-800);
+  --hq-color-skeleton-shine: var(--hq-color-gray-700);
+  --hq-color-scrollbar-thumb: var(--hq-color-gray-700);
+  --hq-color-overlay: rgb(12 17 29 / 0.7);
+
+  color-scheme: dark;
+}
+
+// --- Global rules ---------------------------------------------------------- §4
+//
+// The reset itself (page background, body text, the focus ring) lives in `styles.scss`, which
+// is emitted *after* this file and would otherwise win the cascade on equal specificity. Only
+// the rules with nowhere else to go are here.
+
+html {
+  scrollbar-color: var(--hq-color-scrollbar-thumb) transparent;
+}
+
+::placeholder {
+  color: var(--hq-color-ink-muted);
+  opacity: 1;
+}
+
+// The CDK's overlay container sits outside `<hq-root>`, so it inherits nothing; without this
+// a menu or a dialog keeps the UA's black-on-white while the page behind it is dark.
+.cdk-overlay-container {
+  color: var(--hq-color-ink);
+}
+
+.cdk-overlay-dark-backdrop {
+  background: var(--hq-color-overlay);
+}
