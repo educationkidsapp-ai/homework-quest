@@ -134,6 +134,20 @@ public class ClassAdminController {
     }
 
     /**
+     * The row goes, and everything that was only ever hers with it — attempts, completions, unlocks, stickers,
+     * streak, recordings and drawings. It is how acceptance or test data is cleaned out of a school; for a child who
+     * has simply left, `PATCH /admin/children/{id}` with `active=false` retires her and keeps her work.
+     *
+     * <p>Another school's child is a 404 for a scoped caller, never a refusal that confirms she exists.
+     */
+    @DeleteMapping("/admin/children/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("@permit.has('roster.write')")
+    public void deleteChild(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
+        rosters.delete(TeacherScope.require(caller), id);
+    }
+
+    /**
      * A child who already has an account — one a parent registered in the app with the school's join code — put onto
      * this section's roster, which is what makes her see this class's lessons and puts her work on its teacher's
      * dashboard. Idempotent; another school's child and a curriculum or grade that is not this section's are 409.

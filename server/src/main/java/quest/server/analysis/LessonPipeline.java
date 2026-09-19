@@ -28,10 +28,21 @@ public class LessonPipeline {
     private final quest.server.content.SkillRepository skills; private final quest.server.content.PlayRepository plays; private final quest.server.content.ParentPanelRepository panels; private final AnalysisCacheRepository analyses; private final quest.server.content.LessonStore store;
     /** Test hook: `quest.pipeline.fail-once-at=generate_L2` makes that step fail the first time it runs for each lesson. */
     private final String failOnceAt; private final Set<String> failed = ConcurrentHashMap.newKeySet();
+    /** Test hook: `quest.pipeline.hang-at=generate_L3` makes that step sleep until its deadline interrupts it. */
+    private final String hangAt;
+    /**
+     * The lessons this instance is running a job for, right now. It is the only thing that can answer "is anybody
+     * still working on this?", and it answers it for <em>this</em> instance only — which is exactly the question
+     * {@link quest.server.admin.AdminLessonService}'s "Wait for the current job to finish" should have been asking.
+     * A job whose instance was recycled leaves no entry here, so it is no longer in anybody's way; what remains of
+     * it in the database is the watchdog's to clean up.
+     */
+    private final Set<String> live = ConcurrentHashMap.newKeySet();
 
     public LessonPipeline(LessonRepository lessons, SourceFileRepository files, AnalysisService analysis, ConversionService conversion, GenerationService generation, LessonState state, LessonSteps steps, @Value("${quest.pipeline.fail-once-at:}") String failOnceAt,
+                          @Value("${quest.pipeline.hang-at:}") String hangAt,
                           quest.server.content.SkillRepository skills, quest.server.content.PlayRepository plays, quest.server.content.ParentPanelRepository panels, AnalysisCacheRepository analyses, quest.server.content.LessonStore store) {
-        this.lessons = lessons; this.files = files; this.analysis = analysis; this.conversion = conversion; this.generation = generation; this.state = state; this.steps = steps; this.failOnceAt = failOnceAt == null ? "" : failOnceAt.trim();
+        this.lessons = lessons; this.files = files; this.analysis = analysis; this.conversion = conversion; this.generation = generation; this.state = state; this.steps = steps; this.failOnceAt = failOnceAt == null ? "" : failOnceAt.trim(); this.hangAt = hangAt == null ? "" : hangAt.trim();
         this.skills = skills; this.plays = plays; this.panels = panels; this.analyses = analyses; this.store = store;
     }
 
@@ -81,10 +92,14 @@ public class LessonPipeline {
         throw ApiException.badRequest("Every step is already done.");
     }
 
+    /** True while a job for this lesson is running <em>in this instance</em>. */
+    public boolean isLive(String lessonId) { return live.contains(lessonId); }
+
     private void runFrom(String lessonId, PipelineStep from, boolean continueAfter) {
         steps.ensure(lessonId);
         var lesson = lessons.findById(lessonId).orElse(null);
         if (lesson == null) return;
+        live.add(lessonId);
         try {
             for (PipelineStep step : LessonSteps.ORDER) {
                 if (step.ordinal() < from.ordinal()) continue;
@@ -92,7 +107,7 @@ public class LessonPipeline {
                 if (step == PipelineStep.SKILLS) { state.set(lessonId, LessonStatus.NEEDS_REVIEW); return; }   // the admin's turn
                 state.set(lessonId, step.ordinal() <= PipelineStep.ANALYZE.ordinal() ? LessonStatus.ANALYZING : LessonStatus.GENERATING);
                 final LessonEntity current = lessons.findById(lessonId).orElseThrow(() -> new LessonSteps.Stop("lesson deleted"));
-                boolean ok = steps.run(lessonId, step, () -> { failOnce(lessonId, step); body(current, step); });
+                boolean ok = steps.run(lessonId, step, () -> { failOnce(lessonId, step); hang(step); body(current, step); });
                 if (!ok) { var row = steps.get(lessonId, step).orElseThrow(); state.fail(lessonId, row.getErrorCode(), row.getErrorMessage()); return; }
                 if (step == PipelineStep.ANALYZE && !steps.isDone(lessonId, PipelineStep.SKILLS)) { state.set(lessonId, LessonStatus.NEEDS_REVIEW); return; }
                 if (!continueAfter) { finish(lessonId, false); return; }
@@ -100,6 +115,7 @@ public class LessonPipeline {
             finish(lessonId, true);
         } catch (LessonSteps.Stop e) { log.info("pipeline for {} stopped: {}", lessonId, e.getMessage()); }
         catch (RuntimeException e) { log.error("pipeline for {} crashed", lessonId, e); state.fail(lessonId, "model_failed", LessonSteps.Messages.of("model_failed", e.getMessage())); }
+        finally { live.remove(lessonId); }
     }
 
     private void body(LessonEntity lesson, PipelineStep step) {
@@ -128,6 +144,14 @@ public class LessonPipeline {
         state.set(lessonId, allDone ? LessonStatus.REVIEW : LessonStatus.PAUSED);
     }
 
+    /** The hang the deadline exists for: a step that never returns on its own, ended only by the interrupt. */
+    private void hang(PipelineStep step) {
+        if (hangAt.isEmpty() || !hangAt.equals(LessonSteps.stepName(step))) return;
+        // The interrupt the deadline sends is the only way out, and the step stops there rather than carrying on
+        // into the real work — which is what an abandoned job must do.
+        try { Thread.sleep(java.time.Duration.ofMinutes(30)); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new LessonSteps.Stop("abandoned at " + LessonSteps.stepName(step)); }
+    }
+
     private void failOnce(String lessonId, PipelineStep step) {
         if (!failOnceAt.isEmpty() && failOnceAt.equals(LessonSteps.stepName(step)) && failed.add(lessonId + ":" + step)) throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", "injected failure at " + failOnceAt);
     }
@@ -135,6 +159,7 @@ public class LessonPipeline {
     /** Manual lessons: Prompt A on the admin's text, then the missing levels and the panel (no step ledger — one job). */
     @Async
     public void generateFromTextAsync(String lessonId, String text) {
+        live.add(lessonId);
         try {
             var lesson = lessons.findById(lessonId).orElseThrow();
             analysis.analyzeText(lesson, text);
@@ -143,5 +168,6 @@ public class LessonPipeline {
         } catch (ApiException e) { log.warn("text generation for {} failed: {}", lessonId, e.getMessage()); state.fail(lessonId, e.error().code(), LessonSteps.Messages.of(e.error().code(), e.error().message())); }
         catch (LessonSteps.TransientFailure e) { state.fail(lessonId, "model_unavailable", LessonSteps.Messages.of("model_unavailable", e.getMessage())); }
         catch (Exception e) { log.error("text generation for {} crashed", lessonId, e); state.fail(lessonId, "model_failed", LessonSteps.Messages.of("model_failed", e.getMessage())); }
+        finally { live.remove(lessonId); }
     }
 }
