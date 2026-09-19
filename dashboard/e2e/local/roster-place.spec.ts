@@ -1,4 +1,4 @@
-import { request, type Page } from '@playwright/test';
+import { request, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
@@ -120,6 +120,32 @@ function rosterRow(page: Page, name: string) {
   return page.getByRole('row').filter({ hasText: name });
 }
 
+/**
+ * Asserts a control is **inside the viewport already**, then clicks it.
+ *
+ * Playwright scrolls an off-screen control into view before clicking, so a plain `click()`
+ * passes on a row whose actions sit past the card's inline edge — which is exactly the defect
+ * this file exists to keep out. The box is read first and the click only happens if the whole
+ * of it is on screen at the width under test.
+ */
+async function clickWithoutScrolling(page: Page, control: Locator, what: string): Promise<void> {
+  await expect(control).toBeVisible();
+  const box = await control.boundingBox();
+  const width = page.viewportSize()?.width ?? 0;
+  expect(box, `${what} has no box`).toBeTruthy();
+  expect(
+    box!.x + box!.width,
+    `${what} ends at ${Math.round(box!.x + box!.width)}px, past the ${width}px viewport — it can only be reached by scrolling the table sideways`,
+  ).toBeLessThanOrEqual(width);
+  expect(box!.x, `${what} starts at ${Math.round(box!.x)}px, off the inline start`).toBeGreaterThanOrEqual(0);
+  await control.click();
+}
+
+/** The row's ⋯ — where Edit, Deactivate and Remove live. */
+function rowActions(page: Page, name: string): Locator {
+  return rosterRow(page, name).getByRole('button', { name: `Actions for ${name}` });
+}
+
 test.describe.configure({ mode: 'serial' });
 
 test('the dialog lists the child the app registered, and Place puts her on the roster', async ({ page }) => {
@@ -146,19 +172,43 @@ test('the dialog lists the child the app registered, and Place puts her on the r
   await expect(rosterRow(page, CHILD)).toBeVisible();
 });
 
+/**
+ * The reason the three verbs moved into a menu: with a column of their own the table was wider
+ * than its card, and the only way to Remove was to scroll the table sideways — which Playwright
+ * does for you, so the e2e passed while a teacher could not reach the button.
+ */
+test('the table fits its card at every desktop width, with nothing to scroll sideways', async ({ page }) => {
+  await openChildren(page);
+
+  for (const width of [1024, 1280, 1366]) {
+    await page.setViewportSize({ width, height: 768 });
+    const overflow = await page.locator('.table__scroll').evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(
+      overflow,
+      `the roster table overflows its card by ${overflow}px at ${width}px`,
+    ).toBeLessThanOrEqual(1);
+    await expect(rowActions(page, 'Ada Renshaw')).toBeVisible();
+  }
+
+  await page.setViewportSize({ width: 1366, height: 768 });
+});
+
 test('Remove asks in the red band and takes her off the section, not out of the school', async ({ page }) => {
   await openChildren(page);
   await expect(rosterRow(page, CHILD)).toBeVisible();
 
-  await rosterRow(page, CHILD)
-    .getByRole('button', { name: `Remove ${CHILD}` })
-    .click();
+  // 1280 is the narrowest desktop the dashboard claims; the ⋯ has to be on screen there without
+  // the table being scrolled, or the three verbs are unreachable for the teacher who has it.
+  await page.setViewportSize({ width: 1280, height: 768 });
+  await clickWithoutScrolling(page, rowActions(page, CHILD), `the ⋯ on ${CHILD}'s row`);
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
   await expect(page.getByText(`${CHILD} comes off ${SECTION}`)).toBeVisible();
   // The question is the point: nothing has changed until it is answered.
   await expect(rosterRow(page, CHILD)).toBeVisible();
 
   await page.getByRole('button', { name: 'Remove from class' }).click();
   await expect(rosterRow(page, CHILD)).toHaveCount(0);
+  await page.setViewportSize({ width: 1366, height: 768 });
 
   // Still in the school: the place dialog offers her again, which is the way back.
   await page.getByRole('button', { name: 'Place an existing child' }).click();

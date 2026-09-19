@@ -1,3 +1,4 @@
+import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -53,6 +54,9 @@ import { PlaceChildComponent } from './place-child.component';
     EmptyStateComponent,
     SkeletonComponent,
     PlaceChildComponent,
+    CdkMenu,
+    CdkMenuItem,
+    CdkMenuTrigger,
     FeatureDirective,
     CanDirective,
     TranslocoPipe,
@@ -109,16 +113,16 @@ export class ClassChildrenComponent {
   protected readonly columns = computed<readonly TableColumn<RosterRow>[]>(() => {
     this.lang();
     const base: TableColumn<RosterRow>[] = [
-      { key: 'name', header: this.t('classes.children.table.name'), width: '18%' },
+      { key: 'name', header: this.t('classes.children.table.name'), width: '24%' },
       { key: 'starsThisWeek', header: this.t('classes.children.table.stars'), align: 'end' },
       { key: 'levelReached', header: this.t('classes.children.table.level'), align: 'end' },
       { key: 'weakSkills', header: this.t('classes.children.table.weakSkills') },
       { key: 'lastPlayed', header: this.t('classes.children.table.lastPlayed') },
     ];
-    if (this.canEdit()) {
+    // No actions *column*: the row's verbs live in `hq-table`'s own overflow cell, which is
+    // narrow and fixed, so six columns of data still fit the card at 1024 px.
+    if (this.canEdit())
       base.push({ key: 'parentEmail', header: this.t('classes.children.table.parentEmail') });
-      base.push({ key: 'childId', header: this.t('classes.children.table.actions') });
-    }
     return base;
   });
 
@@ -139,6 +143,9 @@ export class ClassChildrenComponent {
       new Date(row.lastPlayed),
     );
   }
+
+  /** The row whose ⋯ menu is open — the menu is one template, shared by every row. */
+  protected readonly menuRow = signal<RosterRow | null>(null);
 
   // ---- inline edit ---------------------------------------------------------------------------
 

@@ -37,6 +37,12 @@ const STUDENT = {
   weakSkills: [{ skillId: 's-1', name: 'Place value' }],
 };
 
+/** The row's ⋯ — the one way to Edit, Deactivate and Remove since they left the column. */
+async function openRowMenu(name: string): Promise<void> {
+  await userEvent.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+  await settle();
+}
+
 async function settle(): Promise<void> {
   await Promise.resolve();
   TestBed.tick();
@@ -85,7 +91,7 @@ describe('the class page Children tab', () => {
     // for a list its teachers may not change.
     backend.expectNone('/teacher/classes/c-1a/children');
     expect(screen.queryByRole('button', { name: /add a child/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /edit/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Actions for/ })).toBeNull();
     backend.verify();
   });
 
@@ -99,8 +105,13 @@ describe('the class page Children tab', () => {
 
     expect(screen.getByRole('button', { name: /add a child/i })).toBeTruthy();
     expect(screen.getByText('p@x.test')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /deactivate/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Place an existing child' })).toBeTruthy();
+
+    // The row's verbs are behind one ⋯ per row, named for the child whose row it is.
+    await openRowMenu('Amina');
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Deactivate' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Remove' })).toBeTruthy();
     backend.verify();
   });
 
@@ -116,7 +127,8 @@ describe('the class page Children tab', () => {
       .flush([{ id: 'ch-1', classId: 'c-1a', name: 'Amina', active: true }]);
     await settle();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remove Amina' }));
+    await openRowMenu('Amina');
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Remove' }));
     await settle();
     expect(
       screen.getByText(
@@ -147,7 +159,8 @@ describe('the class page Children tab', () => {
       .flush([{ id: 'ch-1', classId: 'c-1a', name: 'Amina', active: true }]);
     await settle();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remove Amina' }));
+    await openRowMenu('Amina');
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Remove' }));
     await settle();
     await userEvent.click(screen.getByRole('button', { name: /dismiss|cancel|close/i }));
     await settle();

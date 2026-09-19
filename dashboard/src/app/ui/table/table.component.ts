@@ -29,7 +29,7 @@ export interface TableColumn<Row> {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="table__scroll">
-      <table class="table" [attr.aria-label]="label()">
+      <table class="table" [class.table--wrap-headers]="wrapHeaders()" [attr.aria-label]="label()">
         <thead class="table__head">
           <tr>
             @for (column of columns(); track column.key) {
@@ -116,6 +116,14 @@ export interface TableColumn<Row> {
       white-space: nowrap;
     }
 
+    // A header of two or three words is the widest thing in a column of single digits, and on a
+    // seven-column table that is what decides whether the whole thing fits its card. Opt-in
+    // rather than the default: a header that wraps is a row of different heights, which is worth
+    // paying only where the alternative is a table nobody can reach the end of.
+    .table--wrap-headers th {
+      white-space: normal;
+    }
+
     td {
       block-size: var(--hq-size-row-height);
       padding: var(--hq-space-cell);
@@ -156,6 +164,9 @@ export class TableComponent<Row> {
   /** One template for every cell; the column arrives as `let-column="column"`. */
   readonly cellTemplate = input.required<TemplateRef<{ $implicit: Row; column: TableColumn<Row> }>>();
   /** Optional trailing cell — the row's overflow menu. */
+  /** Let a many-columned table's headers wrap rather than force the table past its card. */
+  readonly wrapHeaders = input(false);
+
   readonly overflowTemplate = input<TemplateRef<{ $implicit: Row }> | null>(null);
   /** Accessible name: say what the table lists. */
   readonly label = input.required<string>();

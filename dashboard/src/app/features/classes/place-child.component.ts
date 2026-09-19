@@ -14,6 +14,7 @@ import { type RosterChild, TeacherRosterApi, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import {
+  BandComponent,
   ButtonComponent,
   DialogComponent,
   EmptyStateComponent,
@@ -45,6 +46,7 @@ import {
   selector: 'hq-place-child',
   imports: [
     DialogComponent,
+    BandComponent,
     ButtonComponent,
     InputComponent,
     EmptyStateComponent,
@@ -53,13 +55,20 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hq-dialog
-      [(open)]="open"
-      [sheet]="true"
-      [title]="'classes.children.place.title' | transloco"
-      [cancelLabel]="'classes.children.place.close' | transloco"
-    >
-      @if (children.isLoading()) {
+    <hq-dialog [(open)]="open" [sheet]="true" [title]="'classes.children.place.title' | transloco">
+      @if (children.error()) {
+        <!--
+          The list itself failed. It is said here, in the dialog, rather than in a band behind
+          it: the band would be covered by the modal, and a sheet that is simply empty reads as
+          "no child is waiting", which is the opposite of what happened.
+        -->
+        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco">
+          {{ loadFailure() }}
+        </hq-band>
+        <hq-button variant="secondary" (pressed)="children.reload()">
+          {{ 'classes.children.place.retry' | transloco }}
+        </hq-button>
+      } @else if (children.isLoading()) {
         <hq-skeleton
           [loading]="true"
           [lines]="4"
@@ -90,9 +99,7 @@ import {
                   <span class="place__email">{{ child.parentEmail }}</span>
                 }
                 @if (child.hasParent) {
-                  <span class="hq-badge hq-badge--light">{{
-                    'classes.children.place.fromApp' | transloco
-                  }}</span>
+                  <span class="hq-badge">{{ 'classes.children.place.fromApp' | transloco }}</span>
                 }
               </span>
               <hq-button
@@ -176,6 +183,18 @@ export class PlaceChildComponent {
     params: () => (this.open() ? this.classId() : undefined),
     stream: ({ params }) => this.rosterApi.unassignedForMyClass(params),
     defaultValue: [] as RosterChild[],
+  });
+
+  /**
+   * Why the list could not be read, in the server's own words where it had any.
+   *
+   * `rxResource` keeps a failed request's error rather than throwing it out of the render, so
+   * this is a signal like any other and the dialog draws a band instead of collapsing.
+   */
+  protected readonly loadFailure = computed(() => {
+    this.lang();
+    const error = this.children.error();
+    return error ? (apiErrorOf(error)?.message ?? this.t('band.unreachable')) : '';
   });
 
   protected readonly query = signal('');

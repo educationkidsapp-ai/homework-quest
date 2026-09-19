@@ -48,3 +48,10 @@
   padding: var(--hq-space-card);
   padding-block-end: 0;
 }
+
+// A parent's address is one long word to a layout engine, and its min-content width was what
+// pushed the table past its card at 1024. It may break anywhere — an address is read, not
+// parsed — and the column then shrinks with the rest.
+.children__email {
+  overflow-wrap: anywhere;
+}

@@ -226,6 +226,7 @@
       "inactive": "Inactive",
       "edit": "Edit",
       "editOf": "{{name}}",
+      "rowActions": "Actions for {{name}}",
       "save": "Save",
       "cancel": "Cancel",
       "activate": "Activate",
@@ -258,14 +259,14 @@
         "actionOf": "{{name}}",
         "place": "Place",
         "title": "Place an existing child",
-        "close": "Close",
         "loading": "Looking for children who are not in a class yet",
         "search": "Search",
         "searchPlaceholder": "Name or parent email",
         "noMatch": "No child matches “{{query}}”.",
         "empty": "No unplaced children of this grade yet — a parent adds a child in the app first.",
         "fromApp": "Registered from the app",
-        "done": "{{name}} placed in {{class}}."
+        "done": "{{name}} placed in {{class}}.",
+        "retry": "Try again"
       },
       "remove": {
         "action": "Remove",

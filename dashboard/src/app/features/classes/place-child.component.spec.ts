@@ -113,4 +113,35 @@ describe('place an existing child', () => {
     expect(rendered.fixture.componentInstance.open()).toBe(true);
     expect(screen.getByRole('button', { name: 'Place Amina' })).toBeInTheDocument();
   });
+
+  /**
+   * The list itself failing is not the same as nobody waiting, and a sheet that shows the empty
+   * state for a 500 tells the teacher a lie she cannot check. The band is *inside* the dialog,
+   * because a band behind a modal is a band nobody sees.
+   */
+  it('says so inside the dialog when the list cannot be read, and offers the request again', async () => {
+    const rendered = await renderHq(PlaceChildComponent, {
+      providers,
+      inputs: { open: true, classId: 'c-1a' },
+    });
+    const backend = TestBed.inject(HttpTestingController);
+    await settle();
+    backend
+      .expectOne(URL)
+      .flush(
+        { code: 'server_error', message: 'The roster could not be read.' },
+        { status: 500, statusText: 'Error' },
+      );
+    await settle();
+
+    expect(screen.getByText('The roster could not be read.')).toBeInTheDocument();
+    expect(screen.queryByText(/No unplaced children/)).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await settle();
+    backend.expectOne(URL).flush(UNPLACED);
+    await settle();
+    expect(screen.getByRole('button', { name: 'Place Amina' })).toBeInTheDocument();
+    expect(rendered.fixture.componentInstance.open()).toBe(true);
+  });
 });
