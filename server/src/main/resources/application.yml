@@ -168,6 +168,11 @@ quest:
   admin.seed-email: admin@test.local
   admin.seed-password: admin1234
   pipeline.convert.allow-builtin-fallback: true
+  # No background sweep under test. It ticks on a 60-second timer against the SessionFactory the whole suite shares,
+  # so a tick that lands inside a `statements()` measurement makes the query-count tests off by one, and it reaches
+  # into lessons another context seeded in the same H2 database. `StuckLessonTest` calls `sweep()` outright, which is
+  # what that test is for and is unaffected by this switch.
+  pipeline.watchdog.enabled: false
 
 ---
 # QA on Cloud Run (project homework-quest-qa, branch develop): same wiring as prod, verbose logs, seeded sample lessons
