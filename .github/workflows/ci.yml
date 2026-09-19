@@ -166,9 +166,11 @@ jobs:
         with: { name: screenshots, path: shared/build/screenshots/**, retention-days: 7 }
 
   dashboard:
-    # Playwright is deliberately not here: it needs browser downloads and a deployed target, and runs against QA
-    # after the deploy (`deploy-qa.yml`, the `e2e` job). The plain shell scripts under e2e/ are only linted, in the
-    # `scripts` job, never run.
+    # Two Playwright suites, and only one of them belongs here. `e2e/local/**` needs a real API with seeded data, so
+    # it stays post-deploy against QA (`deploy-qa.yml`, the `e2e` job). `e2e/styleguide.spec.ts` needs nothing but
+    # `ng serve`, and it is the suite that catches CSS: a focus-ring regression survived two packages because this
+    # job stopped at `pnpm test` (docs/reports/tailadmin-restyle.md §4.3). The plain shell scripts under e2e/ are
+    # only linted, in the `scripts` job, never run.
     name: Dashboard (lint, unit tests, build)
     needs: changes
     if: needs.changes.outputs.dashboard == 'true'
@@ -214,6 +216,42 @@ jobs:
         run: pnpm build --configuration=qa --no-progress
       - uses: actions/upload-artifact@v4
         with: { name: dashboard-dist, path: dashboard/dist, retention-days: 1 }
+      # Last in the job, after the dist artifact is safely uploaded: everything above it lands in about ninety
+      # seconds (run 35426736002), and a browser download on a cold cache should not delay a lint failure.
+      - name: Cache the browser (same key as deploy-qa.yml, so the two jobs share one entry)
+        id: browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('dashboard/pnpm-lock.yaml') }}
+      - name: Chromium
+        if: steps.browser.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Chromium system libraries (the browser itself came from the cache)
+        if: steps.browser.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+      - name: Styleguide e2e (Playwright starts `ng serve` itself)
+        id: e2e
+        # `CI=1` is what playwright.config.ts reads: `reuseExistingServer: !CI` makes the dev server this step's own
+        # (nothing else listens on 4200 on a fresh runner, so the flag only removes the "is it already up?" probe),
+        # `forbidOnly` fails the run on a stray `test.only`, and the retry budget is one. The `development`
+        # configuration `ng serve` defaults to is the only one that keeps `styleguide.route.ts` — `qa` and
+        # `production` replace it — so this is the only place the styleguide can be tested at all.
+        env:
+          CI: "1"
+        run: pnpm e2e
+      - uses: actions/upload-artifact@v4
+        # Failure only, and only this step's: a green run's trace is worth nothing, and a lint failure five steps
+        # earlier has no report to upload. The payload is `e2e/.output` — `trace: 'on-first-retry'` plus the one
+        # retry means a failing test leaves a trace.zip and an error-context.md there. `playwright-report/` is
+        # listed for the day a reporter writes one (the CI reporters are `github` + `list`, as in deploy-qa.yml).
+        if: failure() && steps.e2e.outcome == 'failure'
+        with:
+          name: dashboard-styleguide-e2e-${{ github.sha }}
+          path: |
+            dashboard/playwright-report/**
+            dashboard/e2e/.output/**
+          retention-days: 3
 
   scripts:
     # The e2e shell scripts (e2e/isolation.sh, e2e/flags.sh, ...) run against a live server, so CI cannot execute them;
