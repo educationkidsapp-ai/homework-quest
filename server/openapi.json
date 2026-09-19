@@ -5091,6 +5091,35 @@
         "tags" : [ "Classes" ]
       }
     },
+    "/admin/classes/{id}/children/unassigned" : {
+      "get" : {
+        "operationId" : "unassignedForClass",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/RosterChild"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Classes" ]
+      }
+    },
     "/admin/classes/{id}/join-card.pdf" : {
       "get" : {
         "operationId" : "joinCard",
@@ -8240,6 +8269,35 @@
               }
             },
             "description" : "Created"
+          }
+        },
+        "tags" : [ "Teacher roster" ]
+      }
+    },
+    "/teacher/classes/{classId}/children/unassigned" : {
+      "get" : {
+        "operationId" : "unassignedForMyClass",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/RosterChild"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
           }
         },
         "tags" : [ "Teacher roster" ]

@@ -59,6 +59,30 @@ public class RosterService {
                 .filter(c -> !unassignedOnly || c.getClassId() == null).map(RosterService::dto).toList();
     }
 
+    /**
+     * `GET …/classes/{classId}/children/unassigned`: the children this section could take, and no others — on no
+     * roster at all, and of its curriculum and grade.
+     *
+     * <p>It exists because {@link #attach} had no companion a <em>teacher</em> could call. Maya could put the
+     * owner's child into her section the moment she knew the child's id, and the only route that answered ids was
+     * `GET /admin/children?unassigned=true` — `roster.read`, which a TEACHER does not hold. So the one screen she
+     * needs it on could not be built without signing her in as an Admin. This answers the same rows the school-wide
+     * list would, narrowed to the ones this section is allowed to take: the curriculum and grade filter here is the
+     * same rule {@link #attach} refuses with a 409, so the list never offers a child the attach would reject.
+     *
+     * <p><strong>Scope.</strong> The section goes through {@link TeacherScope} first — another school's is a 404,
+     * one a teacher holds no assignment on is a 403 — and the children are then read by <em>that section's</em>
+     * school id, never by anything the caller sent, so a class the caller may read can only ever list its own
+     * school's children.
+     */
+    public List<ClassDto.RosterChild> unassignedFor(Principals.User caller, String classId) {
+        var section = scope.requireClass(caller, classId);
+        return children.findBySchoolIdAndDeletedAtIsNullOrderByNameAsc(section.getSchoolId()).stream()
+                .filter(c -> c.getClassId() == null)
+                .filter(c -> section.getCurriculum().equalsIgnoreCase(c.getCurriculum()) && section.getGrade() == c.getGrade())
+                .map(RosterService::dto).toList();
+    }
+
     public List<ClassDto.RosterChild> list(Principals.User caller, String classId) {
         var section = scope.requireClass(caller, classId);
         return children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(section.getId()).stream().map(RosterService::dto).toList();

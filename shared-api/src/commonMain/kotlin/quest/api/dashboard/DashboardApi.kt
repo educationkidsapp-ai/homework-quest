@@ -380,6 +380,15 @@ interface DashboardApi {
     suspend fun listUnassignedChildren(): List<RosterChild> = schoolChildren(unassigned = true)
 
     /**
+     * `GET /admin/classes/{id}/children/unassigned` — the same children narrowed to one section: on no roster at
+     * all, and of that section's curriculum and grade, so every row is one [attachChildToClass] would accept
+     * rather than refuse with a 409. [unassignedChildrenForMyClass] is the teacher's half, behind
+     * `teacher.rosterEdit`; it is the only list of unplaced children a TEACHER can read, because the school-wide
+     * [schoolChildren] is `roster.read`.
+     */
+    suspend fun unassignedChildrenForClass(classId: String): List<RosterChild>
+
+    /**
      * `DELETE /admin/children/{id}` — the row and everything that was only ever hers (attempts, completions,
      * unlocks, stickers, streak, recordings, drawings). It is how acceptance data is cleaned out; a child who has
      * simply left the school is retired with [updateRosterChild] and `active = false` instead, which keeps her work.
@@ -398,6 +407,9 @@ interface DashboardApi {
 
     /** The teacher's own roster, behind the `teacher.rosterEdit` flag and scoped to her assignments. */
     suspend fun myClassChildren(classId: String): List<RosterChild>
+
+    /** `GET /teacher/classes/{classId}/children/unassigned` — what her Children tab's "add a child" sheet lists. */
+    suspend fun unassignedChildrenForMyClass(classId: String): List<RosterChild>
     suspend fun addChildToMyClass(classId: String, request: CreateRosterChildRequest): RosterChild
     suspend fun updateMyRosterChild(classId: String, childId: String, request: UpdateRosterChildRequest): RosterChild
     suspend fun attachChildToMyClass(classId: String, request: AttachChildRequest): RosterChild

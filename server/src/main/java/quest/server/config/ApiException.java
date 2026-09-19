@@ -14,6 +14,8 @@ public class ApiException extends RuntimeException {
     public static ApiException unauthorized(String message) { return new ApiException(HttpStatus.UNAUTHORIZED, "unauthorized", message); }
     /** 409: the request is fine but the row it would create is already there (a taken email address). */
     public static ApiException conflict(String message) { return new ApiException(HttpStatus.CONFLICT, "conflict", message); }
+    /** 409: the request names a day the school does not teach on — `SchoolCalendar` decides which those are. */
+    public static ApiException notTeachingDay(String message) { return new ApiException(HttpStatus.CONFLICT, "not_teaching_day", message); }
     public HttpStatus status() { return status; }
     public ApiError error() { return error; }
 }

@@ -57,7 +57,7 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
     @Test void the_whole_pipeline_runs_through_the_teacher_routes_and_the_cache_holds() throws Exception {
         byte[] pdf = AdminPipelineTest.pdf("Ben and the Kite", "Ben has a red kite.", "The wind takes it away.");
 
-        String first = toReview(pdf, LocalDate.now());
+        String first = toReview(pdf, schoolDay(0));
         var lesson = teacherLesson(first);
         assertThat(lesson.get("classId").asText()).isEqualTo(HERS);
         assertThat(lesson.get("teacherName").asText()).isEqualTo("Ms Sara");
@@ -76,7 +76,7 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
         assertThat(published.get(0).get("version").asInt()).isEqualTo(1);
 
         // the same file again: the badge the editor shows, and no tokens spent
-        String second = toReview(pdf, LocalDate.now().plusDays(1));
+        String second = toReview(pdf, schoolDay(1));
         var again = teacherLesson(second);
         assertThat(again.get("analyzedBefore").asBoolean()).isTrue();
         assertThat(again.get("files").get(0).get("cacheHit").asBoolean()).isTrue();
@@ -93,13 +93,13 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
     @Test void the_badge_is_false_for_the_first_typed_lesson_and_true_for_the_second() throws Exception {
         String text = "Ben flies a red kite on a windy hill and it gets away from him.";
 
-        String first = typed(LocalDate.now().plusDays(2), text);
+        String first = typed(schoolDay(2), text);
         var one = teacherLesson(first);
         assertThat(one.get("source").asText()).isEqualTo("manual");
         assertThat(one.get("analyzedBefore").asBoolean()).as("the first lesson paid for this analysis").isFalse();
         assertThat(one.get("tokenUsage").asLong()).isGreaterThan(0);
 
-        String second = typed(LocalDate.now().plusDays(3), text);
+        String second = typed(schoolDay(3), text);
         var two = teacherLesson(second);
         assertThat(two.get("analyzedBefore").asBoolean()).isTrue();
         assertThat(two.get("tokenUsage").asLong()).isZero();
@@ -107,7 +107,7 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
 
         // and a hand-written lesson that never analysed anything claims nothing
         var blank = json(mvc.perform(as(post("/teacher/lessons").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"classId\":\"" + HERS + "\",\"subject\":\"english\",\"date\":\"" + LocalDate.now().plusDays(4)
+                .content("{\"classId\":\"" + HERS + "\",\"subject\":\"english\",\"date\":\"" + schoolDay(4)
                         + "\",\"source\":\"manual\",\"title\":\"Empty\"}"), teacherToken))
                 .andExpect(status().isCreated()).andReturn());
         assertThat(blank.get("analyzedBefore").asBoolean()).isFalse();

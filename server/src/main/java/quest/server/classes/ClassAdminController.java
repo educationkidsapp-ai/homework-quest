@@ -108,6 +108,18 @@ public class ClassAdminController {
         return rosters.list(TeacherScope.require(caller), id);
     }
 
+    /**
+     * The Admin's alias of the teacher's list (`GET /teacher/classes/{classId}/children/unassigned`): the school's
+     * children on no roster at all, narrowed to this section's curriculum and grade — the ones
+     * `POST …/roster/attach` would accept rather than refuse with a 409. `GET /admin/children?unassigned=true` is
+     * still the school-wide form, for the Children screen that is not about one section.
+     */
+    @GetMapping(value = "/admin/classes/{id}/children/unassigned", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('roster.read')")
+    public List<ClassDto.RosterChild> unassignedForClass(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
+        return rosters.unassignedFor(TeacherScope.require(caller), id);
+    }
+
     @PostMapping(value = "/admin/classes/{id}/children", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("@permit.has('roster.write')")

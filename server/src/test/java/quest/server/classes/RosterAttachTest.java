@@ -120,6 +120,53 @@ class RosterAttachTest extends ClassesTestSupport {
                 .contentType(MediaType.APPLICATION_JSON).content(body(child)), hers)).andExpect(status().isForbidden());
     }
 
+    // ---------------------------------------------------------------- finding her
+
+    /**
+     * The list Maya attaches from. `GET /admin/children?unassigned=true` is `roster.read` and so ADMIN/MANAGERIAL,
+     * which left a teacher able to attach a child she already had the id of and with no way to find one; this is
+     * the same set narrowed to what her section may take, so nothing it offers can come back as the attach's 409.
+     */
+    @Test void a_teacher_sees_the_unplaced_children_her_own_section_could_take() throws Exception {
+        String americanChild = appChild(A, "american", 1, "American Child").getId();
+        String grade2 = appChild(A, "british", 2, "Older Child").getId();
+        appChild(B, "british", 1, "Other School Child");
+        String placed = json(mvc.perform(scoped(post("/admin/classes/" + britishB + "/children")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Placed Child\"}"), admin, A))
+                .andExpect(status().isCreated()).andReturn()).get("id").asText();
+
+        var offered = json(mvc.perform(as(get("/teacher/classes/" + britishA + "/children/unassigned"), hers))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(offered.findValuesAsText("id"))
+                .as("only her section's curriculum and grade, only children on no roster, only her school")
+                .containsExactly(child).doesNotContain(americanChild, grade2, placed);
+        assertThat(offered.get(0).get("classId").isNull()).isTrue();
+
+        // the Admin's alias answers the same rows for the same section
+        assertThat(json(mvc.perform(scoped(get("/admin/classes/" + britishA + "/children/unassigned"), admin, A))
+                .andExpect(status().isOk()).andReturn()).findValuesAsText("id")).containsExactly(child);
+
+        // and once she is attached she is nobody's to place any more
+        mvc.perform(as(post("/teacher/classes/" + britishA + "/roster/attach")
+                .contentType(MediaType.APPLICATION_JSON).content(body(child)), hers)).andExpect(status().isOk());
+        assertThat(json(mvc.perform(as(get("/teacher/classes/" + britishA + "/children/unassigned"), hers))
+                .andExpect(status().isOk()).andReturn())).isEmpty();
+    }
+
+    /** The scope the attach has, on the read that feeds it: 1B is her school's and not hers, and the flag rules. */
+    @Test void the_unassigned_list_is_scoped_like_every_other_roster_read() throws Exception {
+        mvc.perform(as(get("/teacher/classes/" + britishB + "/children/unassigned"), hers)).andExpect(status().isForbidden());
+        mvc.perform(as(get("/teacher/classes/ra-no-such-class/children/unassigned"), hers)).andExpect(status().isNotFound());
+
+        // another school's section is a 404 for the same reason its child is: the lookup is a filtered query
+        String theirs = section(B, "british", "1A Other");
+        mvc.perform(scoped(get("/admin/classes/" + theirs + "/children/unassigned"), admin, A)).andExpect(status().isNotFound());
+
+        setFlag(false);
+        mvc.perform(as(get("/teacher/classes/" + britishA + "/children/unassigned"), hers)).andExpect(status().isNotFound());
+        setFlag(true);
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private static String body(String childId) { return "{\"childId\":\"" + childId + "\"}"; }
