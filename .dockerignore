@@ -22,3 +22,7 @@ dashboard/src/app/api/generated
 # generated inside the image by `pnpm install` (postinstall → pnpm schemas); never copy a local one in
 dashboard/src/app/features/lessons/stop-validators.generated.js
 dashboard/src/app/features/lessons/stop-validators.generated.d.ts
+# CR4: anydoc is installed inside the image by `npm ci` from the committed manifest + lockfile. A local
+# tools/anydoc/node_modules holds the developer's own platform binding (darwin-arm64 on the Mac), so it must never
+# be copied in — only package.json and package-lock.json are.
+tools/anydoc/node_modules

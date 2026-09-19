@@ -1,0 +1,13 @@
+{
+  "name": "@quest/anydoc-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pins the @firecrawl/anydoc CLI the server shells out to (QUEST_ANYDOC_BIN). Installed with `npm ci --omit=dev` into /opt/anydoc in the runtime image, and locally into tools/anydoc/node_modules for development. No source lives here — the lockfile is the deliverable.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@firecrawl/anydoc": "0.2.4"
+  }
+}

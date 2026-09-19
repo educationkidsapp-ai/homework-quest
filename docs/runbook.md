@@ -66,6 +66,37 @@ cd dashboard && corepack pnpm install && pnpm start   # http://localhost:4200/pa
 `run-local.sh` seeds the platform ADMIN from `ADMIN_EMAIL` / `ADMIN_PASSWORD` (defaults `admin@quest.local` /
 `admin1234` when `.env` sets neither).
 
+### Uploads become Markdown before the model reads them
+
+An uploaded `.pdf`, `.pptx`, `.ppt`, `.docx`, `.doc`, `.xlsx` or `.csv` is converted to a `.md` next to the original
+and the model reads only the `.md`; `.jpg`, `.png` and scanned (image-only) PDF pages go through OCR first. Two
+binaries do that work and the server runs them with `ProcessBuilder`:
+
+| Variable | In the image | Anywhere else (unset) |
+|---|---|---|
+| `QUEST_ANYDOC_BIN` | `/opt/anydoc/node_modules/.bin/anydoc` | a bare `anydoc` on `PATH` |
+| `QUEST_TESSERACT_BIN` | `/usr/bin/tesseract` | a bare `tesseract` on `PATH` |
+
+Neither is installed by `server/run-local.sh`. On the Mac, once:
+
+```bash
+brew install tesseract tesseract-lang        # the OCR engine plus every language pack (we use eng and ara)
+npm --prefix tools/anydoc ci                 # @firecrawl/anydoc, exactly as tools/anydoc/package-lock.json pins it
+export QUEST_ANYDOC_BIN=$PWD/tools/anydoc/node_modules/.bin/anydoc
+export QUEST_TESSERACT_BIN=$(command -v tesseract)
+```
+
+`anydoc <file> -o <file>.md` writes GitHub-flavoured Markdown to that path. CSV has no file signature, so a CSV that
+is not named `.csv` needs `--format csv`. Exit codes: `0` converted; `1` could not be converted (stderr is
+`anydoc: malformed document: …`, `anydoc: document is encrypted`, `anydoc: unsupported input: …` or
+`anydoc: io error: …`); `2` a usage mistake; `3` the PDF needs OCR, and stderr names the pages —
+`anydoc: page 1 of 1 needs OCR`, `anydoc: pages … of N need OCR` or `anydoc: all N pages need OCR`. Exit 3 is the
+signal to run Tesseract on those pages. **Never pass `--ocr hosted`**: that uploads the document to Firecrawl.
+Everything else anydoc does stays on the machine.
+
+When a binary is missing the server fails that conversion step with an error naming the binary rather than falling
+back to sending the original file to the model — that behaviour lives in the server, not in the image.
+
 ## Tenancy model
 
 Every school is a tenant. `School(id, name, code, curriculumOptions[], gradeOptions[], theme, featureFlags, status,
@@ -575,6 +606,7 @@ Names only — never paste a value into a PR, a commit, a log or a chat. Values 
 | `PUBLIC_URL` | every environment | base URL the server puts in media links |
 | `CORS_ORIGINS` | every environment | only local dev origins matter; the panel is same-origin |
 | `PORT`, `APP_VERSION`, `PANEL_DIR`, `SPRING_PROFILES_ACTIVE`, `FAKE_AUTH` | runtime | the image sets `PANEL_DIR` |
+| `QUEST_ANYDOC_BIN`, `QUEST_TESSERACT_BIN` | every environment | paths to the two conversion binaries; the image sets both, elsewhere they fall back to `PATH` |
 
 `ADMIN_JWT_SECRET` has a placeholder default in `application.yml` so a developer can boot without one. **Any deployed
 environment must set it** — Terraform does, from `random_password.jwt`.

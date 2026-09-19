@@ -46,12 +46,53 @@ COPY dashboard ./
 ARG DASHBOARD_CONFIG=production
 RUN corepack pnpm build --configuration="$DASHBOARD_CONFIG"
 
-# ---- stage 4: Temurin 21 JRE + LibreOffice (PPTX → PDF) + fonts, non-root, listens on $PORT ----
+# ---- stage 4: Temurin 21 JRE + LibreOffice (PPTX → PDF) + Node/anydoc + Tesseract, non-root, listens on $PORT ----
+# Layer order is deliberate: apt → Node → anydoc → the app. Only the last layer changes on an ordinary commit, so a
+# rebuild never re-downloads the Node tarball or re-resolves the anydoc tree.
 FROM eclipse-temurin:21-jre-jammy AS runtime
+# LibreOffice still renders PPTX pages to PDF. Tesseract is CR4's free OCR: the server runs it on .jpg/.png and on
+# the PDF pages anydoc reports as image-only. `tesseract-ocr` pulls `tesseract-ocr-osd` (orientation/script) itself;
+# -eng and -ara are the two languages the product teaches in.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libreoffice-impress libreoffice-writer fonts-dejavu fonts-noto-core fonts-noto-color-emoji fontconfig curl \
+      tesseract-ocr tesseract-ocr-eng tesseract-ocr-ara \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r quest && useradd -r -g quest -d /app quest
+
+# Node 22 LTS ("Jod"), the official linux-x64 glibc build, for one job: running the anydoc CLI. Pinned to an exact
+# version and to the SHA-256 published at https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt, which is checked
+# before a single byte is unpacked — no NodeSource script, no `latest`. The tarball's share/ (docs, man, systemtap)
+# and include/ (C++ headers, only useful for building native addons) are dropped in the same layer.
+ENV NODE_VERSION=22.23.2 \
+    NODE_SHA256=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a \
+    PATH=/opt/node/bin:$PATH
+RUN set -eux; \
+    curl -fsSL -o /tmp/node.tar.gz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz"; \
+    printf '%s  /tmp/node.tar.gz\n' "${NODE_SHA256}" > /tmp/node.sha256; \
+    sha256sum -c /tmp/node.sha256; \
+    rm -f /tmp/node.sha256; \
+    mkdir -p /opt/node; \
+    tar -xzf /tmp/node.tar.gz -C /opt/node --strip-components=1; \
+    rm -f /tmp/node.tar.gz; \
+    rm -rf /opt/node/share /opt/node/include /opt/node/CHANGELOG.md /opt/node/README.md; \
+    chmod -R a+rX /opt/node; \
+    node --version
+
+# @firecrawl/anydoc (MIT) — PDF/PPT(X)/DOC(X)/XLSX/CSV → Markdown on this machine, so the model reads .md instead of
+# the original. The tree comes from the committed tools/anydoc/package-lock.json, so every build resolves the same
+# versions. The lockfile lists both linux-x64 bindings (npm has no libc discriminator for them), so --libc=glibc
+# names the one we want, the assertion proves it landed, and the musl twin (another 8 MB) is dropped.
+COPY tools/anydoc/package.json tools/anydoc/package-lock.json /opt/anydoc/
+WORKDIR /opt/anydoc
+RUN set -eux; \
+    npm ci --omit=dev --os=linux --cpu=x64 --libc=glibc --no-audit --no-fund; \
+    test -f node_modules/@firecrawl/anydoc-linux-x64-gnu/anydoc.linux-x64-gnu.node; \
+    rm -rf node_modules/@firecrawl/anydoc-linux-x64-musl; \
+    npm cache clean --force; \
+    chmod -R a+rX /opt/anydoc; \
+    node -e "require('/opt/anydoc/node_modules/@firecrawl/anydoc')"; \
+    node_modules/.bin/anydoc --version
+
 WORKDIR /app
 COPY --from=build /server.jar /app/server.jar
 # the legacy admin panel (Compose for Web, Wasm) — built by CI / scripts/build-panel.sh into server/panel before
@@ -62,7 +103,9 @@ COPY --from=dashboard /src/dashboard/dist/browser /app/dashboard
 RUN mkdir -p /app/data && chown -R quest:quest /app
 USER quest
 ARG APP_VERSION=dev
-ENV APP_VERSION=$APP_VERSION PORT=8080 HOME=/app JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -Djava.awt.headless=true -Dfile.encoding=UTF-8" STORAGE_DIR=/app/data/files PANEL_DIR=/app/panel DASHBOARD_DIR=/app/dashboard
+# QUEST_ANYDOC_BIN / QUEST_TESSERACT_BIN are what the server's ProcessBuilder resolves; outside the image they are
+# unset and the server falls back to a bare `anydoc` / `tesseract` on PATH (see docs/runbook.md → Local).
+ENV APP_VERSION=$APP_VERSION PORT=8080 HOME=/app JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -Djava.awt.headless=true -Dfile.encoding=UTF-8" STORAGE_DIR=/app/data/files PANEL_DIR=/app/panel DASHBOARD_DIR=/app/dashboard QUEST_ANYDOC_BIN=/opt/anydoc/node_modules/.bin/anydoc QUEST_TESSERACT_BIN=/usr/bin/tesseract
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s CMD curl -fsS http://127.0.0.1:${PORT}/actuator/health || exit 1
 ENTRYPOINT ["java", "-jar", "/app/server.jar"]
