@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { ResultsAndGradebookApi, apiErrorOf, type LessonResults } from '../../api';
 import { BandService } from '../../core/band/band.service';
@@ -65,6 +66,7 @@ import { marks, parseScore, request, scoreLabel, type MarkDraft } from './result
     LevelBandComponent,
     FeatureDirective,
     CanDirective,
+    RouterLink,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

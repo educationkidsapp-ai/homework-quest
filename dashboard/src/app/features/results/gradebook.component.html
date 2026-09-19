@@ -76,7 +76,9 @@
         <tbody>
           @for (row of visibleRows(); track row.childId) {
             <tr>
-              <th scope="row" class="gb__name">{{ row.name }}</th>
+              <th scope="row" class="gb__name">
+                <a [routerLink]="['/teacher/children', row.childId]">{{ row.name }}</a>
+              </th>
               @for (cell of row.cells; track cell.lessonId) {
                 <td class="gb__cell-wrap">
                   @if (isEditing(row, cell)) {

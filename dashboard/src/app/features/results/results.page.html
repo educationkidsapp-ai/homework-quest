@@ -195,6 +195,9 @@
     </section>
 
     <div class="mark__actions">
+      <a class="hq-linkbutton" [routerLink]="childLink(row)">
+        {{ 'results.marking.openChild' | transloco }}
+      </a>
       <span *hqFeature="markingFlag">
         <hq-button
           *hqCan="'results.write'"

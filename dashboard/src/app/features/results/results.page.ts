@@ -404,6 +404,11 @@ export class ResultsPage {
 
   protected readonly lessonLink = computed(() => ['/teacher/lessons', this.lessonId()]);
 
+  /** Her own page — band, trend, chart, comments and work (N4.2's third screen). */
+  protected childLink(row: ResultRow): readonly string[] {
+    return ['/teacher/children', row.childId];
+  }
+
   protected score(value: number | null): string {
     return scoreLabel(value);
   }

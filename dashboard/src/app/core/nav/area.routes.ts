@@ -66,6 +66,7 @@ function componentFor(screen: Screen, role: Role) {
   // should download, and none of which may land in the initial bundle (the 520 kB budget).
   if (screen.id === 'results')
     return import('../../features/results/results.page').then((m) => m.ResultsPage);
+  if (screen.id === 'child') return import('../../features/results/child.page').then((m) => m.ChildPage);
   if (screen.id === 'classes')
     return role === 'TEACHER'
       ? import('../../features/classes/my-classes.page').then((m) => m.MyClassesPage)

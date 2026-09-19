@@ -134,6 +134,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.gradebook,
         permission: 'results.read',
       },
+      { id: 'child', path: 'children/:childId', flag: FLAGS.gradebook, permission: 'results.read' },
       // No permission yet: `child.read` in permissions.json belongs to PARENT, and the key for
       // a teacher reading her own students arrives with P4.0's endpoints. Gating on the
       // parent's key would hide the item from every teacher.

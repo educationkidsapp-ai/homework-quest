@@ -1,0 +1,84 @@
+<hq-page [title]="name()" [subtitle]="className()" [breadcrumbs]="breadcrumbs()">
+  <ng-container *hqFeature="gradebookFlag">
+    @if (report.isLoading()) {
+      <hq-skeleton
+        [loading]="true"
+        [lines]="5"
+        height="var(--hq-size-row-height)"
+        [label]="'results.child.loading' | transloco"
+      />
+    } @else {
+      <!-- The sentence she has to say out loud, one card per subject. -->
+      <div class="child__levels">
+        @for (level of levels(); track level.subject) {
+          <hq-card class="child__level">
+            <span class="child__level-subject">{{ subjectLabel(level) }}</span>
+            <span class="child__level-band">
+              <hq-level-band [band]="level.band" />
+              @if (level.trend) {
+                <span class="child__trend" [attr.data-trend]="level.trend">
+                  <span aria-hidden="true">{{ trendGlyph(level) }}</span>
+                  <span class="hq-sr-only">{{ trendLabel(level) }}</span>
+                </span>
+              }
+            </span>
+            <strong class="child__level-score">{{ score(level.levelScore) }}</strong>
+            <span class="child__level-meta">
+              {{ 'results.child.lessons' | transloco: { count: level.lessons } }}
+            </span>
+          </hq-card>
+        } @empty {
+          <hq-empty-state [message]="'results.child.noLevels' | transloco" />
+        }
+      </div>
+
+      <hq-card class="child__chart" [title]="'results.child.chart' | transloco">
+        <hq-score-chart [points]="trend()" />
+      </hq-card>
+
+      <hq-card class="child__comments" [title]="'results.child.comments' | transloco">
+        @for (comment of comments(); track comment.lessonId + (comment.stopId ?? '')) {
+          <article class="child__comment">
+            <header class="child__comment-head">
+              <span class="child__comment-lesson">{{ comment.lessonTitle }}</span>
+              <span class="child__comment-date">{{ when(comment.markedAt) }}</span>
+              @if (comment.forParent) {
+                <span class="hq-badge hq-badge--primary">
+                  {{ 'results.child.forParent' | transloco }}
+                </span>
+              }
+              @if (comment.stars) {
+                <span class="child__comment-stars">
+                  <span aria-hidden="true">{{ stars(comment.stars) }}</span>
+                  <span class="hq-sr-only">
+                    {{ 'results.marking.stars' | transloco: { count: comment.stars } }}
+                  </span>
+                </span>
+              }
+            </header>
+            <p class="child__comment-text">{{ comment.comment }}</p>
+          </article>
+        } @empty {
+          <hq-empty-state [message]="'results.child.noComments' | transloco" />
+        }
+      </hq-card>
+
+      <hq-card class="child__work" [title]="'results.child.work' | transloco">
+        <div class="child__gallery">
+          @for (item of work(); track item.id) {
+            <figure class="child__work-item">
+              <hq-child-work
+                [url]="item.url"
+                [stopType]="item.audio ? 'retell' : item.kind"
+                [childName]="name()"
+              />
+              <figcaption class="child__work-caption">{{ when(item.createdAt) }}</figcaption>
+            </figure>
+          } @empty {
+            <hq-empty-state [message]="'results.child.noWork' | transloco" />
+          }
+        </div>
+      </hq-card>
+    }
+  </ng-container>
+</hq-page>

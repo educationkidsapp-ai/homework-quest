@@ -922,6 +922,21 @@
         "flat": "Steady",
         "down": "Going down"
       }
+    },
+    "child": {
+      "loading": "Loading her page",
+      "chart": "Scores over time",
+      "chartCaption": "Every released score, oldest first",
+      "lesson": "Lesson",
+      "date": "Date",
+      "noScores": "No released score yet.",
+      "lessons": "over {{count}} lessons",
+      "noLevels": "No subject has enough scores for a level yet.",
+      "comments": "Comments",
+      "forParent": "Seen by the parent",
+      "noComments": "No comment written yet.",
+      "work": "Saved work",
+      "noWork": "Nothing saved yet."
     }
   },
   "role": {
