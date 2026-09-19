@@ -102,7 +102,11 @@ import {
                     <li>
                       <hq-card [title]="classTitle(klass)" [eyebrow]="classStatus(klass)">
                         @if (!klass.todayLessonId) {
-                          <a [routerLink]="'/teacher/lessons/new'" [queryParams]="newLessonParams(klass)">
+                          <a
+                            class="hq-linkbutton"
+                            [routerLink]="'/teacher/lessons/new'"
+                            [queryParams]="newLessonParams(klass)"
+                          >
                             {{ 'home.addToday' | transloco }}
                           </a>
                         }
@@ -152,21 +156,25 @@ import {
       gap: var(--hq-space-32);
     }
 
+    // §2 Grids, metric row — at 24 px, like every other grid in the system.
     .home__cards {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--hq-space-16);
+      gap: var(--hq-space-grid-gap);
     }
 
+    // §1: 30/38/700 is the size numbers are read at.
     .home__number {
-      @include m.title;
+      font-size: var(--hq-text-title-sm);
+      line-height: calc(var(--hq-text-title-sm-line) / var(--hq-text-title-sm));
+      font-weight: var(--hq-text-weight-bold);
+      color: var(--hq-color-ink);
       font-variant-numeric: tabular-nums;
     }
 
     .home__heading {
-      @include m.label;
-      color: var(--hq-color-ink-soft);
-      margin-block-end: var(--hq-space-8);
+      @include m.card-title;
+      margin-block-end: var(--hq-space-12);
     }
 
     .home__list {
@@ -179,8 +187,8 @@ import {
       justify-content: space-between;
       gap: var(--hq-space-16);
       min-block-size: var(--hq-size-row-height);
-      padding-inline: var(--hq-space-16);
-      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      padding-inline: var(--hq-space-24);
+      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
 
       &:last-child {
         border-block-end: 0;
@@ -188,14 +196,21 @@ import {
     }
 
     .home__band {
-      font-size: var(--hq-font-label-size);
+      font-size: var(--hq-text-theme-xs);
       color: var(--hq-color-ink-soft);
     }
 
+    // §2 Grids, "card gallery".
     .home__class-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(var(--hq-size-stop-list-width), 1fr));
-      gap: var(--hq-space-16);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--hq-space-grid-gap);
+    }
+
+    @include m.below(m.$drawer-breakpoint) {
+      .home__class-grid {
+        grid-template-columns: repeat(auto-fill, minmax(var(--hq-size-stop-list-width), 1fr));
+      }
     }
   `,
 })

@@ -11,6 +11,7 @@ import { PermissionService } from '../../core/permissions/permission.service';
 import { UndoService } from '../../core/undo/undo.service';
 import {
   ButtonComponent,
+  CardComponent,
   DialogComponent,
   EmptyStateComponent,
   InputComponent,
@@ -39,6 +40,7 @@ import { type RosterRow, rosterRows } from './classes.models';
 @Component({
   selector: 'hq-class-children',
   imports: [
+    CardComponent,
     TableComponent,
     ButtonComponent,
     InputComponent,
@@ -113,6 +115,11 @@ export class ClassChildrenComponent {
   });
 
   protected trackRow = (row: RosterRow): string => row.childId;
+
+  /** §3's leading tile carries the child's initial — a name, not an avatar we do not have. */
+  protected initialOf(row: RosterRow): string {
+    return row.name.trim().charAt(0).toUpperCase();
+  }
 
   // ---- reading a row ------------------------------------------------------------------------
 

@@ -54,7 +54,8 @@ import type { CalendarCell } from './classes.models';
       @if (loading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'classes.calendar.loading' | transloco" />
       } @else {
-        <div class="cal__grid" role="grid" [attr.aria-label]="monthLabel()">
+        <div class="cal__scroll">
+          <div class="cal__grid" role="grid" [attr.aria-label]="monthLabel()">
           <div class="cal__row" role="row">
             @for (weekday of weekdays(); track weekday) {
               <div class="cal__weekday" role="columnheader">{{ weekday }}</div>
@@ -103,6 +104,7 @@ import type { CalendarCell } from './classes.models';
               }
             </div>
           }
+          </div>
         </div>
       }
     </div>
@@ -114,6 +116,13 @@ import type { CalendarCell } from './classes.models';
       display: block;
     }
 
+    .cal {
+      padding: var(--hq-space-card);
+      background: var(--hq-color-surface);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      border-radius: var(--hq-radius-card);
+    }
+
     .cal__nav {
       display: flex;
       align-items: center;
@@ -122,34 +131,51 @@ import type { CalendarCell } from './classes.models';
       margin-block-end: var(--hq-space-16);
     }
 
+    // §3's icon button: 44 × 44, radius 8, on the container rule.
     .cal__nav-button {
-      min-inline-size: var(--hq-size-touch-target);
-      min-block-size: var(--hq-size-touch-target);
-      background: none;
-      border: var(--hq-size-rule) solid var(--hq-color-line);
+      inline-size: var(--hq-size-button-height);
+      block-size: var(--hq-size-button-height);
+      background: var(--hq-color-surface);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      border-radius: var(--hq-radius-control);
+      color: var(--hq-color-ink-soft);
       cursor: pointer;
-      @include m.hover-tint;
+      @include m.hover-tint(var(--hq-color-surface-sunken));
       @include m.focus-ring;
     }
 
     .cal__month {
-      @include m.label;
+      @include m.card-title;
       min-inline-size: 12ch;
       text-align: center;
     }
 
     .cal__gaps {
       margin-block-end: var(--hq-space-16);
-      font-size: var(--hq-font-label-size);
-      color: var(--hq-color-accent-strong);
+      font-size: var(--hq-text-theme-sm);
+      color: var(--hq-color-error-ink);
+    }
+
+    // The defect this slice fixes: seven '1fr' tracks take their minimum from their content,
+    // so a cell holding "Published" and "0 played" gave the month a floor near 800 px and the
+    // *page* a horizontal scrollbar under about 900 px. Two changes, both needed:
+    // 'minmax(0, 1fr)' lets a track shrink and its text ellipsize, and the floor moves to an
+    // explicit 'min-inline-size' on the grid inside an 'overflow-x' pane — so under it the
+    // month scrolls inside its own card and the page never does.
+    .cal__scroll {
+      max-inline-size: 100%;
+      overflow-x: auto;
     }
 
     .cal__grid {
       display: grid;
-      grid-template-columns: repeat(7, 1fr);
+      grid-template-columns: repeat(7, minmax(0, 1fr));
       gap: var(--hq-size-rule-thin);
-      background: var(--hq-color-rule);
-      border: var(--hq-size-rule) solid var(--hq-color-line);
+      min-inline-size: calc(var(--hq-size-grade-card) * 7);
+      background: var(--hq-color-divider);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      border-radius: var(--hq-radius-control);
+      overflow: hidden;
     }
 
     // A real ARIA row without breaking the grid's column tracks.
@@ -158,10 +184,12 @@ import type { CalendarCell } from './classes.models';
     }
 
     .cal__weekday {
-      @include m.label;
       padding: var(--hq-space-8);
+      font-size: var(--hq-text-theme-xs);
+      line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+      font-weight: var(--hq-text-weight-medium);
       text-align: center;
-      background: var(--hq-color-bg);
+      background: var(--hq-color-surface-sunken);
       color: var(--hq-color-ink-soft);
     }
 
@@ -169,6 +197,7 @@ import type { CalendarCell } from './classes.models';
       display: flex;
       flex-direction: column;
       gap: var(--hq-space-4);
+      min-inline-size: 0;
       min-block-size: var(--hq-size-course-card);
       padding: var(--hq-space-8);
       background: var(--hq-color-surface);
@@ -176,27 +205,29 @@ import type { CalendarCell } from './classes.models';
 
     .cal__cell--outside,
     .cal__cell--off {
-      background: var(--hq-color-bg);
-      color: var(--hq-color-disabled);
+      background: var(--hq-color-surface-sunken);
+      color: var(--hq-color-ink-muted);
     }
 
     .cal__cell--gap {
-      background: var(--hq-color-accent-soft);
+      background: var(--hq-color-error-soft);
     }
 
     .cal__day {
-      font-size: var(--hq-font-label-size);
+      font-size: var(--hq-text-theme-xs);
       color: var(--hq-color-ink-soft);
     }
 
     .cal__lesson {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       gap: var(--hq-space-8);
       min-inline-size: 0;
+      padding: var(--hq-space-4);
+      border-radius: var(--hq-radius-control);
       color: var(--hq-color-ink);
       text-decoration: none;
-      @include m.hover-tint;
+      @include m.hover-tint(var(--hq-color-surface-sunken));
       @include m.focus-ring;
     }
 
@@ -214,7 +245,10 @@ import type { CalendarCell } from './classes.models';
 
     .cal__lesson-meta,
     .cal__results {
-      font-size: var(--hq-font-label-size);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: var(--hq-text-theme-xs);
       color: var(--hq-color-ink-soft);
     }
 
@@ -223,15 +257,16 @@ import type { CalendarCell } from './classes.models';
       align-items: center;
       justify-content: center;
       min-block-size: var(--hq-size-touch-target);
-      color: var(--hq-color-ink-soft);
+      border-radius: var(--hq-radius-control);
+      color: var(--hq-color-ink-muted);
       text-decoration: none;
-      @include m.hover-tint;
+      @include m.hover-tint(var(--hq-color-accent-soft));
       @include m.focus-ring;
     }
 
     .cal__gap-label {
-      font-size: var(--hq-font-label-size);
-      color: var(--hq-color-accent-strong);
+      font-size: var(--hq-text-theme-xs);
+      color: var(--hq-color-error-ink);
     }
   `,
 })

@@ -169,25 +169,12 @@ a {
 
 // --- Typography helpers ----------------------------------------------------
 
-.hq-title {
-  font-size: var(--hq-font-title-size);
-  line-height: calc(var(--hq-font-title-line) / var(--hq-font-title-size));
-  font-weight: var(--hq-font-title-weight);
-  letter-spacing: var(--hq-font-letter-spacing-title);
-  margin: 0;
-}
-
 .hq-label {
   font-size: var(--hq-font-label-size);
   line-height: calc(var(--hq-font-label-line) / var(--hq-font-label-size));
   font-weight: var(--hq-font-label-weight);
   letter-spacing: var(--hq-font-letter-spacing-label);
   text-transform: uppercase;
-}
-
-.hq-body {
-  font-size: var(--hq-font-body-size);
-  line-height: calc(var(--hq-font-body-line) / var(--hq-font-body-size));
 }
 
 .hq-muted {
@@ -273,23 +260,10 @@ a {
   }
 }
 
-// §1 Input "Keycap": the `/` hint beside a search field, every key in the shortcut sheet.
-.hq-keycap {
-  display: inline-block;
-  padding: var(--hq-space-keycap);
-  font-family: inherit;
-  font-size: var(--hq-text-theme-xs);
-  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
-  letter-spacing: -0.2px;
-  color: var(--hq-color-ink-soft);
-  background: var(--hq-color-surface-sunken);
-  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
-  border-radius: var(--hq-radius-control);
-}
-
-// §3 Data table, "leading cell pattern": a 40 px tinted tile beside a 14/500 title over a
-// 12 px secondary sub-line. Global for the same reason the badge is — `hq-table`'s cells come
-// from the caller's own template.
+// §3 Data table, "leading cell pattern": a 40 px tinted tile beside a 14/500 title. Global for
+// the same reason the badge is — `hq-table`'s cells come from the caller's own template. The
+// spec's 12 px sub-line is not here: on the one table that wears this pattern, every field that
+// could fill it is already a column of its own, and a cell that repeats the row is noise.
 .hq-cell {
   display: flex;
   align-items: center;
@@ -310,17 +284,11 @@ a {
 }
 
 .hq-cell__title {
+  display: block;
   font-weight: var(--hq-text-weight-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.hq-cell__sub {
-  display: block;
-  font-size: var(--hq-text-theme-xs);
-  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
-  color: var(--hq-color-ink-soft);
 }
 
 // `hq-button`'s secondary box on an `<a>`. A control that navigates has to be a link — so that
@@ -330,7 +298,6 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--hq-space-8);
   min-block-size: var(--hq-size-button-height);
   padding: var(--hq-space-button);
   border: var(--hq-size-rule-thin) solid var(--hq-color-control-rule);
@@ -472,6 +439,15 @@ a {
     background: var(--hq-color-error-soft);
     color: var(--hq-color-error-ink);
   }
+}
+
+// A heading inside a long panel — the "+ Add stop" menu groups twenty-two stop types under
+// five of these.
+.hq-menu__group {
+  padding: var(--hq-space-12) var(--hq-space-8) var(--hq-space-4);
+  font-size: var(--hq-text-theme-xs);
+  font-weight: var(--hq-text-weight-medium);
+  color: var(--hq-color-ink-soft);
 }
 
 .hq-menu__hint {

@@ -34,6 +34,7 @@ import { UndoService } from '../../core/undo/undo.service';
 import {
   BandComponent,
   ButtonComponent,
+  CardComponent,
   EmptyStateComponent,
   ListStaggerDirective,
   PageComponent,
@@ -97,6 +98,7 @@ interface CopyRequest {
   imports: [
     PageComponent,
     ButtonComponent,
+    CardComponent,
     BandComponent,
     EmptyStateComponent,
     SkeletonComponent,

@@ -35,15 +35,17 @@
     } @else if (!hasRows()) {
       <hq-empty-state [message]="'week.empty' | transloco" />
     } @else {
-      <div
-        class="week__grid"
-        role="grid"
-        cdkDropListGroup
-        tabindex="-1"
-        [attr.aria-label]="'week.title' | transloco"
-        [style.--hq-week-columns]="days().length"
-        (keydown)="onGridKeydown($event)"
-      >
+      <hq-card [flush]="true">
+        <div class="week__scroll">
+          <div
+            class="week__grid"
+            role="grid"
+            cdkDropListGroup
+            tabindex="-1"
+            [attr.aria-label]="'week.title' | transloco"
+            [style.--hq-week-columns]="days().length"
+            (keydown)="onGridKeydown($event)"
+          >
         <div class="week__head" role="row">
           <div class="week__corner" role="columnheader">{{ 'week.classColumn' | transloco }}</div>
           @for (day of days(); track day) {
@@ -160,13 +162,15 @@
             </div>
           }
         }
-      </div>
+          </div>
+        </div>
+      </hq-card>
 
       <section class="week__summary" [attr.aria-label]="'week.summary.title' | transloco">
         <h2 class="week__summary-title">{{ 'week.summary.title' | transloco }}</h2>
         <ul class="week__summary-list" hqListStagger>
           @for (gap of gaps(); track gap) {
-            <li class="week__summary-item week__summary-item--gap">{{ gap }}</li>
+            <li class="hq-badge hq-badge--solid hq-badge--error">{{ gap }}</li>
           } @empty {
             <li class="week__summary-item">{{ 'week.summary.noGaps' | transloco }}</li>
           }
@@ -186,12 +190,12 @@
     does, and a submenu is one more thing to learn for a list that is never longer than six items.
   -->
   <ng-template #cardMenu>
-    <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
+    <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
       @for (target of moveTargets(); track target.date) {
         <button
           type="button"
           cdkMenuItem
-          class="menu__item"
+          class="hq-menu__item"
           [cdkMenuItemDisabled]="target.taken"
           [disabled]="target.taken"
           (cdkMenuItemTriggered)="moveFromMenu(target.date)"
@@ -199,17 +203,17 @@
           {{ 'week.moveToDay' | transloco: { day: dayName(target.date) } }}
         </button>
       } @empty {
-        <button type="button" cdkMenuItem class="menu__item" [cdkMenuItemDisabled]="true" disabled>
+        <button type="button" cdkMenuItem class="hq-menu__item" [cdkMenuItemDisabled]="true" disabled>
           {{ 'week.published.reason' | transloco }}
         </button>
       }
 
       @for (target of copyTargets(); track target.classId) {
-        <button type="button" cdkMenuItem class="menu__item" (cdkMenuItemTriggered)="copyFromMenu(target)">
+        <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="copyFromMenu(target)">
           {{ 'week.copyToClass' | transloco: { class: target.className } }}
         </button>
       } @empty {
-        <button type="button" cdkMenuItem class="menu__item" [cdkMenuItemDisabled]="true" disabled>
+        <button type="button" cdkMenuItem class="hq-menu__item" [cdkMenuItemDisabled]="true" disabled>
           {{ 'week.noSiblings' | transloco }}
         </button>
       }

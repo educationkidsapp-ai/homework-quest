@@ -1,15 +1,15 @@
 <hq-page [title]="title()" [subtitle]="subtitle()" [breadcrumbs]="breadcrumbs()">
   <div class="class-page__actions">
-    <a class="class-page__link" [routerLink]="lessonsLink" [queryParams]="lessonsParams()">
+    <a class="hq-linkbutton class-page__link" [routerLink]="lessonsLink" [queryParams]="lessonsParams()">
       {{ 'classes.allLessons' | transloco }}
     </a>
     <!-- One primary action on this screen: the lesson she came here to plan. -->
-    <a class="class-page__primary" [routerLink]="newLessonLink" [queryParams]="newLessonParams()">
+    <a class="hq-linkbutton hq-linkbutton--primary class-page__primary" [routerLink]="newLessonLink" [queryParams]="newLessonParams()">
       {{ 'classes.newLesson' | transloco }}
     </a>
   </div>
 
-  <hq-tabs [tabs]="tabs()" [(selected)]="tab" [label]="'classes.tabs.label' | transloco" />
+  <hq-tabs variant="chips" [tabs]="tabs()" [(selected)]="tab" [label]="'classes.tabs.label' | transloco" />
 
   <div
     id="hq-class-panel"

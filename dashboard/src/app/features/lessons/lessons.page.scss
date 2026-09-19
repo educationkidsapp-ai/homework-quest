@@ -30,6 +30,7 @@
 
 .lessons__view-tabs {
   margin-inline-start: auto;
+  padding-block-end: var(--hq-space-4);
 }
 
 .lessons__status {
@@ -39,56 +40,21 @@
   gap: var(--hq-space-8);
 }
 
-.lessons__status-word {
-  color: var(--hq-color-ink-soft);
-}
-
-.lessons__status-word--error {
-  color: var(--hq-color-accent-strong);
-  font-weight: var(--hq-font-label-weight);
-}
-
 .lessons__error-at {
-  font-size: var(--hq-font-label-size);
+  font-size: var(--hq-text-theme-xs);
   color: var(--hq-color-ink-soft);
 }
 
 .lessons__overflow-trigger {
-  min-inline-size: var(--hq-size-touch-target);
-  min-block-size: var(--hq-size-touch-target);
-  background: none;
-  border: 0;
+  inline-size: var(--hq-size-button-height);
+  block-size: var(--hq-size-button-height);
+  background: var(--hq-color-surface);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-control);
+  color: var(--hq-color-ink-soft);
   cursor: pointer;
-  @include m.hover-tint;
+  @include m.hover-tint(var(--hq-color-surface-sunken));
   @include m.focus-ring;
-}
-
-// Rendered into the CDK overlay container, but instantiated by this component — the
-// emulated-encapsulation attribute travels with it (same note as `shell-header.component.ts`).
-.menu {
-  min-inline-size: var(--hq-size-course-card);
-  background: var(--hq-color-surface-raised);
-  border: var(--hq-size-rule) solid var(--hq-color-line);
-  box-shadow: var(--hq-shadow-dialog);
-}
-
-.menu__item {
-  display: flex;
-  align-items: center;
-  inline-size: 100%;
-  min-block-size: var(--hq-size-touch-target);
-  padding-inline: var(--hq-space-16);
-  background: none;
-  border: 0;
-  color: var(--hq-color-ink);
-  text-align: start;
-  cursor: pointer;
-  @include m.hover-tint;
-  @include m.focus-ring;
-}
-
-.menu__item--danger {
-  color: var(--hq-color-accent-strong);
 }
 
 .lessons__class-filter {
@@ -96,7 +62,7 @@
   align-items: center;
   gap: var(--hq-space-8);
   margin-block-end: var(--hq-space-16);
-  font-size: var(--hq-font-label-size);
+  font-size: var(--hq-text-theme-sm);
   color: var(--hq-color-ink-soft);
 }
 

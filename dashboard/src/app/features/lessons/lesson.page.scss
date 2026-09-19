@@ -26,53 +26,15 @@
 }
 
 .lesson__overflow-trigger {
-  min-inline-size: var(--hq-size-touch-target);
-  min-block-size: var(--hq-size-touch-target);
-  background: none;
-  border: 0;
-  cursor: pointer;
-  @include m.hover-tint;
-  @include m.focus-ring;
-}
-
-// Rendered into the CDK overlay container — see the matching note in `lessons.page.scss`.
-.menu {
-  min-inline-size: var(--hq-size-course-card);
-  background: var(--hq-color-surface-raised);
-  border: var(--hq-size-rule) solid var(--hq-color-line);
-  box-shadow: var(--hq-shadow-dialog);
-}
-
-.menu__item {
-  display: flex;
-  align-items: center;
-  inline-size: 100%;
-  min-block-size: var(--hq-size-touch-target);
-  padding-inline: var(--hq-space-16);
-  background: none;
-  border: 0;
-  color: var(--hq-color-ink);
-  text-align: start;
-  cursor: pointer;
-  @include m.hover-tint;
-  @include m.focus-ring;
-}
-
-.menu__item--danger {
-  color: var(--hq-color-accent-strong);
-}
-
-// Twenty-two stop types under five headings is taller than any screen, so the "+ Add stop"
-// menu scrolls rather than overflowing off the bottom of the viewport.
-.menu--tall {
-  max-block-size: 60vh;
-  overflow-y: auto;
-}
-
-.menu__group {
-  @include m.label;
-  padding: var(--hq-space-12) var(--hq-space-16) var(--hq-space-4);
+  inline-size: var(--hq-size-button-height);
+  block-size: var(--hq-size-button-height);
+  background: var(--hq-color-surface);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-control);
   color: var(--hq-color-ink-soft);
+  cursor: pointer;
+  @include m.hover-tint(var(--hq-color-surface-sunken));
+  @include m.focus-ring;
 }
 
 .lesson__dropzone {
@@ -83,18 +45,18 @@
   gap: var(--hq-space-16);
   padding: var(--hq-space-32);
   text-align: center;
-  background: var(--hq-color-bg);
+  background: var(--hq-color-surface-sunken);
+  border-radius: var(--hq-radius-card);
   @include m.drag-lift;
 }
 
 // Shared by the replace-file dropzone's "Choose files" and the files card's "Upload more" —
 // both are a `<label for>` standing in for the file input's own button.
+// Both are a `<label for>` standing in for a file input's own button, so they take the
+// secondary box from `.hq-linkbutton` in the template and only keep the cursor here.
 .lesson__dropzone-choose,
 .lesson__upload-more {
-  padding: var(--hq-space-8) var(--hq-space-16);
-  border: var(--hq-size-rule) solid var(--hq-color-ink);
   cursor: pointer;
-  @include m.hover-tint;
 }
 
 .lesson__files-actions {
@@ -104,7 +66,7 @@
 }
 
 .lesson__files {
-  border-block-start: var(--hq-size-rule) solid var(--hq-color-line);
+  border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-divider);
 }
 
 .lesson__file {
@@ -114,7 +76,7 @@
   gap: var(--hq-space-12);
   min-block-size: var(--hq-size-row-height);
   padding-block: var(--hq-space-8);
-  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
 }
 
 .lesson__file--deleted {
@@ -143,7 +105,7 @@
   align-items: end;
   gap: var(--hq-space-12);
   padding-block-end: var(--hq-space-16);
-  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
 }
 
 .lesson__skill-candidates {
@@ -159,11 +121,7 @@
   font-size: var(--hq-font-label-size);
 }
 
-.lesson__chip {
-  padding: var(--hq-space-4) var(--hq-space-8);
-  border: var(--hq-size-rule-thin) solid var(--hq-color-line);
-  font-size: var(--hq-font-label-size);
-}
+
 
 .lesson__skill-actions {
   display: flex;
@@ -196,7 +154,6 @@
   display: flex;
   align-items: stretch;
   gap: var(--hq-space-8);
-  background: var(--hq-color-surface);
 }
 
 .lesson__stop-row .lesson__stop-item {
@@ -210,7 +167,8 @@
   flex: none;
   inline-size: var(--hq-size-button-height);
   background: none;
-  border: var(--hq-size-rule) solid var(--hq-color-rule);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-control);
   color: var(--hq-color-ink-soft);
   cursor: grab;
   @include m.focus-ring;
@@ -247,11 +205,12 @@
   gap: var(--hq-space-12);
 }
 
+// Inside the plays card's surface panel, under the inner divider weight (§4).
 hq-stop-editor {
   display: block;
   margin-block-start: var(--hq-space-24);
   padding-block-start: var(--hq-space-16);
-  border-block-start: var(--hq-size-rule) solid var(--hq-color-line);
+  border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-divider);
 }
 
 .lesson__stop-item {
@@ -260,17 +219,19 @@ hq-stop-editor {
   gap: var(--hq-space-12);
   min-block-size: var(--hq-size-row-height);
   padding-inline: var(--hq-space-12);
-  background: none;
-  border: var(--hq-size-rule) solid var(--hq-color-line);
+  background: var(--hq-color-surface);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-control);
   text-align: start;
   cursor: pointer;
-  @include m.hover-tint;
+  @include m.hover-tint(var(--hq-color-surface-sunken));
   @include m.focus-ring;
 }
 
 .lesson__stop-item--selected {
-  border-color: var(--hq-color-ink);
+  border-color: var(--hq-color-accent);
   background: var(--hq-color-accent-soft);
+  color: var(--hq-color-accent-on-soft);
 }
 
 .lesson__stop-pos {

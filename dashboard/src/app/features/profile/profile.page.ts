@@ -70,12 +70,16 @@ import {
         <hq-card [title]="'profile.security' | transloco">
           <div class="profile__fields">
             <p class="profile__hint">{{ 'profile.passwordHint' | transloco }}</p>
-            <a routerLink="/change-password">{{ 'auth.change.title' | transloco }}</a>
+            <a class="hq-linkbutton profile__change" routerLink="/change-password">{{
+              'auth.change.title' | transloco
+            }}</a>
           </div>
         </hq-card>
 
         <hq-card [title]="'profile.help' | transloco">
-          <hq-button (pressed)="showMeAround()">{{ 'shell.showMeAround' | transloco }}</hq-button>
+          <hq-button variant="secondary" (pressed)="showMeAround()">{{
+            'shell.showMeAround' | transloco
+          }}</hq-button>
         </hq-card>
       </div>
     </hq-page>
@@ -84,7 +88,7 @@ import {
     .profile {
       display: flex;
       flex-direction: column;
-      gap: var(--hq-space-16);
+      gap: var(--hq-space-grid-gap);
     }
 
     .profile__fields {
@@ -95,6 +99,11 @@ import {
 
     .profile__hint {
       color: var(--hq-color-ink-soft);
+    }
+
+    // The link is a control, so it wears the secondary box; it should not stretch the column.
+    .profile__change {
+      align-self: flex-start;
     }
   `,
 })
