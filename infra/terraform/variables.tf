@@ -53,6 +53,22 @@ variable "seed_school" {
   default     = false
 }
 
+variable "seed_profile" {
+  description = "Which seed SchoolSeed loads: `full` (30 classes / 40 teachers / 600 children, what the automated e2e suite needs) or `acceptance` (the owner's two teachers and three sections, no children). SEED_PROFILE."
+  type        = string
+  default     = "full"
+  validation {
+    condition     = contains(["full", "acceptance"], var.seed_profile)
+    error_message = "seed_profile must be `full` or `acceptance`."
+  }
+}
+
+variable "seed_reset" {
+  description = "One-shot: on the next start-up delete every school-scoped record in every school and the non-default schools, then seed. Refused by the `prod` Spring profile. Set true for exactly one deploy, then back to false. SEED_RESET."
+  type        = bool
+  default     = false
+}
+
 variable "sql_tier" {
   type    = string
   default = "db-f1-micro"
