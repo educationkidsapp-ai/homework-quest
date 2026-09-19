@@ -165,23 +165,6 @@
           </div>
         </div>
       </hq-card>
-
-      <section class="week__summary" [attr.aria-label]="'week.summary.title' | transloco">
-        <h2 class="week__summary-title">{{ 'week.summary.title' | transloco }}</h2>
-        <ul class="week__summary-list" hqListStagger>
-          @for (gap of gaps(); track gap) {
-            <li class="hq-badge hq-badge--solid hq-badge--error">{{ gap }}</li>
-          } @empty {
-            <li class="week__summary-item">{{ 'week.summary.noGaps' | transloco }}</li>
-          }
-          <li class="week__summary-item">
-            {{ 'week.summary.examsClosing' | transloco: { count: examsClosing() } }}
-          </li>
-          <li class="week__summary-item">
-            {{ 'week.summary.marksWaiting' | transloco: { count: marksWaiting() } }}
-          </li>
-        </ul>
-      </section>
     }
   </div>
 

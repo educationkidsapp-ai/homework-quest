@@ -1054,13 +1054,6 @@
       "ribbon": "Exam",
       "window": "{{opens}} – {{closes}}"
     },
-    "summary": {
-      "title": "This week at a glance",
-      "gap": "{{class}} has no lesson {{day}}",
-      "noGaps": "No gaps so far this week",
-      "examsClosing": "Exams closing this week: {{count}}",
-      "marksWaiting": "Open stops waiting for marks: {{count}}"
-    },
     "copyConfirm": {
       "title": "Copy this lesson?",
       "message": "Copy “{{title}}” to {{class}} on {{day}}?",

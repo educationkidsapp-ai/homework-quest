@@ -84,14 +84,6 @@ describe('This week', () => {
     expect(href).toContain('curriculum=british');
   });
 
-  it('names the class and the day of every gap in the summary strip', async () => {
-    await renderWeek();
-
-    expect(screen.getByText('1B has no lesson Tuesday')).toBeTruthy();
-    expect(screen.getByText('Exams closing this week: 0')).toBeTruthy();
-    expect(screen.getByText('Open stops waiting for marks: 0')).toBeTruthy();
-  });
-
   it('tells a teacher with no assignments who can give her one', async () => {
     await renderWeek({ start: DAYS[0], days: [...DAYS], rows: [], summary: { gaps: [] } });
 
@@ -294,9 +286,5 @@ describe('This week', () => {
     expect(headers).toHaveLength(DAYS.length + 1);
     expect(headers[1]).toContain('الأحد');
     expect(headers.at(-1)).toContain('الخميس');
-
-    const gap = screen.getAllByRole('listitem')[0]?.textContent ?? '';
-    expect(gap).toContain('1B');
-    expect(gap).toContain('الثلاثاء');
   });
 });
