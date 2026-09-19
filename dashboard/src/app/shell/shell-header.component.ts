@@ -61,6 +61,7 @@ import { TourService } from '../core/tour/tour.service';
         <button
           type="button"
           class="header__button header__button--icon"
+          data-hq-scheme-toggle
           [attr.aria-pressed]="darkMode.isDark()"
           [attr.aria-label]="'shell.darkMode' | transloco"
           (click)="darkMode.toggle()"
@@ -240,7 +241,9 @@ import { TourService } from '../core/tour/tour.service';
       min-inline-size: var(--hq-size-course-card);
       max-block-size: 60vh;
       overflow: auto;
-      background: var(--hq-color-surface);
+      // A floating panel: it sits on the CDK overlay with nothing opaque behind it, so it
+      // takes the raised surface rather than the card one (§5 gives both, and they differ).
+      background: var(--hq-color-surface-raised);
       border: var(--hq-size-rule) solid var(--hq-color-line);
       box-shadow: var(--hq-shadow-dialog);
     }

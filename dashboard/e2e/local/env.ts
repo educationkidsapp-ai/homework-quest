@@ -16,8 +16,7 @@
  */
 import { expect, request, type Locator, type Page } from '@playwright/test';
 
-export const API =
-  process.env['E2E_BASE_URL'] ?? process.env['HQ_API'] ?? 'http://localhost:18080';
+export const API = process.env['E2E_BASE_URL'] ?? process.env['HQ_API'] ?? 'http://localhost:18080';
 
 export function env(name: string): string {
   const value = process.env[name];
@@ -159,6 +158,19 @@ export async function shoot(
     shot.byteLength,
     `${path} is a blank frame (${shot.byteLength} bytes) — the screen had not painted`,
   ).toBeGreaterThan(10_000);
+}
+
+/**
+ * Puts the dashboard in `scheme`, through the header control rather than through storage.
+ *
+ * The control is found by `data-hq-scheme-toggle` and not by its accessible name, because every
+ * caller here photographs the same screen in Arabic too and the name changes with the language.
+ */
+export async function setScheme(page: Page, scheme: 'light' | 'dark'): Promise<void> {
+  const toggle = page.locator('[data-hq-scheme-toggle]');
+  const isDark = (await toggle.getAttribute('aria-pressed')) === 'true';
+  if (isDark !== (scheme === 'dark')) await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', String(scheme === 'dark'));
 }
 
 /** An ISO day `days` from today, in UTC — the format every lesson date field uses. */

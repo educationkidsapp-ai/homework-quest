@@ -83,9 +83,18 @@
   --hq-color-hover: var(--hq-color-gray-100); // row and nav hover
   --hq-color-accent: var(--hq-color-brand-500); // school `accent`
   --hq-color-accent-strong: var(--hq-color-brand-600); // accent hover, and link text
-  --hq-color-accent-soft: var(--hq-color-brand-50); // accent tint: badges, nav active
-  --hq-color-accent-on-soft: var(--hq-color-brand-500); // text on that tint
+  // Mixed from the accent rather than pinned to `brand-50`, because the accent is the one
+  // colour a school really does change: a school that picks green would otherwise get a
+  // brand-blue tint behind its own badges and nav. 10 % of `brand-500` on white is `#ecefff`,
+  // within one step of the spec's `#ecf3ff`, so the default is the spec's for all practical
+  // purposes and a school's is its own.
+  --hq-color-accent-soft: color-mix(in srgb, var(--hq-color-accent) 10%, #ffffff);
+  --hq-color-accent-on-soft: var(--hq-color-accent); // text on that tint
   --hq-color-disabled: var(--hq-color-gray-400);
+
+  // The child's device in the phone preview. Not the ink colour: ink is near-white in dark
+  // mode and a white phone bezel is not a phone.
+  --hq-color-bezel: var(--hq-color-gray-900);
 
   // `--hq-color-line` is the 2 px rule the current components draw with. It was the ink
   // colour; on the spec's palette a container border is `gray-200`, so it moves there and the
@@ -209,11 +218,20 @@
 // would be unreadable rather than branded.
 html.dark {
   --hq-color-bg: var(--hq-color-gray-900) !important;
-  --hq-color-surface: rgb(255 255 255 / 0.03) !important;
+  // §5 writes the card surface as `rgba(255,255,255,0.03)` **on the page background**. Here it
+  // is that composite, flattened: `#171f2e` is 3 % white over `#101828` to the byte. Opaque
+  // because the property is not only a card — it is the fill of inputs, checkboxes, secondary
+  // buttons, the week grid's cells and a card inside a card, and a translucent fill stacks:
+  // two of those over each other come out a step lighter each time, and over the phone bezel
+  // it came out light grey with near-white text on it.
+  --hq-color-surface: #171f2e !important;
   --hq-color-ink: rgb(255 255 255 / 0.9) !important;
   --hq-color-rule: var(--hq-color-gray-800) !important;
 
+  // Anything that floats over the page: menus, dialogs, the tour, the dropdown panels. §5
+  // gives these the sidebar/header surface, and they have nothing opaque behind them.
   --hq-color-surface-raised: var(--hq-color-gray-dark);
+  --hq-color-bezel: var(--hq-color-gray-950);
   --hq-color-ink-soft: var(--hq-color-gray-400);
   --hq-color-ink-muted: var(--hq-color-gray-500);
   --hq-color-divider: var(--hq-color-gray-800);
@@ -225,8 +243,11 @@ html.dark {
   --hq-color-on-ink: var(--hq-color-gray-900);
 
   --hq-color-accent-strong: var(--hq-color-brand-400);
-  --hq-color-accent-soft: rgb(70 95 255 / 0.12);
-  --hq-color-accent-on-soft: var(--hq-color-brand-400);
+  // §5's `rgba(70,95,255,0.12)` written so a school's accent tints with its own colour, and
+  // lightened for the text on it — `brand-500` mixed 70 % into white is `brand-400` to within
+  // a step, and on a school's accent it is that school's colour, brought up off the ground.
+  --hq-color-accent-soft: color-mix(in srgb, var(--hq-color-accent) 12%, transparent);
+  --hq-color-accent-on-soft: color-mix(in srgb, var(--hq-color-accent) 70%, #ffffff);
   --hq-color-focus-border: var(--hq-color-brand-400);
 
   // Badge tints: 15 % of the ramp's 500 behind the 500 itself.
@@ -245,6 +266,35 @@ html.dark {
   --hq-color-overlay: rgb(12 17 29 / 0.7);
 
   color-scheme: dark;
+}
+
+/// A subtree that stays light whatever the dashboard is set to.
+///
+/// The phone preview is the **child's app**, and the child's app has no dark mode — it is one
+/// palette, on a device, and a teacher previewing a lesson at night should see what the child
+/// will see in the morning. The roles are re-declared on the subtree root rather than fought
+/// with `!important`: a custom property declared on an element beats the one it would inherit,
+/// so everything below this reads the light system again with no per-component work.
+.hq-scheme-light {
+  --hq-color-bg: var(--hq-color-gray-50);
+  --hq-color-surface: #ffffff;
+  --hq-color-surface-raised: #ffffff;
+  --hq-color-ink: var(--hq-color-gray-800);
+  --hq-color-ink-soft: var(--hq-color-gray-500);
+  --hq-color-ink-muted: var(--hq-color-gray-400);
+  --hq-color-rule: var(--hq-color-gray-200);
+  --hq-color-divider: var(--hq-color-gray-100);
+  --hq-color-control-rule: var(--hq-color-gray-300);
+  --hq-color-line: var(--hq-color-gray-200);
+  --hq-color-hover: var(--hq-color-gray-100);
+  --hq-color-disabled: var(--hq-color-gray-400);
+  --hq-color-on-ink: #ffffff;
+  --hq-color-skeleton: var(--hq-color-gray-100);
+  --hq-color-skeleton-shine: var(--hq-color-gray-50);
+
+  color-scheme: light;
+  background: var(--hq-color-surface);
+  color: var(--hq-color-ink);
 }
 
 // --- Global rules ---------------------------------------------------------- §4
