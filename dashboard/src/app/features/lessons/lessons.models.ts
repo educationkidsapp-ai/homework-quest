@@ -44,6 +44,8 @@ export type LessonStatus =
   | 'paused';
 export type PipelineStep =
   | 'upload'
+  /** CR4: uploads become Markdown before the model reads them. */
+  | 'convert'
   | 'analyze'
   | 'skills'
   | 'generate_L1'
