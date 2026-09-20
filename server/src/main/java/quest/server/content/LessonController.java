@@ -23,7 +23,8 @@ import quest.server.config.ApiException;
 @Tag(name = "Lessons", description = "Published lesson content for the app")
 public class LessonController {
     private final LessonRepository lessons; private final LessonStore store; private final ChildRepository children;
-    public LessonController(LessonRepository lessons, LessonStore store, ChildRepository children) { this.lessons = lessons; this.store = store; this.children = children; }
+    private final quest.server.exams.ExamPlays exams;
+    public LessonController(LessonRepository lessons, LessonStore store, ChildRepository children, quest.server.exams.ExamPlays exams) { this.lessons = lessons; this.store = store; this.children = children; this.exams = exams; }
 
     @PreAuthorize("@permit.has('lesson.play')")
     @GetMapping(value = "/lessons/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -35,8 +36,11 @@ public class LessonController {
             if (!child.courseId().equals(lesson.getCourseId())) throw ApiException.forbidden("This lesson is for a different course.");
             if (!child.getSchoolId().equals(lesson.getSchoolId())) throw ApiException.notFound("lesson");   // §2: never across schools
         }
-        String body = store.assembleJson(lesson);
-        if (body == null) throw ApiException.notFound("lesson content");
+        // N4.3 (§8): an exam carries its type, the two "off" switches the player must honour and the one paper it
+        // is sat over. A homework is encoded exactly as it always was — `decorate` returns it untouched.
+        var assembled = store.assemble(lesson);
+        if (assembled == null) throw ApiException.notFound("lesson content");
+        String body = store.encode(exams.decorate(assembled, lesson));
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic()).eTag("\"" + lesson.getId() + "-v" + lesson.getVersion() + "\"").body(body);
     }
 }

@@ -18,7 +18,7 @@ import quest.server.config.ApiException;
 class AttemptSeedTest extends GradingTestSupport {
     private static final String A = "as-school", TEACHER = "as-teacher", TEACHER_B = "as-teacher-b";
 
-    @Override String prefix() { return "as-"; }
+    @Override public String prefix() { return "as-"; }
 
     @Autowired AttemptSeed seed;
 

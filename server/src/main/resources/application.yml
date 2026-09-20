@@ -104,6 +104,13 @@ quest:
       # Added to a step's deadline before the sweep touches a row, so a job running on another instance is never
       # taken away from it over a clock skew.
       grace-seconds: ${QUEST_PIPELINE_WATCHDOG_GRACE_SECONDS:60}
+  exams:
+    release-sweep:
+      # N4.3 (§8): "results release automatic on close". The window shuts while nobody is at a desk, so a sweep
+      # releases it — once at startup, because on Cloud Run the instance that would have run the timer is usually
+      # gone, and then on this interval.
+      enabled: ${QUEST_EXAMS_RELEASE_SWEEP_ENABLED:true}
+      interval-seconds: ${QUEST_EXAMS_RELEASE_SWEEP_INTERVAL_SECONDS:60}
   storage:
     kind: ${STORAGE_KIND:local}
     local-dir: ${STORAGE_DIR:data/files}
@@ -173,6 +180,10 @@ quest:
   # into lessons another context seeded in the same H2 database. `StuckLessonTest` calls `sweep()` outright, which is
   # what that test is for and is unaffected by this switch.
   pipeline.watchdog.enabled: false
+  # And no automatic exam release under test, for the same two reasons: it ticks on a 60-second timer against the
+  # SessionFactory the whole suite shares, and it would release exams another context seeded in the same H2
+  # database. `ExamApiTest` calls `sweep()` outright, which is what that test is for.
+  exams.release-sweep.enabled: false
 
 ---
 # QA on Cloud Run (project homework-quest-qa, branch develop): same wiring as prod, verbose logs, seeded sample lessons

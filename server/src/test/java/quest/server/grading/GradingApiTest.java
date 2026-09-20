@@ -24,7 +24,7 @@ class GradingApiTest extends GradingTestSupport {
     private static final String CLASS_1A = "gr-1a", CLASS_1B = "gr-1b", CLASS_OTHER = "gr-other";
     private static final String LESSON = "gr-lesson-1";
 
-    @Override String prefix() { return "gr-"; }
+    @Override public String prefix() { return "gr-"; }
 
     private String adminToken, sara, noor, other, maya, omar;
     private quest.server.tenancy.Entities.ClassEntity section1a;
@@ -329,6 +329,46 @@ class GradingApiTest extends GradingTestSupport {
         assertThat(page.get("trend").get(0).get("score").asInt()).isEqualTo(57);
         assertThat(page.get("comments")).hasSize(1);
         assertThat(page.get("comments").get(0).get("comment").asText()).isEqualTo("Lovely retelling.");
+    }
+
+    /**
+     * N4.2 gap: the cell carries the teacher's line to the parent, so that a grid saving a score override can send
+     * the comment back with it. Without this the override would arrive with `comment: null`, which `PUT
+     * /teacher/marks` reads as "delete this mark" — and the parent's report would lose the comment every time a
+     * teacher corrected a score.
+     */
+    @Test void a_gradebook_cell_carries_the_comment_an_override_would_otherwise_wipe() throws Exception {
+        mvc.perform(as(put("/teacher/marks").contentType(MediaType.APPLICATION_JSON).content(
+                "{\"marks\":[{\"childId\":\"" + maya + "\",\"lessonId\":\"" + LESSON
+                        + "\",\"score\":72,\"comment\":\"A big step forward.\"}]}"), sara)).andExpect(status().isOk());
+
+        var cell = row(json(mvc.perform(as(get("/teacher/classes/" + CLASS_1A + "/gradebook"), sara))
+                .andExpect(status().isOk()).andReturn()), maya).get("cells").get(0);
+
+        assertThat(cell.get("teacherScore").asInt()).isEqualTo(72);
+        assertThat(cell.get("autoScore").asInt()).as("§7 keeps the automatic score visible beside it").isEqualTo(50);
+        assertThat(cell.get("comment").asText()).isEqualTo("A big step forward.");
+    }
+
+    /**
+     * N4.2 gap: step 9's "skills going well / needing another look". The measure is the app's own
+     * {@link quest.api.progress.ProgressBands}, so a skill a parent is told is going well is not one the teacher's
+     * page calls weak. Maya answered one of the lesson's two single-answer stops right first time — 50%, which is
+     * below the `going well` and `getting there` thresholds.
+     */
+    @Test void the_child_page_splits_her_skills_into_going_well_and_needing_another_look() throws Exception {
+        var page = json(mvc.perform(as(get("/teacher/children/" + maya), sara)).andExpect(status().isOk()).andReturn());
+
+        assertThat(page.get("goingWell")).isEmpty();
+        assertThat(page.get("needsAnotherLook")).hasSize(1);
+        var weak = page.get("needsAnotherLook").get(0);
+        assertThat(weak.get("name").asText()).isEqualTo("Counting");
+        assertThat(weak.get("band").asText()).isEqualTo("needs_another_look");
+        assertThat(weak.get("accuracy").asInt()).as("one of two single-answer stops right on the first try").isEqualTo(50);
+        assertThat(weak.get("attempts").asInt()).isEqualTo(2);
+
+        assertThat(json(mvc.perform(as(get("/teacher/children/" + omar), sara)).andExpect(status().isOk()).andReturn())
+                .get("needsAnotherLook")).as("a child who has played nothing has no reading either").isEmpty();
     }
 
     /** The Admin reaches the same routes with `X-School-Id`; there is no second set of `/admin/**` aliases. */

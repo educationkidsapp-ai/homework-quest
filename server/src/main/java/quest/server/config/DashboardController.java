@@ -51,8 +51,14 @@ public class DashboardController {
      * GCS and the theme preview renders inline data URLs; `style-src` needs `'unsafe-inline'` for the CSS custom
      * properties Angular writes onto the document for school themes. Fonts are bundled (`media/*.woff2` above), so
      * neither `fonts.googleapis.com` nor `fonts.gstatic.com` is allowed — `default-src 'self'` covers `font-src`.
+     *
+     * <p>N4.2 gap: `media-src 'self' data:` is there for the Results page, which plays back the retell a child
+     * recorded. The stored audio is same-origin (`/media/child/{id}`), which `'self'` covers; `data:` is for a clip
+     * the page holds in memory rather than on the server — a preview, or a recording not yet uploaded. `media-src`
+     * has to name `data:` itself because it inherits nothing from the `img-src` exception above, and without it the
+     * player is silent with the reason only in the console, which is the shape of bug that is found in QA.
      */
-    private static final String CSP = "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; connect-src 'self'";
+    private static final String CSP = "default-src 'self'; img-src 'self' https: data:; media-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self'";
 
     private final StaticBundle bundle;
 

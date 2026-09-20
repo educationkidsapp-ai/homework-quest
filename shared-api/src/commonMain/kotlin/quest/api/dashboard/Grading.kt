@@ -194,6 +194,13 @@ data class GradebookCell(
     val score: Int? = null,
     val band: Level? = null,
     val needsMarking: Boolean = false,
+    /**
+     * N4.2 gap: the teacher's line to the parent about this lesson, so the grid can send a score override back
+     * without having to resend the comment. `PUT /teacher/marks` writes one row per (child, lesson, stop) and a
+     * lesson-level save with `comment = null` **deletes** it; a cell that could not show the comment it is about to
+     * overwrite would quietly take it off the parent's report every time a teacher corrected a score.
+     */
+    val comment: String? = null,
 )
 
 /**
@@ -279,6 +286,26 @@ data class ChildWork(
     val createdAt: Long,
 )
 
+/**
+ * Step 9's "skills going well / needing another look" on the child page.
+ *
+ * The measure is the app's own ([quest.api.progress.ProgressBands]): first-try correctness on the single-answer
+ * stops that carry the skill, over her last ten lessons. Deliberately the same arithmetic the parent's progress
+ * report uses, so a skill the app tells a parent is going well is not a skill the teacher's page calls weak.
+ * [accuracy] is 0-100 for the teacher — §6's "no numbers" is a rule about *children*, not about staff.
+ */
+@Serializable
+data class ChildSkill(
+    val skillId: String,
+    val name: String,
+    val subject: Subject? = null,
+    /** `going_well`, `getting_there` or `needs_another_look`. */
+    val band: String,
+    val accuracy: Int? = null,
+    val attempts: Int = 0,
+    val lastPractised: Long? = null,
+)
+
 /** `GET /teacher/children/{id}`: band and trend per subject, the chart, the comments and the saved work. */
 @Serializable
 data class ChildReport(
@@ -291,4 +318,8 @@ data class ChildReport(
     val trend: List<ChildTrendPoint> = emptyList(),
     val comments: List<ChildComment> = emptyList(),
     val work: List<ChildWork> = emptyList(),
+    /** N4.2 gap: what is going well, strongest first. */
+    val goingWell: List<ChildSkill> = emptyList(),
+    /** N4.2 gap: what needs another look, weakest first. */
+    val needsAnotherLook: List<ChildSkill> = emptyList(),
 )

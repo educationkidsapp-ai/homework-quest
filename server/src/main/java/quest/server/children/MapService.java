@@ -38,17 +38,21 @@ import quest.server.teacher.TeacherQuestionService;
 public class MapService {
     private final SchoolLessons schoolLessons; private final StopRepository stops; private final SkillRepository skills;
     private final LessonCompletionRepository completions; private final ParentUnlockRepository unlocks; private final ProgressService progress;
-    private final TeacherQuestionService teacherQuestions; private final FeatureFlags flags;
+    private final TeacherQuestionService teacherQuestions; private final FeatureFlags flags; private final java.time.Clock clock;
 
     public MapService(SchoolLessons schoolLessons, StopRepository stops, SkillRepository skills, LessonCompletionRepository completions,
-                      ParentUnlockRepository unlocks, ProgressService progress, TeacherQuestionService teacherQuestions, FeatureFlags flags) {
+                      ParentUnlockRepository unlocks, ProgressService progress, TeacherQuestionService teacherQuestions,
+                      FeatureFlags flags, java.time.Clock clock) {
         this.schoolLessons = schoolLessons; this.stops = stops; this.skills = skills; this.completions = completions;
-        this.unlocks = unlocks; this.progress = progress; this.teacherQuestions = teacherQuestions; this.flags = flags;
+        this.unlocks = unlocks; this.progress = progress; this.teacherQuestions = teacherQuestions; this.flags = flags; this.clock = clock;
     }
 
     public MapResponse map(Entities.ChildEntity child, LocalDate from, LocalDate to, LocalDate today) {
         var course = Course.Companion.parse(child.courseId());
-        var lessons = schoolLessons.publishedFor(child);
+        // N4.3 (§8): an exam is on the map only between open and close, so the map is built from the lessons that
+        // are visible *now* rather than from every published one. The windows come back with them.
+        var visible = schoolLessons.visibleFor(child, clock.instant());
+        var lessons = visible.lessons();
         var lessonIds = lessons.stream().map(quest.server.content.Entities.LessonEntity::getId).toList();
         Map<String, Integer> stopsPerPlay = new HashMap<>();
         Map<String, List<String>> skillIds = new HashMap<>();
@@ -70,7 +74,29 @@ public class MapService {
         progress.weakByLesson(child, lessons).forEach((lessonId, b) -> review.add(new MapAssembler.ReviewCandidate(b.skillId(), b.name(), lessonId, lessonId + ":1:1")));
         var c = ChildService.dto(child);
         var assembled = MapAssembler.INSTANCE.assemble(c, published, done, review, parentUnlocked, kdate(from), kdate(to), kdate(today));
-        return withTeacherIslands(assembled, child, today);
+        return withTeacherIslands(withExamWindows(assembled, visible.examWindows()), child, today);
+    }
+
+    /**
+     * §8's exam island, marked as one. The assembler is shared with the app and knows only §7's rule, so — exactly
+     * as the teacher islands are attached below — the windows are laid over the islands it produced rather than
+     * taught to it. An island that carries `examWindow` is an exam the child may sit right now; every lesson that
+     * is not one was already dropped upstream, so the field is never a window that has shut.
+     */
+    private MapResponse withExamWindows(MapResponse assembled, Map<String, quest.server.exams.Entities.ExamSettingsEntity> windows) {
+        if (windows.isEmpty()) return assembled;
+        var islands = assembled.getIslands().stream().map(island -> {
+            var exam = island.getLessonId() == null ? null : windows.get(island.getLessonId());
+            if (exam == null) return island;
+            var window = new quest.api.dto.ExamWindow(exam.getOpensAt().toEpochMilli(), exam.getClosesAt().toEpochMilli(),
+                    exam.getLevel(), exam.getDurationMinutes(), exam.isHintsOff(), exam.isNumbersOff());
+            return new quest.api.dto.Island(island.getId(), island.getKind(), island.getDate(), island.getState(),
+                    island.getTitle(), island.getSubject(), island.getLessonId(), island.getLessonVersion(),
+                    island.getLevelsUnlocked(), island.getCompletedLevels(), island.getStarsEarned(),
+                    island.getStarsTotal(), island.getSkillId(), island.getPlayId(), window);
+        }).toList();
+        return new MapResponse(assembled.getChildId(), assembled.getCourse(), assembled.getFrom(), assembled.getTo(),
+                assembled.getToday(), islands, assembled.getTeacherIslands());
     }
 
     /**

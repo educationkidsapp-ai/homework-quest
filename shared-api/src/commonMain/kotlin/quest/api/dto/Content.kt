@@ -6,7 +6,12 @@ import kotlinx.serialization.Serializable
 @Serializable data class SkillRef(val id: String, val name: String, val subject: Subject, val method: String)
 @Serializable data class PageImage(val id: String, val url: String, val width: Int, val height: Int, val description: String = "")
 
-/** `GET /lessons/{id}` — immutable per `version`, cacheable indefinitely. */
+/**
+ * `GET /lessons/{id}` — immutable per `version`, cacheable indefinitely.
+ *
+ * N4.3 adds the four exam fields. They are defaulted, so a homework is byte-for-byte what it always was and an app
+ * build that predates them reads it unchanged; for an exam ([type] `"exam"`) the player must honour all four.
+ */
 @Serializable
 data class PublishedLesson(
     val id: String,
@@ -22,9 +27,40 @@ data class PublishedLesson(
     val variant: Play,              // level 1, variant 1 — "Again"
     val parentPanel: ParentPanel,
     val pageImages: List<PageImage> = emptyList(),
+    /** `homework` or `exam` (§8). */
+    val type: String = "homework",
+    /** §8: no hints, no "Again", no "Harder" while a child sits an exam. */
+    val hintsOff: Boolean = false,
+    /** §8: no red X, no percentage, no score and no timer on screen — stars and the sticker only. */
+    val numbersOff: Boolean = false,
+    /**
+     * The one play an exam is sat over, and null for a homework. For a single-level exam it is that level's play;
+     * for a *mixed* one it is the paper assembled from the three generated levels, and its stops keep the ids their
+     * own level gave them so an attempt lands where the scorer already looks.
+     *
+     * The app plays exactly this and ignores [plays] and [variant] — there is no level chooser in an exam.
+     */
+    val examPlay: Play? = null,
 ) {
     fun play(level: Int, variant: Int = 0): Play? = if (variant == 1 && level == 1) this.variant else plays.firstOrNull { it.level == level }
 }
+
+/**
+ * The window an exam island is alive in (§8's "only between open and close"), carried on [Island.examWindow].
+ *
+ * [level] is one of `1`, `2`, `3`, `mixed` and is the teacher's description of the paper, not something the player
+ * chooses. [hintsOff] and [numbersOff] repeat what [PublishedLesson] says so the map can already draw the island as
+ * a test before the lesson body is downloaded.
+ */
+@Serializable
+data class ExamWindow(
+    val opensAt: Long,
+    val closesAt: Long,
+    val level: String = "mixed",
+    val durationMinutes: Int? = null,
+    val hintsOff: Boolean = true,
+    val numbersOff: Boolean = true,
+)
 
 /**
  * A "From your teacher" island (§6 screen 14, "Mobile app additions"): one per question of a teacher of the child's
@@ -82,6 +118,12 @@ data class Island(
     val starsTotal: Int? = null,
     val skillId: String? = null,
     val playId: String? = null,
+    /**
+     * N4.3: present only on the island of an exam, and only while the window is open — the server leaves the whole
+     * lesson out of the map before it opens and after it closes, so an island that carries this is one the child
+     * may sit right now. Its presence is what makes the island a test rather than a homework.
+     */
+    val examWindow: ExamWindow? = null,
 )
 
 /** What the map assembler needs to know about a child's history (mirrors LessonCompletion + bands). */

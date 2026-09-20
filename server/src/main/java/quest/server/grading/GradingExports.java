@@ -88,7 +88,8 @@ public class GradingExports {
 
     // ---------------------------------------------------------------- the two writers
 
-    private static byte[] csv(List<List<Object>> rows) {
+    /** Public so N4.3's exam exports write the same two formats from their own rows. */
+    public static byte[] csv(List<List<Object>> rows) {
         var out = new StringBuilder();
         for (var row : rows) {
             for (int i = 0; i < row.size(); i++) {
@@ -112,7 +113,8 @@ public class GradingExports {
         return '"' + text.replace("\"", "\"\"") + '"';
     }
 
-    private static byte[] xlsx(String sheetName, List<List<Object>> rows) {
+    /** Public so N4.3's exam exports write the same two formats from their own rows. */
+    public static byte[] xlsx(String sheetName, List<List<Object>> rows) {
         try (var workbook = new XSSFWorkbook(); var bytes = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet(sheetName);
             var bold = workbook.createCellStyle();
