@@ -5,7 +5,7 @@ export { SelectComponent, type SelectOption, type SelectOptionGroup } from './se
 export { TextareaComponent } from './textarea/textarea.component';
 export { CheckboxComponent } from './checkbox/checkbox.component';
 export { ToggleComponent } from './toggle/toggle.component';
-export { TableComponent, type TableColumn } from './table/table.component';
+export { TableComponent, type TableColumn, type TableGroup } from './table/table.component';
 export { TabsComponent, type Tab } from './tabs/tabs.component';
 export { CardComponent } from './card/card.component';
 export { DialogComponent } from './dialog/dialog.component';

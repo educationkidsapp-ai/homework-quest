@@ -36,6 +36,7 @@ const RESULTS: LessonResults = {
       name: 'Amina Al Amin',
       attempted: true,
       levelReached: 1,
+      scoredLevel: 1,
       autoScore: 90,
       score: 90,
       band: 'exceeding',
@@ -64,6 +65,7 @@ const RESULTS: LessonResults = {
       name: 'Zain Lutfi',
       attempted: true,
       levelReached: 1,
+      scoredLevel: 1,
       autoScore: 52,
       teacherScore: 60,
       score: 60,
@@ -128,6 +130,7 @@ describe('the weakest stops', () => {
           childId: 'ch-1',
           name: 'A',
           attempted: true,
+          scoredLevel: 1,
           stops: [
             { stopId: 's1', attempted: true, score: 90 },
             { stopId: 's2', attempted: true, score: 92 },
@@ -151,6 +154,7 @@ describe('the weakest stops', () => {
           childId: 'ch-1',
           name: 'A',
           attempted: true,
+          scoredLevel: 1,
           stops: [
             { stopId: 's1', attempted: true, score: 100 },
             { stopId: 's2', attempted: true, score: 10 },

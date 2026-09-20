@@ -15,15 +15,19 @@ import {
   CheckboxComponent,
   EmptyStateComponent,
   PageComponent,
+  SelectComponent,
   SkeletonComponent,
   TableComponent,
   ToggleComponent,
   type Breadcrumb,
+  type SelectOption,
   type TableColumn,
+  type TableGroup,
 } from '../../ui';
 import { LevelBandComponent } from './level-band.component';
 import { MarkPanelComponent } from './mark-panel.component';
 import {
+  levelGroups,
   needingMarking,
   resultRows,
   scoreLabel,
@@ -69,6 +73,7 @@ const SECURE_FLOOR = 60;
     TableComponent,
     ButtonComponent,
     CheckboxComponent,
+    SelectComponent,
     ToggleComponent,
     BandComponent,
     SkeletonComponent,
@@ -153,23 +158,92 @@ export class ResultsPage {
     this.onlyUnmarked() ? needingMarking(this.rows()) : this.rows(),
   );
 
+  /**
+   * The lesson's stops by level — the table's column groups, and the level filter's options.
+   *
+   * Publishing a lesson generates Levels 2 and 3, so this is three groups on almost every
+   * lesson and one on a hand-written single-level one; the page draws whatever arrives.
+   */
+  protected readonly levels = computed(() => levelGroups(this.results.value()));
+
+  /**
+   * Which level's columns are on screen. `''` is all of them, and is where it starts — a teacher
+   * opens the page to see her class, not to choose a level first.
+   *
+   * A filter rather than a split: three levels of six stops is eighteen columns, and a teacher
+   * whose class all played Level 1 wants six of them. It hides columns and never rows — the
+   * roster is the one thing on this page that must always be whole.
+   */
+  protected readonly level = signal('');
+
+  private readonly onlyLevel = computed(() => {
+    const value = Number(this.level());
+    return Number.isFinite(value) && value > 0 ? value : null;
+  });
+
+  protected readonly shownLevels = computed(() => {
+    const only = this.onlyLevel();
+    return only === null ? this.levels() : this.levels().filter((group) => group.level === only);
+  });
+
+  protected readonly levelOptions = computed<readonly SelectOption[]>(() => {
+    this.lang();
+    return [
+      { value: '', label: this.t('results.filter.allLevels') },
+      ...this.levels().map((group) => ({
+        value: String(group.level),
+        label: this.t('results.table.levelGroup', { level: group.level }),
+      })),
+    ];
+  });
+
+  /** The summary columns after the stops — named here so the group row's spacer can count them. */
+  private readonly TAIL = ['played', 'answered', 'levelReached', 'score', 'band'] as const;
+
   protected readonly columns = computed<readonly TableColumn<ResultRow>[]>(() => {
     this.lang();
-    const stops = this.rows()[0]?.stops ?? [];
     return [
       { key: 'name', header: this.t('results.table.child'), width: '22%' },
-      ...stops.map((stop, index) => ({
-        key: `${STOP_PREFIX}${stop.stopId}`,
-        // A weak column says so in its heading rather than tinting every cell under it: the
-        // column is what was hard, and a child who got three stars there did not do badly.
-        header: this.isWeak(stop.stopId)
-          ? `${this.t('results.table.stop', { number: index + 1 })} · ${this.t('results.table.hardest')}`
-          : this.t('results.table.stop', { number: index + 1 }),
-        align: 'center' as const,
-      })),
+      ...this.shownLevels().flatMap((group) =>
+        group.stops.map((stop) => ({
+          key: `${STOP_PREFIX}${stop.stopId}`,
+          // A weak column says so in its heading rather than tinting every cell under it: the
+          // column is what was hard, and a child who got three stars there did not do badly.
+          header: this.isWeak(stop.stopId)
+            ? `${this.t('results.table.stop', { number: stop.number })} · ${this.t('results.table.hardest')}`
+            : this.t('results.table.stop', { number: stop.number }),
+          align: 'center' as const,
+        })),
+      ),
+      { key: 'played', header: this.t('results.table.played'), align: 'center' as const },
+      { key: 'answered', header: this.t('results.table.answered'), align: 'end' as const },
       { key: 'levelReached', header: this.t('results.table.level'), align: 'end' as const },
       { key: 'score', header: this.t('results.table.score'), align: 'end' as const },
       { key: 'band', header: this.t('results.table.band') },
+    ];
+  });
+
+  /**
+   * "Level 1 · Level 2 · Level 3" above the stop columns.
+   *
+   * The grid is the union of every level's stops and each child is scored on one of them, so
+   * without this row a teacher reads a column of dashes as twenty children who skipped a stop
+   * rather than as twenty children who were playing somewhere else (N4.5 D1). The child column
+   * and the summary columns take blank spacers: the groups have to cover the whole width.
+   */
+  protected readonly groups = computed<readonly TableGroup[]>(() => {
+    this.lang();
+    const levels = this.shownLevels();
+    if (levels.length === 0) return [];
+    return [
+      { key: 'child', header: '', span: 1 },
+      ...levels.map((group) => ({
+        key: `level-${group.level}`,
+        header: this.t('results.table.levelGroup', { level: group.level }),
+        span: group.stops.length,
+        align: 'center' as const,
+      })),
+      { key: 'summary', header: '', span: this.TAIL.length },
     ];
   });
 
@@ -197,8 +271,10 @@ export class ResultsPage {
   }
 
   protected headerTitleOf(key: string): string {
-    const stop = this.rows()[0]?.stops.find((candidate) => `${STOP_PREFIX}${candidate.stopId}` === key);
-    return stop?.title ?? '';
+    for (const group of this.levels())
+      for (const stop of group.stops)
+        if (`${STOP_PREFIX}${stop.stopId}` === key) return stop.title;
+    return '';
   }
 
   // ---- one child's panel -------------------------------------------------------------------------

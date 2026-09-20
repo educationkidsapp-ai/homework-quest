@@ -43,6 +43,7 @@ const RESULTS: LessonResults = {
       name: 'Amina Al Amin',
       attempted: true,
       levelReached: 1,
+      scoredLevel: 1,
       autoScore: 90,
       score: 90,
       band: 'exceeding',
@@ -57,6 +58,7 @@ const RESULTS: LessonResults = {
       name: 'Zain Lutfi',
       attempted: true,
       levelReached: 1,
+      scoredLevel: 1,
       autoScore: 52,
       score: 52,
       band: 'developing',
@@ -130,14 +132,15 @@ describe('the Results page', () => {
   });
 
   it('says who is still waiting for a mark, and filters down to them', async () => {
-    expect(screen.getAllByRole('row')).toHaveLength(3); // header + two children
+    // Two heading rows now — the level group above the column labels — and two children.
+    expect(screen.getAllByRole('row')).toHaveLength(4);
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Needs marking only' }));
     await settle();
 
     const rows = screen.getAllByRole('row');
-    expect(rows).toHaveLength(2);
-    expect(within(rows[1]!).getByText('Zain Lutfi')).toBeInTheDocument();
+    expect(rows).toHaveLength(3);
+    expect(within(rows[2]!).getByText('Zain Lutfi')).toBeInTheDocument();
   });
 
   it('sends one request for the whole panel, and offers it back for ten seconds', async () => {
