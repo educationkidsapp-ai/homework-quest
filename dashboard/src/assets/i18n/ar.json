@@ -855,7 +855,8 @@
       "band": "الفئة",
       "notAttempted": "لم يُحاول",
       "mark": "صحّحي",
-      "needsMarking": "{{count}} بانتظار التصحيح"
+      "needsMarking": "{{count}} بانتظار التصحيح",
+      "hardest": "الأصعب"
     },
     "filter": {
       "needsMarking": "بانتظار التصحيح فقط"
@@ -869,7 +870,7 @@
       "noneYet": "لم يلعب أحد هذا الدرس بعد."
     },
     "marking": {
-      "stars": "{{count}} نجوم",
+      "stars": "{{count}} من 3 نجوم",
       "starsFor": "نجوم {{stop}}",
       "stopComment": "ملاحظة على هذه المحطة",
       "override": "تعديل الدرجة",
@@ -916,7 +917,7 @@
       "apply": "تطبيق",
       "cancel": "إلغاء",
       "saved": "أصبحت درجة {{name}} {{score}}.",
-      "pending": "ما زال {{count}} من التصحيح بانتظارك.",
+      "pending": "بانتظار التصحيح: {{count}}",
       "trend": {
         "up": "في تحسّن",
         "flat": "ثابت",
@@ -930,7 +931,7 @@
       "lesson": "الدرس",
       "date": "التاريخ",
       "noScores": "لا توجد درجة ظاهرة بعد.",
-      "lessons": "خلال {{count}} درسًا",
+      "lessons": "الدروس المحسوبة: {{count}}",
       "noLevels": "لا توجد مادة فيها درجات كافية لتحديد المستوى بعد.",
       "comments": "الملاحظات",
       "forParent": "يراها وليّ الأمر",

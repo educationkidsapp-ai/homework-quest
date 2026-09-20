@@ -97,11 +97,7 @@
 <ng-template #cell let-row let-column="column">
   @if (isStopColumn(column.key)) {
     @if (stopOf(row, column.key); as stop) {
-      <span
-        class="results__stop"
-        [class.is-weak]="isWeak(stop.stopId)"
-        [attr.title]="headerTitleOf(column.key)"
-      >
+      <span class="results__stop" [class.is-weak]="isWeakCell(stop)" [attr.title]="headerTitleOf(column.key)">
         @if (!stop.attempted) {
           <span class="results__dash" aria-hidden="true">–</span>
           <span class="hq-sr-only">{{ 'results.table.notAttempted' | transloco }}</span>
@@ -140,7 +136,7 @@
         @if (row.teacherScore !== null && row.autoScore !== null) {
           <span class="results__auto">{{ row.autoScore }}</span>
         }
-        <strong>{{ score(row.score) }}</strong>
+        <strong data-hq-score>{{ score(row.score) }}</strong>
       }
       @case ('band') {
         <hq-level-band [band]="row.band" />

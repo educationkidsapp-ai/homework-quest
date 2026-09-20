@@ -9,6 +9,7 @@
       type="date"
       class="gb__date"
       [label]="'results.gradebook.from' | transloco"
+      [required]="true"
       [value]="from()"
       (valueChange)="from.set($event)"
     />
@@ -16,6 +17,7 @@
       type="date"
       class="gb__date"
       [label]="'results.gradebook.to' | transloco"
+      [required]="true"
       [value]="to()"
       (valueChange)="to.set($event)"
     />
@@ -110,6 +112,7 @@
                     <button
                       type="button"
                       class="gb__cell"
+                      data-hq-gb-cell
                       [class.is-editable]="canOverride()"
                       [disabled]="!canOverride() || !cell.attempted"
                       [attr.title]="cellTitle(row, cell)"

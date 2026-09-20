@@ -47,6 +47,9 @@ import { StarsInputComponent } from './stars-input.component';
 /** A stop column is `stop:{id}`; the name column and the summary columns are their own keys. */
 const STOP_PREFIX = 'stop:';
 
+/** §7's `secure` band floor — below it, on a stop the class found hard, is worth the eye. */
+const SECURE_FLOOR = 60;
+
 /**
  * **The Results page** (`docs/teacher-flow.md` §4 step 9) — one lesson, every child, every stop.
  *
@@ -187,7 +190,11 @@ export class ResultsPage {
       { key: 'name', header: this.t('results.table.child'), width: '22%' },
       ...stops.map((stop, index) => ({
         key: `${STOP_PREFIX}${stop.stopId}`,
-        header: this.t('results.table.stop', { number: index + 1 }),
+        // A weak column says so in its heading rather than tinting every cell under it: the
+        // column is what was hard, and a child who got three stars there did not do badly.
+        header: this.isWeak(stop.stopId)
+          ? `${this.t('results.table.stop', { number: index + 1 })} · ${this.t('results.table.hardest')}`
+          : this.t('results.table.stop', { number: index + 1 }),
         align: 'center' as const,
       })),
       { key: 'levelReached', header: this.t('results.table.level'), align: 'end' as const },
@@ -209,6 +216,14 @@ export class ResultsPage {
 
   protected isWeak(stopId: string): boolean {
     return this.weak().has(stopId);
+  }
+
+  /**
+   * The cells worth tinting: a weak stop the child actually played and did not clear the
+   * `secure` floor on. Tinting a whole weak column would paint a three-star answer red.
+   */
+  protected isWeakCell(stop: RowStop): boolean {
+    return this.isWeak(stop.stopId) && stop.attempted && (stop.score ?? 100) < SECURE_FLOOR;
   }
 
   protected headerTitleOf(key: string): string {

@@ -143,7 +143,7 @@ describe('the Results page', () => {
   it('sends one request for the whole panel, and offers it back for ten seconds', async () => {
     await openPanel('Zain Lutfi');
 
-    await userEvent.click(screen.getByRole('radio', { name: '2 stars' }));
+    await userEvent.click(screen.getByRole('radio', { name: '2 of 3 stars' }));
     await settle();
     await userEvent.click(screen.getByRole('button', { name: 'Save marks' }));
     await settle();
@@ -226,6 +226,6 @@ describe('a school without the marking flag', () => {
     await openPanel('Zain Lutfi');
 
     expect(screen.queryByRole('button', { name: 'Save marks' })).toBeNull();
-    expect(screen.getByRole('radio', { name: '2 stars' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: '2 of 3 stars' })).toBeDisabled();
   });
 });

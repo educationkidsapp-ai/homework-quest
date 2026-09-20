@@ -855,7 +855,8 @@
       "band": "Band",
       "notAttempted": "Not attempted",
       "mark": "Mark",
-      "needsMarking": "{{count}} to mark"
+      "needsMarking": "{{count}} to mark",
+      "hardest": "hardest"
     },
     "filter": {
       "needsMarking": "Needs marking only"
@@ -869,7 +870,7 @@
       "noneYet": "No one has played this lesson yet."
     },
     "marking": {
-      "stars": "{{count}} stars",
+      "stars": "{{count}} of 3 stars",
       "starsFor": "Stars for {{stop}}",
       "stopComment": "Note on this stop",
       "override": "Score override",
@@ -916,7 +917,7 @@
       "apply": "Apply",
       "cancel": "Cancel",
       "saved": "{{name}} set to {{score}}.",
-      "pending": "{{count}} marks are still waiting for you.",
+      "pending": "Waiting for a mark: {{count}}",
       "trend": {
         "up": "Going up",
         "flat": "Steady",
@@ -930,7 +931,7 @@
       "lesson": "Lesson",
       "date": "Date",
       "noScores": "No released score yet.",
-      "lessons": "over {{count}} lessons",
+      "lessons": "Lessons counted: {{count}}",
       "noLevels": "No subject has enough scores for a level yet.",
       "comments": "Comments",
       "forParent": "Seen by the parent",
