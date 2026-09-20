@@ -57,6 +57,15 @@
     [eyebrow]="'results.table.count' | transloco: { count: visibleRows().length }"
   >
     <div card-actions class="results__toolbar">
+      <!-- Eighteen stop columns on a three-level lesson. The filter narrows them to one level's
+           and never hides a child: the roster stays whole whatever it is set to. -->
+      <hq-select
+        class="results__level-filter"
+        data-hq-level-filter
+        [label]="'results.filter.level' | transloco"
+        [options]="levelOptions()"
+        [(value)]="level"
+      />
       <hq-checkbox
         [label]="'results.filter.needsMarking' | transloco"
         [(checked)]="onlyUnmarked"
@@ -78,6 +87,7 @@
       <hq-table
         [rows]="visibleRows()"
         [columns]="columns()"
+        [groups]="groups()"
         [cellTemplate]="cell"
         [expandedTemplate]="panel"
         [isExpanded]="isOpen"
@@ -98,7 +108,15 @@
   @if (isStopColumn(column.key)) {
     @if (stopOf(row, column.key); as stop) {
       <span class="results__stop" [class.is-weak]="isWeakCell(stop)" [attr.title]="headerTitleOf(column.key)">
-        @if (!stop.attempted) {
+        <!-- A stop of a level she never played is not a hole she left. Muted and said in words,
+             so the column of dashes beside a Level 1 child reads as "she was elsewhere" rather
+             than as twenty children who skipped a question (N4.5 D1). -->
+        @if (!stop.inLevel) {
+          <span class="results__other" aria-hidden="true">—</span>
+          <span class="hq-sr-only">
+            {{ (row.scoredLevel > 0 ? 'results.table.otherLevel' : 'results.table.notPlayed') | transloco }}
+          </span>
+        } @else if (!stop.attempted) {
           <span class="results__dash" aria-hidden="true">–</span>
           <span class="hq-sr-only">{{ 'results.table.notAttempted' | transloco }}</span>
         } @else if (stop.needsMarking) {
@@ -128,6 +146,26 @@
             </span>
           }
         </button>
+      }
+      @case ('played') {
+        @if (row.scoredLevel > 0) {
+          <span class="hq-badge results__played" data-hq-played>
+            {{ 'results.table.playedLevel' | transloco: { level: row.scoredLevel } }}
+          </span>
+        } @else {
+          <span aria-hidden="true">–</span>
+          <span class="hq-sr-only">{{ 'results.table.notPlayed' | transloco }}</span>
+        }
+      }
+      @case ('answered') {
+        @if (row.scoredLevel > 0) {
+          <span aria-hidden="true">{{ row.answered }}/{{ row.total }}</span>
+          <span class="hq-sr-only">
+            {{ 'results.table.answeredOf' | transloco: { answered: row.answered, total: row.total } }}
+          </span>
+        } @else {
+          –
+        }
       }
       @case ('levelReached') {
         {{ row.attempted ? row.levelReached : '–' }}

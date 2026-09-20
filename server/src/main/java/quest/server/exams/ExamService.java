@@ -199,6 +199,11 @@ public class ExamService {
      *
      * <p>Two statements more than the lesson results it is built on: the sittings of this exam, and nothing else —
      * the paper comes from the plays {@link GradingService} has already read.
+     *
+     * <p><strong>`sat` counts children who answered at least one question</strong> (N4.5 D3), not children with a
+     * sitting row: `reopen` writes one for an absent child before she has touched the paper, and a metric card that
+     * counted it contradicted the table underneath it. She stays in `absentees` with her row reading `reopened`
+     * until she answers, which is exactly what the teacher needs to see.
      */
     public ExamDto.ExamResults results(Principals.User caller, String examId) {
         var lesson = requireExam(caller, examId);
@@ -211,20 +216,25 @@ public class ExamService {
         var absentees = new ArrayList<ExamDto.ExamChildResult>();
         var bands = new LinkedHashMap<String, Integer>();
         for (var band : List.of(Bands.EMERGING, Bands.DEVELOPING, Bands.SECURE, Bands.EXCEEDING)) bands.put(band, 0);
+        int paperStops = base.stops().size();
         int sat = 0, submitted = 0, needsMarking = 0, scored = 0; double sum = 0;
         for (var child : base.children()) {
             var row = rows.get(child.childId());
             var state = stateOf(child, row);
             var result = new ExamDto.ExamChildResult(child.childId(), child.name(), state, child.starsEarned(),
-                    child.starsTotal(), child.score(), child.band(),
+                    child.starsTotal(), child.score(), child.band(), child.answered(), paperStops,
                     row == null ? null : row.getSecondsTaken(),
                     row == null ? null : row.getStartedAt().toEpochMilli(),
                     row == null ? null : row.getLastSeenAt().toEpochMilli(),
                     row == null || row.getSubmittedAt() == null ? null : row.getSubmittedAt().toEpochMilli(),
                     child.needsMarking(), row != null && row.isReopened(), child.comment());
             results.add(result);
-            if ("absent".equals(state)) absentees.add(result);
-            else sat++;
+            // N4.5 D3: a sitting is a child who answered something. `reopen` writes a `started` row for a child who
+            // has answered nothing — that is the teacher giving her a second chance, not the child taking it — and
+            // counting it made the card read "Sat it 2 of 19" beside a table with one score in it. `sat` and
+            // `absent` are the two halves of the roster, so the cards always add up; her own row still reads
+            // `reopened`, which is what tells the teacher the second chance is already given.
+            if (child.attempted()) sat++; else absentees.add(result);
             if ("submitted".equals(state)) submitted++;
             needsMarking += child.needsMarking();
             if (child.score() != null) { sum += child.score(); scored++; bands.merge(Bands.band(child.score()), 1, Integer::sum); }

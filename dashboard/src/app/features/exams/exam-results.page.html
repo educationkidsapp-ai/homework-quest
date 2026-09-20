@@ -199,6 +199,18 @@
            still-sitting child reads as a child who failed the paper. -->
       <strong data-hq-score>{{ handed(row) ? score(row.score) : '–' }}</strong>
     }
+    <!-- How much of the paper the percent beside it is standing on: an exam scores the whole
+         paper, so "2/5" is why 40 rather than 100 (N4.5 D5). -->
+    @case ('answered') {
+      @if (row.total > 0) {
+        <span aria-hidden="true">{{ row.answered }}/{{ row.total }}</span>
+        <span class="hq-sr-only">
+          {{ 'results.table.answeredOf' | transloco: { answered: row.answered, total: row.total } }}
+        </span>
+      } @else {
+        –
+      }
+    }
     @case ('percent') {
       {{ handed(row) && row.percent !== null ? row.percent + '%' : '–' }}
     }

@@ -418,7 +418,8 @@
         "taken": "Time taken",
         "submitted": "Handed in",
         "marking": "Actions",
-        "count": "{{count}} children"
+        "count": "{{count}} children",
+        "answered": "Answered"
       },
       "childState": {
         "absent": "Absent",
@@ -1016,10 +1017,19 @@
       "notAttempted": "Not attempted",
       "mark": "Mark",
       "needsMarking": "{{count}} to mark",
-      "hardest": "hardest"
+      "hardest": "hardest",
+      "played": "Played",
+      "playedLevel": "Played L{{level}}",
+      "notPlayed": "Has not played",
+      "answered": "Answered",
+      "answeredOf": "{{answered}} of {{total}} answered",
+      "otherLevel": "Not this level",
+      "levelGroup": "Level {{level}}"
     },
     "filter": {
-      "needsMarking": "Needs marking only"
+      "needsMarking": "Needs marking only",
+      "level": "Level",
+      "allLevels": "All levels"
     },
     "export": {
       "csv": "Export CSV",
@@ -1040,7 +1050,8 @@
       "save": "Save marks",
       "saved": "Marks saved for {{name}}.",
       "openChild": "Open her page",
-      "noOpenStops": "This lesson has no stop to mark by hand."
+      "noOpenStops": "This lesson has no stop to mark by hand.",
+      "notPlayed": "That stop belongs to a level {{name}} did not play. Her results have been reloaded — mark the stops under her own level."
     },
     "work": {
       "none": "Nothing was saved for this stop.",

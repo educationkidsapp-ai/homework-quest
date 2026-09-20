@@ -130,6 +130,76 @@ class GradingApiTest extends GradingTestSupport {
         } finally { setFlag(adminToken, A, FlagKeys.OPEN_STOP_MARKING, true); }
     }
 
+    // ---------------------------------------------------------------- every level's columns (N4.5 D1)
+
+    /**
+     * N4.5's D1, pinned: the Results page of a lesson with three levels.
+     *
+     * <p>Publishing any lesson creates Levels 2 and 3, and almost every child plays Level 1 — so a column list
+     * taken from the <em>top</em> level matched nothing at all. Every cell read "not attempted" for a child who
+     * played the whole lesson, the mark panel offered the top level's retell, `PUT /teacher/marks` stored the stars
+     * against a stop she had never answered and answered 200, and the score never moved.
+     *
+     * <p>Here Maya plays Level 1 whole and Omar goes straight to Level 3's single stop. The columns are the union,
+     * level-major; each row's own stops are its scored level's; marking Maya's Level 1 retell moves Maya's score;
+     * and marking her on a Level 3 stop she never saw is a 409 rather than a mark nobody will ever see.
+     */
+    @Test void a_three_level_lesson_gives_every_level_its_columns_and_each_row_the_level_she_played() throws Exception {
+        String multi = readyLesson("gr-multi-1", "homework");
+        publish(sara, multi).andExpect(status().isOk());
+        String levelThree = multi + ":L3v0:s1";
+        playTheSample(maya, multi);                                             // Level 1, whole
+        attemptStop(omar, multi, levelThree, 1, 1, true, 3);                    // straight to Level 3
+
+        var results = json(mvc.perform(as(get("/teacher/lessons/" + multi + "/results"), sara))
+                .andExpect(status().isOk()).andReturn());
+
+        assertThat(results.get("stops")).as("every level's stops, level-major").hasSize(5);
+        assertThat(results.get("stops")).extracting(n -> n.get("stopId").asText())
+                .containsExactly(stopId(multi, 1), stopId(multi, 2), stopId(multi, 3), multi + ":L2v0:s1", levelThree);
+        assertThat(results.get("stops")).extracting(n -> n.get("level").asInt()).containsExactly(1, 1, 1, 2, 3);
+
+        var hers = child(results, maya);
+        assertThat(hers.get("scoredLevel").asInt()).isEqualTo(1);
+        assertThat(hers.get("answered").asInt()).isEqualTo(3);
+        assertThat(hers.get("total").asInt()).isEqualTo(3);
+        assertThat(hers.get("stops")).as("her row is exactly Level 1's stops").hasSize(3);
+        assertThat(hers.get("stops")).extracting(n -> n.get("stopId").asText())
+                .containsExactly(stopId(multi, 1), stopId(multi, 2), stopId(multi, 3));
+        assertThat(hers.get("stops")).allSatisfy(n ->
+                assertThat(n.get("attempted").asBoolean()).as("she played all three").isTrue());
+        assertThat(hers.get("autoScore").asInt()).isEqualTo(50);
+
+        var his = child(results, omar);
+        assertThat(his.get("scoredLevel").asInt()).isEqualTo(3);
+        assertThat(his.get("stops")).hasSize(1);
+        assertThat(his.get("stops").get(0).get("stopId").asText()).isEqualTo(levelThree);
+        assertThat(his.get("score").asInt()).isEqualTo(100);
+
+        // Marking the retell she actually answered moves her score — the step that used to do nothing.
+        markStop(sara, maya, multi, stopId(multi, 3), 2, "Lovely retelling.").andExpect(status().isOk());
+        assertThat(child(json(mvc.perform(as(get("/teacher/lessons/" + multi + "/results"), sara)).andReturn()), maya)
+                .get("autoScore").asInt()).as("(100 + 0 + 70) / 3").isEqualTo(57);
+
+        // And a mark on a level she never played is refused rather than stored where nothing will read it.
+        markStop(sara, maya, multi, levelThree, 3, "Well done.")
+                .andExpect(status().isConflict())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.code").value(quest.api.dto.ApiError.STOP_NOT_PLAYED));
+        assertThat(markRows.findByLessonId(multi)).as("only the retell she answered was written").hasSize(1);
+    }
+
+    @Test void a_stop_mark_for_a_child_who_has_played_nothing_is_refused() throws Exception {
+        markStop(sara, omar, LESSON, stopId(LESSON, 3), 3, "Well done.")
+                .andExpect(status().isConflict())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.code").value(quest.api.dto.ApiError.STOP_NOT_PLAYED));
+        // A lesson-level comment is still hers to write: §7's line to the parent is not about a stop.
+        mvc.perform(as(put("/teacher/marks").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"marks\":[{\"childId\":\"" + omar + "\",\"lessonId\":\"" + LESSON
+                        + "\",\"comment\":\"Have a go at it tonight.\"}]}"), sara)).andExpect(status().isOk());
+    }
+
     // ---------------------------------------------------------------- release (§7)
 
     /**
@@ -385,6 +455,14 @@ class GradingApiTest extends GradingTestSupport {
                                                                     Integer stars, String comment) throws Exception {
         String body = "{\"marks\":[{\"childId\":\"" + childId + "\",\"lessonId\":\"" + LESSON + "\",\"stopId\":\""
                 + stopId(LESSON, stop) + "\"" + (stars == null ? "" : ",\"stars\":" + stars)
+                + (comment == null ? "" : ",\"comment\":\"" + comment + "\"") + "}]}";
+        return mvc.perform(as(put("/teacher/marks").contentType(MediaType.APPLICATION_JSON).content(body), token));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions markStop(String token, String childId, String lessonId,
+                                                                        String stopId, Integer stars, String comment) throws Exception {
+        String body = "{\"marks\":[{\"childId\":\"" + childId + "\",\"lessonId\":\"" + lessonId + "\",\"stopId\":\""
+                + stopId + "\"" + (stars == null ? "" : ",\"stars\":" + stars)
                 + (comment == null ? "" : ",\"comment\":\"" + comment + "\"") + "}]}";
         return mvc.perform(as(put("/teacher/marks").contentType(MediaType.APPLICATION_JSON).content(body), token));
     }

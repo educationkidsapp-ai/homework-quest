@@ -3,6 +3,8 @@ import type { LessonResults } from '../../api';
 import {
   draftOf,
   hasChanges,
+  levelGroups,
+  markableStops,
   marks,
   needingMarking,
   parseScore,
@@ -36,6 +38,7 @@ const RESULTS: LessonResults = {
       name: 'Amina Al Amin',
       attempted: true,
       levelReached: 1,
+      scoredLevel: 1,
       autoScore: 90,
       score: 90,
       band: 'exceeding',
@@ -64,6 +67,7 @@ const RESULTS: LessonResults = {
       name: 'Zain Lutfi',
       attempted: true,
       levelReached: 1,
+      scoredLevel: 1,
       autoScore: 52,
       teacherScore: 60,
       score: 60,
@@ -128,6 +132,7 @@ describe('the weakest stops', () => {
           childId: 'ch-1',
           name: 'A',
           attempted: true,
+          scoredLevel: 1,
           stops: [
             { stopId: 's1', attempted: true, score: 90 },
             { stopId: 's2', attempted: true, score: 92 },
@@ -151,6 +156,7 @@ describe('the weakest stops', () => {
           childId: 'ch-1',
           name: 'A',
           attempted: true,
+          scoredLevel: 1,
           stops: [
             { stopId: 's1', attempted: true, score: 100 },
             { stopId: 's2', attempted: true, score: 10 },
@@ -260,5 +266,125 @@ describe('the header and the filter', () => {
 
   it('leaves standing only the children still waiting for a mark', () => {
     expect(needingMarking(resultRows(RESULTS)).map((row) => row.name)).toEqual(['Zain Lutfi']);
+  });
+});
+
+/**
+ * **N4.5 D1** — three levels, and two children scored on different ones.
+ *
+ * `stops[]` is the union over every level, level-major; each child's own `stops[]` are exactly
+ * her `scoredLevel`'s. Before the fix the page joined the two against a column list built from
+ * the top level alone, so Amina — who played Level 1 of a lesson whose top level is 3 — read
+ * "not attempted" in every cell and was offered Level 3's retell to mark.
+ */
+const THREE_LEVELS: LessonResults = {
+  lessonId: 'l-3',
+  stops: [
+    { stopId: 'l1-a', title: 'One apple', type: 'choice', level: 1, open: false },
+    { stopId: 'l1-b', title: 'Tell it back', type: 'retell', level: 1, open: true },
+    { stopId: 'l2-a', title: 'Two apples', type: 'choice', level: 2, open: false },
+    { stopId: 'l2-b', title: 'Tell it back', type: 'retell', level: 2, open: true },
+    { stopId: 'l3-a', title: 'Three apples', type: 'choice', level: 3, open: false },
+    { stopId: 'l3-b', title: 'Tell it back', type: 'retell', level: 3, open: true },
+  ],
+  children: [
+    {
+      childId: 'ch-a',
+      name: 'Amina Al Amin',
+      attempted: true,
+      levelReached: 1,
+      scoredLevel: 1,
+      answered: 2,
+      total: 2,
+      score: 100,
+      needsMarking: 1,
+      stops: [
+        { stopId: 'l1-a', attempted: true, stars: 3, score: 100, needsMarking: false },
+        { stopId: 'l1-b', attempted: true, needsMarking: true },
+      ],
+    },
+    {
+      childId: 'ch-b',
+      name: 'Bilal Nour',
+      attempted: true,
+      levelReached: 3,
+      scoredLevel: 3,
+      answered: 1,
+      total: 2,
+      score: 50,
+      needsMarking: 0,
+      stops: [
+        { stopId: 'l3-a', attempted: true, stars: 2, score: 50, needsMarking: false },
+        { stopId: 'l3-b', attempted: false, needsMarking: false },
+      ],
+    },
+  ],
+};
+
+describe('a lesson with three levels', () => {
+  it('groups the union into one column group per level, numbered from one inside each', () => {
+    const groups = levelGroups(THREE_LEVELS);
+
+    expect(groups.map((group) => group.level)).toEqual([1, 2, 3]);
+    expect(groups.map((group) => group.stops.map((stop) => stop.number))).toEqual([
+      [1, 2],
+      [1, 2],
+      [1, 2],
+    ]);
+    expect(groups[2]!.stops.map((stop) => stop.stopId)).toEqual(['l3-a', 'l3-b']);
+  });
+
+  it('gives every child the whole union, and marks only her own level as hers', () => {
+    const [amina, bilal] = resultRows(THREE_LEVELS);
+
+    expect(amina!.stops.map((stop) => stop.inLevel)).toEqual([true, true, false, false, false, false]);
+    expect(bilal!.stops.map((stop) => stop.inLevel)).toEqual([false, false, false, false, true, true]);
+    expect(amina!.scoredLevel).toBe(1);
+    expect(bilal!.scoredLevel).toBe(3);
+  });
+
+  it('reads her results out of her own level’s cells and leaves the others empty', () => {
+    const [amina, bilal] = resultRows(THREE_LEVELS);
+
+    // Her Level 1 stops carry what she did; before the fix every one of these was empty.
+    expect(amina!.stops[0]).toMatchObject({ inLevel: true, attempted: true, stars: 3, score: 100 });
+    expect(amina!.stops[1]).toMatchObject({ inLevel: true, attempted: true, needsMarking: true });
+    // A stop of a level she never played is not one she skipped: the page draws the two apart.
+    expect(amina!.stops[5]).toMatchObject({ inLevel: false, attempted: false, needsMarking: false });
+    expect(bilal!.stops[4]).toMatchObject({ inLevel: true, attempted: true, stars: 2 });
+    // The one stop of *her* level she did skip — this is the cell that reads "not attempted".
+    expect(bilal!.stops[5]).toMatchObject({ inLevel: true, attempted: false });
+  });
+
+  it('carries the answered-of-total of her own level', () => {
+    expect(resultRows(THREE_LEVELS).map((row) => [row.answered, row.total])).toEqual([
+      [2, 2],
+      [1, 2],
+    ]);
+  });
+
+  it('offers each child only her own level’s open stops to mark', () => {
+    const [amina, bilal] = resultRows(THREE_LEVELS);
+
+    expect(markableStops(amina!).map((stop) => stop.stopId)).toEqual(['l1-b']);
+    expect(markableStops(bilal!).map((stop) => stop.stopId)).toEqual(['l3-b']);
+    expect(Object.keys(draftOf(amina!).stops)).toEqual(['l1-b']);
+  });
+
+  it('sends the stars to the stop she actually answered', () => {
+    const amina = resultRows(THREE_LEVELS)[0]!;
+    const before = draftOf(amina);
+    const after: MarkDraft = { ...before, stops: { 'l1-b': { stars: 2, comment: '' } } };
+
+    // The whole of D1 in one assertion: `l1-b`, never the top level's `l3-b`.
+    expect(marks('l-3', 'ch-a', after, before)).toEqual([
+      { lessonId: 'l-3', childId: 'ch-a', stopId: 'l1-b', stars: 2, comment: undefined },
+    ]);
+  });
+
+  it('judges a weak stop against its own level, not against an easier one', () => {
+    // l3-a averages 50 and l1-a 100. Compared across the union l3-a would be "hardest" on every
+    // lesson in the school; compared inside Level 3 it is the only stop with a score at all.
+    expect(weakestStopIds(resultRows(THREE_LEVELS)).size).toBe(0);
   });
 });

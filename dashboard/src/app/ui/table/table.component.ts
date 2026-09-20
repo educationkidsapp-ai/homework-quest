@@ -19,6 +19,22 @@ export interface TableColumn<Row> {
 }
 
 /**
+ * A heading above a run of columns — the row of "Level 1 · Level 2 · Level 3" that N4.5 puts
+ * over the Results grid's stop columns.
+ *
+ * The groups must cover **every** column, in order: a leading `{ header: '', span: 1 }` for the
+ * child's name and a trailing one for the summary columns. Spanning only the middle would leave
+ * the browser to guess which columns the first group starts at, and it guesses left.
+ */
+export interface TableGroup {
+  readonly key: string;
+  /** Empty for a run that has no heading of its own — the cell is then drawn blank. */
+  readonly header: string;
+  readonly span: number;
+  readonly align?: 'start' | 'center' | 'end';
+}
+
+/**
  * §3's data table: a `--hq-color-surface-sunken` header row of 12/18/500 labels, 14 px cells,
  * inner-divider row rules, a `gray-50` hover, one optional overflow menu per row and an empty
  * state that replaces the body rather than leaving a blank grid.
@@ -37,6 +53,23 @@ export interface TableColumn<Row> {
     <div class="table__scroll">
       <table class="table" [class.table--wrap-headers]="wrapHeaders()" [attr.aria-label]="label()">
         <thead class="table__head">
+          @if (groups().length > 0) {
+            <tr class="table__groups">
+              @for (group of groups(); track group.key) {
+                <th
+                  [attr.scope]="group.header ? 'colgroup' : null"
+                  [class.is-blank]="!group.header"
+                  [attr.colspan]="group.span"
+                  [style.text-align]="group.align ?? 'start'"
+                >
+                  {{ group.header }}
+                </th>
+              }
+              @if (overflowTemplate()) {
+                <th></th>
+              }
+            </tr>
+          }
           <tr>
             @for (column of columns(); track column.key) {
               <th
@@ -134,6 +167,22 @@ export interface TableColumn<Row> {
       white-space: nowrap;
     }
 
+    // The group row sits above the column labels and says what a run of them has in common. It
+    // draws the ink rule under itself rather than the divider the column row uses, so the eye
+    // reads two bands of heading rather than four lines of grey.
+    .table__groups th {
+      color: var(--hq-color-ink);
+      font-weight: var(--hq-text-weight-semibold);
+      border-block-end: var(--hq-size-rule) solid var(--hq-color-ink);
+      padding-block-end: var(--hq-space-4);
+
+      // The spacers either side of the stop columns carry no heading, so they carry no rule:
+      // the ink line is what says "these columns belong together".
+      &.is-blank {
+        border-block-end: 0;
+      }
+    }
+
     // A header of two or three words is the widest thing in a column of single digits, and on a
     // seven-column table that is what decides whether the whole thing fits its card. Opt-in
     // rather than the default: a header that wraps is a row of different heights, which is worth
@@ -187,6 +236,12 @@ export interface TableColumn<Row> {
 export class TableComponent<Row> {
   readonly rows = input.required<readonly Row[]>();
   readonly columns = input.required<readonly TableColumn<Row>[]>();
+  /**
+   * An optional heading row above the column labels, one entry per run of columns.
+   *
+   * Empty by default; when given, the spans must add up to `columns().length`.
+   */
+  readonly groups = input<readonly TableGroup[]>([]);
   /** One template for every cell; the column arrives as `let-column="column"`. */
   readonly cellTemplate = input.required<TemplateRef<{ $implicit: Row; column: TableColumn<Row> }>>();
   /** Optional trailing cell — the row's overflow menu. */

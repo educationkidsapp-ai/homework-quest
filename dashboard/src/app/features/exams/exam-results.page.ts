@@ -177,6 +177,7 @@ export class ExamResultsPage {
       { key: 'name', header: this.t('results.table.child'), width: '24%' },
       { key: 'state', header: this.t('exams.results.table.state') },
       { key: 'score', header: this.t('results.table.score'), align: 'end' as const },
+      { key: 'answered', header: this.t('exams.results.table.answered'), align: 'end' as const },
       { key: 'percent', header: this.t('exams.results.table.percent'), align: 'end' as const },
       { key: 'band', header: this.t('results.table.band') },
       { key: 'secondsTaken', header: this.t('exams.results.table.taken'), align: 'end' as const },

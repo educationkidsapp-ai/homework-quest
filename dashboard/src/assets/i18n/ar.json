@@ -418,7 +418,8 @@
         "taken": "الوقت المستغرق",
         "submitted": "سلّم في",
         "marking": "إجراءات",
-        "count": "{{count}} طفلًا"
+        "count": "{{count}} طفلًا",
+        "answered": "أجابت"
       },
       "childState": {
         "absent": "غائب",
@@ -1016,10 +1017,19 @@
       "notAttempted": "لم يُحاول",
       "mark": "صحّحي",
       "needsMarking": "{{count}} بانتظار التصحيح",
-      "hardest": "الأصعب"
+      "hardest": "الأصعب",
+      "played": "لعبت",
+      "playedLevel": "لعبت المستوى {{level}}",
+      "notPlayed": "لم تلعب بعد",
+      "answered": "أجابت",
+      "answeredOf": "أجابت {{answered}} من {{total}}",
+      "otherLevel": "ليس هذا مستواها",
+      "levelGroup": "المستوى {{level}}"
     },
     "filter": {
-      "needsMarking": "بانتظار التصحيح فقط"
+      "needsMarking": "بانتظار التصحيح فقط",
+      "level": "المستوى",
+      "allLevels": "كل المستويات"
     },
     "export": {
       "csv": "تصدير CSV",
@@ -1040,7 +1050,8 @@
       "save": "حفظ التصحيح",
       "saved": "حُفظ تصحيح {{name}}.",
       "openChild": "فتح صفحته",
-      "noOpenStops": "لا توجد في هذا الدرس محطة تحتاج تصحيحًا يدويًا."
+      "noOpenStops": "لا توجد في هذا الدرس محطة تحتاج تصحيحًا يدويًا.",
+      "notPlayed": "هذه المحطة من مستوى لم تلعبه {{name}}. أُعيد تحميل نتائجها — صحّحي محطات مستواها."
     },
     "work": {
       "none": "لم يُحفَظ شيء لهذه المحطة.",

@@ -34,7 +34,14 @@ import quest.server.children.Entities.AttemptEntity;
  * Level 1 and then half of Level 2 is described by Level 2, with {@link Score#completion} carrying the half. The
  * average is taken over the stops she answered rather than over every stop of the play, for the same reason: on a
  * lesson she has not finished, "how well did she do" and "how much did she do" are two numbers, and flattening them
- * into one would report a child who is mid-lesson as a child who failed.
+ * into one would report a child who is mid-lesson as a child who failed. {@link Score#scoredLevel} says which level
+ * that was, so a caller drawing a row of a multi-level lesson knows which of its columns the row is about.
+ *
+ * <p><strong>An exam is a fixed paper</strong> (N4.5 D5), and `fixedPaper` switches the rule above off for it: a
+ * question the child never reached is a question she did not answer, so it scores 0 rather than leaving the
+ * average. Without it a child two questions into a five-question paper with both right reports 100 — a number the
+ * results page hides but every export and every API consumer believes. An open stop she <em>did</em> answer and
+ * nobody has marked is still left out of both, because a child is never penalised for work nobody has looked at.
  */
 public final class Scoring {
     private Scoring() {}
@@ -44,10 +51,17 @@ public final class Scoring {
                               Boolean firstTryCorrect, int stars, int attempts, Integer accuracy, Integer score,
                               Integer markStars, String markComment, boolean needsMarking) {}
 
-    /** §7's `HomeworkScore(childId, lessonId, autoScore, level reached, starsTotal, completion, computedAt)`. */
+    /**
+     * §7's `HomeworkScore(childId, lessonId, autoScore, level reached, starsTotal, completion, computedAt)`.
+     *
+     * <p>`answered` of `total` are the stops of {@link #scoredLevel} she has and has not reached — the two numbers
+     * `completion` is the ratio of, carried as well as the percentage so a caller can write "3 of 5" without
+     * multiplying a rounded percentage back out.
+     */
     public record Score(String childId, String lessonId, boolean attempted, int levelReached, int scoredLevel,
                         Integer autoScore, Integer teacherScore, Integer score, String band, int starsEarned,
-                        int starsTotal, int completion, int needsMarking, List<StopOutcome> stops) {}
+                        int starsTotal, int answered, int total, int completion, int needsMarking,
+                        List<StopOutcome> stops) {}
 
     /** A teacher's mark as the scorer needs it, so this class depends on no entity but the attempt. */
     public record Mark(Integer stars, Integer score, String comment) {}
@@ -60,6 +74,15 @@ public final class Scoring {
      */
     public static Score of(String childId, String lessonId, Map<Integer, List<Stop>> stopsByLevel,
                            List<AttemptEntity> attempts, Map<String, Mark> marks, Mark lessonMark) {
+        return of(childId, lessonId, stopsByLevel, attempts, marks, lessonMark, false);
+    }
+
+    /**
+     * The same, with `fixedPaper` for an exam: every question of the paper counts, so one she never reached scores
+     * 0 instead of being left out of the average.
+     */
+    public static Score of(String childId, String lessonId, Map<Integer, List<Stop>> stopsByLevel,
+                           List<AttemptEntity> attempts, Map<String, Mark> marks, Mark lessonMark, boolean fixedPaper) {
         var byStop = new LinkedHashMap<String, List<AttemptEntity>>();
         for (var a : attempts) byStop.computeIfAbsent(a.getStopId(), k -> new ArrayList<>()).add(a);
         byStop.values().forEach(list -> list.sort(Comparator.comparingInt(AttemptEntity::getAttemptNumber)
@@ -74,7 +97,7 @@ public final class Scoring {
         Integer override = lessonMark == null ? null : lessonMark.score();
         if (scoredLevel == 0)
             return new Score(childId, lessonId, false, 0, 0, null, override, override,
-                    override == null ? null : Bands.band(override), 0, 0, 0, 0, List.of());
+                    override == null ? null : Bands.band(override), 0, 0, 0, 0, 0, 0, List.of());
 
         var outcomes = new ArrayList<StopOutcome>();
         int starsEarned = 0, starsTotal = 0, answered = 0, total = 0, needsMarking = 0;
@@ -91,23 +114,27 @@ public final class Scoring {
             var mark = marks.get(stop.getId());
             Boolean firstTry = attemptedIt && stop.getCategory() == StopCategory.SINGLE ? mine.getFirst().isCorrect() : null;
             Integer stopScore = null;
+            boolean waiting = false;
             if (open) {
                 if (mark != null && mark.stars() != null) stopScore = Bands.forStars(mark.stars());
-                else if (attemptedIt) needsMarking++;
+                else if (attemptedIt) waiting = true;
             } else if (attemptedIt) {
                 stopScore = stop.getCategory() == StopCategory.SINGLE
                         ? (Boolean.TRUE.equals(firstTry) ? Bands.CORRECT : Bands.WRONG)
                         : Bands.forStars(best);
             }
+            // A paper's unanswered question is a zero; a homework's is simply not part of "how well did she do".
+            if (stopScore == null && !waiting && fixedPaper) stopScore = Bands.WRONG;
+            if (waiting) needsMarking++;
             if (stopScore != null) { sum += stopScore; scored++; }
             outcomes.add(new StopOutcome(stop.getId(), stop.getTitle(), stop.getType(), scoredLevel, open, attemptedIt,
                     firstTry, best, mine.size(), attemptedIt ? Bands.forStars(best) : null, stopScore,
-                    mark == null ? null : mark.stars(), mark == null ? null : mark.comment(), open && attemptedIt && stopScore == null));
+                    mark == null ? null : mark.stars(), mark == null ? null : mark.comment(), waiting));
         }
         Integer auto = scored == 0 ? null : (int) Math.round(sum / scored);
         Integer effective = override != null ? override : auto;
         return new Score(childId, lessonId, true, levelReached, scoredLevel, auto, override, effective,
-                effective == null ? null : Bands.band(effective), starsEarned, starsTotal,
+                effective == null ? null : Bands.band(effective), starsEarned, starsTotal, answered, total,
                 total == 0 ? 0 : (int) Math.round(answered * 100.0 / total), needsMarking, List.copyOf(outcomes));
     }
 

@@ -83,6 +83,18 @@
   color: var(--hq-color-ink-muted);
 }
 
+// A stop of another level. A step lighter than "not attempted" on purpose: the two mean
+// different things, and the whole of N4.5 D1 was a page that drew them the same.
+.results__other {
+  color: var(--hq-color-ink-muted);
+  opacity: 0.55;
+}
+
+// The level she was scored on, said once per row rather than read off eighteen columns.
+.results__played {
+  white-space: nowrap;
+}
+
 // The automatic score, kept visible beside the teacher's own — §7 asks that an override never
 // hides what the system worked out.
 .results__auto {

@@ -580,6 +580,10 @@
       },
       "ChildResult" : {
         "properties" : {
+          "answered" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "attempted" : {
             "type" : "boolean"
           },
@@ -618,6 +622,10 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "scoredLevel" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "starsEarned" : {
             "format" : "int32",
             "type" : "integer"
@@ -633,6 +641,10 @@
             "type" : "array"
           },
           "teacherScore" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total" : {
             "format" : "int32",
             "type" : "integer"
           }
@@ -1089,8 +1101,8 @@
           },
           "practiceLength" : {
             "format" : "int32",
-            "maximum" : 20,
-            "minimum" : 3,
+            "maximum" : 12,
+            "minimum" : 5,
             "type" : "integer"
           },
           "releaseMode" : {
@@ -1383,6 +1395,10 @@
       },
       "ExamChildResult" : {
         "properties" : {
+          "answered" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "band" : {
             "type" : "string"
           },
@@ -1431,6 +1447,10 @@
           },
           "submittedAt" : {
             "format" : "int64",
+            "type" : "integer"
+          },
+          "total" : {
+            "format" : "int32",
             "type" : "integer"
           }
         },

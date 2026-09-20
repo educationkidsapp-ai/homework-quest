@@ -30,6 +30,15 @@ export interface RowStop {
   readonly level: number;
   /** A retell, a drawing or an open answer — the stops a teacher marks by hand. */
   readonly open: boolean;
+  /**
+   * Whether this stop belongs to the level the child was scored on.
+   *
+   * `stops[]` is the union over every level of the lesson, so most of a row's cells are stops of
+   * levels she never saw. Those are not "not attempted" — they were never hers — and the
+   * difference is the whole of defect D1: the page drew them as holes and the marking panel
+   * offered them for marking.
+   */
+  readonly inLevel: boolean;
   readonly attempted: boolean;
   readonly stars: number | null;
   readonly attempts: number;
@@ -48,6 +57,11 @@ export interface ResultRow {
   readonly name: string;
   readonly attempted: boolean;
   readonly levelReached: number | null;
+  /** The level she was actually scored on — `0` when she has played nothing. */
+  readonly scoredLevel: number;
+  /** How many stops of that level she answered, out of how many it has. */
+  readonly answered: number;
+  readonly total: number;
   readonly starsEarned: number;
   readonly starsTotal: number;
   readonly completion: number;
@@ -67,16 +81,26 @@ export interface ResultRow {
  * Every child gets a cell for every stop of the lesson, including the ones she never reached:
  * a grid with holes in it cannot be read down a column, and "she did not get there" is the
  * answer a teacher is looking for as often as a score is.
+ *
+ * **The union is over all three levels, and a child is scored on one of them** (N4.5 D1).
+ * `results.stops` is level-major and `child.stops` are exactly her `scoredLevel`'s, so the join
+ * by stop id below can only ever match inside her own group. Every other cell is marked
+ * {@link RowStop.inLevel} `false` — drawn as "not this level", never as a hole she left — and
+ * it is that flag, not the absence of a match, that keeps a mark off a stop she never played.
  */
 export function resultRows(results: LessonResults): readonly ResultRow[] {
   const stops = results.stops ?? [];
   return (results.children ?? []).map((child) => {
     const byStop = new Map((child.stops ?? []).map((stop) => [stop.stopId ?? '', stop]));
+    const scoredLevel = child.scoredLevel ?? 0;
     return {
       childId: child.childId ?? '',
       name: child.name ?? '',
       attempted: child.attempted === true,
       levelReached: child.levelReached ?? null,
+      scoredLevel,
+      answered: child.answered ?? 0,
+      total: child.total ?? 0,
       starsEarned: child.starsEarned ?? 0,
       starsTotal: child.starsTotal ?? 0,
       completion: child.completion ?? 0,
@@ -87,13 +111,16 @@ export function resultRows(results: LessonResults): readonly ResultRow[] {
       needsMarking: child.needsMarking ?? 0,
       comment: child.comment ?? '',
       stops: stops.map((stop) => {
-        const played = byStop.get(stop.stopId ?? '');
+        const level = stop.level ?? 1;
+        const inLevel = level === scoredLevel;
+        const played = inLevel ? byStop.get(stop.stopId ?? '') : undefined;
         return {
           stopId: stop.stopId ?? '',
           title: stop.title ?? '',
           type: stop.type ?? '',
-          level: stop.level ?? 1,
+          level,
           open: stop.open === true,
+          inLevel,
           attempted: played?.attempted === true,
           stars: played?.stars ?? null,
           attempts: played?.attempts ?? 0,
@@ -109,6 +136,48 @@ export function resultRows(results: LessonResults): readonly ResultRow[] {
   });
 }
 
+// ---------------------------------------------------------------- the levels
+
+/** One level's column group: its stops, in the order the lesson plays them. */
+export interface LevelGroup {
+  readonly level: number;
+  readonly stops: readonly LevelStop[];
+}
+
+export interface LevelStop {
+  readonly stopId: string;
+  readonly title: string;
+  readonly open: boolean;
+  /** Its place inside its own level — Level 3's first stop is "Stop 1", not "Stop 11". */
+  readonly number: number;
+}
+
+/**
+ * The lesson's stops as the table's column groups: Level 1, then Level 2, then Level 3.
+ *
+ * Read from `results.stops` rather than from a row, so the headings stand even on a lesson no
+ * child has opened yet. The server sends the union level-major and in play order inside a level;
+ * this preserves both and only groups what arrives.
+ */
+export function levelGroups(results: LessonResults): readonly LevelGroup[] {
+  const groups = new Map<number, LevelStop[]>();
+  for (const stop of results.stops ?? []) {
+    const level = stop.level ?? 1;
+    let stops = groups.get(level);
+    if (!stops) {
+      stops = [];
+      groups.set(level, stops);
+    }
+    stops.push({
+      stopId: stop.stopId ?? '',
+      title: stop.title ?? '',
+      open: stop.open === true,
+      number: stops.length + 1,
+    });
+  }
+  return [...groups.entries()].map(([level, stops]) => ({ level, stops }));
+}
+
 /** How far below the class's own stop average a stop has to sit before it is called weak. */
 export const WEAK_MARGIN = 10;
 
@@ -117,26 +186,39 @@ export const WEAK_MARGIN = 10;
  *
  * Relative, not a fixed threshold: a lesson every child scored 90 on has no weak stop, and one
  * where nobody cleared 50 has more than one. A stop is weak when its own average is
- * {@link WEAK_MARGIN} points or more below the average of the lesson's stops, and only the two
- * weakest are marked — highlighting five of six columns highlights nothing.
+ * {@link WEAK_MARGIN} points or more below the average of **its own level's** stops, and only the
+ * two weakest are marked — highlighting five of six columns highlights nothing.
+ *
+ * Per level, because the union spans three of them: Level 3 is meant to be harder than Level 1,
+ * and comparing the two would call the whole of Level 3 hardest on every lesson in the school.
  */
 export function weakestStopIds(rows: readonly ResultRow[], take = 2): ReadonlySet<string> {
-  const averages = new Map<string, number>();
   const first = rows[0];
   if (!first) return new Set();
 
+  const averages = new Map<string, number>();
+  const byLevel = new Map<number, string[]>();
   for (const [index, stop] of first.stops.entries()) {
     const scores = rows
       .map((row) => row.stops[index]?.score ?? null)
       .filter((score): score is number => score !== null);
-    if (scores.length > 0) averages.set(stop.stopId, mean(scores));
+    if (scores.length === 0) continue;
+    averages.set(stop.stopId, mean(scores));
+    byLevel.set(stop.level, [...(byLevel.get(stop.level) ?? []), stop.stopId]);
   }
-  if (averages.size < 2) return new Set();
 
-  const overall = mean([...averages.values()]);
+  const weak: [string, number][] = [];
+  for (const stopIds of byLevel.values()) {
+    if (stopIds.length < 2) continue;
+    const overall = mean(stopIds.map((stopId) => averages.get(stopId) ?? 0));
+    for (const stopId of stopIds) {
+      const average = averages.get(stopId) ?? 0;
+      if (overall - average >= WEAK_MARGIN) weak.push([stopId, average]);
+    }
+  }
+
   return new Set(
-    [...averages.entries()]
-      .filter(([, average]) => overall - average >= WEAK_MARGIN)
+    weak
       .sort((a, b) => a[1] - b[1])
       .slice(0, take)
       .map(([stopId]) => stopId),
@@ -166,12 +248,28 @@ export interface StopMark {
 
 export const EMPTY_STOP_MARK: StopMark = { stars: null, comment: '' };
 
-/** The draft a panel opens with: exactly what the server currently holds. */
+/**
+ * The draft a panel opens with: exactly what the server currently holds.
+ *
+ * Her own level's open stops and no others (N4.5 D1) — {@link markableStops} is the same rule,
+ * and the two must agree or the panel would show a field whose edits are never sent.
+ */
 export function draftOf(row: ResultRow): MarkDraft {
   const stops: Record<string, StopMark> = {};
-  for (const stop of row.stops)
-    if (stop.open) stops[stop.stopId] = { stars: stop.markStars, comment: stop.markComment };
+  for (const stop of markableStops(row))
+    stops[stop.stopId] = { stars: stop.markStars, comment: stop.markComment };
   return { stops, score: row.teacherScore, comment: row.comment };
+}
+
+/**
+ * The stops a teacher may mark for this child: open, and of the level she was scored on.
+ *
+ * Before N4.5 this was `stops.filter(open)` over a column list built from the lesson's *top*
+ * level, so on every multi-level lesson the panel offered Level 3's retell to a child who had
+ * played Level 1 and `PUT /teacher/marks` stored the stars against a stop she never answered.
+ */
+export function markableStops(row: ResultRow): readonly RowStop[] {
+  return row.stops.filter((stop) => stop.open && stop.inLevel);
 }
 
 /**
