@@ -1,0 +1,51 @@
+:host {
+  display: block;
+}
+
+.exams__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-12);
+  flex-wrap: wrap;
+}
+
+.exams__link,
+.exams__results {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+}
+
+// The state pill. Never colour alone — the word is the label and the tint only ranks it.
+.exams__state {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--hq-space-badge);
+  border-radius: var(--hq-radius-pill);
+  font-size: var(--hq-text-theme-2xs);
+  line-height: calc(var(--hq-text-theme-2xs-line) / var(--hq-text-theme-2xs));
+  font-weight: var(--hq-text-weight-medium);
+  white-space: nowrap;
+  background: var(--hq-color-neutral-soft);
+  color: var(--hq-color-neutral-ink);
+}
+
+.exams__state[data-state='scheduled'] {
+  background: var(--hq-color-accent-soft);
+  color: var(--hq-color-accent-on-soft);
+}
+
+// The one state that is happening right now, and the one worth finding across a full table.
+.exams__state[data-state='open'] {
+  background: var(--hq-color-warning-soft);
+  color: var(--hq-color-warning-ink);
+}
+
+.exams__state[data-state='released'] {
+  background: var(--hq-color-success-soft);
+  color: var(--hq-color-success-ink);
+}

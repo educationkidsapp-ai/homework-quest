@@ -1,0 +1,79 @@
+<hq-card
+  class="exams"
+  [flush]="true"
+  [title]="'exams.tab.title' | transloco"
+  [eyebrow]="'exams.tab.count' | transloco: { count: rows().length }"
+>
+  <div card-actions class="exams__toolbar">
+    <!-- Secondary, deliberately. The class page already has one primary action — New lesson, in
+         its header — and a second red button a tab away would make the screen ask twice. -->
+    <span *hqFeature="examsFlag">
+      <a
+        *hqCan="'lesson.write'"
+        class="hq-linkbutton"
+        data-hq-new-exam
+        [routerLink]="newExamLink"
+        [queryParams]="newExamParams()"
+      >
+        {{ 'exams.new' | transloco }}
+      </a>
+    </span>
+  </div>
+
+  @if (loading()) {
+    <hq-skeleton
+      [loading]="true"
+      [lines]="4"
+      height="var(--hq-size-row-height)"
+      [label]="'exams.tab.loading' | transloco"
+    />
+  } @else if (rows().length === 0) {
+    <hq-empty-state
+      [message]="'exams.tab.empty' | transloco"
+      [detail]="'exams.tab.emptyDetail' | transloco: { class: className() }"
+    />
+  } @else {
+    <hq-table
+      [rows]="rows()"
+      [columns]="columns()"
+      [cellTemplate]="cell"
+      [trackBy]="trackRow"
+      [label]="'exams.tab.title' | transloco"
+    />
+  }
+</hq-card>
+
+<ng-template #cell let-row let-column="column">
+  @switch (column.key) {
+    @case ('title') {
+      <a class="exams__link" [routerLink]="editorLink(row)">
+        <span class="hq-cell__title">{{ row.title }}</span>
+      </a>
+    }
+    @case ('window') {
+      <span class="hq-muted">{{ row.window }}</span>
+    }
+    @case ('state') {
+      <!-- The word, never the colour alone: the same rule the level bands follow. -->
+      <span class="exams__state" [attr.data-state]="row.state">
+        {{ 'exams.state.' + row.state | transloco }}
+      </span>
+    }
+    @case ('sat') {
+      @if (row.state === 'draft' || row.state === 'scheduled') {
+        <span class="hq-muted" aria-hidden="true">–</span>
+      } @else {
+        <a class="exams__results" [routerLink]="resultsLink(row)">{{ satText(row) }}</a>
+      }
+    }
+    @case ('needsMarking') {
+      @if (row.needsMarking !== null && row.needsMarking > 0) {
+        <span class="hq-badge hq-badge--warning">
+          {{ 'exams.table.needsMarkingCount' | transloco: { count: row.needsMarking } }}
+        </span>
+      } @else {
+        <span class="hq-muted" aria-hidden="true">–</span>
+      }
+    }
+  }
+</ng-template>

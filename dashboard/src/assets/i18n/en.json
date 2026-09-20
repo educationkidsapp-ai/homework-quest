@@ -198,8 +198,7 @@
       "calendar": "Calendar",
       "children": "Children",
       "gradebook": "Gradebook",
-      "exams": "Exams",
-      "comingSoon": "Coming in N4."
+      "exams": "Exams"
     },
     "calendar": {
       "prevMonth": "Previous month",
@@ -290,6 +289,167 @@
     "noAccess": {
       "title": "No access",
       "body": "Your account may not open that. Ask your school administrator if you think it should."
+    }
+  },
+  "exams": {
+    "off": "This school does not have exams yet.",
+    "untitled": "Untitled exam",
+    "new": "New exam",
+    "ribbon": "Exam",
+    "window": "{{opens}} – {{closes}}",
+    "tab": {
+      "title": "Exams",
+      "count": "{{count}} exams",
+      "loading": "Loading the exams",
+      "empty": "No exam yet.",
+      "emptyDetail": "An exam is a lesson with a window: {{class}} sees it only while it is open."
+    },
+    "table": {
+      "title": "Exam",
+      "window": "Window",
+      "state": "State",
+      "sat": "Sat",
+      "satValue": "{{sat}} of {{roster}}",
+      "needsMarking": "Marking",
+      "needsMarkingCount": "{{count}} to mark"
+    },
+    "state": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "open": "Open now",
+      "closed": "Closed",
+      "released": "Released"
+    },
+    "level": {
+      "label": "Level",
+      "1": "Level 1 — same as the book",
+      "2": "Level 2 — think",
+      "3": "Level 3 — challenge",
+      "mixed": "Mixed — questions from all three",
+      "hint": "One level only. Every child sits the same paper, with no hints and no numbers on screen."
+    },
+    "release": {
+      "label": "Results release",
+      "auto_on_close": "Automatically on close",
+      "manual": "When I release them",
+      "hint": "Parents see scores and comments only after release."
+    },
+    "create": {
+      "title": "New exam",
+      "subtitle": "{{class}} — an exam is a lesson with a window",
+      "details": "The exam",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Mid-term — units 1 to 4",
+      "duration": "Time limit (minutes)",
+      "durationHint": "Optional. Leave it empty and the window is the only limit.",
+      "window": "The window",
+      "windowHint": "Times are in {{zone}}, the school's own clock.",
+      "opensDate": "Opens on",
+      "opensTime": "Opens at",
+      "closesDate": "Closes on",
+      "closesTime": "Closes at",
+      "source": "Where the questions come from",
+      "dropzone": "Choose the file this exam is built from",
+      "create": "Create the exam",
+      "created": "Exam created. Add or edit its questions, then publish.",
+      "footerReady": "The editor opens next, with these settings on it.",
+      "noClass": "Open New exam from one of your classes.",
+      "error": {
+        "incomplete": "Fill in both dates and both times.",
+        "order": "An exam must close after it opens.",
+        "files": "{{count}} file(s) were not added: wrong type, or larger than 25 MB."
+      },
+      "reason": {
+        "title": "Give the exam a title first.",
+        "window": "Set a window that closes after it opens.",
+        "source": "Pick where the questions come from.",
+        "files": "Add at least one file."
+      },
+      "busy": {
+        "creating": "Creating the exam",
+        "uploading": "Uploading the file",
+        "analyzing": "Reading the file"
+      }
+    },
+    "settings": {
+      "title": "Exam settings",
+      "frozen": "Open — settings frozen",
+      "frozenDetail": "Children are sitting it now. The window, the level and the release mode stay as they are.",
+      "save": "Save the settings",
+      "saved": "Exam settings saved",
+      "minutes": "{{count}} minutes",
+      "noLimit": "No time limit",
+      "publishSentence": "Children see it only between {{opens}} and {{closes}}."
+    },
+    "results": {
+      "title": "Exam results",
+      "loading": "Loading the results",
+      "subtitle": "{{class}} — {{window}}",
+      "empty": "Nobody has sat this exam yet.",
+      "openEditor": "The exam",
+      "metric": {
+        "sat": "Sat it",
+        "satValue": "{{sat}} of {{roster}}",
+        "submitted": "Handed in",
+        "absent": "Absent",
+        "average": "Class average",
+        "needsMarking": "Needs marking"
+      },
+      "distribution": {
+        "title": "How the class landed",
+        "caption": "Children in each level band",
+        "children": "Children",
+        "share": "Share",
+        "empty": "Nobody has sat it yet, so there is nothing to spread."
+      },
+      "questions": {
+        "title": "Question by question",
+        "empty": "No question has been answered yet.",
+        "question": "Question",
+        "answered": "Answered",
+        "correct": "Correct",
+        "missed": "Missed",
+        "open": "Marked by hand"
+      },
+      "table": {
+        "title": "Every child",
+        "state": "State",
+        "percent": "Percent",
+        "taken": "Time taken",
+        "submitted": "Handed in",
+        "marking": "Actions",
+        "count": "{{count}} children"
+      },
+      "childState": {
+        "absent": "Absent",
+        "started": "Interrupted",
+        "submitted": "Handed in",
+        "reopened": "Re-opened"
+      },
+      "reopen": {
+        "action": "Re-open",
+        "title": "Re-open for {{name}}?",
+        "message": "{{name}} gets one more sitting of “{{title}}”, and only one. Anything she already answered is kept.",
+        "confirm": "Re-open",
+        "done": "{{name}} may sit it again until {{closes}}."
+      },
+      "release": {
+        "title": "Release",
+        "action": "Release the results",
+        "sentence": "Parents see scores and comments only after release.",
+        "auto": "These results release themselves when the exam closes.",
+        "released": "Released.",
+        "releasedOn": "Released {{date}}.",
+        "done": "Results released",
+        "doneOff": "Results taken back",
+        "withdraw": "Take the results back",
+        "withdrawTitle": "Take these results back?",
+        "withdrawMessage": "Parents who have already read them will lose them again.",
+        "withdrawConfirm": "Take them back"
+      },
+      "export": {
+        "pdf": "Sheet"
+      }
     }
   },
   "home": {

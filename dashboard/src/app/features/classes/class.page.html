@@ -49,8 +49,14 @@
           <hq-empty-state [message]="'results.gradebook.off' | transloco" />
         }
       }
-      @default {
-        <hq-empty-state [message]="comingSoon()" />
+      @case ('exams') {
+        <!-- N4.4. Behind `exams`, the flag `ExamController` carries over every one of its
+             routes — including the exports — so the tab and the API agree about the answer. -->
+        @if (examsOn()) {
+          <hq-exams-tab [classId]="classId()" [className]="className()" />
+        } @else {
+          <hq-empty-state [message]="'exams.off' | transloco" />
+        }
       }
     }
   </div>

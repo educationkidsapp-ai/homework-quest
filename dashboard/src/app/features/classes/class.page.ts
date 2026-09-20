@@ -1,6 +1,7 @@
 /* hq-flag: none (shell) — the class page is My classes' detail route, gated by `teacher.week`
    like its list. Its own contents carry the gates: the Children tab's roster lives behind
-   `teacher.rosterEdit` + `roster.teacher`, and Gradebook and Exams are stubs until N4. */
+   `teacher.rosterEdit` + `roster.teacher`, and Gradebook and Exams carry `gradebook` and
+   `exams` — the flags their own endpoints carry. */
 import {
   ChangeDetectionStrategy,
   Component,
@@ -20,6 +21,7 @@ import { ClassContextService } from '../../core/nav/class-context.service';
 import { EmptyStateComponent, PageComponent, TabsComponent, type Breadcrumb, type Tab } from '../../ui';
 import { ClassCalendarComponent } from './class-calendar.component';
 import { GradebookComponent } from '../results/gradebook.component';
+import { ExamsTabComponent } from '../exams/exams-tab.component';
 import { ClassChildrenComponent } from './class-children.component';
 import { calendarCells, monthParam, shiftMonth } from './classes.models';
 
@@ -33,9 +35,9 @@ function isTabId(value: string | null): value is TabId {
 /**
  * **The class page** (`docs/teacher-flow.md` §4 step 3 and §5) — one class, four tabs.
  *
- * Calendar and Children are built here; Gradebook and Exams are named and disabled rather than
- * hidden, because a teacher who is told "coming in N4" stops looking for them, and one who sees
- * two tabs where a colleague has four assumes something is broken in her account.
+ * All four are built. Gradebook (N4.2) and Exams (N4.4) sit behind their school's own flags and
+ * say what they would hold when one is off, rather than disappearing — a teacher who sees two
+ * tabs where a colleague has four assumes something is broken in her account.
  *
  * **The tab is in the URL** (`?tab=children`). A tab kept only in a signal is a screen that
  * cannot be linked to, comes back on the wrong panel after a reload, and answers Back by
@@ -53,6 +55,7 @@ function isTabId(value: string | null): value is TabId {
     ClassCalendarComponent,
     ClassChildrenComponent,
     GradebookComponent,
+    ExamsTabComponent,
     RouterLink,
     TranslocoPipe,
   ],
@@ -159,10 +162,8 @@ export class ClassPage {
   /** N4.2: the Gradebook tab's own gate — the flag the grid's endpoints carry. */
   protected readonly gradebookOn = computed(() => this.flags.isOn(FLAGS.gradebook));
 
-  protected readonly comingSoon = computed(() => {
-    this.lang();
-    return this.t('classes.tabs.comingSoon');
-  });
+  /** N4.4: the same arrangement for Exams — `ExamController` carries `exams` over every route. */
+  protected readonly examsOn = computed(() => this.flags.isOn(FLAGS.exams));
 
   // ---- links out ---------------------------------------------------------------------------------
 
