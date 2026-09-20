@@ -1,0 +1,181 @@
+<hq-page
+  [title]="'exams.create.title' | transloco"
+  [subtitle]="'exams.create.subtitle' | transloco: { class: className() }"
+  [breadcrumbs]="breadcrumbs()"
+>
+  @if (!classId()) {
+    <hq-empty-state [message]="'exams.create.noClass' | transloco" />
+  } @else {
+    <hq-band [open]="error() !== null" [title]="'band.failed' | transloco" (dismissed)="error.set(null)">
+      {{ error() }}
+    </hq-band>
+
+    @if (busy(); as busyText) {
+      <hq-progress-bar [value]="null" [label]="busyText" />
+      <p class="busy-text" role="status">{{ busyText }}</p>
+    }
+
+    <hq-card [title]="'exams.create.details' | transloco">
+      <div class="fields">
+        <hq-input
+          class="fields__wide"
+          [label]="'exams.create.titleLabel' | transloco"
+          [placeholder]="'exams.create.titlePlaceholder' | transloco"
+          [required]="true"
+          [value]="title()"
+          [disabled]="busy() !== null"
+          (valueChange)="title.set($event)"
+        />
+        <hq-input
+          type="number"
+          [label]="'exams.create.duration' | transloco"
+          [hint]="'exams.create.durationHint' | transloco"
+          [value]="duration()"
+          [disabled]="busy() !== null"
+          (valueChange)="duration.set($event)"
+        />
+        <hq-select
+          [label]="'exams.release.label' | transloco"
+          [hint]="'exams.release.hint' | transloco"
+          [options]="releaseOptions()"
+          [value]="releaseMode()"
+          [disabled]="busy() !== null"
+          (valueChange)="setReleaseMode($event)"
+        />
+      </div>
+
+      <fieldset class="levels">
+        <legend class="levels__legend">{{ 'exams.level.label' | transloco }}</legend>
+        @for (choice of levelChoices(); track choice.value) {
+          <label class="levels__choice" [class.is-selected]="isLevel(choice.value)">
+            <input
+              type="radio"
+              name="hq-exam-level"
+              [value]="choice.value"
+              [checked]="isLevel(choice.value)"
+              [disabled]="busy() !== null"
+              (change)="level.set(choice.value)"
+            />
+            <span>{{ choice.label }}</span>
+          </label>
+        }
+        <p class="levels__hint hq-muted">{{ 'exams.level.hint' | transloco }}</p>
+      </fieldset>
+    </hq-card>
+
+    <hq-card [title]="'exams.create.window' | transloco">
+      <!-- Whose clock this is, said once, above the fields it governs. -->
+      <p class="hq-muted window__zone">{{ 'exams.create.windowHint' | transloco: { zone: zone() } }}</p>
+      <div class="fields">
+        <hq-input
+          type="date"
+          [label]="'exams.create.opensDate' | transloco"
+          [required]="true"
+          [value]="window().opensDate"
+          [disabled]="busy() !== null"
+          (valueChange)="setWindow('opensDate', $event)"
+        />
+        <hq-input
+          type="time"
+          [label]="'exams.create.opensTime' | transloco"
+          [required]="true"
+          [value]="window().opensTime"
+          [disabled]="busy() !== null"
+          (valueChange)="setWindow('opensTime', $event)"
+        />
+        <hq-input
+          type="date"
+          [label]="'exams.create.closesDate' | transloco"
+          [required]="true"
+          [value]="window().closesDate"
+          [disabled]="busy() !== null"
+          (valueChange)="setWindow('closesDate', $event)"
+        />
+        <hq-input
+          type="time"
+          [label]="'exams.create.closesTime' | transloco"
+          [required]="true"
+          [error]="windowMessage()"
+          [value]="window().closesTime"
+          [disabled]="busy() !== null"
+          (valueChange)="setWindow('closesTime', $event)"
+        />
+      </div>
+    </hq-card>
+
+    <hq-card [title]="'exams.create.source' | transloco">
+      <div class="sources">
+        @for (card of sourceCards(); track card.id) {
+          <button
+            *hqFeature="card.flag"
+            type="button"
+            class="source-card"
+            [class.source-card--selected]="source() === card.id"
+            [attr.aria-pressed]="source() === card.id"
+            [disabled]="busy() !== null"
+            (click)="selectSource(card.id)"
+          >
+            <span class="source-card__title">{{ card.title }}</span>
+            <span class="source-card__hint">{{ card.hint }}</span>
+          </button>
+        }
+      </div>
+
+      @if (source() === 'manual') {
+        <p class="hq-muted">{{ 'lessons.new.manualHint' | transloco }}</p>
+      } @else if (source() !== null) {
+        <div class="hq-dropzone dropzone">
+          <p class="dropzone__title">{{ 'exams.create.dropzone' | transloco }}</p>
+          <input
+            #fileInput
+            type="file"
+            class="hq-sr-only"
+            [attr.accept]="acceptFor()"
+            [attr.aria-label]="'exams.create.dropzone' | transloco"
+            [multiple]="source() === 'images'"
+            [disabled]="busy() !== null"
+            (change)="onFileInput($event)"
+          />
+          <hq-button variant="secondary" [disabled]="busy() !== null" (pressed)="fileInput.click()">
+            {{ 'lessons.new.dropzone.choose' | transloco }}
+          </hq-button>
+        </div>
+
+        @if (files().length > 0) {
+          <ul class="file-list">
+            @for (file of files(); track file.name; let i = $index) {
+              <li class="file-list__row">
+                <span class="file-list__name">{{ file.name }}</span>
+                <span class="file-list__size hq-muted">{{ formatFileSize(file.size) }}</span>
+                <hq-button
+                  variant="quiet"
+                  [disabled]="busy() !== null"
+                  [attr.aria-label]="'lessons.new.fileRemoveLabel' | transloco: { name: file.name }"
+                  (pressed)="removeFile(i)"
+                >
+                  {{ 'lessons.new.remove' | transloco }}
+                </hq-button>
+              </li>
+            }
+          </ul>
+        }
+      }
+    </hq-card>
+  }
+
+  @if (classId()) {
+    <div page-footer class="footer">
+      <p class="footer__note hq-muted">{{ reason() ?? ('exams.create.footerReady' | transloco) }}</p>
+      <hq-button
+        variant="primary"
+        data-hq-create-exam
+        [disabled]="!ready()"
+        [reason]="reason()"
+        [loading]="busy() !== null"
+        (pressed)="create()"
+      >
+        {{ 'exams.create.create' | transloco }}
+      </hq-button>
+    </div>
+  }
+</hq-page>

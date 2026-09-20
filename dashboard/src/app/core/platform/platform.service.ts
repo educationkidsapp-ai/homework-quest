@@ -47,6 +47,16 @@ export class PlatformService {
   readonly platformLogoUrl = computed(() => this.resource.value().logoUrl ?? null);
   readonly supportEmail = computed(() => this.resource.value().supportEmail ?? null);
 
+  /**
+   * The school's timezone, as an IANA id (N4.4).
+   *
+   * `UTC` until the settings have been read, which is the server's own default and the zone it
+   * stamps a new row with. An exam window is typed as a wall clock and stored as an instant, so
+   * this is the only thing that makes "opens Tuesday at 09:00" mean nine o'clock where the
+   * children are rather than nine o'clock wherever the teacher's laptop happens to be set.
+   */
+  readonly timezone = computed(() => this.resource.value().timezone || 'UTC');
+
   /** The name to show right now: the school in scope overrides the platform. */
   readonly displayName = computed(() => this.auth.user()?.platformName || this.platformName());
 

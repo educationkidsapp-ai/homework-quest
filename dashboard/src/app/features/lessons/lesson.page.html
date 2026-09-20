@@ -51,6 +51,10 @@
           (dismissed)="cancelPendingAction()"
         >
           {{ confirmMessage() }}
+          @if (examWindowSentence(); as sentence) {
+            <!-- §8: what publishing an exam promises, said before it is promised. -->
+            <p class="lesson__exam-sentence">{{ sentence }}</p>
+          }
         </hq-band>
       }
       <hq-undo-strip
@@ -78,6 +82,12 @@
             }
           </ul>
         </hq-band>
+      }
+
+      <!-- N4.4: an exam is a lesson, so this whole editor is unchanged — the settings that
+           make it an exam are the one card above the facts. -->
+      @if (isExam() && l.classId; as examClassId) {
+        <hq-exam-settings-card [examId]="l.id" [classId]="examClassId" />
       }
 
       <div class="lesson__facts">

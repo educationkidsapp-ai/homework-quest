@@ -40,6 +40,10 @@ export const FLAGS = {
   // and not the marking reads every number and writes none.
   gradebook: 'gradebook',
   openStopMarking: 'openStopMarking',
+  // N4.4: §8's exams. One flag over the whole of `ExamController` — the tab, the New exam form,
+  // the settings card in the editor and the results page — so a school that has not bought them
+  // gets the same silence from the dashboard as from the API.
+  exams: 'exams',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

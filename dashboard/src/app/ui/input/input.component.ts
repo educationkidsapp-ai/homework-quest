@@ -4,7 +4,9 @@ import { ShakeDirective } from '../motion';
 
 let nextId = 0;
 
-export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 'tel' | 'url' | 'date';
+// `time` joined the list with N4.4: an exam window is a date *and* a wall-clock time, and the
+// native control is the only one that gets a phone keyboard, a 24-hour locale and AM/PM right.
+export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 'tel' | 'url' | 'date' | 'time';
 
 /**
  * §3's input: 44 px, radius 8, a 1 px rule, `--hq-shadow-xs`, 14 px text and a muted

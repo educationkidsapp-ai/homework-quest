@@ -1,0 +1,116 @@
+@if (loading()) {
+  <hq-card [title]="'exams.settings.title' | transloco">
+    <hq-skeleton [loading]="true" [lines]="3" [label]="'exams.settings.title' | transloco" />
+  </hq-card>
+} @else if (exam(); as e) {
+  <hq-card
+    class="settings"
+    data-hq-exam-settings
+    [title]="'exams.settings.title' | transloco"
+    [eyebrow]="frozen() ? ('exams.settings.frozen' | transloco) : null"
+  >
+    <!-- §8's promise to the children, in the words the publish band repeats. -->
+    <p class="settings__sentence">{{ sentence() }}</p>
+
+    @if (frozen()) {
+      <p class="hq-muted">{{ 'exams.settings.frozenDetail' | transloco }}</p>
+      <dl class="settings__read">
+        <div>
+          <dt>{{ 'exams.create.window' | transloco }}</dt>
+          <dd>{{ windowText() }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'exams.level.label' | transloco }}</dt>
+          <dd>{{ levelText() }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'exams.create.duration' | transloco }}</dt>
+          <dd>{{ durationText() }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'exams.release.label' | transloco }}</dt>
+          <dd>{{ releaseText() }}</dd>
+        </div>
+      </dl>
+    } @else {
+      <p class="hq-muted">{{ 'exams.create.windowHint' | transloco: { zone: zone() } }}</p>
+      <div class="settings__fields">
+        <hq-input
+          class="settings__wide"
+          [label]="'exams.create.titleLabel' | transloco"
+          [required]="true"
+          [value]="title()"
+          [disabled]="saving()"
+          (valueChange)="title.set($event)"
+        />
+        <hq-input
+          type="date"
+          [label]="'exams.create.opensDate' | transloco"
+          [value]="window().opensDate"
+          [disabled]="saving()"
+          (valueChange)="setWindow('opensDate', $event)"
+        />
+        <hq-input
+          type="time"
+          [label]="'exams.create.opensTime' | transloco"
+          [value]="window().opensTime"
+          [disabled]="saving()"
+          (valueChange)="setWindow('opensTime', $event)"
+        />
+        <hq-input
+          type="date"
+          [label]="'exams.create.closesDate' | transloco"
+          [value]="window().closesDate"
+          [disabled]="saving()"
+          (valueChange)="setWindow('closesDate', $event)"
+        />
+        <hq-input
+          type="time"
+          [label]="'exams.create.closesTime' | transloco"
+          [error]="windowMessage()"
+          [value]="window().closesTime"
+          [disabled]="saving()"
+          (valueChange)="setWindow('closesTime', $event)"
+        />
+        <hq-select
+          [label]="'exams.level.label' | transloco"
+          [options]="levelOptions()"
+          [value]="level()"
+          [disabled]="saving()"
+          (valueChange)="setLevel($event)"
+        />
+        <hq-input
+          type="number"
+          [label]="'exams.create.duration' | transloco"
+          [hint]="'exams.create.durationHint' | transloco"
+          [value]="duration()"
+          [disabled]="saving()"
+          (valueChange)="duration.set($event)"
+        />
+        <hq-select
+          [label]="'exams.release.label' | transloco"
+          [hint]="'exams.release.hint' | transloco"
+          [options]="releaseOptions()"
+          [value]="releaseMode()"
+          [disabled]="saving()"
+          (valueChange)="setReleaseMode($event)"
+        />
+      </div>
+
+      <div class="settings__actions">
+        <span *hqFeature="examsFlag">
+          <hq-button
+            *hqCan="'lesson.write'"
+            variant="secondary"
+            data-hq-save-exam-settings
+            [disabled]="!canSave()"
+            [loading]="saving()"
+            (pressed)="save()"
+          >
+            {{ 'exams.settings.save' | transloco }}
+          </hq-button>
+        </span>
+      </div>
+    }
+  </hq-card>
+}

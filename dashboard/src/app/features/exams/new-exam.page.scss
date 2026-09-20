@@ -1,0 +1,156 @@
+@use 'mixins' as m;
+
+:host {
+  display: block;
+}
+
+.busy-text {
+  margin-block-start: calc(var(--hq-space-8) * -1);
+  color: var(--hq-color-ink-soft);
+}
+
+.fields {
+  display: grid;
+  // 220 px, not the 96 px grade-card token: a field is a label plus a control plus a hint, and
+  // at 96 px "Time limit (minutes)" wraps onto four lines beside a select cropped to "Automat…".
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--hq-space-16);
+}
+
+.fields__wide {
+  grid-column: 1 / -1;
+}
+
+.window__zone {
+  margin-block-end: var(--hq-space-12);
+}
+
+// The four levels. A row of chips at wide widths, a column when they no longer fit — never a
+// grid that puts "mixed" on a line of its own under three equal siblings.
+.levels {
+  margin-block-start: var(--hq-space-16);
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-12);
+}
+
+.levels__legend {
+  inline-size: 100%;
+  padding: 0;
+  font-size: var(--hq-text-theme-xs);
+  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+  font-weight: var(--hq-text-weight-medium);
+  color: var(--hq-color-ink-soft);
+}
+
+.levels__choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hq-space-8);
+  padding: var(--hq-space-12) var(--hq-space-16);
+  cursor: pointer;
+  @include m.surface;
+  @include m.hover-tint(var(--hq-color-surface-sunken));
+
+  &:focus-within {
+    @include m.focus-ring;
+  }
+}
+
+.levels__choice.is-selected {
+  border-width: var(--hq-size-rule);
+  border-color: var(--hq-color-accent);
+  background: var(--hq-color-accent-soft);
+}
+
+.levels__hint {
+  inline-size: 100%;
+  margin: 0;
+}
+
+.sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--hq-size-stop-list-width), 1fr));
+  gap: var(--hq-space-16);
+}
+
+.source-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-4);
+  padding: var(--hq-space-16);
+  text-align: start;
+  cursor: pointer;
+  @include m.surface;
+  @include m.hover-tint(var(--hq-color-surface-sunken));
+  @include m.focus-ring;
+
+  &:disabled {
+    cursor: not-allowed;
+    color: var(--hq-color-disabled);
+  }
+}
+
+.source-card--selected {
+  border-width: var(--hq-size-rule);
+  border-color: var(--hq-color-accent);
+  background: var(--hq-color-accent-soft);
+}
+
+.source-card__title {
+  font-weight: var(--hq-text-weight-medium);
+  color: var(--hq-color-ink);
+}
+
+.source-card__hint {
+  font-size: var(--hq-text-theme-xs);
+  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+  color: var(--hq-color-ink-soft);
+}
+
+.dropzone {
+  flex-direction: column;
+  margin-block-start: var(--hq-space-16);
+}
+
+.dropzone__title {
+  font-size: var(--hq-text-lead);
+  font-weight: var(--hq-text-weight-medium);
+  color: var(--hq-color-ink-strong);
+}
+
+.file-list {
+  margin-block-start: var(--hq-space-16);
+  border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+}
+
+.file-list__row {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-12);
+  padding-block: var(--hq-space-12);
+  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+}
+
+.file-list__name {
+  flex: 1;
+  font-weight: var(--hq-text-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-list__size {
+  flex: none;
+  font-size: var(--hq-text-theme-xs);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hq-space-16);
+  inline-size: 100%;
+}

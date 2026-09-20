@@ -135,6 +135,19 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         permission: 'results.read',
       },
       { id: 'child', path: 'children/:childId', flag: FLAGS.gradebook, permission: 'results.read' },
+      // N4.4 (§4 step 10). Neither is a rail item either: New exam is the class page's Exams
+      // tab's own primary action, and the results page is opened from a row of that tab or from
+      // the exam's card in This week. Both carry `exams` — the flag `ExamController` puts over
+      // every one of its routes — so a school without it meets the same 404 in the router as in
+      // the API. The exam's *editor* is `lessons/:id`: an exam is a lesson, and giving it a
+      // second route would be a second copy of the editor to keep in step.
+      { id: 'new-exam', path: 'exams/new', flag: FLAGS.exams, permission: 'lesson.write' },
+      {
+        id: 'exam-results',
+        path: 'exams/:id/results',
+        flag: FLAGS.exams,
+        permission: 'results.read',
+      },
       // No permission yet: `child.read` in permissions.json belongs to PARENT, and the key for
       // a teacher reading her own students arrives with P4.0's endpoints. Gating on the
       // parent's key would hide the item from every teacher.
