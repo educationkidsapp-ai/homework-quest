@@ -240,6 +240,7 @@
 
     { "method": "GET", "path": "/teacher/classes/{classId}/exams", "permission": "lesson.read" },
     { "method": "POST", "path": "/teacher/classes/{classId}/exams", "permission": "lesson.write" },
+    { "method": "GET", "path": "/teacher/exams/{id}", "permission": "lesson.read" },
     { "method": "PATCH", "path": "/teacher/exams/{id}", "permission": "lesson.write" },
     { "method": "POST", "path": "/teacher/exams/{id}/publish", "permission": "lesson.publish" },
     { "method": "POST", "path": "/teacher/exams/{id}/release", "permission": "results.write" },

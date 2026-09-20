@@ -128,6 +128,41 @@ public class GradingService {
                 List.copyOf(columns), List.copyOf(rows));
     }
 
+    /**
+     * How many open stops are still waiting for a mark, per lesson — §7's `needsMarking`, for a page of lessons at
+     * once (N4.4's Exams tab).
+     *
+     * <p>Three statements whatever the number of lessons: their plays, their attempts and their marks, with
+     * {@link Scoring} doing the rest in Java exactly as {@link #results} and {@link #gradebook} do. The roster is
+     * deliberately not read — a stop can only need marking if somebody attempted it, so the children with no
+     * attempts on a lesson cannot contribute to its count and loading them would only cost a query.
+     *
+     * <p>Every lesson asked about is in the answer, at 0 if nothing of it has been played, so a caller never has to
+     * tell "no open stops left" from "not in the map".
+     */
+    public Map<String, Integer> needsMarkingByLesson(List<LessonEntity> forLessons) {
+        var out = new LinkedHashMap<String, Integer>();
+        for (var lesson : forLessons) out.put(lesson.getId(), 0);
+        if (forLessons.isEmpty()) return out;
+        var lessonIds = List.copyOf(out.keySet());
+        var stopsByLesson = stopsByLevel(forLessons);
+        var byChildLesson = new HashMap<String, Map<String, List<AttemptEntity>>>();
+        for (var a : attempts.findByLessonIdIn(lessonIds))
+            byChildLesson.computeIfAbsent(a.getChildId(), k -> new HashMap<>())
+                    .computeIfAbsent(a.getLessonId(), k -> new ArrayList<>()).add(a);
+        var marksByChild = marksByChild(marks.findByLessonIdIn(lessonIds));
+        for (var child : byChildLesson.entrySet()) {
+            var childMarks = marksByChild.getOrDefault(child.getKey(), Map.of());
+            for (var played : child.getValue().entrySet()) {
+                var mine = perStop(childMarks, played.getKey());
+                var score = Scoring.of(child.getKey(), played.getKey(), stopsByLesson.getOrDefault(played.getKey(), Map.of()),
+                        played.getValue(), stopMarks(mine), lessonMark(mine));
+                if (score.needsMarking() > 0) out.merge(played.getKey(), score.needsMarking(), Integer::sum);
+            }
+        }
+        return out;
+    }
+
     // ---------------------------------------------------------------- the gradebook (§7)
 
     public GradingDto.Gradebook gradebook(Principals.User caller, String classId, String from, String to) {

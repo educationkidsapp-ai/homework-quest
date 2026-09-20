@@ -30,6 +30,34 @@ public final class ExamDto {
                                boolean singleAttempt, boolean hintsOff, boolean numbersOff, String releaseMode,
                                String status, boolean released, Long releasedAt, boolean open) {}
 
+    /**
+     * One row of the class page's Exams tab, and the whole of `GET /teacher/exams/{id}` — the settings above with
+     * the four numbers the tab draws beside them.
+     *
+     * <p><strong>Why the numbers are here.</strong> The dashboard was reading `/teacher/exams/{id}/results` once per
+     * row to find them, which is a full scoring pass per exam for three integers; {@link ExamService#ofClass}
+     * computes all of them for the whole tab in a fixed number of statements instead.
+     *
+     * <p>`state` is the one word the tab's State column says — `draft`, `scheduled`, `open`, `closed` or
+     * `released` — decided by the same rule the dashboard's own `examStateOf` applies, so the two can never
+     * disagree: released beats the window, and a published exam with no usable window is a draft rather than a
+     * "closed" nobody ever sat. `roster` is the class register, `sat` the children with a sitting, and
+     * `needsMarking` the open stops still waiting for the teacher — §7's count, over §8's paper.
+     */
+    public record ExamRow(String examId, String title, String classId, String className, String subject,
+                          String date, long opensAt, long closesAt, String level, Integer durationMinutes,
+                          boolean singleAttempt, boolean hintsOff, boolean numbersOff, String releaseMode,
+                          String status, boolean released, Long releasedAt, boolean open,
+                          String state, int roster, int sat, int needsMarking) {
+
+        /** The row a settings read already holds, with the tab's four numbers laid beside it. */
+        static ExamRow of(ExamSettings s, String state, int roster, int sat, int needsMarking) {
+            return new ExamRow(s.examId(), s.title(), s.classId(), s.className(), s.subject(), s.date(), s.opensAt(),
+                    s.closesAt(), s.level(), s.durationMinutes(), s.singleAttempt(), s.hintsOff(), s.numbersOff(),
+                    s.releaseMode(), s.status(), s.released(), s.releasedAt(), s.open(), state, roster, sat, needsMarking);
+        }
+    }
+
     /** `POST /teacher/classes/{id}/exams`: the same editor as a lesson, plus the window and the level. */
     public record CreateExamRequest(@NotBlank @Size(max = 120) String title, @NotNull Long opensAt, @NotNull Long closesAt,
                                     String level, String source, @Min(1) @Max(600) Integer durationMinutes,
@@ -48,9 +76,13 @@ public final class ExamDto {
      * <p>`score` out of `maxScore` is the stars she earned; `percent` is §7's 0–100 and is what the band, the
      * gradebook cell and her level are all taken from. `needsMarking` counts the open stops nobody has looked at
      * yet: until it is zero, `percent` describes only what could be scored automatically.
+     *
+     * <p>`lastSeenAt` is the last answer the sitting took. For a child still inside the paper it is the only thing
+     * that separates "working on it" from "walked away from it ten minutes ago" — the column `exam_attempts` has
+     * always written and nothing has ever read, which the #106 review asked to be either read or dropped.
      */
     public record ExamChildResult(String childId, String name, String state, int score, int maxScore, Integer percent,
-                                  String band, Integer secondsTaken, Long startedAt, Long submittedAt,
+                                  String band, Integer secondsTaken, Long startedAt, Long lastSeenAt, Long submittedAt,
                                   int needsMarking, boolean reopened, String comment) {}
 
     /** One column of the distribution chart: how many children landed in each of §7's four bands. */

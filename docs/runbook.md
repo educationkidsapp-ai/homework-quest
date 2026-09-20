@@ -807,8 +807,13 @@ curl -X PUT "$API/admin/schools/$SCHOOL/flags/exams" -H "Authorization: Bearer $
      -H 'Content-Type: application/json' -d '{"enabled":true}'
 ```
 
-**The window is the server's clock.** `POST /teacher/classes/{id}/exams` takes `opensAt` / `closesAt` as epoch
-milliseconds, and the child's tablet is never asked. Outside it, three things happen at once: the island is absent
+**The window is the server's clock — and the school's calendar.** `POST /teacher/classes/{id}/exams` takes
+`opensAt` / `closesAt` as epoch milliseconds, and the child's tablet is never asked. The *day* the exam is filed on
+is `opensAt` read **in the school's own timezone** (`SchoolCalendar`: the school row's `timezone`, else the platform
+row's, else UTC), which is also the day the Sunday–Thursday teaching-day check is applied to. Reading it in UTC was
+the N4.3 bug: in Riyadh (UTC+3) a window set for Sunday 02:14 is Saturday 23:14 UTC, so an ordinary Sunday exam came
+back `409 not_teaching_day`. If a teacher reports that refusal for a day her school clearly teaches on, check the
+school's `timezone` first — not her browser's. Outside it, three things happen at once: the island is absent
 from `GET /children/{id}/map`, an answer upload is `409 exam_closed`, and the teacher's own settings sheet is frozen
 (`PATCH /teacher/exams/{id}` is `409 exam_open` once it has opened). Inside it, the island carries `examWindow` and
 `GET /lessons/{id}` carries `type`, `hintsOff`, `numbersOff` and the single `examPlay`.
@@ -839,11 +844,56 @@ level in turn up to the lesson's practice length; nothing is stored, so changing
 costs nothing and loses nothing. The scorer is handed the same paper the player downloads, so a mixed exam is
 scored over exactly the questions the child was asked — never over one level's third of them.
 
-`GET /teacher/exams/{id}/results` carries the per-child table (state, stars, percent, band, time taken, marks
-pending), the class average, the distribution over the four bands, the per-question difficulty and the absent list;
-`results.csv`, `results.xlsx` and `results/{childId}.pdf` are the same rows. `missedPercent` is out of the children
-who **reached** the question, not out of the roster: a question the class ran out of time before is not one the
-class got wrong.
+**The paper is never publicly cached.** `GET /lessons/{id}` answers `public, max-age=31536000` for a homework — it
+is immutable per version — but `private, no-store` for an exam. A year-long shared cache is the one thing the window
+cannot survive: a proxy, or the tablet's own disk, would hand the paper to a child who asks before it opens, after
+it closes, or a second time after she handed it in, and none of those reads would reach the server that refuses
+them. If QA sees an exam body served from cache, that header is the thing to look at.
+
+**The tab's list.** `GET /teacher/classes/{id}/exams` answers a row per exam, newest first: the settings, plus
+`state` (`draft` · `scheduled` · `open` · `closed` · `released` — `released` wins, and a published exam with no usable
+window is `draft`), `roster`, `sat` and `needsMarking`. `GET /teacher/exams/{id}` is one row of the same shape. The
+numbers come from one bulk pass (`ExamListQueryCountTest` pins the statement count against a term of exams), so the
+Exams tab never needs a `/results` call per row.
+
+`GET /teacher/exams/{id}/results` carries the per-child table (state, stars, percent, band, time taken, last seen,
+marks pending), the class average, the distribution over the four bands, the per-question difficulty and the absent
+list; `results.csv`, `results.xlsx` and `results/{childId}.pdf` are the same rows. `missedPercent` is out of the
+children who **reached** the question, not out of the roster: a question the class ran out of time before is not one
+the class got wrong. A re-opening restarts the sitting's clock, so `secondsTaken` is the re-sitting's own time and
+never the days between an absence and the second chance.
+
+## The app and the contract
+
+**The app's JSON is strict, so app and server ship together.** `SchemaValidator.json` — the one `Json` the app's
+network client installs (`shared/.../RemoteContentApi.kt`) and the one the server encodes with — is configured
+`ignoreUnknownKeys = false` and `encodeDefaults = true`. Those two together mean a Kotlin default on a new field
+buys **nothing** on the wire: the server writes the field into every response whether or not it is set, and an app
+binary older than the field throws `SerializationException` on the first body that carries it rather than ignoring
+it. A field added to an app-facing DTO is therefore a breaking change for installed apps until the app relaxes
+`ignoreUnknownKeys`, which is D16's job and has not shipped.
+
+What this means in practice:
+
+* Do not roll the server forward past an app release that has not gone out. A staged rollout of the app with the new
+  server already live is fine; the reverse is not.
+* A new field on a `quest.api.dto.*` type belongs in the release notes, next to the minimum app build that reads it.
+* `quest.api.dashboard.*` types are not affected — the dashboard's generated TypeScript client ignores unknown keys
+  — so the Exams tab's row, `lastSeenAt` and anything else on that side may ship on their own.
+
+App-facing DTOs that have gained fields since `e36c188` (the last release that predates them), all of which an older
+binary would now refuse:
+
+| DTO | Fields | Shipped in |
+| --- | --- | --- |
+| `ProgressResponse` | `results: List<ReleasedResult>` (and the new `ReleasedResult` type) | N4.1 (#104) |
+| `PublishedLesson` | `type`, `hintsOff`, `numbersOff`, `examPlay` | N4.3 (#106) |
+| `Island` | `examWindow` (and the new `ExamWindow` type) | N4.3 (#106) |
+
+`ApiError` also gained `not_teaching_day`, `exam_closed`, `exam_already_taken`, `exam_already_reopened` and
+`exam_open`, but those are constants rather than wire fields — an app that does not know a code shows the server's
+message, which is what the unknown-code path already does. `RosterChild` is unchanged since `e36c188`, and is a
+dashboard type in any case.
 
 ## QA as the owner's acceptance environment
 

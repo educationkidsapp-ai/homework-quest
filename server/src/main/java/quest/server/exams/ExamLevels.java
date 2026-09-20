@@ -5,8 +5,9 @@ import java.util.Locale;
 import quest.server.config.ApiException;
 
 /**
- * The two small vocabularies of §8, so a typo in a request body is a 400 with the options in it rather than a row
- * nothing will ever read. They mirror `quest.api.dashboard.ExamLevels` / `ExamRelease` in the contract.
+ * The small vocabularies of §8, so a typo in a request body is a 400 with the options in it rather than a row
+ * nothing will ever read. They mirror `quest.api.dashboard.ExamLevels` / `ExamRelease` / `ExamRowState` in the
+ * contract.
  */
 public final class ExamLevels {
     private ExamLevels() {}
@@ -18,6 +19,17 @@ public final class ExamLevels {
     /** §8: "results release: automatic on close or manual". */
     public static final String AUTO_ON_CLOSE = "auto_on_close", MANUAL = "manual";
     public static final List<String> RELEASE_MODES = List.of(AUTO_ON_CLOSE, MANUAL);
+
+    /**
+     * The five words the class page's State column says about a whole exam — not {@code ExamAttemptEntity}'s
+     * per-child state, which is a different question about a different row.
+     *
+     * <p>Computed by {@link ExamService#stateOf} rather than read from anywhere: the window is two timestamps and a
+     * clock, and a stored state would be a row that goes stale at a minute nobody writes at.
+     */
+    public static final String DRAFT = "draft", SCHEDULED = "scheduled", OPEN = "open", CLOSED = "closed",
+            RELEASED = "released";
+    public static final List<String> STATES = List.of(DRAFT, SCHEDULED, OPEN, CLOSED, RELEASED);
 
     /** The play level a given setting is sat over; `mixed` has none of its own and is assembled. */
     public static Integer levelOf(String level) {

@@ -2,7 +2,7 @@ package quest.server.exams;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +21,7 @@ import quest.server.content.LessonRepository;
 import quest.server.grading.Bands;
 import quest.server.grading.GradingDto;
 import quest.server.grading.GradingService;
+import quest.server.platform.SchoolCalendar;
 import quest.server.teacher.TeacherDto;
 import quest.server.teacher.TeacherLessonService;
 import quest.server.tenancy.TeacherScope;
@@ -54,15 +55,16 @@ public class ExamService {
     private final TeacherScope scope; private final TeacherLessonService teacherLessons; private final GradingService grading;
     private final LessonRepository lessons; private final ChildRepository children; private final ExamPlays papers;
     private final ExamSettingsRepository settings; private final ExamAttemptRepository sittings;
-    private final quest.server.tenancy.ClassRepository classes; private final Clock clock;
+    private final quest.server.tenancy.ClassRepository classes; private final SchoolCalendar calendar;
+    private final Clock clock;
 
     public ExamService(TeacherScope scope, TeacherLessonService teacherLessons, GradingService grading,
                        LessonRepository lessons, ChildRepository children, ExamPlays papers,
                        ExamSettingsRepository settings, ExamAttemptRepository sittings,
-                       quest.server.tenancy.ClassRepository classes, Clock clock) {
+                       quest.server.tenancy.ClassRepository classes, SchoolCalendar calendar, Clock clock) {
         this.scope = scope; this.teacherLessons = teacherLessons; this.grading = grading; this.lessons = lessons;
         this.children = children; this.papers = papers; this.settings = settings; this.sittings = sittings;
-        this.classes = classes; this.clock = clock;
+        this.classes = classes; this.calendar = calendar; this.clock = clock;
     }
 
     // ---------------------------------------------------------------- create, edit, publish, release (§8)
@@ -72,7 +74,8 @@ public class ExamService {
      *
      * <p>The lesson is created first and stamped `type = exam` in the same transaction, so a row can never exist as
      * a homework the pipeline has already started filling. Its date is the day the window opens, which is what puts
-     * the exam card on the right day of the teacher's week.
+     * the exam card on the right day of the teacher's week — read in the school's own clock, for the reason
+     * {@link #dayOf} gives.
      */
     @Transactional
     public ExamDto.ExamSettings create(Principals.User caller, String classId, ExamDto.CreateExamRequest body) {
@@ -83,7 +86,7 @@ public class ExamService {
         String releaseMode = ExamLevels.requireReleaseMode(body.releaseMode() == null ? ExamLevels.AUTO_ON_CLOSE : body.releaseMode());
 
         var created = teacherLessons.create(caller, new TeacherDto.CreateTeacherLessonRequest(
-                section.getId(), scope.subjectOf(caller, section), opensAt.atZone(ZoneOffset.UTC).toLocalDate().toString(),
+                section.getId(), scope.subjectOf(caller, section), dayOf(section.getSchoolId(), opensAt).toString(),
                 body.source() == null ? "manual" : body.source(), body.title(), body.notes(), body.practiceLength()));
         var lesson = lessons.findOneById(created.getId()).orElseThrow(() -> ApiException.notFound("lesson"));
         lesson.setType("exam");
@@ -118,7 +121,7 @@ public class ExamService {
         exam.setUpdatedAt(now);
         if (body.title() != null && !body.title().isBlank()) { lesson.setTitle(body.title().trim()); lesson.setUpdatedAt(now); lessons.save(lesson); }
         // The day the window opens is the day the card sits on in her week, so moving the window moves the card.
-        var day = opensAt.atZone(ZoneOffset.UTC).toLocalDate();
+        var day = dayOf(lesson.getSchoolId(), opensAt);
         if (!day.equals(lesson.getDate())) { lesson.setDate(day); lesson.setUpdatedAt(now); lessons.save(lesson); }
         return dto(lesson, settings.save(exam));
     }
@@ -155,6 +158,11 @@ public class ExamService {
      * It extends only the end of the window, never the start, and clears the hand-in so her existing answers are
      * still there when she comes back: §8's resume, applied to a sitting the teacher re-opened rather than to one
      * the child walked away from.
+     *
+     * <p><strong>The clock starts again.</strong> `startedAt` and `secondsTaken` are reset to this moment, so the
+     * time the results page reports is the time the re-sitting took. Keeping the original start would have counted
+     * the days between a child's absence and her second chance as time spent on the paper — a "47 hours" in the
+     * time-taken column, and a `durationMinutes` that had expired before she opened it.
      */
     @Transactional
     public ExamDto.ExamReopen reopen(Principals.User caller, String examId, String childId) {
@@ -176,6 +184,7 @@ public class ExamService {
         var closes = now.plusSeconds(minutes * 60L);
         row.setState(Entities.ExamAttemptEntity.STARTED);
         row.setSubmittedAt(null); row.setSecondsTaken(null);
+        row.setStartedAt(now); row.setLastSeenAt(now);
         row.setReopenedAt(now); row.setReopenedBy(caller == null ? null : caller.userId());
         row.setReopenClosesAt(closes);
         sittings.save(row);
@@ -210,6 +219,7 @@ public class ExamService {
                     child.starsTotal(), child.score(), child.band(),
                     row == null ? null : row.getSecondsTaken(),
                     row == null ? null : row.getStartedAt().toEpochMilli(),
+                    row == null ? null : row.getLastSeenAt().toEpochMilli(),
                     row == null || row.getSubmittedAt() == null ? null : row.getSubmittedAt().toEpochMilli(),
                     child.needsMarking(), row != null && row.isReopened(), child.comment());
             results.add(result);
@@ -300,6 +310,23 @@ public class ExamService {
         return child;
     }
 
+    /**
+     * The lesson day an exam window falls on, <strong>in the school's timezone</strong>.
+     *
+     * <p>This used to be `opensAt.atZone(UTC)`, and the bug it caused is the whole of this method. A teacher in
+     * Riyadh setting an exam for Sunday at 02:14 names an instant that is still Saturday in UTC, so the day handed
+     * to {@link TeacherLessonService} was a Saturday, the school does not teach on Saturdays, and a perfectly
+     * ordinary Sunday exam came back 409 `not_teaching_day`. The same three hours run the other way at the end of
+     * the week: a Thursday 23:30 window is a Friday in UTC, and Friday is not a teaching day either.
+     *
+     * <p>{@link SchoolCalendar} is the one authority on where a school's day turns over (its own zone, else the
+     * platform's, else UTC) and is already what {@code requireTeachingDay} checks the day against, so reading the
+     * date through it is what makes the two agree.
+     */
+    private LocalDate dayOf(String schoolId, Instant opensAt) {
+        return opensAt.atZone(calendar.of(schoolId).zone()).toLocalDate();
+    }
+
     private static Instant requireWindow(Instant opensAt, Instant closesAt) {
         if (!closesAt.isAfter(opensAt)) throw ApiException.badRequest("An exam must close after it opens.");
         return closesAt;
@@ -311,8 +338,13 @@ public class ExamService {
 
     ExamDto.ExamSettings dto(LessonEntity lesson, Entities.ExamSettingsEntity exam) {
         var section = lesson.getClassId() == null ? null : classes.findById(lesson.getClassId()).orElse(null);
+        return dto(lesson, exam, section == null ? null : section.getName());
+    }
+
+    /** The same, with the class's name already in hand — a list reads it once rather than once per row. */
+    ExamDto.ExamSettings dto(LessonEntity lesson, Entities.ExamSettingsEntity exam, String className) {
         return new ExamDto.ExamSettings(lesson.getId(), lesson.getTitle(), lesson.getClassId(),
-                section == null ? null : section.getName(), lesson.getSubject(), lesson.getDate().toString(),
+                className, lesson.getSubject(), lesson.getDate().toString(),
                 exam.getOpensAt().toEpochMilli(), exam.getClosesAt().toEpochMilli(), exam.getLevel(),
                 exam.getDurationMinutes(), exam.isSingleAttempt(), exam.isHintsOff(), exam.isNumbersOff(),
                 exam.getReleaseMode(), lesson.getStatus(), lesson.getReleasedAt() != null,
@@ -320,21 +352,85 @@ public class ExamService {
                 exam.isOpenAt(clock.instant()));
     }
 
-    /** Every exam of a class, newest first — what the class page's Exams tab lists. */
-    public List<ExamDto.ExamSettings> ofClass(Principals.User caller, String classId) {
+    // ---------------------------------------------------------------- the class page's Exams tab (§8)
+
+    /**
+     * Every exam of a class, newest first — what the class page's Exams tab lists, each row carrying its state and
+     * the three numbers the tab draws beside it.
+     *
+     * <p><strong>Why the numbers come from here.</strong> The dashboard used to fetch `/teacher/exams/{id}/results`
+     * once per row to find `roster`, `sat` and `needsMarking` — a full scoring pass, its plays, its attempts and
+     * its marks, six times over, for three integers. {@link #countsOf} does all of them in four statements for the
+     * whole tab, and `ExamListQueryCountTest` pins that against the shape growing back.
+     */
+    public List<ExamDto.ExamRow> ofClass(Principals.User caller, String classId) {
         var section = scope.requireClass(caller, classId);
         var mine = lessons.findByClassIdInAndDateBetweenOrderByDateAsc(List.of(section.getId()),
-                java.time.LocalDate.now(clock).minusYears(1), java.time.LocalDate.now(clock).plusYears(1)).stream()
+                LocalDate.now(clock).minusYears(1), LocalDate.now(clock).plusYears(1)).stream()
                 .filter(ExamPlays::isExam).toList();
         if (mine.isEmpty()) return List.of();
         var byLesson = new LinkedHashMap<String, Entities.ExamSettingsEntity>();
         for (var e : settings.findByLessonIdIn(mine.stream().map(LessonEntity::getId).toList())) byLesson.put(e.getLessonId(), e);
-        var out = new ArrayList<ExamDto.ExamSettings>(mine.size());
-        for (var lesson : mine) {
-            var exam = byLesson.get(lesson.getId());
-            if (exam != null) out.add(dto(lesson, exam));
-        }
+        var made = mine.stream().filter(lesson -> byLesson.containsKey(lesson.getId())).toList();
+        var counts = countsOf(section.getId(), made);
+        var out = new ArrayList<ExamDto.ExamRow>(made.size());
+        for (var lesson : made) out.add(row(lesson, byLesson.get(lesson.getId()), counts, section.getName()));
         out.sort((a, b) -> Long.compare(b.opensAt(), a.opensAt()));
         return List.copyOf(out);
+    }
+
+    /**
+     * `GET /teacher/exams/{id}` — one row of that list: the settings sheet, the state and the same three counts.
+     *
+     * <p>The settings card and the results header both open on one exam and both want all of it; reading the row
+     * they are already looking at is a cheaper and more honest answer than a results page thrown away after three
+     * fields have been taken out of it.
+     */
+    public ExamDto.ExamRow one(Principals.User caller, String examId) {
+        var lesson = requireExam(caller, examId);
+        var exam = require(lesson);
+        var section = lesson.getClassId() == null ? null : classes.findById(lesson.getClassId()).orElse(null);
+        return row(lesson, exam, countsOf(lesson.getClassId(), List.of(lesson)), section == null ? null : section.getName());
+    }
+
+    private ExamDto.ExamRow row(LessonEntity lesson, Entities.ExamSettingsEntity exam, Counts counts, String className) {
+        return ExamDto.ExamRow.of(dto(lesson, exam, className), stateOf(lesson, exam, clock.instant()), counts.roster(),
+                counts.sat().getOrDefault(lesson.getId(), 0), counts.needsMarking().getOrDefault(lesson.getId(), 0));
+    }
+
+    /**
+     * The one word the State column says, by exactly the rule the dashboard's own `examStateOf` applies — the two
+     * are a contract, and a tab whose server and client disagreed about what "open" means is worse than either.
+     *
+     * <p>Released beats the window: the parents have the scores, whatever the clock says. Draft beats everything
+     * else, including a published exam whose window is missing or inverted — nobody can have sat a paper that
+     * never opened, so calling it `closed` would file it under the one word a teacher never looks at twice.
+     */
+    static String stateOf(LessonEntity lesson, Entities.ExamSettingsEntity exam, Instant now) {
+        if (!"published".equals(lesson.getStatus())) return ExamLevels.DRAFT;
+        if (lesson.getReleasedAt() != null) return ExamLevels.RELEASED;
+        var opensAt = exam.getOpensAt(); var closesAt = exam.getClosesAt();
+        if (opensAt == null || closesAt == null || !closesAt.isAfter(opensAt)) return ExamLevels.DRAFT;
+        if (now.isBefore(opensAt)) return ExamLevels.SCHEDULED;
+        return now.isBefore(closesAt) ? ExamLevels.OPEN : ExamLevels.CLOSED;
+    }
+
+    /** The register, the sittings and the open stops still to mark, for a whole tab of exams at once. */
+    private record Counts(int roster, java.util.Map<String, Integer> sat, java.util.Map<String, Integer> needsMarking) {}
+
+    /**
+     * Four statements, whatever the number of exams: the register is counted in the database rather than loaded,
+     * the sittings are counted per exam in one grouped query, and
+     * {@link GradingService#needsMarkingByLesson} reads the plays, the attempts and the marks of all of them in
+     * three more. A row that asked its own questions would be the N+1 the Exams tab already had, moved from the
+     * dashboard into the server.
+     */
+    private Counts countsOf(String classId, List<LessonEntity> forExams) {
+        if (forExams.isEmpty()) return new Counts(0, java.util.Map.of(), java.util.Map.of());
+        int roster = classId == null ? 0 : (int) children.countByClassIdAndDeletedAtIsNull(classId);
+        var sat = new LinkedHashMap<String, Integer>();
+        for (var pair : sittings.countByLessonIdIn(forExams.stream().map(LessonEntity::getId).toList()))
+            sat.put((String) pair[0], ((Number) pair[1]).intValue());
+        return new Counts(roster, sat, grading.needsMarkingByLesson(forExams));
     }
 }

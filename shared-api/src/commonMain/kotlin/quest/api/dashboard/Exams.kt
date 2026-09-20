@@ -36,6 +36,24 @@ object ExamRelease {
 }
 
 /**
+ * The one word the class page's State column says about a whole exam — not [ExamState], which answers a different
+ * question about one child.
+ *
+ * The server computes it ([ExamRow.state]) so that the dashboard and the server can never disagree about what
+ * "open" means. [RELEASED] beats the window — the parents have the scores, whatever the clock says — and [DRAFT]
+ * beats everything else, including a published exam with no usable window: nobody can have sat a paper that never
+ * opened, so calling that `closed` would hide it behind the one word a teacher never looks at twice.
+ */
+object ExamRowState {
+    const val DRAFT = "draft"
+    const val SCHEDULED = "scheduled"
+    const val OPEN = "open"
+    const val CLOSED = "closed"
+    const val RELEASED = "released"
+    val ALL = listOf(DRAFT, SCHEDULED, OPEN, CLOSED, RELEASED)
+}
+
+/**
  * The settings sheet of one exam — §8's `ExamSettings(lessonId, opensAt, closesAt, level, hintsOff, releaseMode)`
  * with the lesson's own identity beside it so one read fills the whole screen.
  *
@@ -67,6 +85,48 @@ data class ExamSettings(
     val releasedAt: Long? = null,
     /** Whether the window is open *now*, as the server reads the clock. */
     val open: Boolean = false,
+)
+
+/**
+ * One row of the class page's Exams tab (`GET /teacher/classes/{id}/exams`), and the whole of
+ * `GET /teacher/exams/{id}`: [ExamSettings] with the four things the tab draws beside it.
+ *
+ * The numbers are here because the alternative was the dashboard reading `/teacher/exams/{id}/results` once per row
+ * — a full scoring pass, its plays, its attempts and its marks, six times over, for three integers. The server
+ * computes all of them for the whole tab in a fixed number of statements instead.
+ *
+ * [roster] is the class register, [sat] the children with a sitting, and [needsMarking] the open stops still waiting
+ * for the teacher — §7's count, over §8's paper. [state] is one of [ExamRowState].
+ */
+@Serializable
+data class ExamRow(
+    val examId: String,
+    val title: String? = null,
+    val classId: String? = null,
+    val className: String? = null,
+    val subject: Subject? = null,
+    val date: LocalDate? = null,
+    val opensAt: Long,
+    val closesAt: Long,
+    /** One of [ExamLevels]. */
+    val level: String = ExamLevels.MIXED,
+    val durationMinutes: Int? = null,
+    val singleAttempt: Boolean = true,
+    val hintsOff: Boolean = true,
+    val numbersOff: Boolean = true,
+    /** One of [ExamRelease]. */
+    val releaseMode: String = ExamRelease.AUTO_ON_CLOSE,
+    /** The lesson's own status: `draft`, `review`, `published`, `error`. */
+    val status: String = "draft",
+    val released: Boolean = false,
+    val releasedAt: Long? = null,
+    /** Whether the window is open *now*, as the server reads the clock. */
+    val open: Boolean = false,
+    /** One of [ExamRowState], decided by the server's clock at request time. */
+    val state: String = ExamRowState.DRAFT,
+    val roster: Int = 0,
+    val sat: Int = 0,
+    val needsMarking: Int = 0,
 )
 
 /**
@@ -127,6 +187,11 @@ data class ExamChildResult(
     /** Start to submit, in seconds; null while she is still in it or was never in it. */
     val secondsTaken: Int? = null,
     val startedAt: Long? = null,
+    /**
+     * The last answer the sitting took. For a child still inside the paper it is the only thing that separates
+     * "working on it" from "walked away from it ten minutes ago".
+     */
+    val lastSeenAt: Long? = null,
     val submittedAt: Long? = null,
     val needsMarking: Int = 0,
     val reopened: Boolean = false,
