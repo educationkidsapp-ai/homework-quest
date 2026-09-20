@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 class GradingExportTest extends GradingTestSupport {
     private static final String A = "gx-school", TEACHER = "gx-teacher", CLASS_1A = "gx-1a", LESSON = "gx-lesson-1";
 
-    @Override String prefix() { return "gx-"; }
+    @Override public String prefix() { return "gx-"; }
 
     private String teacherToken, maya;
 

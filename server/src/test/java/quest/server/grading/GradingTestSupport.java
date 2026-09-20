@@ -40,41 +40,45 @@ import quest.server.tenancy.TenantContext;
  *
  * <p>Modelled on `TeacherTestSupport` and separate from it for the same reason that one exists: the suite shares one
  * H2 database, so everything a test seeds carries its own prefix and {@link #removeSeed} takes it out again.
+ *
+ * <p>Public since N4.3: the exam tests in `quest.server.exams` need the same school, teacher, section, roster and
+ * scorable lesson, and a second copy of this fixture is a second set of numbers to keep in step with
+ * {@link ScoringTest}'s hand-computed sample.
  */
-abstract class GradingTestSupport extends ApiTestSupport {
-    @Autowired SchoolRepository schools;
-    @Autowired ClassRepository classes;
-    @Autowired quest.server.tenancy.TeachingAssignmentRepository assignments;
-    @Autowired UserRepository users;
-    @Autowired TeacherRepository teacherProfiles;
-    @Autowired LessonRepository lessons;
-    @Autowired PlayRepository plays;
-    @Autowired StopRepositoryHolder stopsHolder;
-    @Autowired SkillRepository skills;
-    @Autowired AttemptRepository attempts;
-    @Autowired ChildRepository childRows;
-    @Autowired TeacherMarkRepository markRows;
-    @Autowired quest.server.flags.SchoolFlagRepository schoolFlags;
-    @Autowired quest.server.flags.FeatureFlags featureFlags;
-    @Autowired LessonStore store;
-    @Autowired AdminJwtService jwt;
+public abstract class GradingTestSupport extends ApiTestSupport {
+    @Autowired public SchoolRepository schools;
+    @Autowired public ClassRepository classes;
+    @Autowired public quest.server.tenancy.TeachingAssignmentRepository assignments;
+    @Autowired public UserRepository users;
+    @Autowired public TeacherRepository teacherProfiles;
+    @Autowired public LessonRepository lessons;
+    @Autowired public PlayRepository plays;
+    @Autowired public StopRepositoryHolder stopsHolder;
+    @Autowired public SkillRepository skills;
+    @Autowired public AttemptRepository attempts;
+    @Autowired public ChildRepository childRows;
+    @Autowired public TeacherMarkRepository markRows;
+    @Autowired public quest.server.flags.SchoolFlagRepository schoolFlags;
+    @Autowired public quest.server.flags.FeatureFlags featureFlags;
+    @Autowired public LessonStore store;
+    @Autowired public AdminJwtService jwt;
 
     /** Spring needs a bean for `StopRepository`; holding it indirectly keeps the import list of this class short. */
     @org.springframework.stereotype.Component
-    static class StopRepositoryHolder {
-        final quest.server.content.StopRepository stops;
-        StopRepositoryHolder(quest.server.content.StopRepository stops) { this.stops = stops; }
+    public static class StopRepositoryHolder {
+        public final quest.server.content.StopRepository stops;
+        public StopRepositoryHolder(quest.server.content.StopRepository stops) { this.stops = stops; }
     }
 
-    abstract String prefix();
+    public abstract String prefix();
 
     // ---------------------------------------------------------------- tokens
 
-    String token(String userId, String role, String schoolId) {
+    public String token(String userId, String role, String schoolId) {
         return jwt.issue(userId, userId + "@seed.test", role, schoolId).token();
     }
 
-    org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder as(
+    public org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder as(
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder, String token) {
         return builder.header("Authorization", "Bearer " + token);
     }
@@ -89,7 +93,7 @@ abstract class GradingTestSupport extends ApiTestSupport {
      * is not a flip anybody audits, and pushing that page over its limit fails a test in another package that has
      * nothing to do with this one.
      */
-    void setFlag(String adminToken, String schoolId, String key, boolean enabled) {
+    public void setFlag(String adminToken, String schoolId, String key, boolean enabled) {
         var row = schoolFlags.findOne(schoolId, key).orElseGet(() -> {
             var fresh = new quest.server.flags.Entities.SchoolFeatureFlagEntity();
             fresh.setSchoolId(schoolId); fresh.setFlagKey(key);
@@ -104,7 +108,7 @@ abstract class GradingTestSupport extends ApiTestSupport {
      * Both N4.1 features on: the routes are 404 while `gradebook` is off, and marking needs its own key too.
      *
      */
-    void enableGrading(String adminToken, String schoolId) {
+    public void enableGrading(String adminToken, String schoolId) {
         setFlag(adminToken, schoolId, quest.server.flags.FlagKeys.GRADEBOOK, true);
         setFlag(adminToken, schoolId, quest.server.flags.FlagKeys.OPEN_STOP_MARKING, true);
     }
@@ -112,7 +116,7 @@ abstract class GradingTestSupport extends ApiTestSupport {
 
     // ---------------------------------------------------------------- rows
 
-    SchoolEntity school(String id, String name, String code) {
+    public SchoolEntity school(String id, String name, String code) {
         return schools.findById(id).orElseGet(() -> {
             var s = new SchoolEntity();
             s.setId(id); s.setName(name); s.setCode(code);
@@ -122,7 +126,7 @@ abstract class GradingTestSupport extends ApiTestSupport {
         });
     }
 
-    UserEntity teacher(String id, String schoolId, String displayName) {
+    public UserEntity teacher(String id, String schoolId, String displayName) {
         var u = users.findById(id).orElseGet(UserEntity::new);
         u.setId(id); u.setSchoolId(schoolId); u.setEmail(id + "@seed.test"); u.setPasswordHash("x"); u.setRole("TEACHER");
         u.setStatus("active"); u.setDisplayName(displayName);
@@ -136,14 +140,14 @@ abstract class GradingTestSupport extends ApiTestSupport {
         return u;
     }
 
-    ClassEntity klass(String id, String schoolId, String teacherId, String name) {
+    public ClassEntity klass(String id, String schoolId, String teacherId, String name) {
         var section = quest.server.ClassFixtures.section(classes, assignments, id, schoolId, "british", 1, "math", teacherId);
         section.setName(name);
         return classes.save(section);
     }
 
     /** A child on a section's roster, created through the parent API so her parent row and foreign keys are real. */
-    String child(String name, String schoolCode, ClassEntity section) throws Exception {
+    public String child(String name, String schoolCode, ClassEntity section) throws Exception {
         String id = parentPost("/children", "{\"name\":\"" + name + "\",\"avatarColor\":\"sun\",\"curriculum\":\""
                 + section.getCurriculum() + "\",\"grade\":" + section.getGrade() + ",\"schoolCode\":\"" + schoolCode + "\"}")
                 .get("id").asText();
@@ -155,7 +159,7 @@ abstract class GradingTestSupport extends ApiTestSupport {
      * A published lesson with one level and {@link ScoringTest}'s three stops: two single-answer and one retell, so
      * the score of a child who plays it is the one computed by hand there.
      */
-    LessonEntity lesson(String id, String schoolId, ClassEntity section, LocalDate date) {
+    public LessonEntity lesson(String id, String schoolId, ClassEntity section, LocalDate date) {
         var l = lessons.findById(id).orElseGet(LessonEntity::new);
         l.setId(id); l.setSchoolId(schoolId); l.setClassId(section.getId());
         l.setCourseId(section.getCurriculum() + "/" + section.getGrade()); l.setSubject("math"); l.setDate(date);
@@ -175,13 +179,13 @@ abstract class GradingTestSupport extends ApiTestSupport {
         return l;
     }
 
-    static String stopId(String lessonId, int stop) { return lessonId + ":s" + stop; }
+    public static String stopId(String lessonId, int stop) { return lessonId + ":s" + stop; }
 
     /**
      * A lesson `POST /teacher/lessons/{id}/publish` will accept: three levels, the "Again" variant, a parent panel
      * and one confirmed skill — what `LessonStore.assemble` insists on — left in `review`.
      */
-    LessonEntity readyToPublish(String id, String schoolId, ClassEntity section, LocalDate date, String type) {
+    public LessonEntity readyToPublish(String id, String schoolId, ClassEntity section, LocalDate date, String type) {
         var l = lesson(id, schoolId, section, date);
         l.setStatus("review"); l.setVersion(0); l.setPublishedAt(null); l.setType(type);
         l.setSourceHash("hash-" + id);
@@ -202,7 +206,7 @@ abstract class GradingTestSupport extends ApiTestSupport {
                 List.of(choice(lessonId + ":L" + level + "v" + variant + ":s1")), null);
     }
 
-    void attempt(String childId, String lessonId, int stop, int number, boolean correct, int stars) {
+    public void attempt(String childId, String lessonId, int stop, int number, boolean correct, int stars) {
         var a = new AttemptEntity();
         a.setId(prefix() + UUID.randomUUID()); a.setChildId(childId); a.setLessonId(lessonId);
         a.setStopId(stopId(lessonId, stop)); a.setLevel(1); a.setAnswerJson("{}"); a.setCorrect(correct);
@@ -212,7 +216,7 @@ abstract class GradingTestSupport extends ApiTestSupport {
     }
 
     /** {@link ScoringTest}'s sample, played for real: 3 stars, wrong-then-right, and an unmarked retell. */
-    void playTheSample(String childId, String lessonId) {
+    public void playTheSample(String childId, String lessonId) {
         attempt(childId, lessonId, 1, 1, true, 3);
         attempt(childId, lessonId, 2, 1, false, 1);
         attempt(childId, lessonId, 2, 2, true, 2);
@@ -235,7 +239,7 @@ abstract class GradingTestSupport extends ApiTestSupport {
 
     // ---------------------------------------------------------------- cleanup
 
-    void removeSeed() {
+    public void removeSeed() {
         String p = prefix();
         childRows.findAll().stream().filter(c -> c.getSchoolId().startsWith(p) && c.getDeletedAt() == null)
                 .forEach(c -> { c.setDeletedAt(Instant.now()); childRows.save(c); });
@@ -249,7 +253,7 @@ abstract class GradingTestSupport extends ApiTestSupport {
         lessons.deleteAll(mine);
     }
 
-    String schoolOf(String prefix) { return prefix + "school"; }
+    public String schoolOf(String prefix) { return prefix + "school"; }
 
-    static String defaultSchool() { return TenantContext.DEFAULT_SCHOOL; }
+    public static String defaultSchool() { return TenantContext.DEFAULT_SCHOOL; }
 }

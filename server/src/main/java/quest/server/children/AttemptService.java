@@ -23,16 +23,26 @@ import quest.server.content.LessonStore;
 public class AttemptService {
     private final AttemptRepository attempts; private final StopCompletionRepository stopCompletions; private final LessonCompletionRepository lessonCompletions;
     private final StreakRepository streaks; private final StickerRepository stickers; private final LessonRepository lessons; private final LessonStore store;
+    private final quest.server.exams.ExamAttemptService exams;
 
-    public AttemptService(AttemptRepository attempts, StopCompletionRepository stopCompletions, LessonCompletionRepository lessonCompletions, StreakRepository streaks, StickerRepository stickers, LessonRepository lessons, LessonStore store) {
-        this.attempts = attempts; this.stopCompletions = stopCompletions; this.lessonCompletions = lessonCompletions; this.streaks = streaks; this.stickers = stickers; this.lessons = lessons; this.store = store;
+    public AttemptService(AttemptRepository attempts, StopCompletionRepository stopCompletions, LessonCompletionRepository lessonCompletions, StreakRepository streaks, StickerRepository stickers, LessonRepository lessons, LessonStore store, quest.server.exams.ExamAttemptService exams) {
+        this.attempts = attempts; this.stopCompletions = stopCompletions; this.lessonCompletions = lessonCompletions; this.streaks = streaks; this.stickers = stickers; this.lessons = lessons; this.store = store; this.exams = exams;
     }
 
+    /**
+     * N4.3 (§8): an upload naming an exam goes through {@link quest.server.exams.ExamAttemptService} first — the
+     * window and the one-sitting rule are checked for the whole batch <strong>before</strong> a row is written, so
+     * a refused upload leaves nothing behind, and the sitting is handed in afterwards if the paper is now complete.
+     * A homework batch does not touch it and costs nothing.
+     */
     @Transactional
     public int record(Entities.ChildEntity child, List<AttemptUpload> uploads) {
         int accepted = 0;
         Map<String, Instant> touchedLessons = new HashMap<>();
-        for (var lessonId : uploads.stream().map(AttemptUpload::getLessonId).distinct().toList()) requireSameSchool(child, lessonId);
+        var lessonIds = uploads.stream().map(AttemptUpload::getLessonId).distinct().toList();
+        for (var lessonId : lessonIds) requireSameSchool(child, lessonId);
+        var now = exams.now();
+        var sittings = exams.open(child, lessonIds, now);
         for (var a : uploads) {
             if (attempts.existsById(a.getId())) continue;
             var e = new Entities.AttemptEntity();
@@ -50,6 +60,7 @@ public class AttemptService {
             }
         }
         for (var entry : touchedLessons.entrySet()) { deriveLessonCompletions(child, entry.getKey(), entry.getValue()); touchStreak(child, entry.getValue()); }
+        exams.settle(child, sittings, now);
         return accepted;
     }
 

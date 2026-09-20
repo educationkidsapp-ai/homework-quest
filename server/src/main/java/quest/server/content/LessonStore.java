@@ -113,14 +113,20 @@ public class LessonStore {
         var first = levels.get(0);
         Theme theme = first.getTheme(); SourceKind kind = first.getKind();
         var date = new kotlinx.datetime.LocalDate(lesson.getDate().getYear(), lesson.getDate().getMonthValue(), lesson.getDate().getDayOfMonth());
+        // N4.3's four exam fields are left at their homework defaults here: this method knows nothing about exams,
+        // and `ExamPlays.decorate` fills them for the one caller that serves a lesson to a child.
         return new PublishedLesson(lesson.getId(), Math.max(1, lesson.getVersion()), course, Subject.valueOf(lesson.getSubject().toUpperCase()), date,
-                lesson.getTitle() == null ? "Lesson" : lesson.getTitle(), kind, theme, skillRefs, levels, variant, panel, images);
+                lesson.getTitle() == null ? "Lesson" : lesson.getTitle(), kind, theme, skillRefs, levels, variant, panel, images,
+                "homework", false, false, null);
     }
 
     public String assembleJson(Entities.LessonEntity lesson) {
         var pl = assemble(lesson);
-        return pl == null ? null : json.encodeShared(pl, PublishedLesson.Companion.serializer());
+        return pl == null ? null : encode(pl);
     }
+
+    /** The same encoding, for a caller that has decorated the assembled lesson (N4.3's exam fields). */
+    public String encode(PublishedLesson lesson) { return json.encodeShared(lesson, PublishedLesson.Companion.serializer()); }
 
     public static Curriculum curriculum(String s) { return Curriculum.valueOf(s.toUpperCase()); }
 }

@@ -25,7 +25,7 @@ class GradebookQueryCountTest extends GradingTestSupport {
     private static final String A = "gq-school", TEACHER = "gq-teacher", CLASS_1A = "gq-1a";
     private static final int CHILDREN = 30, LESSONS = 20;
 
-    @Override String prefix() { return "gq-"; }
+    @Override public String prefix() { return "gq-"; }
 
     @Autowired jakarta.persistence.EntityManagerFactory emf;
 
