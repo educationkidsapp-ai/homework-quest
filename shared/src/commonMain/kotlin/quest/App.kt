@@ -57,7 +57,7 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
         composable<Routes.SignIn> { SignInRoute(onSignedIn = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.SignIn) { inclusive = true } } }) }
         composable<Routes.AddChild> { entry ->
             val editingId = entry.toRoute<Routes.AddChild>().editingId
-            AddChildRoute(editingId, onSaved = { if (editingId == null) nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } else nav.popBackStack() }, onBack = if (editingId == null) null else ({ nav.popBackStack() }))
+            AddChildRoute(editingId, onSaved = { if (editingId == null) nav.toMapAfterAdd() else nav.popBackStack() }, onBack = if (editingId == null) null else ({ nav.popBackStack() }))
         }
         composable<Routes.ChildPicker> { ChildPickerRoute(onPicked = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } }, onAdd = { nav.navigate(Routes.AddChild()) }, onBack = { nav.popBackStack() }) }
         composable<Routes.WorldMap> {
@@ -112,4 +112,17 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
         }
         parentGraph(nav)
     }
+}
+
+/**
+ * Where a newly added child lands, and what Back does from there (D16 slice 2, `mobile-parent-acceptance` F5).
+ *
+ * The first child is added from a map that popped itself off the stack, so the form was the only entry left: Back
+ * from the new map showed *Add a child* again, pre-filled with the child who had just been saved, and Back once more
+ * left the app. This rebuilds the stack the parent expects instead — the child list underneath, the map on top — so
+ * Back is "who else is playing?" and never the form.
+ */
+private fun NavHostController.toMapAfterAdd() {
+    navigate(Routes.ChildPicker) { popUpTo(0) { inclusive = true } }
+    navigate(Routes.WorldMap)
 }

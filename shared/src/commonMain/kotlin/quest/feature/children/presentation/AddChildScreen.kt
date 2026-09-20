@@ -69,6 +69,13 @@ object AddChildContract {
         // ---- join school
         val schoolCode: String = "", val school: JoinSchoolInfo? = null, val joinStep: JoinStep = JoinStep.NONE,
         val lookingUp: Boolean = false, val schoolNotFound: Boolean = false,
+        /**
+         * The parent had already joined a school before this form opened (D16 slice 2). The code is then shown as a
+         * fact rather than asked for, and Save reuses it. "Use a different code" clears this and asks again.
+         */
+        val alreadyJoined: Boolean = false,
+        /** The school's name off the device, so the card still reads right when the lookup cannot be made. */
+        val joinedName: String? = null,
     ) : MviState {
         /** The chooser's options: the school's when one is confirmed, otherwise everything the app supports. */
         val curriculumOptions: List<Curriculum>
@@ -106,6 +113,7 @@ class AddChildViewModel(
             AddChildContract.Intent.Load -> {
                 val c = editingId?.let { id -> children.children().firstOrNull { it.id == id } }
                 reduce { if (c == null) copy(loaded = true) else copy(loaded = true, name = c.name, avatar = c.avatarColor, curriculum = c.curriculum, grade = c.grade, languages = c.languages) }
+                if (editingId == null) restoreJoin()
             }
             is AddChildContract.Intent.Name -> reduce { copy(name = intent.v, error = null) }
             is AddChildContract.Intent.Avatar -> reduce { copy(avatar = intent.v) }
@@ -131,7 +139,7 @@ class AddChildViewModel(
             }
             AddChildContract.Intent.ConfirmSchool -> {
                 val info = current.school ?: return
-                school.confirm(info)   // the colour transition starts here, before the child exists
+                school.confirm(current.schoolCode, info)   // the colour transition starts here, before the child exists
                 reduce {
                     copy(
                         joinStep = AddChildContract.JoinStep.CONFIRMED,
@@ -142,11 +150,13 @@ class AddChildViewModel(
             }
             AddChildContract.Intent.ClearSchool -> {
                 school.cancelJoin()   // and the colours fade back out over the same 300 ms
-                reduce { copy(schoolCode = "", school = null, joinStep = AddChildContract.JoinStep.NONE, schoolNotFound = false) }
+                reduce { copy(schoolCode = "", school = null, joinStep = AddChildContract.JoinStep.NONE, schoolNotFound = false, alreadyJoined = false, joinedName = null) }
             }
 
             AddChildContract.Intent.Save -> {
                 reduce { copy(busy = true, error = null) }
+                // CONFIRMED covers both "just joined on this screen" and "joined earlier and restored above", so a
+                // second child reaches the same school without the parent hunting for the letter again (F6).
                 val code = current.schoolCode.takeIf { current.joinStep == AddChildContract.JoinStep.CONFIRMED }
                 runCancellable {
                     if (editingId == null) addChild(CreateChildRequest(current.name.trim(), current.avatar, current.curriculum, current.grade, current.languages, code))
@@ -157,6 +167,29 @@ class AddChildViewModel(
                     reduce { copy(busy = false) }
                     effect(AddChildContract.Effect.Saved(child))
                 }.onFailure { e -> reduce { copy(busy = false, error = e.message) } }
+            }
+        }
+    }
+
+    /**
+     * §2's join is the parent's, not the child's (D16 slice 2). If a school was joined on this device the form does
+     * not ask again: the stored code is put back into the state as CONFIRMED, and the school is looked up once so the
+     * card shows its name and logo and the curriculum/grade choosers narrow to it. Offline the lookup fails and the
+     * cached name carries the card, with every curriculum and grade offered — which is what the form did before any
+     * school was joined, so nothing is worse than it was.
+     */
+    private suspend fun restoreJoin() {
+        val code = school.joinedCode.value?.takeIf { it.isNotBlank() } ?: return
+        // Read outside `reduce`: inside it `school` is the state's own JoinSchoolInfo, not the session.
+        val cachedName = school.branding.value.schoolName
+        reduce { copy(schoolCode = code, joinStep = AddChildContract.JoinStep.CONFIRMED, alreadyJoined = true, joinedName = cachedName) }
+        runCancellable { school.lookUp(code) }.onSuccess { info ->
+            reduce {
+                copy(
+                    school = info, joinedName = info.name,
+                    curriculum = info.curriculumOptions.takeIf { it.isNotEmpty() }?.let { if (curriculum in it) curriculum else it.first() } ?: curriculum,
+                    grade = info.gradeOptions.takeIf { it.isNotEmpty() }?.let { if (grade in it) grade else it.first() } ?: grade,
+                )
             }
         }
     }
@@ -230,7 +263,7 @@ fun AddChildScreen(state: AddChildContract.State, s: Strings, dispatch: (AddChil
  */
 @Composable
 private fun JoinSchoolSection(state: AddChildContract.State, s: Strings, dispatch: (AddChildContract.Intent) -> Unit) {
-    SectionTitle(s.schoolCode)
+    SectionTitle(if (state.alreadyJoined) s.yourSchool else s.schoolCode)
     if (state.joinStep == AddChildContract.JoinStep.CONFIRMED) {
         SchoolCard(state, s, confirmed = true, dispatch = dispatch)
         return
@@ -259,16 +292,21 @@ private fun JoinSchoolSection(state: AddChildContract.State, s: Strings, dispatc
     Spacer(Modifier.height(Dimens.s8))
 }
 
-/** The school behind the code: logo, name, and either "Join this school" or the joined state with a way back out. */
+/**
+ * The school behind the code: logo, name, and either "Join this school" or the joined state with a way back out.
+ *
+ * The name comes from the lookup when there is one and from the device otherwise, so a parent who is already joined
+ * still sees which school this is with no network (D16 slice 2).
+ */
 @Composable
 private fun SchoolCard(state: AddChildContract.State, s: Strings, confirmed: Boolean, dispatch: (AddChildContract.Intent) -> Unit) {
-    val school = state.school ?: return
+    val name = state.school?.name ?: state.joinedName ?: return
     ParentCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SchoolLogo(school.logoUrl, school.name, size = 56.dp)
+            SchoolLogo(state.school?.logoUrl, name, size = 56.dp)
             Spacer(Modifier.size(Dimens.s12))
             Column(Modifier.weight(1f)) {
-                Text(school.name, style = MaterialTheme.typography.titleLarge, color = Palette.parentInk)
+                Text(name, style = MaterialTheme.typography.titleLarge, color = Palette.parentInk)
                 Text(
                     if (confirmed) "${s.joinedSchool} · ${state.schoolCode}" else state.schoolCode,
                     style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft,

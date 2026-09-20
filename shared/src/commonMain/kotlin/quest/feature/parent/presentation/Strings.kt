@@ -38,6 +38,8 @@ data class Strings(
     val schoolCodePlaceholder: String = "ABC123", val schoolNotFound: String = "We couldn't find that school code.",
     val joinSchool: String = "Join this school", val joinedSchool: String = "Joined", val changeSchool: String = "Use a different code",
     val schoolCurriculumNote: String = "Your school sets the curriculum and grades below.",
+    // D16 slice 2: the join belongs to the parent, so later children are told which school they are joining.
+    val yourSchool: String = "Your school",
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -104,7 +106,7 @@ data class Strings(
             schoolCode = "رمز المدرسة", schoolCodeHint = "الرمز المكوّن من 6 أحرف من مدرسة طفلك. اتركه فارغًا إن لم يكن لديك رمز.",
             schoolCodePlaceholder = "ABC123", schoolNotFound = "لم نعثر على رمز المدرسة هذا.",
             joinSchool = "الانضمام إلى هذه المدرسة", joinedSchool = "تم الانضمام", changeSchool = "استخدم رمزًا آخر",
-            schoolCurriculumNote = "مدرستك تحدّد المنهج والصفوف أدناه.",
+            schoolCurriculumNote = "مدرستك تحدّد المنهج والصفوف أدناه.", yourSchool = "مدرستك",
             accuracyWords = mapOf("almost every time" to "في كل مرة تقريبًا", "most of the time" to "في معظم الأحيان", "more than half the time" to "أكثر من نصف المرات", "some of the time" to "أحيانًا", "not yet" to "ليس بعد"),
             weekdays = listOf("ن", "ث", "ر", "خ", "ج", "س", "ح"),
             months = listOf("يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"),

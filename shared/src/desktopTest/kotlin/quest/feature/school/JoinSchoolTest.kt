@@ -47,6 +47,14 @@ class JoinSchoolTest {
 
     private fun viewModel() = AddChildViewModel(null, children, AddChildUseCase(children), session)
 
+    private suspend fun awaitChild(name: String): quest.api.dto.Child {
+        repeat(400) {
+            children.children().firstOrNull { it.name == name }?.let { return it }
+            delay(5)
+        }
+        error("no child called $name was ever saved")
+    }
+
     private suspend fun AddChildViewModel.settle(predicate: (AddChildContract.State) -> Boolean) {
         repeat(400) {
             if (predicate(state.value)) return
@@ -152,6 +160,71 @@ class JoinSchoolTest {
         // and the app is no longer wearing a school it never joined
         assertNull(session.theme.value)
         assertEquals("Homework Quest", session.branding.value.appName)
+    }
+
+    /** D16 slice 2 / F6: the join is the parent's, so the second child is not asked for the code again. */
+    @Test fun theCodeIsAskedOnceAndTheNextChildReusesIt() = runBlocking {
+        auth.signIn("parent@example.com", "secret123")
+        val first = viewModel()
+        first.dispatch(AddChildContract.Intent.Name("Maya"))
+        first.dispatch(AddChildContract.Intent.SchoolCode("ALNOOR"))
+        first.settle { it.school != null }
+        first.dispatch(AddChildContract.Intent.ConfirmSchool)
+        first.settle { it.joinStep == AddChildContract.JoinStep.CONFIRMED }
+        first.dispatch(AddChildContract.Intent.Save)
+        first.settle { !it.busy && it.error == null && session.schoolId.value != null }
+        assertEquals("ALNOOR", session.joinedCode.value)
+
+        // A second Add child opens with the school already filled in and never shows the empty code field.
+        val second = viewModel()
+        second.settle { it.alreadyJoined && it.school != null }
+        assertEquals("ALNOOR", second.state.value.schoolCode)
+        assertEquals(AddChildContract.JoinStep.CONFIRMED, second.state.value.joinStep)
+        assertEquals("Al Noor School", second.state.value.joinedName)
+        assertEquals(FakeContentApi.alNoor.gradeOptions, second.state.value.gradeOptions)
+
+        second.dispatch(AddChildContract.Intent.Name("Omar"))
+        second.dispatch(AddChildContract.Intent.Save)
+        val omar = awaitChild("Omar")
+        assertEquals(FakeContentApi.AL_NOOR_ID, omar.schoolId, "the second child reached the school without a code being typed")
+    }
+
+    /** The code outlives the process: a relaunch still knows which school this parent joined. */
+    @Test fun theJoinedCodeIsRestoredOnTheNextLaunch() = runBlocking {
+        auth.signIn("parent@example.com", "secret123")
+        val vm = viewModel()
+        vm.dispatch(AddChildContract.Intent.Name("Maya"))
+        vm.dispatch(AddChildContract.Intent.SchoolCode("ALNOOR"))
+        vm.settle { it.school != null }
+        vm.dispatch(AddChildContract.Intent.ConfirmSchool)
+        vm.settle { it.joinStep == AddChildContract.JoinStep.CONFIRMED }
+        vm.dispatch(AddChildContract.Intent.Save)
+        vm.settle { !it.busy && session.schoolId.value != null }
+
+        val restored = SchoolSessionImpl(api, api, settings)
+        restored.restore()
+        assertEquals("ALNOOR", restored.joinedCode.value)
+    }
+
+    /** "Use a different code" puts the parent back in front of an empty field. */
+    @Test fun changingSchoolAsksForACodeAgain() = runBlocking {
+        auth.signIn("parent@example.com", "secret123")
+        val vm = viewModel()
+        vm.dispatch(AddChildContract.Intent.Name("Maya"))
+        vm.dispatch(AddChildContract.Intent.SchoolCode("ALNOOR"))
+        vm.settle { it.school != null }
+        vm.dispatch(AddChildContract.Intent.ConfirmSchool)
+        vm.settle { it.joinStep == AddChildContract.JoinStep.CONFIRMED }
+        vm.dispatch(AddChildContract.Intent.Save)
+        vm.settle { !it.busy && session.schoolId.value != null }
+
+        val second = viewModel()
+        second.settle { it.alreadyJoined }
+        second.dispatch(AddChildContract.Intent.ClearSchool)
+        second.settle { !it.alreadyJoined }
+        assertEquals("", second.state.value.schoolCode)
+        assertEquals(AddChildContract.JoinStep.NONE, second.state.value.joinStep)
+        assertNull(second.state.value.joinedName)
     }
 
     @Test fun theCodeShapeIsSixUpperCaseAlphanumerics() {

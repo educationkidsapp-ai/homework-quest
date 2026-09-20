@@ -33,6 +33,9 @@ class SchoolSessionImpl(
     private val _schoolId = MutableStateFlow<String?>(null)
     override val schoolId: StateFlow<String?> = _schoolId.asStateFlow()
 
+    private val _joinedCode = MutableStateFlow<String?>(null)
+    override val joinedCode: StateFlow<String?> = _joinedCode.asStateFlow()
+
     private val _theme = MutableStateFlow<SchoolTheme?>(null)
     override val theme: StateFlow<SchoolTheme?> = _theme.asStateFlow()
 
@@ -45,24 +48,30 @@ class SchoolSessionImpl(
     /** The school the parent confirmed in Add child, kept until the created child tells us its id. */
     private var confirmed: JoinSchoolInfo? = null
 
+    /** The code that found [confirmed]; stored beside the school id so Add child never asks for it twice. */
+    private var confirmedCode: String? = null
+
     override suspend fun restore() {
         _branding.value = SchoolBranding(appName = settings.get(KEY_PLATFORM_NAME) ?: SchoolBranding.DEFAULT_APP_NAME)
         val id = settings.get(KEY_CURRENT)?.takeIf { it.isNotBlank() } ?: return
         _schoolId.value = id
+        _joinedCode.value = settings.get(KEY_CURRENT_CODE)?.takeIf { it.isNotBlank() }
         readCache(id)
     }
 
     override suspend fun lookUp(code: String): JoinSchoolInfo = schools.schoolByCode(code.trim().uppercase())
 
-    override suspend fun confirm(info: JoinSchoolInfo) {
+    override suspend fun confirm(code: String, info: JoinSchoolInfo) {
         info.theme?.let { _theme.value = it }
-        // The id is not known until the child is created, so the name is held here and written in [use].
+        // The id is not known until the child is created, so the name and the code are held here and written in [use].
         confirmed = info
+        confirmedCode = code
         _branding.value = brandingFor(info.theme, info.logoUrl, info.name)
     }
 
     override suspend fun cancelJoin() {
         confirmed = null
+        confirmedCode = null
         val id = _schoolId.value
         if (id == null) forget() else readCache(id)
     }
@@ -79,6 +88,12 @@ class SchoolSessionImpl(
             settings.set(nameKey(id), info.name)
             _branding.value = brandingFor(info.theme ?: _theme.value, info.logoUrl, info.name)
             confirmed = null
+        }
+        // The code is the parent's, not the child's: it is written once and then reused for every later child.
+        confirmedCode?.let { code ->
+            settings.set(KEY_CURRENT_CODE, code)
+            _joinedCode.value = code
+            confirmedCode = null
         }
         sync()
     }
@@ -124,11 +139,14 @@ class SchoolSessionImpl(
     /** Back to the unthemed app: a child in the default school gets the design's own colours and the platform name. */
     private suspend fun forget() {
         confirmed = null
+        confirmedCode = null
         _schoolId.value = null
+        _joinedCode.value = null
         _theme.value = null
         _flags.value = DEFAULT_FLAGS
         _branding.value = SchoolBranding(appName = settings.get(KEY_PLATFORM_NAME)?.takeIf { it.isNotBlank() } ?: SchoolBranding.DEFAULT_APP_NAME)
         settings.set(KEY_CURRENT, null)
+        settings.set(KEY_CURRENT_CODE, null)
     }
 
     // ---- device cache ---------------------------------------------------------------------------------------------
@@ -164,6 +182,9 @@ class SchoolSessionImpl(
         const val DEFAULT_SCHOOL = "default"
 
         const val KEY_CURRENT = "school.current"
+
+        /** The code the parent joined with (D16 slice 2); one per device, because one parent signs in on it. */
+        const val KEY_CURRENT_CODE = "school.current.code"
         const val KEY_PLATFORM_NAME = "platform.name"
         fun nameKey(schoolId: String) = "school.name.$schoolId"
         fun themeKey(schoolId: String) = "school.theme.$schoolId"
