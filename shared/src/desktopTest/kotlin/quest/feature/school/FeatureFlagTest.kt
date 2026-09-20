@@ -44,6 +44,7 @@ class FeatureFlagTest {
         var themeCalls = 0
         override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> { flagCalls++; return flags }
         override suspend fun schoolByCode(code: String) = delegate.schoolByCode(code)
+        override suspend fun classByJoinCode(code: String) = delegate.classByJoinCode(code)
         override suspend fun schoolTheme(schoolId: String) = delegate.schoolTheme(schoolId)
         override suspend fun schoolTheme(schoolId: String, ifNoneMatch: String?): ThemeFetch { themeCalls++; return delegate.schoolTheme(schoolId, ifNoneMatch) }
         override suspend fun platformSettings() = delegate.platformSettings()
@@ -178,6 +179,7 @@ class FeatureFlagTest {
         override suspend fun uploadAttempts(childId: String, attempts: List<quest.api.dto.AttemptUpload>) = error("offline")
         override suspend fun uploadStopMedia(childId: String, stopId: String, media: quest.api.UploadFile, kind: quest.api.dto.MediaKind) = error("offline")
         override suspend fun progress(childId: String) = error("offline")
+        override suspend fun classByJoinCode(code: String) = error("offline")
         override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> = error("offline")
         override suspend fun schoolTheme(schoolId: String): SchoolTheme = error("offline")
         override suspend fun schoolByCode(code: String) = error("offline")

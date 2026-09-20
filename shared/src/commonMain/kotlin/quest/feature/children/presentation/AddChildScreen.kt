@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
+import quest.api.dashboard.ClassLookup
 import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.Child
 import quest.api.dto.CreateChildRequest
@@ -76,12 +77,21 @@ object AddChildContract {
         val alreadyJoined: Boolean = false,
         /** The school's name off the device, so the card still reads right when the lookup cannot be made. */
         val joinedName: String? = null,
+        // ---- class join code (§2): optional, and the more specific of the two codes
+        val classCode: String = "", val section: ClassLookup? = null,
+        val lookingUpClass: Boolean = false, val classNotFound: Boolean = false,
     ) : MviState {
         /** The chooser's options: the school's when one is confirmed, otherwise everything the app supports. */
         val curriculumOptions: List<Curriculum>
             get() = school?.curriculumOptions?.takeIf { joinStep == JoinStep.CONFIRMED && it.isNotEmpty() } ?: listOf(Curriculum.AMERICAN, Curriculum.BRITISH)
         val gradeOptions: List<Int>
             get() = school?.gradeOptions?.takeIf { joinStep == JoinStep.CONFIRMED && it.isNotEmpty() } ?: listOf(1, 2, 3)
+
+        /**
+         * A class card answers the course, so the choosers come off the form rather than disagreeing with the
+         * section the child is about to join — the server ignores them in that case anyway.
+         */
+        val courseIsFixed: Boolean get() = section != null
     }
 
     sealed interface Intent : MviIntent {
@@ -93,6 +103,10 @@ object AddChildContract {
         /** "Yes, this is my school": the theme applies now and the choosers narrow to it. */
         data object ConfirmSchool : Intent
         data object ClearSchool : Intent
+        data class ClassCode(val v: String) : Intent
+        /** Look the typed class code up. */
+        data object FindClass : Intent
+        data object ClearClass : Intent
     }
     sealed interface Effect : MviEffect { data class Saved(val child: Child) : Effect; data object Deleted : Effect }
 
@@ -137,6 +151,23 @@ class AddChildViewModel(
                     // same problem from the kitchen table, and neither is worth a second message.
                     .onFailure { reduce { copy(lookingUp = false, school = null, joinStep = AddChildContract.JoinStep.NONE, schoolNotFound = true) } }
             }
+            is AddChildContract.Intent.ClassCode -> {
+                val code = AddChildContract.normaliseCode(intent.v)
+                reduce { copy(classCode = code, classNotFound = false, section = null) }
+                if (code.length == AddChildContract.CODE_LENGTH) dispatch(AddChildContract.Intent.FindClass)
+            }
+            AddChildContract.Intent.FindClass -> {
+                val code = current.classCode
+                if (code.length != AddChildContract.CODE_LENGTH) return
+                reduce { copy(lookingUpClass = true, classNotFound = false) }
+                runCancellable { school.lookUpClass(code) }
+                    // The section answers the course, so the choosers move to it rather than sitting there
+                    // contradicting the card the parent is holding.
+                    .onSuccess { found -> reduce { copy(lookingUpClass = false, section = found, classNotFound = false, curriculum = found.curriculum, grade = found.grade) } }
+                    .onFailure { reduce { copy(lookingUpClass = false, section = null, classNotFound = true) } }
+            }
+            AddChildContract.Intent.ClearClass -> reduce { copy(classCode = "", section = null, classNotFound = false) }
+
             AddChildContract.Intent.ConfirmSchool -> {
                 val info = current.school ?: return
                 school.confirm(current.schoolCode, info)   // the colour transition starts here, before the child exists
@@ -158,10 +189,15 @@ class AddChildViewModel(
                 // CONFIRMED covers both "just joined on this screen" and "joined earlier and restored above", so a
                 // second child reaches the same school without the parent hunting for the letter again (F6).
                 val code = current.schoolCode.takeIf { current.joinStep == AddChildContract.JoinStep.CONFIRMED }
+                // A class code only travels once the lookup confirmed it; a half-typed one is not sent and rejected.
+                val classCode = current.classCode.takeIf { current.section != null }
+                val section = current.section
                 runCancellable {
-                    if (editingId == null) addChild(CreateChildRequest(current.name.trim(), current.avatar, current.curriculum, current.grade, current.languages, code))
+                    if (editingId == null) addChild(CreateChildRequest(current.name.trim(), current.avatar, current.curriculum, current.grade, current.languages, code, classCode))
                     else children.update(editingId, UpdateChildRequest(current.name.trim(), current.avatar, current.curriculum, current.grade, current.languages))
                 }.onSuccess { child ->
+                    // The section is a local note, so it is written before anything that touches the network.
+                    children.rememberSection(child.id, section?.name)
                     // The server decides which school the code belongs to; that id is what the theme and flags follow.
                     runCancellable { school.use(child.schoolId) }
                     reduce { copy(busy = false) }
@@ -207,7 +243,10 @@ fun AddChildRoute(editingId: String?, onSaved: () -> Unit, onBack: (() -> Unit)?
 @Composable
 fun AddChildScreen(state: AddChildContract.State, s: Strings, dispatch: (AddChildContract.Intent) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
-        if (state.editingId == null) JoinSchoolSection(state, s, dispatch)
+        if (state.editingId == null) {
+            JoinSchoolSection(state, s, dispatch)
+            ClassCodeSection(state, s, dispatch)
+        }
         SectionTitle(s.childName)
         OutlinedTextField(state.name, { dispatch(AddChildContract.Intent.Name(it)) }, Modifier.fillMaxWidth(), placeholder = { Text(s.childName) }, singleLine = true)
         SectionTitle(s.avatar)
@@ -220,15 +259,19 @@ fun AddChildScreen(state: AddChildContract.State, s: Strings, dispatch: (AddChil
                 ) { Pip(PipPose.IDLE, 60.dp, animated = false, color = key) }
             }
         }
-        SectionTitle(s.curriculum)
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
-            // Only the curricula this school teaches once one is joined; all of them otherwise.
-            state.curriculumOptions.forEach { c ->
-                Chip(if (c == Curriculum.AMERICAN) s.american else s.british, selected = state.curriculum == c) { dispatch(AddChildContract.Intent.SetCurriculum(c)) }
+        // A class card already says which course the child is in, so the choosers come off rather than offering a
+        // choice the server would ignore (`ChildService.create`: the join code is the more specific answer).
+        if (!state.courseIsFixed) {
+            SectionTitle(s.curriculum)
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
+                // Only the curricula this school teaches once one is joined; all of them otherwise.
+                state.curriculumOptions.forEach { c ->
+                    Chip(if (c == Curriculum.AMERICAN) s.american else s.british, selected = state.curriculum == c) { dispatch(AddChildContract.Intent.SetCurriculum(c)) }
+                }
             }
+            SectionTitle(s.grade)
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) { state.gradeOptions.forEach { g -> Chip("$g", selected = state.grade == g) { dispatch(AddChildContract.Intent.Grade(g)) } } }
         }
-        SectionTitle(s.grade)
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) { state.gradeOptions.forEach { g -> Chip("$g", selected = state.grade == g) { dispatch(AddChildContract.Intent.Grade(g)) } } }
         SectionTitle(s.languages)
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
             Chip("English", selected = "en" in state.languages) { dispatch(AddChildContract.Intent.ToggleLanguage("en")) }
@@ -293,6 +336,53 @@ private fun JoinSchoolSection(state: AddChildContract.State, s: Strings, dispatc
 }
 
 /**
+ * §2 class join code: the code printed on the teacher's class card, and the one the app should be asking for now
+ * that sections exist (D16 slice 3).
+ *
+ * It is optional and it is the *narrower* of the two codes: with it the child is created already on the section's
+ * roster, so she sees that class's lessons and only that class's lessons. Without it she is created unplaced, exactly
+ * as before — which works, but until the teacher puts her on a roster her map shows one copy of the lesson per
+ * section of her course, and the hint below says so rather than leaving the parent to discover it.
+ */
+@Composable
+private fun ClassCodeSection(state: AddChildContract.State, s: Strings, dispatch: (AddChildContract.Intent) -> Unit) {
+    SectionTitle(s.classCode)
+    val found = state.section
+    if (found != null) {
+        ParentCard {
+            Text(found.name, style = MaterialTheme.typography.titleLarge, color = Palette.parentInk)
+            Text(
+                "${if (found.curriculum == Curriculum.AMERICAN) s.american else s.british} · ${s.grade} ${found.grade} · ${found.schoolName}",
+                style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft,
+            )
+            Spacer(Modifier.height(Dimens.s12))
+            ParentButton(s.changeClass, { dispatch(AddChildContract.Intent.ClearClass) }, primary = false)
+        }
+        Spacer(Modifier.height(Dimens.s8))
+        return
+    }
+    OutlinedTextField(
+        state.classCode,
+        { dispatch(AddChildContract.Intent.ClassCode(it)) },
+        Modifier.fillMaxWidth().semantics { contentDescription = s.classCode },
+        placeholder = { Text(s.schoolCodePlaceholder) },
+        singleLine = true,
+        isError = state.classNotFound,
+        supportingText = { Text(s.classCodeHint, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft) },
+    )
+    if (state.classNotFound) {
+        Spacer(Modifier.height(Dimens.s8))
+        Row(
+            Modifier.fillMaxWidth().background(Palette.parentAccentSoft).border(2.dp, Palette.parentAccent).padding(horizontal = Dimens.s12, vertical = Dimens.s8),
+            verticalAlignment = Alignment.CenterVertically,
+        ) { Text(s.classNotFound, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk) }
+    }
+    Spacer(Modifier.height(Dimens.s8))
+    Text(s.noClassCodeNote, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+    Spacer(Modifier.height(Dimens.s8))
+}
+
+/**
  * The school behind the code: logo, name, and either "Join this school" or the joined state with a way back out.
  *
  * The name comes from the lookup when there is one and from the device otherwise, so a parent who is already joined
@@ -328,16 +418,20 @@ private fun SchoolCard(state: AddChildContract.State, s: Strings, confirmed: Boo
 fun ChildPickerRoute(onPicked: () -> Unit, onAdd: () -> Unit, onBack: () -> Unit) {
     val repo: ChildrenRepository = org.koin.compose.koinInject()
     var list by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<List<Child>>(emptyList()) }
+    var sections by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Map<String, String>>(emptyMap()) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    LaunchedEffect(Unit) { list = repo.refresh() }
+    LaunchedEffect(Unit) {
+        list = repo.refresh()
+        sections = list.mapNotNull { c -> repo.sectionName(c.id)?.let { c.id to it } }.toMap()
+    }
     ParentShell(title = { it.whoIsPlaying }, onBack = onBack) { s ->
-        ChildPickerScreen(list, s, onPick = { c -> scope.launch { repo.select(c.id); onPicked() } }, onAdd = onAdd)
+        ChildPickerScreen(list, s, onPick = { c -> scope.launch { repo.select(c.id); onPicked() } }, onAdd = onAdd, sections = sections)
     }
 }
 
 /** Pick which child is playing (only shown when the parent has more than one). */
 @Composable
-fun ChildPickerScreen(children: List<Child>, s: Strings, onPick: (Child) -> Unit, onAdd: () -> Unit) {
+fun ChildPickerScreen(children: List<Child>, s: Strings, onPick: (Child) -> Unit, onAdd: () -> Unit, sections: Map<String, String> = emptyMap()) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
         SectionTitle(s.whoIsPlaying)
         children.forEach { c ->
@@ -345,7 +439,10 @@ fun ChildPickerScreen(children: List<Child>, s: Strings, onPick: (Child) -> Unit
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Pip(PipPose.IDLE, 56.dp, animated = false, color = c.avatarColor)
                     Spacer(Modifier.size(Dimens.s12))
-                    Column { Text(c.name, style = MaterialTheme.typography.titleLarge, color = Palette.parentInk); Text("${if (c.curriculum == Curriculum.BRITISH) s.british else s.american} · ${s.grade} ${c.grade}", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft) }
+                    Column {
+                        Text(c.name, style = MaterialTheme.typography.titleLarge, color = Palette.parentInk)
+                        Text(sections[c.id] ?: "${if (c.curriculum == Curriculum.BRITISH) s.british else s.american} · ${s.grade} ${c.grade}", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft)
+                    }
                 }
             }
         }

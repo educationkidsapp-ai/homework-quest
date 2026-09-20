@@ -40,6 +40,12 @@ data class Strings(
     val schoolCurriculumNote: String = "Your school sets the curriculum and grades below.",
     // D16 slice 2: the join belongs to the parent, so later children are told which school they are joining.
     val yourSchool: String = "Your school",
+    // D16 slice 3: the class join code from the teacher's class card (§2).
+    val classCode: String = "Class code",
+    val classCodeHint: String = "The code on your child's class card, if the teacher sent one. Leave it empty if you do not have one.",
+    val classNotFound: String = "We couldn't find that class code.",
+    val changeClass: String = "Use a different class code",
+    val noClassCodeNote: String = "Without a class code your child can still play. Until the teacher adds her to a class, the same lesson may appear once for each class in her year.",
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -107,6 +113,9 @@ data class Strings(
             schoolCodePlaceholder = "ABC123", schoolNotFound = "لم نعثر على رمز المدرسة هذا.",
             joinSchool = "الانضمام إلى هذه المدرسة", joinedSchool = "تم الانضمام", changeSchool = "استخدم رمزًا آخر",
             schoolCurriculumNote = "مدرستك تحدّد المنهج والصفوف أدناه.", yourSchool = "مدرستك",
+            classCode = "رمز الفصل", classCodeHint = "الرمز الموجود على بطاقة فصل طفلك، إن أرسلته المعلّمة. اتركه فارغًا إن لم يكن لديك رمز.",
+            classNotFound = "لم نعثر على رمز الفصل هذا.", changeClass = "استخدم رمز فصل آخر",
+            noClassCodeNote = "بدون رمز الفصل يستطيع طفلك اللعب. وإلى أن تضيفه المعلّمة إلى فصل، قد يظهر الدرس نفسه مرة لكل فصل في صفّه.",
             accuracyWords = mapOf("almost every time" to "في كل مرة تقريبًا", "most of the time" to "في معظم الأحيان", "more than half the time" to "أكثر من نصف المرات", "some of the time" to "أحيانًا", "not yet" to "ليس بعد"),
             weekdays = listOf("ن", "ث", "ر", "خ", "ج", "س", "ح"),
             months = listOf("يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"),

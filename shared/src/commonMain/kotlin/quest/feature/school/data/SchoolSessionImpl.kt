@@ -7,6 +7,7 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import quest.api.ContentApi
 import quest.api.DEFAULT_FLAGS
+import quest.api.dashboard.ClassLookup
 import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.SchoolTheme
 import quest.core.db.QuestJson
@@ -60,6 +61,8 @@ class SchoolSessionImpl(
     }
 
     override suspend fun lookUp(code: String): JoinSchoolInfo = schools.schoolByCode(code.trim().uppercase())
+
+    override suspend fun lookUpClass(code: String): ClassLookup = schools.classByJoinCode(code.trim().uppercase())
 
     override suspend fun confirm(code: String, info: JoinSchoolInfo) {
         info.theme?.let { _theme.value = it }

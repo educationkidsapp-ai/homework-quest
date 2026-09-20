@@ -15,6 +15,17 @@ interface ChildrenRepository {
     suspend fun delete(id: String)
     suspend fun select(id: String)
     suspend fun clear()
+
+    /**
+     * The section a child sits in, as the parent's device knows it (D16 slice 3). It is written when the child is
+     * added with a class join code and read by the child list, so a placed child reads "1A British" rather than only
+     * "British · Grade 1".
+     *
+     * It is a device-side note, not the truth: `Child` carries no `classId`, so a child the *teacher* later places —
+     * or moves — is not reflected here until the server answers with the section. See the M1 report.
+     */
+    suspend fun sectionName(childId: String): String?
+    suspend fun rememberSection(childId: String, name: String?)
 }
 
 class AddChildUseCase(private val repo: ChildrenRepository) {

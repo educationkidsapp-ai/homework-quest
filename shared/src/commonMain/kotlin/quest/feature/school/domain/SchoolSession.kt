@@ -2,6 +2,7 @@ package quest.feature.school.domain
 
 import kotlinx.coroutines.flow.StateFlow
 import quest.api.DEFAULT_FLAGS
+import quest.api.dashboard.ClassLookup
 import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.SchoolTheme
 
@@ -55,6 +56,14 @@ interface SchoolSession : FlagStore, SchoolThemeStore {
 
     /** `GET /schools/by-code/{code}`. Throws `ApiException(NOT_FOUND)` for a code no school has. */
     suspend fun lookUp(code: String): JoinSchoolInfo
+
+    /**
+     * `POST /classes/lookup` — the section behind a **class** join code (`docs/teacher-flow.md` §2). A class code is
+     * the narrower of the two: it names the school *and* the section, so a child created with it is placed on a
+     * roster straight away instead of waiting for the teacher. Throws `ApiException(NOT_FOUND)` for a code no class
+     * has, and for one whose class or school is not active.
+     */
+    suspend fun lookUpClass(code: String): ClassLookup
 
     /**
      * The parent confirmed a school in Add child. The theme applies straight away — before the child exists, so the

@@ -37,7 +37,11 @@ import quest.ui.design.Pip
 import quest.ui.design.PipPose
 
 object ParentHomeContract {
-    data class State(val loading: Boolean = true, val children: List<Child> = emptyList(), val current: Child? = null, val today: List<CalendarDay> = emptyList()) : MviState
+    data class State(
+        val loading: Boolean = true, val children: List<Child> = emptyList(), val current: Child? = null, val today: List<CalendarDay> = emptyList(),
+        /** Child id → the section the child was placed in, when the parent added her with a class join code (§2). */
+        val sections: Map<String, String> = emptyMap(),
+    ) : MviState
     sealed interface Intent : MviIntent { data object Load : Intent; data class Select(val id: String) : Intent; data object SignOut : Intent }
     sealed interface Effect : MviEffect { data object NeedsChild : Effect; data object SignedOut : Effect }
 }
@@ -48,11 +52,12 @@ class ParentHomeViewModel(private val children: ChildrenRepository, private val 
         when (intent) {
             ParentHomeContract.Intent.Load -> {
                 val list = children.refresh()
+                val sections = list.mapNotNull { c -> children.sectionName(c.id)?.let { c.id to it } }.toMap()
                 val current = children.currentChild.value
-                if (current == null) { reduce { copy(loading = false, children = list) }; effect(ParentHomeContract.Effect.NeedsChild); return }
+                if (current == null) { reduce { copy(loading = false, children = list, sections = sections) }; effect(ParentHomeContract.Effect.NeedsChild); return }
                 val today = Today.date()
                 val days = runCatching { calendar(current, today.year, today.monthNumber, today) }.getOrDefault(emptyList()).filter { it.date == today }
-                reduce { copy(loading = false, children = list, current = current, today = days) }
+                reduce { copy(loading = false, children = list, current = current, today = days, sections = sections) }
             }
             is ParentHomeContract.Intent.Select -> { children.select(intent.id); handle(ParentHomeContract.Intent.Load) }
             ParentHomeContract.Intent.SignOut -> { auth.signOut(); children.clear(); effect(ParentHomeContract.Effect.SignedOut) }
@@ -86,7 +91,9 @@ fun ParentHomeScreen(
                     Spacer(Modifier.size(Dimens.s12))
                     Column(Modifier.weight(1f)) {
                         Text(c.name, style = MaterialTheme.typography.titleLarge, color = Palette.parentInk)
-                        Text("${if (c.curriculum == Curriculum.BRITISH) s.british else s.american} · ${s.grade} ${c.grade}", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft)
+                        // The section when the child has one, the course otherwise — "1A British" says more to a
+                        // parent than "British · Grade 1", and it is the line the teacher will name on the phone.
+                        Text(state.sections[c.id] ?: "${if (c.curriculum == Curriculum.BRITISH) s.british else s.american} · ${s.grade} ${c.grade}", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft)
                     }
                     if (selected) Chip("✓")
                 }

@@ -10,6 +10,7 @@ import quest.api.AuthState
 import quest.api.ContentApi
 import quest.api.DEFAULT_FLAGS
 import quest.api.UploadFile
+import quest.api.dashboard.ClassLookup
 import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
@@ -59,8 +60,20 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
 
     override suspend fun createChild(request: CreateChildRequest): Child {
         net()
-        val school = if (request.schoolCode?.trim()?.uppercase() == AL_NOOR_CODE) AL_NOOR_ID else "default"
-        val child = Child(Ids.random(), request.name, request.avatarColor, request.curriculum, request.grade, request.languages, schoolId = school)
+        // A class join code is the more specific answer: the school, curriculum and grade all come from the section
+        // and whatever the form said is ignored, exactly as `ChildService.create` does it.
+        val section = request.joinCode?.trim()?.uppercase()?.takeIf { it.isNotBlank() }?.let { code ->
+            sections[code] ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No class with code $code"))
+        }
+        val school = when {
+            section != null -> AL_NOOR_ID
+            request.schoolCode?.trim()?.uppercase() == AL_NOOR_CODE -> AL_NOOR_ID
+            else -> "default"
+        }
+        val child = Child(
+            Ids.random(), request.name, request.avatarColor,
+            section?.curriculum ?: request.curriculum, section?.grade ?: request.grade, request.languages, schoolId = school,
+        )
         mutex.withLock { children.getOrPut(uid()) { mutableListOf() } += child }
         return child
     }
@@ -125,6 +138,11 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         net()
         if (code.trim().uppercase() != AL_NOOR_CODE) throw ApiException(ApiError(ApiError.NOT_FOUND, "No school with code $code"))
         return alNoor
+    }
+
+    override suspend fun classByJoinCode(code: String): ClassLookup {
+        net()
+        return sections[code.trim().uppercase()] ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No class with code $code"))
     }
 
     override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> { net(); return DEFAULT_FLAGS }
@@ -209,6 +227,12 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
             gradeOptions = listOf(1, 2, 3),
             theme = alNoorTheme,
         )
+
+        /** Two sections of the fake school, so a class join card is playable without a backend (§2). */
+        val sections: Map<String, ClassLookup> = listOf(
+            ClassLookup(classId = "al-noor:british:1:1a", name = "1A British", grade = 1, curriculum = Curriculum.BRITISH, schoolName = "Al Noor School"),
+            ClassLookup(classId = "al-noor:american:1:1a", name = "1A American", grade = 1, curriculum = Curriculum.AMERICAN, schoolName = "Al Noor School"),
+        ).let { mapOf("CLASS1" to it[0], "CLASS2" to it[1]) }
 
         /** What `GET /platform-settings` answers without a backend. */
         val platformDefaults = PlatformSettings(name = "Homework Quest", shortName = "Quest")
