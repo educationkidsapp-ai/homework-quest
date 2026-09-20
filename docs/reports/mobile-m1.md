@@ -15,8 +15,8 @@ The package answers `docs/reports/mobile-parent-acceptance.md` findings **F5** a
 |---|------|-----------|-----------------|
 | 1 | The app decodes with `ignoreUnknownKeys = true` (`AppJson`), separately from the strict `SchemaValidator.json` | `ContractToleranceTest` — a `PublishedLesson` and a `ProgressResponse` with fields no build has heard of | **pass** — the app built on `AppJson` signs in, joins, adds children and loads maps against live QA |
 | 2 | The school code is asked once per parent; Back from the map goes to the child list | `JoinSchoolTest` (3 new cases) | **pass** — see below |
-| 3 | Optional **class join code** on Add child; the child is created placed | `ClassCodeTest` (5 cases) | **partial** — the round trip to `POST /classes/lookup` works against QA; the happy path was not driven (no section code available, see *Blocked*) |
-| 4 | Released score, band and teacher comment in the parent view | `ReleasedResultsTest` (5 cases, incl. the §6 guard) | **not run** — needs a teacher to publish, mark and release (see *Blocked*) |
+| 3 | Optional **class join code** on Add child; the child is created placed | `ClassCodeTest` (5 cases) | **pass** — walked live with `1A British`'s real code, see *Second pass* |
+| 4 | Released score, band and teacher comment in the parent view | `ReleasedResultsTest` (5 cases, incl. the §6 guard) | see *Second pass* |
 
 ## What was walked on the device
 
@@ -36,6 +36,36 @@ Screenshots `06` and `07` are rendered by the desktop screenshot tests (`46b-pro
 `41d-add-child-class-code`): the released-results section and the class card that takes the course choosers
 off the form.
 
+## Second pass — with a teacher on QA
+
+The coordinator seeded the teacher side: section `1A British` join code `ECYER6`, and lesson
+`bb38fee4-009f-4708-ba9f-92b47f09c46d` *"M1 device check — counting in 2s"* published **to 1A British only**.
+Same APK, same throwaway parent.
+
+| # | Step | Expected | Observed | Result | Screenshot |
+|---|------|----------|----------|--------|------------|
+| 1 | Add child, class code `ECYER6` | the card names the section | **"1A British · British · Grade 1 · Default school"**, and the Curriculum and Grade choosers came off the form — the card answers the course | pass | `08` |
+| 2 | Save `M1Placed` | created placed | saved; the map opened on *M1Placed's quest* | pass | — |
+| 3 | The map | the lesson **once** | *"M1 device check — counting in 2s"* appears **exactly once** (beside the unrelated seed lesson *How it works*). The two unplaced children on the same account still see their duplicates, so this is the placement doing the work, not the lesson | pass | `09` |
+| 4 | Child list | shows the section | **"M1Placed · 1A British"**, while `ChildOne` and `ChildTwo` still read "British · Grade 1" | pass | `10` |
+| 5 | Play it to the end | 7 stops, certificate | played all 7 (Learn → missing number → socks → Ben's count → fill the gap → true/false → 3-question exit ticket); *"The Twos Soup Pot is full!"* → certificate, 21 of 21 stars, new sticker | pass | `11` |
+| 6 | The play reaches the server | the island turns done | force-stopped and relaunched; the map, which is fetched fresh, shows the island **✓ Done** with its stars — so the attempts were uploaded | pass | — |
+
+**§6 held throughout.** Nothing in child mode showed a number for the work: the stop headers count stops
+("3 / 7") and ingredients ("2 of 7"), the certificate shows three stars and a star count, and there is no
+score, no percentage, no red X and no timer anywhere in the seven stops or on the finish screen.
+
+**Two content notes for the backend, not the app.** Stop 5 renders *"Fill the gap: 10, 12, __, 16, 20"* — the
+same dropped `18` slot as **F7** in the September pass, on a freshly generated lesson, so F7 is not fixed. And
+`Child` still has no id the parent's device can show, which is why step 3 below is identified by name.
+
+### Still open at the time of writing
+
+The teacher's mark and release (`PUT /teacher/marks`, `POST /teacher/lessons/{id}/release`) are the
+coordinator's to run. Once released, the parent check is: **Grown-ups → PIN → Progress**, which must show
+*Marked by the teacher* with the score, the band and Maya's comment, and **the lesson panel** for that lesson,
+which must show the same. Child mode must still show no number.
+
 ## Two bugs the emulator found, which the unit tests had not
 
 **The default school is a school.** QA's acceptance school *is* the default school: it has the code `HQ0001`
@@ -52,17 +82,14 @@ school — not only the new section name.
 
 ## Blocked — what could not be verified here
 
-* **No teacher credentials.** The brief points at `SEED_STAFF_PASSWORD` in a scratchpad `qa-e2e.env`; that file
-  does not exist in this session, and the value lives in Secret Manager. Without Maya or Rami there is no way to
-  publish a lesson, obtain a section's join code from her class page, mark an open stop or release a result — so
-  slice 3's happy path and the whole of slice 4 have unit tests and rendered screenshots but no live walk.
-* **Direct API calls from this session were refused** by the permission layer, so the class code could not be
-  read out of `GET /admin/classes` either. The app's own calls are unaffected — everything above went over the
-  network from the emulator.
-
-To finish the pass, someone with `SEED_STAFF_PASSWORD` needs to: sign in as Maya, read `1A British`'s join code
-off the class page, add a child in the app with it (expect "1A British · British · Grade 1 · Default school",
-one copy of the lesson on the map), play it, mark and release it, then open Parent mode → Progress.
+* **Direct API calls from this session are refused** by the permission layer, so nothing on the teacher side
+  could be driven from here: publishing, reading a section's join code, marking an open stop and releasing a
+  result were all done by the coordinator. The app's own calls are unaffected — every device step above went
+  over the network from the emulator to QA.
+* **The child's id cannot be read off the device.** The QA flavour is a release build, so `adb run-as` and
+  `adb root` are both refused and the app's SQLite file is unreadable; the app shows a child's name and section
+  and never an id. A child created in the app is therefore identified to the teacher side **by name and
+  section** — here `M1Placed` on `1A British`.
 
 ## Server gaps for the planner
 
