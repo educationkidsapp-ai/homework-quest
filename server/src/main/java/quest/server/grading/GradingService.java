@@ -93,18 +93,26 @@ public class GradingService {
         var marksByChild = marksByChild(marks.findByLessonId(lessonId));
         var work = workByChildStop(roster);
 
+        // N4.5 D1: **every** level's stops, level-major and in play order inside a level — not the top level's.
+        // A child is scored on the hardest level she actually attempted (`Scoring.scoredLevel`), and a published
+        // lesson always has three of them while most children play Level 1, so a column list taken from the top
+        // level matched no row's stop ids at all: every cell read "not attempted" and every mark the page offered
+        // was saved against a stop nobody had answered. The union cannot mismatch, and each row carries the level
+        // its own stops belong to.
         var columns = new ArrayList<GradingDto.ResultStop>();
-        int top = stopsByLevel.keySet().stream().mapToInt(Integer::intValue).max().orElse(0);
-        for (Stop stop : stopsByLevel.getOrDefault(top, List.of()))
-            columns.add(new GradingDto.ResultStop(stop.getId(), stop.getTitle(), stop.getType(), top,
-                    stop.getCategory() == quest.api.dto.StopCategory.OPEN));
+        var seen = new LinkedHashSet<String>();
+        for (var level : stopsByLevel.keySet().stream().sorted().toList())
+            for (Stop stop : stopsByLevel.getOrDefault(level, List.of()))
+                if (seen.add(stop.getId()))
+                    columns.add(new GradingDto.ResultStop(stop.getId(), stop.getTitle(), stop.getType(), level,
+                            stop.getCategory() == quest.api.dto.StopCategory.OPEN));
 
         var rows = new ArrayList<GradingDto.ChildResult>(roster.size());
         int played = 0, needsMarking = 0; double sum = 0; int scored = 0;
         for (var child : roster) {
             var mine = perStop(marksByChild.getOrDefault(child.getId(), Map.of()), lessonId);
             var score = Scoring.of(child.getId(), lessonId, stopsByLevel, byChild.getOrDefault(child.getId(), List.of()),
-                    stopMarks(mine), lessonMark(mine));
+                    stopMarks(mine), lessonMark(mine), quest.server.exams.ExamPlays.isExam(lesson));
             var lessonRow = mine.get(Entities.TeacherMarkEntity.LESSON);
             var childWork = work.getOrDefault(child.getId(), Map.of());
             var stops = score.stops().stream()
@@ -116,9 +124,9 @@ public class GradingService {
             needsMarking += score.needsMarking();
             if (score.score() != null) { sum += score.score(); scored++; }
             rows.add(new GradingDto.ChildResult(child.getId(), child.getName(), child.getClassId(), score.attempted(),
-                    score.levelReached(), score.autoScore(), score.teacherScore(), score.score(), score.band(),
-                    score.starsEarned(), score.starsTotal(), score.completion(), score.needsMarking(),
-                    lessonRow == null ? null : lessonRow.getComment(), stops));
+                    score.levelReached(), score.scoredLevel(), score.autoScore(), score.teacherScore(), score.score(),
+                    score.band(), score.starsEarned(), score.starsTotal(), score.answered(), score.total(),
+                    score.completion(), score.needsMarking(), lessonRow == null ? null : lessonRow.getComment(), stops));
         }
         return new GradingDto.LessonResults(lessonId, lesson.getTitle(), lesson.getClassId(),
                 section == null ? null : section.getName(), lesson.getSubject(), lesson.getDate().toString(),
@@ -146,6 +154,8 @@ public class GradingService {
         if (forLessons.isEmpty()) return out;
         var lessonIds = List.copyOf(out.keySet());
         var stopsByLesson = stopsByLevel(forLessons);
+        var isExam = new HashMap<String, Boolean>();
+        for (var lesson : forLessons) isExam.put(lesson.getId(), quest.server.exams.ExamPlays.isExam(lesson));
         var byChildLesson = new HashMap<String, Map<String, List<AttemptEntity>>>();
         for (var a : attempts.findByLessonIdIn(lessonIds))
             byChildLesson.computeIfAbsent(a.getChildId(), k -> new HashMap<>())
@@ -156,7 +166,8 @@ public class GradingService {
             for (var played : child.getValue().entrySet()) {
                 var mine = perStop(childMarks, played.getKey());
                 var score = Scoring.of(child.getKey(), played.getKey(), stopsByLesson.getOrDefault(played.getKey(), Map.of()),
-                        played.getValue(), stopMarks(mine), lessonMark(mine));
+                        played.getValue(), stopMarks(mine), lessonMark(mine),
+                        Boolean.TRUE.equals(isExam.get(played.getKey())));
                 if (score.needsMarking() > 0) out.merge(played.getKey(), score.needsMarking(), Integer::sum);
             }
         }
@@ -199,7 +210,8 @@ public class GradingService {
             for (var l : published) {
                 var mine = perStop(childMarks, l.getId());
                 var score = Scoring.of(child.getId(), l.getId(), stopsByLesson.getOrDefault(l.getId(), Map.of()),
-                        byLesson.getOrDefault(l.getId(), List.of()), stopMarks(mine), lessonMark(mine));
+                        byLesson.getOrDefault(l.getId(), List.of()), stopMarks(mine), lessonMark(mine),
+                        quest.server.exams.ExamPlays.isExam(l));
                 if (score.score() != null) {
                     scoredInWindow.add((double) score.score());
                     perLessonScores.computeIfAbsent(l.getId(), k -> new ArrayList<>()).add(score.score());
@@ -359,12 +371,14 @@ public class GradingService {
     public List<GradingDto.TeacherMark> saveMarks(Principals.User caller, GradingDto.SaveMarksRequest body) {
         var checked = new LinkedHashMap<String, LessonEntity>();
         for (var input : body.marks()) checked.computeIfAbsent(input.lessonId(), id -> scope.requireLesson(caller, id));
+        var playable = playedLevels(body, checked);
         var out = new ArrayList<GradingDto.TeacherMark>(body.marks().size());
         for (var input : body.marks()) {
             var lesson = checked.get(input.lessonId());
             var child = childService.scoped(input.childId());
             if (child.getClassId() != null && lesson.getClassId() != null && !child.getClassId().equals(lesson.getClassId()))
                 throw ApiException.badRequest("That child is not in the class this lesson was published to.");
+            requirePlayed(playable, lesson, child, input.stopId());
             String stopId = input.stopId() == null ? Entities.TeacherMarkEntity.LESSON : input.stopId();
             var existing = marks.findByChildIdAndLessonIdAndStopId(child.getId(), lesson.getId(), stopId).orElse(null);
             if (input.stars() == null && input.score() == null && (input.comment() == null || input.comment().isBlank())) {
@@ -386,6 +400,64 @@ public class GradingService {
             out.add(toDto(marks.save(row)));
         }
         return List.copyOf(out);
+    }
+
+    /**
+     * N4.5 D1's other half: a stop mark may only land on a level the child actually played.
+     *
+     * <p>The Results page draws one column group per level and a row's own stops are her scored level's, so a
+     * correct client cannot offer the wrong stop — but a mark is a write, the page it comes from is a browser, and
+     * the fault that made this necessary answered 200 and quietly stored stars the scorer then ignored. A mark that
+     * cannot be seen and cannot move a score is worse than a refusal, so the refusal is here: 409
+     * {@link quest.api.dto.ApiError#STOP_NOT_PLAYED}.
+     *
+     * <p>"Played" is <em>any</em> level she has an attempt on rather than only the level she is scored on: a child
+     * who went on to Level 2 has still done the Level 1 retell, and a teacher marking it is marking real work.
+     *
+     * <p>Two statements for the whole request whatever it holds — the plays of its lessons and the attempts of its
+     * children on them — so a page of thirty marks costs what one does. A lesson whose plays are missing is left
+     * alone: there is nothing to check it against, and refusing would be inventing a rule out of an empty read.
+     */
+    private Playable playedLevels(GradingDto.SaveMarksRequest body, Map<String, LessonEntity> checked) {
+        if (body.marks().stream().noneMatch(m -> m.stopId() != null)) return Playable.NOTHING_TO_CHECK;
+        var stopsByLesson = stopsByLevel(List.copyOf(checked.values()));
+        var checkable = new LinkedHashSet<String>();
+        stopsByLesson.forEach((lessonId, byLevel) -> { if (!byLevel.isEmpty()) checkable.add(lessonId); });
+        if (checkable.isEmpty()) return Playable.NOTHING_TO_CHECK;
+
+        var childIds = body.marks().stream().map(GradingDto.MarkInput::childId).distinct().toList();
+        var answered = new HashMap<String, java.util.Set<String>>();            // child + "/" + lesson → her stop ids
+        for (var a : attempts.findByChildIdInAndLessonIdIn(childIds, List.copyOf(checkable)))
+            answered.computeIfAbsent(a.getChildId() + "/" + a.getLessonId(), k -> new LinkedHashSet<>()).add(a.getStopId());
+
+        var out = new HashMap<String, Map<String, Integer>>();                  // child + "/" + lesson → stop → level
+        answered.forEach((key, hers) -> {
+            var byLevel = stopsByLesson.getOrDefault(key.substring(key.indexOf('/') + 1), Map.of());
+            var allowed = new HashMap<String, Integer>();
+            byLevel.forEach((level, stops) -> {
+                if (stops.stream().anyMatch(st -> hers.contains(st.getId())))
+                    for (Stop st : stops) allowed.put(st.getId(), level);
+            });
+            out.put(key, allowed);
+        });
+        return new Playable(checkable, out);
+    }
+
+    /** What a stop mark may land on: the lessons whose plays are known, and each child's allowed stops by level. */
+    private record Playable(java.util.Set<String> checkable, Map<String, Map<String, Integer>> byChildLesson) {
+        static final Playable NOTHING_TO_CHECK = new Playable(java.util.Set.of(), Map.of());
+    }
+
+    private static void requirePlayed(Playable playable, LessonEntity lesson, ChildEntity child, String stopId) {
+        if (stopId == null || !playable.checkable().contains(lesson.getId())) return;
+        var allowed = playable.byChildLesson().getOrDefault(child.getId() + "/" + lesson.getId(), Map.of());
+        if (allowed.isEmpty())
+            throw ApiException.conflict(quest.api.dto.ApiError.STOP_NOT_PLAYED,
+                    child.getName() + " has not played \"" + lesson.getTitle() + "\" yet, so there is nothing to mark.");
+        if (!allowed.containsKey(stopId))
+            throw ApiException.conflict(quest.api.dto.ApiError.STOP_NOT_PLAYED,
+                    child.getName() + " never answered that question — it belongs to a level of \""
+                            + lesson.getTitle() + "\" she has not played.");
     }
 
     // ---------------------------------------------------------------- release (§7)
@@ -454,7 +526,8 @@ public class GradingService {
         for (var lesson : released) {
             var perStop = perStop(mine, lesson.getId());
             var score = Scoring.of(child.getId(), lesson.getId(), stopsByLesson.getOrDefault(lesson.getId(), Map.of()),
-                    byLesson.getOrDefault(lesson.getId(), List.of()), stopMarks(perStop), lessonMark(perStop));
+                    byLesson.getOrDefault(lesson.getId(), List.of()), stopMarks(perStop), lessonMark(perStop),
+                    quest.server.exams.ExamPlays.isExam(lesson));
             if (!score.attempted()) continue;
             var lessonRow = perStop.get(Entities.TeacherMarkEntity.LESSON);
             out.add(new quest.api.dto.ReleasedResult(lesson.getId(), lesson.getTitle(),
@@ -483,7 +556,7 @@ public class GradingService {
             var perStop = perStop(mine, lesson.getId());
             out.add(new Scored(lesson, Scoring.of(child.getId(), lesson.getId(),
                     stopsByLesson.getOrDefault(lesson.getId(), Map.of()), byLesson.getOrDefault(lesson.getId(), List.of()),
-                    stopMarks(perStop), lessonMark(perStop))));
+                    stopMarks(perStop), lessonMark(perStop), quest.server.exams.ExamPlays.isExam(lesson))));
         }
         return List.copyOf(out);
     }

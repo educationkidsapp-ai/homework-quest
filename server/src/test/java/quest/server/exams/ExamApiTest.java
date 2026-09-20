@@ -239,6 +239,87 @@ class ExamApiTest extends ExamTestSupport {
         mvc.perform(as(get("/teacher/exams/" + EXAM + "/results/" + layla + "-nobody.pdf"), sara)).andExpect(status().isNotFound());
     }
 
+    // ---------------------------------------------------------------- the N4.5 verification's D2, D3 and D5
+
+    /**
+     * N4.5 D2: `CreateExamRequest` published `practiceLength` 3-20 while the lesson pipeline this route runs has
+     * always enforced 5-12, so a request the schema called legal came back 400. The pipeline's rule is the real
+     * one, and the contract now says so — checked against the served document, because the published schema is
+     * what a client generator believes.
+     */
+    @Test void the_practice_length_the_contract_publishes_is_the_one_the_pipeline_enforces() throws Exception {
+        var schema = json(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn())
+                .get("components").get("schemas").get("CreateExamRequest").get("properties").get("practiceLength");
+        assertThat(schema.get("minimum").asInt()).isEqualTo(5);
+        assertThat(schema.get("maximum").asInt()).isEqualTo(12);
+
+        var monday = LocalDate.now().with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY));
+        long opensAt = monday.atTime(9, 0).toInstant(java.time.ZoneOffset.UTC).toEpochMilli();
+        for (int length : java.util.List.of(3, 20))
+            mvc.perform(as(post("/teacher/classes/" + CLASS_1A + "/exams"), sara).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"title\":\"Too short or too long\",\"opensAt\":" + opensAt + ",\"closesAt\":"
+                                    + (opensAt + 1_800_000) + ",\"level\":\"1\",\"source\":\"manual\",\"practiceLength\":" + length + "}"))
+                    .andExpect(status().isBadRequest());
+        mvc.perform(as(post("/teacher/classes/" + CLASS_1A + "/exams"), sara).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Just right\",\"opensAt\":" + opensAt + ",\"closesAt\":"
+                                + (opensAt + 1_800_000) + ",\"level\":\"1\",\"source\":\"manual\",\"practiceLength\":12}"))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * N4.5 D3: re-opening an absent child wrote a `started` sitting for her, and the results counted every
+     * non-absent row into `sat` — so the card read "Sat it 2 of 3" beside a table with one score in it. A sitting
+     * is a child who answered something; until she does she is still absent, with her row reading `reopened` so
+     * the teacher can see the second chance is already given.
+     */
+    @Test void re_opening_an_absent_child_does_not_make_her_a_child_who_sat_the_exam() throws Exception {
+        publishedExam(-120, 120, ExamLevels.MANUAL);
+        sit(maya, true, true);
+
+        mvc.perform(as(post("/teacher/exams/" + EXAM + "/reopen/" + layla), sara)).andExpect(status().isOk());
+
+        var results = json(mvc.perform(as(get("/teacher/exams/" + EXAM + "/results"), sara))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(results.get("roster").asInt()).isEqualTo(3);
+        assertThat(results.get("sat").asInt()).as("only Maya has answered anything").isEqualTo(1);
+        assertThat(results.get("absent").asInt()).as("`sat` and `absent` are the two halves of the roster").isEqualTo(2);
+        assertThat(child(results, layla).get("state").asText()).isEqualTo("reopened");
+        assertThat(results.get("absentees")).extracting(n -> n.get("childId").asText())
+                .as("she is still on the list until she answers").contains(layla);
+
+        // She comes back and answers one question: now she has sat it.
+        parentPost("/children/" + layla + "/attempts", batch(upload("ex-back-1", EXAM, stop(EXAM, 1), true, 3)));
+        var after = json(mvc.perform(as(get("/teacher/exams/" + EXAM + "/results"), sara)).andReturn());
+        assertThat(after.get("sat").asInt()).isEqualTo(2);
+        assertThat(after.get("absent").asInt()).isEqualTo(1);
+    }
+
+    /**
+     * N4.5 D5: an exam is a fixed paper, so `percent` is over all of it and a question she never reached is a zero.
+     * Mid-sitting the old rule averaged only what she had answered and reported 100 % for a child one question in —
+     * hidden by the results page, believed by every export and every other API consumer.
+     */
+    @Test void a_percent_inside_the_paper_is_over_the_paper_and_not_over_what_she_has_answered() throws Exception {
+        publishedExam(-30, 30, ExamLevels.MANUAL);
+        parentPost("/children/" + maya + "/attempts", batch(
+                upload("ex-mid-1", EXAM, stop(EXAM, 1), true, 3), upload("ex-mid-2", EXAM, stop(EXAM, 2), true, 3)));
+
+        var row = child(json(mvc.perform(as(get("/teacher/exams/" + EXAM + "/results"), sara))
+                .andExpect(status().isOk()).andReturn()), maya);
+        assertThat(row.get("state").asText()).as("still inside the paper").isEqualTo("started");
+        assertThat(row.get("answered").asInt()).isEqualTo(2);
+        assertThat(row.get("total").asInt()).isEqualTo(3);
+        assertThat(row.get("percent").asInt()).as("(100 + 100 + 0) / 3, not the 100 of two right out of two").isEqualTo(67);
+        assertThat(row.get("band").asText()).isEqualTo("secure");
+
+        // And a homework is unchanged: there "how well did she do" is still about the stops she answered.
+        var homework = readyToPublish("ex-homework-5", A, section1a, LocalDate.now(), "homework");
+        publish(homework.getId());
+        attempt(omar, homework.getId(), 1, 1, true, 3);
+        assertThat(child(json(mvc.perform(as(get("/teacher/lessons/" + homework.getId() + "/results"), sara)).andReturn()), omar)
+                .get("autoScore").asInt()).as("one stop of five answered, and right").isEqualTo(100);
+    }
+
     // ---------------------------------------------------------------- settings, scope and the flag (§8, §4)
 
     @Test void an_exam_is_created_from_the_class_page_and_frozen_once_it_opens() throws Exception {

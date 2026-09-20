@@ -64,6 +64,11 @@ data class ApiError(val code: String, val message: String) {
         const val EXAM_ALREADY_REOPENED = "exam_already_reopened"
         /** 409 (§8): the settings of an exam are fixed once its window is open. */
         const val EXAM_OPEN = "exam_open"
+        /**
+         * 409 (N4.5 D1, §7): `PUT /teacher/marks` named a stop of a level the child has not played, so the mark
+         * would sit on a question she never answered — invisible on her row and ignored by the scorer.
+         */
+        const val STOP_NOT_PLAYED = "stop_not_played"
     }
 }
 

@@ -97,7 +97,14 @@ data class LessonRelease(
 // Results (§7, step 9)
 // -------------------------------------------------------------------------------------------------------------
 
-/** One stop of the lesson, in play order, so every child's row has the same columns. */
+/**
+ * One stop of the lesson: **every** level's, level-major and in play order inside a level (N4.5 D1).
+ *
+ * A child is scored on the hardest level she actually attempted ([ChildResult.scoredLevel]), and a published lesson
+ * always has three levels while most children play Level 1 — a column list taken from the top level matched no row's
+ * stop ids at all, so every cell read "not attempted" and every mark the page offered was saved against a stop
+ * nobody had answered. Group the columns by [level]; a row belongs in the group its [ChildResult.scoredLevel] names.
+ */
 @Serializable
 data class ResultStop(
     val stopId: String,
@@ -125,7 +132,13 @@ data class ChildStopResult(
     val workUrl: String? = null,
 )
 
-/** One row of the Results page: §7's `HomeworkScore` with the marks and the saved work beside it. */
+/**
+ * One row of the Results page: §7's `HomeworkScore` with the marks and the saved work beside it.
+ *
+ * [scoredLevel] is the level this row is about — the hardest she has an attempt on, 0 when she has played nothing —
+ * and [stops] are exactly that level's, attempted or not. [answered] of [total] are the two numbers [completion] is
+ * the ratio of. A stop mark may only be saved against a stop of a level she has played; see `stop_not_played`.
+ */
 @Serializable
 data class ChildResult(
     val childId: String,
@@ -133,6 +146,8 @@ data class ChildResult(
     val classId: String? = null,
     val attempted: Boolean = false,
     val levelReached: Int = 0,
+    /** The level her [stops] and her score are about; 0 when she has played nothing. */
+    val scoredLevel: Int = 0,
     val autoScore: Int? = null,
     val teacherScore: Int? = null,
     /** The override when she set one, the automatic score otherwise — what the gradebook and the parent see. */
@@ -140,6 +155,9 @@ data class ChildResult(
     val band: Level? = null,
     val starsEarned: Int = 0,
     val starsTotal: Int = 0,
+    /** Stops of [scoredLevel] she has reached, and how many it has. */
+    val answered: Int = 0,
+    val total: Int = 0,
     val completion: Int = 0,
     val needsMarking: Int = 0,
     /** The teacher's line to the parent about this lesson. */
@@ -163,6 +181,7 @@ data class LessonResults(
     val classAverage: Int? = null,
     val played: Int = 0,
     val needsMarking: Int = 0,
+    /** Every level's stops, level-major — see [ResultStop]. */
     val stops: List<ResultStop> = emptyList(),
     val children: List<ChildResult> = emptyList(),
 )

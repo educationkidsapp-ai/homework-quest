@@ -36,16 +36,27 @@ public class GradingExports {
         return xlsx("Results", resultsRows(results));
     }
 
-    /** Header, then one row per child: her score, what it was made of, and one column per stop. */
+    /**
+     * Header, then one row per child: her score, what it was made of, and <strong>one column group per level</strong>
+     * (N4.5 D1).
+     *
+     * <p>The stop columns are every level's, in the order the Results page draws them, and each one says which level
+     * it belongs to — `L1 Count the pots`. A child is scored on one level, so her row fills that group and leaves
+     * the others empty: a teacher sorting the sheet can see at a glance who played which level, and the sheet can no
+     * longer show a whole class as "not attempted" because the columns came from a level nobody reached.
+     */
     private static List<List<Object>> resultsRows(GradingDto.LessonResults results) {
         var rows = new java.util.ArrayList<List<Object>>();
-        var header = new java.util.ArrayList<Object>(List.of("Child", "Played", "Level reached", "Completion %",
-                "Stars", "Auto score", "Teacher score", "Score", "Band", "Needs marking", "Comment"));
-        for (var stop : results.stops()) header.add(stop.title() + (stop.open() ? " (open)" : ""));
+        var header = new java.util.ArrayList<Object>(List.of("Child", "Played", "Level played", "Level reached",
+                "Answered", "Out of", "Completion %", "Stars", "Auto score", "Teacher score", "Score", "Band",
+                "Needs marking", "Comment"));
+        for (var stop : results.stops()) header.add("L" + stop.level() + " " + stop.title() + (stop.open() ? " (open)" : ""));
         rows.add(header);
         for (var child : results.children()) {
             var row = new java.util.ArrayList<Object>();
-            row.add(child.name()); row.add(child.attempted() ? "yes" : "no"); row.add(child.levelReached());
+            row.add(child.name()); row.add(child.attempted() ? "yes" : "no");
+            row.add(child.scoredLevel() == 0 ? null : child.scoredLevel()); row.add(child.levelReached());
+            row.add(child.answered()); row.add(child.total());
             row.add(child.completion()); row.add(child.starsEarned() + "/" + child.starsTotal());
             row.add(child.autoScore()); row.add(child.teacherScore()); row.add(child.score()); row.add(child.band());
             row.add(child.needsMarking()); row.add(child.comment());

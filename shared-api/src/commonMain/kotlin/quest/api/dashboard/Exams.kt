@@ -125,6 +125,10 @@ data class ExamRow(
     /** One of [ExamRowState], decided by the server's clock at request time. */
     val state: String = ExamRowState.DRAFT,
     val roster: Int = 0,
+    /**
+     * Children who answered at least one question (N4.5 D3) — not children with a sitting row. `reopen` writes one
+     * for an absent child before she has touched the paper. [sat] + [absent] is always [roster].
+     */
     val sat: Int = 0,
     val needsMarking: Int = 0,
 )
@@ -145,6 +149,7 @@ data class CreateExamRequest(
     val durationMinutes: Int? = null,
     val releaseMode: String = ExamRelease.AUTO_ON_CLOSE,
     val notes: String? = null,
+    /** 5-12 stops, the rule the lesson pipeline has always enforced (N4.5 D2 — the contract used to say 3-20). */
     val practiceLength: Int? = null,
 )
 
@@ -174,6 +179,11 @@ enum class ExamState {
  * [score] out of [maxScore] is the stars she earned; [percent] is §7's 0-100 and is the number the band, the
  * gradebook and the child's level are all taken from. [needsMarking] counts her open stops the teacher has not
  * looked at yet — until it is zero, [percent] describes only what could be scored automatically.
+ *
+ * **[percent] is over the whole paper** (N4.5 D5): [answered] of [total] says how much of it she has done, and a
+ * question she has not reached counts as a zero. Mid-sitting that reads 40 at two right out of five, where the old
+ * "average of what she answered" reported 100 — a number the results page hid behind "handed in" but every export
+ * and every API consumer believed.
  */
 @Serializable
 data class ExamChildResult(
@@ -184,6 +194,9 @@ data class ExamChildResult(
     val maxScore: Int = 0,
     val percent: Int? = null,
     val band: Level? = null,
+    /** Questions of the paper she has answered, and how many it has. */
+    val answered: Int? = null,
+    val total: Int? = null,
     /** Start to submit, in seconds; null while she is still in it or was never in it. */
     val secondsTaken: Int? = null,
     val startedAt: Long? = null,
@@ -234,6 +247,10 @@ data class ExamResults(
     val released: Boolean = false,
     val releasedAt: Long? = null,
     val roster: Int = 0,
+    /**
+     * Children who answered at least one question (N4.5 D3) — not children with a sitting row. `reopen` writes one
+     * for an absent child before she has touched the paper. [sat] + [absent] is always [roster].
+     */
     val sat: Int = 0,
     val submitted: Int = 0,
     val absent: Int = 0,
@@ -243,7 +260,10 @@ data class ExamResults(
     val distribution: List<ExamBand> = emptyList(),
     val questions: List<ExamQuestion> = emptyList(),
     val children: List<ExamChildResult> = emptyList(),
-    /** The subset of [children] who never sat it — §8's "Re-open for this child" list. */
+    /**
+     * The subset of [children] who have answered nothing — §8's "Re-open for this child" list. A child already
+     * re-opened is still here until she answers; her own [ExamChildResult.state] reads `reopened`.
+     */
     val absentees: List<ExamChildResult> = emptyList(),
 )
 

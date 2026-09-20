@@ -28,6 +28,10 @@ public final class GradingDto {
      * takes back a star she gave by accident without a second route.
      *
      * <p>A released lesson can still be marked; see {@link ReleaseRequest}.
+     *
+     * <p><strong>`stopId` must name a stop of a level the child has played</strong>, or the whole request is a 409
+     * {@link quest.api.dto.ApiError#STOP_NOT_PLAYED} (N4.5 D1): a mark on a stop she never answered is invisible on
+     * her row and is ignored by the scorer, so accepting it would only lose the teacher's work quietly.
      */
     public record MarkInput(@NotBlank String childId, @NotBlank String lessonId, String stopId,
                             @Min(0) @Max(3) Integer stars, @Min(0) @Max(100) Integer score,
@@ -58,7 +62,14 @@ public final class GradingDto {
 
     // ---------------------------------------------------------------- results (§7, step 9)
 
-    /** One stop of the lesson, in play order, so the grid's columns are the same for every child. */
+    /**
+     * One stop of the lesson: <strong>every</strong> level's, level-major and in play order inside a level, so the
+     * columns are the same for every child however far she got (N4.5 D1).
+     *
+     * <p>A child is scored on the hardest level she attempted, and a published lesson always has three levels while
+     * most children play Level 1 — a column list taken from the top level matched no row at all. `level` is what a
+     * client groups the columns by, and {@link ChildResult#scoredLevel} says which group a row belongs in.
+     */
     public record ResultStop(String stopId, String title, String type, int level, boolean open) {}
 
     /** One child's stop: `accuracy` is the stars as a percentage, `score` what §7's rules made of them. */
@@ -66,11 +77,17 @@ public final class GradingDto {
                                   Integer accuracy, Integer score, Integer markStars, String markComment,
                                   boolean needsMarking, String workUrl) {}
 
-    /** One row of the Results page: §7's `HomeworkScore` with the marks and the saved work beside it. */
+    /**
+     * One row of the Results page: §7's `HomeworkScore` with the marks and the saved work beside it.
+     *
+     * <p>`scoredLevel` is the level this row is about — the hardest she has an attempt on, 0 when she has played
+     * nothing — and `stops` are exactly that level's, attempted or not. `answered` of `total` are the two numbers
+     * `completion` is the ratio of.
+     */
     public record ChildResult(String childId, String name, String classId, boolean attempted, int levelReached,
-                              Integer autoScore, Integer teacherScore, Integer score, String band, int starsEarned,
-                              int starsTotal, int completion, int needsMarking, String comment,
-                              List<ChildStopResult> stops) {}
+                              int scoredLevel, Integer autoScore, Integer teacherScore, Integer score, String band,
+                              int starsEarned, int starsTotal, int answered, int total, int completion,
+                              int needsMarking, String comment, List<ChildStopResult> stops) {}
 
     /** `GET /teacher/lessons/{id}/results`. `classAverage` is over the children who have a score. */
     public record LessonResults(String lessonId, String title, String classId, String className, String subject,

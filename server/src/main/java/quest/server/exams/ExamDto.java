@@ -58,11 +58,18 @@ public final class ExamDto {
         }
     }
 
-    /** `POST /teacher/classes/{id}/exams`: the same editor as a lesson, plus the window and the level. */
+    /**
+     * `POST /teacher/classes/{id}/exams`: the same editor as a lesson, plus the window and the level.
+     *
+     * <p>`practiceLength` is <strong>5–12</strong> (N4.5 D2). The contract published 3–20 while the lesson pipeline
+     * this route runs has always enforced 5–12 (`AdminLessonService.create`), so a request the published schema
+     * called legal came back 400. The pipeline's rule is the real one — fewer than five stops is not a level and
+     * more than twelve is not a sitting — and it is now the only one.
+     */
     public record CreateExamRequest(@NotBlank @Size(max = 120) String title, @NotNull Long opensAt, @NotNull Long closesAt,
                                     String level, String source, @Min(1) @Max(600) Integer durationMinutes,
                                     String releaseMode, @Size(max = 2000) String notes,
-                                    @Min(3) @Max(20) Integer practiceLength) {}
+                                    @Min(5) @Max(12) Integer practiceLength) {}
 
     /** `PATCH /teacher/exams/{id}`: only the fields that are present are written, and only while the window is shut. */
     public record UpdateExamRequest(@Size(max = 120) String title, Long opensAt, Long closesAt, String level,
@@ -77,13 +84,19 @@ public final class ExamDto {
      * gradebook cell and her level are all taken from. `needsMarking` counts the open stops nobody has looked at
      * yet: until it is zero, `percent` describes only what could be scored automatically.
      *
+     * <p><strong>`percent` is over the whole paper</strong> (N4.5 D5): `answered` of `total` says how much of it
+     * she has done, and every question she has not reached counts as a zero. Mid-sitting this reads 40 % at two
+     * right out of five rather than the 100 % the old "average of what she answered" reported — a number the
+     * results page hid behind "handed in" but every export and every API consumer believed.
+     *
      * <p>`lastSeenAt` is the last answer the sitting took. For a child still inside the paper it is the only thing
      * that separates "working on it" from "walked away from it ten minutes ago" — the column `exam_attempts` has
      * always written and nothing has ever read, which the #106 review asked to be either read or dropped.
      */
     public record ExamChildResult(String childId, String name, String state, int score, int maxScore, Integer percent,
-                                  String band, Integer secondsTaken, Long startedAt, Long lastSeenAt, Long submittedAt,
-                                  int needsMarking, boolean reopened, String comment) {}
+                                  String band, Integer answered, Integer total, Integer secondsTaken, Long startedAt,
+                                  Long lastSeenAt, Long submittedAt, int needsMarking, boolean reopened,
+                                  String comment) {}
 
     /** One column of the distribution chart: how many children landed in each of §7's four bands. */
     public record ExamBand(String band, int children) {}

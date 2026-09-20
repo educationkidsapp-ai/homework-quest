@@ -44,10 +44,39 @@ class GradingExportTest extends GradingTestSupport {
 
         assertThat(body[0] & 0xFF).as("Excel on Windows needs the BOM to read Arabic names").isEqualTo(0xEF);
         var lines = new String(body, StandardCharsets.UTF_8).substring(1).split("\n");
-        assertThat(lines[0]).startsWith("Child,Played,Level reached");
+        assertThat(lines[0]).startsWith("Child,Played,Level played,Level reached,Answered,Out of");
+        assertThat(lines[0]).as("each stop column names the level it belongs to (N4.5 D1)")
+                .contains(",L1 " + stopId(LESSON, 1) + ",");
         assertThat(lines).as("the header and both children").hasSize(3);
-        assertThat(lines[1]).startsWith("Maya,yes");
-        assertThat(lines[2]).startsWith("Omar,no");
+        assertThat(lines[1]).startsWith("Maya,yes,1,1,3,3");
+        assertThat(lines[2]).startsWith("Omar,no,,0,0,0");
+    }
+
+    /**
+     * N4.5 D1 in the sheet: three levels, one column group each, and a child's row filling only the group she
+     * played. The old export took its columns from the top level alone, so a class that played Level 1 came out as
+     * a grid of empty cells.
+     */
+    @Test void the_results_csv_writes_one_column_group_per_level() throws Exception {
+        String multi = "gx-multi-1";
+        readyToPublish(multi, A, klass(CLASS_1A, A, TEACHER, "1A"), LocalDate.now(), "homework");
+        mvc.perform(as(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/teacher/lessons/" + multi + "/publish")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"classIds\":[\"" + CLASS_1A + "\"]}"), teacherToken))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+        playTheSample(maya, multi);                                             // Level 1 only
+
+        var lines = new String(download("/teacher/lessons/" + multi + "/results.csv", "text/csv"),
+                StandardCharsets.UTF_8).substring(1).split("\n");
+        var header = lines[0].split(",");
+        assertThat(header).as("Level 1's three stops, then Level 2's and Level 3's one each")
+                .endsWith("L1 " + stopId(multi, 1), "L1 " + stopId(multi, 2), "L1 " + stopId(multi, 3) + " (open)",
+                        "L2 " + multi + ":L2v0:s1", "L3 " + multi + ":L3v0:s1");
+        var hers = java.util.Arrays.stream(lines).filter(l -> l.startsWith("Maya")).findFirst().orElseThrow().split(",", -1);
+        assertThat(hers[hers.length - 5]).as("her Level 1 cells are filled").isEqualTo("100");
+        assertThat(hers[hers.length - 2]).as("and the levels she did not play are empty").isEmpty();
+        assertThat(hers[hers.length - 1]).isEmpty();
     }
 
     @Test void the_results_workbook_opens_in_poi_with_its_scores_as_numbers() throws Exception {

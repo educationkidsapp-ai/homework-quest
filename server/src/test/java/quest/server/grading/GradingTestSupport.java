@@ -207,11 +207,16 @@ public abstract class GradingTestSupport extends ApiTestSupport {
     }
 
     public void attempt(String childId, String lessonId, int stop, int number, boolean correct, int stars) {
+        attemptStop(childId, lessonId, stopId(lessonId, stop), stop, number, correct, stars);
+    }
+
+    /** The same, on a stop named outright — a level 2 or 3 stop of {@link #readyToPublish}, say. */
+    public void attemptStop(String childId, String lessonId, String stopId, int order, int number, boolean correct, int stars) {
         var a = new AttemptEntity();
         a.setId(prefix() + UUID.randomUUID()); a.setChildId(childId); a.setLessonId(lessonId);
-        a.setStopId(stopId(lessonId, stop)); a.setLevel(1); a.setAnswerJson("{}"); a.setCorrect(correct);
+        a.setStopId(stopId); a.setLevel(1); a.setAnswerJson("{}"); a.setCorrect(correct);
         a.setAttemptNumber(number); a.setMistakes(correct ? 0 : 1); a.setStars(stars);
-        a.setAnsweredAt(Instant.now().minus(2, ChronoUnit.HOURS).plus(stop, ChronoUnit.MINUTES));
+        a.setAnsweredAt(Instant.now().minus(2, ChronoUnit.HOURS).plus(order, ChronoUnit.MINUTES));
         attempts.save(a);
     }
 
