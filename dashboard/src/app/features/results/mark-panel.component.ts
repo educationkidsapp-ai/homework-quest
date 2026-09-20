@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { ResultsAndGradebookApi, apiErrorOf } from '../../api';
+import { ResultsAndGradebookApi, apiErrorCodeOf, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
 import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
@@ -21,6 +21,7 @@ import { ButtonComponent, InputComponent, TextareaComponent } from '../../ui';
 import { ChildWorkComponent } from './child-work.component';
 import {
   draftOf,
+  markableStops,
   marks,
   parseScore,
   request,
@@ -29,6 +30,9 @@ import {
   type ResultRow,
   type RowStop,
 } from './results.models';
+
+/** The server's refusal when a mark names a stop of a level the child has not played. */
+const STOP_NOT_PLAYED = 'stop_not_played';
 import { StarsInputComponent } from './stars-input.component';
 
 /**
@@ -116,9 +120,15 @@ export class MarkPanelComponent {
     });
   }
 
-  protected readonly openStops = computed<readonly RowStop[]>(() =>
-    this.row().stops.filter((stop) => stop.open),
-  );
+  /**
+   * The stops on offer: open, and **of the level she was scored on** (N4.5 D1).
+   *
+   * `row.stops` is the union over all three levels of the lesson. Filtered on `open` alone, as
+   * this was until N4.5, the panel offered Level 3's retell to a child who had played Level 1
+   * and `PUT /teacher/marks` stored the stars against a stop she never answered — 200, no
+   * complaint, and her score never moved.
+   */
+  protected readonly openStops = computed<readonly RowStop[]>(() => markableStops(this.row()));
 
   protected starsOf(stopId: string): number | null {
     return this.draft()?.stops[stopId]?.stars ?? null;
@@ -209,8 +219,23 @@ export class MarkPanelComponent {
     return scoreLabel(value);
   }
 
+  /**
+   * A refusal, in the red band — and one of them in the dashboard's own words.
+   *
+   * `409 stop_not_played` is the server refusing a mark on a stop of a level the child never
+   * played. It should be unreachable: {@link openStops} offers only her own level's. It is
+   * caught anyway because it is the one failure that means *this screen is out of date* — the
+   * child played on while the panel was open, or an older tab is still showing the union — and
+   * the answer is to say so in words a teacher can act on and reload behind her, not to repeat
+   * the server's sentence about a stop id.
+   */
   private fail(error: unknown): void {
     this.saving.set(false);
+    if (apiErrorCodeOf(error) === STOP_NOT_PLAYED) {
+      this.band.fail(this.t('results.marking.notPlayed', { name: this.row().name }));
+      this.saved.emit();
+      return;
+    }
     this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
   }
 

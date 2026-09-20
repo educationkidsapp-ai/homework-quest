@@ -418,7 +418,8 @@
         "taken": "الوقت المستغرق",
         "submitted": "سلّم في",
         "marking": "إجراءات",
-        "count": "{{count}} طفلًا"
+        "count": "{{count}} طفلًا",
+        "answered": "أجابت"
       },
       "childState": {
         "absent": "غائب",

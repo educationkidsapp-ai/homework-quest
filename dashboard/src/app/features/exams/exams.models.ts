@@ -282,7 +282,16 @@ export interface ChildRow {
   readonly name: string;
   readonly state: string;
   readonly score: number | null;
+  /**
+   * Her percent **over the whole paper** (N4.5 D5).
+   *
+   * An exam is a fixed paper, so a question she never reached is a zero: two right out of five
+   * is 40, not 100. The server works it out; {@link ChildRow.answered} beside it says how much
+   * of the paper the number is standing on.
+   */
   readonly percent: number | null;
+  readonly answered: number;
+  readonly total: number;
   readonly band: Band | null;
   readonly secondsTaken: number | null;
   readonly submittedAt: number | null;
@@ -311,6 +320,8 @@ export function childRows(results: ExamResults): readonly ChildRow[] {
       state: child.state ?? 'absent',
       score: child.score ?? null,
       percent: child.percent ?? null,
+      answered: child.answered ?? 0,
+      total: child.total ?? 0,
       band: bandOf(child.band),
       secondsTaken: child.secondsTaken ?? null,
       submittedAt: child.submittedAt ?? null,
