@@ -30,6 +30,12 @@ public interface ChildRepository extends JpaRepository<Entities.ChildEntity, Str
 
     /** One section's roster, retired rows included so the Admin screen can show and re-activate them. */
     List<Entities.ChildEntity> findByClassIdAndDeletedAtIsNullOrderByNameAsc(String classId);
+
+    /**
+     * How many children one class's register holds — the same roster the Results page counts, without loading it.
+     * The Exams tab wants the denominator of "12 of 24 sat it" and nothing else about them.
+     */
+    long countByClassIdAndDeletedAtIsNull(String classId);
     List<Entities.ChildEntity> findByClassIdAndActiveTrueAndDeletedAtIsNullOrderByNameAsc(String classId);
 
     /** `[classId, live children]` for a page of sections at once — one statement rather than one per class. */

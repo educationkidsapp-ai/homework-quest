@@ -1,6 +1,7 @@
 package quest.server.exams;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,6 +28,7 @@ class ExamApiTest extends ExamTestSupport {
     private static final String EXAM = "ex-exam-1";
 
     @Autowired ExamReleaseSweep sweep;
+    @Autowired ExamAttemptService sittingService;
 
     @Override public String prefix() { return "ex-"; }
 
@@ -317,6 +319,159 @@ class ExamApiTest extends ExamTestSupport {
         assertThat(report.get("levels").get(0).get("band").asText()).isEqualTo("exceeding");
     }
 
+    // ---------------------------------------------------------------- the school's own clock (#106 follow-up)
+
+    /**
+     * The bug the #106 review found: the exam's lesson day was read off `opensAt` in <strong>UTC</strong>.
+     *
+     * <p>Riyadh is three hours ahead, so a window a teacher sets for Sunday at 02:14 — an ordinary "first thing
+     * Sunday" exam — is still Saturday 23:14 in UTC. The day handed to the lesson pipeline was therefore a
+     * Saturday, the school does not teach on Saturdays, and the create came back 409 `not_teaching_day` for a
+     * request that was right in every particular.
+     */
+    @Test void a_sunday_0214_window_in_riyadh_is_filed_on_the_sunday_and_not_on_utcs_saturday() throws Exception {
+        var riyadh = java.time.ZoneId.of("Asia/Riyadh");
+        var sunday = LocalDate.now(riyadh).with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.SUNDAY));
+        long opensAt = sunday.atTime(2, 14).atZone(riyadh).toInstant().toEpochMilli();
+        assertThat(java.time.Instant.ofEpochMilli(opensAt).atZone(java.time.ZoneOffset.UTC).getDayOfWeek())
+                .as("the instant really is a Saturday in UTC — without that this test proves nothing")
+                .isEqualTo(java.time.DayOfWeek.SATURDAY);
+
+        zone(A, "Asia/Riyadh", null);
+        try {
+            var created = createExam(CLASS_1A, sara, opensAt, opensAt + 1_800_000);
+            assertThat(created.get("date").asText()).isEqualTo(sunday.toString());
+
+            // And the same on the way through `PATCH`, which moves the card to the day the new window opens.
+            var nextSunday = sunday.plusWeeks(1);
+            long moved = nextSunday.atTime(2, 14).atZone(riyadh).toInstant().toEpochMilli();
+            var patched = json(mvc.perform(as(patch("/teacher/exams/" + created.get("examId").asText()), sara)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"opensAt\":" + moved + ",\"closesAt\":" + (moved + 1_800_000) + "}"))
+                    .andExpect(status().isOk()).andReturn());
+            assertThat(patched.get("date").asText()).isEqualTo(nextSunday.toString());
+        } finally {
+            zone(A, null, null);
+        }
+    }
+
+    /**
+     * The same fault in the other direction, for a school west of UTC: a Monday–Friday school setting a Thursday
+     * 23:30 window names an instant that is already Friday in UTC, and Friday is not a teaching day there either.
+     */
+    @Test void a_thursday_2330_window_west_of_utc_is_filed_on_the_thursday_and_not_on_utcs_friday() throws Exception {
+        var newYork = java.time.ZoneId.of("America/New_York");
+        var thursday = LocalDate.now(newYork).with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.THURSDAY));
+        long opensAt = thursday.atTime(23, 30).atZone(newYork).toInstant().toEpochMilli();
+        assertThat(java.time.Instant.ofEpochMilli(opensAt).atZone(java.time.ZoneOffset.UTC).getDayOfWeek())
+                .as("the instant really is a Friday in UTC").isEqualTo(java.time.DayOfWeek.FRIDAY);
+
+        zone(B, "America/New_York", java.util.List.of("MON", "TUE", "WED", "THU", "FRI"));
+        try {
+            assertThat(createExam(CLASS_OTHER, other, opensAt, opensAt + 1_800_000).get("date").asText())
+                    .isEqualTo(thursday.toString());
+        } finally {
+            zone(B, null, null);
+        }
+    }
+
+    // ---------------------------------------------------------------- the Exams tab's row (N4.4 follow-up)
+
+    @Test void a_list_row_carries_its_state_and_the_three_numbers_the_tab_draws() throws Exception {
+        publishedExam(-30, 30, ExamLevels.MANUAL);
+        sit(maya, true, true);                                                  // one of three children sat it
+        var row = json(mvc.perform(as(get("/teacher/classes/" + CLASS_1A + "/exams"), sara))
+                .andExpect(status().isOk()).andReturn()).get(0);
+        assertThat(row.get("examId").asText()).isEqualTo(EXAM);
+        assertThat(row.get("state").asText()).isEqualTo(ExamLevels.OPEN);
+        assertThat(row.get("roster").asInt()).isEqualTo(3);
+        assertThat(row.get("sat").asInt()).isEqualTo(1);
+        assertThat(row.get("needsMarking").asInt()).as("Maya's retell is an open stop nobody has marked").isEqualTo(1);
+
+        // The single read is the same row, and the results page agrees with it to the digit.
+        var one = json(mvc.perform(as(get("/teacher/exams/" + EXAM), sara)).andExpect(status().isOk()).andReturn());
+        assertThat(one.get("state").asText()).isEqualTo(ExamLevels.OPEN);
+        assertThat(one.get("level").asText()).isEqualTo(ExamLevels.ONE);
+        assertThat(one.get("releaseMode").asText()).isEqualTo(ExamLevels.MANUAL);
+        var results = json(mvc.perform(as(get("/teacher/exams/" + EXAM + "/results"), sara)).andExpect(status().isOk()).andReturn());
+        assertThat(one.get("roster").asInt()).isEqualTo(results.get("roster").asInt());
+        assertThat(one.get("sat").asInt()).isEqualTo(results.get("sat").asInt());
+        assertThat(one.get("needsMarking").asInt()).isEqualTo(results.get("needsMarking").asInt());
+
+        mvc.perform(as(get("/teacher/exams/" + EXAM), noor)).andExpect(status().isForbidden());
+        mvc.perform(as(get("/teacher/exams/" + EXAM), other)).andExpect(status().isNotFound());
+    }
+
+    @Test void the_state_column_reads_the_window_the_way_the_dashboard_does() throws Exception {
+        readyToPublish(EXAM, A, section1a, LocalDate.now(), "exam");
+        exam(EXAM, A, ExamLevels.ONE, 60, 120, ExamLevels.MANUAL);
+        assertThat(state()).as("not published yet").isEqualTo(ExamLevels.DRAFT);
+
+        publish(EXAM);
+        assertThat(state()).as("published, window still ahead").isEqualTo(ExamLevels.SCHEDULED);
+
+        exam(EXAM, A, ExamLevels.ONE, -120, -60, ExamLevels.MANUAL);
+        assertThat(state()).as("the window has run out").isEqualTo(ExamLevels.CLOSED);
+
+        mvc.perform(as(post("/teacher/exams/" + EXAM + "/release"), sara)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"released\":true}")).andExpect(status().isOk());
+        assertThat(state()).as("released beats closed").isEqualTo(ExamLevels.RELEASED);
+    }
+
+    // ---------------------------------------------------------------- the three #106 reviewer notes
+
+    @Test void the_losing_side_of_a_two_device_race_is_a_409_rather_than_a_500() throws Exception {
+        publishedExam(-30, 30, ExamLevels.MANUAL);
+        parentPost("/children/" + maya + "/attempts", batch(upload(maya + "-1", EXAM, stop(EXAM, 1), true, 3)));
+
+        var lesson = lessons.findById(EXAM).orElseThrow();
+        var child = childRows.findById(maya).orElseThrow();
+        // Exactly what the second tablet does: it read no sitting, and by the time its insert lands there is one.
+        // The unique index on (child_id, lesson_id) refuses it, and §8's own code is what the child must be told.
+        assertThatThrownBy(() -> sittingService.begin(lesson, child, java.time.Instant.now()))
+                .isInstanceOf(quest.server.config.ApiException.class)
+                .satisfies(e -> assertThat(((quest.server.config.ApiException) e).error().code())
+                        .isEqualTo(quest.api.dto.ApiError.EXAM_ALREADY_TAKEN));
+    }
+
+    @Test void a_re_opened_sitting_times_the_re_sitting_and_not_the_days_since_the_first() throws Exception {
+        publishedExam(-120, 120, ExamLevels.MANUAL);
+        sit(maya, true, true);
+        var first = examSittings.findOne(maya, EXAM).orElseThrow();
+        assertThat(first.isSubmitted()).isTrue();
+
+        mvc.perform(as(post("/teacher/exams/" + EXAM + "/reopen/" + maya), sara)).andExpect(status().isOk());
+
+        var reopened = examSittings.findOne(maya, EXAM).orElseThrow();
+        assertThat(reopened.getSecondsTaken()).as("the first sitting's clock is cleared").isNull();
+        assertThat(reopened.getStartedAt()).as("and started again, so the time taken is the re-sitting's")
+                .isAfterOrEqualTo(first.getStartedAt())
+                .isAfterOrEqualTo(reopened.getReopenedAt());
+    }
+
+    @Test void a_child_still_in_the_paper_reports_when_she_was_last_seen_in_it() throws Exception {
+        publishedExam(-30, 30, ExamLevels.MANUAL);
+        parentPost("/children/" + maya + "/attempts", batch(upload(maya + "-1", EXAM, stop(EXAM, 1), true, 3)));
+        var row = child(json(mvc.perform(as(get("/teacher/exams/" + EXAM + "/results"), sara))
+                .andExpect(status().isOk()).andReturn()), maya);
+        assertThat(row.get("state").asText()).isEqualTo("started");
+        assertThat(row.path("submittedAt").isNull()).isTrue();
+        assertThat(row.get("lastSeenAt").asLong())
+                .as("the column `exam_attempts` has always written and nothing read")
+                .isGreaterThanOrEqualTo(row.get("startedAt").asLong());
+    }
+
+    @Test void an_exam_body_is_never_stored_in_a_shared_cache_but_a_homework_still_is() throws Exception {
+        publishedExam(-30, 30, ExamLevels.MANUAL);
+        assertThat(cacheControlOf("/lessons/" + EXAM))
+                .as("a year-long public cache would serve the paper outside §8's window, past the server")
+                .contains("no-store").contains("private").doesNotContain("public");
+
+        var homework = readyToPublish("ex-homework-4", A, section1a, LocalDate.now(), "homework");
+        publish(homework.getId());
+        assertThat(cacheControlOf("/lessons/" + homework.getId())).contains("public").contains("max-age=31536000");
+    }
+
     // ---------------------------------------------------------------- fixture
 
     /** The fixture exam: a published `type = exam` lesson over Level 1, with the window given in minutes from now. */
@@ -324,6 +479,34 @@ class ExamApiTest extends ExamTestSupport {
         readyToPublish(EXAM, A, section1a, LocalDate.now(), "exam");
         exam(EXAM, A, ExamLevels.ONE, opensIn, closesIn, releaseMode);
         publish(EXAM);
+    }
+
+    /** One school's own zone and week, or back to the platform's when both are null. */
+    private void zone(String schoolId, String timezone, java.util.List<String> week) {
+        var row = schools.findById(schoolId).orElseThrow();
+        row.setTimezone(timezone);
+        row.setSchoolWeekJson(week == null ? null : quest.server.platform.SchoolCalendar.weekJson(week));
+        schools.save(row);
+    }
+
+    /** `POST /teacher/classes/{id}/exams` with a window and nothing else worth naming. */
+    private com.fasterxml.jackson.databind.JsonNode createExam(String classId, String token, long opensAt, long closesAt)
+            throws Exception {
+        return json(mvc.perform(as(post("/teacher/classes/" + classId + "/exams"), token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Term test\",\"opensAt\":" + opensAt + ",\"closesAt\":" + closesAt
+                                + ",\"level\":\"1\",\"source\":\"manual\"}"))
+                .andExpect(status().isOk()).andReturn());
+    }
+
+    private String state() throws Exception {
+        return json(mvc.perform(as(get("/teacher/exams/" + EXAM), sara)).andExpect(status().isOk()).andReturn())
+                .get("state").asText();
+    }
+
+    private String cacheControlOf(String path) throws Exception {
+        return mvc.perform(get(path).header("Authorization", PARENT)).andExpect(status().isOk())
+                .andReturn().getResponse().getHeader(org.springframework.http.HttpHeaders.CACHE_CONTROL);
     }
 
     private void publish(String lessonId) throws Exception {

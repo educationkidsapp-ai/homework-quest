@@ -24,6 +24,14 @@ public interface ExamAttemptRepository extends JpaRepository<Entities.ExamAttemp
     /** Every sitting of one exam, for the results table: one statement whatever the size of the class. */
     List<Entities.ExamAttemptEntity> findByLessonId(String lessonId);
 
+    /**
+     * `[lessonId, sittings]` for a page of exams — the Exams tab's `sat` column for a whole class in one
+     * statement. Counted in the database rather than by loading the rows: the tab wants one integer per exam, and
+     * the unique index on (child, exam) means the count already <em>is</em> the number of children who sat it.
+     */
+    @Query("select a.lessonId, count(a) from ExamAttemptEntity a where a.lessonId in :lessonIds group by a.lessonId")
+    List<Object[]> countByLessonIdIn(@Param("lessonIds") Collection<String> lessonIds);
+
     /** Every sitting of a page of exams, so the gradebook and the map never pay a query per exam. */
     @Query("select a from ExamAttemptEntity a where a.childId = :childId and a.lessonId in :lessonIds")
     List<Entities.ExamAttemptEntity> findByChildIdAndLessonIdIn(@Param("childId") String childId,

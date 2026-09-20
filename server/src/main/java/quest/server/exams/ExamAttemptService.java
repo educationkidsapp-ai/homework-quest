@@ -30,7 +30,8 @@ import quest.server.content.LessonRepository;
  *   <li>{@link ApiError#EXAM_CLOSED} — before `opensAt` or after `closesAt`. The window is the server's clock, not
  *       the device's, because a child's tablet is the one clock a school cannot set.</li>
  *   <li>{@link ApiError#EXAM_ALREADY_TAKEN} — she has submitted it once. §8 allows exactly one sitting, and the
- *       teacher's re-opening is the only way back in.</li>
+ *       teacher's re-opening is the only way back in. The same code answers the two-device race that
+ *       {@link #begin} catches: the second tablet is told the paper is already being sat.</li>
  *   <li>nothing at all for a sitting already under way: §8's "if the child leaves mid-exam the attempt resumes where
  *       it stopped", which here means the same row taking more answers until the paper is complete.</li>
  * </ul>
@@ -78,12 +79,7 @@ public class ExamAttemptService {
             if (row != null && row.isSubmitted())
                 throw ApiException.conflict(ApiError.EXAM_ALREADY_TAKEN,
                         "\"" + title(lesson) + "\" has already been handed in.");
-            if (row == null) {
-                row = new Entities.ExamAttemptEntity();
-                row.setId(UUID.randomUUID().toString()); row.setSchoolId(lesson.getSchoolId());
-                row.setLessonId(lessonId); row.setChildId(child.getId());
-                row.setState(Entities.ExamAttemptEntity.STARTED); row.setStartedAt(now);
-            }
+            if (row == null) row = begin(lesson, child, now);
             row.setLastSeenAt(now);
             out.put(lessonId, new Sitting(lesson, exam, sittings.save(row)));
         }
@@ -111,6 +107,32 @@ public class ExamAttemptService {
             row.setSubmittedAt(now);
             row.setSecondsTaken((int) Math.max(0, java.time.Duration.between(row.getStartedAt(), now).toSeconds()));
             sittings.save(row);
+        }
+    }
+
+    /**
+     * The row a sitting starts as, written and flushed at once.
+     *
+     * <p><strong>The flush is the point.</strong> Two devices can reach {@link #open} for the same child and the
+     * same exam within the same millisecond; both read no row, both insert one, and the unique index on
+     * `(child_id, lesson_id)` refuses the second — which is exactly what it is for. Without the flush that refusal
+     * arrives while the transaction is committing, long after the handler has decided the upload was fine, and the
+     * child's tablet gets a 500 with a constraint name in it. Flushing here turns the race into §8's own answer:
+     * the exam is already being sat, on the device that won.
+     *
+     * <p>Package-private so `ExamApiTest` can force the losing side of the race, which is the only way to reach
+     * this branch without two threads.
+     */
+    Entities.ExamAttemptEntity begin(LessonEntity lesson, ChildEntity child, Instant now) {
+        var row = new Entities.ExamAttemptEntity();
+        row.setId(UUID.randomUUID().toString()); row.setSchoolId(lesson.getSchoolId());
+        row.setLessonId(lesson.getId()); row.setChildId(child.getId());
+        row.setState(Entities.ExamAttemptEntity.STARTED); row.setStartedAt(now); row.setLastSeenAt(now);
+        try {
+            return sittings.saveAndFlush(row);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            throw ApiException.conflict(ApiError.EXAM_ALREADY_TAKEN,
+                    "\"" + title(lesson) + "\" is already being sat on another device.");
         }
     }
 

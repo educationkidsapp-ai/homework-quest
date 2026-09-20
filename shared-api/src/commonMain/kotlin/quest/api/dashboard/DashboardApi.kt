@@ -557,8 +557,22 @@ interface DashboardApi {
     // ---------------------------------------------------------------- exams (N4.3, §8)
 
     /**
+     * `GET /teacher/classes/{id}/exams`: the class page's Exams tab, newest first.
+     *
+     * Each row carries its settings, its [ExamRowState] and the three numbers the tab draws — `roster`, `sat` and
+     * `needsMarking` — so the tab is one read rather than a `/results` call per row.
+     */
+    suspend fun classExams(classId: String): List<ExamRow>
+
+    /** `GET /teacher/exams/{id}`: one row of that list, for the settings card and the results header. */
+    suspend fun exam(examId: String): ExamRow
+
+    /**
      * `POST /teacher/classes/{id}/exams`: a lesson with `type = "exam"` in one of her classes, its window and its
      * level. The source runs the same pipeline a homework does. Behind the `exams` flag.
+     *
+     * The window is two instants; the *day* the exam is filed on is derived from `opensAt` **in the school's own
+     * timezone**, so a Sunday 02:14 in Riyadh is a Sunday exam and not the Saturday UTC would call it.
      */
     suspend fun createExam(classId: String, request: CreateExamRequest): ExamSettings
 

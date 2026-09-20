@@ -41,6 +41,21 @@ public class LessonController {
         var assembled = store.assemble(lesson);
         if (assembled == null) throw ApiException.notFound("lesson content");
         String body = store.encode(exams.decorate(assembled, lesson));
-        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic()).eTag("\"" + lesson.getId() + "-v" + lesson.getVersion() + "\"").body(body);
+        return ResponseEntity.ok().cacheControl(cacheFor(lesson)).eTag("\"" + lesson.getId() + "-v" + lesson.getVersion() + "\"").body(body);
+    }
+
+    /**
+     * A homework is immutable per version and may sit in any cache for a year. <strong>An exam may not.</strong>
+     *
+     * <p>N4.3 gave the exam body the same `public, max-age=31536000` a homework has, and a public year-long cache is
+     * the one thing §8's window cannot survive: the paper would be served from a proxy, or from the tablet's own
+     * disk, to a child who asks for it before it opens, after it closes, or a second time after she handed it in —
+     * and none of those requests would reach the server that refuses them. `private, no-store` puts every read of
+     * an exam paper back in front of `@PreAuthorize` and the window check, which is where it has to be.
+     */
+    private static CacheControl cacheFor(Entities.LessonEntity lesson) {
+        return quest.server.exams.ExamPlays.isExam(lesson)
+                ? CacheControl.noStore().cachePrivate()
+                : CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic();
     }
 }

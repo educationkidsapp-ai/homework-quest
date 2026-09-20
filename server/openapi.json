@@ -1392,6 +1392,10 @@
           "comment" : {
             "type" : "string"
           },
+          "lastSeenAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
           "maxScore" : {
             "format" : "int32",
             "type" : "integer"
@@ -1558,6 +1562,84 @@
           "submitted" : {
             "format" : "int32",
             "type" : "integer"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ExamRow" : {
+        "properties" : {
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "closesAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "durationMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "examId" : {
+            "type" : "string"
+          },
+          "hintsOff" : {
+            "type" : "boolean"
+          },
+          "level" : {
+            "type" : "string"
+          },
+          "needsMarking" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "numbersOff" : {
+            "type" : "boolean"
+          },
+          "open" : {
+            "type" : "boolean"
+          },
+          "opensAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "releaseMode" : {
+            "type" : "string"
+          },
+          "released" : {
+            "type" : "boolean"
+          },
+          "releasedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "roster" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "sat" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "singleAttempt" : {
+            "type" : "boolean"
+          },
+          "state" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
           },
           "title" : {
             "type" : "string"
@@ -9400,7 +9482,7 @@
               "application/json" : {
                 "schema" : {
                   "items" : {
-                    "$ref" : "#/components/schemas/ExamSettings"
+                    "$ref" : "#/components/schemas/ExamRow"
                   },
                   "type" : "array"
                 }
@@ -9667,6 +9749,30 @@
       }
     },
     "/teacher/exams/{id}" : {
+      "get" : {
+        "operationId" : "exam",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ExamRow"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Exams" ]
+      },
       "patch" : {
         "operationId" : "updateExam",
         "parameters" : [ {

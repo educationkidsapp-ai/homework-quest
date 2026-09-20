@@ -9,8 +9,16 @@ import kotlinx.serialization.Serializable
 /**
  * `GET /lessons/{id}` — immutable per `version`, cacheable indefinitely.
  *
- * N4.3 adds the four exam fields. They are defaulted, so a homework is byte-for-byte what it always was and an app
- * build that predates them reads it unchanged; for an exam ([type] `"exam"`) the player must honour all four.
+ * N4.3 adds the four exam fields. For an exam ([type] `"exam"`) the player must honour all four.
+ *
+ * **They are not backward compatible on the wire, whatever their defaults say.** A Kotlin default makes a field
+ * optional when *decoding*; it does nothing when encoding, and [quest.api.validation.SchemaValidator.json] sets
+ * `encodeDefaults = true`, so the server writes `type`, `hintsOff`, `numbersOff` and `examPlay` into every lesson
+ * body including a homework's. The app decodes with that same strict `Json` (`ignoreUnknownKeys = false`), so an
+ * app build older than these fields does not read a homework "unchanged" — it throws on the first unknown key.
+ *
+ * Until the app relaxes `ignoreUnknownKeys`, app and server ship together and a field added here is a release-note
+ * item: see `docs/runbook.md` § "The app and the contract" for the list of DTOs this already applies to.
  */
 @Serializable
 data class PublishedLesson(

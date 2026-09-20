@@ -54,12 +54,24 @@ public class ExamController {
 
     // ---------------------------------------------------------------- settings (§8)
 
+    /**
+     * The class page's Exams tab. Each row carries its settings, its state and the three numbers the tab draws —
+     * the dashboard used to read `/results` once per row for those, which was six scoring passes for a screen of
+     * integers.
+     */
     @GetMapping(value = "/teacher/classes/{classId}/exams", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('lesson.read')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-            array = @ArraySchema(schema = @Schema(implementation = ExamDto.ExamSettings.class))))
-    public List<ExamDto.ExamSettings> classExams(@AuthenticationPrincipal Principals.User caller, @PathVariable String classId) {
+            array = @ArraySchema(schema = @Schema(implementation = ExamDto.ExamRow.class))))
+    public List<ExamDto.ExamRow> classExams(@AuthenticationPrincipal Principals.User caller, @PathVariable String classId) {
         return exams.ofClass(TeacherScope.require(caller), classId);
+    }
+
+    /** One exam: the same row the tab lists, for the settings card and the results header. */
+    @GetMapping(value = "/teacher/exams/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('lesson.read')")
+    public ExamDto.ExamRow exam(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
+        return exams.one(TeacherScope.require(caller), id);
     }
 
     @PostMapping(value = "/teacher/classes/{classId}/exams", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
