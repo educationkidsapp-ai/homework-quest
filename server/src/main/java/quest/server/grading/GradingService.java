@@ -47,9 +47,15 @@ import quest.server.tenancy.TeacherScope;
  * lesson in its body goes through the same check before a single row is written.
  *
  * <p><strong>Release.</strong> §7's toggle is per lesson, and a lesson copy belongs to one section, so releasing it
- * releases it for that whole section at once. While it is released, marking is refused with 409: the score and the
- * comment a parent has already been shown must not change under her. Withdrawing the release (`released: false`) is
- * how a teacher re-opens a lesson she needs to re-mark — one route, two directions, and the parent's view follows.
+ * releases it for that whole section at once. <strong>Marking is never refused because a lesson is released</strong>
+ * — §7 says only that a parent sees the score and the comment after release, and a homework is released the moment
+ * it is published, so freezing one would make §7's own marking flow impossible. A mark on a released lesson reaches
+ * the parent on her next read. Withdrawing the release (`released: false`) takes the whole section's scores back off
+ * the parents' reports; one route, two directions, and the parent's view follows.
+ *
+ * <p><strong>An exam</strong> (N4.3, §8) is scored by exactly the same rules over exactly the same rows — what
+ * differs is its single paper ({@link #stopsByLevel}), that publishing never releases it, and that it counts double
+ * in the child's level ({@link Bands#EXAM_WEIGHT}).
  */
 @Service
 public class GradingService {
@@ -62,14 +68,17 @@ public class GradingService {
     private final LessonStore store; private final ChildRepository children; private final ChildService childService;
     private final AttemptRepository attempts; private final TeacherMarkRepository marks; private final ChildMediaRepository media;
     private final quest.server.tenancy.ClassRepository classes; private final String publicUrl;
+    private final quest.server.exams.ExamSettingsRepository examSettings; private final quest.server.content.SkillRepository skills;
 
     public GradingService(TeacherScope scope, LessonRepository lessons, PlayRepository plays, LessonStore store,
                           ChildRepository children, ChildService childService, AttemptRepository attempts,
                           TeacherMarkRepository marks, ChildMediaRepository media,
-                          quest.server.tenancy.ClassRepository classes, QuestProperties props) {
+                          quest.server.tenancy.ClassRepository classes, QuestProperties props,
+                          quest.server.exams.ExamSettingsRepository examSettings, quest.server.content.SkillRepository skills) {
         this.scope = scope; this.lessons = lessons; this.plays = plays; this.store = store; this.children = children;
         this.childService = childService; this.attempts = attempts; this.marks = marks; this.media = media;
         this.classes = classes; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl();
+        this.examSettings = examSettings; this.skills = skills;
     }
 
     // ---------------------------------------------------------------- results (§7, step 9)
@@ -77,7 +86,7 @@ public class GradingService {
     public GradingDto.LessonResults results(Principals.User caller, String lessonId) {
         var lesson = scope.requireLesson(caller, lessonId);
         var section = lesson.getClassId() == null ? null : classes.findById(lesson.getClassId()).orElse(null);
-        var stopsByLevel = stopsByLevel(List.of(lessonId)).getOrDefault(lessonId, Map.of());
+        var stopsByLevel = stopsByLevel(List.of(lesson)).getOrDefault(lessonId, Map.of());
         var lessonAttempts = attempts.findByLessonId(lessonId);
         var roster = rosterFor(lesson, lessonAttempts);
         var byChild = group(lessonAttempts);
@@ -133,7 +142,7 @@ public class GradingService {
         var roster = children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(section.getId());
         var childIds = roster.stream().map(ChildEntity::getId).toList();
 
-        var stopsByLesson = stopsByLevel(lessonIds);
+        var stopsByLesson = stopsByLevel(published);
         // Narrowed to the window's lessons in SQL rather than in Java: a class's whole attempt history is every
         // lesson it has ever played, and the grid is asking about one month of it.
         var attemptsByChildLesson = new HashMap<String, Map<String, List<AttemptEntity>>>();
@@ -162,8 +171,13 @@ public class GradingService {
                 }
                 if (score.needsMarking() > 0) perLessonMarking.merge(l.getId(), 1, Integer::sum);
                 needsMarking += score.needsMarking();
+                // N4.2 gap: the comment travels with the cell. `PUT /teacher/marks` deletes a lesson-level mark whose
+                // stars, score and comment are all null, so a grid that could not see the comment it is about to
+                // re-send would take the teacher's line to the parent off the report on every score override.
+                var lessonRow = mine.get(Entities.TeacherMarkEntity.LESSON);
                 cells.add(new GradingDto.GradebookCell(l.getId(), score.attempted(), score.autoScore(),
-                        score.teacherScore(), score.score(), score.band(), score.needsMarking() > 0));
+                        score.teacherScore(), score.score(), score.band(), score.needsMarking() > 0,
+                        lessonRow == null ? null : lessonRow.getComment()));
             }
             // §7's "a per-child average column": the plain mean of the scored cells of the window she asked for, so
             // a teacher who adds the row up by hand gets the same number. The recency-weighted, exam-weighted,
@@ -240,9 +254,68 @@ public class GradingService {
                 .map(m -> new GradingDto.ChildWork(m.getId(), publicUrl + "/media/child/" + m.getId(), m.getKind(),
                         m.getStopId(), m.getCreatedAt().toEpochMilli()))
                 .toList();
+        var skillBands = skillsOf(child, cap(published, TREND_LESSONS));
         return new GradingDto.ChildReport(child.getId(), child.getName(), child.getClassId(),
                 section == null ? null : section.getName(), child.getAvatarColor(),
-                List.copyOf(levels), trend, comments, work);
+                List.copyOf(levels), trend, comments, work,
+                skillBands.stream().filter(s -> GOING_WELL.equals(s.band())).toList(),
+                skillBands.stream().filter(s -> NEEDS_ANOTHER_LOOK.equals(s.band()))
+                        .sorted(Comparator.comparing(GradingDto.ChildSkill::accuracy)).toList());
+    }
+
+    private static final String GOING_WELL = "going_well", GETTING_THERE = "getting_there", NEEDS_ANOTHER_LOOK = "needs_another_look";
+
+    /**
+     * Step 9's "skills going well / needing another look", over her last {@link #TREND_LESSONS} lessons.
+     *
+     * <p>The measure is {@link quest.api.progress.ProgressBands} — first-try correctness on the single-answer stops
+     * of the lesson a skill was confirmed on — which is deliberately the arithmetic the <em>app</em> already shows
+     * her parent, so that a skill the parent is told is going well is not a skill the teacher's page calls weak.
+     * Going well first and weakest first respectively, so the two lists read top-down.
+     *
+     * <p>Computed here rather than by calling `ProgressService`, which owns the same measure for the parent's
+     * report: that service is built on this one ({@link #releasedFor}), and a call back the other way would be a
+     * bean cycle. The fifteen lines below are the price of the arrow pointing one way.
+     *
+     * <p>Two statements: the confirmed skills of the window's lessons, and her attempts on them. The plays come from
+     * the same {@link #stopsByLevel} read the rest of the page uses.
+     */
+    private List<GradingDto.ChildSkill> skillsOf(ChildEntity child, List<LessonEntity> published) {
+        if (published.isEmpty()) return List.of();
+        var ids = published.stream().map(LessonEntity::getId).toList();
+        var stopsByLesson = stopsByLevel(published);
+        var byLesson = new HashMap<String, List<AttemptEntity>>();
+        for (var a : attempts.findByChildIdAndLessonIdIn(child.getId(), ids))
+            byLesson.computeIfAbsent(a.getLessonId(), k -> new ArrayList<>()).add(a);
+        var skillsByLesson = new HashMap<String, List<quest.server.content.Entities.SkillEntity>>();
+        for (var sk : skills.findByLessonIdInAndConfirmedTrueOrderByLessonIdAscPositionAsc(ids))
+            skillsByLesson.computeIfAbsent(sk.getLessonId(), k -> new ArrayList<>()).add(sk);
+
+        var out = new ArrayList<GradingDto.ChildSkill>();
+        for (var lesson : published) {                                          // oldest first, so the newest reading wins
+            var single = new java.util.HashSet<String>();
+            for (var stops : stopsByLesson.getOrDefault(lesson.getId(), Map.of()).values())
+                for (var stop : stops) if (stop.getCategory() == quest.api.dto.StopCategory.SINGLE) single.add(stop.getId());
+            var firstTries = byLesson.getOrDefault(lesson.getId(), List.of()).stream()
+                    .filter(a -> a.getAttemptNumber() == 1 && single.contains(a.getStopId()))
+                    .sorted(Comparator.comparing(AttemptEntity::getAnsweredAt).reversed()).toList();
+            if (firstTries.isEmpty()) continue;
+            var accuracy = quest.api.progress.ProgressBands.INSTANCE.accuracy(
+                    firstTries.stream().map(AttemptEntity::isCorrect).toList());
+            if (accuracy == null) continue;
+            var band = switch (quest.api.progress.ProgressBands.INSTANCE.band(accuracy)) {
+                case GOING_WELL -> GradingService.GOING_WELL;
+                case GETTING_THERE -> GradingService.GETTING_THERE;
+                case NEEDS_ANOTHER_LOOK -> GradingService.NEEDS_ANOTHER_LOOK;
+            };
+            for (var sk : skillsByLesson.getOrDefault(lesson.getId(), List.<quest.server.content.Entities.SkillEntity>of())) {
+                out.removeIf(existing -> existing.skillId().equals(sk.getId()));
+                out.add(new GradingDto.ChildSkill(sk.getId(), sk.getName(), sk.getSubject(), band,
+                        (int) Math.round(accuracy * 100), firstTries.size(), firstTries.getFirst().getAnsweredAt().toEpochMilli()));
+            }
+        }
+        out.sort(Comparator.comparing(GradingDto.ChildSkill::accuracy).reversed());
+        return List.copyOf(out);
     }
 
     // ---------------------------------------------------------------- marking (§7)
@@ -336,7 +409,7 @@ public class GradingService {
                 .sorted(Comparator.comparing(LessonEntity::getDate)).toList();
         if (released.isEmpty()) return List.of();
         var ids = released.stream().map(LessonEntity::getId).toList();
-        var stopsByLesson = stopsByLevel(ids);
+        var stopsByLesson = stopsByLevel(released);
         var byLesson = new HashMap<String, List<AttemptEntity>>();
         for (var a : attempts.findByChildIdAndLessonIdIn(child.getId(), ids))
             byLesson.computeIfAbsent(a.getLessonId(), k -> new ArrayList<>()).add(a);
@@ -365,7 +438,7 @@ public class GradingService {
     private List<Scored> scoresOf(ChildEntity child, List<LessonEntity> published) {
         if (published.isEmpty()) return List.of();
         var ids = published.stream().map(LessonEntity::getId).toList();
-        var stopsByLesson = stopsByLevel(ids);
+        var stopsByLesson = stopsByLevel(published);
         var byLesson = new HashMap<String, List<AttemptEntity>>();
         for (var a : attempts.findByChildIdAndLessonIdIn(child.getId(), ids))
             byLesson.computeIfAbsent(a.getLessonId(), k -> new ArrayList<>()).add(a);
@@ -380,15 +453,39 @@ public class GradingService {
         return List.copyOf(out);
     }
 
-    /** Every lesson's main (variant 0) plays, level → the stops a level is scored over, in one query for all of them. */
-    private Map<String, Map<Integer, List<Stop>>> stopsByLevel(List<String> lessonIds) {
+    /**
+     * Every lesson's main (variant 0) plays, level → the stops a level is scored over, in two queries for all of
+     * them however many lessons there are.
+     *
+     * <p><strong>An exam is one level.</strong> §8 gives an exam a single paper — one of the generated levels, or a
+     * mixed one assembled from them — so its three levels are replaced by that paper under one key
+     * ({@link quest.server.exams.ExamPlays#paper}). Without that, a child who answered a mixed paper would be
+     * scored by `Scoring`'s ordinary rule — the highest level she has an attempt on — and marked on a third of the
+     * questions she actually did. The paper is derived by the same function the player downloads, so the teacher's
+     * results and the child's exam are the same set of questions by construction.
+     */
+    private Map<String, Map<Integer, List<Stop>>> stopsByLevel(List<LessonEntity> forLessons) {
         var out = new LinkedHashMap<String, Map<Integer, List<Stop>>>();
-        if (lessonIds.isEmpty()) return out;
+        if (forLessons.isEmpty()) return out;
+        var lessonIds = forLessons.stream().map(LessonEntity::getId).toList();
+        var raw = new LinkedHashMap<String, Map<Integer, List<Stop>>>();
         for (var entity : plays.findByLessonIdInOrderByLessonIdAscLevelAscVariantAsc(lessonIds)) {
             if (entity.getVariant() != 0) continue;                             // the "Again" variant is practice, not homework
             var play = store.play(entity);
-            out.computeIfAbsent(entity.getLessonId(), k -> new LinkedHashMap<>())
-                    .put(play.getLevel(), Scoring.scorable(play.getStops()));
+            raw.computeIfAbsent(entity.getLessonId(), k -> new LinkedHashMap<>()).put(play.getLevel(), play.getStops());
+        }
+        var exams = new LinkedHashMap<String, quest.server.exams.Entities.ExamSettingsEntity>();
+        var examIds = forLessons.stream().filter(quest.server.exams.ExamPlays::isExam).map(LessonEntity::getId).toList();
+        if (!examIds.isEmpty()) for (var e : examSettings.findByLessonIdIn(examIds)) exams.put(e.getLessonId(), e);
+        for (var lesson : forLessons) {
+            var byLevel = raw.getOrDefault(lesson.getId(), Map.of());
+            if (byLevel.isEmpty()) continue;
+            var exam = exams.get(lesson.getId());
+            var levels = exam == null ? byLevel
+                    : quest.server.exams.ExamPlays.paper(exam, lesson.getPracticeLength(), byLevel);
+            var scored = new LinkedHashMap<Integer, List<Stop>>();
+            levels.forEach((level, stops) -> scored.put(level, Scoring.scorable(stops)));
+            out.put(lesson.getId(), scored);
         }
         return out;
     }

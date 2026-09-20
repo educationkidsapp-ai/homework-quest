@@ -83,9 +83,16 @@ public final class GradingDto {
     public record GradebookLesson(String lessonId, String title, String date, String subject, String type,
                                   boolean released, Integer classAverage, int needsMarking) {}
 
-    /** One cell. `teacherScore` is kept beside `autoScore` rather than replacing it — §7's "keeps auto visible". */
+    /**
+     * One cell. `teacherScore` is kept beside `autoScore` rather than replacing it — §7's "keeps auto visible".
+     *
+     * <p>N4.2 gap: `comment` is the teacher's line to the parent about that lesson, carried so that a grid sending
+     * a score override back does not have to leave it out. `PUT /teacher/marks` <strong>deletes</strong> a
+     * lesson-level mark whose stars, score and comment are all null, so a cell that could not see the comment would
+     * quietly take it off the parent's report every time a teacher corrected a score.
+     */
     public record GradebookCell(String lessonId, boolean attempted, Integer autoScore, Integer teacherScore,
-                                Integer score, String band, boolean needsMarking) {}
+                                Integer score, String band, boolean needsMarking, String comment) {}
 
     /**
      * One row: a child, her cells in the same order as `lessons`, and §7's per-child average column.
@@ -123,8 +130,19 @@ public final class GradingDto {
     /** Saved open-stop work: the same `/media/child/{id}` link `GET /teacher/students/{id}/timeline` hands out. */
     public record ChildWork(String id, String url, String kind, String stopId, long createdAt) {}
 
+    /**
+     * Step 9's "skills going well / needing another look".
+     *
+     * <p>The measure is the app's own ({@link quest.api.progress.ProgressBands}): first-try correctness on the
+     * single-answer stops of the lesson a skill was confirmed on, over the child's last ten lessons. `band` is
+     * `going_well`, `getting_there` or `needs_another_look`; `accuracy` is 0-100, because §6's "no numbers" is a
+     * rule about children rather than about their teacher.
+     */
+    public record ChildSkill(String skillId, String name, String subject, String band, Integer accuracy,
+                             int attempts, Long lastPractised) {}
+
     /** `GET /teacher/children/{id}`: band and trend per subject, the chart, the comments and the saved work. */
     public record ChildReport(String childId, String name, String classId, String className, String avatarColor,
                               List<ChildLevel> levels, List<ChildTrendPoint> trend, List<ChildComment> comments,
-                              List<ChildWork> work) {}
+                              List<ChildWork> work, List<ChildSkill> goingWell, List<ChildSkill> needsAnotherLook) {}
 }
