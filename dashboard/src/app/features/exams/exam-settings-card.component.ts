@@ -268,7 +268,7 @@ export class ExamSettingsCardComponent {
     effect(() => {
       const exam = this.exam();
       if (!exam) return;
-      this.context.set(exam, this.sentence());
+      this.context.set(this.sentence());
       this.title.set(exam.title ?? '');
       this.window.set(draftOfWindow(exam.opensAt ?? 0, exam.closesAt ?? 0, this.zone()));
       this.level.set(isExamLevel(exam.level) ? exam.level : 'mixed');

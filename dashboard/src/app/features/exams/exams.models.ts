@@ -40,14 +40,21 @@ export function isReleaseMode(value: string | null | undefined): value is Releas
 
 /**
  * Released beats closed, and draft beats everything: an exam nobody can reach is not
- * "scheduled" however promising its window looks, and one whose results the parents already
- * have is not merely "closed".
+ * "scheduled" however promising its window looks, one whose results the parents already have is
+ * not merely "closed", and one with no window at all is neither.
  */
 export function examStateOf(exam: ExamSettings, now: number): ExamState {
   if (exam.status !== 'published') return 'draft';
+  // Released beats the window: the parents have the scores, whatever the clock says.
   if (exam.released === true) return 'released';
   const opensAt = exam.opensAt ?? 0;
   const closesAt = exam.closesAt ?? 0;
+  // A published exam with no window is not `closed` — "closed" says it ran and is over, and
+  // nobody could have sat a paper that never opened. It is a row nothing can happen to until
+  // somebody gives it a window, which is what `draft` says on this screen. The server requires
+  // both timestamps on create, so this is a malformed row rather than an ordinary state; saying
+  // "closed" would hide it behind the one word a teacher never looks at twice.
+  if (opensAt <= 0 || closesAt <= opensAt) return 'draft';
   if (now < opensAt) return 'scheduled';
   if (now < closesAt) return 'open';
   return 'closed';

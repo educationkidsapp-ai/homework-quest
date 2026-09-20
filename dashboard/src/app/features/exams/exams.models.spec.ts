@@ -65,6 +65,22 @@ describe('the five states of an exam', () => {
     expect(examStateOf(exam({ open: false }), OPENS + 60_000)).toBe('open');
   });
 
+  it('calls a published exam with no window a draft, never closed', () => {
+    // `closed` says it ran and is over, and nobody sat a paper that never opened. The server
+    // requires both timestamps on create, so this is a malformed row — and hiding one behind
+    // the one word a teacher never looks at twice is how it would stay malformed.
+    expect(examStateOf(exam({ opensAt: undefined, closesAt: undefined }), OPENS)).toBe('draft');
+    expect(examStateOf(exam({ opensAt: 0, closesAt: 0 }), OPENS)).toBe('draft');
+    // A window that closes when or before it opens is no window either.
+    expect(examStateOf(exam({ closesAt: OPENS }), CLOSES)).toBe('draft');
+  });
+
+  it('still says released when the parents have the scores and the window is missing', () => {
+    expect(examStateOf(exam({ released: true, opensAt: undefined, closesAt: undefined }), OPENS)).toBe(
+      'released',
+    );
+  });
+
   it('freezes the settings from the opening instant, not from the first sitting', () => {
     expect(settingsFrozen(exam(), OPENS - 1)).toBe(false);
     expect(settingsFrozen(exam(), OPENS)).toBe(true);

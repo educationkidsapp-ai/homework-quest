@@ -92,10 +92,26 @@ export class MarkPanelComponent {
   private original: MarkDraft | null = null;
   protected readonly saving = signal(false);
 
+  /**
+   * Which child's marks the draft below holds, as `lessonId::childId`.
+   *
+   * **Not the row's object identity.** Both callers feed this panel from a resource that reloads
+   * — the exam results page reloads on every release and every re-opening, and the lesson one on
+   * its own — and each reload hands down a *new* `ResultRow` for the same child. Keyed on
+   * identity, the draft was rebuilt from the server and a teacher who had typed half a comment
+   * when a reload landed lost it with no warning and nothing to undo. Keyed on the child, a
+   * reload changes nothing she is looking at: her typing is hers until she saves it or closes
+   * the panel, which is the moment this component is destroyed.
+   */
+  private key = '';
+
   constructor() {
-    // A new row means a new child (the panel is rebuilt per expansion), so the draft follows it.
     effect(() => {
-      this.original = draftOf(this.row());
+      const row = this.row();
+      const key = `${this.lessonId()}::${row.childId}`;
+      if (key === this.key) return;
+      this.key = key;
+      this.original = draftOf(row);
       this.draft.set(this.original);
     });
   }

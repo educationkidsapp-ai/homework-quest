@@ -28,7 +28,7 @@ import { LevelBandComponent } from '../results/level-band.component';
 import { MarkPanelComponent } from '../results/mark-panel.component';
 import { resultRows, scoreLabel, type ResultRow } from '../results/results.models';
 import { ExamDistributionComponent } from './exam-distribution.component';
-import { type ChildRow, childRows, examStateOf, minutesTaken, questionRows, zonedText } from './exams.models';
+import { type ChildRow, childRows, minutesTaken, questionRows, zonedText } from './exams.models';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const MOMENT: Intl.DateTimeFormatOptions = {
@@ -118,11 +118,6 @@ export class ExamResultsPage {
   protected readonly title = computed(() => this.results.value().title ?? '');
   protected readonly className = computed(() => this.results.value().className ?? '');
   protected readonly settings = computed(() => this.results.value().settings ?? null);
-
-  protected readonly state = computed(() => {
-    const settings = this.settings();
-    return settings ? examStateOf(settings, Date.now()) : 'draft';
-  });
 
   protected readonly subtitle = computed(() => {
     this.lang();

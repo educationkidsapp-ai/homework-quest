@@ -275,24 +275,21 @@ test('screenshots', async ({ page }) => {
   await shotsOf('ar');
   await setLanguage(page, 'en');
 
-  // The phone: §2's rule is that nothing scrolls sideways at 375.
-  await page.setViewportSize({ width: 375, height: 812 });
-  await newExam(page);
-  await shoot(page, `${SHOTS}/new-exam-375-en.png`, page.getByRole('heading', { name: 'New exam' }), {
-    fullPage: true,
-  });
-  await setLanguage(page, 'ar');
-  await newExam(page);
-  await shoot(page, `${SHOTS}/new-exam-375-ar.png`, page.getByRole('button').first(), {
-    fullPage: true,
-  });
+  // New exam, in both languages at both widths — §2's rule is that nothing scrolls sideways
+  // at 375, and the form is the screen with the most fields in the package.
+  for (const width of [1366, 375]) {
+    await page.setViewportSize({ width, height: width === 1366 ? 768 : 812 });
+    for (const language of ['en', 'ar'] as const) {
+      await setLanguage(page, language);
+      await newExam(page);
+      // The heading is translated, so the marker is the form's first control in both.
+      await shoot(page, `${SHOTS}/new-exam-${width}-${language}.png`, page.getByRole('button').first(), {
+        fullPage: true,
+      });
+    }
+  }
   await setLanguage(page, 'en');
   await page.setViewportSize({ width: 1366, height: 768 });
-
-  await newExam(page);
-  await shoot(page, `${SHOTS}/new-exam-1366-en.png`, page.getByRole('heading', { name: 'New exam' }), {
-    fullPage: true,
-  });
 });
 
 async function newExam(page: Page): Promise<void> {
