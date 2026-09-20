@@ -1,0 +1,161 @@
+<hq-card
+  class="gb"
+  [flush]="true"
+  [title]="'results.gradebook.title' | transloco"
+  [eyebrow]="'results.gradebook.count' | transloco: { count: visibleRows().length }"
+>
+  <div card-actions class="gb__toolbar">
+    <hq-input
+      type="date"
+      class="gb__date"
+      [label]="'results.gradebook.from' | transloco"
+      [required]="true"
+      [value]="from()"
+      (valueChange)="from.set($event)"
+    />
+    <hq-input
+      type="date"
+      class="gb__date"
+      [label]="'results.gradebook.to' | transloco"
+      [required]="true"
+      [value]="to()"
+      (valueChange)="to.set($event)"
+    />
+    <hq-checkbox
+      [label]="'results.filter.needsMarking' | transloco"
+      [(checked)]="onlyUnmarked"
+      data-hq-needs-marking
+    />
+    <hq-button variant="secondary" [loading]="exporting()" (pressed)="exportCsv()">
+      {{ 'results.export.csv' | transloco }}
+    </hq-button>
+    <hq-button variant="secondary" [loading]="exporting()" (pressed)="exportXlsx()">
+      {{ 'results.export.xlsx' | transloco }}
+    </hq-button>
+  </div>
+
+  @if (needsMarking() > 0) {
+    <p class="gb__pending">
+      {{ 'results.gradebook.pending' | transloco: { count: needsMarking() } }}
+    </p>
+  }
+
+  @if (book.isLoading()) {
+    <hq-skeleton
+      [loading]="true"
+      [lines]="6"
+      height="var(--hq-size-row-height)"
+      [label]="'results.gradebook.loading' | transloco"
+    />
+  } @else if (columns().length === 0) {
+    <hq-empty-state [message]="'results.gradebook.empty' | transloco" />
+  } @else {
+    <!-- The scroll lives here, inside the card: the page itself never scrolls sideways. -->
+    <div class="gb__scroll">
+      <table class="gb__grid" [attr.aria-label]="'results.gradebook.title' | transloco">
+        <thead>
+          <tr>
+            <th scope="col" class="gb__corner">{{ 'results.table.child' | transloco }}</th>
+            @for (column of columns(); track column.lessonId) {
+              <th scope="col" class="gb__column" [attr.title]="column.title">
+                <span class="gb__column-date">{{ columnDate(column.date) }}</span>
+                <span class="gb__column-title">{{ column.title }}</span>
+              </th>
+            }
+            <th scope="col" class="gb__average-head">
+              {{ 'results.gradebook.average' | transloco }}
+            </th>
+          </tr>
+          <!-- The class's own line, right under the headings it belongs to. -->
+          <tr class="gb__class-row">
+            <th scope="row" class="gb__corner">{{ 'results.metric.average' | transloco }}</th>
+            @for (column of columns(); track column.lessonId) {
+              <td class="gb__class-average">{{ score(column.classAverage) }}</td>
+            }
+            <td></td>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of visibleRows(); track row.childId) {
+            <tr>
+              <th scope="row" class="gb__name">
+                <a [routerLink]="['/teacher/children', row.childId]">{{ row.name }}</a>
+              </th>
+              @for (cell of row.cells; track cell.lessonId) {
+                <td class="gb__cell-wrap">
+                  @if (isEditing(row, cell)) {
+                    <div class="gb__editor">
+                      <hq-input
+                        type="number"
+                        [label]="'results.marking.override' | transloco"
+                        [value]="draft()"
+                        [disabled]="loadingCell() || savingCell()"
+                        (valueChange)="draft.set($event)"
+                      />
+                      <div class="gb__editor-actions">
+                        <hq-button variant="quiet" (pressed)="cancel()">
+                          {{ 'results.gradebook.cancel' | transloco }}
+                        </hq-button>
+                        <span *hqFeature="markingFlag">
+                          <hq-button
+                            *hqCan="'results.write'"
+                            variant="primary"
+                            [loading]="loadingCell() || savingCell()"
+                            (pressed)="saveCell(row, cell)"
+                          >
+                            {{ 'results.gradebook.apply' | transloco }}
+                          </hq-button>
+                        </span>
+                      </div>
+                    </div>
+                  } @else {
+                    <button
+                      type="button"
+                      class="gb__cell"
+                      data-hq-gb-cell
+                      [class.is-editable]="canOverride()"
+                      [disabled]="!canOverride() || !cell.attempted"
+                      [attr.title]="cellTitle(row, cell)"
+                      (click)="edit(row, cell)"
+                    >
+                      @if (cell.attempted) {
+                        <hq-level-band [square]="true" [band]="cell.band" [score]="cell.score" />
+                        @if (cell.overridden) {
+                          <span class="gb__auto">{{ cell.autoScore }}</span>
+                        }
+                        @if (cell.needsMarking) {
+                          <span class="hq-badge hq-badge--warning">
+                            {{ 'results.table.mark' | transloco }}
+                          </span>
+                        }
+                      } @else {
+                        <span class="gb__absent" aria-hidden="true">–</span>
+                        <span class="hq-sr-only">{{ 'results.table.notAttempted' | transloco }}</span>
+                      }
+                    </button>
+                  }
+                </td>
+              }
+              <td class="gb__average">
+                <strong>{{ score(row.average) }}</strong>
+                <hq-level-band [band]="row.band" />
+                @if (row.trend) {
+                  <span class="gb__trend" [attr.data-trend]="row.trend">
+                    <span aria-hidden="true">{{ trendGlyph(row) }}</span>
+                    <span class="hq-sr-only">{{ trendLabel(row) }}</span>
+                  </span>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td [attr.colspan]="columns().length + 2">
+                <hq-empty-state [message]="'results.empty.allMarked' | transloco" />
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</hq-card>

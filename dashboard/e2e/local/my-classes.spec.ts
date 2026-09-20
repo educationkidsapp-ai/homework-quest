@@ -190,9 +190,15 @@ test('the Children tab lists the roster, and offers nothing to change while the 
   await expect(page.getByRole('columnheader', { name: 'Parent email' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Edit/ })).toHaveCount(0);
 
-  // The arrow-key tabs pattern, and the two stubs that name their phase.
+  // The arrow-key tabs pattern. Gradebook is built (N4.2) but this school does not have the
+  // `gradebook` flag, so the tab stays and says so rather than disappearing from under her;
+  // Exams is still the stub that names its phase.
   await page.getByRole('tab', { name: 'Children' }).press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Gradebook' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('This school does not have the gradebook yet.')).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Gradebook' }).press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Exams' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('Coming in N4.')).toBeVisible();
 
   // "All lessons of this class" keeps the list one tap away, filtered to this class.

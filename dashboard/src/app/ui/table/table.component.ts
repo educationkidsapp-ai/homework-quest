@@ -4,12 +4,18 @@ import { TranslocoPipe } from '@jsverse/transloco';
 import { ListStaggerDirective } from '../motion';
 
 export interface TableColumn<Row> {
-  /** Key passed back to the cell template so one template can serve every column. */
-  readonly key: keyof Row & string;
+  /**
+   * Key passed back to the cell template so one template can serve every column.
+   *
+   * A key of the row keeps the editor's completion and catches a typo; the widened half of the
+   * union is for a table whose columns are data rather than fields — N4.2's results grid has one
+   * column per *stop* of the lesson, named `stop:{id}`, which no row type can declare.
+   */
+  readonly key: (keyof Row & string) | (string & Record<never, never>);
   readonly header: string;
   /** Optional column width applied to the header cell, e.g. `30%`. */
   readonly width?: string;
-  readonly align?: 'start' | 'end';
+  readonly align?: 'start' | 'center' | 'end';
 }
 
 /**
@@ -69,6 +75,18 @@ export interface TableColumn<Row> {
                   </td>
                 }
               </tr>
+              @if (expandedTemplate(); as expanded) {
+                @if (isExpanded()(row)) {
+                  <tr class="table__expansion">
+                    <td [attr.colspan]="columns().length + (overflowTemplate() ? 1 : 0)">
+                      <ng-container
+                        [ngTemplateOutlet]="expanded"
+                        [ngTemplateOutletContext]="{ $implicit: row }"
+                      />
+                    </td>
+                  </tr>
+                }
+              }
             }
           </tbody>
         }
@@ -156,6 +174,14 @@ export interface TableColumn<Row> {
     .table__empty {
       border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-divider);
     }
+
+    // The panel a row opens onto (N4.2's marking). Sunken rather than white, so the eye reads it
+    // as *inside* the row it belongs to rather than as three more rows of the table.
+    .table__expansion > td {
+      block-size: auto;
+      padding: 0;
+      background: var(--hq-color-surface-sunken);
+    }
   `,
 })
 export class TableComponent<Row> {
@@ -168,6 +194,14 @@ export class TableComponent<Row> {
   readonly wrapHeaders = input(false);
 
   readonly overflowTemplate = input<TemplateRef<{ $implicit: Row }> | null>(null);
+  /**
+   * A panel the row opens onto, drawn as a full-width row under it (N4.2's marking editor).
+   *
+   * A row that expands in place rather than a drawer or a dialog: the teacher is comparing one
+   * child's retell with the rest of the column, and a modal would take the column away.
+   */
+  readonly expandedTemplate = input<TemplateRef<{ $implicit: Row }> | null>(null);
+  readonly isExpanded = input<(row: Row) => boolean>(() => false);
   /** Accessible name: say what the table lists. */
   readonly label = input.required<string>();
   /** Accessible name for the overflow column; falls back to the translated default. */

@@ -1,0 +1,104 @@
+.child__levels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--hq-space-grid-gap);
+  margin-block-end: var(--hq-space-grid-gap);
+}
+
+.child__level-subject {
+  display: block;
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-xs);
+  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+}
+
+.child__level-band {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-8);
+  margin-block-start: var(--hq-space-8);
+}
+
+.child__level-score {
+  display: block;
+  margin-block-start: var(--hq-space-8);
+  font-size: var(--hq-text-title-sm);
+  line-height: calc(var(--hq-text-title-sm-line) / var(--hq-text-title-sm));
+  font-weight: var(--hq-text-weight-bold);
+}
+
+.child__level-meta {
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-2xs);
+}
+
+.child__trend[data-trend='up'] {
+  color: var(--hq-color-success-ink);
+}
+
+.child__trend[data-trend='down'] {
+  color: var(--hq-color-error-ink);
+}
+
+.child__trend[data-trend='flat'] {
+  color: var(--hq-color-ink-soft);
+}
+
+.child__chart,
+.child__comments {
+  margin-block-end: var(--hq-space-grid-gap);
+}
+
+// ---- the comments timeline ---------------------------------------------------------------
+
+.child__comment {
+  padding-block: var(--hq-space-12);
+  border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+}
+
+.child__comment:first-of-type {
+  border-block-start: 0;
+  padding-block-start: 0;
+}
+
+.child__comment-head {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-8);
+  flex-wrap: wrap;
+}
+
+.child__comment-lesson {
+  font-weight: var(--hq-text-weight-medium);
+}
+
+.child__comment-date {
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-xs);
+}
+
+.child__comment-stars {
+  color: var(--hq-color-warning-500);
+}
+
+.child__comment-text {
+  margin: var(--hq-space-4) 0 0;
+}
+
+// ---- the gallery ---------------------------------------------------------------------------
+
+.child__gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--hq-space-16);
+}
+
+.child__work-item {
+  margin: 0;
+}
+
+.child__work-caption {
+  margin-block-start: var(--hq-space-4);
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-2xs);
+}

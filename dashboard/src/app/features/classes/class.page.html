@@ -39,6 +39,16 @@
       @case ('children') {
         <hq-class-children [classId]="classId()" [className]="className()" />
       }
+      @case ('gradebook') {
+        <!-- N4.2. Behind the same flag the server's `GradingController` carries. A school
+             without it keeps the tab and is told what it would hold, rather than losing a tab
+             its neighbour has and wondering what happened to it. -->
+        @if (gradebookOn()) {
+          <hq-gradebook [classId]="classId()" [className]="className()" />
+        } @else {
+          <hq-empty-state [message]="'results.gradebook.off' | transloco" />
+        }
+      }
       @default {
         <hq-empty-state [message]="comingSoon()" />
       }

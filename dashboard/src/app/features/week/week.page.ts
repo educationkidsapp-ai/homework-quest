@@ -21,6 +21,9 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { type AdminLesson, TeacherApi, TeacherLessonsApi, type TeacherWeek, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
+import { FLAGS } from '../../core/flags/flag.service';
+import { FeatureDirective } from '../../core/flags/feature.directive';
+import { CanDirective } from '../../core/permissions/can.directive';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PlatformService } from '../../core/platform/platform.service';
 import { UndoService } from '../../core/undo/undo.service';
@@ -102,6 +105,8 @@ interface CopyRequest {
     CdkMenu,
     CdkMenuItem,
     CdkMenuTrigger,
+    FeatureDirective,
+    CanDirective,
     RouterLink,
     TranslocoPipe,
   ],
@@ -326,6 +331,19 @@ export class WeekPage {
   // ---- the keyboard twin: the card's overflow menu ---------------------------------------------
 
   protected readonly menuCell = signal<CellRef | null>(null);
+
+  // N4.2: the third way in to §4 step 9's Results page, beside the lesson's own header and the
+  // class calendar. In the menu rather than on the card: the card already carries the lesson
+  // link and the played count, and a second link on it would compete with the one that opens
+  // the lesson she is looking for.
+  protected readonly gradebookFlag = FLAGS.gradebook;
+
+  protected readonly menuResultsLink = computed<readonly string[] | null>(() => {
+    const cell = this.menuCell()?.cell;
+    return cell?.lesson && cell.status === 'published'
+      ? ['/teacher/lessons', cell.lesson.id ?? '', 'results']
+      : null;
+  });
 
   protected readonly menuSource = computed<DragSource | null>(() => {
     const ref = this.menuCell();

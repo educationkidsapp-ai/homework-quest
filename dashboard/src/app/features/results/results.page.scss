@@ -1,0 +1,140 @@
+@use 'mixins' as m;
+
+// §3's metric row: four cards that wrap to two, then to one, without a media query per screen.
+.results__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--hq-space-grid-gap);
+  margin-block-end: var(--hq-space-grid-gap);
+}
+
+.results__metric-label {
+  display: block;
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-xs);
+  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+}
+
+.results__metric-value {
+  display: block;
+  margin-block-start: var(--hq-space-8);
+  color: var(--hq-color-ink);
+  font-size: var(--hq-text-title-sm);
+  line-height: calc(var(--hq-text-title-sm-line) / var(--hq-text-title-sm));
+  font-weight: var(--hq-text-weight-bold);
+}
+
+// "Released on 18 Sep" is a sentence, not a number: 30 px would wrap it onto three lines.
+.results__metric-value--words {
+  font-size: var(--hq-text-theme-xl);
+  line-height: calc(var(--hq-text-theme-xl-line) / var(--hq-text-theme-xl));
+  font-weight: var(--hq-text-weight-semibold);
+}
+
+.results__release {
+  margin-block-end: var(--hq-space-grid-gap);
+}
+
+.results__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-16);
+  flex-wrap: wrap;
+}
+
+// ---- the grid -------------------------------------------------------------------------------
+
+.results__child {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hq-space-8);
+  min-block-size: var(--hq-size-touch-target);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.results__chevron {
+  color: var(--hq-color-ink-muted);
+}
+
+.results__stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hq-space-4);
+  min-inline-size: var(--hq-size-cell-tile);
+  padding: var(--hq-space-4);
+  border-radius: var(--hq-radius-xs);
+  color: var(--hq-color-warning-500);
+}
+
+// The stops this class found hardest. A tint *and* a rule: on a projector the tint alone is the
+// first thing to go, and the cell's own badge already says whether it was attempted.
+.results__stop.is-weak {
+  background: var(--hq-color-error-soft);
+  box-shadow: inset 0 0 0 var(--hq-size-rule-thin) var(--hq-color-error-300);
+  color: var(--hq-color-error-ink);
+}
+
+.results__dash {
+  color: var(--hq-color-ink-muted);
+}
+
+// The automatic score, kept visible beside the teacher's own — §7 asks that an override never
+// hides what the system worked out.
+.results__auto {
+  margin-inline-end: var(--hq-space-8);
+  color: var(--hq-color-ink-muted);
+  text-decoration: line-through;
+}
+
+// ---- the marking panel ------------------------------------------------------------------------
+
+.mark {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-24);
+  padding: var(--hq-space-card);
+  border-inline-start: var(--hq-size-rule) solid var(--hq-color-accent);
+}
+
+.mark__stop {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--hq-space-12);
+}
+
+.mark__title {
+  margin: 0;
+  font-size: var(--hq-text-card-title);
+  line-height: calc(var(--hq-text-card-title-line) / var(--hq-text-card-title));
+  font-weight: var(--hq-text-weight-semibold);
+}
+
+.mark__none {
+  margin: 0;
+  color: var(--hq-color-ink-soft);
+}
+
+.mark__lesson {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) 1fr;
+  gap: var(--hq-space-16);
+
+  @include m.below(m.$sheet-breakpoint) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mark__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--hq-space-12);
+}

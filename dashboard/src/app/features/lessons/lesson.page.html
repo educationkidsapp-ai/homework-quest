@@ -403,6 +403,13 @@
     </div>
 
     <div page-footer>
+      @if (hasResults()) {
+        <span *hqFeature="gradebookFlag">
+          <a *hqCan="'results.read'" class="hq-linkbutton" [routerLink]="resultsLink()">
+            {{ 'results.title' | transloco }}
+          </a>
+        </span>
+      }
       @if (canPreview()) {
         <!-- An anchor, not `hq-button`: it navigates, so middle-click, "open in new tab" and the
              status bar all have to work. `.hq-linkbutton` gives it the secondary button's box. -->

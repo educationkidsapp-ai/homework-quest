@@ -96,6 +96,9 @@ export interface Breadcrumb {
       justify-content: space-between;
       gap: var(--hq-space-16);
       margin-block-start: var(--hq-space-8);
+      // At 375 px a two-word action beside a title that wraps leaves neither room to breathe
+      // (N4.2's Results header, "Open the lesson"). Wrapping costs nothing where the row fits.
+      flex-wrap: wrap;
     }
 
     .page__title {

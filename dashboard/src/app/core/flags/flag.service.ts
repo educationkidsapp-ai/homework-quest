@@ -34,6 +34,12 @@ export const FLAGS = {
   // N2.3: roster editing by the teacher herself. Off by default — most schools want the
   // office to own who is in a class, and the ones that do not can turn it on per school.
   teacherRosterEdit: 'teacher.rosterEdit',
+  // N4.2: scores. `gradebook` is the whole of §7 — the Results page, the grid and the child
+  // page, and the server's `GradingController` carries it too. `openStopMarking` is the half a
+  // school can be without: it gates only `PUT /teacher/marks`, so a school with the gradebook
+  // and not the marking reads every number and writes none.
+  gradebook: 'gradebook',
+  openStopMarking: 'openStopMarking',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

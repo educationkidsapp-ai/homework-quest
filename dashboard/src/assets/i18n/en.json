@@ -820,6 +820,126 @@
     "passwordHint": "Passwords are at least 10 characters and are never shown.",
     "help": "Help"
   },
+  "results": {
+    "title": "Results",
+    "subtitle": "{{class}} · {{date}}",
+    "openLesson": "Open the lesson",
+    "loading": "Loading the results",
+    "metric": {
+      "played": "Played",
+      "playedValue": "{{played}} of {{roster}}",
+      "average": "Class average",
+      "needsMarking": "Needs marking",
+      "release": "Parents"
+    },
+    "release": {
+      "title": "Release to parents",
+      "toggle": "Released",
+      "explain": "Parents see scores and comments after release. Withdrawing hides them again.",
+      "notReleased": "Not released",
+      "released": "Released",
+      "releasedOn": "Released {{date}}",
+      "withdrawTitle": "Withdraw the results?",
+      "withdrawMessage": "Parents will stop seeing the score and the comment for this lesson.",
+      "withdrawConfirm": "Withdraw",
+      "doneOn": "Results released to parents.",
+      "doneOff": "Results withdrawn from parents."
+    },
+    "table": {
+      "title": "Children",
+      "count": "{{count}} children",
+      "child": "Child",
+      "stop": "Stop {{number}}",
+      "level": "Level",
+      "score": "Score",
+      "band": "Band",
+      "notAttempted": "Not attempted",
+      "mark": "Mark",
+      "needsMarking": "{{count}} to mark",
+      "hardest": "hardest"
+    },
+    "filter": {
+      "needsMarking": "Needs marking only"
+    },
+    "export": {
+      "csv": "Export CSV",
+      "xlsx": "Export Excel"
+    },
+    "empty": {
+      "allMarked": "Nothing left to mark.",
+      "noneYet": "No one has played this lesson yet."
+    },
+    "marking": {
+      "stars": "{{count}} of 3 stars",
+      "starsFor": "Stars for {{stop}}",
+      "stopComment": "Note on this stop",
+      "override": "Score override",
+      "overrideHint": "Leave it empty to keep {{auto}}",
+      "parentComment": "Comment for the parent",
+      "parentCommentHint": "Sent with the score once the results are released.",
+      "save": "Save marks",
+      "saved": "Marks saved for {{name}}.",
+      "openChild": "Open her page",
+      "noOpenStops": "This lesson has no stop to mark by hand."
+    },
+    "work": {
+      "none": "Nothing was saved for this stop.",
+      "download": "Save the recording",
+      "cannotPlay": "This browser will not play the recording here — save it to listen.",
+      "recordingOf": "{{name}}'s recording",
+      "drawingOf": "{{name}}'s work"
+    },
+    "band": {
+      "emerging": "Emerging",
+      "developing": "Developing",
+      "secure": "Secure",
+      "exceeding": "Exceeding",
+      "none": "No score yet",
+      "score": "score {{score}}"
+    },
+    "bandShort": {
+      "emerging": "Em",
+      "developing": "Dv",
+      "secure": "Se",
+      "exceeding": "Ex",
+      "none": "–"
+    },
+    "gradebook": {
+      "title": "Gradebook",
+      "count": "{{count}} children",
+      "loading": "Loading the gradebook",
+      "empty": "No published lesson in this range.",
+      "off": "This school does not have the gradebook yet.",
+      "from": "From",
+      "to": "To",
+      "average": "Average",
+      "auto": "automatic {{score}}",
+      "apply": "Apply",
+      "cancel": "Cancel",
+      "saved": "{{name}} set to {{score}}.",
+      "pending": "Waiting for a mark: {{count}}",
+      "trend": {
+        "up": "Going up",
+        "flat": "Steady",
+        "down": "Going down"
+      }
+    },
+    "child": {
+      "loading": "Loading her page",
+      "chart": "Scores over time",
+      "chartCaption": "Every released score, oldest first",
+      "lesson": "Lesson",
+      "date": "Date",
+      "noScores": "No released score yet.",
+      "lessons": "Lessons counted: {{count}}",
+      "noLevels": "No subject has enough scores for a level yet.",
+      "comments": "Comments",
+      "forParent": "Seen by the parent",
+      "noComments": "No comment written yet.",
+      "work": "Saved work",
+      "noWork": "Nothing saved yet."
+    }
+  },
   "role": {
     "ADMIN": "Admin",
     "TEACHER": "Teacher",
