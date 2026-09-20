@@ -24,9 +24,13 @@ import quest.server.tenancy.TenantContext;
  * them — the wipe runs first and this runs after it, so the owner's acceptance pass started with three lessons
  * nobody had written. QA is the owner's environment and the only lessons in it are the ones a teacher posts there;
  * the samples belong to a developer's laptop and to the test suite, which asserts against them.
+ *
+ * <p>Ordered after {@link quest.server.classes.SchoolSeed} ({@link quest.server.classes.SeedOrder#CONTENT}): the
+ * samples are published into a section, and a section that does not exist yet is not one they can be published to.
  */
 @Component
 @Profile({"local", "dev", "h2", "test"})
+@org.springframework.core.annotation.Order(quest.server.classes.SeedOrder.CONTENT)
 public class ContentSeed implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(ContentSeed.class);
     private final LessonRepository lessons; private final SkillRepository skills; private final LessonStore store; private final Json json; private final ClassService classes;

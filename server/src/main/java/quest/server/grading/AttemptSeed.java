@@ -42,8 +42,9 @@ import quest.server.tenancy.TenantContext;
  * he registers as a parent in the real app and its lessons are the ones he posts himself, so a fixture writing
  * attempts into it would put scores on the board that nobody played. The file is read only when
  * {@link quest.server.config.QuestProperties.Seed#profileOrFull()} is `full` and the school seed is on at all, which
- * is the same gate {@link quest.server.classes.SchoolSeed} runs behind — this runs after it, so the classes and the
- * children it names already exist.
+ * is the same gate {@link quest.server.classes.SchoolSeed} runs behind. "After it" is now stated rather than hoped
+ * for: {@link quest.server.classes.SeedOrder#ATTEMPTS} puts it last of the three, because until N4.3 the order was
+ * whatever order component scanning found the beans in, and this loader fails outright on a class it cannot find.
  *
  * <p><strong>It brings its own lesson.</strong> Attempts hang off a lesson and a stop, and a QA environment has no
  * lessons until a teacher writes one, so the loader publishes one small homework per class named in the file:
@@ -53,6 +54,7 @@ import quest.server.tenancy.TenantContext;
  */
 @Component
 @Profile({"qa", "h2", "test"})
+@org.springframework.core.annotation.Order(quest.server.classes.SeedOrder.ATTEMPTS)
 public class AttemptSeed implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(AttemptSeed.class);
     /** The lesson the file's attempts are about, one copy per class, published a week ago. */

@@ -60,9 +60,16 @@ import quest.server.tenancy.TenantContext;
  * value is never logged. Without it nothing touches a password at all: a new teacher keeps the one-time password
  * {@link TemporaryPasswords} generated, an existing one keeps whatever she has, and an Admin hands a fresh one out
  * with `POST /admin/teachers/{id}/password`.
+ *
+ * <p><strong>Order.</strong> {@link SeedOrder#SCHOOLS}: the classes, the staff and the roster have to exist before
+ * anything that hangs off them is written. {@link quest.server.grading.AttemptSeed} names its classes and children
+ * by name and {@link quest.server.content.ContentSeed} publishes its samples into a section, and Spring runs
+ * `CommandLineRunner`s in bean-definition order unless they say otherwise — which is to say, in whatever order
+ * component scanning happened to find them. `SeedOrderTest` pins the three.
  */
 @Component
 @Profile({"qa", "h2", "test"})
+@org.springframework.core.annotation.Order(SeedOrder.SCHOOLS)
 public class SchoolSeed implements CommandLineRunner {
     /** The environment variable that makes the seeded teachers signable-in; never its value. */
     static final String STAFF_PASSWORD_ENV = "SEED_STAFF_PASSWORD";

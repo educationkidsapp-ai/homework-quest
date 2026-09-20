@@ -69,12 +69,13 @@ class DashboardStaticTest extends ApiTestSupport {
         mvc.perform(get("/dashboard/manifest.webmanifest")).andExpect(content().contentType("application/manifest+json"));
     }
 
+    /** `media-src` is N4.2's addition: the Results page plays back the retell a child recorded. */
     @Test void the_security_headers_are_on_every_dashboard_response() throws Exception {
         for (String path : new String[]{"/dashboard/", "/dashboard/admin/schools", "/dashboard/main-WQMMA2Q6.js"})
             mvc.perform(get(path)).andExpect(status().isOk())
                     .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                     .andExpect(header().string("Content-Security-Policy",
-                            "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; connect-src 'self'"));
+                            "default-src 'self'; img-src 'self' https: data:; media-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self'"));
     }
 
     /**

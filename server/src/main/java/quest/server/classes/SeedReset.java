@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -65,7 +64,7 @@ import quest.server.tenancy.TenantContext;
  * transaction per school, and logs a row count per table.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(SeedOrder.RESET)
 public class SeedReset implements CommandLineRunner {
     /** The environment variable, for the message the refusal under `prod` prints. */
     static final String ENV = "SEED_RESET";
