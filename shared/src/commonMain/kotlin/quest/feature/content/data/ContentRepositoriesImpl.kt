@@ -14,7 +14,7 @@ import quest.api.dto.PublishedLesson
 import quest.api.dto.PublishedLessonSummary
 import quest.api.map.MapAssembler
 import quest.api.samples.summary
-import quest.api.validation.SchemaValidator
+import quest.core.json.AppJson
 import quest.core.db.Db
 import quest.core.platform.Ids
 import quest.core.platform.Today
@@ -26,7 +26,7 @@ import quest.feature.content.domain.StopMediaRecord
 import quest.core.platform.MediaFiles
 
 class LessonRepositoryImpl(private val api: ContentApi, private val db: Db) : LessonRepository {
-    private val json = SchemaValidator.json
+    private val json = AppJson
 
     override suspend fun lesson(id: String, version: Int?): PublishedLesson {
         cached(id)?.let { if (version == null || it.version >= version) return it }

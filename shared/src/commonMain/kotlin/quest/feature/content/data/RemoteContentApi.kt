@@ -42,14 +42,16 @@ import quest.api.dto.ProgressResponse
 import quest.api.dto.PublishedLesson
 import quest.api.dto.SchoolTheme
 import quest.api.dto.UpdateChildRequest
-import quest.api.validation.SchemaValidator
+import quest.core.json.AppJson
 import quest.feature.content.domain.SchoolApi
 import quest.feature.content.domain.ThemeFetch
 
 /** The real implementation: Spring Boot API over HTTP with the Firebase ID token on every request. */
 class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvider, engineClient: HttpClient) : ContentApi, SchoolApi {
     private val client = engineClient.config {
-        install(ContentNegotiation) { json(SchemaValidator.json) }
+        // D16: the app decodes with [AppJson] (`ignoreUnknownKeys = true`), never with the strict validator Json.
+        // A field the server adds after this binary shipped is then ignored instead of throwing on the first body.
+        install(ContentNegotiation) { json(AppJson) }
         install(HttpTimeout) { requestTimeoutMillis = 60_000 }
     }
 
@@ -105,7 +107,7 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
 
     private suspend fun HttpResponse.toException(): ApiException {
         val text = bodyAsText()
-        val error = runCatching { SchemaValidator.json.decodeFromString(ApiError.serializer(), text) }.getOrNull()
+        val error = runCatching { AppJson.decodeFromString(ApiError.serializer(), text) }.getOrNull()
             ?: ApiError(when (status.value) { 401 -> ApiError.UNAUTHORIZED; 403 -> ApiError.FORBIDDEN; 404 -> ApiError.NOT_FOUND; else -> ApiError.NETWORK }, "Server said ${status.value}")
         return ApiException(error)
     }
