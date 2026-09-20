@@ -47,6 +47,7 @@ one fails with the variable's name, not its value.
 | `E2E_STAFF_PASSWORD` | the seeded teachers' password — **the same value** as the server's `SEED_STAFF_PASSWORD` |
 | `HQ_API` | local only: where `serve.mjs` proxies (default `http://localhost:18080`) |
 | `E2E_FAIL_ONCE_AT` | opts `lesson-retry.spec.ts` in; see below |
+| `E2E_TIMING` | opts `n4-timing.spec.ts` in — it builds 30 children and 20 lessons; see below |
 
 Setting `E2E_BASE_URL` also opts two files **out**: `admin-classes-teachers.spec.ts` entirely,
 and `lesson-editor.spec.ts`'s level generation. Both are explained below.
@@ -229,6 +230,11 @@ which resource.
 | `lesson-publish.spec.ts` | the publish sheet, Unpublish + Undo, moving and deleting a draft, "Analyzed before · 0 tokens", and the `ar` deep-reload regression |
 | `admin-classes-teachers.spec.ts` | §10 step 1: an Admin creates 1A/1B and Sara, the one-time password shows once, a second Math teacher for 1A is refused (**local only** — see below) |
 | `lesson-retry.spec.ts` | that a failed pipeline step really retries past its failure (opt-in, below) |
+| `add-stop.spec.ts`, `convert.spec.ts`, `roster-place.spec.ts` | CR2/CR4 and N2.6: the add-a-question form, markdown-first conversion, and placing a child on a section's roster |
+| `results.spec.ts` | N4.2 on `seed/attempts.csv`: the Results page, marking a retell, the release round trip, the gradebook and the child page |
+| `exams.spec.ts` | N4.4: New exam with a window two minutes out, the calendar ribbon, the Exams tab, and a results page where the whole class is still absent |
+| `n4-flow.spec.ts` | N4.5, §10 **steps 5–8** as one chain, with a child who really plays (below): the attempt on the Results page within 5 s, the mark moving the score, the parent gaining and losing it with the release, the gradebook and the child page, an exam sat once with the second sitting refused, its distribution, difficulty, CSV/XLSX/PDF, an absent child re-opened once — and Omar refused all of it |
+| `n4-timing.spec.ts` | N4.5's numbers: 30 children × 20 lessons built through the API, then the p95 of the gradebook and of an exam's results over 20 calls each (opt-in, below) |
 | `theme-shell.spec.ts` | T2's shell: the 290/90 px sidebar and that it is remembered, the drawer under 1024 px (scrim, Escape, focus back on the burger, Tab trapped), the rail on the inline-start edge in Arabic, the header's controls and the account menu's keyboard contract — plus the three-width screenshot matrix |
 | `theme-kit.spec.ts` | T3's kit and the teacher screens: that **no screen scrolls the page sideways** at 1366, 768 or 375 in either language — a pane scrolls, the document never does — plus the seven-screen screenshot set |
 | `theme-flow.spec.ts` | T4's: the **whole teacher flow** walked once as a person — sign in, This week (her Home), My classes, a class's Calendar and Children, All lessons, New lesson, the editor's stop editor / parent panel / publish sheet, the day moved, Profile, sign out — with every form on the path submitted exactly once; then the eight screens measured at 1366 light and dark and at 768 and 375, for a heading, no sideways page scroll, the screen's main action on screen, and dark-mode body-text contrast against its own surface, computed in the page; plus the 48-frame `theme-t4` set |
@@ -296,6 +302,39 @@ server, seeded, for every file in this directory.
 
 If an endpoint to remove a class or a teacher ever lands, delete the skip and give the file the
 same `afterAll` the others have.
+
+### The child's side, and the one expected failure (`n4-flow.spec.ts`)
+
+There is no web player — N3 is not built and the owner tests the child's side on the mobile app — so §10's steps 5
+and 7 would otherwise stop at "a child plays it". `n4-flow.spec.ts` plays it over the API the app itself uses
+(`n4-api.ts`): a parent bearer (`Bearer fake-token-<uid>`, which the `h2` profile's `quest.auth.fake` accepts),
+`GET /children/{id}/map`, `GET /lessons/{id}?childId=…` for the paper, and `POST /children/{id}/attempts` for what she
+answered. The seeded roster children have a `parentEmail` but no account, and no endpoint hands one of them to a
+parent, so the file walks the app's own path instead: the parent creates her child with the **class join code**.
+
+That is also why the file is **local only** — it writes a child, a lesson and an exam, and QA is the owner's
+acceptance environment. `E2E_BASE_URL` skips it.
+
+One test is marked `test.fail()`: **marking a retell from the Results page does not move the score** on a lesson with
+more than one level, which since publishing generates Levels 2 and 3 is every published lesson. The columns come from
+the lesson's top level and the child's stops from the level she played, and the dashboard joins them by stop id, so
+the mark is saved against a stop she never answered. The analysis, with file and line, is in
+`docs/reports/n4-verification.md` (D1). When it is fixed that test passes, Playwright fails the run for an unexpected
+pass, and the annotation comes off — which is the point of writing it this way rather than deleting it.
+
+### The numbers (`n4-timing.spec.ts`)
+
+Opt-in, because it builds its own fixture: 30 children created by one parent with 1B's join code, 20 hand-written
+homeworks on the 20 most recent teaching days, one upload of 100 attempts per child, and an exam the whole class sits.
+It then times `GET /teacher/classes/{id}/gradebook` and `GET /teacher/exams/{id}/results` 20 times each and asserts a
+nearest-rank p95 under a second, writing every sample to `e2e/.output/n4-timing.json`.
+
+```bash
+E2E_TIMING=1 pnpm e2e:local n4-timing
+```
+
+It runs on **1B** so it does not add 30 rows and 20 columns to the grid `n4-flow.spec.ts` asserts on 1A, and it takes
+everything it made back in `afterAll`.
 
 ### Injecting a pipeline failure (`lesson-retry.spec.ts`)
 
