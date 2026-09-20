@@ -16,7 +16,7 @@ The package answers `docs/reports/mobile-parent-acceptance.md` findings **F5** a
 | 1 | The app decodes with `ignoreUnknownKeys = true` (`AppJson`), separately from the strict `SchemaValidator.json` | `ContractToleranceTest` — a `PublishedLesson` and a `ProgressResponse` with fields no build has heard of | **pass** — the app built on `AppJson` signs in, joins, adds children and loads maps against live QA |
 | 2 | The school code is asked once per parent; Back from the map goes to the child list | `JoinSchoolTest` (3 new cases) | **pass** — see below |
 | 3 | Optional **class join code** on Add child; the child is created placed | `ClassCodeTest` (5 cases) | **pass** — walked live with `1A British`'s real code, see *Second pass* |
-| 4 | Released score, band and teacher comment in the parent view | `ReleasedResultsTest` (5 cases, incl. the §6 guard) | see *Second pass* |
+| 4 | Released score, band and teacher comment in the parent view | `ReleasedResultsTest` (5 cases, incl. the §6 guard) | **pass** — walked live after release, see *Second pass* |
 
 ## What was walked on the device
 
@@ -55,16 +55,30 @@ Same APK, same throwaway parent.
 ("3 / 7") and ingredients ("2 of 7"), the certificate shows three stars and a star count, and there is no
 score, no percentage, no red X and no timer anywhere in the seven stops or on the finish screen.
 
-**Two content notes for the backend, not the app.** Stop 5 renders *"Fill the gap: 10, 12, __, 16, 20"* — the
-same dropped `18` slot as **F7** in the September pass, on a freshly generated lesson, so F7 is not fixed. And
-`Child` still has no id the parent's device can show, which is why step 3 below is identified by name.
+### After release
 
-### Still open at the time of writing
+The lesson had no open stop to mark: it scored 100 automatically, band `exceeding`, and released on publish, so
+the coordinator added Maya's lesson-level comment. Child `4f9256fc-5004-4f4b-8cac-d69de78b2a3a` (`M1Placed`).
 
-The teacher's mark and release (`PUT /teacher/marks`, `POST /teacher/lessons/{id}/release`) are the
-coordinator's to run. Once released, the parent check is: **Grown-ups → PIN → Progress**, which must show
-*Marked by the teacher* with the score, the band and Maya's comment, and **the lesson panel** for that lesson,
-which must show the same. Child mode must still show no number.
+| # | Step | Expected | Observed | Result | Screenshot |
+|---|------|----------|----------|--------|------------|
+| 7 | Grown-ups → PIN → **Progress** | the released result | *Marked by the teacher* → "M1 device check — counting in 2s", 20/9, **100**, band **Exceeding**, and Maya's line *"Well done — you counted in 2s all the way to 20. Ms Maya"* | pass | `12` |
+| 8 | Calendar → 20 Sep → the played lesson → **Lesson panel** | the same result on the lesson | **100**, **Exceeding**, *Teacher's note* and the same comment, above the learning objectives | pass | `13` |
+| 9 | Back to **child mode** | no number anywhere | the island reads **✓ Done** with three stars and nothing else; the journey screen reads "Level 1 · Same as the book · done". Scanning both dumps for `100`, a percentage, any of the four band words and "Ms Maya" returns nothing | pass | `14` |
+
+Today's lessons on Parent home was empty, correctly — the lesson is dated 20 Sep and the pass ran on the 21st —
+so the panel is reached through the Calendar rather than the home card.
+
+### F7 is not fixed — for the backend backlog
+
+Stop 5 of this **freshly generated** lesson renders *"Fill the gap: 10, 12, __, 16, 20"*. The `18` slot is
+dropped, exactly as in `mobile-parent-acceptance.md` **F7** on 19 Sep, so the number line on screen is not a
+count in 2s. The intended answer (14) is still the right one and the child is not marked wrong, so it scores
+100 and looks fine from the teacher's side — which is what makes it easy to miss. Owner: backend / stop
+generation from `analysis.skills.examples`. Nothing in the app can detect or repair it.
+
+`Child` also still has no id the parent's device can show, which is why the child had to be identified to the
+teacher side by name and section.
 
 ## Two bugs the emulator found, which the unit tests had not
 
