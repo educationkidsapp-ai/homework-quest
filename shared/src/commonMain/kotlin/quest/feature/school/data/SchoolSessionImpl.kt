@@ -54,9 +54,11 @@ class SchoolSessionImpl(
 
     override suspend fun restore() {
         _branding.value = SchoolBranding(appName = settings.get(KEY_PLATFORM_NAME) ?: SchoolBranding.DEFAULT_APP_NAME)
+        // Read before the school id, because a parent can have joined with a code and still have no themed school:
+        // the **default** school is a real school somebody joined, it simply has no theme of its own.
+        _joinedCode.value = settings.get(KEY_CURRENT_CODE)?.takeIf { it.isNotBlank() }
         val id = settings.get(KEY_CURRENT)?.takeIf { it.isNotBlank() } ?: return
         _schoolId.value = id
-        _joinedCode.value = settings.get(KEY_CURRENT_CODE)?.takeIf { it.isNotBlank() }
         readCache(id)
     }
 
@@ -72,14 +74,28 @@ class SchoolSessionImpl(
         _branding.value = brandingFor(info.theme, info.logoUrl, info.name)
     }
 
+    /**
+     * The parent backed out: either out of a join they had not saved, or out of one they had, by asking for a
+     * different code. Both mean the stored code goes — it is the one thing Add child would otherwise keep reusing.
+     */
     override suspend fun cancelJoin() {
         confirmed = null
         confirmedCode = null
+        _joinedCode.value = null
+        settings.set(KEY_CURRENT_CODE, null)
         val id = _schoolId.value
         if (id == null) forget() else readCache(id)
     }
 
     override suspend fun use(schoolId: String) {
+        // The code is written first and unconditionally. A code that resolves to the **default** school still joined
+        // one — that is exactly what QA's acceptance school is — and dropping it there was why Add child kept asking
+        // for a code the parent had already given (F6). The theme and the flags are a separate question below.
+        confirmedCode?.let { code ->
+            settings.set(KEY_CURRENT_CODE, code)
+            _joinedCode.value = code
+            confirmedCode = null
+        }
         val id = schoolId.takeIf { it.isNotBlank() && it != DEFAULT_SCHOOL } ?: return forget()
         if (_schoolId.value != id) {
             _schoolId.value = id
@@ -91,12 +107,6 @@ class SchoolSessionImpl(
             settings.set(nameKey(id), info.name)
             _branding.value = brandingFor(info.theme ?: _theme.value, info.logoUrl, info.name)
             confirmed = null
-        }
-        // The code is the parent's, not the child's: it is written once and then reused for every later child.
-        confirmedCode?.let { code ->
-            settings.set(KEY_CURRENT_CODE, code)
-            _joinedCode.value = code
-            confirmedCode = null
         }
         sync()
     }
@@ -139,17 +149,18 @@ class SchoolSessionImpl(
         if (_theme.value?.appName.isNullOrBlank()) _branding.value = _branding.value.copy(appName = name)
     }
 
-    /** Back to the unthemed app: a child in the default school gets the design's own colours and the platform name. */
+    /**
+     * Back to the unthemed app: a child in the default school gets the design's own colours and the platform name.
+     * The joined **code** is not touched — the default school has no theme, but it is still the school the parent
+     * typed a code for, and the next child must reach it without being asked again. [cancelJoin] is what drops it.
+     */
     private suspend fun forget() {
         confirmed = null
-        confirmedCode = null
         _schoolId.value = null
-        _joinedCode.value = null
         _theme.value = null
         _flags.value = DEFAULT_FLAGS
         _branding.value = SchoolBranding(appName = settings.get(KEY_PLATFORM_NAME)?.takeIf { it.isNotBlank() } ?: SchoolBranding.DEFAULT_APP_NAME)
         settings.set(KEY_CURRENT, null)
-        settings.set(KEY_CURRENT_CODE, null)
     }
 
     // ---- device cache ---------------------------------------------------------------------------------------------

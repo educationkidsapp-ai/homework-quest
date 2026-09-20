@@ -47,6 +47,15 @@ class JoinSchoolTest {
 
     private fun viewModel() = AddChildViewModel(null, children, AddChildUseCase(children), session)
 
+    /** The code is written inside `use`, which runs after the child row, so the row is not the thing to wait for. */
+    private suspend fun awaitJoinedCode(): String? {
+        repeat(2000) {
+            session.joinedCode.value?.let { return it }
+            delay(5)
+        }
+        return null
+    }
+
     private suspend fun awaitChild(name: String): quest.api.dto.Child {
         repeat(400) {
             children.children().firstOrNull { it.name == name }?.let { return it }
@@ -136,9 +145,8 @@ class JoinSchoolTest {
         val vm = viewModel()
         vm.dispatch(AddChildContract.Intent.Name("Omar"))
         vm.dispatch(AddChildContract.Intent.Save)
-        vm.settle { !it.busy && it.loaded }
 
-        val child = children.children().single()
+        val child = awaitChild("Omar")
         assertEquals("default", child.schoolId)
         assertNull(session.schoolId.value, "no school was joined, so nothing is themed")
         assertNull(session.theme.value)
@@ -225,6 +233,38 @@ class JoinSchoolTest {
         assertEquals("", second.state.value.schoolCode)
         assertEquals(AddChildContract.JoinStep.NONE, second.state.value.joinStep)
         assertNull(second.state.value.joinedName)
+    }
+
+    /**
+     * The regression this package was written for. QA's acceptance school **is** the default school: it has a code
+     * (`HQ0001`) and no theme of its own. `use("default")` forgets the theme, and it used to forget the code with it,
+     * so Add child asked for a code the parent had already given and a second child quietly landed nowhere.
+     */
+    @Test fun joiningTheDefaultSchoolStillRemembersTheCode() = runBlocking {
+        auth.signIn("parent@example.com", "secret123")
+        val first = viewModel()
+        first.dispatch(AddChildContract.Intent.Name("Maya"))
+        first.dispatch(AddChildContract.Intent.SchoolCode(FakeContentApi.DEFAULT_CODE))
+        first.settle { it.school != null }
+        assertEquals("Default school", first.state.value.school?.name)
+        first.dispatch(AddChildContract.Intent.ConfirmSchool)
+        first.settle { it.joinStep == AddChildContract.JoinStep.CONFIRMED }
+        first.dispatch(AddChildContract.Intent.Save)
+        awaitChild("Maya")
+        awaitJoinedCode()
+
+        // No theme — the default school has none — but the join is remembered all the same.
+        assertNull(session.theme.value)
+        assertNull(session.schoolId.value)
+        assertEquals(FakeContentApi.DEFAULT_CODE, session.joinedCode.value)
+
+        val second = viewModel()
+        second.settle { it.alreadyJoined }
+        assertEquals(FakeContentApi.DEFAULT_CODE, second.state.value.schoolCode)
+
+        val restored = SchoolSessionImpl(api, api, settings)
+        restored.restore()
+        assertEquals(FakeContentApi.DEFAULT_CODE, restored.joinedCode.value, "and it survives a relaunch")
     }
 
     @Test fun theCodeShapeIsSixUpperCaseAlphanumerics() {

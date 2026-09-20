@@ -136,8 +136,11 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
 
     override suspend fun schoolByCode(code: String): JoinSchoolInfo {
         net()
-        if (code.trim().uppercase() != AL_NOOR_CODE) throw ApiException(ApiError(ApiError.NOT_FOUND, "No school with code $code"))
-        return alNoor
+        return when (code.trim().uppercase()) {
+            AL_NOOR_CODE -> alNoor
+            DEFAULT_CODE -> defaultSchool
+            else -> throw ApiException(ApiError(ApiError.NOT_FOUND, "No school with code $code"))
+        }
     }
 
     override suspend fun classByJoinCode(code: String): ClassLookup {
@@ -226,6 +229,21 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
             curriculumOptions = listOf(Curriculum.BRITISH, Curriculum.AMERICAN),
             gradeOptions = listOf(1, 2, 3),
             theme = alNoorTheme,
+        )
+
+        /**
+         * The **default** school also has a code, exactly as QA's acceptance school does (`HQ0001`). It is a school a
+         * parent joins with a code and which nonetheless has no theme, and keeping it in the fake is what stops the
+         * app from being written as if "joined" and "themed" were the same thing.
+         */
+        const val DEFAULT_CODE = "HQ0001"
+
+        val defaultSchool = JoinSchoolInfo(
+            name = "Default school",
+            logoUrl = null,
+            curriculumOptions = listOf(Curriculum.BRITISH, Curriculum.AMERICAN),
+            gradeOptions = listOf(1, 2, 3),
+            theme = null,
         )
 
         /** Two sections of the fake school, so a class join card is playable without a backend (§2). */
