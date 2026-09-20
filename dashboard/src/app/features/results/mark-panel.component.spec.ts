@@ -12,6 +12,7 @@ import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { FlagService } from '../../core/flags/flag.service';
+import { BandService } from '../../core/band/band.service';
 import { MarkPanelComponent } from './mark-panel.component';
 import type { ResultRow } from './results.models';
 
@@ -28,6 +29,9 @@ function row(childId = 'ch-1', overrides: Partial<ResultRow> = {}): ResultRow {
     name: childId === 'ch-1' ? 'Amina Al Amin' : 'Zain Lutfi',
     attempted: true,
     levelReached: 1,
+    scoredLevel: 1,
+    answered: 1,
+    total: 1,
     autoScore: 100,
     teacherScore: null,
     score: 100,
@@ -39,7 +43,9 @@ function row(childId = 'ch-1', overrides: Partial<ResultRow> = {}): ResultRow {
         stopId: 's-retell',
         title: 'Tell the story back',
         type: 'retell',
+        level: 1,
         open: true,
+        inLevel: true,
         attempted: true,
         stars: null,
         markStars: null,
@@ -121,6 +127,67 @@ describe('the marking panel', () => {
     expect(screen.getByLabelText(/Comment for the parent/)).toHaveValue('Much better this week');
     // Still dirty, so the Save she was walking towards is still offered.
     expect(screen.getByRole('button', { name: 'Save marks' })).toBeEnabled();
+  });
+
+  /**
+   * **N4.5 D1, the far side of it.** The panel can no longer offer a stop of another level, so
+   * this refusal should be unreachable — but it is the one failure that means the screen is out
+   * of date, and a teacher is owed a sentence she can act on rather than the server's.
+   */
+  it('says so in the red band when the server refuses a stop she never played', async () => {
+    await renderPanel();
+    const backend = TestBed.inject(HttpTestingController);
+
+    await userEvent.click(screen.getByRole('radio', { name: '2 of 3 stars' }));
+    await settle();
+    await userEvent.click(screen.getByRole('button', { name: 'Save marks' }));
+    await settle();
+
+    backend
+      .expectOne('/teacher/marks')
+      .flush(
+        { code: 'stop_not_played', message: 'stop s-l3 is not on level 1' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await settle();
+
+    const band = TestBed.inject(BandService).current();
+    expect(band?.message).toContain('did not play');
+    // Never the server's own sentence, which names a stop id.
+    expect(band?.message).not.toContain('s-l3');
+  });
+
+  it('offers only her own level’s open stops', async () => {
+    await renderHq(MarkPanelComponent, {
+      providers,
+      inputs: {
+        lessonId: 'l-1',
+        row: row('ch-1', {
+          stops: [
+            ...row().stops,
+            {
+              stopId: 's-l3-retell',
+              title: 'Tell the story back',
+              type: 'retell',
+              level: 3,
+              open: true,
+              inLevel: false,
+              attempted: false,
+              stars: null,
+              markStars: null,
+              markComment: '',
+              score: null,
+              needsMarking: false,
+              workUrl: null,
+            },
+          ],
+        } as Partial<ResultRow>),
+      },
+    });
+    await settle();
+
+    // One retell on screen, hers — before N4.5 the union put Level 3's here as well.
+    expect(screen.getAllByRole('radiogroup')).toHaveLength(1);
   });
 
   it('starts again when the panel is pointed at a different child', async () => {

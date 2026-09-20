@@ -92,7 +92,10 @@ async function settle(): Promise<void> {
   TestBed.tick();
 }
 
-async function renderResults(flags: Record<string, boolean> = { gradebook: true, openStopMarking: true }) {
+async function renderResults(
+  flags: Record<string, boolean> = { gradebook: true, openStopMarking: true },
+  payload: LessonResults = RESULTS,
+) {
   await renderHq(ResultsPage, { providers });
   const backend = TestBed.inject(HttpTestingController);
 
@@ -106,7 +109,7 @@ async function renderResults(flags: Record<string, boolean> = { gradebook: true,
   backend.expectOne('/schools/school-a/flags').flush(flags);
   await settle();
 
-  backend.expectOne('/teacher/lessons/l-1/results').flush(RESULTS);
+  backend.expectOne('/teacher/lessons/l-1/results').flush(payload);
   await settle();
   return backend;
 }
@@ -230,5 +233,135 @@ describe('a school without the marking flag', () => {
 
     expect(screen.queryByRole('button', { name: 'Save marks' })).toBeNull();
     expect(screen.getByRole('radio', { name: '2 of 3 stars' })).toBeDisabled();
+  });
+});
+
+/**
+ * **N4.5 D1 on screen** — three levels, Amina on Level 1 and Bilal on Level 3.
+ *
+ * Publishing generates Levels 2 and 3, so this is the shape of every published lesson and the
+ * one the page used to draw as a grid of holes.
+ */
+const THREE_LEVELS: LessonResults = {
+  lessonId: 'l-1',
+  classId: 'c-1a',
+  className: '1A British',
+  title: 'Counting apples',
+  date: '2026-09-14',
+  played: 2,
+  needsMarking: 1,
+  stops: [
+    { stopId: 'l1-a', title: 'One apple', type: 'choice', level: 1, open: false },
+    { stopId: 'l1-b', title: 'Tell it back', type: 'retell', level: 1, open: true },
+    { stopId: 'l2-a', title: 'Two apples', type: 'choice', level: 2, open: false },
+    { stopId: 'l3-a', title: 'Three apples', type: 'choice', level: 3, open: false },
+    { stopId: 'l3-b', title: 'Tell it back', type: 'retell', level: 3, open: true },
+  ],
+  children: [
+    {
+      childId: 'ch-a',
+      name: 'Amina Al Amin',
+      attempted: true,
+      levelReached: 1,
+      scoredLevel: 1,
+      answered: 2,
+      total: 2,
+      score: 100,
+      band: 'exceeding',
+      needsMarking: 1,
+      stops: [
+        { stopId: 'l1-a', attempted: true, stars: 3, score: 100, needsMarking: false },
+        { stopId: 'l1-b', attempted: true, needsMarking: true },
+      ],
+    },
+    {
+      childId: 'ch-b',
+      name: 'Bilal Nour',
+      attempted: true,
+      levelReached: 3,
+      scoredLevel: 3,
+      answered: 1,
+      total: 2,
+      score: 50,
+      band: 'developing',
+      needsMarking: 0,
+      stops: [
+        { stopId: 'l3-a', attempted: true, stars: 2, score: 50, needsMarking: false },
+        { stopId: 'l3-b', attempted: false, needsMarking: false },
+      ],
+    },
+  ],
+};
+
+/** One child's row, cell by cell: her name, then a cell per stop column, then the summary. */
+function cellsOf(name: string): readonly HTMLElement[] {
+  const row = screen.getByRole('row', { name: new RegExp(name) });
+  return within(row).getAllByRole('cell');
+}
+
+/** The cell under the nth stop column of the row — cell 0 is the child's name. */
+function stopCell(name: string, index: number): HTMLElement {
+  return cellsOf(name)[index + 1]!;
+}
+
+describe('a lesson with three levels', () => {
+  beforeEach(async () => {
+    await renderResults({ gradebook: true, openStopMarking: true }, THREE_LEVELS);
+  });
+
+  it('heads the stop columns with the level they belong to', () => {
+    for (const level of ['Level 1', 'Level 2', 'Level 3'])
+      expect(screen.getByRole('columnheader', { name: level })).toBeInTheDocument();
+  });
+
+  it('draws each child in her own level’s columns and nobody else’s', () => {
+    expect(within(stopCell('Amina', 0)).getByText('★★★')).toBeInTheDocument();
+    expect(within(stopCell('Amina', 1)).getByText('Mark')).toBeInTheDocument();
+    // Levels 2 and 3 are not hers: "not this level", never "not attempted".
+    for (const index of [2, 3, 4]) {
+      expect(within(stopCell('Amina', index)).getByText('Not this level')).toBeInTheDocument();
+      expect(within(stopCell('Amina', index)).queryByText('Not attempted')).toBeNull();
+    }
+
+    expect(within(stopCell('Bilal', 0)).getByText('Not this level')).toBeInTheDocument();
+    expect(within(stopCell('Bilal', 3)).getByText('★★')).toBeInTheDocument();
+    // The one stop of her own level she skipped — the only true "not attempted" on the page.
+    expect(within(stopCell('Bilal', 4)).getByText('Not attempted')).toBeInTheDocument();
+  });
+
+  it('says which level she played, and how much of it she answered', () => {
+    expect(within(stopCell('Amina', 5)).getByText('Played L1')).toBeInTheDocument();
+    expect(within(stopCell('Amina', 6)).getByText('2 of 2 answered')).toBeInTheDocument();
+    expect(within(stopCell('Bilal', 5)).getByText('Played L3')).toBeInTheDocument();
+    expect(within(stopCell('Bilal', 6)).getByText('1 of 2 answered')).toBeInTheDocument();
+  });
+
+  it('narrows to one level’s columns without losing a child', async () => {
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Level' }), '1');
+    await settle();
+
+    expect(screen.queryByRole('columnheader', { name: 'Level 3' })).toBeNull();
+    expect(screen.getByRole('columnheader', { name: 'Level 1' })).toBeInTheDocument();
+    // Her name, two stop columns and the five summary ones — and both children still there.
+    expect(cellsOf('Amina')).toHaveLength(8);
+    expect(screen.getByText('Bilal Nour')).toBeInTheDocument();
+  });
+
+  it('marks the stop she answered, not the top level’s', async () => {
+    const backend = TestBed.inject(HttpTestingController);
+    await openPanel('Amina Al Amin');
+
+    // The panel offers her Level 1 retell and nothing of Levels 2 or 3.
+    expect(screen.getAllByRole('radiogroup')).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole('radio', { name: '2 of 3 stars' }));
+    await settle();
+    await userEvent.click(screen.getByRole('button', { name: 'Save marks' }));
+    await settle();
+
+    const saved = backend.expectOne('/teacher/marks');
+    expect(saved.request.body).toEqual({
+      marks: [{ lessonId: 'l-1', childId: 'ch-a', stopId: 'l1-b', stars: 2 }],
+    });
   });
 });

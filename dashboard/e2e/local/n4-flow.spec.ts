@@ -202,36 +202,32 @@ test('step 5 — her attempt is on the Results page within 5 seconds', async ({ 
 });
 
 /**
- * **A defect, marked expected-to-fail so the run stays honest about it.**
+ * **§10 step 5c** — the step N4.5 found broken, and the reason this branch exists.
  *
- * Marking from the Results page does not move the score on any lesson with more than one level —
- * which, since publishing generates Levels 2 and 3, is every published lesson.
+ * `GET /teacher/lessons/{id}/results` used to send the **column list** from the lesson's *top*
+ * level while each child's own stops came from the level she actually played, and the dashboard
+ * joined the two by stop id. Publishing generates Levels 2 and 3, so for a child who played
+ * Level 1 of a three-level lesson *nothing matched*: every per-stop cell read "not attempted",
+ * the mark panel offered the **Level 3** retell, and `PUT /teacher/marks` stored 2★ against a
+ * stop she had never answered — 200, no complaint, and her score stayed where it was.
  *
- * `GET /teacher/lessons/{id}/results` sends the **column list** from the lesson's *top* level
- * (`GradingService.java:96-100`: `stopsByLevel.getOrDefault(top, …)`) while each child's own stops
- * come from the level she actually played (`Scoring.java:82`, scoredLevel). The dashboard joins the
- * two by stop id (`dashboard/src/app/features/results/results.models.ts:74,90`), so for a child who
- * played Level 1 of a three-level lesson *nothing matches*: every per-stop cell reads "not
- * attempted", and the mark panel — whose open stops are the row's (`mark-panel.component.ts:119`) —
- * offers the **Level 3** retell. `PUT /teacher/marks` then stores 2★ against a stop the child never
- * answered: 200, no complaint, and her score stays where it was.
- *
- * Observed here: the child plays `…:1:0:…`, the columns are `…:3:0:…`, the saved mark is
- * `…:3:0:…`, and the score stays 100 where §7's arithmetic says 94. It has gone unnoticed because
- * the only marking covered until now was `results.spec.ts` on `seed/attempts.csv`, whose homework
- * has exactly one level, where top and scored level are the same play.
- *
- * When it is fixed this test passes and Playwright fails the run for an unexpected pass — which is
- * the point: the fix removes the annotation, not the test.
+ * The contract now cannot mismatch. `stops[]` is the union over every level, `ResultStop.level`
+ * is meaningful, each child carries her `scoredLevel` and her own stops are exactly that level's;
+ * the grid groups its columns by level and the panel opens on hers alone. This test is the proof:
+ * she plays `…:1:0:…`, the panel offers `…:1:0:…`, and the score moves.
  */
 test('step 5 — marking the retell from the Results page moves her score', async ({ page }) => {
-  test.fail(true, 'known defect: the Results columns are the top level, the child played Level 1');
   await signInAsSara(page);
   await openResults(page);
 
   const row = rowOf(page, CHILD);
   const score = row.locator('[data-hq-score]');
   await expect(score).toHaveText('100');
+
+  // The row says which level she played, and her cells sit under that level's columns — the two
+  // things the old page could not say, and without which the mark below lands on the wrong stop.
+  await expect(row.locator('[data-hq-played]')).toHaveText('Played L1');
+  await expect(page.getByRole('columnheader', { name: 'Level 1' })).toBeVisible();
 
   await row.getByRole('button', { name: new RegExp(CHILD) }).click();
   await page.getByRole('radio', { name: '2 of 3 stars' }).click();
@@ -240,14 +236,17 @@ test('step 5 — marking the retell from the Results page moves her score', asyn
 
   // Four correct stops at 100 and a two-star retell at 70: (400 + 70) / 5 = 94.
   await expect(score).toHaveText('94', { timeout: 15_000 });
+  // And the stars are on the stop she answered, which is the whole of the defect: the cell under
+  // *her* level's retell column carries them, and the panel no longer says anything is to mark.
+  await expect(row.getByText('to mark')).toHaveCount(0);
 });
 
 test('step 5 — the mark moves the score, and the parent gains and loses it with the release', async ({
   page,
 }) => {
-  // The mark is written on the stop **she answered**, which is what the screen above should have
-  // sent and does not. Everything after it — the parent's screen, the gradebook, her page — is
-  // about the score moving, so the chain is kept on correct data rather than on the defect.
+  // The screen above has already marked this retell, on the stop she answered. Re-sent through
+  // the API so this test stands on its own — the same stars on the same stop is a no-op — and
+  // so that the parent's comment, which the panel does not type, is there for the chain below.
   const retell = lessonStops[lessonStops.length - 1]!;
   const marked = await context.put('/teacher/marks', {
     headers: await staff(),
