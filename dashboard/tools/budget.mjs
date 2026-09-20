@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * D21 (planner, 2026-09-20): initial budget 540 kB warn / 580 kB error. The initial chunk reached 519 kB after
+ * N4.2 and the generated API client grows with every route (N4.3 exams pushed it to 529 kB). Every feature must
+ * stay lazy; Lighthouse ≥ 0.9 on each QA deploy is the real performance gate. A follow-up should find why the
+ * unused generated services are not tree-shaken out of the initial chunk.
  * The real budget: initial JavaScript ≤ 350 kB **gzipped, per route**.
  *
  *   pnpm budget            print the table
