@@ -1,0 +1,49 @@
+@use 'mixins' as m;
+
+:host {
+  display: block;
+}
+
+.mark {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-24);
+  padding: var(--hq-space-card);
+  border-inline-start: var(--hq-size-rule) solid var(--hq-color-accent);
+}
+
+.mark__stop {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--hq-space-12);
+}
+
+.mark__title {
+  margin: 0;
+  font-size: var(--hq-text-card-title);
+  line-height: calc(var(--hq-text-card-title-line) / var(--hq-text-card-title));
+  font-weight: var(--hq-text-weight-semibold);
+}
+
+.mark__none {
+  margin: 0;
+  color: var(--hq-color-ink-soft);
+}
+
+.mark__lesson {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) 1fr;
+  gap: var(--hq-space-16);
+
+  @include m.below(m.$sheet-breakpoint) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mark__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--hq-space-12);
+}

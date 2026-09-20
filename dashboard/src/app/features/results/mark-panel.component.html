@@ -1,0 +1,60 @@
+<div class="mark">
+  @for (stop of openStops(); track stop.stopId) {
+    <section class="mark__stop">
+      <h3 class="mark__title">{{ stop.title }}</h3>
+      <hq-child-work [url]="stop.workUrl" [stopType]="stop.type" [childName]="row().name" />
+      <!-- Shown to anyone who may read results; editable only behind `*hqFeature` + `*hqCan` —
+           a MANAGERIAL account reads the marks and changes none of them. -->
+      <hq-stars-input
+        [label]="'results.marking.starsFor' | transloco: { stop: stop.title }"
+        [stars]="starsOf(stop.stopId)"
+        [disabled]="saving() || !canMark()"
+        (starsChange)="setStars(stop.stopId, $event)"
+      />
+      <hq-input
+        [label]="'results.marking.stopComment' | transloco"
+        [value]="commentOf(stop.stopId)"
+        [disabled]="saving() || !canMark()"
+        (valueChange)="setStopComment(stop.stopId, $event)"
+      />
+    </section>
+  } @empty {
+    <p class="mark__none">{{ 'results.marking.noOpenStops' | transloco }}</p>
+  }
+
+  <section class="mark__lesson">
+    <hq-input
+      type="number"
+      [label]="'results.marking.override' | transloco"
+      [hint]="'results.marking.overrideHint' | transloco: { auto: score(row().autoScore) }"
+      [value]="overrideText()"
+      [disabled]="saving() || !canMark()"
+      (valueChange)="setOverride($event)"
+    />
+    <hq-textarea
+      [label]="'results.marking.parentComment' | transloco"
+      [hint]="'results.marking.parentCommentHint' | transloco"
+      [rows]="2"
+      [value]="draft()?.comment ?? ''"
+      [disabled]="saving() || !canMark()"
+      (valueChange)="setParentComment($event)"
+    />
+  </section>
+
+  <div class="mark__actions">
+    <a class="hq-linkbutton" [routerLink]="childLink()">
+      {{ 'results.marking.openChild' | transloco }}
+    </a>
+    <span *hqFeature="markingFlag">
+      <hq-button
+        *hqCan="'results.write'"
+        variant="primary"
+        [disabled]="!dirty()"
+        [loading]="saving()"
+        (pressed)="save()"
+      >
+        {{ 'results.marking.save' | transloco }}
+      </hq-button>
+    </span>
+  </div>
+</div>

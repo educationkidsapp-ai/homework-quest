@@ -67,9 +67,12 @@ function componentFor(screen: Screen, role: Role) {
   if (screen.id === 'results')
     return import('../../features/results/results.page').then((m) => m.ResultsPage);
   if (screen.id === 'child') return import('../../features/results/child.page').then((m) => m.ChildPage);
-  // N4.4: another lazy chunk, for the same reason — New exam pulls in the upload chain.
+  // N4.4: two more lazy chunks, for the same reason. The exam results page pulls in the
+  // distribution chart and the marking panel; New exam pulls in the upload chain.
   if (screen.id === 'new-exam')
     return import('../../features/exams/new-exam.page').then((m) => m.NewExamPage);
+  if (screen.id === 'exam-results')
+    return import('../../features/exams/exam-results.page').then((m) => m.ExamResultsPage);
   if (screen.id === 'classes')
     return role === 'TEACHER'
       ? import('../../features/classes/my-classes.page').then((m) => m.MyClassesPage)

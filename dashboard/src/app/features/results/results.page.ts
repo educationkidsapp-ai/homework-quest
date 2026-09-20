@@ -5,11 +5,8 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { ResultsAndGradebookApi, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
 import { exportName, saveFile } from '../../core/download/download';
-import { FLAGS, FlagService } from '../../core/flags/flag.service';
-import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
-import { PermissionService } from '../../core/permissions/permission.service';
 import { UndoService } from '../../core/undo/undo.service';
 import {
   BandComponent,
@@ -17,32 +14,24 @@ import {
   CardComponent,
   CheckboxComponent,
   EmptyStateComponent,
-  InputComponent,
   PageComponent,
   SkeletonComponent,
   TableComponent,
-  TextareaComponent,
   ToggleComponent,
   type Breadcrumb,
   type TableColumn,
 } from '../../ui';
-import { ChildWorkComponent } from './child-work.component';
 import { LevelBandComponent } from './level-band.component';
+import { MarkPanelComponent } from './mark-panel.component';
 import {
-  draftOf,
-  marks,
   needingMarking,
-  parseScore,
-  request,
   resultRows,
   scoreLabel,
   summaryOf,
   weakestStopIds,
-  type MarkDraft,
   type ResultRow,
   type RowStop,
 } from './results.models';
-import { StarsInputComponent } from './stars-input.component';
 
 /** A stop column is `stop:{id}`; the name column and the summary columns are their own keys. */
 const STOP_PREFIX = 'stop:';
@@ -57,21 +46,20 @@ const SECURE_FLOOR = 60;
  * square in the calendar. She sees, in this order: how many played, what the class averaged, how
  * many children are still waiting for her, and whether the parents can see any of it.
  *
- * **Marking is where the work is.** A row opens onto the child's own open stops — the retell she
- * recorded, the picture she drew — with three stars and a comment each, plus one score override
- * and one comment for the parent. Everything she changes in that panel is sent in a *single*
- * `PUT /teacher/marks`, and the strip that follows offers Undo for ten seconds by sending the
- * previous values back the same way. No dialogs, no per-field saves: the panel is one decision.
+ * **Marking is where the work is.** A row opens onto {@link MarkPanelComponent} — the child's own
+ * open stops, three stars and a comment each, one score override and one comment for the parent.
+ * N4.4 lifted that panel out of this template so the exam results page opens the same editor
+ * instead of a second copy of it; this page keeps only which row is open.
  *
  * **Release is explained, not labelled.** "Parents see scores and comments after release" sits
  * under the toggle, and withdrawing — the direction that takes something away from a parent who
  * may already have read it — asks first, in the red band, like every other destructive act.
  *
- * Two flags: `gradebook` gates the screen (the route carries it) and `openStopMarking` gates the
- * marking controls through `*hqFeature="markingFlag"`, because a school can buy the numbers
- * without the marking. `results.write`
- * gates both marking and release; a `MANAGERIAL` account holds `results.read` alone and gets the
- * page read-only rather than a page of refusals.
+ * Two flags: `gradebook` gates the screen, on the route, from the one table in `screens.ts`; and
+ * `openStopMarking` gates the marking, through the `*hqFeature` inside `hq-mark-panel`, because a
+ * school can buy the numbers without the marking. `results.write` gates both marking and release;
+ * a `MANAGERIAL` account holds `results.read` alone and gets the page read-only rather than a
+ * page of refusals.
  */
 @Component({
   selector: 'hq-results-page',
@@ -82,15 +70,11 @@ const SECURE_FLOOR = 60;
     ButtonComponent,
     CheckboxComponent,
     ToggleComponent,
-    InputComponent,
-    TextareaComponent,
     BandComponent,
     SkeletonComponent,
     EmptyStateComponent,
     LevelBandComponent,
-    StarsInputComponent,
-    ChildWorkComponent,
-    FeatureDirective,
+    MarkPanelComponent,
     CanDirective,
     RouterLink,
     TranslocoPipe,
@@ -103,23 +87,9 @@ export class ResultsPage {
   private readonly api = inject(ResultsAndGradebookApi);
   private readonly route = inject(ActivatedRoute);
   private readonly transloco = inject(TranslocoService);
-  private readonly flags = inject(FlagService);
-  private readonly permissions = inject(PermissionService);
   private readonly band = inject(BandService);
   private readonly undo = inject(UndoService);
   private readonly lang = activeLang();
-
-  /** The flag the marking controls carry; the screen's own is on the route. */
-  protected readonly markingFlag = FLAGS.openStopMarking;
-
-  /**
-   * Whether the fields in a row's panel take input at all. The same two conditions the Save
-   * button's `*hqFeature` and `*hqCan` check — a field that accepts a mark and then finds there
-   * is no button to send it with is worse than one that is plainly read-only.
-   */
-  protected readonly canMark = computed(
-    () => this.flags.isOn(FLAGS.openStopMarking) && this.permissions.can('results.write'),
-  );
 
   private readonly path = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
   protected readonly lessonId = computed(() => this.path().get('id') ?? '');
@@ -234,115 +204,17 @@ export class ResultsPage {
   // ---- one child's panel -------------------------------------------------------------------------
 
   protected readonly openChild = signal<string | null>(null);
-  protected readonly draft = signal<MarkDraft | null>(null);
-  /** What the server held when the panel opened — the values Undo puts back. */
-  private original: MarkDraft | null = null;
-  protected readonly saving = signal(false);
 
   protected isOpen = (row: ResultRow): boolean => this.openChild() === row.childId;
 
   protected toggleChild(row: ResultRow): void {
-    if (this.openChild() === row.childId) {
-      this.openChild.set(null);
-      this.draft.set(null);
-      return;
-    }
-    this.original = draftOf(row);
-    this.draft.set(this.original);
-    this.openChild.set(row.childId);
+    this.openChild.set(this.openChild() === row.childId ? null : row.childId);
   }
 
-  protected openStopsOf(row: ResultRow): readonly RowStop[] {
-    return row.stops.filter((stop) => stop.open);
-  }
-
-  protected starsOf(stopId: string): number | null {
-    return this.draft()?.stops[stopId]?.stars ?? null;
-  }
-
-  protected commentOf(stopId: string): string {
-    return this.draft()?.stops[stopId]?.comment ?? '';
-  }
-
-  protected setStars(stopId: string, stars: number | null): void {
-    this.editStop(stopId, (mark) => ({ ...mark, stars }));
-  }
-
-  protected setStopComment(stopId: string, comment: string): void {
-    this.editStop(stopId, (mark) => ({ ...mark, comment }));
-  }
-
-  private editStop(
-    stopId: string,
-    edit: (mark: { stars: number | null; comment: string }) => {
-      stars: number | null;
-      comment: string;
-    },
-  ): void {
-    const draft = this.draft();
-    if (!draft) return;
-    const mark = draft.stops[stopId] ?? { stars: null, comment: '' };
-    this.draft.set({ ...draft, stops: { ...draft.stops, [stopId]: edit(mark) } });
-  }
-
-  protected readonly overrideText = computed(() => {
-    const score = this.draft()?.score;
-    return score === null || score === undefined ? '' : String(score);
-  });
-
-  protected setOverride(text: string): void {
-    const draft = this.draft();
-    if (draft) this.draft.set({ ...draft, score: parseScore(text) });
-  }
-
-  protected setParentComment(comment: string): void {
-    const draft = this.draft();
-    if (draft) this.draft.set({ ...draft, comment });
-  }
-
-  protected readonly dirty = computed(() => {
-    const draft = this.draft();
-    return draft !== null && this.original !== null && marks('l', 'c', draft, this.original).length > 0;
-  });
-
-  /**
-   * One request for the whole panel.
-   *
-   * Only what changed is sent: `PUT /teacher/marks` deletes a mark whose fields are all null, so
-   * a full panel would wipe the stop marks of a teacher who only typed a comment. The Undo sends
-   * the same diff the other way round, which is why both sides are kept.
-   */
-  protected save(row: ResultRow): void {
-    const draft = this.draft();
-    const before = this.original;
-    if (!draft || !before) return;
-    const payload = marks(this.lessonId(), row.childId, draft, before);
-    if (payload.length === 0) return;
-
-    this.saving.set(true);
-    this.api.saveMarks(request(payload)).subscribe({
-      next: () => {
-        this.saving.set(false);
-        this.openChild.set(null);
-        this.draft.set(null);
-        this.results.reload();
-        this.undo.offerUndo({
-          message: this.t('results.marking.saved', { name: row.name }),
-          undo: () => this.restore(row, draft, before),
-          commit: () => this.results.reload(),
-        });
-      },
-      error: (error: unknown) => this.fail(error),
-    });
-  }
-
-  private restore(row: ResultRow, applied: MarkDraft, before: MarkDraft): void {
-    const payload = marks(this.lessonId(), row.childId, before, applied);
-    if (payload.length === 0) return;
-    this.api.saveMarks(request(payload)).subscribe({
-      next: () => this.results.reload(),
-      error: (error: unknown) => this.fail(error),
-    });
+  /** The panel saved (or undid a save): the numbers on this page have moved. */
+  protected onMarked(): void {
+    this.openChild.set(null);
+    this.results.reload();
   }
 
   // ---- release -------------------------------------------------------------------------------------
@@ -439,7 +311,6 @@ export class ResultsPage {
   }
 
   private fail(error: unknown): void {
-    this.saving.set(false);
     this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
   }
 

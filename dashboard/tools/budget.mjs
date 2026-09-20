@@ -49,6 +49,10 @@ const ROUTES = {
   teachers: ['hq-shell', 'hq-teachers-page'],
   'new lesson': ['hq-shell', 'hq-new-lesson-page'],
   lesson: ['hq-shell', 'hq-lesson-page'],
+  // N4.4. The exam editor is `lesson` above — an exam is a lesson — so the only two rows added
+  // here are the two screens of its own.
+  'new exam': ['hq-shell', 'hq-new-exam-page'],
+  'exam results': ['hq-shell', 'hq-exam-results-page'],
   'accept-invite': ['hq-accept-invite-page'],
 };
 

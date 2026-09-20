@@ -1,0 +1,254 @@
+<hq-page [title]="title()" [subtitle]="subtitle()" [breadcrumbs]="breadcrumbs()">
+  <div class="exam__actions">
+    <a class="hq-linkbutton" [routerLink]="examLink()">{{ 'exams.results.openEditor' | transloco }}</a>
+    <span *hqFeature="examsFlag">
+      <hq-button *hqCan="'results.read'" variant="secondary" [loading]="exporting()" (pressed)="exportCsv()">
+        {{ 'results.export.csv' | transloco }}
+      </hq-button>
+    </span>
+    <span *hqFeature="examsFlag">
+      <hq-button *hqCan="'results.read'" variant="secondary" [loading]="exporting()" (pressed)="exportXlsx()">
+        {{ 'results.export.xlsx' | transloco }}
+      </hq-button>
+    </span>
+  </div>
+
+  <!-- Re-opening is once per child, so it asks first, in the red band §7 reserves for that. -->
+  <hq-band
+    variant="confirm"
+    [open]="reopening() !== null"
+    [title]="reopenTitle()"
+    [confirmLabel]="'exams.results.reopen.confirm' | transloco"
+    (confirmed)="confirmReopen()"
+    (dismissed)="cancelReopen()"
+  >
+    {{ reopenMessage() }}
+  </hq-band>
+
+  <hq-band variant="notice" [open]="reopened() !== null" (dismissed)="reopened.set(null)">
+    {{ reopened() }}
+  </hq-band>
+
+  <hq-band
+    variant="confirm"
+    [open]="withdrawing()"
+    [title]="'exams.results.release.withdrawTitle' | transloco"
+    [confirmLabel]="'exams.results.release.withdrawConfirm' | transloco"
+    (confirmed)="confirmWithdraw()"
+    (dismissed)="cancelWithdraw()"
+  >
+    {{ 'exams.results.release.withdrawMessage' | transloco }}
+  </hq-band>
+
+  @if (results.isLoading()) {
+    <hq-skeleton
+      [loading]="true"
+      [lines]="6"
+      height="var(--hq-size-row-height)"
+      [label]="'exams.results.loading' | transloco"
+    />
+  } @else {
+    <!-- §8's five numbers, in the order she asks for them. -->
+    <div class="exam__metrics">
+      <hq-card>
+        <span class="exam__metric-label">{{ 'exams.results.metric.sat' | transloco }}</span>
+        <strong class="exam__metric">{{ satLabel() }}</strong>
+      </hq-card>
+      <hq-card>
+        <span class="exam__metric-label">{{ 'exams.results.metric.submitted' | transloco }}</span>
+        <strong class="exam__metric">{{ submitted() }}</strong>
+      </hq-card>
+      <hq-card>
+        <span class="exam__metric-label">{{ 'exams.results.metric.absent' | transloco }}</span>
+        <strong class="exam__metric">{{ absent() }}</strong>
+      </hq-card>
+      <hq-card>
+        <span class="exam__metric-label">{{ 'exams.results.metric.average' | transloco }}</span>
+        <strong class="exam__metric">{{ average() }}</strong>
+      </hq-card>
+      <hq-card>
+        <span class="exam__metric-label">{{ 'exams.results.metric.needsMarking' | transloco }}</span>
+        <strong class="exam__metric" [class.is-pending]="needsMarking() > 0">{{ needsMarking() }}</strong>
+      </hq-card>
+    </div>
+
+    <hq-card [title]="'exams.results.release.title' | transloco">
+      <div class="exam__release">
+        <p class="exam__release-line">{{ releaseLine() }}</p>
+        <span *hqFeature="examsFlag">
+          @if (released()) {
+            <hq-button
+              *hqCan="'results.write'"
+              variant="secondary"
+              [loading]="busy()"
+              (pressed)="askWithdraw()"
+            >
+              {{ 'exams.results.release.withdraw' | transloco }}
+            </hq-button>
+          } @else if (manualRelease()) {
+            <hq-button
+              *hqCan="'results.write'"
+              variant="primary"
+              data-hq-release-exam
+              [loading]="busy()"
+              (pressed)="release()"
+            >
+              {{ 'exams.results.release.action' | transloco }}
+            </hq-button>
+          }
+        </span>
+      </div>
+    </hq-card>
+
+    <hq-card [title]="'exams.results.distribution.title' | transloco">
+      <hq-exam-distribution [distribution]="distribution()" />
+    </hq-card>
+
+    <hq-card [flush]="true" [title]="'exams.results.questions.title' | transloco">
+      @if (questions().length === 0) {
+        <hq-empty-state [message]="'exams.results.questions.empty' | transloco" />
+      } @else {
+        <hq-table
+          [rows]="questions()"
+          [columns]="questionColumns()"
+          [cellTemplate]="questionCell"
+          [trackBy]="trackQuestion"
+          [label]="'exams.results.questions.title' | transloco"
+        />
+      }
+    </hq-card>
+
+    <hq-card
+      [flush]="true"
+      [title]="'exams.results.table.title' | transloco"
+      [eyebrow]="'exams.results.table.count' | transloco: { count: rows().length }"
+    >
+      @if (empty()) {
+        <hq-empty-state [message]="'exams.results.empty' | transloco" />
+      } @else {
+        <hq-table
+          [rows]="rows()"
+          [columns]="columns()"
+          [cellTemplate]="cell"
+          [expandedTemplate]="panel"
+          [isExpanded]="isOpen"
+          [trackBy]="trackRow"
+          [wrapHeaders]="true"
+          [label]="'exams.results.table.title' | transloco"
+        />
+      }
+    </hq-card>
+  }
+</hq-page>
+
+<ng-template #questionCell let-row let-column="column">
+  @switch (column.key) {
+    @case ('title') {
+      <span class="hq-cell__title">{{ row.title }}</span>
+      @if (row.open) {
+        <span class="hq-badge">{{ 'exams.results.questions.open' | transloco }}</span>
+      }
+    }
+    @case ('answered') {
+      {{ row.answered }}
+    }
+    @case ('correct') {
+      {{ row.correct }}
+    }
+    @case ('missedPercent') {
+      <!-- The one number the table is sorted by, so it carries the weight of a heading. -->
+      <strong [class.is-hard]="row.missedPercent >= 50">{{ row.missedPercent }}%</strong>
+    }
+  }
+</ng-template>
+
+<ng-template #cell let-row let-column="column">
+  @switch (column.key) {
+    @case ('name') {
+      @if (row.needsMarking > 0) {
+        <button
+          type="button"
+          class="exam__child"
+          [attr.aria-expanded]="isOpen(row)"
+          (click)="toggleChild(row)"
+        >
+          <span class="exam__chevron" aria-hidden="true">{{ isOpen(row) ? '▾' : '▸' }}</span>
+          <span class="hq-cell__title">{{ row.name }}</span>
+          <span class="hq-badge hq-badge--warning">
+            {{ 'exams.table.needsMarkingCount' | transloco: { count: row.needsMarking } }}
+          </span>
+        </button>
+      } @else {
+        <a class="exam__child-link" [routerLink]="childLink(row)">
+          <span class="hq-cell__title">{{ row.name }}</span>
+        </a>
+      }
+    }
+    @case ('state') {
+      <span class="exam__state" [attr.data-state]="row.state">
+        {{ 'exams.results.childState.' + row.state | transloco }}
+      </span>
+      <!-- The badge is for a child whose *state* does not already say she was re-opened —
+           one who was given another sitting and has since handed in. -->
+      @if (row.reopened && row.state !== 'reopened') {
+        <span class="hq-badge">{{ 'exams.results.childState.reopened' | transloco }}</span>
+      }
+    }
+    @case ('score') {
+      <!-- Nothing is a score until it has been handed in: a 0 against an absent or a
+           still-sitting child reads as a child who failed the paper. -->
+      <strong data-hq-score>{{ handed(row) ? score(row.score) : '–' }}</strong>
+    }
+    @case ('percent') {
+      {{ handed(row) && row.percent !== null ? row.percent + '%' : '–' }}
+    }
+    @case ('band') {
+      @if (handed(row)) {
+        <hq-level-band [band]="row.band" />
+      } @else {
+        <span class="hq-muted" aria-hidden="true">–</span>
+      }
+    }
+    @case ('secondsTaken') {
+      {{ taken(row) }}
+    }
+    @case ('submittedAt') {
+      {{ handedIn(row) }}
+    }
+    @case ('actions') {
+      <div class="exam__row-actions">
+        @if (row.canReopen) {
+          <span *hqFeature="examsFlag">
+            <hq-button
+              *hqCan="'results.write'"
+              variant="quiet"
+              [disabled]="busy()"
+              (pressed)="askReopen(row)"
+            >
+              {{ 'exams.results.reopen.action' | transloco }}
+            </hq-button>
+          </span>
+        }
+        <span *hqFeature="examsFlag">
+          <hq-button
+            *hqCan="'results.read'"
+            variant="quiet"
+            [loading]="exporting()"
+            (pressed)="exportSheet(row)"
+          >
+            {{ 'exams.results.export.pdf' | transloco }}
+          </hq-button>
+        </span>
+      </div>
+    }
+  }
+</ng-template>
+
+<!-- The same editor the lesson results page opens (N4.2), on the same endpoints. -->
+<ng-template #panel let-row>
+  @if (markRowOf(row); as markRow) {
+    <hq-mark-panel [lessonId]="examId()" [row]="markRow" (saved)="onMarked()" />
+  } @else {
+    <p class="exam__panel-loading">{{ 'exams.results.loading' | transloco }}</p>
+  }
+</ng-template>
