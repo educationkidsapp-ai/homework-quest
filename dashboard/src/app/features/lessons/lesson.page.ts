@@ -26,6 +26,7 @@ import {
   AdminLessonSourceEnum,
   AdminLessonStatusEnum,
   AdminLessonSubjectEnum,
+  AdminLessonTypeEnum,
   LessonStepInfoStatusEnum,
   LessonStepInfoStepEnum,
   TeacherApi,
@@ -79,6 +80,8 @@ import {
   stopBody,
   stopFromTextBody,
 } from './lessons.models';
+import { ExamContextService } from '../exams/exam-context.service';
+import { ExamSettingsCardComponent } from '../exams/exam-settings-card.component';
 import { ParentPanelEditorComponent } from './parent-panel-editor.component';
 import { StopEditorComponent, type StopSaveFailure } from './stop-editor.component';
 
@@ -142,6 +145,7 @@ type PendingAction =
     StopEditorComponent,
     ParentPanelEditorComponent,
     LessonSourcesComponent,
+    ExamSettingsCardComponent,
     TextareaComponent,
     CanDirective,
     FeatureDirective,
@@ -1079,9 +1083,36 @@ export class LessonPage {
     return this.t('lessons.detail.regenerateStopConfirm.confirm');
   });
 
+  // ---- N4.4: the exam half of this editor ------------------------------------------------------
+
+  /**
+   * An exam is a lesson with `type = exam`, and that one field is all this page needs to know:
+   * it grows a settings card, its publish says what the window promises, and it publishes into
+   * its own class alone.
+   */
+  protected readonly isExam = computed(() => this.lesson()?.type === AdminLessonTypeEnum.EXAM);
+
+  private readonly examContext = inject(ExamContextService);
+
+  /**
+   * §8's sentence under the publish confirmation: "Children see it only between … and …".
+   *
+   * Read from {@link ExamContextService} rather than built here: the settings card on this very
+   * page has the row and the school's clock already, and a lesson editor that fetched the
+   * platform's timezone for itself would do so on every lesson, exam or not.
+   */
+  protected readonly examWindowSentence = computed(() =>
+    this.pendingAction()?.kind === 'publish' ? this.examContext.sentence() || null : null,
+  );
+
   /**
    * An Admin publishes the one lesson and gets the plain confirm band. A teacher gets the sheet
    * (§8): her own class is always in, her sibling sections are the choice.
+   *
+   * **An exam never gets the sheet.** The sheet's "also publish to 1B" makes a *copy* of the
+   * lesson in each sibling section, and a copy of an exam would carry `type = exam` with no
+   * window, no level and no release mode behind it — a row the Exams tab cannot list and no
+   * child can ever sit. One exam, one section; a second section gets its own New exam.
    */
   protected requestPublish(): void {
     if (this.usesPublishSheet()) this.publishSheetOpen.set(true);
@@ -1178,7 +1209,7 @@ export class LessonPage {
 
   // ---- the publish sheet: her class, plus the siblings she ticks (§8) -------------------------
 
-  protected readonly usesPublishSheet = computed(() => !this.api.isAdmin());
+  protected readonly usesPublishSheet = computed(() => !this.api.isAdmin() && !this.isExam());
   protected readonly publishSheetOpen = signal(false);
 
   /**

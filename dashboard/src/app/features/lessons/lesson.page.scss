@@ -230,3 +230,9 @@ hq-stop-editor {
   gap: var(--hq-space-12);
   list-style: none;
 }
+
+// N4.4: §8's promise, under the publish confirmation — what the children will actually see.
+.lesson__exam-sentence {
+  margin: var(--hq-space-8) 0 0;
+  font-weight: var(--hq-text-weight-medium);
+}

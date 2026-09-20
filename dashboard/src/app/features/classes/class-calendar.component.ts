@@ -88,6 +88,12 @@ import type { CalendarCell } from './classes.models';
                       <a class="cal__lesson" [routerLink]="['/teacher/lessons', lessonId]">
                         <hq-status-square [status]="cell.status" />
                         <span class="cal__lesson-text">
+                          <!-- N4.4: the exam ribbon This week already wears (§4 step 10), on the
+                               month grid too, so a teacher scanning a month finds the exam
+                               without reading thirty titles. -->
+                          @if (isExam(cell)) {
+                            <span class="cal__ribbon">{{ 'exams.ribbon' | transloco }}</span>
+                          }
                           <span class="cal__lesson-title">{{ titleOf(cell) }}</span>
                           <span class="cal__lesson-meta">{{ 'week.status.' + cell.status | transloco }}</span>
                         </span>
@@ -96,11 +102,11 @@ import type { CalendarCell } from './classes.models';
                       <!-- §4 step 3's Results column: how many played, and the way in to their
                            scores once the lesson is published (N4.2). -->
                       @if (cell.status === 'published') {
-                        <span *hqFeature="gradebookFlag">
+                        <span *hqFeature="isExam(cell) ? examsFlag : gradebookFlag">
                           <a
                             *hqCan="'results.read'"
                             class="cal__results cal__results--link"
-                            [routerLink]="['/teacher/lessons', lessonId, 'results']"
+                            [routerLink]="resultsLink(cell)"
                           >
                             {{ 'classes.calendar.played' | transloco: { count: cell.playedCount } }}
                           </a>
@@ -267,6 +273,19 @@ import type { CalendarCell } from './classes.models';
       min-inline-size: 0;
     }
 
+    // The exam ribbon: the accent, a word, and the title under it — never colour alone.
+    .cal__ribbon {
+      align-self: flex-start;
+      padding: var(--hq-space-badge);
+      border-radius: var(--hq-radius-pill);
+      background: var(--hq-color-accent);
+      color: var(--hq-color-on-accent);
+      font-size: var(--hq-text-theme-2xs);
+      line-height: calc(var(--hq-text-theme-2xs-line) / var(--hq-text-theme-2xs));
+      font-weight: var(--hq-text-weight-medium);
+      text-transform: uppercase;
+    }
+
     .cal__lesson-title {
       overflow: hidden;
       text-overflow: ellipsis;
@@ -313,6 +332,7 @@ export class ClassCalendarComponent {
   private readonly lang = activeLang();
   /** N4.2: the Results link on a published day carries the same flag the route does. */
   protected readonly gradebookFlag = FLAGS.gradebook;
+  protected readonly examsFlag = FLAGS.exams;
 
   readonly classId = input.required<string>();
   readonly curriculum = input('');
@@ -352,6 +372,17 @@ export class ClassCalendarComponent {
    * An untitled lesson falls back to its type — "Homework", "Exam" — rather than to an empty
    * cell that looks like a free day, and to "Lesson" when the server sends neither.
    */
+  /** `type` comes off the server's day; an exam says so on the square as well as in the editor. */
+  protected isExam(cell: CalendarCell): boolean {
+    return cell.type === 'exam';
+  }
+
+  /** An exam's numbers live on its own results page (§8), a homework's on the lesson's (§7). */
+  protected resultsLink(cell: CalendarCell): readonly string[] {
+    const id = cell.lessonId ?? '';
+    return this.isExam(cell) ? ['/teacher/exams', id, 'results'] : ['/teacher/lessons', id, 'results'];
+  }
+
   protected titleOf(cell: CalendarCell): string {
     this.lang();
     const title = (cell.title ?? '').trim();

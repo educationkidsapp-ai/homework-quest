@@ -1,0 +1,49 @@
+:host {
+  display: block;
+}
+
+// The sentence children are held to, set apart from the fields that produce it.
+.settings__sentence {
+  margin: 0 0 var(--hq-space-16);
+  padding: var(--hq-space-cell);
+  background: var(--hq-color-accent-soft);
+  color: var(--hq-color-accent-on-soft);
+  font-weight: var(--hq-text-weight-medium);
+}
+
+.settings__fields {
+  display: grid;
+  // 220 px, not the 96 px grade-card token: a field is a label plus a control plus a hint, and
+  // at 96 px "Time limit (minutes)" wraps onto four lines beside a select cropped to "Automat…".
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--hq-space-16);
+}
+
+.settings__wide {
+  grid-column: 1 / -1;
+}
+
+.settings__read {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--hq-space-16);
+  margin: var(--hq-space-16) 0 0;
+
+  dt {
+    font-size: var(--hq-text-theme-xs);
+    line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
+    color: var(--hq-color-ink-soft);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: var(--hq-text-weight-medium);
+    color: var(--hq-color-ink-strong);
+  }
+}
+
+.settings__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--hq-space-16);
+}
