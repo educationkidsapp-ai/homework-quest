@@ -33,6 +33,8 @@ import quest.feature.parent.presentation.Strings
 import quest.ui.design.LocalThemeOverrides
 import quest.ui.design.ParentTheme
 import quest.ui.design.ThemeOverrides
+import quest.api.dashboard.ClassLookup
+import quest.api.dto.ReleasedResult
 import quest.ui.design.schoolThemeOverrides
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -78,6 +80,34 @@ class ParentScreensScreenshotTest {
         SkillReport("s1", "Counting by 2s", Subject.MATH, Band.GOING_WELL, "most of the time", 14, null),
         SkillReport("s2", "The sh sound", Subject.ENGLISH, Band.NEEDS_ANOTHER_LOOK, "some of the time", 7, null),
         SkillReport("s3", "Retelling a story", Subject.ENGLISH, null, null, 0, null))), s) }
+    /** D16 slice 4: the released score, the band and the teacher's note — the one place in the app a score is shown. */
+    @Test fun progressWithReleasedResults() = shot("46b-progress-released") { s ->
+        ProgressScreen(
+            ProgressContract.State(
+                loading = false,
+                reports = listOf(SkillReport("s1", "Counting by 2s", Subject.MATH, Band.GOING_WELL, "most of the time", 14, null)),
+                streakDays = 3, stickers = 7,
+                results = listOf(
+                    ReleasedResult("l1", "Counting in 2s", today, Subject.MATH, 82, "secure", "Lovely work on the number line — try the harder gaps next.", 1_757_800_000_000),
+                    ReleasedResult("l2", "The sh sound", LocalDate(2026, 9, 11), Subject.ENGLISH, 64, "developing", null, 1_757_600_000_000),
+                ),
+            ),
+            s,
+        )
+    }
+
+    /** D16 slice 3: the class card behind a join code, which takes the course choosers off the form. */
+    @Test fun addChildWithClassCode() = shot("41d-add-child-class-code") { s ->
+        AddChildScreen(
+            AddChildContract.State(
+                name = "Maya", avatar = "sun", loaded = true,
+                classCode = "CLASS1",
+                section = ClassLookup("default:british:1:1a british", "1A British", 1, Curriculum.BRITISH, "Default school"),
+            ),
+            s, {},
+        )
+    }
+
     @Test fun settings() = shot("47-settings") { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("en"), "Maya", "c1"), s, {}, {}, {}) }
     @Test fun settingsArabic() = shot("47b-settings-ar", Strings.ar) { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("ar"), "مايا", "c1"), s, {}, {}, {}) }
     @Test fun lessonPanel() = shot("48-lesson-panel") { s -> LessonPanelScreen(HotSoupSeed.lesson, s) }

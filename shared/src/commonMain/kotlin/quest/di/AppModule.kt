@@ -34,6 +34,7 @@ import quest.feature.parent.data.ParentRepositoryImpl
 import quest.feature.parent.domain.CalendarUseCase
 import quest.feature.parent.domain.ParentRepository
 import quest.feature.parent.domain.ProgressReportUseCase
+import quest.feature.parent.domain.ReleasedResultsUseCase
 import quest.feature.parent.domain.SetPinUseCase
 import quest.feature.parent.domain.VerifyPinUseCase
 import quest.feature.parent.presentation.CalendarViewModel
@@ -135,10 +136,11 @@ val parentModule = module {
     factory { SetPinUseCase(get()) }
     factory { ProgressReportUseCase(get(), get()) }
     factory { CalendarUseCase(get()) }
+    factory { ReleasedResultsUseCase(get()) }
     viewModel { (changePin: Boolean) -> PinViewModel(get(), get(), get(), changePin) }
     viewModel { ParentHomeViewModel(get(), get(), get()) }
     viewModel { CalendarViewModel(get(), get()) }
-    viewModel { ProgressViewModel(get(), get(), get()) }
+    viewModel { ProgressViewModel(get(), get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get()) }
 }
 

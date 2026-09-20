@@ -52,8 +52,12 @@ class ClassCodeTest {
         error("state never satisfied the predicate; last was ${state.value}")
     }
 
+    /**
+     * The section note is written after the child row, so the test waits for it rather than for the row. The budget is
+     * generous on purpose: these tests run on real dispatchers, and the whole suite shares the machine.
+     */
     private suspend fun awaitSection(childId: String): String? {
-        repeat(400) {
+        repeat(2000) {
             children.sectionName(childId)?.let { return it }
             delay(5)
         }
@@ -95,6 +99,8 @@ class ClassCodeTest {
         vm.settle { it.section != null }
         vm.dispatch(AddChildContract.Intent.Save)
 
+        vm.settle { !it.busy }
+        assertNull(vm.state.value.error, "the save must not have failed")
         val child = awaitChild("Nour")
         assertEquals(Curriculum.BRITISH, child.curriculum)
         assertEquals(1, child.grade)
