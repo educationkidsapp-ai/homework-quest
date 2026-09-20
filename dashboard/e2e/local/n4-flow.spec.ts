@@ -386,10 +386,15 @@ test('step 7 — the exam is sat once, and the second sitting is refused', async
   await expect(row.getByText('75%')).toBeVisible();
   await expect(row.locator('[data-band="secure"]')).toBeVisible();
   await expect(row.getByText('Handed in').first()).toBeVisible();
+  // How much of the paper the percent beside it stands on. She answered every question, so it
+  // is the whole paper — which is what D5 made the percent count.
+  await expect(row.locator('td').nth(3)).toContainText(
+    `${paper.stops.length}/${paper.stops.length}`,
+  );
   // Time taken, as a real span rather than the em dash a sitting with no clock would print.
-  // By column rather than by text: the sixth cell is "Time taken" (`exam-results.page.ts:182`),
-  // and a loose regex would also match the "Handed in" moment two cells along.
-  await expect(row.locator('td').nth(5)).toHaveText(/^\s*\d+:\d{2}\s*$/);
+  // By column rather than by text: the seventh cell is "Time taken" — "Answered" was added
+  // beside the percent by N4.5 — and a loose regex would also match the "Handed in" moment.
+  await expect(row.locator('td').nth(6)).toHaveText(/^\s*\d+:\d{2}\s*$/);
 
   // The two charts §8 asks for, now that one child has landed somewhere.
   await expect(page.getByText('Nobody has sat it yet, so there is nothing to spread.')).toBeHidden();

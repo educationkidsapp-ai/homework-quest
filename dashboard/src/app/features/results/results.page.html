@@ -113,7 +113,9 @@
              than as twenty children who skipped a question (N4.5 D1). -->
         @if (!stop.inLevel) {
           <span class="results__other" aria-hidden="true">—</span>
-          <span class="hq-sr-only">{{ 'results.table.otherLevel' | transloco }}</span>
+          <span class="hq-sr-only">
+            {{ (row.scoredLevel > 0 ? 'results.table.otherLevel' : 'results.table.notPlayed') | transloco }}
+          </span>
         } @else if (!stop.attempted) {
           <span class="results__dash" aria-hidden="true">–</span>
           <span class="hq-sr-only">{{ 'results.table.notAttempted' | transloco }}</span>
