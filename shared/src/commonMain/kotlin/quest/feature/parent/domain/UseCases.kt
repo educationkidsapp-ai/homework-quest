@@ -10,6 +10,7 @@ import kotlinx.datetime.toLocalDateTime
 import quest.api.dto.Child
 import quest.api.dto.IslandKind
 import quest.api.dto.IslandState
+import quest.api.dto.ReleasedResult
 import quest.api.progress.Band
 import quest.api.progress.ProgressBands
 import quest.feature.content.domain.JourneyRepository
@@ -36,6 +37,24 @@ class ProgressReportUseCase(private val journey: JourneyRepository, private val 
         }
         return merged + local.filter { l -> remote.skills.none { it.skillId == l.skillId } }
     }
+}
+
+/**
+ * Step 9's last line: the results the teacher has **released**, newest first, as the parent sees them.
+ *
+ * Nothing is here before she releases — the server sends `results` empty and says nothing about a lesson she has not
+ * released — so there is no "not marked yet" state to render, and no way for the app to leak a score early.
+ *
+ * Parent mode only. §6 is unchanged and is the reason this is a use case of its own rather than something the map or
+ * the journey could reach: the child sees stars, a sticker and a certificate, never a number.
+ */
+class ReleasedResultsUseCase(private val journey: JourneyRepository) {
+    suspend operator fun invoke(child: Child): List<ReleasedResult> =
+        journey.progressReport(child.id)?.results.orEmpty().sortedByDescending { it.releasedAt }
+
+    /** The one released result for a lesson, for the lesson panel; null while the teacher has not released it. */
+    suspend fun forLesson(child: Child, lessonId: String): ReleasedResult? =
+        invoke(child).firstOrNull { it.lessonId == lessonId }
 }
 
 /** Month view: which dates have published lessons for the child's course and whether they were played. */

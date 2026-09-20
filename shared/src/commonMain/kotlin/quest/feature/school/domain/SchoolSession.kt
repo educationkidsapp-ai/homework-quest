@@ -2,6 +2,7 @@ package quest.feature.school.domain
 
 import kotlinx.coroutines.flow.StateFlow
 import quest.api.DEFAULT_FLAGS
+import quest.api.dashboard.ClassLookup
 import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.SchoolTheme
 
@@ -42,6 +43,14 @@ interface SchoolSession : FlagStore, SchoolThemeStore {
     /** The current child's school; null while nobody has joined one (the child is in the default school). */
     val schoolId: StateFlow<String?>
 
+    /**
+     * The 6-character school code the parent typed, kept from the join onwards (D16 slice 2, `mobile-parent-acceptance`
+     * F6). The join belongs to the parent, not to a child: once one child has joined a school, Add child stops asking
+     * for the code and sends this one, so the second child is not quietly created in the default school because a
+     * tired parent could not find the letter again. Null until a school has been joined on this device.
+     */
+    val joinedCode: StateFlow<String?>
+
     /** Reads the last school's cached theme and flags off the device. No network: it runs before the first frame. */
     suspend fun restore()
 
@@ -49,10 +58,19 @@ interface SchoolSession : FlagStore, SchoolThemeStore {
     suspend fun lookUp(code: String): JoinSchoolInfo
 
     /**
-     * The parent confirmed a school in Add child. The theme applies straight away — before the child exists, so the
-     * rest of the form is already in the school's colours — but nothing is written to the device until [use].
+     * `POST /classes/lookup` — the section behind a **class** join code (`docs/teacher-flow.md` §2). A class code is
+     * the narrower of the two: it names the school *and* the section, so a child created with it is placed on a
+     * roster straight away instead of waiting for the teacher. Throws `ApiException(NOT_FOUND)` for a code no class
+     * has, and for one whose class or school is not active.
      */
-    suspend fun confirm(info: JoinSchoolInfo)
+    suspend fun lookUpClass(code: String): ClassLookup
+
+    /**
+     * The parent confirmed a school in Add child. The theme applies straight away — before the child exists, so the
+     * rest of the form is already in the school's colours — but neither [code] nor the school's name is written to the
+     * device until [use], when the created child tells us which school the code actually belongs to.
+     */
+    suspend fun confirm(code: String, info: JoinSchoolInfo)
 
     /**
      * The parent backed out of the join before saving: drop the previewed school and go back to whatever the app was

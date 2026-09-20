@@ -51,6 +51,7 @@ class ChildrenRepositoryImpl(private val api: ContentApi, private val db: Db, pr
         runCatching { api.deleteChild(id) }
         db.write { deleteChild(id) }
         settings.set(schoolKey(id), null)
+        settings.set(sectionKey(id), null)
         if (_current.value?.id == id) { _current.value = null; settings.setCurrentChild(null) }
     }
 
@@ -60,6 +61,10 @@ class ChildrenRepositoryImpl(private val api: ContentApi, private val db: Db, pr
     }
 
     override suspend fun clear() { _current.value = null }
+
+    override suspend fun sectionName(childId: String): String? = settings.get(sectionKey(childId))?.takeIf { it.isNotBlank() }
+
+    override suspend fun rememberSection(childId: String, name: String?) = settings.set(sectionKey(childId), name?.takeIf { it.isNotBlank() })
 
     /**
      * Writes the row and, beside it, the child's school (§2). The `Child` table predates tenancy and has no
@@ -79,5 +84,6 @@ class ChildrenRepositoryImpl(private val api: ContentApi, private val db: Db, pr
 
     private companion object {
         fun schoolKey(childId: String) = "school.child.$childId"
+        fun sectionKey(childId: String) = "section.child.$childId"
     }
 }

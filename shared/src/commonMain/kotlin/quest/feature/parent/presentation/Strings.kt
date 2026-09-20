@@ -38,8 +38,26 @@ data class Strings(
     val schoolCodePlaceholder: String = "ABC123", val schoolNotFound: String = "We couldn't find that school code.",
     val joinSchool: String = "Join this school", val joinedSchool: String = "Joined", val changeSchool: String = "Use a different code",
     val schoolCurriculumNote: String = "Your school sets the curriculum and grades below.",
+    // D16 slice 2: the join belongs to the parent, so later children are told which school they are joining.
+    val yourSchool: String = "Your school",
+    // D16 slice 3: the class join code from the teacher's class card (§2).
+    val classCode: String = "Class code",
+    val classCodeHint: String = "The code on your child's class card, if the teacher sent one. Leave it empty if you do not have one.",
+    val classNotFound: String = "We couldn't find that class code.",
+    val changeClass: String = "Use a different class code",
+    val noClassCodeNote: String = "Without a class code your child can still play. Until the teacher adds her to a class, the same lesson may appear once for each class in her year.",
+    // D16 slice 4 / teacher flow step 9: what the teacher released. Parent mode only — §6 keeps numbers off child screens.
+    val teacherMarks: String = "Marked by the teacher",
+    val teacherComment: String = "Teacher's note",
+    /** The teacher's four bands, keyed by the server's own words (`grading/Bands.java`). */
+    val scoreBands: Map<String, String> = mapOf(
+        "emerging" to "Emerging", "developing" to "Developing", "secure" to "Secure", "exceeding" to "Exceeding",
+    ),
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
+
+    /** An unknown band is shown as the server wrote it rather than hidden, exactly as an unknown error code is. */
+    fun scoreBand(key: String) = scoreBands[key.lowercase()] ?: key
 
     companion object {
         val en = Strings(
@@ -104,7 +122,12 @@ data class Strings(
             schoolCode = "رمز المدرسة", schoolCodeHint = "الرمز المكوّن من 6 أحرف من مدرسة طفلك. اتركه فارغًا إن لم يكن لديك رمز.",
             schoolCodePlaceholder = "ABC123", schoolNotFound = "لم نعثر على رمز المدرسة هذا.",
             joinSchool = "الانضمام إلى هذه المدرسة", joinedSchool = "تم الانضمام", changeSchool = "استخدم رمزًا آخر",
-            schoolCurriculumNote = "مدرستك تحدّد المنهج والصفوف أدناه.",
+            schoolCurriculumNote = "مدرستك تحدّد المنهج والصفوف أدناه.", yourSchool = "مدرستك",
+            classCode = "رمز الفصل", classCodeHint = "الرمز الموجود على بطاقة فصل طفلك، إن أرسلته المعلّمة. اتركه فارغًا إن لم يكن لديك رمز.",
+            classNotFound = "لم نعثر على رمز الفصل هذا.", changeClass = "استخدم رمز فصل آخر",
+            noClassCodeNote = "بدون رمز الفصل يستطيع طفلك اللعب. وإلى أن تضيفه المعلّمة إلى فصل، قد يظهر الدرس نفسه مرة لكل فصل في صفّه.",
+            teacherMarks = "تقييم المعلّمة", teacherComment = "ملاحظة المعلّمة",
+            scoreBands = mapOf("emerging" to "مبتدئ", "developing" to "في تطوّر", "secure" to "متمكّن", "exceeding" to "متفوّق"),
             accuracyWords = mapOf("almost every time" to "في كل مرة تقريبًا", "most of the time" to "في معظم الأحيان", "more than half the time" to "أكثر من نصف المرات", "some of the time" to "أحيانًا", "not yet" to "ليس بعد"),
             weekdays = listOf("ن", "ث", "ر", "خ", "ج", "س", "ح"),
             months = listOf("يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"),

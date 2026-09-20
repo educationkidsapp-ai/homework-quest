@@ -26,6 +26,8 @@ import quest.feature.content.domain.JourneyRepository
 import quest.feature.content.domain.StopMediaRecord
 import quest.ui.stops.DrawingPreview
 import quest.api.dto.PublishedLesson
+import quest.api.dto.ReleasedResult
+import quest.feature.parent.domain.ReleasedResultsUseCase
 import quest.feature.content.domain.LessonRepository
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
@@ -35,11 +37,17 @@ fun LessonPanelRoute(lessonId: String, onBack: () -> Unit) {
     val lessons: LessonRepository = koinInject()
     val journey: JourneyRepository = koinInject()
     val children: ChildrenRepository = koinInject()
+    val released: ReleasedResultsUseCase = koinInject()
     var lesson by remember { mutableStateOf<PublishedLesson?>(null) }
     var media by remember { mutableStateOf<List<StopMediaRecord>>(emptyList()) }
+    var result by remember { mutableStateOf<ReleasedResult?>(null) }
     LaunchedEffect(lessonId) {
         lesson = runCatching { lessons.lesson(lessonId) }.getOrNull()
-        children.currentChild.value?.let { media = journey.media(it.id, lessonId) }
+        children.currentChild.value?.let {
+            media = journey.media(it.id, lessonId)
+            // Null until the teacher releases this lesson (step 9); the panel then shows her score and her comment.
+            result = runCatching { released.forLesson(it, lessonId) }.getOrNull()
+        }
     }
     val player = rememberStopMedia()
     val scope = rememberCoroutineScope()
@@ -49,7 +57,7 @@ fun LessonPanelRoute(lessonId: String, onBack: () -> Unit) {
     }
     ParentShell(title = { it.lessonPanel }, onBack = onBack) { s ->
         lesson?.let {
-            LessonPanelScreen(it, s, media, unlocked = unlocked,
+            LessonPanelScreen(it, s, media, unlocked = unlocked, result = result,
                 onPlay = { path -> MediaFiles.read(path)?.let { b -> scope.launch { player.play(b) } } },
                 onUnlock = { level -> scope.launch { children.currentChild.value?.let { c -> journey.unlockLevel(c.id, lessonId, level); unlocked = (unlocked + level).distinct().sorted() } } })
         }
@@ -58,11 +66,27 @@ fun LessonPanelRoute(lessonId: String, onBack: () -> Unit) {
 
 /** The 👩‍🏫 panel: bilingual objectives, Supported and Challenge ideas, one tip per stop, and the child's saved retells / drawings beside the model answer. */
 @Composable
-fun LessonPanelScreen(lesson: PublishedLesson, s: Strings, media: List<StopMediaRecord> = emptyList(), unlocked: List<Int> = listOf(1), onPlay: (String) -> Unit = {}, onUnlock: (Int) -> Unit = {}) {
+fun LessonPanelScreen(lesson: PublishedLesson, s: Strings, media: List<StopMediaRecord> = emptyList(), unlocked: List<Int> = listOf(1), onPlay: (String) -> Unit = {}, onUnlock: (Int) -> Unit = {}, result: ReleasedResult? = null) {
     val ar = s.isRtl
     val panel = lesson.parentPanel
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
         Text(lesson.title, style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk, modifier = Modifier.padding(vertical = Dimens.s8))
+        // Step 9: the teacher's score and her note, once she has released them. Parent mode only (§6).
+        result?.let { r ->
+            SectionTitle(s.teacherMarks)
+            ParentCard {
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    r.score?.let { Text("$it", style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk) }
+                    Spacer(Modifier.padding(Dimens.s4))
+                    r.band?.let { Chip(s.scoreBand(it)) }
+                }
+                r.comment?.takeIf { it.isNotBlank() }?.let { comment ->
+                    Spacer(Modifier.height(Dimens.s8))
+                    Text(s.teacherComment, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+                    Text(comment, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk)
+                }
+            }
+        }
         SectionTitle(s.objectives)
         ParentCard { (if (ar) panel.objectives.ar else panel.objectives.en).forEach { Text("• $it", style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk) } }
         SectionTitle(s.supported)
