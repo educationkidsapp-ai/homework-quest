@@ -793,6 +793,58 @@ Two things it cannot take back, both by design: the `flag_audit` rows, which are
 of the audit assertion), and a school that had **no** `theme_json`, which ends holding an explicit copy of the theme it
 was already being shown — there is no `DELETE` for a theme and the rendered result is identical.
 
+## Exams
+
+`docs/teacher-flow.md` step 10. An exam **is a lesson** with `type = exam`: the same pipeline, the same cache, the
+same review screens, the same publish. Four things differ, and each of them is somewhere QA can look wrong.
+
+**The flag.** Every route is behind `exams`, seeded **off** (V7), so a school sees 404 from the whole area — exports
+and printable sheet included — until an Admin turns it on. `gradebook` is needed too, because the exam results page
+is the lesson results page with §8's columns beside it:
+
+```bash
+curl -X PUT "$API/admin/schools/$SCHOOL/flags/exams" -H "Authorization: Bearer $ADMIN" \
+     -H 'Content-Type: application/json' -d '{"enabled":true}'
+```
+
+**The window is the server's clock.** `POST /teacher/classes/{id}/exams` takes `opensAt` / `closesAt` as epoch
+milliseconds, and the child's tablet is never asked. Outside it, three things happen at once: the island is absent
+from `GET /children/{id}/map`, an answer upload is `409 exam_closed`, and the teacher's own settings sheet is frozen
+(`PATCH /teacher/exams/{id}` is `409 exam_open` once it has opened). Inside it, the island carries `examWindow` and
+`GET /lessons/{id}` carries `type`, `hintsOff`, `numbersOff` and the single `examPlay`.
+
+```bash
+OPENS=$(( $(date +%s) * 1000 ))
+curl -X POST "$API/teacher/classes/$CLASS/exams" -H "Authorization: Bearer $TEACHER" \
+     -H 'Content-Type: application/json' \
+     -d "{\"title\":\"Autumn test\",\"opensAt\":$OPENS,\"closesAt\":$((OPENS + 1800000)),\"level\":\"mixed\",\"source\":\"manual\",\"releaseMode\":\"auto_on_close\"}"
+curl -X POST "$API/teacher/exams/$EXAM/publish" -H "Authorization: Bearer $TEACHER"
+```
+
+**One sitting, resumable.** There is no "start the exam" call — the first answer upload creates the `exam_attempts`
+row, later ones land on the same row, and the sitting is handed in when every stop of the paper has an answer. A
+child who comes back mid-exam carries on; one who has handed it in gets `409 exam_already_taken`. The teacher's way
+back in is `POST /teacher/exams/{id}/reopen/{childId}`, **once** per child (a second is `409
+exam_already_reopened`); it extends the end of the window for her alone and clears the hand-in, so an absent child
+can sit it after the close and an interrupted one keeps her answers.
+
+**Release is never a side effect of publishing.** With `releaseMode: auto_on_close` a sweep releases it within a
+minute of the window shutting — at startup too, because on Cloud Run the instance that would have run the timer is
+usually gone. With `manual`, or after a teacher has withdrawn a release, nothing automatic touches it:
+`QUEST_EXAMS_RELEASE_SWEEP_ENABLED=false` switches the sweep off entirely and
+`QUEST_EXAMS_RELEASE_SWEEP_INTERVAL_SECONDS` changes its period.
+
+**The level.** `1`, `2` or `3` is that generated level's play. `mixed` is assembled on the fly, one stop from each
+level in turn up to the lesson's practice length; nothing is stored, so changing the level while the window is shut
+costs nothing and loses nothing. The scorer is handed the same paper the player downloads, so a mixed exam is
+scored over exactly the questions the child was asked — never over one level's third of them.
+
+`GET /teacher/exams/{id}/results` carries the per-child table (state, stars, percent, band, time taken, marks
+pending), the class average, the distribution over the four bands, the per-question difficulty and the absent list;
+`results.csv`, `results.xlsx` and `results/{childId}.pdf` are the same rows. `missedPercent` is out of the children
+who **reached** the question, not out of the roster: a question the class ran out of time before is not one the
+class got wrong.
+
 ## QA as the owner's acceptance environment
 
 QA has two jobs and they want different data. The automated e2e suite needs the 30-class school and the Al Noor /

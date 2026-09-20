@@ -145,6 +145,42 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 60
+     },
+     "examWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "opensAt",
+       "closesAt"
+      ],
+      "properties": {
+       "opensAt": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "closesAt": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "level": {
+        "enum": [
+         "1",
+         "2",
+         "3",
+         "mixed"
+        ]
+       },
+       "durationMinutes": {
+        "type": "integer",
+        "minimum": 1
+       },
+       "hintsOff": {
+        "type": "boolean"
+       },
+       "numbersOff": {
+        "type": "boolean"
+       }
+      }
      }
     },
     "allOf": [

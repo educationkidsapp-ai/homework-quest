@@ -16,6 +16,11 @@ public class ApiException extends RuntimeException {
     public static ApiException conflict(String message) { return new ApiException(HttpStatus.CONFLICT, "conflict", message); }
     /** 409: the request names a day the school does not teach on — `SchoolCalendar` decides which those are. */
     public static ApiException notTeachingDay(String message) { return new ApiException(HttpStatus.CONFLICT, "not_teaching_day", message); }
+    /**
+     * 409 with one of §8's exam codes (`quest.api.dto.ApiError`): the request is well formed and the caller is
+     * entitled to make it — the exam's own rules are what refuse it, and the app tells the child which rule it was.
+     */
+    public static ApiException conflict(String code, String message) { return new ApiException(HttpStatus.CONFLICT, code, message); }
     public HttpStatus status() { return status; }
     public ApiError error() { return error; }
 }

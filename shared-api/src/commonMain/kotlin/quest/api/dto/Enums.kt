@@ -56,6 +56,14 @@ data class ApiError(val code: String, val message: String) {
         const val MARKDOWN_MISSING = "markdown_missing"
         /** 409: the date is fine, the day is not — the school does not teach on it (`SchoolCalendar`). */
         const val NOT_TEACHING_DAY = "not_teaching_day"
+        /** 409 (N4.3, §8): the exam's window has not opened yet, or it has closed. */
+        const val EXAM_CLOSED = "exam_closed"
+        /** 409 (§8): this child has already sat this exam, and an exam allows exactly one sitting. */
+        const val EXAM_ALREADY_TAKEN = "exam_already_taken"
+        /** 409 (§8): she has already been given her one re-opening. */
+        const val EXAM_ALREADY_REOPENED = "exam_already_reopened"
+        /** 409 (§8): the settings of an exam are fixed once its window is open. */
+        const val EXAM_OPEN = "exam_open"
     }
 }
 

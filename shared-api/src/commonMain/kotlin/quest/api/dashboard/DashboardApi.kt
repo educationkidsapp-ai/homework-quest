@@ -553,6 +553,39 @@ interface DashboardApi {
 
     /** `GET /teacher/children/{id}`: band and trend per subject, the score chart, the comments and the saved work. */
     suspend fun childReport(childId: String): ChildReport
+
+    // ---------------------------------------------------------------- exams (N4.3, §8)
+
+    /**
+     * `POST /teacher/classes/{id}/exams`: a lesson with `type = "exam"` in one of her classes, its window and its
+     * level. The source runs the same pipeline a homework does. Behind the `exams` flag.
+     */
+    suspend fun createExam(classId: String, request: CreateExamRequest): ExamSettings
+
+    /** `PATCH /teacher/exams/{id}`: the settings sheet, while the window is still shut. 409 once it is open. */
+    suspend fun updateExam(examId: String, request: UpdateExamRequest): ExamSettings
+
+    /** `POST /teacher/exams/{id}/publish`: live, and on the children's maps — but only inside the window. */
+    suspend fun publishExam(examId: String): ExamSettings
+
+    /**
+     * `POST /teacher/exams/{id}/release`: the parents' half. An exam is never released by being published; with
+     * `releaseMode = auto_on_close` the server does this itself within a minute of the window closing.
+     */
+    suspend fun releaseExam(examId: String, request: ReleaseRequest = ReleaseRequest()): ExamSettings
+
+    /**
+     * `POST /teacher/exams/{id}/reopen/{childId}`: one more sitting for a child who was absent or was cut off.
+     * Once per child — a second call is a 409.
+     */
+    suspend fun reopenExam(examId: String, childId: String): ExamReopen
+
+    /**
+     * `GET /teacher/exams/{id}/results`: the per-child table, the class average and distribution, the per-question
+     * difficulty and the absent list. `results.csv` and `results.xlsx` carry the same rows, and
+     * `results/{childId}.pdf` is the printable sheet for the school file.
+     */
+    suspend fun examResults(examId: String): ExamResults
 }
 
 /** `PUT /admin/platform-settings` (§A): only the fields that are present are written. */
