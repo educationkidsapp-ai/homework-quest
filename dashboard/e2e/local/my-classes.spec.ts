@@ -1,15 +1,7 @@
 import { type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import {
-  classFreeToday,
-  expect,
-  removeLessonsOfThisRun,
-  RUN,
-  shoot,
-  signInAsSara,
-  test,
-} from './env';
+import { classFreeToday, expect, removeLessonsOfThisRun, RUN, shoot, signInAsSara, test } from './env';
 
 /**
  * N2.3's acceptance (`docs/teacher-flow.md` §4 step 3 and §5), against the built bundle and a
@@ -190,16 +182,16 @@ test('the Children tab lists the roster, and offers nothing to change while the 
   await expect(page.getByRole('columnheader', { name: 'Parent email' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Edit/ })).toHaveCount(0);
 
-  // The arrow-key tabs pattern. Gradebook is built (N4.2) but this school does not have the
-  // `gradebook` flag, so the tab stays and says so rather than disappearing from under her;
-  // Exams is still the stub that names its phase.
+  // The arrow-key tabs pattern. Gradebook (N4.2) and Exams (N4.4) are both built, and this
+  // school has neither flag — so both tabs stay and say what they would hold, rather than
+  // disappearing from under her and leaving her wondering about her account.
   await page.getByRole('tab', { name: 'Children' }).press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Gradebook' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('This school does not have the gradebook yet.')).toBeVisible();
 
   await page.getByRole('tab', { name: 'Gradebook' }).press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Exams' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByText('Coming in N4.')).toBeVisible();
+  await expect(page.getByText('This school does not have exams yet.')).toBeVisible();
 
   // "All lessons of this class" keeps the list one tap away, filtered to this class.
   await page.getByRole('link', { name: 'All lessons of this class' }).click();
