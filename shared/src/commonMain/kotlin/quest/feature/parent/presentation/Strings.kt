@@ -49,6 +49,9 @@ data class Strings(
     // D16 slice 4 / teacher flow step 9: what the teacher released. Parent mode only — §6 keeps numbers off child screens.
     val teacherMarks: String = "Marked by the teacher",
     val teacherComment: String = "Teacher's note",
+    val teacherQuestionNote: String = "Teacher note",
+    val needsAttention: String = "Needs attention",
+    val passed: String = "Passed",
     /** The teacher's four bands, keyed by the server's own words (`grading/Bands.java`). */
     val scoreBands: Map<String, String> = mapOf(
         "emerging" to "Emerging", "developing" to "Developing", "secure" to "Secure", "exceeding" to "Exceeding",
@@ -127,6 +130,7 @@ data class Strings(
             classNotFound = "لم نعثر على رمز الفصل هذا.", changeClass = "استخدم رمز فصل آخر",
             noClassCodeNote = "بدون رمز الفصل يستطيع طفلك اللعب. وإلى أن تضيفه المعلّمة إلى فصل، قد يظهر الدرس نفسه مرة لكل فصل في صفّه.",
             teacherMarks = "تقييم المعلّمة", teacherComment = "ملاحظة المعلّمة",
+            teacherQuestionNote = "ملاحظة المعلّمة", needsAttention = "يحتاج انتباه", passed = "ناجح",
             scoreBands = mapOf("emerging" to "مبتدئ", "developing" to "في تطوّر", "secure" to "متمكّن", "exceeding" to "متفوّق"),
             accuracyWords = mapOf("almost every time" to "في كل مرة تقريبًا", "most of the time" to "في معظم الأحيان", "more than half the time" to "أكثر من نصف المرات", "some of the time" to "أحيانًا", "not yet" to "ليس بعد"),
             weekdays = listOf("ن", "ث", "ر", "خ", "ج", "س", "ح"),

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { LessonResults } from '../../api';
 import {
   draftOf,
+  formatAnswer,
   hasChanges,
+  isFault,
   levelGroups,
   markableStops,
   marks,
@@ -388,3 +390,66 @@ describe('a lesson with three levels', () => {
     expect(weakestStopIds(resultRows(THREE_LEVELS)).size).toBe(0);
   });
 });
+
+describe('identifying faults and formatting student answers', () => {
+  it('flags unattempted stops as not faults', () => {
+    expect(
+      isFault({
+        stopId: 's1',
+        title: 'Q1',
+        type: 'choice',
+        level: 1,
+        open: false,
+        inLevel: true,
+        attempted: false,
+        stars: null,
+        attempts: 0,
+        accuracy: null,
+        score: null,
+        markStars: null,
+        markComment: '',
+        needsMarking: false,
+        workUrl: null,
+      }),
+    ).toBe(false);
+  });
+
+  it('flags incorrect stops or stops with mistakes as faults', () => {
+    const wrong = {
+      stopId: 's1',
+      title: 'Q1',
+      type: 'choice',
+      level: 1,
+      open: false,
+      inLevel: true,
+      attempted: true,
+      stars: 1,
+      attempts: 2,
+      accuracy: 50,
+      score: 50,
+      markStars: null,
+      markComment: '',
+      needsMarking: false,
+      workUrl: null,
+      correct: false,
+      mistakes: 1,
+    };
+    expect(isFault(wrong)).toBe(true);
+
+    const passedWithMistakes = { ...wrong, correct: true, mistakes: 2 };
+    expect(isFault(passedWithMistakes)).toBe(true);
+
+    const perfect = { ...wrong, correct: true, mistakes: 0 };
+    expect(isFault(perfect)).toBe(false);
+  });
+
+  it('formats various answers cleanly', () => {
+    expect(formatAnswer(null)).toBe('—');
+    expect(formatAnswer('')).toBe('—');
+    expect(formatAnswer('Apple')).toBe('Apple');
+    expect(formatAnswer(JSON.stringify({ choice: 'opt-2' }))).toBe('opt-2');
+    expect(formatAnswer(JSON.stringify({ answer: '42' }))).toBe('42');
+    expect(formatAnswer(JSON.stringify({ text: 'The lion' }))).toBe('The lion');
+  });
+});
+

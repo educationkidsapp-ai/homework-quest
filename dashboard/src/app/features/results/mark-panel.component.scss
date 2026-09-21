@@ -31,6 +31,96 @@
   color: var(--hq-color-ink-soft);
 }
 
+.mark__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-16);
+  padding-block: var(--hq-space-12);
+  border-block-start: var(--hq-size-rule) solid var(--hq-color-rule);
+}
+
+.mark__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hq-space-12);
+}
+
+.mark__answers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--hq-space-16);
+}
+
+.mark__answer-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-8);
+  padding: var(--hq-space-12);
+  background-color: var(--hq-color-surface);
+  border: var(--hq-size-rule) solid var(--hq-color-rule);
+  border-radius: var(--hq-size-radius-card);
+
+  &.is-fault {
+    border-color: var(--hq-color-band-emerging);
+    background-color: var(--hq-color-accent-soft);
+  }
+}
+
+.mark__answer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hq-space-8);
+}
+
+.mark__stop-title {
+  font-weight: var(--hq-text-weight-semibold);
+  font-size: var(--hq-text-size-sm);
+  color: var(--hq-color-ink);
+}
+
+.mark__prompt {
+  margin: 0;
+  font-size: var(--hq-text-size-sm);
+  color: var(--hq-color-ink);
+  line-height: 1.4;
+}
+
+.mark__comparison {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-4);
+  padding: var(--hq-space-8);
+  background-color: var(--hq-color-ground);
+  border-radius: var(--hq-size-radius-sm, 4px);
+}
+
+.mark__answer-field {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hq-space-8);
+  font-size: var(--hq-text-size-xs);
+}
+
+.mark__field-label {
+  font-weight: var(--hq-text-weight-medium);
+  color: var(--hq-color-ink-soft);
+}
+
+.mark__field-value {
+  font-weight: var(--hq-text-weight-semibold);
+  color: var(--hq-color-ink);
+
+  &.is-wrong {
+    color: var(--hq-color-accent);
+  }
+
+  &--expected {
+    color: var(--hq-color-band-secure);
+  }
+}
+
 .mark__lesson {
   display: grid;
   grid-template-columns: minmax(120px, 200px) 1fr;

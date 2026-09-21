@@ -75,7 +75,16 @@ public final class GradingDto {
     /** One child's stop: `accuracy` is the stars as a percentage, `score` what §7's rules made of them. */
     public record ChildStopResult(String stopId, boolean attempted, Boolean firstTryCorrect, int stars, int attempts,
                                   Integer accuracy, Integer score, Integer markStars, String markComment,
-                                  boolean needsMarking, String workUrl) {}
+                                  boolean needsMarking, String workUrl,
+                                  Boolean correct, Integer mistakes, String answerJson,
+                                  String prompt, String expectedAnswer) {
+        public ChildStopResult(String stopId, boolean attempted, Boolean firstTryCorrect, int stars, int attempts,
+                               Integer accuracy, Integer score, Integer markStars, String markComment,
+                               boolean needsMarking, String workUrl) {
+            this(stopId, attempted, firstTryCorrect, stars, attempts, accuracy, score, markStars, markComment,
+                    needsMarking, workUrl, null, null, null, null, null);
+        }
+    }
 
     /**
      * One row of the Results page: §7's `HomeworkScore` with the marks and the saved work beside it.

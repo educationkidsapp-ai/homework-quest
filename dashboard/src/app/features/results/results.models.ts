@@ -49,6 +49,11 @@ export interface RowStop {
   readonly needsMarking: boolean;
   /** `/media/child/{id}` — the saved recording, drawing or photograph, behind the bearer. */
   readonly workUrl: string | null;
+  readonly correct?: boolean;
+  readonly mistakes?: number;
+  readonly answerJson?: string;
+  readonly prompt?: string;
+  readonly expectedAnswer?: string;
 }
 
 /** One child's row: her stops in the lesson's own order, whether she played them or not. */
@@ -130,10 +135,49 @@ export function resultRows(results: LessonResults): readonly ResultRow[] {
           markComment: played?.markComment ?? '',
           needsMarking: played?.needsMarking === true,
           workUrl: played?.workUrl ?? null,
+          correct: played?.correct,
+          mistakes: played?.mistakes ?? 0,
+          answerJson: played?.answerJson ?? '',
+          prompt: played?.prompt ?? '',
+          expectedAnswer: played?.expectedAnswer ?? '',
         };
       }),
     };
   });
+}
+
+/** Whether the child made any mistake or answered incorrectly on this stop. */
+export function isFault(stop: RowStop): boolean {
+  if (!stop.attempted) return false;
+  if (stop.correct === false) return true;
+  if ((stop.mistakes ?? 0) > 0) return true;
+  return false;
+}
+
+/** Pretty-print an answerJson or raw answer string for UI display. */
+export function formatAnswer(raw: string | undefined | null): string {
+  if (!raw) return '—';
+  const trimmed = raw.trim();
+  if (!trimmed) return '—';
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (typeof parsed === 'string') return parsed;
+    if (typeof parsed === 'number' || typeof parsed === 'boolean') return String(parsed);
+    if (typeof parsed === 'object' && parsed !== null) {
+      const record = parsed as Record<string, unknown>;
+      if (typeof record['answer'] === 'string') return record['answer'];
+      if (typeof record['selected'] === 'string') return record['selected'];
+      if (typeof record['choice'] === 'string') return record['choice'];
+      if (typeof record['text'] === 'string') return record['text'];
+      const val = record['value'];
+      if (typeof val === 'string') return val;
+      if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+      return JSON.stringify(parsed);
+    }
+  } catch {
+    // not JSON
+  }
+  return trimmed;
 }
 
 // ---------------------------------------------------------------- the levels
@@ -258,6 +302,11 @@ export function draftOf(row: ResultRow): MarkDraft {
   const stops: Record<string, StopMark> = {};
   for (const stop of markableStops(row))
     stops[stop.stopId] = { stars: stop.markStars, comment: stop.markComment };
+  for (const stop of row.stops) {
+    if (stop.markComment && !stops[stop.stopId]) {
+      stops[stop.stopId] = { stars: stop.markStars, comment: stop.markComment };
+    }
+  }
   return { stops, score: row.teacherScore, comment: row.comment };
 }
 

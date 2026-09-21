@@ -387,6 +387,18 @@
       "subtitle": "{{class}} — {{window}}",
       "empty": "لم يؤدِّ أحد هذا الاختبار بعد.",
       "openEditor": "الاختبار",
+      "view": {
+        "overview": "قائمة الطلاب",
+        "matrix": "مصفوفة إجابات الصف"
+      },
+      "matrix": {
+        "title": "مصفوفة إجابات الصف",
+        "count": "{{count}} طلاب",
+        "empty": "لم تُسجّل إجابات لأي طالب بعد.",
+        "showAll": "عرض كل الإجابات",
+        "faultsOnly": "الأخطاء فقط",
+        "questionCol": "س{{num}}"
+      },
       "metric": {
         "sat": "أدّوه",
         "satValue": "{{sat}} من {{roster}}",
@@ -1070,7 +1082,16 @@
       "saved": "حُفظ تصحيح {{name}}.",
       "openChild": "فتح صفحته",
       "noOpenStops": "لا توجد في هذا الدرس محطة تحتاج تصحيحًا يدويًا.",
-      "notPlayed": "هذه المحطة من مستوى لم تلعبه {{name}}. أُعيد تحميل نتائجها — صحّحي محطات مستواها."
+      "notPlayed": "هذه المحطة من مستوى لم تلعبه {{name}}. أُعيد تحميل نتائجها — صحّحي محطات مستواها.",
+      "answersTitle": "إجابات الطلاب والأخطاء",
+      "showAll": "عرض الكل ({{count}})",
+      "showFaultsOnly": "عرض الأخطاء فقط ({{count}})",
+      "faultBadge": "خطأ ({{mistakes}} محاولات)",
+      "correctBadge": "صحيح",
+      "studentAnswer": "إجابة الطالب",
+      "expectedAnswer": "الإجابة النموذجية",
+      "questionNote": "ملاحظة المعلّمة على هذه الإجابة",
+      "questionNotePlaceholder": "اكتبي ملاحظة لوليّ أمر الطفل..."
     },
     "work": {
       "none": "لم يُحفَظ شيء لهذه المحطة.",
