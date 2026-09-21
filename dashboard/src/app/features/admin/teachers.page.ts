@@ -15,6 +15,7 @@ import { UndoService } from '../../core/undo/undo.service';
 import {
   BandComponent,
   ButtonComponent,
+  CardComponent,
   CheckboxComponent,
   DialogComponent,
   EmptyStateComponent,
@@ -47,6 +48,7 @@ type FormMode = 'create' | 'edit';
   selector: 'hq-teachers-page',
   imports: [
     PageComponent,
+    CardComponent,
     InputComponent,
     SelectComponent,
     CheckboxComponent,
@@ -156,6 +158,7 @@ export class TeachersPage {
 
   protected readonly formOpen = signal(false);
   protected readonly formMode = signal<FormMode>('create');
+  protected readonly formError = signal<string | null>(null);
   private readonly editing = signal<TeacherAccount | null>(null);
   protected readonly saving = signal(false);
 
@@ -191,13 +194,35 @@ export class TeachersPage {
   }
 
   protected toggleSubject(subject: Subject, on: boolean): void {
+    this.formError.set(null);
     const next = new Set(this.subjects());
     if (on) next.add(subject);
     else next.delete(subject);
     this.subjects.set(next);
   }
 
+  protected setFullName(val: string): void {
+    this.formError.set(null);
+    this.fullName.set(val);
+  }
+
+  protected setEmail(val: string): void {
+    this.formError.set(null);
+    this.email.set(val);
+  }
+
+  protected setCurriculum(val: string): void {
+    this.formError.set(null);
+    this.curriculum.set(val === 'american' || val === 'british' ? val : '');
+  }
+
+  protected setPhotoUrl(val: string): void {
+    this.formError.set(null);
+    this.photoUrl.set(val);
+  }
+
   protected openCreate(): void {
+    this.formError.set(null);
     this.formMode.set('create');
     this.editing.set(null);
     this.fullName.set('');
@@ -210,6 +235,7 @@ export class TeachersPage {
 
   protected openEdit(teacher: TeacherAccount | null): void {
     if (!teacher) return;
+    this.formError.set(null);
     this.formMode.set('edit');
     this.editing.set(teacher);
     this.fullName.set(teacher.fullName ?? '');
@@ -232,10 +258,13 @@ export class TeachersPage {
     const editing = this.editing();
     const fail = (error: unknown): void => {
       this.saving.set(false);
-      this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
+      const message = apiErrorOf(error)?.message ?? this.t('band.unreachable');
+      this.formError.set(message);
+      this.band.fail(message);
     };
     const done = (): void => {
       this.saving.set(false);
+      this.formError.set(null);
       this.formOpen.set(false);
       this.staff.reload();
     };

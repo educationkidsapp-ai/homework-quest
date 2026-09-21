@@ -15,7 +15,7 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TeachersApi, apiErrorOf, type TeacherAccount, type TeachingAssignment } from '../../api';
 import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
-import { CheckboxComponent, DialogComponent } from '../../ui';
+import { BandComponent, CheckboxComponent, DialogComponent } from '../../ui';
 import { SUBJECTS, isCurriculum, isSubject, type Subject } from '../lessons/lessons.models';
 import { heldPairs, pairKey, teacherLabel, type AdminClass, type AssignmentChoice } from './admin.models';
 
@@ -34,7 +34,7 @@ import { heldPairs, pairKey, teacherLabel, type AdminClass, type AssignmentChoic
  */
 @Component({
   selector: 'hq-assignment-picker',
-  imports: [DialogComponent, CheckboxComponent, TranslocoPipe],
+  imports: [DialogComponent, BandComponent, CheckboxComponent, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-dialog
@@ -46,6 +46,16 @@ import { heldPairs, pairKey, teacherLabel, type AdminClass, type AssignmentChoic
       [loading]="saving()"
       (confirmed)="save()"
     >
+      @if (assignError(); as err) {
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          (dismissed)="assignError.set(null)"
+        >
+          {{ err }}
+        </hq-band>
+      }
       @if (choices().length === 0) {
         <p class="picker__none">{{ 'admin.teachers.assign.none' | transloco }}</p>
       }
@@ -71,23 +81,27 @@ import { heldPairs, pairKey, teacherLabel, type AdminClass, type AssignmentChoic
     .picker__group {
       display: flex;
       flex-direction: column;
-      gap: var(--hq-space-8);
+      gap: var(--hq-space-10);
       margin: 0;
       padding: var(--hq-space-16);
-      border: var(--hq-size-rule) solid var(--hq-color-line);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      border-radius: var(--hq-radius-card);
+      background: var(--hq-color-surface);
     }
 
     .picker__legend {
       padding-inline: var(--hq-space-8);
-      font-size: var(--hq-font-label-size);
-      font-weight: var(--hq-font-label-weight);
+      font-size: var(--hq-text-theme-xs);
+      font-weight: var(--hq-text-weight-semibold);
       letter-spacing: var(--hq-font-letter-spacing-label);
       text-transform: uppercase;
+      color: var(--hq-color-ink-soft);
     }
 
     .picker__none {
       margin: 0;
       color: var(--hq-color-ink-soft);
+      font-size: var(--hq-text-theme-sm);
     }
   `,
 })
@@ -106,6 +120,7 @@ export class AssignmentPickerComponent {
   readonly saved = output<readonly TeachingAssignment[]>();
 
   protected readonly saving = signal(false);
+  protected readonly assignError = signal<string | null>(null);
 
   /** Ticked pairs, seeded from the teacher's current assignments and reset by every open. */
   private readonly ticked = signal<ReadonlySet<string>>(new Set());
@@ -150,6 +165,7 @@ export class AssignmentPickerComponent {
 
   protected toggle(choice: AssignmentChoice, checked: boolean): void {
     if (choice.takenBy !== null) return;
+    this.assignError.set(null);
     const next = new Set(this.ticked());
     const key = pairKey(choice.classId, choice.subject);
     if (checked) next.add(key);
@@ -169,6 +185,7 @@ export class AssignmentPickerComponent {
     this.teachersApi.setAssignments(teacher.userId ?? '', { assignments }).subscribe({
       next: (result) => {
         this.saving.set(false);
+        this.assignError.set(null);
         this.open.set(false);
         this.saved.emit(result);
       },
@@ -176,7 +193,9 @@ export class AssignmentPickerComponent {
         this.saving.set(false);
         // Back to what the server last said, so the boxes and the band agree with each other.
         this.ticked.set(heldPairs(teacher.assignments));
-        this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
+        const message = apiErrorOf(error)?.message ?? this.t('band.unreachable');
+        this.assignError.set(message);
+        this.band.fail(message);
       },
     });
   }
@@ -186,9 +205,11 @@ export class AssignmentPickerComponent {
     // — so cancelling really is "nothing happened" rather than "nothing happened until next time".
     effect(() => {
       const teacher = this.teacher();
-      const stamp = `${teacher.userId ?? ''}|${this.open() ? 'open' : 'closed'}|${(teacher.assignments ?? []).length}`;
+      const isOpen = this.open();
+      const stamp = `${teacher.userId ?? ''}|${isOpen ? 'open' : 'closed'}|${(teacher.assignments ?? []).length}`;
       if (stamp === this.seededFor) return;
       this.seededFor = stamp;
+      this.assignError.set(null);
       this.ticked.set(heldPairs(teacher.assignments));
     });
   }
