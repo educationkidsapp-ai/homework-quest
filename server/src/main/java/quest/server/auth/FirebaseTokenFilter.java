@@ -59,21 +59,28 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ") && !header.startsWith("Bearer admin.")) {
-            String token = header.substring(7).trim();
-            Principals.Parent principal = null;
-            if (props.auth().fake() && token.startsWith("fake-token-")) {
-                String uid = token.substring("fake-token-".length());
-                principal = parent(uid, uid + "@fake.local");
-            } else if (firebase != null) {
-                try { FirebaseToken t = firebase.verifyIdToken(token); principal = parent(t.getUid(), t.getEmail() == null ? "" : t.getEmail()); }
-                catch (Exception e) { log.debug("firebase token rejected: {}", e.getMessage()); }
-            }
-            if (principal != null) {
+            verify(header.substring(7).trim()).ifPresent(principal -> {
                 var auth = new UsernamePasswordAuthenticationToken(principal, null, List.of(new SimpleGrantedAuthority("ROLE_PARENT")));
                 SecurityContextHolder.getContext().setAuthentication(auth);
-            }
+            });
         }
         chain.doFilter(request, response);
+    }
+
+    /**
+     * The parent behind a Firebase ID token (or a fake one), exactly as the filter resolves it — shared with the
+     * `/ws/chat` handshake, which reads its token from a query parameter because a browser `WebSocket` cannot send
+     * a header. The token is never logged.
+     */
+    public java.util.Optional<Principals.Parent> verify(String token) {
+        if (token == null || token.isBlank()) return java.util.Optional.empty();
+        if (props.auth().fake() && token.startsWith("fake-token-")) {
+            String uid = token.substring("fake-token-".length());
+            return java.util.Optional.of(parent(uid, uid + "@fake.local"));
+        }
+        if (firebase == null) return java.util.Optional.empty();
+        try { FirebaseToken t = firebase.verifyIdToken(token); return java.util.Optional.of(parent(t.getUid(), t.getEmail() == null ? "" : t.getEmail())); }
+        catch (Exception e) { log.debug("firebase token rejected: {}", e.getMessage()); return java.util.Optional.empty(); }
     }
 
     private Principals.Parent parent(String uid, String email) {
