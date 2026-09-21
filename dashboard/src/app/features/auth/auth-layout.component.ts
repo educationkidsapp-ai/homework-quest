@@ -75,17 +75,16 @@ import { PlatformService } from '../../core/platform/platform.service';
 
     .auth__bg {
       position: fixed;
-      inset: -20px;
+      inset: 0;
       z-index: 0;
       background-image: url('/dashboard/school-bg.jpg');
       background-image: url('/dashboard/school-bg.webp');
       background-position: center;
       background-size: cover;
       background-repeat: no-repeat;
-      opacity: 0.22;
+      opacity: 0.18;
       filter: saturate(1.15);
       pointer-events: none;
-      animation: auth-bg-pan 32s ease-in-out infinite alternate;
     }
 
     .auth__overlay {
@@ -118,10 +117,11 @@ import { PlatformService } from '../../core/platform/platform.service';
       border-radius: var(--hq-radius-card);
       box-shadow: 0 20px 48px -12px rgba(16, 24, 40, 0.12),
                   0 0 0 1px rgba(255, 255, 255, 0.7) inset;
-      animation: auth-panel-enter 550ms cubic-bezier(0.16, 1, 0.3, 1) both;
-      transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 300ms ease;
+      animation: auth-panel-enter 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms ease;
 
       &:hover {
+        transform: translateY(-2px);
         box-shadow: 0 24px 56px -12px rgba(16, 24, 40, 0.16),
                     0 0 0 1px rgba(255, 255, 255, 0.9) inset;
       }
@@ -134,6 +134,7 @@ import { PlatformService } from '../../core/platform/platform.service';
                   0 0 0 1px rgba(255, 255, 255, 0.08) inset;
 
       &:hover {
+        transform: translateY(-2px);
         box-shadow: 0 24px 56px -12px rgba(0, 0, 0, 0.65),
                     0 0 0 1px rgba(255, 255, 255, 0.14) inset;
       }
@@ -142,7 +143,6 @@ import { PlatformService } from '../../core/platform/platform.service';
     .auth__logo {
       min-block-size: var(--hq-size-logo-size);
       margin-block-end: var(--hq-space-16);
-      animation: auth-fade-down 450ms cubic-bezier(0.16, 1, 0.3, 1) both 80ms;
     }
 
     .auth__logo-image {
@@ -157,17 +157,11 @@ import { PlatformService } from '../../core/platform/platform.service';
       line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
       font-weight: var(--hq-text-weight-medium);
       color: var(--hq-color-ink-soft);
-      animation: auth-fade-up 450ms cubic-bezier(0.16, 1, 0.3, 1) both 140ms;
     }
 
     .auth__title {
       @include m.title;
       margin-block: var(--hq-space-4) var(--hq-space-24);
-      animation: auth-fade-up 450ms cubic-bezier(0.16, 1, 0.3, 1) both 180ms;
-    }
-
-    .auth__body {
-      animation: auth-fade-up 450ms cubic-bezier(0.16, 1, 0.3, 1) both 220ms;
     }
 
     .auth__footer {
@@ -177,7 +171,6 @@ import { PlatformService } from '../../core/platform/platform.service';
       gap: var(--hq-space-16);
       font-size: var(--hq-text-theme-sm);
       color: var(--hq-color-ink-soft);
-      animation: auth-fade-in 600ms ease both 320ms;
 
       a {
         transition: color var(--hq-motion-fast) var(--hq-motion-ease);
@@ -189,66 +182,17 @@ import { PlatformService } from '../../core/platform/platform.service';
 
     @keyframes auth-panel-enter {
       0% {
-        opacity: 0;
-        transform: translateY(24px) scale(0.98);
-      }
-      100% {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
-    }
-
-    @keyframes auth-fade-up {
-      0% {
-        opacity: 0;
-        transform: translateY(10px);
+        opacity: 0.85;
+        transform: translateY(14px);
       }
       100% {
         opacity: 1;
         transform: translateY(0);
-      }
-    }
-
-    @keyframes auth-fade-down {
-      0% {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      100% {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    @keyframes auth-fade-in {
-      0% {
-        opacity: 0;
-      }
-      100% {
-        opacity: 1;
-      }
-    }
-
-    @keyframes auth-bg-pan {
-      0% {
-        transform: scale(1.02) translate(0, 0);
-      }
-      50% {
-        transform: scale(1.05) translate(-0.8%, -0.6%);
-      }
-      100% {
-        transform: scale(1.03) translate(0.8%, 0.4%);
       }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .auth__bg,
-      .auth__panel,
-      .auth__logo,
-      .auth__name,
-      .auth__title,
-      .auth__body,
-      .auth__footer {
+      .auth__panel {
         animation: none !important;
         transition: none !important;
       }
