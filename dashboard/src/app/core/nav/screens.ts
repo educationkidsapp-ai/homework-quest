@@ -154,6 +154,13 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       { id: 'students', path: 'students', phase: 4 },
       { id: 'questions', path: 'questions', flag: FLAGS.teacherQuestions, phase: 4 },
       { id: 'announcements', path: 'announcements', flag: FLAGS.announcements, phase: 4 },
+      // C1/C2: parent ↔ teacher chat.
+      {
+        id: 'chat',
+        path: 'chat',
+        flag: FLAGS.chat,
+        permission: 'teacher.chat',
+      },
     ],
   },
   MANAGERIAL: {

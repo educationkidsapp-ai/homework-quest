@@ -7,6 +7,7 @@ import { of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { SchoolSummary, SchoolsApi } from '../api';
 import { AuthService } from '../core/auth/auth.service';
+import { ChatService } from '../core/chat/chat.service';
 import { SchoolScopeStore } from '../core/auth/school-scope.store';
 import { FeatureDirective } from '../core/flags/feature.directive';
 import { FLAGS, FlagService } from '../core/flags/flag.service';
@@ -82,6 +83,23 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
             >
               {{ scope.scope()?.name ?? ('shell.switcher.all' | transloco) }}
             </button>
+          }
+          @if (isTeacher()) {
+            <a
+              *hqFeature="'chat'"
+              routerLink="/teacher/chat"
+              class="header__icon header__chat-btn"
+              [attr.aria-label]="'nav.chat' | transloco"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z"
+                />
+              </svg>
+              @if (unreadChatCount() > 0) {
+                <span class="header__chat-badge">{{ unreadChatCount() }}</span>
+              }
+            </a>
           }
 
           <button
@@ -269,6 +287,28 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
       }
     }
 
+    .header__chat-btn {
+      position: relative;
+      text-decoration: none;
+    }
+
+    .header__chat-badge {
+      position: absolute;
+      top: -2px;
+      inset-inline-end: -2px;
+      min-inline-size: 16px;
+      block-size: 16px;
+      padding-inline: 4px;
+      border-radius: var(--hq-radius-pill);
+      background: var(--hq-color-accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      display: grid;
+      place-items: center;
+      line-height: 1;
+    }
+
     // The language switch says which language it is on rather than drawing a globe nobody can
     // read a language off. Upper-cased by CSS so 'ar'/'en' stay the codes the service uses.
     .header__icon-text {
@@ -368,6 +408,7 @@ export class ShellHeaderComponent {
   private readonly schoolsApi = inject(SchoolsApi);
   private readonly flags = inject(FlagService);
   private readonly tour = inject(TourService);
+  private readonly chatService = inject(ChatService);
 
   protected readonly scope = inject(SchoolScopeStore);
   protected readonly darkMode = inject(DarkModeService);
@@ -379,6 +420,8 @@ export class ShellHeaderComponent {
   protected readonly languages = LANGUAGES;
 
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
+  protected readonly isTeacher = computed(() => this.auth.role() === 'TEACHER');
+  protected readonly unreadChatCount = computed(() => this.chatService.totalUnread());
   protected readonly email = computed(() => this.auth.user()?.email ?? '');
   /** `[...name]` rather than `name[0]`: an Arabic first character is not one UTF-16 unit. */
   protected readonly monogram = computed(() => [...this.auth.displayName().trim()][0] ?? '');

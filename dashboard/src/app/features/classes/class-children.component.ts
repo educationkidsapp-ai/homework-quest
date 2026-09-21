@@ -1,6 +1,7 @@
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { type RosterChild, TeacherApi, TeacherRosterApi, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
@@ -59,6 +60,7 @@ import { PlaceChildComponent } from './place-child.component';
     CdkMenuTrigger,
     FeatureDirective,
     CanDirective,
+    RouterLink,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

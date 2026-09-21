@@ -54,6 +54,7 @@ const ROUTES = {
   'new exam': ['hq-shell', 'hq-new-exam-page'],
   'exam results': ['hq-shell', 'hq-exam-results-page'],
   'accept-invite': ['hq-accept-invite-page'],
+  chat: ['hq-shell', 'hq-chat-page'],
 };
 
 if (!existsSync(DIST)) {

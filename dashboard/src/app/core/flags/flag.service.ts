@@ -44,6 +44,8 @@ export const FLAGS = {
   // the settings card in the editor and the results page — so a school that has not bought them
   // gets the same silence from the dashboard as from the API.
   exams: 'exams',
+  // C1/C2: parent ↔ teacher chat in the app and the dashboard.
+  chat: 'chat',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

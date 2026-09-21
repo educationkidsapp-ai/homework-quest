@@ -230,6 +230,7 @@
       "cancel": "إلغاء",
       "activate": "تفعيل",
       "deactivate": "إيقاف",
+      "messageParent": "مراسلة ولي الأمر",
       "table": {
         "name": "الاسم",
         "stars": "نجوم هذا الأسبوع",
@@ -998,7 +999,30 @@
     "teachers": "المعلّمون",
     "classes": "الفصول",
     "thisWeek": "هذا الأسبوع",
-    "myClasses": "فصولي"
+    "myClasses": "فصولي",
+    "chat": "الرسائل"
+  },
+  "chat": {
+    "title": "الرسائل",
+    "subtitle": "تواصل فوري مع أولياء أمور طلابك.",
+    "searchPlaceholder": "بحث باسم الطالب أو الفصل...",
+    "noThreads": "لا توجد محادثات حتى الآن",
+    "noThreadsHint": "ستظهر محادثات أولياء الأمور هنا بمجرد بدئها.",
+    "selectThread": "اختر محادثة",
+    "selectThreadHint": "اختر طالباً من القائمة لعرض المحادثة والتواصل الفوري.",
+    "live": "متصل",
+    "connecting": "جاري الاتصال...",
+    "offline": "غير متصل",
+    "parent": "ولي أمر {{child}}",
+    "parentTyping": "ولي الأمر يكتب الآن...",
+    "writeMessage": "اكتب رسالة...",
+    "send": "إرسال",
+    "you": "أنت",
+    "charCount": "{{count}} / 2000",
+    "backToList": "العودة للمحادثات",
+    "read": "تمت القراءة",
+    "sent": "تم الإرسال",
+    "failed": "فشل الإرسال"
   },
   "profile": {
     "title": "ملفك الشخصي",

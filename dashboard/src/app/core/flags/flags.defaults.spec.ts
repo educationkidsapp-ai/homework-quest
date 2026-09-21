@@ -17,6 +17,7 @@ import { DEFAULT_FLAGS } from './flags.defaults';
 const MIGRATIONS: readonly { readonly file: string; readonly rows: number }[] = [
   { file: 'V5__flags_themes.sql', rows: 14 },
   { file: 'V7__sections.sql', rows: 7 },
+  { file: 'V15__chat.sql', rows: 1 },
 ];
 
 function seededBy(file: string): Record<string, boolean> {

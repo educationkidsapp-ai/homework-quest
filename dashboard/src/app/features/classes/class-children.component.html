@@ -158,6 +158,15 @@
     <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="startEdit(menuRow()!)">
       {{ 'classes.children.edit' | transloco }}
     </button>
+    <a
+      *hqFeature="'chat'"
+      cdkMenuItem
+      class="hq-menu__item"
+      [routerLink]="['/teacher/chat']"
+      [queryParams]="{ childId: menuRow()?.childId }"
+    >
+      {{ 'classes.children.messageParent' | transloco }}
+    </a>
     <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="toggleActive(menuRow()!)">
       {{
         (menuRow()?.active === false ? 'classes.children.activate' : 'classes.children.deactivate')

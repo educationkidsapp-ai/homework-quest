@@ -230,6 +230,7 @@
       "cancel": "Cancel",
       "activate": "Activate",
       "deactivate": "Deactivate",
+      "messageParent": "Message parent",
       "table": {
         "name": "Name",
         "stars": "Stars this week",
@@ -998,7 +999,30 @@
     "teachers": "Teachers",
     "classes": "Classes",
     "thisWeek": "This week",
-    "myClasses": "My classes"
+    "myClasses": "My classes",
+    "chat": "Messages"
+  },
+  "chat": {
+    "title": "Messages",
+    "subtitle": "Real-time communication with parents of your students.",
+    "searchPlaceholder": "Search by child or class...",
+    "noThreads": "No conversations yet",
+    "noThreadsHint": "Conversations with parents will appear here once started.",
+    "selectThread": "Select a conversation",
+    "selectThreadHint": "Choose a student from the list to view the message history and chat in real time.",
+    "live": "Live",
+    "connecting": "Connecting...",
+    "offline": "Offline",
+    "parent": "Parent of {{child}}",
+    "parentTyping": "Parent is typing...",
+    "writeMessage": "Write a message...",
+    "send": "Send",
+    "you": "You",
+    "charCount": "{{count}} / 2000",
+    "backToList": "Back to conversations",
+    "read": "Read",
+    "sent": "Sent",
+    "failed": "Failed to send"
   },
   "profile": {
     "title": "Your profile",
