@@ -162,7 +162,9 @@ resource "google_cloud_run_v2_service" "api" {
 
   template {
     service_account = google_service_account.runtime.email
-    timeout         = "600s"
+    # 3600 s: the chat WebSocket (C1, backend/chat-websocket) keeps one request open per client; Cloud Run closes
+    # sockets at the request timeout and the clients reconnect (runbook "Chat"). 600 s was enough for uploads.
+    timeout = "3600s"
     scaling {
       min_instance_count = var.cloud_run_min_instances
       max_instance_count = var.env == "prod" ? 5 : 2
