@@ -2,7 +2,7 @@
    would lock a school out of its own dashboard. */
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { of } from 'rxjs';
 import { catchError, debounceTime, map } from 'rxjs/operators';
@@ -33,7 +33,7 @@ const LOGO_DEBOUNCE_MS = 400;
  */
 @Component({
   selector: 'hq-sign-in-page',
-  imports: [AuthLayoutComponent, InputComponent, ButtonComponent, BandComponent, RouterLink, TranslocoPipe],
+  imports: [AuthLayoutComponent, InputComponent, ButtonComponent, BandComponent, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-auth-layout [title]="'auth.signIn.title' | transloco">
@@ -75,8 +75,6 @@ const LOGO_DEBOUNCE_MS = 400;
         <hq-button type="submit" variant="primary" [block]="true" [loading]="busy()" (pressed)="signIn()">
           {{ 'auth.signIn.action' | transloco }}
         </hq-button>
-
-        <a class="sign-in__forgot" routerLink="/forgot-password">{{ 'auth.forgot.link' | transloco }}</a>
       </form>
     </hq-auth-layout>
   `,
@@ -85,11 +83,6 @@ const LOGO_DEBOUNCE_MS = 400;
       display: flex;
       flex-direction: column;
       gap: var(--hq-space-16);
-    }
-
-    .sign-in__forgot {
-      align-self: flex-start;
-      font-size: var(--hq-font-label-size);
     }
 
     .sign-in__logo {
