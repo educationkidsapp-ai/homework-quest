@@ -118,26 +118,132 @@
       }
     </hq-card>
 
-    <hq-card
-      [flush]="true"
-      [title]="'exams.results.table.title' | transloco"
-      [eyebrow]="'exams.results.table.count' | transloco: { count: rows().length }"
-    >
-      @if (empty()) {
-        <hq-empty-state [message]="'exams.results.empty' | transloco" />
-      } @else {
-        <hq-table
-          [rows]="rows()"
-          [columns]="columns()"
-          [cellTemplate]="cell"
-          [expandedTemplate]="panel"
-          [isExpanded]="isOpen"
-          [trackBy]="trackRow"
-          [wrapHeaders]="true"
-          [label]="'exams.results.table.title' | transloco"
-        />
+    <div class="exam__view-switcher">
+      <div class="exam__tabs">
+        <button
+          type="button"
+          class="exam__tab"
+          [class.is-active]="activeView() === 'overview'"
+          (click)="setView('overview')"
+        >
+          {{ 'exams.results.view.overview' | transloco }}
+        </button>
+        <button
+          type="button"
+          class="exam__tab"
+          [class.is-active]="activeView() === 'matrix'"
+          (click)="setView('matrix')"
+        >
+          {{ 'exams.results.view.matrix' | transloco }}
+        </button>
+      </div>
+
+      @if (activeView() === 'matrix') {
+        <hq-button
+          variant="secondary"
+          [class.is-active]="matrixFaultsOnly()"
+          (pressed)="toggleMatrixFaultsOnly()"
+        >
+          {{ (matrixFaultsOnly() ? 'exams.results.matrix.showAll' : 'exams.results.matrix.faultsOnly') | transloco }}
+        </hq-button>
       }
-    </hq-card>
+    </div>
+
+    @if (activeView() === 'overview') {
+      <hq-card
+        [flush]="true"
+        [title]="'exams.results.table.title' | transloco"
+        [eyebrow]="'exams.results.table.count' | transloco: { count: rows().length }"
+      >
+        @if (empty()) {
+          <hq-empty-state [message]="'exams.results.empty' | transloco" />
+        } @else {
+          <hq-table
+            [rows]="rows()"
+            [columns]="columns()"
+            [cellTemplate]="cell"
+            [expandedTemplate]="panel"
+            [isExpanded]="isOpen"
+            [trackBy]="trackRow"
+            [wrapHeaders]="true"
+            [label]="'exams.results.table.title' | transloco"
+          />
+        }
+      </hq-card>
+    } @else {
+      <hq-card
+        [flush]="true"
+        [title]="'exams.results.matrix.title' | transloco"
+        [eyebrow]="'exams.results.matrix.count' | transloco: { count: matrixRows().length }"
+      >
+        @if (matrixRows().length === 0) {
+          <hq-empty-state [message]="'exams.results.matrix.empty' | transloco" />
+        } @else {
+          <div class="exam__matrix-wrap">
+            <table class="exam__matrix-table">
+              <thead>
+                <tr>
+                  <th class="exam__matrix-th exam__matrix-th--child">
+                    {{ 'results.table.child' | transloco }}
+                  </th>
+                  <th class="exam__matrix-th exam__matrix-th--score">
+                    {{ 'results.table.score' | transloco }}
+                  </th>
+                  @for (stop of examStops(); track stop.stopId ?? $index; let i = $index) {
+                    <th class="exam__matrix-th" [title]="stop.title">
+                      <span class="exam__matrix-th-title">{{ 'exams.results.matrix.questionCol' | transloco: { num: i + 1 } }}</span>
+                      <span class="exam__matrix-th-sub">{{ stop.title }}</span>
+                    </th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of matrixRows(); track row.childId) {
+                  <tr class="exam__matrix-row">
+                    <td class="exam__matrix-td exam__matrix-td--child">
+                      <button
+                        type="button"
+                        class="exam__matrix-child-btn"
+                        (click)="openChild.set(row.childId); setView('overview')"
+                      >
+                        {{ row.name }}
+                      </button>
+                    </td>
+                    <td class="exam__matrix-td exam__matrix-td--score">
+                      <strong>{{ score(row.score) }}</strong>
+                    </td>
+                    @for (stop of examStops(); track stop.stopId ?? $index) {
+                      <td class="exam__matrix-td exam__matrix-td--answer">
+                        @if (childStopOf(row, stop.stopId); as childStop) {
+                          @if (childStop.attempted) {
+                            <div
+                              class="exam__matrix-badge"
+                              [class.is-fault]="isFaultStop(childStop)"
+                              [class.is-correct]="!isFaultStop(childStop)"
+                              [title]="(childStop.prompt || childStop.title) + (childStop.expectedAnswer ? '\nExpected: ' + childStop.expectedAnswer : '')"
+                            >
+                              <span class="exam__matrix-icon">{{ isFaultStop(childStop) ? '⚠' : '✓' }}</span>
+                              <span class="exam__matrix-ans">{{ displayAnswer(childStop.answerJson) }}</span>
+                              @if (childStop.markComment) {
+                                <span class="exam__matrix-note" [title]="childStop.markComment">💬</span>
+                              }
+                            </div>
+                          } @else {
+                            <span class="exam__matrix-empty">–</span>
+                          }
+                        } @else {
+                          <span class="exam__matrix-empty">–</span>
+                        }
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </hq-card>
+    }
   }
 </hq-page>
 
@@ -165,7 +271,7 @@
 <ng-template #cell let-row let-column="column">
   @switch (column.key) {
     @case ('name') {
-      @if (row.needsMarking > 0) {
+      @if (row.answered > 0 || row.needsMarking > 0) {
         <button
           type="button"
           class="exam__child"
@@ -174,9 +280,11 @@
         >
           <span class="exam__chevron" aria-hidden="true">{{ isOpen(row) ? '▾' : '▸' }}</span>
           <span class="hq-cell__title">{{ row.name }}</span>
-          <span class="hq-badge hq-badge--warning">
-            {{ 'exams.table.needsMarkingCount' | transloco: { count: row.needsMarking } }}
-          </span>
+          @if (row.needsMarking > 0) {
+            <span class="hq-badge hq-badge--warning">
+              {{ 'exams.table.needsMarkingCount' | transloco: { count: row.needsMarking } }}
+            </span>
+          }
         </button>
       } @else {
         <a class="exam__child-link" [routerLink]="childLink(row)">

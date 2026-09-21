@@ -767,12 +767,21 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "answerJson" : {
+            "type" : "string"
+          },
           "attempted" : {
             "type" : "boolean"
           },
           "attempts" : {
             "format" : "int32",
             "type" : "integer"
+          },
+          "correct" : {
+            "type" : "boolean"
+          },
+          "expectedAnswer" : {
+            "type" : "string"
           },
           "firstTryCorrect" : {
             "type" : "boolean"
@@ -784,8 +793,15 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "mistakes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "needsMarking" : {
             "type" : "boolean"
+          },
+          "prompt" : {
+            "type" : "string"
           },
           "score" : {
             "format" : "int32",
@@ -3430,6 +3446,12 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "stops" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ReleasedStopResult"
+            },
+            "type" : "array"
+          },
           "subject" : {
             "enum" : [ "math", "english" ],
             "type" : "string"
@@ -3438,7 +3460,25 @@
             "type" : "string"
           }
         },
-        "required" : [ "date", "lessonId", "releasedAt", "subject" ],
+        "required" : [ "date", "lessonId", "releasedAt", "stops", "subject" ],
+        "type" : "object"
+      },
+      "ReleasedStopResult" : {
+        "properties" : {
+          "comment" : {
+            "type" : "string"
+          },
+          "correct" : {
+            "type" : "boolean"
+          },
+          "stopId" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "correct", "stopId", "title" ],
         "type" : "object"
       },
       "ResetPasswordRequest" : {

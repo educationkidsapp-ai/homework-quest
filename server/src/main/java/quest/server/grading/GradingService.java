@@ -101,11 +101,14 @@ public class GradingService {
         // its own stops belong to.
         var columns = new ArrayList<GradingDto.ResultStop>();
         var seen = new LinkedHashSet<String>();
+        var stopById = new HashMap<String, Stop>();
         for (var level : stopsByLevel.keySet().stream().sorted().toList())
-            for (Stop stop : stopsByLevel.getOrDefault(level, List.of()))
+            for (Stop stop : stopsByLevel.getOrDefault(level, List.of())) {
+                stopById.put(stop.getId(), stop);
                 if (seen.add(stop.getId()))
                     columns.add(new GradingDto.ResultStop(stop.getId(), stop.getTitle(), stop.getType(), level,
                             stop.getCategory() == quest.api.dto.StopCategory.OPEN));
+            }
 
         var rows = new ArrayList<GradingDto.ChildResult>(roster.size());
         int played = 0, needsMarking = 0; double sum = 0; int scored = 0;
@@ -115,10 +118,24 @@ public class GradingService {
                     stopMarks(mine), lessonMark(mine), quest.server.exams.ExamPlays.isExam(lesson));
             var lessonRow = mine.get(Entities.TeacherMarkEntity.LESSON);
             var childWork = work.getOrDefault(child.getId(), Map.of());
+            var childAllAttempts = byChild.getOrDefault(child.getId(), List.of());
+            var attemptsByStop = new HashMap<String, List<AttemptEntity>>();
+            for (var a : childAllAttempts) attemptsByStop.computeIfAbsent(a.getStopId(), k -> new ArrayList<>()).add(a);
+
             var stops = score.stops().stream()
-                    .map(s -> new GradingDto.ChildStopResult(s.stopId(), s.attempted(), s.firstTryCorrect(), s.stars(),
-                            s.attempts(), s.accuracy(), s.score(), s.markStars(), s.markComment(), s.needsMarking(),
-                            childWork.get(s.stopId())))
+                    .map(s -> {
+                        var mineAttempts = attemptsByStop.getOrDefault(s.stopId(), List.of());
+                        var lastAttempt = mineAttempts.isEmpty() ? null : mineAttempts.get(mineAttempts.size() - 1);
+                        Boolean correct = lastAttempt == null ? null : lastAttempt.isCorrect();
+                        Integer mistakes = lastAttempt == null ? null : lastAttempt.getMistakes();
+                        String answerJson = lastAttempt == null ? null : lastAttempt.getAnswerJson();
+                        var stopDef = stopById.get(s.stopId());
+                        String prompt = promptOf(stopDef);
+                        String expectedAnswer = expectedAnswerOf(stopDef);
+                        return new GradingDto.ChildStopResult(s.stopId(), s.attempted(), s.firstTryCorrect(), s.stars(),
+                                s.attempts(), s.accuracy(), s.score(), s.markStars(), s.markComment(), s.needsMarking(),
+                                childWork.get(s.stopId()), correct, mistakes, answerJson, prompt, expectedAnswer);
+                    })
                     .toList();
             if (score.attempted()) played++;
             needsMarking += score.needsMarking();
@@ -530,12 +547,84 @@ public class GradingService {
                     quest.server.exams.ExamPlays.isExam(lesson));
             if (!score.attempted()) continue;
             var lessonRow = perStop.get(Entities.TeacherMarkEntity.LESSON);
+            var stopResults = new ArrayList<quest.api.dto.ReleasedStopResult>();
+            for (var stopOutcome : score.stops()) {
+                if (stopOutcome.attempted()) {
+                    var mark = perStop.get(stopOutcome.stopId());
+                    String comment = mark == null ? null : mark.getComment();
+                    boolean isCorrect = Boolean.TRUE.equals(stopOutcome.firstTryCorrect()) || stopOutcome.stars() >= 3;
+                    stopResults.add(new quest.api.dto.ReleasedStopResult(
+                            stopOutcome.stopId(),
+                            stopOutcome.title(),
+                            isCorrect,
+                            comment
+                    ));
+                }
+            }
             out.add(new quest.api.dto.ReleasedResult(lesson.getId(), lesson.getTitle(),
                     new kotlinx.datetime.LocalDate(lesson.getDate().getYear(), lesson.getDate().getMonthValue(), lesson.getDate().getDayOfMonth()),
                     quest.api.dto.Subject.valueOf(lesson.getSubject().toUpperCase()), score.score(), score.band(),
-                    lessonRow == null ? null : lessonRow.getComment(), lesson.getReleasedAt().toEpochMilli()));
+                    lessonRow == null ? null : lessonRow.getComment(), lesson.getReleasedAt().toEpochMilli(),
+                    List.copyOf(stopResults)));
         }
         return List.copyOf(out);
+    }
+
+    private static String promptOf(Stop st) {
+        if (st == null) return null;
+        if (st instanceof Stop.Choice c) return c.getQuestion();
+        if (st instanceof Stop.TrueFalse tf) return tf.getStatement();
+        if (st instanceof Stop.Word w) return "Select the word: " + w.getSpokenWord();
+        if (st instanceof Stop.Explain exp) return exp.getExplanation();
+        if (st instanceof Stop.ReadPage rp) return rp.getTitle();
+        return st.getTitle();
+    }
+
+    private static String expectedAnswerOf(Stop st) {
+        if (st == null) return null;
+        if (st instanceof Stop.Choice c) {
+            for (var opt : c.getOptions()) {
+                if (opt.getId().equals(c.getCorrectOptionId())) return opt.getLabel();
+            }
+            return c.getCorrectOptionId();
+        }
+        if (st instanceof Stop.TrueFalse tf) {
+            return String.valueOf(tf.getAnswer());
+        }
+        if (st instanceof Stop.Word w) {
+            for (var opt : w.getOptions()) {
+                if (opt.getId().equals(w.getCorrectOptionId())) return opt.getLabel();
+            }
+            return w.getSpokenWord();
+        }
+        if (st instanceof Stop.Sound s) {
+            for (var opt : s.getOptions()) {
+                if (opt.getId().equals(s.getCorrectOptionId())) return opt.getLabel();
+            }
+            return s.getCorrectOptionId();
+        }
+        if (st instanceof Stop.Sequence seq) {
+            for (var opt : seq.getOptions()) {
+                if (opt.getId().equals(seq.getCorrectOptionId())) return opt.getLabel();
+            }
+            return seq.getCorrectOptionId();
+        }
+        if (st instanceof Stop.Count cnt) {
+            for (var opt : cnt.getOptions()) {
+                if (opt.getId().equals(cnt.getCorrectOptionId())) return opt.getLabel();
+            }
+            return cnt.getCorrectOptionId();
+        }
+        if (st instanceof Stop.Compare cmp) {
+            for (var opt : cmp.getOptions()) {
+                if (opt.getId().equals(cmp.getCorrectOptionId())) return opt.getLabel();
+            }
+            return cmp.getCorrectOptionId();
+        }
+        if (st instanceof Stop.ReadTap rt) {
+            return rt.getWord();
+        }
+        return null;
     }
 
     // ---------------------------------------------------------------- shared batching

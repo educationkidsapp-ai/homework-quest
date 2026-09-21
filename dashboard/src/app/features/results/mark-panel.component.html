@@ -22,6 +22,71 @@
     <p class="mark__none">{{ 'results.marking.noOpenStops' | transloco }}</p>
   }
 
+  @if (attemptedStops().length > 0) {
+    <section class="mark__section">
+      <div class="mark__section-header">
+        <h3 class="mark__title">{{ 'results.marking.answersTitle' | transloco }}</h3>
+        @if (faultCount() > 0) {
+          <hq-button
+            variant="secondary"
+            [class.is-active]="faultsOnly()"
+            (pressed)="toggleFaultsOnly()"
+          >
+            {{ (faultsOnly() ? 'results.marking.showAll' : 'results.marking.showFaultsOnly') | transloco: { count: faultCount() } }}
+          </hq-button>
+        }
+      </div>
+
+      <div class="mark__answers-grid">
+        @for (stop of visibleStops(); track stop.stopId) {
+          <div class="mark__answer-card" [class.is-fault]="isFaultStop(stop)">
+            <div class="mark__answer-header">
+              <span class="mark__stop-title">{{ stop.title }}</span>
+              @if (isFaultStop(stop)) {
+                <span class="hq-badge hq-badge--warning">
+                  ⚠ {{ 'results.marking.faultBadge' | transloco: { mistakes: stop.mistakes ?? 0 } }}
+                </span>
+              } @else {
+                <span class="hq-badge hq-badge--success">
+                  ✓ {{ 'results.marking.correctBadge' | transloco }}
+                </span>
+              }
+            </div>
+
+            @if (stop.prompt) {
+              <p class="mark__prompt">{{ stop.prompt }}</p>
+            }
+
+            <div class="mark__comparison">
+              <div class="mark__answer-field">
+                <span class="mark__field-label">{{ 'results.marking.studentAnswer' | transloco }}:</span>
+                <span class="mark__field-value" [class.is-wrong]="isFaultStop(stop)">
+                  {{ displayAnswer(stop.answerJson) }}
+                </span>
+              </div>
+              @if (stop.expectedAnswer) {
+                <div class="mark__answer-field">
+                  <span class="mark__field-label">{{ 'results.marking.expectedAnswer' | transloco }}:</span>
+                  <span class="mark__field-value mark__field-value--expected">
+                    {{ stop.expectedAnswer }}
+                  </span>
+                </div>
+              }
+            </div>
+
+            <hq-input
+              [label]="'results.marking.questionNote' | transloco"
+              [placeholder]="'results.marking.questionNotePlaceholder' | transloco"
+              [value]="commentOf(stop.stopId)"
+              [disabled]="saving() || !canMark()"
+              (valueChange)="setStopComment(stop.stopId, $event)"
+            />
+          </div>
+        }
+      </div>
+    </section>
+  }
+
   <section class="mark__lesson">
     <hq-input
       type="number"

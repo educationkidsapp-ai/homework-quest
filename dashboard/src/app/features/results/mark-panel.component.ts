@@ -21,6 +21,8 @@ import { ButtonComponent, InputComponent, TextareaComponent } from '../../ui';
 import { ChildWorkComponent } from './child-work.component';
 import {
   draftOf,
+  formatAnswer,
+  isFault,
   markableStops,
   marks,
   parseScore,
@@ -129,6 +131,33 @@ export class MarkPanelComponent {
    * complaint, and her score never moved.
    */
   protected readonly openStops = computed<readonly RowStop[]>(() => markableStops(this.row()));
+
+  protected readonly attemptedStops = computed<readonly RowStop[]>(() =>
+    this.row().stops.filter((s) => s.inLevel && s.attempted),
+  );
+
+  protected readonly faultsOnly = signal(false);
+
+  protected readonly faultCount = computed(
+    () => this.attemptedStops().filter((s) => isFault(s)).length,
+  );
+
+  protected readonly visibleStops = computed<readonly RowStop[]>(() => {
+    const stops = this.attemptedStops();
+    return this.faultsOnly() ? stops.filter((s) => isFault(s)) : stops;
+  });
+
+  protected isFaultStop(stop: RowStop): boolean {
+    return isFault(stop);
+  }
+
+  protected displayAnswer(raw: string | undefined): string {
+    return formatAnswer(raw);
+  }
+
+  protected toggleFaultsOnly(): void {
+    this.faultsOnly.update((v) => !v);
+  }
 
   protected starsOf(stopId: string): number | null {
     return this.draft()?.stops[stopId]?.stars ?? null;
