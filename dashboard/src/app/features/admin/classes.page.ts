@@ -15,6 +15,7 @@ import { UndoService } from '../../core/undo/undo.service';
 import {
   BandComponent,
   ButtonComponent,
+  CardComponent,
   DialogComponent,
   EmptyStateComponent,
   InputComponent,
@@ -48,6 +49,7 @@ interface Pending {
   selector: 'hq-classes-page',
   imports: [
     PageComponent,
+    CardComponent,
     SelectComponent,
     InputComponent,
     ButtonComponent,
@@ -133,6 +135,7 @@ export class ClassesPage {
   // ---- create -----------------------------------------------------------------------------
 
   protected readonly createOpen = signal(false);
+  protected readonly createError = signal<string | null>(null);
   protected readonly newCurriculum = signal<Curriculum | ''>('');
   protected readonly newGrade = signal('');
   protected readonly newName = signal('');
@@ -163,10 +166,26 @@ export class ClassesPage {
   );
 
   protected openCreate(): void {
+    this.createError.set(null);
     this.newCurriculum.set('');
     this.newGrade.set('');
     this.newName.set('');
     this.createOpen.set(true);
+  }
+
+  protected setNewCurriculum(value: string): void {
+    this.createError.set(null);
+    this.newCurriculum.set(value === 'american' || value === 'british' ? value : '');
+  }
+
+  protected setNewGrade(value: string): void {
+    this.createError.set(null);
+    this.newGrade.set(value);
+  }
+
+  protected setNewName(value: string): void {
+    this.createError.set(null);
+    this.newName.set(value);
   }
 
   protected create(): void {
@@ -178,12 +197,15 @@ export class ClassesPage {
       .subscribe({
         next: () => {
           this.saving.set(false);
+          this.createError.set(null);
           this.createOpen.set(false);
           this.sections.reload();
         },
         error: (error: unknown) => {
           this.saving.set(false);
-          this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
+          const message = apiErrorOf(error)?.message ?? this.t('band.unreachable');
+          this.createError.set(message);
+          this.band.fail(message);
         },
       });
   }

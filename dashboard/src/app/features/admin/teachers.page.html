@@ -3,15 +3,15 @@
     @if (passwordShown()) {
       <hq-band variant="notice" [open]="true" [title]="passwordTitle()" (dismissed)="dismissPassword()">
         <p class="teachers__password-note">{{ 'admin.teachers.password.note' | transloco }}</p>
-        <p class="teachers__password">
-          <code data-hq-temp-password>{{ passwordValue() }}</code>
+        <div class="teachers__password">
+          <code class="teachers__password-code" data-hq-temp-password>{{ passwordValue() }}</code>
           <hq-button variant="secondary" (pressed)="copyPassword()">
             {{
               (passwordCopied() ? 'admin.teachers.password.copied' : 'admin.teachers.password.copy')
                 | transloco
             }}
           </hq-button>
-        </p>
+        </div>
       </hq-band>
     }
 
@@ -29,8 +29,10 @@
     }
 
     <div class="teachers__toolbar">
-      <div data-hq-search>
+      <div data-hq-search class="teachers__search">
         <hq-input
+          type="search"
+          keycap="/"
           [label]="'admin.teachers.filter.label' | transloco"
           [placeholder]="'admin.teachers.filter.placeholder' | transloco"
           [value]="filterText()"
@@ -46,22 +48,40 @@
         height="var(--hq-size-row-height)"
         [label]="'admin.teachers.loading' | transloco"
       />
+    } @else if (staff.error()) {
+      <hq-card class="teachers__error-card">
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          [dismissible]="false"
+        >
+          {{ 'band.unreachable' | transloco }}
+        </hq-band>
+        <div class="teachers__error-action">
+          <hq-button variant="secondary" (pressed)="staff.reload()">
+            {{ 'ui.retry' | transloco }}
+          </hq-button>
+        </div>
+      </hq-card>
     } @else {
-      <hq-table
-        [rows]="rows()"
-        [columns]="columns()"
-        [cellTemplate]="cell"
-        [overflowTemplate]="overflow"
-        [trackBy]="trackRow"
-        [label]="'admin.teachers.title' | transloco"
-      >
-        <hq-empty-state
-          table-empty
-          [message]="'admin.teachers.empty' | transloco"
-          [actionLabel]="createLabel()"
-          (action)="openCreate()"
-        />
-      </hq-table>
+      <hq-card [flush]="true">
+        <hq-table
+          [rows]="rows()"
+          [columns]="columns()"
+          [cellTemplate]="cell"
+          [overflowTemplate]="overflow"
+          [trackBy]="trackRow"
+          [label]="'admin.teachers.title' | transloco"
+        >
+          <hq-empty-state
+            table-empty
+            [message]="'admin.teachers.empty' | transloco"
+            [actionLabel]="createLabel()"
+            (action)="openCreate()"
+          />
+        </hq-table>
+      </hq-card>
     }
   </div>
 
@@ -91,7 +111,11 @@
         }
       }
       @case ('active') {
-        <span class="teachers__status" [class.teachers__status--off]="!row.active">
+        <span
+          class="hq-badge"
+          [class.hq-badge--success]="row.active"
+          [class.hq-badge--error]="!row.active"
+        >
           {{ (row.active ? 'admin.teachers.active' : 'admin.teachers.inactive') | transloco }}
         </span>
       }
@@ -111,11 +135,11 @@
   </ng-template>
 
   <ng-template #rowMenu>
-    <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
+    <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
       <button
         type="button"
         cdkMenuItem
-        class="menu__item"
+        class="hq-menu__item"
         *hqCan="'teacher.manage'"
         (cdkMenuItemTriggered)="openAssignments(menuRow()?.source ?? null)"
       >
@@ -124,7 +148,7 @@
       <button
         type="button"
         cdkMenuItem
-        class="menu__item"
+        class="hq-menu__item"
         *hqCan="'teacher.manage'"
         (cdkMenuItemTriggered)="openEdit(menuRow()?.source ?? null)"
       >
@@ -133,7 +157,7 @@
       <button
         type="button"
         cdkMenuItem
-        class="menu__item"
+        class="hq-menu__item"
         *hqCan="'teacher.manage'"
         (cdkMenuItemTriggered)="resetPassword(menuRow()?.source ?? null)"
       >
@@ -143,7 +167,7 @@
         <button
           type="button"
           cdkMenuItem
-          class="menu__item menu__item--danger"
+          class="hq-menu__item hq-menu__item--danger"
           *hqCan="'teacher.manage'"
           (cdkMenuItemTriggered)="requestDeactivate(menuRow())"
         >
@@ -153,7 +177,7 @@
         <button
           type="button"
           cdkMenuItem
-          class="menu__item"
+          class="hq-menu__item"
           *hqCan="'teacher.manage'"
           (cdkMenuItemTriggered)="setActive(menuRow()!, true)"
         >
@@ -172,11 +196,21 @@
     [loading]="saving()"
     (confirmed)="save()"
   >
+    @if (formError(); as err) {
+      <hq-band
+        variant="error"
+        [open]="true"
+        [title]="'band.failed' | transloco"
+        (dismissed)="formError.set(null)"
+      >
+        {{ err }}
+      </hq-band>
+    }
     <hq-input
       [label]="'admin.teachers.form.fullName' | transloco"
       [value]="fullName()"
       [required]="true"
-      (valueChange)="fullName.set($event)"
+      (valueChange)="setFullName($event)"
     />
     <hq-input
       [label]="'admin.teachers.form.email' | transloco"
@@ -186,7 +220,7 @@
       [required]="true"
       [disabled]="formMode() === 'edit'"
       [hint]="formMode() === 'edit' ? ('admin.teachers.form.emailFixed' | transloco) : null"
-      (valueChange)="email.set($event)"
+      (valueChange)="setEmail($event)"
     />
     <fieldset class="teachers__subjects">
       <legend class="teachers__legend">{{ 'admin.teachers.form.subjects' | transloco }}</legend>
@@ -203,14 +237,14 @@
       [placeholder]="'admin.teachers.form.curriculumPlaceholder' | transloco"
       [options]="curriculumOptions()"
       [value]="curriculum()"
-      (valueChange)="curriculum.set($event === 'american' || $event === 'british' ? $event : '')"
+      (valueChange)="setCurriculum($event)"
     />
     <hq-input
       [label]="'admin.teachers.form.photoUrl' | transloco"
       type="url"
       [value]="photoUrl()"
       [hint]="'ui.optional' | transloco"
-      (valueChange)="photoUrl.set($event)"
+      (valueChange)="setPhotoUrl($event)"
     />
   </hq-dialog>
 

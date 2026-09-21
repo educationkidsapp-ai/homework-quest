@@ -14,8 +14,10 @@
     }
 
     <div class="classes__toolbar">
-      <div data-hq-search>
+      <div data-hq-search class="classes__search">
         <hq-input
+          type="search"
+          keycap="/"
           [label]="'admin.classes.filter.label' | transloco"
           [placeholder]="'admin.classes.filter.placeholder' | transloco"
           [value]="filterText()"
@@ -39,22 +41,40 @@
         height="var(--hq-size-row-height)"
         [label]="'admin.classes.loading' | transloco"
       />
+    } @else if (sections.error()) {
+      <hq-card class="classes__error-card">
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          [dismissible]="false"
+        >
+          {{ 'band.unreachable' | transloco }}
+        </hq-band>
+        <div class="classes__error-action">
+          <hq-button variant="secondary" (pressed)="sections.reload()">
+            {{ 'ui.retry' | transloco }}
+          </hq-button>
+        </div>
+      </hq-card>
     } @else {
-      <hq-table
-        [rows]="rows()"
-        [columns]="columns()"
-        [cellTemplate]="cell"
-        [overflowTemplate]="overflow"
-        [trackBy]="trackRow"
-        [label]="'admin.classes.title' | transloco"
-      >
-        <hq-empty-state
-          table-empty
-          [message]="'admin.classes.empty' | transloco"
-          [actionLabel]="createLabel()"
-          (action)="openCreate()"
-        />
-      </hq-table>
+      <hq-card [flush]="true">
+        <hq-table
+          [rows]="rows()"
+          [columns]="columns()"
+          [cellTemplate]="cell"
+          [overflowTemplate]="overflow"
+          [trackBy]="trackRow"
+          [label]="'admin.classes.title' | transloco"
+        >
+          <hq-empty-state
+            table-empty
+            [message]="'admin.classes.empty' | transloco"
+            [actionLabel]="createLabel()"
+            (action)="openCreate()"
+          />
+        </hq-table>
+      </hq-card>
     }
   </div>
 
@@ -68,9 +88,19 @@
       }
       @case ('joinCode') {
         <span class="classes__code">
-          <code>{{ row.joinCode }}</code>
-          <hq-button variant="quiet" (pressed)="copyJoinCode(row)">
-            {{ (copied() === row.id ? 'admin.classes.copied' : 'admin.classes.copy') | transloco }}
+          <code class="classes__code-badge">{{ row.joinCode }}</code>
+          <hq-button variant="quiet" class="classes__copy-btn" (pressed)="copyJoinCode(row)">
+            @if (copied() === row.id) {
+              <svg class="classes__copy-icon" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-hidden="true">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+              </svg>
+            } @else {
+              <svg class="classes__copy-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14" aria-hidden="true">
+                <rect x="7" y="7" width="10" height="10" rx="2" />
+                <path d="M4 13V5a2 2 0 012-2h8" />
+              </svg>
+            }
+            <span>{{ (copied() === row.id ? 'admin.classes.copied' : 'admin.classes.copy') | transloco }}</span>
             <span class="hq-sr-only">{{ 'admin.classes.copyCode' | transloco: { name: row.name } }}</span>
           </hq-button>
         </span>
@@ -82,7 +112,11 @@
         {{ row.teachers }}
       }
       @case ('active') {
-        <span class="classes__status" [class.classes__status--off]="!row.active">
+        <span
+          class="hq-badge"
+          [class.hq-badge--success]="row.active"
+          [class.hq-badge--warning]="!row.active"
+        >
           {{ (row.active ? 'admin.classes.active' : 'admin.classes.inactive') | transloco }}
         </span>
       }
@@ -102,14 +136,14 @@
   </ng-template>
 
   <ng-template #rowMenu>
-    <div cdkMenu class="menu" [attr.aria-label]="'ui.table.actions' | transloco">
-      <button type="button" cdkMenuItem class="menu__item" (cdkMenuItemTriggered)="printCard(menuRow()!)">
+    <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
+      <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="printCard(menuRow()!)">
         {{ 'admin.classes.printCard' | transloco }}
       </button>
       <button
         type="button"
         cdkMenuItem
-        class="menu__item"
+        class="hq-menu__item"
         *hqCan="'class.write'"
         (cdkMenuItemTriggered)="request('regenerate', menuRow())"
       >
@@ -119,7 +153,7 @@
         <button
           type="button"
           cdkMenuItem
-          class="menu__item menu__item--danger"
+          class="hq-menu__item hq-menu__item--danger"
           *hqCan="'class.write'"
           (cdkMenuItemTriggered)="request('deactivate', menuRow())"
         >
@@ -129,7 +163,7 @@
         <button
           type="button"
           cdkMenuItem
-          class="menu__item"
+          class="hq-menu__item"
           *hqCan="'class.write'"
           (cdkMenuItemTriggered)="setActive(menuRow()!, true)"
         >
@@ -148,19 +182,29 @@
     [loading]="saving()"
     (confirmed)="create()"
   >
+    @if (createError(); as err) {
+      <hq-band
+        variant="error"
+        [open]="true"
+        [title]="'band.failed' | transloco"
+        (dismissed)="createError.set(null)"
+      >
+        {{ err }}
+      </hq-band>
+    }
     <hq-select
       [label]="'admin.classes.create.curriculum' | transloco"
       [placeholder]="'admin.classes.create.curriculumPlaceholder' | transloco"
       [options]="createCurriculumOptions()"
       [value]="newCurriculum()"
-      (valueChange)="newCurriculum.set($event === 'american' || $event === 'british' ? $event : '')"
+      (valueChange)="setNewCurriculum($event)"
     />
     <hq-select
       [label]="'admin.classes.create.grade' | transloco"
       [placeholder]="'admin.classes.create.gradePlaceholder' | transloco"
       [options]="gradeOptions()"
       [value]="newGrade()"
-      (valueChange)="newGrade.set($event)"
+      (valueChange)="setNewGrade($event)"
     />
     <hq-input
       [label]="'admin.classes.create.name' | transloco"
@@ -168,7 +212,7 @@
       [hint]="nameHint() || ('admin.classes.create.nameExample' | transloco)"
       [required]="true"
       [value]="newName()"
-      (valueChange)="newName.set($event)"
+      (valueChange)="setNewName($event)"
     />
   </hq-dialog>
 

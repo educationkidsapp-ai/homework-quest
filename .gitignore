@@ -21,6 +21,8 @@ firebase-debug.log
 .firebase/
 server/panel/
 .claude/worktrees/
+.serena/
+desktopApp/bin/
 
 # Angular dashboard
 dashboard/node_modules

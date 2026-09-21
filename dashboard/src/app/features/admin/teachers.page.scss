@@ -17,8 +17,26 @@
   gap: var(--hq-space-16);
 }
 
+.teachers__search {
+  flex: 1;
+  min-inline-size: min(280px, 100%);
+}
+
+.teachers__error-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-16);
+}
+
+.teachers__error-action {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .teachers__password-note {
   margin: 0 0 var(--hq-space-8);
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-sm);
 }
 
 .teachers__password {
@@ -27,90 +45,73 @@
   align-items: center;
   gap: var(--hq-space-12);
   margin: 0;
+}
 
-  code {
-    padding: var(--hq-space-8) var(--hq-space-12);
-    background: var(--hq-color-surface);
-    border: var(--hq-size-rule) solid var(--hq-color-line);
-    font-family: var(--hq-font-family-mono);
-    font-size: var(--hq-font-input-size);
-    letter-spacing: var(--hq-font-letter-spacing-label);
-  }
+.teachers__password-code {
+  padding: var(--hq-space-8) var(--hq-space-16);
+  background: var(--hq-color-surface-sunken);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-control);
+  font-family: var(--hq-font-family-mono);
+  font-size: var(--hq-text-theme-sm);
+  font-weight: var(--hq-text-weight-semibold);
+  letter-spacing: var(--hq-font-letter-spacing-label);
+  color: var(--hq-color-ink);
 }
 
 .teachers__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--hq-space-4);
+  gap: var(--hq-space-6);
 }
 
 .teachers__chip {
-  padding: var(--hq-space-4) var(--hq-space-8);
-  border: var(--hq-size-rule-thin) solid var(--hq-color-line);
-  font-size: var(--hq-font-label-size);
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: var(--hq-radius-control);
+  background: var(--hq-color-surface-sunken);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  font-size: var(--hq-text-theme-xs);
+  font-weight: var(--hq-text-weight-medium, 500);
+  color: var(--hq-color-ink);
   white-space: nowrap;
 }
 
-.teachers__none,
-.teachers__status {
+.teachers__none {
   color: var(--hq-color-ink-soft);
-}
-
-.teachers__status--off {
-  color: var(--hq-color-accent-strong);
-  font-weight: var(--hq-font-label-weight);
+  font-size: var(--hq-text-theme-sm);
 }
 
 .teachers__subjects {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hq-space-16);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: var(--hq-space-12);
   margin: 0;
   padding: var(--hq-space-16);
-  border: var(--hq-size-rule) solid var(--hq-color-line);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-control);
+  background: var(--hq-color-surface);
 }
 
 .teachers__legend {
   padding-inline: var(--hq-space-8);
-  font-size: var(--hq-font-label-size);
-  font-weight: var(--hq-font-label-weight);
+  font-size: var(--hq-text-theme-xs);
+  font-weight: var(--hq-text-weight-semibold);
   letter-spacing: var(--hq-font-letter-spacing-label);
   text-transform: uppercase;
+  color: var(--hq-color-ink-soft);
 }
 
 .teachers__overflow-trigger {
-  min-inline-size: var(--hq-size-touch-target);
-  min-block-size: var(--hq-size-touch-target);
-  background: none;
+  @include m.icon-button(var(--hq-radius-control), transparent);
   border: 0;
+  font-size: var(--hq-text-card-title);
   cursor: pointer;
-  @include m.hover-tint;
   @include m.focus-ring;
-}
 
-// Rendered into the CDK overlay container, but instantiated here (see `classes.page.scss`).
-.menu {
-  min-inline-size: var(--hq-size-course-card);
-  background: var(--hq-color-surface-raised);
-  border: var(--hq-size-rule) solid var(--hq-color-line);
-  box-shadow: var(--hq-shadow-dialog);
-}
-
-.menu__item {
-  display: flex;
-  align-items: center;
-  inline-size: 100%;
-  min-block-size: var(--hq-size-touch-target);
-  padding-inline: var(--hq-space-16);
-  background: none;
-  border: 0;
-  color: var(--hq-color-ink);
-  text-align: start;
-  cursor: pointer;
-  @include m.hover-tint;
-  @include m.focus-ring;
-}
-
-.menu__item--danger {
-  color: var(--hq-color-accent-strong);
+  &:hover {
+    background: var(--hq-color-surface-sunken);
+    color: var(--hq-color-ink);
+  }
 }

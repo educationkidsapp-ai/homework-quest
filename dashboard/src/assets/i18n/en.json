@@ -1442,7 +1442,8 @@
       "done": "done",
       "error": "failed"
     },
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "retry": "Try again"
   },
   "week": {
     "title": "This week",
