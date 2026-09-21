@@ -37,6 +37,9 @@ public class SecurityConfig {
                 // V7: the class join code, the narrower sibling of `/schools/by-code/**`. Exactly this path and this
                 // method, so a later `/classes/**` route is authenticated until it is deliberately opened here.
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/classes/lookup").permitAll()
+                // C1: the chat socket. A browser `WebSocket` cannot send a header, so the handshake reads its token
+                // from `?token=` (or the header when the client can) and refuses 401/403 itself — `ChatHandshake`.
+                .requestMatchers("/ws/chat").permitAll()
                 .requestMatchers("/me", "/me/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 // §6 screens 19–20: "my own school", with no school id in the path. Dashboard roles only; which of
                 // them may read what is the `@PreAuthorize` on each route, as everywhere else.

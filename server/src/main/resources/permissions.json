@@ -79,7 +79,11 @@
     "results.write": ["ADMIN", "TEACHER"],
     "child.teacherQuestion.read": ["PARENT"],
     "child.teacherQuestion.answer": ["PARENT"],
-    "child.announcement.read": ["PARENT"]
+    "child.announcement.read": ["PARENT"],
+    "child.chat": ["PARENT"],
+    "teacher.chat": ["TEACHER"],
+    "chat.support": ["ADMIN"],
+    "chat.socket": ["PARENT", "TEACHER"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -286,6 +290,18 @@
 
     { "method": "GET", "path": "/teacher/announcements", "permission": "announcement.read" },
     { "method": "POST", "path": "/teacher/announcements", "permission": "announcement.write" },
-    { "method": "DELETE", "path": "/teacher/announcements/{id}", "permission": "announcement.write" }
+    { "method": "DELETE", "path": "/teacher/announcements/{id}", "permission": "announcement.write" },
+
+    { "method": "GET", "path": "/children/{id}/chat/threads", "permission": "child.chat" },
+    { "method": "GET", "path": "/children/{id}/chat/threads/{teacherId}/messages", "permission": "child.chat" },
+    { "method": "POST", "path": "/children/{id}/chat/threads/{teacherId}/messages", "permission": "child.chat" },
+    { "method": "POST", "path": "/children/{id}/chat/threads/{teacherId}/read", "permission": "child.chat" },
+    { "method": "GET", "path": "/teacher/chat/threads", "permission": "teacher.chat" },
+    { "method": "GET", "path": "/teacher/chat/threads/{childId}/messages", "permission": "teacher.chat" },
+    { "method": "POST", "path": "/teacher/chat/threads/{childId}/messages", "permission": "teacher.chat" },
+    { "method": "POST", "path": "/teacher/chat/threads/{childId}/read", "permission": "teacher.chat" },
+    { "method": "GET", "path": "/admin/chat/threads", "permission": "chat.support" },
+    { "method": "GET", "path": "/admin/chat/threads/{threadId}/messages", "permission": "chat.support" },
+    { "method": "GET", "path": "/ws/chat", "permission": "chat.socket" }
   ]
 }

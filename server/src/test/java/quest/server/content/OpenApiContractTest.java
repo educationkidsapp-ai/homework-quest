@@ -112,6 +112,16 @@ class OpenApiContractTest extends ApiTestSupport {
             "/teacher/classes/{classId}/children/{childId}",
             "/teacher/classes/{classId}/roster/attach", "/teacher/classes/{classId}/roster/{childId}");
 
+    /**
+     * C1: chat (`quest.api.dto.Chat.kt`, `docs/runbook.md` "Chat"). Behind the `chat` flag at run time and still in
+     * the document, for the reason every flagged area is. The socket itself, `/ws/chat`, is not an OpenAPI path:
+     * its frames are `ChatFrame.schema.json`.
+     */
+    static final List<String> CHAT_API = List.of(
+            "/children/{id}/chat/threads", "/children/{id}/chat/threads/{teacherId}/messages", "/children/{id}/chat/threads/{teacherId}/read",
+            "/teacher/chat/threads", "/teacher/chat/threads/{childId}/messages", "/teacher/chat/threads/{childId}/read",
+            "/admin/chat/threads", "/admin/chat/threads/{threadId}/messages");
+
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
             "/schools/logo", "/classes/lookup");
@@ -127,6 +137,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(GRADING_API);
         assertThat(paths).containsAll(EXAMS_API);
         assertThat(paths).containsAll(CLASSES_API);
+        assertThat(paths).containsAll(CHAT_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
     }

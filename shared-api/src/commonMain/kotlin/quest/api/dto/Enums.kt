@@ -69,6 +69,10 @@ data class ApiError(val code: String, val message: String) {
          * would sit on a question she never answered — invisible on her row and ignored by the scorer.
          */
         const val STOP_NOT_PLAYED = "stop_not_played"
+        /** 409 (C1 chat): the child sits on no section yet, so she has no teachers to write to — ask the teacher to place her. */
+        const val CHILD_NOT_PLACED = "child_not_placed"
+        /** 429 (C1 chat): more than 30 messages in a minute from one sender. */
+        const val RATE_LIMITED = "rate_limited"
     }
 }
 

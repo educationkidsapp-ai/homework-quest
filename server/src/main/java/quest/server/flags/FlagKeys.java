@@ -35,9 +35,13 @@ public final class FlagKeys {
     public static final String TEACHER_ROSTER_EDIT = "teacher.rosterEdit";
     public static final String JOIN_BY_LIST = "join.byList";
 
+    /** C1: parent ↔ teacher chat (`/children/{id}/chat/**`, `/teacher/chat/**`, `/ws/chat`). Seeded off by V15. */
+    public static final String CHAT = "chat";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
-            MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST);
+            MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
+            CHAT);
 }

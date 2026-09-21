@@ -111,6 +111,16 @@ quest:
       # gone, and then on this interval.
       enabled: ${QUEST_EXAMS_RELEASE_SWEEP_ENABLED:true}
       interval-seconds: ${QUEST_EXAMS_RELEASE_SWEEP_INTERVAL_SECONDS:60}
+  chat:
+    # C1: parent ↔ teacher chat. The socket fans out across Cloud Run instances over PostgreSQL LISTEN/NOTIFY when the
+    # datasource is PostgreSQL and over an in-process bus otherwise (H2); `bus` forces one (`auto` | `postgres` | `memory`).
+    bus: ${QUEST_CHAT_BUS:auto}
+    notify-poll-millis: 250                 # how long the listener connection waits for a notification per turn
+    heartbeat-seconds: 30                   # `{"type":"ping"}` to every socket; a client answers with any command
+    idle-seconds: 600                       # a socket with no client frame for this long is closed (1000 "idle")
+    send-buffer-bytes: 65536                # queued frames per socket before a stuck client is closed (1008)
+    send-timeout-seconds: 10                # one frame taking longer than this to write closes the socket too
+    messages-per-minute: 30                 # per sender, REST and socket together → 429 / `error rate_limited`
   storage:
     kind: ${STORAGE_KIND:local}
     local-dir: ${STORAGE_DIR:data/files}

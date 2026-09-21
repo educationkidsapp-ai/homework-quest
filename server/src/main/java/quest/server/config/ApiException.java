@@ -21,6 +21,8 @@ public class ApiException extends RuntimeException {
      * entitled to make it — the exam's own rules are what refuse it, and the app tells the child which rule it was.
      */
     public static ApiException conflict(String code, String message) { return new ApiException(HttpStatus.CONFLICT, code, message); }
+    /** 429 `rate_limited`: the caller is fine, the pace is not (C1: 30 chat messages a minute per sender). */
+    public static ApiException rateLimited(String message) { return new ApiException(HttpStatus.TOO_MANY_REQUESTS, "rate_limited", message); }
     public HttpStatus status() { return status; }
     public ApiError error() { return error; }
 }

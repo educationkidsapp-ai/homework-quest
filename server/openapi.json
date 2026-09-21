@@ -443,6 +443,87 @@
         "required" : [ "currentPassword", "newPassword" ],
         "type" : "object"
       },
+      "ChatMessage" : {
+        "properties" : {
+          "body" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "readAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "sender" : {
+            "enum" : [ "parent", "teacher" ],
+            "type" : "string"
+          },
+          "senderId" : {
+            "type" : "string"
+          },
+          "threadId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "body", "createdAt", "id", "sender", "senderId", "threadId" ],
+        "type" : "object"
+      },
+      "ChatReadReceipt" : {
+        "properties" : {
+          "readAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "readBy" : {
+            "enum" : [ "parent", "teacher" ],
+            "type" : "string"
+          },
+          "threadId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "readAt", "readBy", "threadId" ],
+        "type" : "object"
+      },
+      "ChatThread" : {
+        "properties" : {
+          "childId" : {
+            "type" : "string"
+          },
+          "childName" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "lastMessage" : {
+            "$ref" : "#/components/schemas/ChatMessage"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "teacherId" : {
+            "type" : "string"
+          },
+          "teacherName" : {
+            "type" : "string"
+          },
+          "unread" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "childId", "childName", "teacherId", "teacherName", "unread" ],
+        "type" : "object"
+      },
       "Child" : {
         "properties" : {
           "avatarColor" : {
@@ -3941,6 +4022,18 @@
         } ],
         "required" : [ "correctIds", "id", "ingredient", "options", "parentTip", "prompt", "speak", "title", "type" ]
       },
+      "SendChatMessageRequest" : {
+        "properties" : {
+          "body" : {
+            "type" : "string"
+          },
+          "clientId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "body" ],
+        "type" : "object"
+      },
       "Sequence" : {
         "allOf" : [ {
           "$ref" : "#/components/schemas/SingleAnswer"
@@ -5918,6 +6011,78 @@
           }
         },
         "tags" : [ "Admin reports" ]
+      }
+    },
+    "/admin/chat/threads" : {
+      "get" : {
+        "operationId" : "supportChatThreads",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/admin/chat/threads/{threadId}/messages" : {
+      "get" : {
+        "operationId" : "supportChatMessages",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "threadId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatMessage"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
       }
     },
     "/admin/children" : {
@@ -8550,6 +8715,167 @@
         "tags" : [ "Children" ]
       }
     },
+    "/children/{id}/chat/threads" : {
+      "get" : {
+        "operationId" : "parentChatThreads",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/children/{id}/chat/threads/{teacherId}/messages" : {
+      "get" : {
+        "operationId" : "parentChatMessages",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "teacherId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatMessage"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      },
+      "post" : {
+        "operationId" : "parentSendChatMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "teacherId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/children/{id}/chat/threads/{teacherId}/read" : {
+      "post" : {
+        "operationId" : "parentMarkChatRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "teacherId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
     "/children/{id}/map" : {
       "get" : {
         "operationId" : "childMap",
@@ -9300,6 +9626,138 @@
           }
         },
         "tags" : [ "Announcements" ]
+      }
+    },
+    "/teacher/chat/threads" : {
+      "get" : {
+        "operationId" : "teacherChatThreads",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/teacher/chat/threads/{childId}/messages" : {
+      "get" : {
+        "operationId" : "teacherChatMessages",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "childId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatMessage"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      },
+      "post" : {
+        "operationId" : "teacherSendChatMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "childId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/teacher/chat/threads/{childId}/read" : {
+      "post" : {
+        "operationId" : "teacherMarkChatRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "childId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
       }
     },
     "/teacher/children/{childId}" : {
@@ -11384,32 +11842,17 @@
     }
   },
   "tags" : [ {
-    "description" : "Sections, join codes and class rosters",
-    "name" : "Classes"
-  }, {
     "description" : "Exam settings, windows, sittings, results and the printable sheet",
     "name" : "Exams"
-  }, {
-    "description" : "Questions a teacher sends to her students, and the answers",
-    "name" : "Teacher questions"
   }, {
     "description" : "The per-school feature matrix (§4)",
     "name" : "Feature flags"
   }, {
-    "description" : "Per-school white label (§3)",
-    "name" : "Themes"
-  }, {
     "description" : "A teacher's own class rosters",
     "name" : "Teacher roster"
   }, {
-    "description" : "Dashboard accounts, invites and View as…",
-    "name" : "Dashboard users"
-  }, {
     "description" : "Notes a teacher posts to the parents of a class",
     "name" : "Announcements"
-  }, {
-    "description" : "The role-specific dashboard home (§6 screen 2)",
-    "name" : "Home"
   }, {
     "description" : "Page crops and child recordings",
     "name" : "Media"
@@ -11419,15 +11862,6 @@
   }, {
     "description" : "Teacher accounts and teaching assignments",
     "name" : "Teachers"
-  }, {
-    "description" : "Liveness and version",
-    "name" : "Health"
-  }, {
-    "description" : "Teacher profile, lesson chooser options, calendar and students",
-    "name" : "Teacher"
-  }, {
-    "description" : "Parent-owned children, map, attempts and progress",
-    "name" : "Children"
   }, {
     "description" : "Cache, usage and calendar",
     "name" : "Admin reports"
@@ -11447,13 +11881,40 @@
     "description" : "Scores, teacher marks, release, the class gradebook and the child page",
     "name" : "Results and gradebook"
   }, {
-    "description" : "Lesson pipeline, plays and stops",
-    "name" : "Admin lessons"
-  }, {
     "description" : "Tenants: cards, creation and settings",
     "name" : "Schools"
   }, {
     "description" : "Published lesson content for the app",
     "name" : "Lessons"
+  }, {
+    "description" : "Sections, join codes and class rosters",
+    "name" : "Classes"
+  }, {
+    "description" : "Questions a teacher sends to her students, and the answers",
+    "name" : "Teacher questions"
+  }, {
+    "description" : "Per-school white label (§3)",
+    "name" : "Themes"
+  }, {
+    "description" : "Dashboard accounts, invites and View as…",
+    "name" : "Dashboard users"
+  }, {
+    "description" : "The role-specific dashboard home (§6 screen 2)",
+    "name" : "Home"
+  }, {
+    "description" : "Parent and teacher chat: threads, message pages, sending and read receipts",
+    "name" : "Chat"
+  }, {
+    "description" : "Liveness and version",
+    "name" : "Health"
+  }, {
+    "description" : "Teacher profile, lesson chooser options, calendar and students",
+    "name" : "Teacher"
+  }, {
+    "description" : "Parent-owned children, map, attempts and progress",
+    "name" : "Children"
+  }, {
+    "description" : "Lesson pipeline, plays and stops",
+    "name" : "Admin lessons"
   } ]
 }

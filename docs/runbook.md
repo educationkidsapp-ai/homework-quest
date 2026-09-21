@@ -863,6 +863,126 @@ children who **reached** the question, not out of the roster: a question the cla
 the class got wrong. A re-opening restarts the sitting's clock, so `secondsTaken` is the re-sitting's own time and
 never the days between an absence and the second chance.
 
+## Chat
+
+C1 `backend/chat-websocket` (D24): real-time chat between a child's **parent** (the app) and a **teacher** of the
+child's section (the dashboard), on the API itself — Spring WebSocket on the same origin with the same tokens, plain
+JSON frames, no STOMP, no second service. The contract types are `shared-api/src/commonMain/kotlin/quest/api/dto/Chat.kt`
+(`ChatThread`, `ChatMessage`, `ChatFrame`, `ChatCommand`); the frame schema the app and the dashboard validate
+against is `shared-api/src/commonMain/resources/schemas/ChatFrame.schema.json`, used the way `Play.schema.json` is.
+
+**The flag.** Everything is behind `chat`, seeded **off** by V15: every REST route answers 404 and the socket
+handshake 403 until an Admin turns it on for the school (`PUT /admin/schools/$SCHOOL/flags/chat {"enabled":true}`).
+A parent is refused only when *none* of her children's schools has it on; each command is then checked against the
+child's own school.
+
+**Who may talk to whom.** One thread per (child, teacher), and only between the child's parent and a teacher who
+holds an assignment on the child's section — checked from both ends, the same way the rest of the teacher API is
+(`TeacherScope`). A parent asking about a child that is not hers gets 404; a teacher asking about a child on a
+section she does not teach gets 403, and about another school's child 404 (the tenant filter). A child on **no
+section yet** has no teachers to write to: `409 child_not_placed` from either side, and the app tells the parent to
+ask the teacher to place the child. A thread row appears on the first message; the parent's list names every
+teacher of the section beforehand with `id: null`, so she can start one; a teacher starts one by posting to
+`/teacher/chat/threads/{childId}/messages` (her list shows only threads that exist).
+
+### REST
+
+| Parent (Firebase token) | Teacher (JWT) | What |
+|---|---|---|
+| `GET /children/{id}/chat/threads` | `GET /teacher/chat/threads` | `ChatThread[]`: unread first, then newest. The teacher's spans all her sections. |
+| `GET /children/{id}/chat/threads/{teacherId}/messages?before=&since=&limit=` | `GET /teacher/chat/threads/{childId}/messages?…` | `ChatMessage[]`, **oldest first** within the page. No cursor = the newest page. |
+| `POST …/messages {body, clientId?}` | `POST …/messages {body, clientId?}` | 201 `ChatMessage`. |
+| `POST …/read` | `POST …/read` | 200 `ChatReadReceipt`; 404 while no thread exists. |
+
+`limit` is 1–200 (default 50). `before=<messageId>` pages backwards from that message; `since=<messageId>` answers
+everything after it, oldest first — the reconnect refetch. Either cursor must be a message of that thread (400
+otherwise). `body` is 1–2000 characters of **plain text**: trimmed, control characters other than line breaks and
+tabs removed, stored and delivered exactly as typed, and **never interpreted as HTML** by any client — render it as
+text. More than **30 messages a minute** from one sender (REST and socket together, per instance) is `429
+rate_limited`. Support: `GET /admin/chat/threads` and `GET /admin/chat/threads/{threadId}/messages` as ADMIN with
+`X-School-Id` (read-only; without the header the Admin reads the flag defaults and the gate answers 404).
+
+### The socket: `/ws/chat`
+
+**Auth.** `Authorization: Bearer <token>` when the client can send headers (the app), else `?token=<token>` (a
+browser `WebSocket` cannot send headers — the dashboard). Either carrier takes either kind: a dashboard JWT
+(`admin.…`, TEACHER only) or a Firebase ID token, verified by the same code as the request filters. 401 for a
+token nobody issued, 403 for ADMIN/MANAGERIAL or a school with the flag off. The API never logs the token
+(`RequestLogging` prints the path only), but Cloud Run's own request log records the full URL — so send the header
+wherever the client can (the app), and remember a dashboard access token in the query is worth 15 minutes at most.
+Allowed origins are `CORS_ORIGINS`; the app sends no `Origin`.
+
+**Frames** are JSON text, discriminated by `type`, at most **8 KB** (bigger → close 1009).
+
+Client → server (`ChatCommand`): a parent names the thread by `childId` + `teacherId`, a teacher by `childId`.
+
+```json
+{"type":"message","childId":"…","teacherId":"…","body":"Hello","clientId":"7f3a…"}
+{"type":"typing","childId":"…","teacherId":"…"}
+{"type":"read","childId":"…","teacherId":"…"}
+{"type":"ping"}        {"type":"pong"}
+```
+
+Server → client (`ChatFrame`, the DTOs REST uses):
+
+```json
+{"type":"message","message":{ChatMessage},"clientId":"7f3a…"}   // clientId only on the sender's own sessions
+{"type":"read","threadId":"…","readBy":"teacher","readAt":1758450000000}
+{"type":"typing","threadId":"…","from":"parent"}
+{"type":"ping"}   {"type":"pong"}
+{"type":"error","code":"child_not_placed","message":"…","clientId":"7f3a…"}
+```
+
+**The ack.** A send is answered by nothing directly: the message is committed, published on the bus, and comes back
+to *every* session of both parties as a `message` frame — the sender's own sessions get it with the `clientId` the
+command carried (use a UUID), everybody else's without. That echo is the ack: a client renders its pending bubble
+on send and replaces it when a frame with the same `clientId` arrives, so a message never shows twice. A refused
+command is an `error` frame with the same `clientId` and the REST error code (`bad_request`, `not_found`,
+`forbidden`, `child_not_placed`, `rate_limited`, `internal`). A REST send is announced on the socket the same way.
+`typing` is fan-out only — never stored, sent to the other party only, and the first thing dropped when a socket
+is slow. `read` goes to both parties (so the reader's other devices clear their badge too).
+
+**Heartbeat and idle.** The server sends `{"type":"ping"}` every 30 s (`quest.chat.heartbeat-seconds`); answer
+with `{"type":"pong"}` — any command counts. A socket that sends nothing for 10 minutes (`idle-seconds`) is closed
+`1000 idle`. A client that hears no ping for ~90 s should treat the socket as dead and reconnect. A client may send
+`ping` itself and gets `pong`.
+
+**Backpressure.** Frames to one socket are written by one thread, in order. A `typing` or `ping` is skipped while
+anything is still queued for that socket; a `message` is never dropped — it is queued until the queue passes 64 KB
+(`send-buffer-bytes`) or one write has taken longer than 10 s (`send-timeout-seconds`), and then the socket is
+closed `1008` and the client reconnects. The invariant the contract actually makes is therefore *no silent loss*,
+not *every frame*: **on every (re)connect, refetch** `…/messages?since=<last message id you hold>` per open thread
+(or `GET …/threads` for the counts) — that fills any gap from a close, an instance restart, or Cloud Run's request
+timeout. Sockets on Cloud Run are HTTP requests and end at the service's request timeout (3 600 s, raised for this
+in the Terraform); the client must expect a close every hour and reconnect with the refetch. Reconnect with
+exponential backoff (1 s → 30 s) and a fresh token: a dashboard access token lives 15 minutes, so reconnect after
+`/auth/refresh`, not with the expired one.
+
+**Across instances.** QA runs up to two instances and a socket lives on whichever took its handshake. A message
+committed on one reaches the other's sockets through PostgreSQL `LISTEN/NOTIFY` on channel `chat_events`
+(`PostgresChatBus`): every instance holds one pooled connection on `LISTEN` and waits on it 250 ms at a time
+(`quest.chat.notify-poll-millis`); a publish is `pg_notify` from a pooled connection *after the commit*. An event
+whose payload would pass NOTIFY's 8 000-byte limit goes out without the message body and is loaded by id on
+arrival. Under H2 (local, the suite) the same interface is an in-process bus; `QUEST_CHAT_BUS=postgres|memory`
+forces one, `auto` (the default) picks by the datasource's product name. If a listener connection drops (a Cloud
+SQL restart) it reconnects after a second and logs `chat: listener connection lost`; nothing published in between
+is replayed — the client's `?since=` refetch is the recovery. `Tests: PostgresChatBusTest` (Testcontainers tag
+`postgres`) proves two buses on one database hear each other.
+
+**Reading it on QA.**
+
+```bash
+curl -X PUT "$API/admin/schools/$SCHOOL/flags/chat" -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' -d '{"enabled":true}'
+curl "$API/teacher/chat/threads" -H "Authorization: Bearer $TEACHER"
+curl -X POST "$API/teacher/chat/threads/$CHILD/messages" -H "Authorization: Bearer $TEACHER" -H 'Content-Type: application/json' -d '{"body":"Welcome to 1A!"}'
+# the socket, with websocat: a ping answered with a pong, then the live frames
+websocat "wss://${API#https://}/ws/chat?token=$TEACHER" <<< '{"type":"ping"}'
+```
+
+`GET /admin/chat/threads -H "X-School-Id: $SCHOOL"` is the support view of every thread in a school. There is no
+delete: a thread is part of the school's record, and `DELETE /admin/children/{id}` (the Admin's hard delete, which
+removes her threads and messages with her) is the one thing that removes one; `SEED_RESET` wipes them with the rest.
+
 ## The app and the contract
 
 **The app's JSON is strict, so app and server ship together.** `SchemaValidator.json` — the one `Json` the app's

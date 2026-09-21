@@ -76,6 +76,13 @@ public class TeacherScope {
                                  : assignments.findBySchoolIdOrderByClassIdAscSubjectAsc(schoolId);
     }
 
+    /**
+     * The assignments on one section — who teaches a child, for the parent's side of a feature (C1 chat). The
+     * parent has no tenant scope, so this runs unfiltered on purpose: the caller has already proved the child is
+     * hers, and the class id comes from that child's row, never from the request.
+     */
+    public List<TeachingAssignmentEntity> assignmentsOn(String classId) { return assignments.findByClassIdOrderBySubjectAsc(classId); }
+
     /** The sections a caller may reach: the ones she is assigned to, or all of the school for ADMIN / MANAGERIAL. */
     public List<ClassEntity> classesOf(Principals.User caller) {
         var sections = classes.findBySchoolIdAndNameIsNotNullOrderByCurriculumAscGradeAscNameAsc(tenant.writeSchoolId());

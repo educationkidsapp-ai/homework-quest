@@ -6,6 +6,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.contentOrNull
 import quest.api.Illustrations
+import quest.api.dto.ChatFrame
 import quest.api.dto.IslandKind
 import quest.api.dto.MapResponse
 import quest.api.dto.ParentPanel
@@ -30,6 +31,7 @@ object SchemaValidator {
     private val analysisSchema by lazy { JsonSchema.fromDefinition(Schemas.SourceAnalysis) }
     private val panelSchema by lazy { JsonSchema.fromDefinition(Schemas.ParentPanel) }
     private val mapSchema by lazy { JsonSchema.fromDefinition(Schemas.MapResponse) }
+    private val chatFrameSchema by lazy { JsonSchema.fromDefinition(Schemas.ChatFrame) }
 
     // ---------------------------------------------------------------- Play
     fun validatePlayJson(raw: String, expectedLevel: Int? = null, excludedIds: Set<String> = emptySet()): ValidationResult = runCatching {
@@ -120,6 +122,15 @@ object SchemaValidator {
         if (errors.isNotEmpty()) return ValidationResult(errors)
         val p = json.decodeFromJsonElement(ParentPanel.serializer(), element)
         ValidationResult(if (p.objectives.en.size != p.objectives.ar.size) listOf("objectives must have the same count in en and ar") else emptyList())
+    }.getOrElse { ValidationResult(listOf("not valid JSON: ${it.message}")) }
+
+    /** C1: one server → client frame off `/ws/chat`, as the app and the dashboard check it before acting on it. */
+    fun validateChatFrameJson(raw: String): ValidationResult = runCatching {
+        val element = json.parseToJsonElement(raw)
+        val errors = schemaErrors(chatFrameSchema, element)
+        if (errors.isNotEmpty()) return ValidationResult(errors)
+        json.decodeFromJsonElement(ChatFrame.serializer(), element)
+        ValidationResult.ok
     }.getOrElse { ValidationResult(listOf("not valid JSON: ${it.message}")) }
 
     fun validateMapJson(raw: String): ValidationResult = runCatching {
