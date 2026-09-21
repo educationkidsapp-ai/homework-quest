@@ -587,15 +587,15 @@
       "content": "Content",
       "source": {
         "pdf": {
-          "title": "PDF or Word Document",
+          "title": "Upload a PDF",
           "hint": "PDF, DOCX, or DOC files"
         },
         "slides": {
-          "title": "PowerPoint Slides",
+          "title": "Upload slides",
           "hint": "PPTX, PPTM, or PPSX presentations"
         },
         "images": {
-          "title": "Photos & Images",
+          "title": "Upload photos",
           "hint": "Photos of worksheets, board, or books (PNG, JPG)"
         },
         "manual": {
@@ -605,8 +605,8 @@
       },
       "manualHint": "You get an empty Level 1: add stops of any type, then write Levels 2 and 3 — or let the model write them from a short text.",
       "dropzone": {
-        "pdf": "Drop a PDF or Word document here",
-        "slides": "Drop a PowerPoint presentation here",
+        "pdf": "Drop a PDF here",
+        "slides": "Drop a PPTX here",
         "images": "Drop PNG or JPG photos here",
         "or": "or",
         "choose": "Choose files"
@@ -634,9 +634,9 @@
       },
       "createDefault": "Create the lesson",
       "create": {
-        "pdf": "Upload and generate lesson",
-        "slides": "Upload and generate lesson",
-        "images": "Upload and generate lesson",
+        "pdf": "Create and read the PDF",
+        "slides": "Create and read the slides",
+        "images": "Create and read the photos",
         "manual": "Create and write the questions"
       },
       "busy": {
