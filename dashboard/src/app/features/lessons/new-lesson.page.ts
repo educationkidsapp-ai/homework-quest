@@ -70,15 +70,15 @@ function extensionOf(name: string): string {
 
 function acceptsFile(source: LessonSource, name: string): boolean {
   const ext = extensionOf(name);
-  if (source === 'pdf') return ext === 'pdf';
-  if (source === 'slides') return ext === 'pptx';
+  if (source === 'pdf') return ext === 'pdf' || ext === 'docx' || ext === 'doc';
+  if (source === 'slides') return ext === 'pptx' || ext === 'pptm' || ext === 'ppsx';
   if (source === 'images') return ext === 'png' || ext === 'jpg' || ext === 'jpeg';
   return false;
 }
 
 const ACCEPT: Record<Exclude<LessonSource, 'manual'>, string> = {
-  pdf: '.pdf,application/pdf',
-  slides: '.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  pdf: '.pdf,.docx,.doc,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  slides: '.pptx,.pptm,.ppsx,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint.presentation.macroEnabled.12,application/vnd.openxmlformats-officedocument.presentationml.slideshow',
   images: '.png,.jpg,.jpeg,image/png,image/jpeg',
 };
 
@@ -476,6 +476,10 @@ export class NewLessonPage {
   protected create(): void {
     const source = this.source();
     if (!this.ready() || !source) return;
+
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      void Notification.requestPermission();
+    }
 
     this.error.set(null);
     this.busy.set(this.t('lessons.new.busy.creating'));

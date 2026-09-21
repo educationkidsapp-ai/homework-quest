@@ -7,8 +7,31 @@
     </hq-band>
 
     @if (busy(); as busyText) {
-      <hq-progress-bar [value]="null" [label]="busyText" />
-      <p class="busy-text" role="status">{{ busyText }}</p>
+      <div class="pipeline-progress-card">
+        <div class="pipeline-progress-header">
+          <div class="pipeline-spinner" aria-hidden="true"></div>
+          <div class="pipeline-title-group">
+            <span class="pipeline-title">{{ 'lessons.new.background.title' | transloco }}</span>
+            <span class="pipeline-subtitle">{{ 'lessons.new.background.subtitle' | transloco }}</span>
+          </div>
+        </div>
+        <hq-progress-bar [value]="null" [label]="busyText" />
+        <div class="pipeline-steps">
+          <div class="step-item step-item--done">
+            <span class="step-badge">✓</span>
+            <span class="step-label">{{ 'lessons.new.background.step1' | transloco }}</span>
+          </div>
+          <div class="step-item" [class.step-item--active]="busy() === ('lessons.new.busy.uploading' | transloco)" [class.step-item--done]="busy() === ('lessons.new.busy.analyzing' | transloco)">
+            <span class="step-badge">{{ busy() === ('lessons.new.busy.analyzing' | transloco) ? '✓' : '●' }}</span>
+            <span class="step-label">{{ 'lessons.new.background.step2' | transloco }}</span>
+          </div>
+          <div class="step-item" [class.step-item--active]="busy() === ('lessons.new.busy.analyzing' | transloco)">
+            <span class="step-badge">●</span>
+            <span class="step-label">{{ 'lessons.new.background.step3' | transloco }}</span>
+          </div>
+        </div>
+        <p class="notify-note">{{ 'lessons.new.background.notifyNote' | transloco }}</p>
+      </div>
     }
 
     <hq-card [title]="'lessons.new.course' | transloco">
@@ -113,6 +136,21 @@
             (dragleave)="onDragLeave()"
             (drop)="onDrop($event)"
           >
+            <div class="format-badges">
+              @if (source() === 'pdf') {
+                <span class="badge badge--pdf">PDF</span>
+                <span class="badge badge--word">DOCX</span>
+                <span class="badge badge--word">DOC</span>
+              } @else if (source() === 'slides') {
+                <span class="badge badge--ppt">PPTX</span>
+                <span class="badge badge--ppt">PPTM</span>
+                <span class="badge badge--ppt">PPSX</span>
+              } @else if (source() === 'images') {
+                <span class="badge badge--img">PNG</span>
+                <span class="badge badge--img">JPG</span>
+                <span class="badge badge--img">JPEG</span>
+              }
+            </div>
             <p class="dropzone__title">{{ dropzoneTitle() }}</p>
             <p class="dropzone__or">{{ 'lessons.new.dropzone.or' | transloco }}</p>
             <input
@@ -128,6 +166,7 @@
             <hq-button variant="secondary" [disabled]="busy() !== null" (pressed)="fileInput.click()">
               {{ 'lessons.new.dropzone.choose' | transloco }}
             </hq-button>
+            <p class="format-info">{{ 'lessons.new.formats.' + source() | transloco }}</p>
           </div>
 
           @if (files().length > 0) {

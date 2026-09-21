@@ -175,7 +175,9 @@ public class AdminLessonService {
             return LessonStatus.ERROR;
         }
         var kinds = sourceFiles.findByLessonIdOrderByCreatedAt(id).stream().filter(f -> f.getDeletedAt() == null).map(quest.server.content.Entities.SourceFileEntity::getKind).toList();
-        lesson.setSource(kinds.contains("pptx") ? "slides" : kinds.contains("pdf") ? "pdf" : kinds.isEmpty() ? lesson.getSource() : "images");
+        boolean hasSlides = kinds.contains("pptx") || kinds.contains("pptm") || kinds.contains("ppsx");
+        boolean hasPdfOrDoc = kinds.contains("pdf") || kinds.contains("docx") || kinds.contains("doc");
+        lesson.setSource(hasSlides ? "slides" : hasPdfOrDoc ? "pdf" : kinds.isEmpty() ? lesson.getSource() : "images");
         lesson.setErrorCode(null); lesson.setErrorMessage(null);
         lessons.save(lesson);
         steps.resetFrom(id, PipelineStep.CONVERT); steps.done(id, PipelineStep.UPLOAD);
