@@ -23,6 +23,9 @@ import { PlatformService } from '../../core/platform/platform.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="auth">
+      <div class="auth__bg" aria-hidden="true"></div>
+      <div class="auth__overlay" aria-hidden="true"></div>
+
       <main class="auth__panel">
         <div class="auth__logo">
           <ng-content select="[auth-logo]">
@@ -53,9 +56,13 @@ import { PlatformService } from '../../core/platform/platform.service';
 
     :host {
       display: block;
+      min-block-size: 100vh;
+      position: relative;
+      overflow-x: hidden;
     }
 
     .auth {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -63,23 +70,79 @@ import { PlatformService } from '../../core/platform/platform.service';
       gap: var(--hq-space-24);
       min-block-size: 100vh;
       padding: var(--hq-size-page-padding);
+      z-index: 1;
     }
 
-    // §4: a container is a 16 px radius, a 1 px '--hq-color-rule' border and the surface, on
-    // the '--hq-color-bg' ground — the same card the signed-in side is built from, so the two
-    // halves of the product read as one system. No shadow: cards do not cast one.
+    .auth__bg {
+      position: fixed;
+      inset: -20px;
+      z-index: 0;
+      background-image: url('school-bg.jpg');
+      background-image: url('school-bg.webp');
+      background-position: center;
+      background-size: cover;
+      background-repeat: no-repeat;
+      opacity: 0.22;
+      filter: saturate(1.15);
+      pointer-events: none;
+      animation: auth-bg-pan 32s ease-in-out infinite alternate;
+    }
+
+    .auth__overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.85) 100%);
+      pointer-events: none;
+    }
+
+    :host-context(html.dark) .auth__bg {
+      opacity: 0.12;
+      filter: saturate(0.85) brightness(0.65);
+    }
+
+    :host-context(html.dark) .auth__overlay {
+      background: radial-gradient(circle at 50% 45%, rgba(16, 24, 40, 0.45) 0%, rgba(16, 24, 40, 0.88) 100%);
+    }
+
     .auth__panel {
+      position: relative;
+      z-index: 1;
       inline-size: 100%;
-      max-inline-size: var(--hq-size-stop-list-width);
-      padding: var(--hq-space-card);
-      background: var(--hq-color-surface);
-      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      max-inline-size: min(460px, 92vw);
+      padding: var(--hq-space-32);
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.7);
       border-radius: var(--hq-radius-card);
+      box-shadow: 0 20px 48px -12px rgba(16, 24, 40, 0.12),
+                  0 0 0 1px rgba(255, 255, 255, 0.7) inset;
+      animation: auth-panel-enter 550ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 300ms ease;
+
+      &:hover {
+        box-shadow: 0 24px 56px -12px rgba(16, 24, 40, 0.16),
+                    0 0 0 1px rgba(255, 255, 255, 0.9) inset;
+      }
+    }
+
+    :host-context(html.dark) .auth__panel {
+      background: rgba(23, 31, 46, 0.84);
+      border-color: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 20px 48px -12px rgba(0, 0, 0, 0.5),
+                  0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+
+      &:hover {
+        box-shadow: 0 24px 56px -12px rgba(0, 0, 0, 0.65),
+                    0 0 0 1px rgba(255, 255, 255, 0.14) inset;
+      }
     }
 
     .auth__logo {
       min-block-size: var(--hq-size-logo-size);
       margin-block-end: var(--hq-space-16);
+      animation: auth-fade-down 450ms cubic-bezier(0.16, 1, 0.3, 1) both 80ms;
     }
 
     .auth__logo-image {
@@ -88,26 +151,113 @@ import { PlatformService } from '../../core/platform/platform.service';
       object-fit: contain;
     }
 
-    // The name arrives from the API a beat after first paint; reserving its line keeps the
-    // heading below from jumping when it lands.
     .auth__name {
       min-block-size: var(--hq-text-theme-sm-line);
       font-size: var(--hq-text-theme-sm);
       line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
       font-weight: var(--hq-text-weight-medium);
       color: var(--hq-color-ink-soft);
+      animation: auth-fade-up 450ms cubic-bezier(0.16, 1, 0.3, 1) both 140ms;
     }
 
     .auth__title {
       @include m.title;
       margin-block: var(--hq-space-4) var(--hq-space-24);
+      animation: auth-fade-up 450ms cubic-bezier(0.16, 1, 0.3, 1) both 180ms;
+    }
+
+    .auth__body {
+      animation: auth-fade-up 450ms cubic-bezier(0.16, 1, 0.3, 1) both 220ms;
     }
 
     .auth__footer {
+      position: relative;
+      z-index: 1;
       display: flex;
       gap: var(--hq-space-16);
       font-size: var(--hq-text-theme-sm);
       color: var(--hq-color-ink-soft);
+      animation: auth-fade-in 600ms ease both 320ms;
+
+      a {
+        transition: color var(--hq-motion-fast) var(--hq-motion-ease);
+        &:hover {
+          color: var(--hq-color-ink);
+        }
+      }
+    }
+
+    @keyframes auth-panel-enter {
+      0% {
+        opacity: 0;
+        transform: translateY(24px) scale(0.98);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes auth-fade-up {
+      0% {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes auth-fade-down {
+      0% {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes auth-fade-in {
+      0% {
+        opacity: 0;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+
+    @keyframes auth-bg-pan {
+      0% {
+        transform: scale(1.02) translate(0, 0);
+      }
+      50% {
+        transform: scale(1.05) translate(-0.8%, -0.6%);
+      }
+      100% {
+        transform: scale(1.03) translate(0.8%, 0.4%);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .auth__bg,
+      .auth__panel,
+      .auth__logo,
+      .auth__name,
+      .auth__title,
+      .auth__body,
+      .auth__footer {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .auth__panel {
+        padding: var(--hq-space-24);
+      }
     }
   `,
 })
