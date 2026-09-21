@@ -56,6 +56,21 @@ data class Strings(
     val scoreBands: Map<String, String> = mapOf(
         "emerging" to "Emerging", "developing" to "Developing", "secure" to "Secure", "exceeding" to "Exceeding",
     ),
+    // C3: Parent ↔ Teacher chat
+    val messages: String = "Messages",
+    val chat: String = "Chat",
+    val noTeachers: String = "No teachers assigned yet",
+    val childNotPlaced: String = "Your child is not placed in a class yet. Ask the teacher to place them.",
+    val typeMessage: String = "Type a message…",
+    val send: String = "Send",
+    val online: String = "Online",
+    val offline: String = "Offline",
+    val connecting: String = "Connecting…",
+    val isTyping: String = "is typing…",
+    val emptyConversation: String = "No messages yet. Send a note to the teacher!",
+    val retry: String = "Retry",
+    val failedToSend: String = "Failed to send",
+    val chatDisabled: String = "Chat is currently disabled by the school.",
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -135,6 +150,20 @@ data class Strings(
             accuracyWords = mapOf("almost every time" to "في كل مرة تقريبًا", "most of the time" to "في معظم الأحيان", "more than half the time" to "أكثر من نصف المرات", "some of the time" to "أحيانًا", "not yet" to "ليس بعد"),
             weekdays = listOf("ن", "ث", "ر", "خ", "ج", "س", "ح"),
             months = listOf("يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"),
+            messages = "الرسائل",
+            chat = "المحادثة",
+            noTeachers = "لم يتم تعيين معلمين بعد",
+            childNotPlaced = "لم يتم تسكين طفلك في فصل بعد. يرجى التواصل مع المدرسة لتسكينه.",
+            typeMessage = "اكتب رسالة…",
+            send = "إرسال",
+            online = "متصل",
+            offline = "غير متصل",
+            connecting = "جارٍ الاتصال…",
+            isTyping = "يكتب الآن…",
+            emptyConversation = "لا توجد رسائل بعد. أرسل ملاحظة للمعلمة!",
+            retry = "إعادة المحاولة",
+            failedToSend = "فشل الإرسال",
+            chatDisabled = "المحادثة معطّلة حالياً من قبل المدرسة.",
         )
 
         fun forLanguage(code: String) = if (code == "ar") ar else en

@@ -16,6 +16,10 @@ import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
 import quest.api.dto.Child
+import quest.api.dto.ChatMessage
+import quest.api.dto.ChatReadReceipt
+import quest.api.dto.ChatSender
+import quest.api.dto.ChatThread
 import quest.api.dto.CreateChildRequest
 import quest.api.dto.Curriculum
 import quest.api.dto.LessonCompletionInfo
@@ -26,6 +30,7 @@ import quest.api.dto.PlatformSettings
 import quest.api.dto.ProgressResponse
 import quest.api.dto.PublishedLesson
 import quest.api.dto.SchoolTheme
+import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.SkillProgress
 import quest.api.dto.Stop
 import quest.api.dto.StopCategory
@@ -195,6 +200,90 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
 
     private suspend fun weakSkills(childId: String): List<Pair<String, String>> = skillBands(childId).filter { it.value.first == Band.NEEDS_ANOTHER_LOOK }.keys.map { id ->
         id to (Seeds.lessons.flatMap { it.skills }.firstOrNull { it.id == id }?.name ?: id)
+    }
+
+    private val fakeMessages = mutableMapOf<String, MutableList<ChatMessage>>()
+
+    override suspend fun chatThreads(childId: String): List<ChatThread> {
+        net()
+        val defaultTeachers = listOf(
+            Triple("t-sara", "Ms. Sara", "Math"),
+            Triple("t-noor", "Ms. Noor", "English"),
+        )
+        return defaultTeachers.map { (tId, tName, subj) ->
+            val key = "$childId:$tId"
+            val msgs = fakeMessages[key].orEmpty()
+            val last = msgs.lastOrNull()
+            val unreadCount = msgs.count { it.sender == ChatSender.TEACHER && it.readAt == null }
+            ChatThread(
+                id = if (msgs.isEmpty()) null else "th-$childId-$tId",
+                childId = childId,
+                childName = "Maya",
+                teacherId = tId,
+                teacherName = tName,
+                className = "1A British",
+                subject = subj,
+                unread = unreadCount,
+                lastMessage = last,
+            )
+        }
+    }
+
+    override suspend fun chatMessages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> {
+        net()
+        val key = "$childId:$teacherId"
+        val list = fakeMessages.getOrPut(key) {
+            mutableListOf(
+                ChatMessage(
+                    id = "m-seed-1",
+                    threadId = "th-$childId-$teacherId",
+                    sender = ChatSender.TEACHER,
+                    senderId = teacherId,
+                    body = "Hello! Let me know if you have any questions about today's lesson.",
+                    createdAt = 1_758_450_000_000L,
+                    readAt = 1_758_450_500_000L,
+                )
+            )
+        }
+        var filtered = list.toList()
+        if (since != null) {
+            val idx = filtered.indexOfFirst { it.id == since }
+            if (idx >= 0) filtered = filtered.drop(idx + 1)
+        }
+        if (before != null) {
+            val idx = filtered.indexOfFirst { it.id == before }
+            if (idx >= 0) filtered = filtered.take(idx)
+        }
+        val lim = limit ?: 50
+        return if (filtered.size > lim) filtered.takeLast(lim) else filtered
+    }
+
+    override suspend fun sendChatMessage(childId: String, teacherId: String, request: SendChatMessageRequest): ChatMessage {
+        net()
+        val key = "$childId:$teacherId"
+        val list = fakeMessages.getOrPut(key) { mutableListOf() }
+        val msg = ChatMessage(
+            id = "m-${Ids.random()}",
+            threadId = "th-$childId-$teacherId",
+            sender = ChatSender.PARENT,
+            senderId = uid(),
+            body = request.body.trim(),
+            createdAt = 1_758_451_000_000L,
+        )
+        list.add(msg)
+        return msg
+    }
+
+    override suspend fun markChatRead(childId: String, teacherId: String): ChatReadReceipt {
+        net()
+        val key = "$childId:$teacherId"
+        val list = fakeMessages[key].orEmpty()
+        val now = 1_758_452_000_000L
+        list.filter { it.sender == ChatSender.TEACHER && it.readAt == null }.forEach {
+            val idx = list.indexOf(it)
+            if (idx >= 0) (list as MutableList)[idx] = it.copy(readAt = now)
+        }
+        return ChatReadReceipt("th-$childId-$teacherId", ChatSender.PARENT, now)
     }
 
     companion object {

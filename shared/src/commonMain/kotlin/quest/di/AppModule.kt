@@ -1,9 +1,15 @@
 package quest.di
 
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.websocket.WebSockets
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
+import quest.feature.chat.data.ChatRepositoryImpl
+import quest.feature.chat.data.ChatSocketClient
+import quest.feature.chat.domain.ChatRepository
+import quest.feature.chat.presentation.ChatConversationViewModel
+import quest.feature.chat.presentation.ChatThreadsViewModel
 import quest.api.AuthProvider
 import quest.api.ContentApi
 import quest.core.db.Db
@@ -71,7 +77,11 @@ fun apiModule(config: ApiConfig): Module = module {
     single<SessionRestorer> { get<AuthProvider>() as SessionRestorer }
     // One Ktor client for the whole app: each `HttpClient()` starts an engine and its own thread pool, and the two
     // implementations plus the logo loader all want the same one. `RemoteContentApi` still derives its own config.
-    single { HttpClient() }
+    single {
+        HttpClient {
+            install(WebSockets)
+        }
+    }
     // Bound by concrete type first, then aliased: `ContentApi` and `SchoolApi` are two views of the same object, and
     // going through the concrete class makes that a compile error to get wrong rather than a DI-time ClassCastException.
     when (config) {
@@ -89,6 +99,13 @@ fun apiModule(config: ApiConfig): Module = module {
             single<SchoolApi> { get<RemoteContentApi>() }
         }
     }
+
+    val chatBaseUrl = when (config) {
+        ApiConfig.Fake -> "http://localhost:8080"
+        is ApiConfig.Server -> config.baseUrl
+    }
+    single { ChatSocketClient(chatBaseUrl, get(), get()) }
+    single<ChatRepository> { ChatRepositoryImpl(get(), get()) }
 }
 
 val coreModule = module {
@@ -144,4 +161,11 @@ val parentModule = module {
     viewModel { SettingsViewModel(get(), get()) }
 }
 
-fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule)
+val chatModule = module {
+    viewModel { ChatThreadsViewModel(get(), get()) }
+    viewModel { (childId: String, teacherId: String, teacherName: String) ->
+        ChatConversationViewModel(childId, teacherId, teacherName, get())
+    }
+}
+
+fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule)

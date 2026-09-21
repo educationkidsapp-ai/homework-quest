@@ -57,6 +57,7 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.json)
             implementation(libs.ktor.client.logging)
+            implementation(libs.ktor.client.websockets)
 
             implementation(libs.sqldelight.runtime)
             implementation(libs.sqldelight.coroutines)
@@ -131,7 +132,6 @@ val screensWithoutGates = setOf(
     "auth/presentation/SignInScreen.kt",
     "parent/presentation/CalendarScreen.kt",
     "parent/presentation/LessonPanelScreen.kt",
-    "parent/presentation/ParentHomeScreen.kt",
     "parent/presentation/PinScreen.kt",
     "parent/presentation/ProgressScreen.kt",
 )

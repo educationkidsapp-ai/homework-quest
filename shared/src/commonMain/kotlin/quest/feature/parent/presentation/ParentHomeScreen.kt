@@ -31,6 +31,8 @@ import quest.core.platform.Today
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.domain.CalendarDay
 import quest.feature.parent.domain.CalendarUseCase
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.FeatureGate
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
 import quest.ui.design.Pip
@@ -66,20 +68,25 @@ class ParentHomeViewModel(private val children: ChildrenRepository, private val 
 }
 
 @Composable
-fun ParentHomeRoute(onAddChild: () -> Unit, onEditChild: (String) -> Unit, onCalendar: () -> Unit, onProgress: () -> Unit, onSettings: () -> Unit, onLessonPanel: (String) -> Unit, onSignedOut: () -> Unit, onExit: () -> Unit) {
+fun ParentHomeRoute(
+    onAddChild: () -> Unit, onEditChild: (String) -> Unit, onCalendar: () -> Unit, onProgress: () -> Unit,
+    onSettings: () -> Unit, onLessonPanel: (String) -> Unit, onSignedOut: () -> Unit, onExit: () -> Unit,
+    onMessages: () -> Unit = {},
+) {
     val vm: ParentHomeViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(vm) {
         vm.dispatch(ParentHomeContract.Intent.Load)
         vm.effects.collect { when (it) { ParentHomeContract.Effect.NeedsChild -> onAddChild(); ParentHomeContract.Effect.SignedOut -> onSignedOut() } }
     }
-    ParentShell(title = { it.parentHome }, onBack = onExit) { s -> ParentHomeScreen(state, s, vm::dispatch, onAddChild, onEditChild, onCalendar, onProgress, onSettings, onLessonPanel) }
+    ParentShell(title = { it.parentHome }, onBack = onExit) { s -> ParentHomeScreen(state, s, vm::dispatch, onAddChild, onEditChild, onCalendar, onProgress, onSettings, onLessonPanel, onMessages) }
 }
 
 @Composable
 fun ParentHomeScreen(
     state: ParentHomeContract.State, s: Strings, dispatch: (ParentHomeContract.Intent) -> Unit, onAddChild: () -> Unit, onEditChild: (String) -> Unit,
     onCalendar: () -> Unit, onProgress: () -> Unit, onSettings: () -> Unit, onLessonPanel: (String) -> Unit,
+    onMessages: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
         SectionTitle(s.children)
@@ -119,6 +126,10 @@ fun ParentHomeScreen(
             ParentButton(s.progress, onProgress, Modifier.weight(1f), primary = false, icon = "📈")
         }
         Spacer(Modifier.height(Dimens.s12))
+        FeatureGate(Flags.CHAT) {
+            ParentButton(s.messages, onMessages, primary = false, icon = "💬")
+            Spacer(Modifier.height(Dimens.s12))
+        }
         ParentButton(s.settings, onSettings, primary = false, icon = "⚙️")
         Spacer(Modifier.height(Dimens.s12))
         ParentButton(s.signOut, { dispatch(ParentHomeContract.Intent.SignOut) }, primary = false)

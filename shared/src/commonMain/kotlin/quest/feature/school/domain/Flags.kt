@@ -16,9 +16,10 @@ object Flags {
     const val PARENT_PANEL_ARABIC = "parentPanel.arabic"
     const val CERTIFICATES = "certificates"
     const val LEVEL_THREE = "levels.three"
+    const val CHAT = "chat"
 
     /** Every key this app gates on. */
-    val used = listOf(TREASURE_CHEST, RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE)
+    val used = listOf(TREASURE_CHEST, RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT)
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */
     fun isKnown(key: String): Boolean = key in DEFAULT_FLAGS

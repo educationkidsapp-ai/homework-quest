@@ -34,7 +34,15 @@ import quest.ui.design.LocalThemeOverrides
 import quest.ui.design.ParentTheme
 import quest.ui.design.ThemeOverrides
 import quest.api.dashboard.ClassLookup
+import quest.api.dto.ChatMessage
+import quest.api.dto.ChatSender
+import quest.api.dto.ChatThread
 import quest.api.dto.ReleasedResult
+import quest.feature.chat.domain.ChatConnectionState
+import quest.feature.chat.presentation.ChatConversationContract
+import quest.feature.chat.presentation.ChatConversationScreen
+import quest.feature.chat.presentation.ChatThreadsContract
+import quest.feature.chat.presentation.ChatThreadsScreen
 import quest.ui.design.schoolThemeOverrides
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -112,4 +120,74 @@ class ParentScreensScreenshotTest {
     @Test fun settingsArabic() = shot("47b-settings-ar", Strings.ar) { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("ar"), "مايا", "c1"), s, {}, {}, {}) }
     @Test fun lessonPanel() = shot("48-lesson-panel") { s -> LessonPanelScreen(HotSoupSeed.lesson, s) }
     @Test fun lessonPanelArabic() = shot("48b-lesson-panel-ar", Strings.ar) { s -> LessonPanelScreen(HotSoupSeed.lesson, s) }
+
+    @Test fun chatThreads() = shot("49-chat-threads") { s ->
+        ChatThreadsScreen(
+            state = ChatThreadsContract.State(
+                loading = false,
+                threads = listOf(
+                    ChatThread("th-1", "c1", "Maya", "t1", "Ms. Sara", "1A British", "Math", 2, ChatMessage("m1", "th-1", ChatSender.TEACHER, "t1", "Please make sure to review counting by 2s today.", 1_758_450_000_000L)),
+                    ChatThread("th-2", "c1", "Maya", "t2", "Ms. Noor", "1A British", "English", 0, ChatMessage("m2", "th-2", ChatSender.PARENT, "p1", "Thank you, Maya enjoyed the story!", 1_758_440_000_000L)),
+                ),
+            ),
+            strings = s,
+            onSelectTeacher = {},
+        )
+    }
+
+    @Test fun chatThreadsArabic() = shot("49b-chat-threads-ar", Strings.ar) { s ->
+        ChatThreadsScreen(
+            state = ChatThreadsContract.State(
+                loading = false,
+                threads = listOf(
+                    ChatThread("th-1", "c1", "مايا", "t1", "أ. سارة", "1A البريطاني", "رياضيات", 1, ChatMessage("m1", "th-1", ChatSender.TEACHER, "t1", "مرحبًا! يرجى مراجعة درس العد بالاثنينات.", 1_758_450_000_000L)),
+                ),
+            ),
+            strings = s,
+            onSelectTeacher = {},
+        )
+    }
+
+    @Test fun chatConversation() = shot("50-chat-conversation") { s ->
+        ChatConversationScreen(
+            state = ChatConversationContract.State(
+                childId = "c1",
+                teacherId = "t1",
+                teacherName = "Ms. Sara",
+                loading = false,
+                connectionState = ChatConnectionState.CONNECTED,
+                messages = listOf(
+                    ChatConversationContract.UiMessage("m1", "Hello! Welcome to the new term.", false, 1_758_450_000_000L),
+                    ChatConversationContract.UiMessage("m2", "Hello Ms. Sara! Maya is very excited.", true, 1_758_450_100_000L, readAt = 1_758_450_200_000L),
+                    ChatConversationContract.UiMessage("m3", "She did great in math today!", false, 1_758_450_300_000L),
+                ),
+            ),
+            strings = s,
+            onBack = {},
+            onInputChange = {},
+            onSend = {},
+            onRetry = {},
+        )
+    }
+
+    @Test fun chatConversationArabic() = shot("50b-chat-conversation-ar", Strings.ar) { s ->
+        ChatConversationScreen(
+            state = ChatConversationContract.State(
+                childId = "c1",
+                teacherId = "t1",
+                teacherName = "أ. سارة",
+                loading = false,
+                connectionState = ChatConnectionState.CONNECTED,
+                messages = listOf(
+                    ChatConversationContract.UiMessage("m1", "أهلاً بك! مايا أدت أداءً رائعاً اليوم في الرياضيات.", false, 1_758_450_000_000L),
+                    ChatConversationContract.UiMessage("m2", "شكراً جزيلاً أستاذة سارة! سعداء جداً بسماع ذلك.", true, 1_758_450_100_000L, readAt = 1_758_450_200_000L),
+                ),
+            ),
+            strings = s,
+            onBack = {},
+            onInputChange = {},
+            onSend = {},
+            onRetry = {},
+        )
+    }
 }
