@@ -31,4 +31,6 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   exams: false,
   'teacher.rosterEdit': false,
   'join.byList': false,
+  // V15 (C1): off until an Admin turns it on per school.
+  chat: false,
 };

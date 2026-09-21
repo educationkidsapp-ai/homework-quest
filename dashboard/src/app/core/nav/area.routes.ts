@@ -81,6 +81,7 @@ function componentFor(screen: Screen, role: Role) {
   if (screen.id === 'teachers' && role === 'ADMIN') {
     return import('../../features/admin/teachers.page').then((m) => m.TeachersPage);
   }
+  if (screen.id === 'chat') return import('../../features/chat/chat.page').then((m) => m.ChatPage);
   return import('../../features/stub/stub.page').then((m) => m.StubPage);
 }
 
