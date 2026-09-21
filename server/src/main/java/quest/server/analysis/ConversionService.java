@@ -55,8 +55,8 @@ import quest.server.files.FileStore;
 @Service
 public class ConversionService {
     private static final Logger log = LoggerFactory.getLogger(ConversionService.class);
-    /** The seven document types §4 names; anything else is `unsupported` before a process is started. */
-    static final Set<String> ANYDOC_TYPES = Set.of("pdf", "pptx", "ppt", "docx", "doc", "xlsx", "csv");
+    /** The document types §4 names; anything else is `unsupported` before a process is started. */
+    static final Set<String> ANYDOC_TYPES = Set.of("pdf", "pptx", "ppt", "docx", "doc", "pptm", "ppsx", "xlsx", "csv");
     static final Set<String> IMAGE_TYPES = Set.of("jpg", "jpeg", "png", "webp");
     /** `anydoc: pages 2, 3 of 10 need OCR` / `anydoc: page 1 of 1 needs OCR`. */
     private static final Pattern PAGES_NEEDING_OCR = Pattern.compile("pages?\\s+([0-9][0-9,\\s]*)\\s+of\\s+\\d+");

@@ -587,16 +587,16 @@
       "content": "Content",
       "source": {
         "pdf": {
-          "title": "Upload a PDF",
-          "hint": "A worksheet or a lesson PDF"
+          "title": "PDF or Word Document",
+          "hint": "PDF, DOCX, or DOC files"
         },
         "slides": {
-          "title": "Upload slides",
-          "hint": "A PPTX presentation"
+          "title": "PowerPoint Slides",
+          "hint": "PPTX, PPTM, or PPSX presentations"
         },
         "images": {
-          "title": "Upload photos",
-          "hint": "Photos of a worksheet or the board"
+          "title": "Photos & Images",
+          "hint": "Photos of worksheets, board, or books (PNG, JPG)"
         },
         "manual": {
           "title": "Write it yourself",
@@ -605,11 +605,16 @@
       },
       "manualHint": "You get an empty Level 1: add stops of any type, then write Levels 2 and 3 — or let the model write them from a short text.",
       "dropzone": {
-        "pdf": "Drop a PDF here",
-        "slides": "Drop a PPTX here",
+        "pdf": "Drop a PDF or Word document here",
+        "slides": "Drop a PowerPoint presentation here",
         "images": "Drop PNG or JPG photos here",
         "or": "or",
         "choose": "Choose files"
+      },
+      "formats": {
+        "pdf": "Accepts: PDF, DOCX, DOC (up to 25 MB)",
+        "slides": "Accepts: PPTX, PPTM, PPSX (up to 25 MB)",
+        "images": "Accepts: PNG, JPG, JPEG (up to 25 MB each)"
       },
       "remove": "Remove",
       "fileRemoveLabel": "Remove {{name}}",
@@ -617,8 +622,8 @@
       "fileTooLarge": "{{name}} is larger than 25 MB and was not added.",
       "tooManyFiles": "Up to 10 files at a time.",
       "totalTooLarge": "{{name}} would put this upload over 100 MB and was not added.",
-      "reasonPdf": "only a PDF here",
-      "reasonSlides": "only a PPTX here",
+      "reasonPdf": "only PDF, DOCX, or DOC files here",
+      "reasonSlides": "only PPTX, PPTM, or PPSX files here",
       "reasonImages": "only PNG or JPG photos here",
       "reason": {
         "chooseCourse": "Choose a curriculum, grade and subject to continue.",
@@ -629,15 +634,29 @@
       },
       "createDefault": "Create the lesson",
       "create": {
-        "pdf": "Create and read the PDF",
-        "slides": "Create and read the slides",
-        "images": "Create and read the photos",
+        "pdf": "Upload and generate lesson",
+        "slides": "Upload and generate lesson",
+        "images": "Upload and generate lesson",
         "manual": "Create and write the questions"
       },
       "busy": {
         "creating": "Creating the lesson…",
-        "uploading": "Uploading the lesson's files…",
-        "analyzing": "Starting to read the pages…"
+        "uploading": "Uploading and converting documents…",
+        "analyzing": "Reading pages and generating AI questions…"
+      },
+      "background": {
+        "title": "Generating Lesson in Background",
+        "subtitle": "Your documents are uploaded and the AI is creating practice stops and questions.",
+        "step1": "1. Draft created",
+        "step2": "2. Files uploaded & converted",
+        "step3": "3. AI reading pages & generating questions",
+        "notifyNote": "You will get a notification as soon as the questions are ready.",
+        "viewLesson": "View Lesson",
+        "backToList": "Work in background (return to Lessons)"
+      },
+      "notification": {
+        "title": "Lesson Ready!",
+        "body": "AI questions and lesson stops are ready to review."
       },
       "created": "Lesson created — its pipeline starts now.",
       "createdManual": "Lesson created — write its questions below.",

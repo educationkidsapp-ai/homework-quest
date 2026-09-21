@@ -9,6 +9,110 @@
   color: var(--hq-color-ink-soft);
 }
 
+.pipeline-progress-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-16);
+  padding: var(--hq-space-20);
+  border-radius: var(--hq-radius-card);
+  border: var(--hq-size-rule) solid var(--hq-color-accent);
+  background: var(--hq-color-surface);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
+  margin-block-end: var(--hq-space-20);
+  animation: hqSlideFadeIn 0.3s ease-out;
+}
+
+.pipeline-progress-header {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-16);
+}
+
+.pipeline-spinner {
+  inline-size: 28px;
+  block-size: 28px;
+  border: 3px solid var(--hq-color-divider);
+  border-top-color: var(--hq-color-accent);
+  border-radius: 50%;
+  animation: hqSpin 0.8s linear infinite;
+  flex: none;
+}
+
+.pipeline-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pipeline-title {
+  font-size: var(--hq-text-lead);
+  font-weight: var(--hq-text-weight-bold);
+  color: var(--hq-color-ink-strong);
+}
+
+.pipeline-subtitle {
+  font-size: var(--hq-text-theme-sm);
+  color: var(--hq-color-ink-soft);
+}
+
+.pipeline-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-12);
+  margin-block: var(--hq-space-8);
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-8);
+  font-size: var(--hq-text-theme-sm);
+  color: var(--hq-color-ink-soft);
+  opacity: 0.7;
+  transition: all 0.2s ease;
+
+  &--active {
+    opacity: 1;
+    font-weight: var(--hq-text-weight-bold);
+    color: var(--hq-color-accent);
+  }
+
+  &--done {
+    opacity: 1;
+    color: var(--hq-color-ink);
+  }
+}
+
+.step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: var(--hq-text-weight-bold);
+  background: var(--hq-color-surface-sunken);
+  color: var(--hq-color-ink);
+
+  .step-item--done & {
+    background: #dcfce7;
+    color: #15803d;
+  }
+
+  .step-item--active & {
+    background: var(--hq-color-accent-soft);
+    color: var(--hq-color-accent);
+    animation: hqPulse 1.5s infinite;
+  }
+}
+
+.notify-note {
+  font-size: var(--hq-text-theme-xs);
+  color: var(--hq-color-ink-soft);
+  margin-block-start: calc(var(--hq-space-4) * -1);
+}
+
 .chooser,
 .lesson-fields {
   display: grid;
@@ -29,9 +133,15 @@
   padding: var(--hq-space-16);
   text-align: start;
   cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   @include m.surface;
   @include m.hover-tint(var(--hq-color-surface-sunken));
   @include m.focus-ring;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px -2px rgba(0, 0, 0, 0.08);
+  }
 
   &:disabled {
     cursor: not-allowed;
@@ -117,4 +227,85 @@
 
 .footer__note {
   color: var(--hq-color-ink-soft);
+}
+
+.format-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-8);
+  justify-content: center;
+  align-items: center;
+  margin-block-end: var(--hq-space-8);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px var(--hq-space-8);
+  border-radius: var(--hq-radius-pill);
+  font-size: 11px;
+  font-weight: var(--hq-text-weight-bold);
+  letter-spacing: 0.5px;
+  line-height: 1;
+
+  &--pdf {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+  }
+
+  &--word {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+  }
+
+  &--ppt {
+    background: #ffedd5;
+    color: #9a3412;
+    border: 1px solid #fed7aa;
+  }
+
+  &--img {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+  }
+}
+
+.format-info {
+  font-size: var(--hq-text-theme-xs);
+  color: var(--hq-color-ink-soft);
+  margin-block-start: var(--hq-space-12);
+}
+
+@keyframes hqSlideFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hqSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes hqPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.8;
+  }
 }

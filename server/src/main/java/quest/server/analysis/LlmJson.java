@@ -120,8 +120,57 @@ final class LlmJson {
                 ArrayNode kept = MAPPER.createArrayNode(); for (JsonNode k : keys) if (KNOWN.contains(k.asText())) kept.add(k);
                 o.set("illustrationKeys", kept);
             }
+            if ("word".equals(o.path("type").asText())) cleanWordStop(o);
+            if ("readPage".equals(o.path("type").asText())) {
+                int pageNum = o.hasNonNull("pageNumber") ? o.get("pageNumber").asInt() : 1;
+                if (!o.hasNonNull("pageNumber")) o.put("pageNumber", pageNum);
+                if (!o.hasNonNull("pageImageId") || o.get("pageImageId").asText().isBlank()) {
+                    o.put("pageImageId", "page-" + pageNum);
+                }
+            }
             o.fields().forEachRemaining(e -> clean(e.getValue()));
         } else if (node instanceof ArrayNode a) for (JsonNode n : a) clean(n);
+    }
+
+    private static void cleanWordStop(ObjectNode o) {
+        JsonNode optsNode = o.get("options");
+        if (!(optsNode instanceof ArrayNode opts) || opts.isEmpty()) return;
+        for (JsonNode optNode : opts) {
+            if (optNode instanceof ObjectNode opt && opt.hasNonNull("label")) {
+                String l = opt.get("label").asText().trim();
+                l = l.replaceAll("^[\"']+|[\"']+$", "").trim();
+                opt.put("label", l);
+            }
+        }
+        String spoken = o.hasNonNull("spokenWord") ? o.get("spokenWord").asText().trim() : "";
+        spoken = spoken.replaceAll("^[\"']+|[\"'.!?,;:]+$", "").trim();
+        String correctId = o.hasNonNull("correctOptionId") ? o.get("correctOptionId").asText().trim() : "";
+        ObjectNode correctOpt = null;
+        for (JsonNode optNode : opts) {
+            if (optNode instanceof ObjectNode opt && opt.path("id").asText().equals(correctId)) {
+                correctOpt = opt;
+                break;
+            }
+        }
+        if (correctOpt != null) {
+            o.put("spokenWord", correctOpt.path("label").asText());
+        } else {
+            ObjectNode matchedOpt = null;
+            for (JsonNode optNode : opts) {
+                if (optNode instanceof ObjectNode opt && opt.path("label").asText().equalsIgnoreCase(spoken)) {
+                    matchedOpt = opt;
+                    break;
+                }
+            }
+            if (matchedOpt != null) {
+                o.put("correctOptionId", matchedOpt.path("id").asText());
+                o.put("spokenWord", matchedOpt.path("label").asText());
+            } else {
+                JsonNode first = opts.get(0);
+                o.put("correctOptionId", first.path("id").asText("a"));
+                o.put("spokenWord", first.path("label").asText(""));
+            }
+        }
     }
 
     static String trim(String s, int max) {

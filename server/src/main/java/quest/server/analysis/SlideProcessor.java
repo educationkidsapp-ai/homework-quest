@@ -19,15 +19,17 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFShape;
 import org.apache.poi.xslf.usermodel.XSLFTextShape;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import quest.server.config.ApiException;
 
 /**
- * Turns an uploaded PDF / PPTX / image into pages: extracted text plus a PNG render of every page.
- * PPTX is converted with LibreOffice when present (`soffice --headless`), else read with POI (text only,
- * pages rendered as plain text cards).
+ * Turns an uploaded PDF / PPTX / PPTM / PPSX / DOCX / DOC / image into pages: extracted text plus a PNG render of every page.
+ * Office documents are converted with LibreOffice when present (`soffice --headless`), else read with POI.
  */
 @Component
 public class SlideProcessor {
@@ -49,13 +51,14 @@ public class SlideProcessor {
         String lower = fileName == null ? "" : fileName.toLowerCase();
         try {
             if (lower.endsWith(".pdf") || "application/pdf".equals(mimeType)) return new Source("pdf", pdf(bytes));
-            if (lower.endsWith(".pptx") || (mimeType != null && mimeType.contains("presentation"))) return new Source("pptx", pptx(bytes));
+            if (lower.endsWith(".pptx") || lower.endsWith(".pptm") || lower.endsWith(".ppsx") || (mimeType != null && mimeType.contains("presentation"))) return new Source("pptx", pptx(lower, bytes));
+            if (lower.endsWith(".docx") || lower.endsWith(".doc") || (mimeType != null && (mimeType.contains("word") || mimeType.contains("officedocument.wordprocessingml")))) return new Source("pdf", word(lower, bytes));
             if (lower.matches(".*\\.(png|jpe?g|webp)$") || (mimeType != null && mimeType.startsWith("image/"))) return new Source("image", List.of(image(bytes)));
         } catch (ApiException e) { throw e; } catch (Exception e) {
             log.warn("unreadable {}: {}", fileName, e.toString());
             throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "unreadable_file", "We couldn't read " + fileName + ". Try exporting it as PDF.");
         }
-        throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "unreadable_file", "Only PDF, PPTX, PNG and JPEG files are supported.");
+        throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "unreadable_file", "Only PDF, PPTX, PPTM, PPSX, DOCX, DOC, PNG and JPEG files are supported.");
     }
 
     List<Page> pdf(byte[] bytes) throws IOException {
@@ -75,10 +78,11 @@ public class SlideProcessor {
         }
     }
 
-    List<Page> pptx(byte[] bytes) throws Exception {
+    List<Page> pptx(String lower, byte[] bytes) throws Exception {
         var soffice = findSoffice();
         if (soffice != null) {
-            try { return pdf(convertWithSoffice(soffice, bytes)); } catch (Exception e) { log.warn("soffice conversion failed, falling back to POI: {}", e.toString()); }
+            String ext = lower.endsWith(".pptm") ? ".pptm" : lower.endsWith(".ppsx") ? ".ppsx" : ".pptx";
+            try { return pdf(convertWithSoffice(soffice, ext, bytes)); } catch (Exception e) { log.warn("soffice conversion failed, falling back to POI: {}", e.toString()); }
         }
         try (var show = new XMLSlideShow(new ByteArrayInputStream(bytes))) {
             List<Page> pages = new ArrayList<>(); int i = 0;
@@ -94,6 +98,38 @@ public class SlideProcessor {
             }
             if (pages.isEmpty()) throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "unreadable_file", "The presentation has no slides.");
             return pages;
+        }
+    }
+
+    List<Page> word(String lower, byte[] bytes) throws Exception {
+        var soffice = findSoffice();
+        String ext = lower.endsWith(".doc") ? ".doc" : ".docx";
+        if (soffice != null) {
+            try { return pdf(convertWithSoffice(soffice, ext, bytes)); } catch (Exception e) { log.warn("soffice word conversion failed, falling back to POI: {}", e.toString()); }
+        }
+        try (var doc = new XWPFDocument(new ByteArrayInputStream(bytes))) {
+            var sb = new StringBuilder();
+            for (XWPFParagraph p : doc.getParagraphs()) {
+                String t = p.getText();
+                if (t != null && !t.isBlank()) sb.append(t).append('\n');
+            }
+            for (XWPFTable tbl : doc.getTables()) {
+                String t = tbl.getText();
+                if (t != null && !t.isBlank()) sb.append(t).append('\n');
+            }
+            String fullText = sb.toString();
+            if (fullText.isBlank()) throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "unreadable_file", "The document has no readable text.");
+            BufferedImage img = new BufferedImage(RENDER_PX, RENDER_PX, BufferedImage.TYPE_INT_RGB);
+            var g = img.createGraphics();
+            try { g.setColor(java.awt.Color.WHITE); g.fillRect(0, 0, RENDER_PX, RENDER_PX); } finally { g.dispose(); }
+            return List.of(page(1, fullText, img));
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            if (lower.endsWith(".doc")) {
+                throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "unreadable_file", "LibreOffice is required to convert legacy .doc files.");
+            }
+            throw e;
         }
     }
 
@@ -116,13 +152,14 @@ public class SlideProcessor {
         return null;
     }
 
-    private static byte[] convertWithSoffice(String soffice, byte[] pptx) throws Exception {
-        Path dir = Files.createTempDirectory("quest-pptx");
+    private static byte[] convertWithSoffice(String soffice, String extension, byte[] bytes) throws Exception {
+        Path dir = Files.createTempDirectory("quest-doc");
         try {
-            Path in = dir.resolve("slides.pptx"); Files.write(in, pptx);
+            String ext = extension.startsWith(".") ? extension : "." + extension;
+            Path in = dir.resolve("source" + ext); Files.write(in, bytes);
             var p = new ProcessBuilder(soffice, "--headless", "--convert-to", "pdf", "--outdir", dir.toString(), in.toString()).redirectErrorStream(true).start();
             if (!p.waitFor(120, TimeUnit.SECONDS)) { p.destroyForcibly(); throw new IOException("soffice timed out"); }
-            Path out = dir.resolve("slides.pdf");
+            Path out = dir.resolve("source.pdf");
             if (!Files.exists(out)) throw new IOException("soffice produced no PDF");
             return Files.readAllBytes(out);
         } finally { try (var s = Files.walk(dir)) { s.sorted(java.util.Comparator.reverseOrder()).forEach(f -> f.toFile().delete()); } }

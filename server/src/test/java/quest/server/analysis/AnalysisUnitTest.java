@@ -196,6 +196,22 @@ class AnalysisUnitTest {
         assertThat(exitOut.get("questions")).anySatisfy(q -> { assertThat(q.get("type").asText()).isEqualTo("multiSelect"); assertThat(q.has("hint")).isFalse(); });
     }
 
+    @Test void word_stops_with_punctuation_or_mismatch_are_cleaned_to_match_schema() throws Exception {
+        String raw = "{\"stops\":["
+                + "{\"type\":\"word\",\"id\":\"s3\",\"title\":\"Word\",\"speak\":\"Listen.\",\"ingredient\":{\"emoji\":\"🍎\",\"name\":\"apple\"},\"parentTip\":{\"en\":\"x\",\"ar\":\"y\"},"
+                + "\"spokenWord\":\"\\\"cat.\\\"\",\"options\":[{\"id\":\"a\",\"label\":\"cat\"},{\"id\":\"b\",\"label\":\"dog\"}],\"correctOptionId\":\"a\"},"
+                + "{\"type\":\"readPage\",\"id\":\"s1\",\"title\":\"Read\",\"speak\":\"Read.\",\"ingredient\":{\"emoji\":\"🍎\",\"name\":\"apple\"},\"parentTip\":{\"en\":\"x\",\"ar\":\"y\"},"
+                + "\"pageNumber\":2,\"sentences\":[\"A cat sat.\"]}"
+                + "]}";
+        var node = mapper.readTree(LlmJson.cleanIllustrations(raw));
+        var wordStop = node.get("stops").get(0);
+        assertThat(wordStop.get("spokenWord").asText()).isEqualTo("cat");
+        assertThat(wordStop.get("correctOptionId").asText()).isEqualTo("a");
+
+        var readPageStop = node.get("stops").get(1);
+        assertThat(readPageStop.get("pageImageId").asText()).isEqualTo("page-2");
+    }
+
     /** Answers the same play every time and counts the turns. */
     private static final class CountingClient implements LlmClient {
         private final String answer; int calls;

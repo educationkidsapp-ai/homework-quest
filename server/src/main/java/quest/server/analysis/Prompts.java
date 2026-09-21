@@ -58,7 +58,7 @@ public final class Prompts {
 
         Rules:
         - Every slide becomes one entry in "pages", in order; keep the child's reading text verbatim (fix only obvious OCR breaks).
-        - Set keepImage=true only when the picture itself is needed to answer (a diagram, a labelled picture, a number line drawn on the slide).
+        - Set keepImage=true for teaching pages and slides so the child sees the uploaded slide/document pages in the app.
         - "illustrationKeys" and "illustrationKey" may only use: %s
         - Story slides: fill storyPieces, events (4–6, in order) and vocabulary (3–6 words). Math slides: 1–3 skills carrying the method and 3–6 examples each. Phonics slides: the sound and 4–8 example words in vocabulary.
         - Never write null for any field: omit optional keys instead. Skills: 1–5. Mark confidence < 0.7 as unsure with a question the admin can answer in one tap.
@@ -80,7 +80,7 @@ public final class Prompts {
 
     public static String userB(int level, int variant, String analysisJson, String confirmedSkillsJson, String notes, int practiceLength, List<String> excludedIds) {
         String levelBrief = switch (level) {
-            case 1 -> "LEVEL 1 — \"Same as the book\": the exact examples, numbers, words and sentences from the slides. Read pages first (story) or explain first (math/phonics), then practise them.";
+            case 1 -> "LEVEL 1 — \"Same as the book\": Show the uploaded slides/pages first using readPage stops with pageImageId: \"page-N\", then practise the exact examples, numbers, words and sentences from the slides.";
             case 2 -> "LEVEL 2 — \"Think\": the same skills one step deeper. Stories: the SAME story and characters, but questions the slides did not ask (why, how, feelings, what happened before/after, order of events) and new sentences using the story's words. Math: the same method with new numbers inside the slides' range. No page reading; one explain/wordCards stop at most.";
             default -> "LEVEL 3 — \"Challenge\": the same skills stretched one step (two-step problems, retelling the whole story in the child's own words, writing a sentence about it). Stories stay the SAME story. Include at least one open stop (retell / openAnswer / writeSentence free=true).";
         };
@@ -117,7 +117,7 @@ public final class Prompts {
           count         { hint, objectKey (illustration), groupSizes:[1–6 groups of 1–5], options:[{id,label}], correctOptionId, numberLine:{…} } — the correct label must equal the sum of groupSizes
           compare       { hint, left, right, options:[exactly 3: {"id":"a","label":"<"},{"id":"b","label":">"},{"id":"c","label":"="}], correctOptionId, numberLine:{…} }
           sound         { hint, illustrationKey, options:[{id,label: the sound e.g. "sh"}], correctOptionId }
-          word          { hint, spokenWord [≤ 12], options:[{id,label}], correctOptionId }
+          word          { hint, spokenWord [≤ 12], options:[{id,label}], correctOptionId } — spokenWord must match the label of the option specified by correctOptionId
           readTap       { hint, word [≤ 12], options:[{id, illustrationKey}], correctOptionId }
           writeSentence { frame ("Alan ___ soup." [≤ 90]), answer, options:[3 words ≤ 16 chars], free:false }
         MULTI ANSWER:
@@ -131,13 +131,13 @@ public final class Prompts {
           openAnswer    { prompt, mode: "speak" | "draw" | "both", modelAnswer }
           writeSentence { frame, answer, free:true }
         EXIT (always last): exitTicket { questions:[exactly 3 COMPLETE answerable stops — each question carries every common field (type, id, title, speak, ingredient, parentTip) plus its own fields, exactly like a top-level stop; allowed types: (choice / trueFalse / multiSelect / selectAll / order / match / sequence / count / compare / sound / word / readTap — never info or open stops), and exactly one of them a multiSelect or selectAll; each with its own unique id] }
-        Semantic rules the validator enforces: choice/sound/word/readTap correctOptionId must be an option id; word: the spokenWord must be one of the option labels and the correct one;
+        Semantic rules the validator enforces: choice/sound/word/readTap correctOptionId must be an option id; word: the spokenWord must be identical to the label of the option specified by correctOptionId;
         readTap: the correct option's illustrationKey equals the word; count: the correct label equals the sum of groupSizes; sequence: exactly one null chip and the correct label is the missing number;
         compare: correct is "<" when left < right, ">" when left > right, "=" when equal; multiSelect: pick == number of correctIds and at least one wrong option; order: correctOrder is a permutation of the item ids;
         storyPieces: the six distinct pieces; retell: beginning, middle and end cues; writeSentence: frame contains "___" and answer is one of the options.
 
         Rules:
-        - Level 1 of a story: move → storyPieces → one readPage per page (2–5 pages) → 1–2 questions → retell → exitTicket. Math: explain → 4–6 practice stops with the slides' numbers → exitTicket. Phonics: sound → trace → readTap/word → exitTicket.
+        - Level 1: Present the uploaded pages/slides first using readPage stops with pageImageId: "page-1", "page-2", etc. so the child sees and reads the material before answering questions; then practise the lesson's skills, ending with exitTicket. For stories: move → storyPieces → readPage stops → questions → retell → exitTicket. Math: readPage/explain → 4–6 practice stops → exitTicket. Phonics: sound → trace → readTap/word → exitTicket.
         - Use only these illustration keys, spelled exactly (never invent one — if nothing fits, leave illustrationKey out and use a label): %s. Tiles and options need a label or a known illustrationKey.
         - Every child-facing string is short and uses the words the slides use. No percentages, no "wrong", no "fail".
         - Numbers stay within the range the slides use (Level 3 may go one step further). Options must be plausible; exactly one correct for single-answer stops.

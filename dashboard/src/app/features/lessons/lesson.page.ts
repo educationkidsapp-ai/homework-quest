@@ -801,6 +801,8 @@ export class LessonPage {
   protected readonly addStopOpen = signal(false);
   /** "Question added", for four seconds. The only toast on this page, and never for a failure. */
   protected readonly stopAddedToast = signal(false);
+  /** "AI questions ready", shown when background generation completes. */
+  protected readonly aiReadyToast = signal(false);
 
   protected onStopAdded(stopId: string): void {
     this.pendingStopId.set(stopId);
@@ -1377,10 +1379,34 @@ export class LessonPage {
     // back to work without moving the lesson out of `error`. Both conditions are terminal-only
     // by construction: `converting` is the single non-terminal file state, so the last file to
     // finish stops the timer.
+    let wasRunning = false;
     effect((onCleanup) => {
       const lesson = this.lesson();
       const running = lesson !== null && isRunningStatus(lesson.status);
-      if (!running && !anyConverting(lesson?.files ?? [])) return;
+      const converting = anyConverting(lesson?.files ?? []);
+      const active = running || converting;
+
+      if (active) {
+        wasRunning = true;
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+          void Notification.requestPermission();
+        }
+      } else if (wasRunning && lesson && !isRunningStatus(lesson.status)) {
+        wasRunning = false;
+        this.aiReadyToast.set(true);
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification(this.t('lessons.new.notification.title'), {
+              body: this.t('lessons.new.notification.body'),
+              icon: '/favicon.ico',
+            });
+          } catch {
+            // Ignore notification error on unsupported clients
+          }
+        }
+      }
+
+      if (!active) return;
       const timer = setInterval(() => this.lessonRes.reload(), POLL_MS);
       onCleanup(() => clearInterval(timer));
     });
