@@ -189,7 +189,7 @@
                   <th class="exam__matrix-th exam__matrix-th--score">
                     {{ 'results.table.score' | transloco }}
                   </th>
-                  @for (stop of examStops(); track stop.stopId; let i = $index) {
+                  @for (stop of examStops(); track stop.stopId ?? $index; let i = $index) {
                     <th class="exam__matrix-th" [title]="stop.title">
                       <span class="exam__matrix-th-title">{{ 'exams.results.matrix.questionCol' | transloco: { num: i + 1 } }}</span>
                       <span class="exam__matrix-th-sub">{{ stop.title }}</span>
@@ -212,7 +212,7 @@
                     <td class="exam__matrix-td exam__matrix-td--score">
                       <strong>{{ score(row.score) }}</strong>
                     </td>
-                    @for (stop of examStops(); track stop.stopId) {
+                    @for (stop of examStops(); track stop.stopId ?? $index) {
                       <td class="exam__matrix-td exam__matrix-td--answer">
                         @if (childStopOf(row, stop.stopId); as childStop) {
                           @if (childStop.attempted) {

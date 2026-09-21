@@ -247,7 +247,8 @@ export class ExamResultsPage {
     return formatAnswer(raw);
   }
 
-  protected childStopOf(row: ResultRow, stopId: string): RowStop | undefined {
+  protected childStopOf(row: ResultRow, stopId: string | undefined): RowStop | undefined {
+    if (!stopId) return undefined;
     return row.stops.find((s) => s.stopId === stopId);
   }
 
