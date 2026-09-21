@@ -26,7 +26,14 @@ import {
 } from '../../ui';
 import { LevelBandComponent } from '../results/level-band.component';
 import { MarkPanelComponent } from '../results/mark-panel.component';
-import { resultRows, scoreLabel, type ResultRow } from '../results/results.models';
+import {
+  formatAnswer,
+  isFault,
+  resultRows,
+  scoreLabel,
+  type ResultRow,
+  type RowStop,
+} from '../results/results.models';
 import { ExamDistributionComponent } from './exam-distribution.component';
 import { type ChildRow, childRows, minutesTaken, questionRows, zonedText } from './exams.models';
 
@@ -197,26 +204,52 @@ export class ExamResultsPage {
    * absent child onto an empty panel is a click that answers nothing.
    */
   protected toggleChild(row: ChildRow): void {
-    if (row.needsMarking === 0 && this.openChild() !== row.childId) return;
+    if (row.answered === 0 && row.needsMarking === 0 && this.openChild() !== row.childId) return;
     this.openChild.set(this.openChild() === row.childId ? null : row.childId);
   }
 
   /**
-   * The lesson-shaped results behind this exam, for the marking panel alone.
-   *
-   * Fetched only once there is marking outstanding: the exam endpoint carries the numbers, and
-   * this carries the retells and the drawings, which is a great deal more to send for a page
-   * that may have nothing to show. A failure here leaves the numbers standing and the panel
-   * empty rather than taking the screen down.
+   * The lesson-shaped results behind this exam, for marking and class answers inspection.
    */
-  private readonly lessonResults = rxResource({
-    params: () => (this.needsMarking() > 0 ? this.examId() : undefined),
+  protected readonly lessonResults = rxResource({
+    params: () => this.examId(),
     stream: ({ params }) =>
       this.grading.lessonResults(params).pipe(catchError(() => of({} as LessonResults))),
     defaultValue: {},
   });
 
-  private readonly markRows = computed(() => resultRows(this.lessonResults.value()));
+  protected readonly markRows = computed(() => resultRows(this.lessonResults.value()));
+
+  protected readonly activeView = signal<'overview' | 'matrix'>('overview');
+  protected readonly matrixFaultsOnly = signal(false);
+
+  protected setView(view: 'overview' | 'matrix'): void {
+    this.activeView.set(view);
+  }
+
+  protected toggleMatrixFaultsOnly(): void {
+    this.matrixFaultsOnly.update((v) => !v);
+  }
+
+  protected readonly examStops = computed(() => this.lessonResults.value().stops ?? []);
+
+  protected readonly matrixRows = computed(() => {
+    const rows = this.markRows().filter((r) => r.answered > 0);
+    if (!this.matrixFaultsOnly()) return rows;
+    return rows.filter((r) => r.stops.some((s) => s.attempted && isFault(s)));
+  });
+
+  protected isFaultStop(stop: RowStop): boolean {
+    return isFault(stop);
+  }
+
+  protected displayAnswer(raw: string | undefined): string {
+    return formatAnswer(raw);
+  }
+
+  protected childStopOf(row: ResultRow, stopId: string): RowStop | undefined {
+    return row.stops.find((s) => s.stopId === stopId);
+  }
 
   protected markRowOf(row: ChildRow): ResultRow | null {
     return this.markRows().find((candidate) => candidate.childId === row.childId) ?? null;

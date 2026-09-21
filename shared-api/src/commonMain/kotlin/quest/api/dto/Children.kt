@@ -74,6 +74,15 @@ data class ProgressResponse(
     val results: List<ReleasedResult> = emptyList(),
 )
 
+/** One question/stop outcome and teacher note as a parent sees it. */
+@Serializable
+data class ReleasedStopResult(
+    val stopId: String,
+    val title: String,
+    val correct: Boolean,
+    val comment: String? = null,
+)
+
 /**
  * One released homework or exam result as a parent sees it (teacher prompt §7, `docs/teacher-flow.md` step 9).
  *
@@ -91,6 +100,7 @@ data class ReleasedResult(
     val band: String?,
     val comment: String? = null,
     val releasedAt: Long,
+    val stops: List<ReleasedStopResult> = emptyList(),
 )
 
 @Serializable

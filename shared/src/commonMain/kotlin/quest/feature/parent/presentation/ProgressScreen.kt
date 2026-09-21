@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -129,6 +130,34 @@ private fun ReleasedResults(results: List<ReleasedResult>, s: Strings) {
             r.comment?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(Dimens.s8))
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk)
+            }
+            val stopNotesOrFaults = r.stops.filter { !it.comment.isNullOrBlank() || !it.correct }
+            if (stopNotesOrFaults.isNotEmpty()) {
+                Spacer(Modifier.height(Dimens.s8))
+                stopNotesOrFaults.forEach { stop ->
+                    Row(Modifier.padding(vertical = Dimens.s4), verticalAlignment = Alignment.Top) {
+                        Text(
+                            if (stop.correct) "✓" else "⚠",
+                            color = if (stop.correct) Palette.bandGood else Palette.bandLook,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(Modifier.width(Dimens.s4))
+                        Column {
+                            Text(
+                                stop.title,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Palette.parentInk
+                            )
+                            stop.comment?.takeIf { it.isNotBlank() }?.let { note ->
+                                Text(
+                                    note,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Palette.parentInkSoft
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

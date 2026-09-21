@@ -387,6 +387,18 @@
       "subtitle": "{{class}} — {{window}}",
       "empty": "Nobody has sat this exam yet.",
       "openEditor": "The exam",
+      "view": {
+        "overview": "Student Roster",
+        "matrix": "Class Answers Matrix"
+      },
+      "matrix": {
+        "title": "Class Answers Matrix",
+        "count": "{{count}} students",
+        "empty": "No student answers recorded yet.",
+        "showAll": "Show all answers",
+        "faultsOnly": "Faults only",
+        "questionCol": "Q{{num}}"
+      },
       "metric": {
         "sat": "Sat it",
         "satValue": "{{sat}} of {{roster}}",
@@ -1070,7 +1082,16 @@
       "saved": "Marks saved for {{name}}.",
       "openChild": "Open her page",
       "noOpenStops": "This lesson has no stop to mark by hand.",
-      "notPlayed": "That stop belongs to a level {{name}} did not play. Her results have been reloaded — mark the stops under her own level."
+      "notPlayed": "That stop belongs to a level {{name}} did not play. Her results have been reloaded — mark the stops under her own level.",
+      "answersTitle": "Student Answers & Faults",
+      "showAll": "Show all ({{count}})",
+      "showFaultsOnly": "Show faults only ({{count}})",
+      "faultBadge": "Fault ({{mistakes}} mistakes)",
+      "correctBadge": "Correct",
+      "studentAnswer": "Student answer",
+      "expectedAnswer": "Expected",
+      "questionNote": "Teacher note on this answer",
+      "questionNotePlaceholder": "Write note for the child's parent..."
     },
     "work": {
       "none": "Nothing was saved for this stop.",

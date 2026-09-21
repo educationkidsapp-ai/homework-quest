@@ -104,6 +104,20 @@ fun LessonPanelScreen(lesson: PublishedLesson, s: Strings, media: List<StopMedia
                     Text(stop.title, style = MaterialTheme.typography.titleMedium, color = Palette.parentInk)
                     Text(if (ar) stop.parentTip.ar else stop.parentTip.en, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft)
                     panel.modelAnswers.firstOrNull { it.stopId == stop.id }?.let { Spacer(Modifier.height(Dimens.s4)); Text("✔ ${it.en}", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk) }
+                    result?.stops?.firstOrNull { it.stopId == stop.id }?.let { sr ->
+                        Spacer(Modifier.height(Dimens.s4))
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text(
+                                if (sr.correct) "✓ ${s.passed}" else "⚠ ${s.needsAttention}",
+                                color = if (sr.correct) Palette.bandGood else Palette.bandLook,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        sr.comment?.takeIf { it.isNotBlank() }?.let { comment ->
+                            Spacer(Modifier.height(Dimens.s4))
+                            Text("${s.teacherQuestionNote}: $comment", style = MaterialTheme.typography.bodySmall, color = Palette.parentInk)
+                        }
+                    }
                     media.filter { it.stopId == stop.id }.forEach { m ->
                         Spacer(Modifier.height(Dimens.s8))
                         m.recordingPath?.let { path -> ParentButton("▶ ${s.playRecording}", { onPlay(path) }, primary = false) }
