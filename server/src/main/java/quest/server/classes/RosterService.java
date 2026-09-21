@@ -41,12 +41,15 @@ public class RosterService {
     private final ChildRepository children; private final TeacherScope scope; private final RosterImport reader;
     private final AuditService audit; private final quest.server.children.ChildMediaRepository media;
     private final quest.server.teacher.TeacherQuestionAnswerRepository answers; private final quest.server.files.FileStore files;
+    private final quest.server.chat.ChatThreadRepository chatThreads; private final quest.server.chat.ChatMessageRepository chatMessages;
 
     public RosterService(ChildRepository children, TeacherScope scope, RosterImport reader, AuditService audit,
                          quest.server.children.ChildMediaRepository media,
-                         quest.server.teacher.TeacherQuestionAnswerRepository answers, quest.server.files.FileStore files) {
+                         quest.server.teacher.TeacherQuestionAnswerRepository answers, quest.server.files.FileStore files,
+                         quest.server.chat.ChatThreadRepository chatThreads, quest.server.chat.ChatMessageRepository chatMessages) {
         this.children = children; this.scope = scope; this.reader = reader; this.audit = audit;
         this.media = media; this.answers = answers; this.files = files;
+        this.chatThreads = chatThreads; this.chatMessages = chatMessages;
     }
 
     /**
@@ -190,7 +193,8 @@ public class RosterService {
      * clearing out acceptance or test data needs the row to actually go, so this removes it: her roster place (the
      * row itself), and by `ON DELETE CASCADE` her attempts, stop and lesson completions, parent unlocks, stickers,
      * streak and media rows. `teacher_question_answers` is the one child table `V6` gave no cascade to, so those
-     * rows are deleted here by hand — before the child, or the constraint would refuse.
+     * rows are deleted here by hand — before the child, or the constraint would refuse. Her chat threads and their
+     * messages (V15, no foreign key on purpose: the parent of a thread is resolved at delivery time) go the same way.
      *
      * <p>Her recordings and drawings are deleted from the bucket first: a cascade takes the rows and would leave the
      * blobs they pointed at behind for good, with no row left to find them by.
@@ -210,6 +214,8 @@ public class RosterService {
         if (child.getClassId() != null) writable(caller, child.getClassId());
         for (var m : media.findByChildId(child.getId())) delete(m.getStoragePath());
         answers.deleteAll(answers.findByChildIdOrderByAnsweredAtDesc(child.getId()));
+        var threadIds = chatThreads.findByChildIdOrderByLastMessageAtDesc(child.getId()).stream().map(quest.server.chat.Entities.ChatThreadEntity::getId).toList();
+        if (!threadIds.isEmpty()) { chatMessages.deleteByThreads(threadIds); chatThreads.deleteByChild(child.getId()); }
         children.delete(child);
         audit.record(caller.userId(), "child.delete", "child", child.getId(), child.getSchoolId(), Map.of("name", child.getName()));
     }

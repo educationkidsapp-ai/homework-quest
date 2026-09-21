@@ -73,7 +73,8 @@ abstract class SeedResetSupport {
         for (String table : List.of("lessons", "lesson_steps", "source_files", "page_images", "skills", "plays", "stops",
                 "parent_panels", "children", "attempts", "stop_completions", "lesson_completions", "parent_unlocks",
                 "stickers", "streaks", "child_media", "parents", "teacher_questions", "teacher_question_answers",
-                "announcements", "classes", "teaching_assignments", "invites", "teachers", "refresh_tokens"))
+                "announcements", "classes", "teaching_assignments", "invites", "teachers", "refresh_tokens",
+                "chat_threads", "chat_messages"))
             assertThat(count(table)).as(table + " is empty").isZero();
 
         assertThat(jdbc.queryForList("SELECT id FROM schools", String.class)).containsExactly("default");

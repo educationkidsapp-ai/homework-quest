@@ -134,6 +134,8 @@ public class SeedReset implements CommandLineRunner {
      */
     private static List<Step> contents() {
         return List.of(
+                new Step("chat_messages", "DELETE FROM chat_messages WHERE school_id = ?"),
+                new Step("chat_threads", "DELETE FROM chat_threads WHERE school_id = ?"),
                 new Step("teacher_question_answers", "DELETE FROM teacher_question_answers WHERE school_id = ?"),
                 new Step("teacher_questions", "DELETE FROM teacher_questions WHERE school_id = ?"),
                 new Step("announcements", "DELETE FROM announcements WHERE school_id = ?"),

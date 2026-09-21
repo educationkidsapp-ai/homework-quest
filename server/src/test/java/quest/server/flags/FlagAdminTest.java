@@ -24,7 +24,7 @@ class FlagAdminTest extends ApiTestSupport {
     @Test void the_flags_are_seeded_exactly_as_the_code_lists_them() {
         assertThat(definitions.findAllByOrderByKeyAsc()).extracting(Entities.FeatureFlagEntity::getKey)
                 .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL);
-        assertThat(FlagKeys.ALL).hasSize(21);
+        assertThat(FlagKeys.ALL).hasSize(22);
 
         var on = definitions.findAllByOrderByKeyAsc().stream().filter(Entities.FeatureFlagEntity::isDefaultOn)
                 .map(Entities.FeatureFlagEntity::getKey).toList();
@@ -37,7 +37,9 @@ class FlagAdminTest extends ApiTestSupport {
                 .containsExactlyInAnyOrder(FlagKeys.COMPLAINTS, FlagKeys.ANNOUNCEMENTS, FlagKeys.TEACHER_QUESTIONS, FlagKeys.PROGRESS_WEEKLY_EMAIL,
                         // N1.1: the one-school build's seven, all off until the package that builds each one ships.
                         FlagKeys.MULTI_SCHOOL, FlagKeys.WEB_PLAYER, FlagKeys.GRADEBOOK, FlagKeys.OPEN_STOP_MARKING,
-                        FlagKeys.EXAMS, FlagKeys.TEACHER_ROSTER_EDIT, FlagKeys.JOIN_BY_LIST);
+                        FlagKeys.EXAMS, FlagKeys.TEACHER_ROSTER_EDIT, FlagKeys.JOIN_BY_LIST,
+                        // C1: parent ↔ teacher chat, off until a school switches it on.
+                        FlagKeys.CHAT);
         assertThat(definitions.findAllByOrderByKeyAsc()).allSatisfy(f ->
                 assertThat(f.getRolloutStage()).isIn("internal", "beta", "ga"));
     }
@@ -88,7 +90,7 @@ class FlagAdminTest extends ApiTestSupport {
         assertThat(json(mvc.perform(get("/schools/" + b + "/flags")).andReturn()).get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isFalse();
 
         var matrix = json(mvc.perform(admin(get("/admin/flags"), token)).andExpect(status().isOk()).andReturn());
-        assertThat(matrix.get("definitions")).hasSize(21);
+        assertThat(matrix.get("definitions")).hasSize(22);
         assertThat(matrix.get("definitions").get(0).get("rolloutStage").asText()).isIn("internal", "beta", "ga");
         assertThat(rowFor(matrix, a).get("flags").get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isTrue();
         assertThat(rowFor(matrix, b).get("flags").get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isFalse();
@@ -142,7 +144,7 @@ class FlagAdminTest extends ApiTestSupport {
                 .content("{\"email\":\"" + email + "\",\"password\":\"handed-over-1234\"}")).andExpect(status().isOk()).andReturn()).get("token").asText();
 
         var matrix = json(mvc.perform(admin(get("/admin/flags"), hers)).andExpect(status().isOk()).andReturn());
-        assertThat(matrix.get("definitions")).hasSize(21);
+        assertThat(matrix.get("definitions")).hasSize(22);
         assertThat(matrix.get("schools")).hasSize(1);
         assertThat(matrix.get("schools").get(0).get("schoolId").asText()).isEqualTo(mine);
 
