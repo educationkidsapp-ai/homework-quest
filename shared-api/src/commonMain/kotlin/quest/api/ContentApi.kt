@@ -134,8 +134,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "exams" to false,
     "teacher.rosterEdit" to false,
     "join.byList" to false,
-    // C1: parent ↔ teacher chat (REST + `/ws/chat`), off until a school switches it on.
-    "chat" to false,
+    // C1/C3: parent ↔ teacher chat (REST + `/ws/chat`).
+    "chat" to true,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */
