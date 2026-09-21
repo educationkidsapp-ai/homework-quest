@@ -907,8 +907,10 @@ rate_limited`. Support: `GET /admin/chat/threads` and `GET /admin/chat/threads/{
 **Auth.** `Authorization: Bearer <token>` when the client can send headers (the app), else `?token=<token>` (a
 browser `WebSocket` cannot send headers — the dashboard). Either carrier takes either kind: a dashboard JWT
 (`admin.…`, TEACHER only) or a Firebase ID token, verified by the same code as the request filters. 401 for a
-token nobody issued, 403 for ADMIN/MANAGERIAL or a school with the flag off. The token is never logged; on QA the
-proxy log shows the path without the query. Allowed origins are `CORS_ORIGINS`; the app sends no `Origin`.
+token nobody issued, 403 for ADMIN/MANAGERIAL or a school with the flag off. The API never logs the token
+(`RequestLogging` prints the path only), but Cloud Run's own request log records the full URL — so send the header
+wherever the client can (the app), and remember a dashboard access token in the query is worth 15 minutes at most.
+Allowed origins are `CORS_ORIGINS`; the app sends no `Origin`.
 
 **Frames** are JSON text, discriminated by `type`, at most **8 KB** (bigger → close 1009).
 

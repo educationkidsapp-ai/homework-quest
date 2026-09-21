@@ -32,6 +32,12 @@ class ChatSessionsTest {
 
     private static WebSocketSession session(String id) { var s = mock(WebSocketSession.class); when(s.getId()).thenReturn(id); return s; }
 
+    /** The write's `finally` runs after Mockito has seen the call, so the count is polled rather than read once. */
+    private static boolean drained(ChatSessions.Live live) throws InterruptedException {
+        for (int i = 0; i < 200 && live.pendingBytes() != 0; i++) Thread.sleep(10);
+        return live.pendingBytes() == 0;
+    }
+
     @Test void typing_is_dropped_while_a_send_is_stuck_but_a_message_is_queued() throws Exception {
         var sessions = new ChatSessions(clock, 1024, 10, 600);
         var stuck = session("s1");
@@ -46,7 +52,7 @@ class ChatSessionsTest {
         assertThat(live.pendingBytes()).isEqualTo("first".length() + "second message".length());
         release.countDown();
         verify(stuck, timeout(2000).times(2)).sendMessage(any());
-        assertThat(live.pendingBytes()).isZero();
+        assertThat(drained(live)).as("the queue empties once the writes return").isTrue();
         verify(stuck, never()).close(any());
     }
 
@@ -68,20 +74,20 @@ class ChatSessionsTest {
         var sessions = new ChatSessions(clock, 65536, 10, 600);
         var idle = session("idle"); var live = session("live");
         sessions.register(idle, peer);
-        var later = new ChatSessions(Clock.fixed(T0.plus(Duration.ofMinutes(5)), ZoneOffset.UTC), 65536, 10, 600);
-        // registered five minutes later on the same registry shape: the idle rule is per socket, from its last inbound frame
         sessions.register(live, new ChatSessions.Peer("teacher:t1", "teacher", "t1", "school", null));
-        sessions.touch(live);
+        sessions.touch(live);                                                   // heard from at T0, like `idle`
         int closed = sessions.sweep(T0.plus(Duration.ofMinutes(11)));
         assertThat(closed).isEqualTo(2);                                        // both were last heard from at T0
         verify(idle, timeout(2000)).close(ChatSessions.IDLE);
         verify(live, timeout(2000)).close(ChatSessions.IDLE);
 
+        // a registry whose clock reads T0 + 5 min: a socket registered now is four minutes old at T0 + 9 and is pinged, not closed
+        var later = new ChatSessions(Clock.fixed(T0.plus(Duration.ofMinutes(5)), ZoneOffset.UTC), 65536, 10, 600);
         var fresh = session("fresh");
         var stillThere = later.register(fresh, peer);
         assertThat(later.sweep(T0.plus(Duration.ofMinutes(9)))).isZero();
         verify(fresh, timeout(2000)).sendMessage(new TextMessage(ChatSessions.PING));
-        assertThat(stillThere.pendingBytes()).isZero();
+        assertThat(drained(stillThere)).isTrue();
         verify(fresh, never()).close(any(CloseStatus.class));
     }
 
