@@ -41,8 +41,9 @@ class PostgresChatBusTest extends PostgresContainerSupport {
             instanceB.publish(reply);
             assertThat(heardByA.poll(5, TimeUnit.SECONDS)).isEqualTo(reply);
 
-            // a message too big for a NOTIFY payload crosses without its body; the hub loads it by id
-            var big = ChatEvent.message("s1", "t1", "c1", "te1", "p1", "parent:p1", null, "m2", "{\"body\":\"" + "ل".repeat(3_000) + "\"}");
+            // a message too big for a NOTIFY payload (2 000 four-byte characters = 8 000 bytes, over the 7 000-byte room
+            // the envelope leaves) crosses without its body; the hub loads it by id
+            var big = ChatEvent.message("s1", "t1", "c1", "te1", "p1", "parent:p1", null, "m2", "{\"body\":\"" + "\uD83D\uDE00".repeat(2_000) + "\"}");
             instanceB.publish(big);
             var trimmed = heardByA.poll(5, TimeUnit.SECONDS);
             assertThat(trimmed).isNotNull();
