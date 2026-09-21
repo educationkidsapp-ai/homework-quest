@@ -2,9 +2,13 @@ package quest.api.dashboard
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import quest.api.dto.ChatMessage
+import quest.api.dto.ChatReadReceipt
+import quest.api.dto.ChatThread
 import quest.api.dto.Curriculum
 import quest.api.dto.PlatformSettings
 import quest.api.dto.SchoolTheme
+import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.Subject
 
 /**
@@ -600,6 +604,28 @@ interface DashboardApi {
      * `results/{childId}.pdf` is the printable sheet for the school file.
      */
     suspend fun examResults(examId: String): ExamResults
+
+    // ---------------------------------------------------------------- C1: chat with the parents of her children
+
+    /**
+     * `GET /teacher/chat/threads` — every conversation across her sections, unread first then newest. A thread exists
+     * once either side has written; to start one she posts to `/teacher/chat/threads/{childId}/messages`. Behind
+     * the `chat` flag (404 while off); the live half is `/ws/chat`, `docs/runbook.md` "Chat".
+     */
+    suspend fun chatThreads(): List<ChatThread>
+
+    /**
+     * `GET /teacher/chat/threads/{childId}/messages?before=&since=&limit=` — a page, oldest first. `before` is a
+     * message id and pages backwards from it; `since` is a message id and answers everything after it (the gap
+     * after a socket reconnect). 403 when the child is not on one of her sections, 404 when it is another school's.
+     */
+    suspend fun chatMessages(childId: String, before: String? = null, since: String? = null, limit: Int? = null): List<ChatMessage>
+
+    /** `POST /teacher/chat/threads/{childId}/messages` — 1–2000 characters of plain text; `429 rate_limited` past 30 a minute. */
+    suspend fun sendChatMessage(childId: String, request: SendChatMessageRequest): ChatMessage
+
+    /** `POST /teacher/chat/threads/{childId}/read` — everything the parent wrote is read. */
+    suspend fun markChatRead(childId: String): ChatReadReceipt
 }
 
 /** `PUT /admin/platform-settings` (§A): only the fields that are present are written. */

@@ -5,6 +5,9 @@ import kotlinx.datetime.LocalDate
 import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
+import quest.api.dto.ChatMessage
+import quest.api.dto.ChatReadReceipt
+import quest.api.dto.ChatThread
 import quest.api.dto.Child
 import quest.api.dto.CreateChildRequest
 import quest.api.dto.MapResponse
@@ -16,6 +19,7 @@ import quest.api.dashboard.TeacherAnswerUpload
 import quest.api.dashboard.TeacherQuestionPlay
 import quest.api.dto.PublishedLesson
 import quest.api.dto.SchoolTheme
+import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UpdateChildRequest
 
 /**
@@ -80,6 +84,26 @@ interface ContentApi {
      * shows no announcements card.
      */
     suspend fun announcements(childId: String): List<ParentAnnouncement> = emptyList()
+
+    // ---- C1: chat with the child's teachers (`docs/runbook.md` "Chat"). Behind the `chat` flag: 404 while off.
+
+    /** `GET /children/{id}/chat/threads` — one row per teacher of the child's section; `409 child_not_placed` while she has none. */
+    suspend fun chatThreads(childId: String): List<ChatThread> = throw NotImplementedError("chatThreads needs a backend")
+
+    /**
+     * `GET /children/{id}/chat/threads/{teacherId}/messages?before=&since=&limit=` — a page, oldest first. `before` is
+     * a message id and pages backwards from it (the default page is the newest); `since` is a message id and answers
+     * everything after it, which is how a client fills the gap after a socket reconnect.
+     */
+    suspend fun chatMessages(childId: String, teacherId: String, before: String? = null, since: String? = null, limit: Int? = null): List<ChatMessage> =
+        throw NotImplementedError("chatMessages needs a backend")
+
+    /** `POST /children/{id}/chat/threads/{teacherId}/messages` — 1–2000 characters of plain text; `429 rate_limited` past 30 a minute. */
+    suspend fun sendChatMessage(childId: String, teacherId: String, request: SendChatMessageRequest): ChatMessage =
+        throw NotImplementedError("sendChatMessage needs a backend")
+
+    /** `POST /children/{id}/chat/threads/{teacherId}/read` — everything the teacher wrote is read. */
+    suspend fun markChatRead(childId: String, teacherId: String): ChatReadReceipt = throw NotImplementedError("markChatRead needs a backend")
 }
 
 /**
@@ -110,6 +134,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "exams" to false,
     "teacher.rosterEdit" to false,
     "join.byList" to false,
+    // C1: parent ↔ teacher chat (REST + `/ws/chat`), off until a school switches it on.
+    "chat" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

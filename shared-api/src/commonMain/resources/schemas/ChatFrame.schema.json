@@ -1,0 +1,77 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://homeworkquest.app/schemas/ChatFrame.json",
+ "title": "ChatFrame",
+ "description": "A server-to-client frame on /ws/chat, discriminated by `type`. Bodies are plain text and are never interpreted as HTML.",
+ "type": "object",
+ "required": ["type"],
+ "oneOf": [
+  { "$ref": "#/$defs/message" },
+  { "$ref": "#/$defs/read" },
+  { "$ref": "#/$defs/typing" },
+  { "$ref": "#/$defs/ping" },
+  { "$ref": "#/$defs/pong" },
+  { "$ref": "#/$defs/error" }
+ ],
+ "$defs": {
+  "sender": { "type": "string", "enum": ["parent", "teacher"] },
+  "chatMessage": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["id", "threadId", "sender", "senderId", "body", "createdAt"],
+   "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "threadId": { "type": "string", "minLength": 1 },
+    "sender": { "$ref": "#/$defs/sender" },
+    "senderId": { "type": "string", "minLength": 1 },
+    "body": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "createdAt": { "type": "integer" },
+    "readAt": { "type": ["integer", "null"] }
+   }
+  },
+  "message": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["type", "message"],
+   "properties": {
+    "type": { "const": "message" },
+    "message": { "$ref": "#/$defs/chatMessage" },
+    "clientId": { "type": ["string", "null"] }
+   }
+  },
+  "read": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["type", "threadId", "readBy", "readAt"],
+   "properties": {
+    "type": { "const": "read" },
+    "threadId": { "type": "string", "minLength": 1 },
+    "readBy": { "$ref": "#/$defs/sender" },
+    "readAt": { "type": "integer" }
+   }
+  },
+  "typing": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["type", "threadId", "from"],
+   "properties": {
+    "type": { "const": "typing" },
+    "threadId": { "type": "string", "minLength": 1 },
+    "from": { "$ref": "#/$defs/sender" }
+   }
+  },
+  "ping": { "type": "object", "additionalProperties": false, "required": ["type"], "properties": { "type": { "const": "ping" } } },
+  "pong": { "type": "object", "additionalProperties": false, "required": ["type"], "properties": { "type": { "const": "pong" } } },
+  "error": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["type", "code", "message"],
+   "properties": {
+    "type": { "const": "error" },
+    "code": { "type": "string", "minLength": 1 },
+    "message": { "type": "string" },
+    "clientId": { "type": ["string", "null"] }
+   }
+  }
+ }
+}
