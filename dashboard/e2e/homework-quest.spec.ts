@@ -49,30 +49,30 @@ test.describe('EduManage & Homework Quest Dashboard — Theme & Feature Suite', 
   });
 
   test('displays all 4 hero KPI metric cards and toggles between School & Quest stats', async ({ page }) => {
-    // School mode initial
-    await expect(page.locator('#kpi-label-1')).toHaveText('Total Students');
-    await expect(page.locator('#kpi-value-1')).toHaveText('2,847');
-    await expect(page.locator('#kpi-label-2')).toHaveText('Total Teachers');
-    await expect(page.locator('#kpi-value-2')).toHaveText('142');
-    await expect(page.locator('#kpi-label-3')).toHaveText('Active Classes');
-    await expect(page.locator('#kpi-value-3')).toHaveText('86');
-    await expect(page.locator('#kpi-label-4')).toHaveText('Attendance Rate');
-    await expect(page.locator('#kpi-value-4')).toHaveText('94.2%');
+    // Initial Teacher mode
+    await expect(page.locator('#kpi-label-1')).toHaveText('Active Quests');
+    await expect(page.locator('#kpi-value-1')).toHaveText('18');
+    await expect(page.locator('#kpi-label-2')).toHaveText('Attendance Rate');
+    await expect(page.locator('#kpi-value-2')).toHaveText('96.4%');
+    await expect(page.locator('#kpi-label-3')).toHaveText('Lessons Created');
+    await expect(page.locator('#kpi-value-3')).toHaveText('42');
+    await expect(page.locator('#kpi-label-4')).toHaveText('Needs Grading');
+    await expect(page.locator('#kpi-value-4')).toHaveText('12');
 
     // Toggle to Quest stats
     await page.locator('#kpi-quest-btn').click();
-    await expect(page.locator('#kpi-label-1')).toHaveText('Active Quests');
-    await expect(page.locator('#kpi-value-1')).toHaveText('6');
+    await expect(page.locator('#kpi-label-1')).toHaveText('Total Students');
+    await expect(page.locator('#kpi-value-1')).toHaveText('182');
     await expect(page.locator('#kpi-label-2')).toHaveText('Submission Rate');
     await expect(page.locator('#kpi-value-2')).toHaveText('88.4%');
     await expect(page.locator('#kpi-label-3')).toHaveText('Avg Class XP');
     await expect(page.locator('#kpi-value-3')).toHaveText('1,420 XP');
-    await expect(page.locator('#kpi-label-4')).toHaveText('Needs Grading');
-    await expect(page.locator('#kpi-value-4')).toHaveText('12');
+    await expect(page.locator('#kpi-label-4')).toHaveText('Exams Scheduled');
+    await expect(page.locator('#kpi-value-4')).toHaveText('3');
 
     // Toggle back to School stats
     await page.locator('#kpi-school-btn').click();
-    await expect(page.locator('#kpi-label-1')).toHaveText('Total Students');
+    await expect(page.locator('#kpi-label-1')).toHaveText('Active Quests');
   });
 
   test('renders 5-Column Kanban Board and filters by Class, Tier, and Search', async ({ page }) => {
@@ -140,7 +140,7 @@ test.describe('EduManage & Homework Quest Dashboard — Theme & Feature Suite', 
 
   test('forges a new quest through the Forge Quest modal', async ({ page }) => {
     // Open modal via Quick Action
-    await page.getByRole('button', { name: /Forge Quest Create lesson task/i }).click();
+    await page.getByRole('button', { name: /Forge Quest/i }).first().click();
     const modal = page.locator('#questModal');
     await expect(modal).toBeVisible();
 
@@ -161,9 +161,30 @@ test.describe('EduManage & Homework Quest Dashboard — Theme & Feature Suite', 
     await expect(page.locator('#toastContainer')).toContainText('forged successfully');
   });
 
+  test('creates a new homework exam through the Create Exam modal', async ({ page }) => {
+    // Open modal via Quick Action
+    await page.getByRole('button', { name: /Create Exam Homework test/i }).click();
+    const modal = page.locator('#examModal');
+    await expect(modal).toBeVisible();
+
+    // Fill form
+    await page.locator('#examTitleInput').fill('Gravitation & Planetary Laws Exam');
+    await page.locator('#examClassInput').selectOption('Physics 101');
+    await page.locator('#examQuestionsInput').fill('15');
+    await page.locator('#examXpInput').fill('600');
+
+    // Submit form
+    await modal.getByRole('button', { name: 'Create Exam' }).click();
+    await expect(modal).not.toBeVisible();
+
+    // Verify exam appears in recent exams overview
+    await expect(page.locator('#recentExamsList')).toContainText('Gravitation & Planetary Laws Exam');
+    await expect(page.locator('#toastContainer')).toContainText('created and scheduled');
+  });
+
   test('opens Grading Arena and awards XP to student', async ({ page }) => {
     // Open Grading Arena via Quick Action
-    await page.getByRole('button', { name: /Grading Arena Award XP points/i }).click();
+    await page.getByRole('button', { name: /Grading Arena/i }).first().click();
     const modal = page.locator('#gradingModal');
     await expect(modal).toBeVisible();
 
@@ -178,7 +199,7 @@ test.describe('EduManage & Homework Quest Dashboard — Theme & Feature Suite', 
 
   test('opens Parent Chat Messenger and sends a message', async ({ page }) => {
     // Open Chat Modal via Quick Action
-    await page.getByRole('button', { name: /Parent Chat Direct thread/i }).click();
+    await page.getByRole('button', { name: /Parent Chat/i }).first().click();
     const modal = page.locator('#chatModal');
     await expect(modal).toBeVisible();
 
@@ -199,8 +220,8 @@ test.describe('EduManage & Homework Quest Dashboard — Theme & Feature Suite', 
     await expect(canvas).toBeVisible();
 
     // Check legend chips
-    await expect(page.getByText('Students', { exact: true })).toBeVisible();
-    await expect(page.getByText('Teachers', { exact: true })).toBeVisible();
+    await expect(page.getByText('Grade 1-3', { exact: true })).toBeVisible();
+    await expect(page.getByText('Grade 4-6', { exact: true })).toBeVisible();
   });
 
 });

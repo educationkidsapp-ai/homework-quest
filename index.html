@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EduManage & Homework Quest — School Management Dashboard</title>
+  <title>EduManage & Homework Quest — Teacher Dashboard</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome 6 Free CDN -->
@@ -28,25 +28,11 @@
               800: '#1e293b',
               750: '#283548',
               700: '#334155',
-            },
-            brand: {
-              blue: '#3b82f6',
-              purple: '#a855f7',
-              pink: '#ec4899',
-              green: '#10b981',
-              orange: '#f97316',
-              indigo: '#6366f1',
             }
           },
           fontFamily: {
             display: ['Outfit', 'sans-serif'],
             sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-          },
-          boxShadow: {
-            'figma': '0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03)',
-            'figma-hover': '0 10px 25px -3px rgba(0, 0, 0, 0.08), 0 4px 10px -2px rgba(0, 0, 0, 0.04)',
-            'glow-blue': '0 0 20px -5px rgba(59, 130, 246, 0.4)',
-            'glow-purple': '0 0 20px -5px rgba(168, 85, 247, 0.4)',
           }
         }
       }
@@ -55,28 +41,14 @@
 
   <style>
     /* Custom Scrollbars */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 9999px;
-    }
-    .dark ::-webkit-scrollbar-thumb {
-      background: #334155;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
-    }
-    .dark ::-webkit-scrollbar-thumb:hover {
-      background: #6366f1;
-    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .dark ::-webkit-scrollbar-thumb:hover { background: #6366f1; }
 
-    /* Range slider custom thumb */
+    /* Custom range slider */
     input[type=range]::-webkit-slider-thumb {
       appearance: none;
       width: 20px;
@@ -93,26 +65,22 @@
       border-color: #131b2e;
       box-shadow: 0 0 12px rgba(129, 140, 248, 0.7);
     }
-    input[type=range]::-webkit-slider-thumb:hover {
-      transform: scale(1.15);
-    }
+    input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
 
     /* Custom Animations */
     @keyframes pulseGlow {
       0%, 100% { box-shadow: 0 0 8px rgba(244, 63, 94, 0.25); }
       50% { box-shadow: 0 0 16px rgba(244, 63, 94, 0.5), 0 0 24px rgba(245, 158, 11, 0.25); }
     }
-    .animate-boss-glow {
-      animation: pulseGlow 2.5s infinite;
-    }
+    .animate-boss-glow { animation: pulseGlow 2.5s infinite; }
   </style>
 </head>
 <body class="bg-slate-50 dark:bg-space-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200 antialiased selection:bg-blue-500 selection:text-white">
 
-  <!-- Toast Notification Container -->
+  <!-- Toast Container -->
   <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-  <!-- Main App Shell -->
+  <!-- App Shell -->
   <div class="flex h-screen overflow-hidden">
 
     <!-- Mobile Drawer Backdrop -->
@@ -121,7 +89,7 @@
     <!-- Sidebar Navigation -->
     <aside id="sidebar" class="fixed md:static inset-y-0 left-0 z-40 w-72 bg-white dark:bg-space-900 border-r border-gray-100 dark:border-slate-800 flex flex-col transition-all duration-300 transform -translate-x-full md:translate-x-0 shadow-sm dark:shadow-none flex-shrink-0">
       
-      <!-- Logo & Brand Header -->
+      <!-- Brand Header -->
       <div class="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
         <div class="flex items-center gap-3.5">
           <div class="w-11 h-11 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white shadow-md shadow-blue-500/25">
@@ -130,9 +98,9 @@
           <div>
             <h1 class="font-display font-bold text-lg text-gray-800 dark:text-white tracking-tight flex items-center gap-1.5">
               EduManage
-              <span class="text-[10px] font-semibold tracking-wider bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded uppercase">PRO</span>
+              <span class="text-[10px] font-semibold tracking-wider bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded uppercase">TEACHER</span>
             </h1>
-            <p class="text-xs text-gray-400 dark:text-slate-400 font-medium">School System & Quests</p>
+            <p class="text-xs text-gray-400 dark:text-slate-400 font-medium">Homework Quest Platform</p>
           </div>
         </div>
         <button onclick="toggleMobileDrawer()" class="md:hidden text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 p-1">
@@ -140,9 +108,9 @@
         </button>
       </div>
 
-      <!-- Navigation Links -->
+      <!-- Navigation Links (Only Real Features!) -->
       <nav class="flex-1 px-4 py-4 space-y-1.5 overflow-y-auto">
-        <div class="px-3 pb-2 text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Main Menu</div>
+        <div class="px-3 pb-2 text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Teacher Features</div>
         
         <button onclick="navigateTab('dashboard')" id="nav-dashboard" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/20">
           <i class="fa-solid fa-table-columns text-base w-5 text-center"></i>
@@ -155,14 +123,26 @@
           <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-bold" id="sidebarQuestCount">18</span>
         </button>
 
-        <button onclick="navigateTab('attendance')" id="nav-attendance" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
-          <i class="fa-solid fa-clipboard-user text-base w-5 text-center text-orange-500"></i>
-          <span>Attendance</span>
-        </button>
-
         <button onclick="navigateTab('classes')" id="nav-classes" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
           <i class="fa-solid fa-users text-base w-5 text-center text-pink-500"></i>
-          <span>Classes</span>
+          <span>My Classes</span>
+          <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-950 text-pink-600 dark:text-pink-400 font-bold">6</span>
+        </button>
+
+        <button onclick="navigateTab('attendance')" id="nav-attendance" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
+          <i class="fa-solid fa-clipboard-user text-base w-5 text-center text-orange-500"></i>
+          <span>Class Attendance</span>
+        </button>
+
+        <button onclick="navigateTab('quests')" id="nav-quests" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
+          <i class="fa-solid fa-wand-magic-sparkles text-base w-5 text-center text-purple-500"></i>
+          <span>Lessons & Quests</span>
+        </button>
+
+        <button onclick="navigateTab('exams')" id="nav-exams" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
+          <i class="fa-solid fa-file-signature text-base w-5 text-center text-cyan-500"></i>
+          <span>Exams & Tests</span>
+          <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950 text-cyan-600 dark:text-cyan-400 font-bold">3</span>
         </button>
 
         <button onclick="navigateTab('grading')" id="nav-grading" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
@@ -175,18 +155,6 @@
           <i class="fa-solid fa-comments text-base w-5 text-center text-green-500"></i>
           <span>Parent Chat</span>
           <span class="ml-auto w-2 h-2 rounded-full bg-green-500"></span>
-        </button>
-
-        <div class="pt-4 px-3 pb-2 text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Administration</div>
-
-        <button onclick="navigateTab('events')" id="nav-events" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
-          <i class="fa-solid fa-calendar-days text-base w-5 text-center text-purple-500"></i>
-          <span>Events & Calendar</span>
-        </button>
-
-        <button onclick="navigateTab('fees')" id="nav-fees" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
-          <i class="fa-solid fa-wallet text-base w-5 text-center text-cyan-500"></i>
-          <span>Fee Status</span>
         </button>
       </nav>
 
@@ -219,7 +187,7 @@
       <header class="bg-white dark:bg-space-900 border-b border-gray-100 dark:border-slate-800 px-4 md:px-8 py-3.5 shadow-sm transition-colors duration-200">
         <div class="flex items-center justify-between gap-4">
           
-          <!-- Left: Mobile Toggle & Global Search -->
+          <!-- Left: Mobile Drawer & Global Search -->
           <div class="flex items-center gap-3.5 flex-1 max-w-xl">
             <button onclick="toggleMobileDrawer()" class="p-2.5 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl transition-colors md:hidden text-gray-600 dark:text-slate-300">
               <i class="fa-solid fa-bars text-lg"></i>
@@ -227,27 +195,26 @@
 
             <div class="relative flex-1">
               <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-sm"></i>
-              <input type="text" id="globalSearchInput" oninput="handleSearch(this.value)" placeholder="Search students, teachers, classes, quests..." class="w-full pl-11 pr-14 py-2.5 bg-gray-50 dark:bg-space-850 text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 rounded-2xl border border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-space-800 focus:outline-none text-sm transition-all shadow-inner">
+              <input type="text" id="globalSearchInput" oninput="handleSearch(this.value)" placeholder="Search classes, lessons, exams, quests, students..." class="w-full pl-11 pr-14 py-2.5 bg-gray-50 dark:bg-space-850 text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 rounded-2xl border border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-space-800 focus:outline-none text-sm transition-all shadow-inner">
               <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-gray-400 dark:text-slate-500 bg-gray-200 dark:bg-space-700 px-1.5 py-0.5 rounded tracking-wide">⌘K</span>
             </div>
           </div>
 
-          <!-- Right: Action Icons, Fast Theme Toggle & Profile -->
+          <!-- Right: Quick Actions & Profile -->
           <div class="flex items-center gap-2.5">
             
-            <!-- Quick Theme Switcher Button -->
+            <!-- Quick Theme Switcher -->
             <button onclick="toggleTheme()" title="Toggle Light / Dark Mode" class="p-2.5 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl transition-colors">
               <i id="headerThemeIcon" class="fa-solid fa-sun text-amber-500 text-base"></i>
             </button>
 
-            <!-- Notifications Dropdown Trigger -->
+            <!-- Notifications Dropdown -->
             <div class="relative">
               <button onclick="toggleNotifications()" class="relative p-2.5 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl transition-colors">
                 <i class="fa-regular fa-bell text-base"></i>
                 <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-space-900"></span>
               </button>
 
-              <!-- Notifications Dropdown Menu -->
               <div id="notificationsMenu" class="hidden absolute right-0 mt-2 w-80 bg-white dark:bg-space-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-800 p-4 z-50 animate-in fade-in slide-in-from-top-2">
                 <div class="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
                   <h4 class="font-bold text-sm text-gray-800 dark:text-white">Notifications</h4>
@@ -276,7 +243,7 @@
               </div>
             </div>
 
-            <!-- Messages / Chat Trigger -->
+            <!-- Parent Chat Trigger -->
             <button onclick="openChatModal()" title="Parent Chat Messenger" class="relative p-2.5 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl transition-colors">
               <i class="fa-regular fa-message text-base"></i>
               <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-white dark:ring-space-900"></span>
@@ -301,7 +268,7 @@
         </div>
       </header>
 
-      <!-- Scrollable Main Viewport -->
+      <!-- Scrollable Main Content -->
       <main class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
         <div class="max-w-7xl mx-auto space-y-6">
 
@@ -309,91 +276,91 @@
           <div class="space-y-3">
             <div class="flex items-center justify-between">
               <div>
-                <h2 class="text-xl font-bold font-display text-gray-900 dark:text-white">School & Quest Overview</h2>
-                <p class="text-xs text-gray-500 dark:text-slate-400">Real-time telemetry, attendance, and weekly homework metrics</p>
+                <h2 class="text-xl font-bold font-display text-gray-900 dark:text-white">Teacher Command Center</h2>
+                <p class="text-xs text-gray-500 dark:text-slate-400">Real-time attendance, weekly quests, exams, and grading metrics</p>
               </div>
-              <!-- KPI View Toggle -->
+              <!-- Stats Mode Toggle -->
               <div class="inline-flex p-1 bg-gray-100 dark:bg-space-850 rounded-xl text-xs font-semibold">
-                <button onclick="setKpiMode('school')" id="kpi-school-btn" class="px-3 py-1.5 rounded-lg bg-white dark:bg-space-800 text-blue-600 dark:text-blue-400 shadow-sm transition-all">School Stats</button>
+                <button onclick="setKpiMode('school')" id="kpi-school-btn" class="px-3 py-1.5 rounded-lg bg-white dark:bg-space-800 text-blue-600 dark:text-blue-400 shadow-sm transition-all">Teacher Metrics</button>
                 <button onclick="setKpiMode('quest')" id="kpi-quest-btn" class="px-3 py-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 transition-all">Quest Stats</button>
               </div>
             </div>
 
             <!-- KPI Cards Grid -->
-            <div id="kpiCardsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               
-              <!-- Card 1: Total Students -->
+              <!-- Card 1: Active Quests / Students -->
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 border border-gray-100 dark:border-slate-800">
                 <div class="flex items-start justify-between">
                   <div class="flex-1">
-                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-1">Total Students</p>
-                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-1">2,847</h3>
+                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-1">Active Quests</p>
+                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-1">18</h3>
                     <div class="flex items-center gap-1.5">
                       <span class="inline-flex items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
-                        <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +12.5%
+                        <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +14%
                       </span>
-                      <span class="text-xs text-gray-400 dark:text-slate-500">vs last month</span>
+                      <span class="text-xs text-gray-400 dark:text-slate-500">this week</span>
                     </div>
                   </div>
                   <div class="p-3.5 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 shadow-lg shadow-blue-500/20 text-white flex-shrink-0">
-                    <i class="fa-solid fa-user-graduate text-xl" id="kpi-icon-1"></i>
+                    <i class="fa-solid fa-scroll text-xl" id="kpi-icon-1"></i>
                   </div>
                 </div>
               </div>
 
-              <!-- Card 2: Total Teachers -->
+              <!-- Card 2: Attendance Rate -->
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 border border-gray-100 dark:border-slate-800">
                 <div class="flex items-start justify-between">
                   <div class="flex-1">
-                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-2">Total Teachers</p>
-                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-2">142</h3>
-                    <div class="flex items-center gap-1.5">
-                      <span class="inline-flex items-center text-xs font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-full">
-                        <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +3.2%
-                      </span>
-                      <span class="text-xs text-gray-400 dark:text-slate-500">vs last month</span>
-                    </div>
-                  </div>
-                  <div class="p-3.5 rounded-2xl bg-gradient-to-br from-purple-400 to-purple-600 shadow-lg shadow-purple-500/20 text-white flex-shrink-0">
-                    <i class="fa-solid fa-chalkboard-user text-xl" id="kpi-icon-2"></i>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Card 3: Active Classes -->
-              <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 border border-gray-100 dark:border-slate-800">
-                <div class="flex items-start justify-between">
-                  <div class="flex-1">
-                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-3">Active Classes</p>
-                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-3">86</h3>
-                    <div class="flex items-center gap-1.5">
-                      <span class="inline-flex items-center text-xs font-semibold text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/60 px-2 py-0.5 rounded-full">
-                        <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +5.1%
-                      </span>
-                      <span class="text-xs text-gray-400 dark:text-slate-500">vs last month</span>
-                    </div>
-                  </div>
-                  <div class="p-3.5 rounded-2xl bg-gradient-to-br from-pink-400 to-pink-600 shadow-lg shadow-pink-500/20 text-white flex-shrink-0">
-                    <i class="fa-solid fa-school text-xl" id="kpi-icon-3"></i>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Card 4: Attendance Rate -->
-              <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 border border-gray-100 dark:border-slate-800">
-                <div class="flex items-start justify-between">
-                  <div class="flex-1">
-                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-4">Attendance Rate</p>
-                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-4">94.2%</h3>
+                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-2">Attendance Rate</p>
+                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-2">96.4%</h3>
                     <div class="flex items-center gap-1.5">
                       <span class="inline-flex items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
                         <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +2.4%
                       </span>
-                      <span class="text-xs text-gray-400 dark:text-slate-500">vs last month</span>
+                      <span class="text-xs text-gray-400 dark:text-slate-500">vs last week</span>
                     </div>
                   </div>
                   <div class="p-3.5 rounded-2xl bg-gradient-to-br from-green-400 to-green-600 shadow-lg shadow-green-500/20 text-white flex-shrink-0">
-                    <i class="fa-solid fa-clipboard-check text-xl" id="kpi-icon-4"></i>
+                    <i class="fa-solid fa-clipboard-check text-xl" id="kpi-icon-2"></i>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card 3: Total Lessons / Classes -->
+              <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 border border-gray-100 dark:border-slate-800">
+                <div class="flex items-start justify-between">
+                  <div class="flex-1">
+                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-3">Lessons Created</p>
+                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-3">42</h3>
+                    <div class="flex items-center gap-1.5">
+                      <span class="inline-flex items-center text-xs font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-full">
+                        <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +5 new
+                      </span>
+                      <span class="text-xs text-gray-400 dark:text-slate-500">in 6 classes</span>
+                    </div>
+                  </div>
+                  <div class="p-3.5 rounded-2xl bg-gradient-to-br from-purple-400 to-purple-600 shadow-lg shadow-purple-500/20 text-white flex-shrink-0">
+                    <i class="fa-solid fa-book-open text-xl" id="kpi-icon-3"></i>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card 4: Needs Grading -->
+              <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 border border-gray-100 dark:border-slate-800">
+                <div class="flex items-start justify-between">
+                  <div class="flex-1">
+                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-4">Needs Grading</p>
+                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2 text-rose-600 dark:text-rose-400" id="kpi-value-4">12</h3>
+                    <div class="flex items-center gap-1.5">
+                      <span class="inline-flex items-center text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-full">
+                        <i class="fa-solid fa-clock text-[10px] mr-1"></i> Action Req.
+                      </span>
+                      <span class="text-xs text-gray-400 dark:text-slate-500">submissions</span>
+                    </div>
+                  </div>
+                  <div class="p-3.5 rounded-2xl bg-gradient-to-br from-pink-400 to-rose-600 shadow-lg shadow-rose-500/20 text-white flex-shrink-0">
+                    <i class="fa-solid fa-award text-xl" id="kpi-icon-4"></i>
                   </div>
                 </div>
               </div>
@@ -401,11 +368,11 @@
             </div>
           </div>
 
-          <!-- 6 Quick Action Cards (Figma Component Qb) -->
+          <!-- 6 Quick Action Cards (Matching Real Features) -->
           <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
             <div class="mb-4">
               <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Quick Actions</h2>
-              <p class="text-xs text-gray-500 dark:text-slate-400">Frequently used teacher tasks and actions</p>
+              <p class="text-xs text-gray-500 dark:text-slate-400">Launch workflows across classes, attendance, quests, exams, and parent chat</p>
             </div>
             
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
@@ -416,7 +383,7 @@
                   <i class="fa-solid fa-user-plus text-lg"></i>
                 </div>
                 <p class="text-xs font-bold text-blue-900 dark:text-blue-200">Add Student</p>
-                <p class="text-[10px] text-blue-600/70 dark:text-blue-400">Enroll new child</p>
+                <p class="text-[10px] text-blue-600/70 dark:text-blue-400">Class roster</p>
               </button>
 
               <!-- 2. Mark Attendance -->
@@ -428,40 +395,40 @@
                 <p class="text-[10px] text-orange-600/70 dark:text-orange-400">Daily roll call</p>
               </button>
 
-              <!-- 3. Forge Quest / Lesson -->
+              <!-- 3. Forge Quest -->
               <button onclick="openQuestModal()" class="bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-purple-100 dark:border-purple-900/40">
                 <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
                   <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
                 </div>
                 <p class="text-xs font-bold text-purple-900 dark:text-purple-200">Forge Quest</p>
-                <p class="text-[10px] text-purple-600/70 dark:text-purple-400">Create lesson task</p>
+                <p class="text-[10px] text-purple-600/70 dark:text-purple-400">Lesson task</p>
               </button>
 
-              <!-- 4. Grading Arena -->
+              <!-- 4. Create Exam -->
+              <button onclick="openExamModal()" class="bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-cyan-100 dark:border-cyan-900/40">
+                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
+                  <i class="fa-solid fa-file-signature text-lg"></i>
+                </div>
+                <p class="text-xs font-bold text-cyan-900 dark:text-cyan-200">Create Exam</p>
+                <p class="text-[10px] text-cyan-600/70 dark:text-cyan-400">Homework test</p>
+              </button>
+
+              <!-- 5. Grading Arena -->
               <button onclick="openGradingModal()" class="bg-pink-50 dark:bg-pink-950/40 hover:bg-pink-100 dark:hover:bg-pink-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-pink-100 dark:border-pink-900/40">
-                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-pink-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
+                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
                   <i class="fa-solid fa-award text-lg"></i>
                 </div>
                 <p class="text-xs font-bold text-pink-900 dark:text-pink-200">Grading Arena</p>
-                <p class="text-[10px] text-pink-600/70 dark:text-pink-400">Award XP points</p>
+                <p class="text-[10px] text-pink-600/70 dark:text-pink-400">Award XP</p>
               </button>
 
-              <!-- 5. Message Parents -->
+              <!-- 6. Parent Chat -->
               <button onclick="openChatModal()" class="bg-green-50 dark:bg-green-950/40 hover:bg-green-100 dark:hover:bg-green-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-green-100 dark:border-green-900/40">
-                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
+                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
                   <i class="fa-solid fa-comments text-lg"></i>
                 </div>
                 <p class="text-xs font-bold text-green-900 dark:text-green-200">Parent Chat</p>
-                <p class="text-[10px] text-green-600/70 dark:text-green-400">Direct thread</p>
-              </button>
-
-              <!-- 6. Weekly Schedule -->
-              <button onclick="scrollToPlanner()" class="bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-indigo-100 dark:border-indigo-900/40">
-                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
-                  <i class="fa-solid fa-calendar-week text-lg"></i>
-                </div>
-                <p class="text-xs font-bold text-indigo-900 dark:text-indigo-200">Weekly Board</p>
-                <p class="text-[10px] text-indigo-600/70 dark:text-indigo-400">5-Day Kanban</p>
+                <p class="text-[10px] text-green-600/70 dark:text-green-400">Direct message</p>
               </button>
 
             </div>
@@ -473,22 +440,22 @@
             <!-- Left 2 Columns: Weekly Attendance Chart & 5-Day Weekly Kanban Board -->
             <div class="lg:col-span-2 space-y-6">
 
-              <!-- Weekly Attendance Chart Card (Figma Component Ub) -->
+              <!-- Weekly Attendance Chart Card -->
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
-                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Weekly Attendance & Submissions</h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Comparative attendance trends for students vs teachers</p>
+                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Weekly Class Attendance</h2>
+                    <p class="text-xs text-gray-500 dark:text-slate-400">Daily student attendance percentage across all enrolled classes</p>
                   </div>
                   
                   <div class="flex items-center gap-4">
                     <div class="flex items-center gap-2">
                       <div class="w-3 h-3 rounded-full bg-blue-500"></div>
-                      <span class="text-xs font-semibold text-gray-600 dark:text-slate-300">Students</span>
+                      <span class="text-xs font-semibold text-gray-600 dark:text-slate-300">Grade 1-3</span>
                     </div>
                     <div class="flex items-center gap-2">
                       <div class="w-3 h-3 rounded-full bg-purple-500"></div>
-                      <span class="text-xs font-semibold text-gray-600 dark:text-slate-300">Teachers</span>
+                      <span class="text-xs font-semibold text-gray-600 dark:text-slate-300">Grade 4-6</span>
                     </div>
                   </div>
                 </div>
@@ -501,17 +468,17 @@
               <!-- 5-Column Weekly Kanban Planner Card -->
               <div id="plannerSection" class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800 space-y-5">
                 
-                <!-- Planner Header & Reactive Filters -->
+                <!-- Planner Header & Filters -->
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-slate-800">
                   <div>
                     <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display flex items-center gap-2">
                       <span>Weekly Quest Planner</span>
                       <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300" id="kanbanActiveCountBadge">18 Active</span>
                     </h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Plan and assign weekly homework quests across Monday to Friday</p>
+                    <p class="text-xs text-gray-500 dark:text-slate-400">Schedule homework quests & lesson milestones from Monday to Friday</p>
                   </div>
 
-                  <!-- Action Buttons -->
+                  <!-- Controls -->
                   <div class="flex items-center gap-2">
                     <button onclick="changeWeek(-1)" class="p-2 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl text-gray-600 dark:text-slate-300">
                       <i class="fa-solid fa-chevron-left text-xs"></i>
@@ -529,16 +496,15 @@
 
                 <!-- Filters Strip -->
                 <div class="flex flex-wrap items-center gap-2.5 text-xs">
-                  <!-- Class Filter -->
                   <select id="filterClassSelect" onchange="setFilterClass(this.value)" class="bg-gray-50 dark:bg-space-850 text-gray-800 dark:text-slate-200 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-slate-700 font-medium focus:outline-none">
-                    <option value="ALL">All Classes (Grade 1-6)</option>
-                    <option value="Physics 101">Physics 101 (Grade 10-A)</option>
-                    <option value="Calculus II">Calculus II (Grade 9-B)</option>
-                    <option value="Astronomy">Astronomy (Grade 11-C)</option>
-                    <option value="Algebra">Algebra (Grade 8-A)</option>
+                    <option value="ALL">All Classes (Grade 1 - 6)</option>
+                    <option value="Physics 101">Physics 101 (Grade 5-B)</option>
+                    <option value="Calculus II">Calculus II (Grade 6-A)</option>
+                    <option value="Astronomy">Astronomy (Grade 4-C)</option>
+                    <option value="Algebra">Algebra (Grade 3-A)</option>
+                    <option value="Science Lab">Science Lab (Grade 1-A)</option>
                   </select>
 
-                  <!-- Tier Filter -->
                   <div class="flex items-center gap-1 bg-gray-100 dark:bg-space-850 p-1 rounded-xl">
                     <button onclick="setFilterTier('ALL')" id="tier-filter-all" class="px-2.5 py-1 rounded-lg bg-white dark:bg-space-800 text-gray-800 dark:text-white font-bold shadow-xs">All Tiers</button>
                     <button onclick="setFilterTier('COMMON')" id="tier-filter-common" class="px-2.5 py-1 rounded-lg text-emerald-600 font-medium hover:bg-white/50">Common</button>
@@ -549,8 +515,6 @@
 
                 <!-- 5-Column Kanban Board Grid (Mon - Fri) -->
                 <div class="grid grid-cols-1 md:grid-cols-5 gap-3.5">
-                  
-                  <!-- Monday Column -->
                   <div class="bg-gray-50/70 dark:bg-space-850/60 rounded-2xl p-3 border border-gray-100 dark:border-slate-800 flex flex-col">
                     <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200 dark:border-slate-800">
                       <span class="text-xs font-bold text-gray-800 dark:text-slate-200">Monday</span>
@@ -559,7 +523,6 @@
                     <div id="column-Monday" class="space-y-2.5 flex-1 min-h-[140px]"></div>
                   </div>
 
-                  <!-- Tuesday Column -->
                   <div class="bg-gray-50/70 dark:bg-space-850/60 rounded-2xl p-3 border border-gray-100 dark:border-slate-800 flex flex-col">
                     <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200 dark:border-slate-800">
                       <span class="text-xs font-bold text-gray-800 dark:text-slate-200">Tuesday</span>
@@ -568,7 +531,6 @@
                     <div id="column-Tuesday" class="space-y-2.5 flex-1 min-h-[140px]"></div>
                   </div>
 
-                  <!-- Wednesday Column -->
                   <div class="bg-gray-50/70 dark:bg-space-850/60 rounded-2xl p-3 border border-gray-100 dark:border-slate-800 flex flex-col">
                     <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200 dark:border-slate-800">
                       <span class="text-xs font-bold text-gray-800 dark:text-slate-200">Wednesday</span>
@@ -577,7 +539,6 @@
                     <div id="column-Wednesday" class="space-y-2.5 flex-1 min-h-[140px]"></div>
                   </div>
 
-                  <!-- Thursday Column -->
                   <div class="bg-gray-50/70 dark:bg-space-850/60 rounded-2xl p-3 border border-gray-100 dark:border-slate-800 flex flex-col">
                     <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200 dark:border-slate-800">
                       <span class="text-xs font-bold text-gray-800 dark:text-slate-200">Thursday</span>
@@ -586,7 +547,6 @@
                     <div id="column-Thursday" class="space-y-2.5 flex-1 min-h-[140px]"></div>
                   </div>
 
-                  <!-- Friday Column -->
                   <div class="bg-gray-50/70 dark:bg-space-850/60 rounded-2xl p-3 border border-gray-100 dark:border-slate-800 flex flex-col">
                     <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200 dark:border-slate-800">
                       <span class="text-xs font-bold text-gray-800 dark:text-slate-200">Friday</span>
@@ -594,17 +554,16 @@
                     </div>
                     <div id="column-Friday" class="space-y-2.5 flex-1 min-h-[140px]"></div>
                   </div>
-
                 </div>
 
               </div>
 
-              <!-- My Active Classes Card (Figma Component Wb adapted for classes) -->
+              <!-- My Active Classes Card (Grade 1 - Grade 6) -->
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
                 <div class="flex items-center justify-between mb-5">
                   <div>
-                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">My Classes</h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Manage student rosters, attendance, and weekly curriculum</p>
+                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">My Classes (6 Grades)</h2>
+                    <p class="text-xs text-gray-500 dark:text-slate-400">Manage student rosters, join codes, daily attendance, and lesson curriculum</p>
                   </div>
                   <button onclick="openAttendanceModal()" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">Mark Today's Attendance</button>
                 </div>
@@ -616,15 +575,15 @@
 
             </div>
 
-            <!-- Right 1 Column: Upcoming Events, Fee Status, Top Leaderboard -->
+            <!-- Right 1 Column: Upcoming Schedule, Exams & Homework Hub, Top Leaderboard -->
             <div class="space-y-6">
 
-              <!-- Upcoming Events Widget (Figma Component Xb) -->
+              <!-- Upcoming Schedule & Homework Deadlines -->
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
                 <div class="flex items-center justify-between mb-5">
                   <div>
-                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Upcoming Events</h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">School calendar & milestones</p>
+                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Upcoming Schedule</h2>
+                    <p class="text-xs text-gray-500 dark:text-slate-400">Exams, quest deadlines & conferences</p>
                   </div>
                   <div class="w-8 h-8 rounded-xl bg-gray-50 dark:bg-space-850 flex items-center justify-center text-gray-400">
                     <i class="fa-regular fa-calendar text-sm"></i>
@@ -636,39 +595,39 @@
                 </div>
               </div>
 
-              <!-- Fee Status Widget (Figma Component $b) -->
+              <!-- Exams & Homework Tests Hub (Replaces Fees!) -->
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
                 <div class="flex items-center justify-between mb-4">
                   <div>
-                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Fee Status</h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Monthly administrative overview</p>
+                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Exams & Homework Tests</h2>
+                    <p class="text-xs text-gray-500 dark:text-slate-400">Evaluation results & question analysis</p>
                   </div>
-                  <div class="w-8 h-8 rounded-xl bg-gray-50 dark:bg-space-850 flex items-center justify-center text-gray-400">
-                    <i class="fa-solid fa-receipt text-sm"></i>
-                  </div>
+                  <button onclick="openExamModal()" class="text-xs font-bold px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 hover:bg-blue-100 flex items-center gap-1">
+                    <i class="fa-solid fa-plus text-[10px]"></i> New Exam
+                  </button>
                 </div>
 
                 <div class="space-y-3 mb-5">
-                  <div class="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 flex items-center justify-between">
+                  <div class="p-3.5 bg-blue-50/70 dark:bg-blue-950/30 rounded-2xl border border-blue-100 dark:border-blue-900/40 flex items-center justify-between">
                     <div>
-                      <span class="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Total Collected</span>
-                      <h4 class="text-lg font-bold font-display text-emerald-950 dark:text-emerald-100">$48,250</h4>
+                      <span class="text-xs font-semibold text-blue-800 dark:text-blue-300">Active Exams</span>
+                      <h4 class="text-lg font-bold font-display text-blue-950 dark:text-blue-100">3 Scheduled</h4>
                     </div>
-                    <span class="text-xs font-bold text-emerald-600 bg-white dark:bg-space-900 px-2 py-1 rounded-lg">+8.4%</span>
+                    <span class="text-xs font-bold text-blue-600 bg-white dark:bg-space-900 px-2 py-1 rounded-lg">Grade 1-6</span>
                   </div>
 
                   <div class="p-3.5 bg-amber-50/70 dark:bg-amber-950/30 rounded-2xl border border-amber-100 dark:border-amber-900/40 flex items-center justify-between">
                     <div>
-                      <span class="text-xs font-semibold text-amber-800 dark:text-amber-300">Pending Fees</span>
-                      <h4 class="text-lg font-bold font-display text-amber-950 dark:text-amber-100">$6,180</h4>
+                      <span class="text-xs font-semibold text-amber-800 dark:text-amber-300">Needs Grading</span>
+                      <h4 class="text-lg font-bold font-display text-amber-950 dark:text-amber-100">12 Submissions</h4>
                     </div>
-                    <span class="text-xs font-bold text-amber-600 bg-white dark:bg-space-900 px-2 py-1 rounded-lg">64 Students</span>
+                    <button onclick="openGradingModal()" class="text-xs font-bold text-amber-600 bg-white dark:bg-space-900 px-2 py-1 rounded-lg hover:underline">Grade Now</button>
                   </div>
                 </div>
 
                 <div>
-                  <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5">Recent Invoices</h3>
-                  <div class="space-y-2 text-xs" id="recentPaymentsList">
+                  <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5">Recent Exams Overview</h3>
+                  <div class="space-y-2 text-xs" id="recentExamsList">
                     <!-- Populated dynamically -->
                   </div>
                 </div>
@@ -678,8 +637,8 @@
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
                 <div class="flex items-center justify-between mb-4">
                   <div>
-                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Top Questers</h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Class XP champions this week</p>
+                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Top Class Questers</h2>
+                    <p class="text-xs text-gray-500 dark:text-slate-400">Weekly XP champions across classes</p>
                   </div>
                   <i class="fa-solid fa-trophy text-amber-500 text-lg"></i>
                 </div>
@@ -689,7 +648,7 @@
                     <span class="w-6 h-6 rounded-full bg-amber-400 text-white font-bold text-xs flex items-center justify-center">1</span>
                     <div class="flex-1 min-w-0">
                       <p class="text-xs font-bold text-gray-900 dark:text-white truncate">Aiden Thorne</p>
-                      <p class="text-[10px] text-gray-500 dark:text-slate-400">Level 14 • Physics 101</p>
+                      <p class="text-[10px] text-gray-500 dark:text-slate-400">Level 14 Rogue • Physics 101</p>
                     </div>
                     <span class="text-xs font-bold text-amber-600 dark:text-amber-400">2,840 XP</span>
                   </div>
@@ -698,7 +657,7 @@
                     <span class="w-6 h-6 rounded-full bg-slate-400 text-white font-bold text-xs flex items-center justify-center">2</span>
                     <div class="flex-1 min-w-0">
                       <p class="text-xs font-bold text-gray-900 dark:text-white truncate">Maya Lin</p>
-                      <p class="text-[10px] text-gray-500 dark:text-slate-400">Level 12 • Calculus II</p>
+                      <p class="text-[10px] text-gray-500 dark:text-slate-400">Level 12 Mage • Calculus II</p>
                     </div>
                     <span class="text-xs font-bold text-purple-600 dark:text-purple-400">2,610 XP</span>
                   </div>
@@ -707,7 +666,7 @@
                     <span class="w-6 h-6 rounded-full bg-amber-700 text-white font-bold text-xs flex items-center justify-center">3</span>
                     <div class="flex-1 min-w-0">
                       <p class="text-xs font-bold text-gray-900 dark:text-white truncate">Leo Vance</p>
-                      <p class="text-[10px] text-gray-500 dark:text-slate-400">Level 11 • Astronomy</p>
+                      <p class="text-[10px] text-gray-500 dark:text-slate-400">Level 11 Paladin • Astronomy</p>
                     </div>
                     <span class="text-xs font-bold text-blue-600 dark:text-blue-400">2,390 XP</span>
                   </div>
@@ -727,43 +686,39 @@
 
   <!-- ==================== MODALS ==================== -->
 
-  <!-- 1. Interactive Class Attendance Modal -->
+  <!-- 1. Class Attendance Modal -->
   <div id="attendanceModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white dark:bg-space-900 rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 dark:border-slate-800 max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
-      
-      <!-- Modal Header -->
       <div class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800">
         <div>
           <h3 class="text-lg font-bold font-display text-gray-900 dark:text-white flex items-center gap-2">
             <i class="fa-solid fa-clipboard-user text-orange-500"></i>
             <span>Class Attendance Sheet</span>
           </h3>
-          <p class="text-xs text-gray-500 dark:text-slate-400">Mark daily student attendance & add teacher feedback</p>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Record daily roll-call and notes (syncs to parents' mobile app)</p>
         </div>
         <button onclick="closeAttendanceModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
 
-      <!-- Controls & Summary Strip -->
       <div class="py-4 border-b border-gray-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <select id="attendanceClassSelect" onchange="loadAttendanceForClass(this.value)" class="bg-gray-50 dark:bg-space-850 text-gray-800 dark:text-slate-100 text-xs font-bold px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-700">
-            <option value="Physics 101">Physics 101 (Grade 10-A)</option>
-            <option value="Calculus II">Calculus II (Grade 9-B)</option>
-            <option value="Astronomy">Astronomy (Grade 11-C)</option>
+            <option value="Physics 101">Physics 101 (Grade 5-B)</option>
+            <option value="Calculus II">Calculus II (Grade 6-A)</option>
+            <option value="Astronomy">Astronomy (Grade 4-C)</option>
+            <option value="Algebra">Algebra (Grade 3-A)</option>
+            <option value="Science Lab">Science Lab (Grade 1-A)</option>
           </select>
           <span class="text-xs font-bold text-gray-600 dark:text-slate-300 bg-gray-100 dark:bg-space-850 px-3 py-1.5 rounded-xl">Today: Sep 23</span>
         </div>
 
-        <div class="flex items-center gap-2">
-          <button onclick="markAllPresent()" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 transition-colors">
-            <i class="fa-solid fa-check-double mr-1"></i> Mark All Present
-          </button>
-        </div>
+        <button onclick="markAllPresent()" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 transition-colors">
+          <i class="fa-solid fa-check-double mr-1"></i> Mark All Present
+        </button>
       </div>
 
-      <!-- Live Attendance KPI Stats -->
       <div class="grid grid-cols-4 gap-2.5 py-3 text-center text-xs">
         <div class="p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl">
           <p class="text-[10px] text-emerald-600 font-bold uppercase">Present</p>
@@ -783,19 +738,14 @@
         </div>
       </div>
 
-      <!-- Students List -->
-      <div class="flex-1 overflow-y-auto space-y-2 py-2 pr-1" id="attendanceStudentList">
-        <!-- Rendered dynamically -->
-      </div>
+      <div class="flex-1 overflow-y-auto space-y-2 py-2 pr-1" id="attendanceStudentList"></div>
 
-      <!-- Modal Footer -->
       <div class="pt-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-end gap-3">
         <button onclick="closeAttendanceModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-space-850">Cancel</button>
         <button onclick="saveAttendance()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold shadow-md shadow-orange-500/20 hover:opacity-95 flex items-center gap-1.5">
           <i class="fa-solid fa-floppy-disk"></i> Save Attendance
         </button>
       </div>
-
     </div>
   </div>
 
@@ -808,7 +758,7 @@
             <i class="fa-solid fa-wand-magic-sparkles text-purple-500"></i>
             <span>Forge New Homework Quest</span>
           </h3>
-          <p class="text-xs text-gray-500 dark:text-slate-400">Design a gamified weekly assignment for your students</p>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Assign gamified homework quest to a class</p>
         </div>
         <button onclick="closeQuestModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
@@ -825,10 +775,10 @@
           <div>
             <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Target Class</label>
             <select id="questClassInput" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
-              <option value="Physics 101">Physics 101 (Grade 10-A)</option>
-              <option value="Calculus II">Calculus II (Grade 9-B)</option>
-              <option value="Astronomy">Astronomy (Grade 11-C)</option>
-              <option value="Algebra">Algebra (Grade 8-A)</option>
+              <option value="Physics 101">Physics 101 (Grade 5-B)</option>
+              <option value="Calculus II">Calculus II (Grade 6-A)</option>
+              <option value="Astronomy">Astronomy (Grade 4-C)</option>
+              <option value="Algebra">Algebra (Grade 3-A)</option>
             </select>
           </div>
 
@@ -867,7 +817,7 @@
 
         <div class="flex items-center gap-2 pt-2">
           <input type="checkbox" id="questAiHintInput" checked class="w-4 h-4 rounded text-blue-600">
-          <label for="questAiHintInput" class="text-gray-700 dark:text-slate-300 text-xs">Enable AI Assistant Tutor Hints for struggling students</label>
+          <label for="questAiHintInput" class="text-gray-700 dark:text-slate-300 text-xs">Enable AI Assistant Tutor Hints for students</label>
         </div>
 
         <div class="pt-4 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
@@ -880,7 +830,71 @@
     </div>
   </div>
 
-  <!-- 3. Grading Arena Modal -->
+  <!-- 3. Create Exam Modal -->
+  <div id="examModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-space-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+      <div class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800 mb-4">
+        <div>
+          <h3 class="text-lg font-bold font-display text-gray-900 dark:text-white flex items-center gap-2">
+            <i class="fa-solid fa-file-signature text-cyan-500"></i>
+            <span>Create Homework Exam</span>
+          </h3>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Author a structured test with question analytics</p>
+        </div>
+        <button onclick="closeExamModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="createExamForm" onsubmit="handleCreateExam(event)" class="space-y-4 text-xs font-medium">
+        <div>
+          <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Exam Title *</label>
+          <input type="text" id="examTitleInput" required placeholder="e.g. Midterm Mechanics Evaluation" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white focus:outline-none focus:border-cyan-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Class</label>
+            <select id="examClassInput" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+              <option value="Physics 101">Physics 101 (Grade 5-B)</option>
+              <option value="Calculus II">Calculus II (Grade 6-A)</option>
+              <option value="Astronomy">Astronomy (Grade 4-C)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Total Questions</label>
+            <input type="number" id="examQuestionsInput" min="5" max="50" value="10" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Passing XP Reward</label>
+            <input type="number" id="examXpInput" min="100" max="1000" step="50" value="500" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+          </div>
+          <div>
+            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Due Date</label>
+            <input type="date" id="examDateInput" value="2026-09-28" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <input type="checkbox" id="examAiFaults" checked class="w-4 h-4 rounded text-cyan-600">
+          <label for="examAiFaults" class="text-gray-700 dark:text-slate-300 text-xs">Enable Automatic Question Fault Analysis & Parent Feedback</label>
+        </div>
+
+        <div class="pt-4 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
+          <button type="button" onclick="closeExamModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-space-850">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-bold shadow-md shadow-cyan-500/20 hover:opacity-95 flex items-center gap-1.5">
+            <i class="fa-solid fa-check"></i> Create Exam
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. Grading Arena Modal -->
   <div id="gradingModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white dark:bg-space-900 rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
       <div class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800 mb-4">
@@ -889,14 +903,13 @@
             <i class="fa-solid fa-award text-amber-500"></i>
             <span>Grading Arena</span>
           </h3>
-          <p class="text-xs text-gray-500 dark:text-slate-400">Review student work, assign rubric marks, and award XP</p>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Review student homework submission, rubric marks & award XP</p>
         </div>
         <button onclick="closeGradingModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
 
-      <!-- Student Card -->
       <div class="p-3.5 bg-gray-50 dark:bg-space-850 rounded-2xl flex items-center gap-3.5 mb-4">
         <div class="w-11 h-11 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center text-white font-bold">
           AT
@@ -910,7 +923,6 @@
         </div>
       </div>
 
-      <!-- Rubric Criteria Checkbox Group -->
       <div class="space-y-2 mb-4">
         <label class="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Evaluation Rubric</label>
         <div class="p-3 bg-gray-50 dark:bg-space-850 rounded-xl space-y-2 text-xs">
@@ -929,7 +941,6 @@
         </div>
       </div>
 
-      <!-- Interactive XP Slider -->
       <div class="mb-5 space-y-2">
         <div class="flex items-center justify-between">
           <label class="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Award XP Points</label>
@@ -938,7 +949,6 @@
         <input type="range" id="gradingXpSlider" min="50" max="500" step="25" value="250" oninput="updateGradingXp(this.value)" class="w-full h-2 bg-gray-200 dark:bg-space-700 rounded-lg appearance-none cursor-pointer">
       </div>
 
-      <!-- Teacher Feedback Textarea -->
       <div class="mb-5 space-y-1.5">
         <label class="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Note to Student & Parent</label>
         <textarea id="gradingFeedbackInput" rows="2" placeholder="e.g. Exceptional attention to detail on the acceleration vector calculations!" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white text-xs focus:outline-none"></textarea>
@@ -953,7 +963,7 @@
     </div>
   </div>
 
-  <!-- 4. Parent Chat Messenger Modal -->
+  <!-- 5. Parent Chat Messenger Modal -->
   <div id="chatModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white dark:bg-space-900 rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 dark:border-slate-800 max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95">
       <div class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800">
@@ -964,7 +974,7 @@
           <div>
             <h3 class="text-sm font-bold text-gray-900 dark:text-white">Mrs. Thorne</h3>
             <p class="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online • Parent of Aiden Thorne (Grade 10-A)
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online • Parent of Aiden Thorne (Grade 5-B)
             </p>
           </div>
         </div>
@@ -973,7 +983,6 @@
         </button>
       </div>
 
-      <!-- Message History -->
       <div id="chatMessageList" class="flex-1 overflow-y-auto py-4 space-y-3 pr-1 text-xs">
         <div class="flex items-start gap-2.5">
           <div class="w-7 h-7 rounded-lg bg-green-100 text-green-700 flex items-center justify-center font-bold text-[10px] flex-shrink-0">MT</div>
@@ -992,7 +1001,6 @@
         </div>
       </div>
 
-      <!-- Composer Input -->
       <div class="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center gap-2">
         <input type="text" id="chatComposerInput" onkeydown="if(event.key==='Enter') sendChatMessage()" placeholder="Type a message to parent..." class="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-space-850 text-gray-800 dark:text-white placeholder-gray-400 rounded-xl border border-gray-200 dark:border-slate-700 text-xs focus:outline-none focus:border-blue-500">
         <button onclick="sendChatMessage()" class="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors">
@@ -1002,19 +1010,18 @@
     </div>
   </div>
 
-  <!-- ==================== JAVASCRIPT APPLICATION LOGIC ==================== -->
+  <!-- ==================== LOGIC ==================== -->
   <script>
-    // Initial State
     const state = {
       darkMode: false,
       audioEnabled: true,
-      kpiMode: 'school', // 'school' | 'quest'
+      kpiMode: 'school',
       currentWeekOffset: 0,
       activeFilterClass: 'ALL',
       activeFilterTier: 'ALL',
       searchQuery: '',
       chartInstance: null,
-      
+
       // Quests array (Kanban Monday-Friday)
       quests: [
         { id: 1, title: "Kinematics & Freefall Vectors", class: "Physics 101", tier: "COMMON", day: "Monday", xp: 200, done: 26, total: 28, due: "Mon 4:00 PM", status: "ACTIVE", objective: "Solve questions 1-5" },
@@ -1027,47 +1034,45 @@
 
       // Students array for attendance
       students: [
-        { id: 1, name: "Aiden Thorne", roll: "10A-01", status: "PRESENT", note: "Outstanding participation in kinematics." },
-        { id: 2, name: "Maya Lin", roll: "10A-02", status: "PRESENT", note: "" },
-        { id: 3, name: "Leo Vance", roll: "10A-03", status: "PRESENT", note: "" },
-        { id: 4, name: "Sophia Martinez", roll: "10A-04", status: "LATE", note: "Arrived at 8:15 AM (traffic)." },
-        { id: 5, name: "Ethan Hunt", roll: "10A-05", status: "PRESENT", note: "" },
-        { id: 6, name: "Chloe Dupont", roll: "10A-06", status: "ABSENT", note: "Doctor appointment excused note." }
+        { id: 1, name: "Aiden Thorne", roll: "5B-01", status: "PRESENT", note: "Outstanding participation in kinematics." },
+        { id: 2, name: "Maya Lin", roll: "6A-02", status: "PRESENT", note: "" },
+        { id: 3, name: "Leo Vance", roll: "4C-03", status: "PRESENT", note: "" },
+        { id: 4, name: "Sophia Martinez", roll: "3A-04", status: "LATE", note: "Arrived at 8:15 AM (traffic)." },
+        { id: 5, name: "Ethan Hunt", roll: "5B-05", status: "PRESENT", note: "" },
+        { id: 6, name: "Chloe Dupont", roll: "5B-06", status: "ABSENT", note: "Doctor appointment excused note." }
       ],
 
-      // Classes
+      // Classes (6 Grades)
       classes: [
-        { id: 'c1', name: "Physics 101", grade: "Grade 10-A", students: 28, attendanceRate: "96.4%", color: "from-blue-500 to-indigo-600", lightBg: "bg-blue-50" },
-        { id: 'c2', name: "Calculus II", grade: "Grade 9-B", students: 24, attendanceRate: "95.8%", color: "from-purple-500 to-pink-600", lightBg: "bg-purple-50" },
-        { id: 'c3', name: "Astronomy", grade: "Grade 11-C", students: 20, attendanceRate: "98.0%", color: "from-pink-500 to-rose-600", lightBg: "bg-pink-50" },
-        { id: 'c4', name: "Algebra", grade: "Grade 8-A", students: 30, attendanceRate: "93.3%", color: "from-emerald-500 to-teal-600", lightBg: "bg-emerald-50" }
+        { id: 'c1', name: "Physics 101", grade: "Grade 5-B", students: 28, attendanceRate: "96.4%", color: "from-blue-500 to-indigo-600" },
+        { id: 'c2', name: "Calculus II", grade: "Grade 6-A", students: 24, attendanceRate: "95.8%", color: "from-purple-500 to-pink-600" },
+        { id: 'c3', name: "Astronomy", grade: "Grade 4-C", students: 20, attendanceRate: "98.0%", color: "from-pink-500 to-rose-600" },
+        { id: 'c4', name: "Algebra", grade: "Grade 3-A", students: 30, attendanceRate: "93.3%", color: "from-emerald-500 to-teal-600" },
+        { id: 'c5', name: "Science Lab", grade: "Grade 1-A", students: 25, attendanceRate: "97.5%", color: "from-cyan-500 to-blue-600" },
+        { id: 'c6', name: "Creative Math", grade: "Grade 2-B", students: 22, attendanceRate: "95.0%", color: "from-amber-500 to-orange-600" }
       ],
 
-      // Events
+      // Schedule & deadlines
       events: [
-        { id: 'e1', title: "Parent-Teacher Conference", date: "Tomorrow, Sep 24", time: "10:00 AM", location: "Main Hall", color: "blue" },
-        { id: 'e2', title: "Physics Science Fair Submissions", date: "Thu, Sep 25", time: "02:00 PM", location: "Lab 3", color: "purple" },
-        { id: 'e3', title: "Midterm Curriculum Review", date: "Mon, Sep 29", time: "09:00 AM", location: "Room 204", color: "pink" },
-        { id: 'e4', title: "Council Assembly", date: "Fri, Oct 03", time: "03:30 PM", location: "Auditorium", color: "green" }
+        { id: 'e1', title: "Physics 101 Midterm Exam", date: "Thu, Sep 25", time: "10:00 AM", location: "Lab 3", color: "blue" },
+        { id: 'e2', title: "Science Fair Quest Milestone", date: "Fri, Sep 26", time: "02:00 PM", location: "Auditorium", color: "purple" },
+        { id: 'e3', title: "Parent-Teacher Chat Conference", date: "Mon, Sep 29", time: "11:00 AM", location: "Online Room", color: "green" },
+        { id: 'e4', title: "Calculus II Diagnostic Quiz", date: "Tue, Sep 30", time: "09:00 AM", location: "Room 204", color: "pink" }
       ],
 
-      // Recent fee payments
-      recentPayments: [
-        { student: "Chloe Dupont", grade: "Grade 10-A", amount: "$450.00", date: "Today", status: "Paid" },
-        { student: "Marcus Brody", grade: "Grade 9-B", amount: "$380.00", date: "Yesterday", status: "Paid" },
-        { student: "Zara Al-Mansoor", grade: "Grade 11-C", amount: "$520.00", date: "Sep 21", status: "Paid" }
+      // Real exams data (Replaces dummy fees!)
+      recentExams: [
+        { title: "Newton's 2nd Law Exam", class: "Physics 101 (Grade 5-B)", score: "86.5% Avg", status: "Graded" },
+        { title: "Trig Derivatives Test", class: "Calculus II (Grade 6-A)", score: "91.2% Avg", status: "Graded" },
+        { title: "Kepler's Planetary Quiz", class: "Astronomy (Grade 4-C)", score: "88.0% Avg", status: "Active" }
       ]
     };
 
     // ==================== AUDIO SYNTHESIZER ====================
     let audioCtx = null;
     function getAudioContext() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
       return audioCtx;
     }
 
@@ -1098,22 +1103,20 @@
           osc.start(now);
           osc.stop(now + 0.08);
         } else if (type === 'quest_created') {
-          // Rising triad arpeggio (C5 - E5 - G5 - C6)
           const notes = [523.25, 659.25, 783.99, 1046.50];
           notes.forEach((freq, idx) => {
-            const noteOsc = ctx.createOscillator();
-            const noteGain = ctx.createGain();
-            noteOsc.connect(noteGain);
-            noteGain.connect(ctx.destination);
-            noteOsc.type = 'triangle';
-            noteOsc.frequency.setValueAtTime(freq, now + idx * 0.06);
-            noteGain.gain.setValueAtTime(0.15, now + idx * 0.06);
-            noteGain.gain.linearRampToValueAtTime(0.01, now + (idx + 1) * 0.06 + 0.08);
-            noteOsc.start(now + idx * 0.06);
-            noteOsc.stop(now + (idx + 1) * 0.06 + 0.08);
+            const nOsc = ctx.createOscillator();
+            const nGain = ctx.createGain();
+            nOsc.connect(nGain);
+            nGain.connect(ctx.destination);
+            nOsc.type = 'triangle';
+            nOsc.frequency.setValueAtTime(freq, now + idx * 0.06);
+            nGain.gain.setValueAtTime(0.15, now + idx * 0.06);
+            nGain.gain.linearRampToValueAtTime(0.01, now + (idx + 1) * 0.06 + 0.08);
+            nOsc.start(now + idx * 0.06);
+            nOsc.stop(now + (idx + 1) * 0.06 + 0.08);
           });
         } else if (type === 'xp_award') {
-          // Victorious chord
           [659.25, 830.61, 987.77, 1318.51].forEach((freq) => {
             const chordOsc = ctx.createOscillator();
             const chordGain = ctx.createGain();
@@ -1127,22 +1130,13 @@
             chordOsc.stop(now + 0.6);
           });
         }
-      } catch (err) {
-        // AudioContext may be restricted by browser gesture requirements
-      }
+      } catch (err) {}
     }
 
     // ==================== THEME MANAGEMENT ====================
     function initTheme() {
       const savedTheme = localStorage.getItem('hq_theme');
-      if (savedTheme === 'dark') {
-        state.darkMode = true;
-      } else if (savedTheme === 'light') {
-        state.darkMode = false;
-      } else {
-        // Default to light as requested in "fix light theme"
-        state.darkMode = false;
-      }
+      state.darkMode = savedTheme === 'dark';
       applyThemeClasses();
     }
 
@@ -1203,19 +1197,13 @@
       }
     }
 
-    // ==================== TOAST MESSAGES ====================
     function showToast(message, color = 'blue', icon = 'fa-circle-check') {
       const container = document.getElementById('toastContainer');
       const toast = document.createElement('div');
       toast.className = `flex items-center gap-3 px-4 py-3 rounded-2xl bg-white dark:bg-space-900 border border-gray-100 dark:border-slate-800 shadow-xl text-gray-800 dark:text-white text-xs font-semibold pointer-events-auto transform transition-all duration-300 translate-y-2 opacity-0`;
-      toast.innerHTML = `
-        <i class="fa-solid ${icon} text-${color}-500 text-sm"></i>
-        <span>${message}</span>
-      `;
+      toast.innerHTML = `<i class="fa-solid ${icon} text-${color}-500 text-sm"></i><span>${message}</span>`;
       container.appendChild(toast);
-      requestAnimationFrame(() => {
-        toast.classList.remove('translate-y-2', 'opacity-0');
-      });
+      requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
       setTimeout(() => {
         toast.classList.add('opacity-0', 'translate-x-4');
         setTimeout(() => toast.remove(), 300);
@@ -1233,28 +1221,28 @@
         schoolBtn.className = "px-3 py-1.5 rounded-lg bg-white dark:bg-space-800 text-blue-600 dark:text-blue-400 shadow-sm transition-all";
         questBtn.className = "px-3 py-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 transition-all";
         
-        document.getElementById('kpi-label-1').textContent = "Total Students";
-        document.getElementById('kpi-value-1').textContent = "2,847";
-        document.getElementById('kpi-icon-1').className = "fa-solid fa-user-graduate text-xl";
+        document.getElementById('kpi-label-1').textContent = "Active Quests";
+        document.getElementById('kpi-value-1').textContent = state.quests.length.toString();
+        document.getElementById('kpi-icon-1').className = "fa-solid fa-scroll text-xl";
 
-        document.getElementById('kpi-label-2').textContent = "Total Teachers";
-        document.getElementById('kpi-value-2').textContent = "142";
-        document.getElementById('kpi-icon-2').className = "fa-solid fa-chalkboard-user text-xl";
+        document.getElementById('kpi-label-2').textContent = "Attendance Rate";
+        document.getElementById('kpi-value-2').textContent = "96.4%";
+        document.getElementById('kpi-icon-2').className = "fa-solid fa-clipboard-check text-xl";
 
-        document.getElementById('kpi-label-3').textContent = "Active Classes";
-        document.getElementById('kpi-value-3').textContent = "86";
-        document.getElementById('kpi-icon-3').className = "fa-solid fa-school text-xl";
+        document.getElementById('kpi-label-3').textContent = "Lessons Created";
+        document.getElementById('kpi-value-3').textContent = "42";
+        document.getElementById('kpi-icon-3').className = "fa-solid fa-book-open text-xl";
 
-        document.getElementById('kpi-label-4').textContent = "Attendance Rate";
-        document.getElementById('kpi-value-4').textContent = "94.2%";
-        document.getElementById('kpi-icon-4').className = "fa-solid fa-clipboard-check text-xl";
+        document.getElementById('kpi-label-4').textContent = "Needs Grading";
+        document.getElementById('kpi-value-4').textContent = "12";
+        document.getElementById('kpi-icon-4').className = "fa-solid fa-award text-xl";
       } else {
         questBtn.className = "px-3 py-1.5 rounded-lg bg-white dark:bg-space-800 text-blue-600 dark:text-blue-400 shadow-sm transition-all";
         schoolBtn.className = "px-3 py-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 transition-all";
 
-        document.getElementById('kpi-label-1').textContent = "Active Quests";
-        document.getElementById('kpi-value-1').textContent = state.quests.length.toString();
-        document.getElementById('kpi-icon-1').className = "fa-solid fa-scroll text-xl";
+        document.getElementById('kpi-label-1').textContent = "Total Students";
+        document.getElementById('kpi-value-1').textContent = "182";
+        document.getElementById('kpi-icon-1').className = "fa-solid fa-user-graduate text-xl";
 
         document.getElementById('kpi-label-2').textContent = "Submission Rate";
         document.getElementById('kpi-value-2').textContent = "88.4%";
@@ -1264,9 +1252,9 @@
         document.getElementById('kpi-value-3').textContent = "1,420 XP";
         document.getElementById('kpi-icon-3').className = "fa-solid fa-bolt text-xl";
 
-        document.getElementById('kpi-label-4').textContent = "Needs Grading";
-        document.getElementById('kpi-value-4').textContent = "12";
-        document.getElementById('kpi-icon-4').className = "fa-solid fa-inbox text-xl";
+        document.getElementById('kpi-label-4').textContent = "Exams Scheduled";
+        document.getElementById('kpi-value-4').textContent = "3";
+        document.getElementById('kpi-icon-4').className = "fa-solid fa-file-signature text-xl";
       }
     }
 
@@ -1280,13 +1268,13 @@
       const gridColor = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)';
       const textColor = isDark ? '#94a3b8' : '#64748b';
 
-      const studentGrad = ctx.createLinearGradient(0, 0, 0, 240);
-      studentGrad.addColorStop(0, 'rgba(59, 130, 246, 0.35)');
-      studentGrad.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+      const grad1 = ctx.createLinearGradient(0, 0, 0, 240);
+      grad1.addColorStop(0, 'rgba(59, 130, 246, 0.35)');
+      grad1.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
 
-      const teacherGrad = ctx.createLinearGradient(0, 0, 0, 240);
-      teacherGrad.addColorStop(0, 'rgba(168, 85, 247, 0.35)');
-      teacherGrad.addColorStop(1, 'rgba(168, 85, 247, 0.0)');
+      const grad2 = ctx.createLinearGradient(0, 0, 0, 240);
+      grad2.addColorStop(0, 'rgba(168, 85, 247, 0.35)');
+      grad2.addColorStop(1, 'rgba(168, 85, 247, 0.0)');
 
       state.chartInstance = new Chart(ctx, {
         type: 'line',
@@ -1294,10 +1282,10 @@
           labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
           datasets: [
             {
-              label: 'Students (%)',
+              label: 'Grade 1-3 (%)',
               data: [96.2, 94.8, 97.4, 93.9, 95.5],
               borderColor: '#3b82f6',
-              backgroundColor: studentGrad,
+              backgroundColor: grad1,
               fill: true,
               tension: 0.4,
               borderWidth: 3,
@@ -1306,10 +1294,10 @@
               pointHoverRadius: 6
             },
             {
-              label: 'Teachers (%)',
+              label: 'Grade 4-6 (%)',
               data: [98.5, 97.2, 98.0, 96.5, 99.1],
               borderColor: '#a855f7',
-              backgroundColor: teacherGrad,
+              backgroundColor: grad2,
               fill: true,
               tension: 0.4,
               borderWidth: 3,
@@ -1329,8 +1317,7 @@
               titleColor: '#ffffff',
               bodyColor: '#cbd5e1',
               padding: 10,
-              borderRadius: 12,
-              displayColors: true
+              borderRadius: 12
             }
           },
           scales: {
@@ -1438,7 +1425,6 @@
       if (sidebarQuestCount) sidebarQuestCount.textContent = state.quests.length.toString();
     }
 
-    // Filters
     function setFilterClass(className) {
       state.activeFilterClass = className;
       playAudio('click');
@@ -1547,27 +1533,26 @@
       });
     }
 
-    function renderRecentPayments() {
-      const container = document.getElementById('recentPaymentsList');
+    function renderRecentExams() {
+      const container = document.getElementById('recentExamsList');
       if (!container) return;
       container.innerHTML = '';
 
-      state.recentPayments.forEach(p => {
+      state.recentExams.forEach(ex => {
         const item = document.createElement('div');
-        item.className = "flex items-center justify-between p-2 rounded-xl bg-gray-50 dark:bg-space-850";
+        item.className = "flex items-center justify-between p-2.5 rounded-xl bg-gray-50 dark:bg-space-850";
         item.innerHTML = `
           <div>
-            <p class="font-bold text-gray-800 dark:text-slate-200">${p.student}</p>
-            <p class="text-[10px] text-gray-400">${p.grade} • ${p.date}</p>
+            <p class="font-bold text-gray-800 dark:text-slate-200">${ex.title}</p>
+            <p class="text-[10px] text-gray-400">${ex.class}</p>
           </div>
-          <span class="font-bold text-emerald-600 dark:text-emerald-400">${p.amount}</span>
+          <span class="font-bold text-blue-600 dark:text-blue-400">${ex.score}</span>
         `;
         container.appendChild(item);
       });
     }
 
     // ==================== MODAL HANDLERS ====================
-    // Attendance Modal
     function openAttendanceModal() {
       playAudio('click');
       renderAttendanceStudents();
@@ -1650,7 +1635,7 @@
       renderAttendanceStudents();
     }
 
-    // Forge Quest Modal
+    // Quest Modal
     function openQuestModal() {
       playAudio('click');
       document.getElementById('questModal').classList.remove('hidden');
@@ -1691,7 +1676,34 @@
       showToast(`Quest "${title}" forged successfully!`, 'purple', 'fa-wand-magic-sparkles');
     }
 
-    // Grading Arena Modal
+    // Exam Modal
+    function openExamModal() {
+      playAudio('click');
+      document.getElementById('examModal').classList.remove('hidden');
+    }
+
+    function closeExamModal() {
+      document.getElementById('examModal').classList.add('hidden');
+    }
+
+    function handleCreateExam(e) {
+      e.preventDefault();
+      const title = document.getElementById('examTitleInput').value.trim();
+      const cls = document.getElementById('examClassInput').value;
+      playAudio('quest_created');
+      closeExamModal();
+      state.recentExams.unshift({
+        title,
+        class: cls,
+        score: "Scheduled",
+        status: "Active"
+      });
+      renderRecentExams();
+      document.getElementById('createExamForm').reset();
+      showToast(`Exam "${title}" created and scheduled!`, 'cyan', 'fa-file-signature');
+    }
+
+    // Grading Modal
     function openGradingModal() {
       playAudio('click');
       document.getElementById('gradingModal').classList.remove('hidden');
@@ -1712,7 +1724,7 @@
       showToast(`Awarded ${xp} XP to Aiden Thorne!`, 'amber', 'fa-trophy');
     }
 
-    // Parent Chat Messenger Modal
+    // Chat Modal
     function openChatModal() {
       playAudio('click');
       document.getElementById('chatModal').classList.remove('hidden');
@@ -1744,13 +1756,11 @@
       showToast('Message sent to Mrs. Thorne', 'emerald', 'fa-paper-plane');
     }
 
-    // Add Student Placeholder
     function openAddStudentModal() {
       playAudio('click');
-      showToast('Enroll Student Dialog: Ready to accept new student application', 'blue', 'fa-user-plus');
+      showToast('Add Student: Directing to Class Student Enrollment', 'blue', 'fa-user-plus');
     }
 
-    // Notifications Menu
     function toggleNotifications() {
       playAudio('click');
       const menu = document.getElementById('notificationsMenu');
@@ -1763,7 +1773,6 @@
       showToast('All notifications marked as read', 'blue', 'fa-check');
     }
 
-    // Mobile Drawer
     function toggleMobileDrawer() {
       playAudio('click');
       const sidebar = document.getElementById('sidebar');
@@ -1772,10 +1781,8 @@
       backdrop.classList.toggle('hidden');
     }
 
-    // Sidebar navigation dispatcher
     function navigateTab(tab) {
       playAudio('click');
-      // Update nav styling
       document.querySelectorAll('.nav-item').forEach(el => {
         el.className = "nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850";
       });
@@ -1784,29 +1791,23 @@
         activeEl.className = "nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/20";
       }
 
-      if (tab === 'attendance') {
-        openAttendanceModal();
-      } else if (tab === 'grading') {
-        openGradingModal();
-      } else if (tab === 'chat') {
-        openChatModal();
-      } else if (tab === 'planner') {
-        scrollToPlanner();
-      } else {
-        showToast(`Viewing ${tab.toUpperCase()} Area`, 'blue', 'fa-table-columns');
-      }
+      if (tab === 'attendance') openAttendanceModal();
+      else if (tab === 'grading') openGradingModal();
+      else if (tab === 'chat') openChatModal();
+      else if (tab === 'quests') openQuestModal();
+      else if (tab === 'exams') openExamModal();
+      else if (tab === 'planner') scrollToPlanner();
+      else showToast(`Viewing ${tab.toUpperCase()} Area`, 'blue', 'fa-table-columns');
     }
 
-    // ==================== INITIALIZATION ====================
     window.addEventListener('DOMContentLoaded', () => {
       initTheme();
       initWeeklyAttendanceChart();
       renderKanban();
       renderClasses();
       renderEvents();
-      renderRecentPayments();
+      renderRecentExams();
 
-      // Keyboard shortcut ⌘K for search focus
       window.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
           e.preventDefault();

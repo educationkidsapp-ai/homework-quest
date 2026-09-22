@@ -44,21 +44,6 @@ interface SchoolEventItem {
   readonly color: 'blue' | 'purple' | 'pink' | 'green' | 'orange';
 }
 
-interface FeeStatItem {
-  readonly label: string;
-  readonly value: string;
-  readonly change: string;
-  readonly type: 'success' | 'warning' | 'danger';
-}
-
-interface PaymentItem {
-  readonly student: string;
-  readonly class: string;
-  readonly amount: string;
-  readonly status: 'Paid' | 'Pending';
-  readonly date: string;
-}
-
 /**
  * Home, for all three roles — matching EduManage School Management System Dashboard
  * from https://cork-flap-52975231.figma.site/
@@ -439,57 +424,38 @@ interface PaymentItem {
                 </div>
               </section>
 
-              <!-- Fee Status / Financial Card -->
+              <!-- Exams & Homework Tests Card -->
               <section class="em-card">
                 <div class="em-card-header">
                   <div>
-                    <h2 class="em-card-title">Fee Status</h2>
-                    <p class="em-card-subtitle">Monthly overview</p>
+                    <h2 class="em-card-title">{{ 'nav.exams' | transloco }}</h2>
+                    <p class="em-card-subtitle">{{ 'home.activeClasses' | transloco }}</p>
                   </div>
                   <svg class="em-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
                   </svg>
                 </div>
 
                 <div class="em-fees-overview">
-                  @for (f of feeStats; track f.label) {
-                    <div class="em-fee-block">
-                      <div class="em-fee-top">
-                        <span class="em-fee-label">{{ f.label }}</span>
-                        <span class="em-fee-change" [ngClass]="'em-fee-change--' + f.type">{{ f.change }}</span>
-                      </div>
-                      <h3 class="em-fee-value">{{ f.value }}</h3>
+                  <div class="em-fee-block">
+                    <div class="em-fee-top">
+                      <span class="em-fee-label">Active Exams</span>
+                      <span class="em-fee-change em-fee-change--success">Scheduled</span>
                     </div>
-                  }
-                </div>
-
-                <div class="em-recent-payments">
-                  <h3 class="em-section-micro-title">Recent Payments</h3>
-                  <div class="em-payments-list">
-                    @for (p of recentPayments; track p.student) {
-                      <div class="em-payment-row">
-                        <div class="em-payment-info">
-                          <p class="em-payment-student">{{ p.student }}</p>
-                          <p class="em-payment-class">{{ p.class }}</p>
-                        </div>
-                        <div class="em-payment-meta">
-                          <p class="em-payment-amount">{{ p.amount }}</p>
-                          <span
-                            class="em-pill"
-                            [class.em-pill--present]="p.status === 'Paid'"
-                            [class.em-pill--leave]="p.status === 'Pending'"
-                          >
-                            {{ p.status }}
-                          </span>
-                        </div>
-                      </div>
-                    }
+                    <h3 class="em-fee-value">3</h3>
+                  </div>
+                  <div class="em-fee-block">
+                    <div class="em-fee-top">
+                      <span class="em-fee-label">Needs Grading</span>
+                      <span class="em-fee-change em-fee-change--warning">Pending</span>
+                    </div>
+                    <h3 class="em-fee-value">12</h3>
                   </div>
                 </div>
 
-                <button type="button" class="em-btn-gradient">
-                  View All Transactions
-                </button>
+                <a routerLink="/teacher/exams/new" class="em-btn-gradient">
+                  {{ 'action.create' | transloco }}
+                </a>
               </section>
             </div>
           </div>
@@ -1197,20 +1163,6 @@ export class HomePage {
     { title: 'Winter Break Starts', date: 'Dec 20, 2025', time: 'All Day', location: 'School Wide', color: 'pink' },
     { title: 'Sports Day', date: 'Dec 22, 2025', time: '8:00 AM', location: 'Sports Ground', color: 'green' },
     { title: 'Annual Day Celebration', date: 'Dec 28, 2025', time: '5:00 PM', location: 'Auditorium', color: 'orange' },
-  ];
-
-  // EduManage Fee Status Data
-  protected readonly feeStats: readonly FeeStatItem[] = [
-    { label: 'Total Collected', value: '$847,250', change: '+12.5%', type: 'success' },
-    { label: 'Pending Fees', value: '$142,500', change: '-5.2%', type: 'warning' },
-    { label: 'Overdue', value: '$28,400', change: '-8.1%', type: 'danger' },
-  ];
-
-  protected readonly recentPayments: readonly PaymentItem[] = [
-    { student: 'Alex Morgan', class: 'Grade 10-A', amount: '$850', status: 'Paid', date: 'Dec 10' },
-    { student: 'Emma Wilson', class: 'Grade 9-B', amount: '$850', status: 'Paid', date: 'Dec 10' },
-    { student: 'James Brown', class: 'Grade 11-C', amount: '$900', status: 'Pending', date: 'Dec 9' },
-    { student: 'Olivia Davis', class: 'Grade 8-A', amount: '$800', status: 'Paid', date: 'Dec 8' },
   ];
 
   protected readonly greeting = computed(() => {
