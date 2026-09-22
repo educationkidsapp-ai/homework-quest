@@ -14,6 +14,7 @@ export default tseslint.config(
       'src/app/api/generated/**',
       'coverage/**',
       'e2e/.output/**',
+      'public/**',
     ],
   },
   // Application code: typed linting plus the Angular rules.
