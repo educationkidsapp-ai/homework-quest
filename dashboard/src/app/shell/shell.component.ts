@@ -137,6 +137,7 @@ import { ShellHeaderComponent } from './shell-header.component';
       display: flex;
       align-items: stretch;
       min-block-size: 100vh;
+      background: linear-gradient(135deg, #eff6ff 0%, #faf5ff 50%, #fff1f2 100%);
     }
 
     // The rail's own sticky/width behaviour, and its stacking, are the component's; the shell

@@ -12,32 +12,64 @@ import { ThemeService } from '../../core/theme/theme.service';
 import {
   BandComponent,
   ButtonComponent,
-  CardComponent,
   CountUpDirective,
-  EmptyStateComponent,
-  ListStaggerDirective,
   PageComponent,
   SkeletonComponent,
 } from '../../ui';
 
+interface QuickActionItem {
+  readonly label: string;
+  readonly icon: string;
+  readonly link: string;
+  readonly queryParams?: Record<string, string>;
+  readonly color: string;
+  readonly bgColor: string;
+}
+
+interface TeacherStaffItem {
+  readonly name: string;
+  readonly subject: string;
+  readonly email: string;
+  readonly phone: string;
+  readonly status: 'Present' | 'On Leave';
+  readonly avatar: string;
+  readonly gradient: string;
+}
+
+interface SchoolEventItem {
+  readonly title: string;
+  readonly date: string;
+  readonly time: string;
+  readonly location: string;
+  readonly color: 'blue' | 'purple' | 'pink' | 'green' | 'orange';
+}
+
+interface FeeStatItem {
+  readonly label: string;
+  readonly value: string;
+  readonly change: string;
+  readonly type: 'success' | 'warning' | 'danger';
+}
+
+interface PaymentItem {
+  readonly student: string;
+  readonly class: string;
+  readonly amount: string;
+  readonly status: 'Paid' | 'Pending';
+  readonly date: string;
+}
+
 /**
- * Home, for all three roles (§6 screen 2).
- *
- * One component, because `GET /me/home` is one endpoint with one shape: the person's name,
- * the school's logo, three numbers that count up, and a list of what needs them.
- * For teachers, it renders the modernized EduManage hero cards, 6 quick actions,
- * attendance trends, and class shortcuts.
+ * Home, for all three roles — matching EduManage School Management System Dashboard
+ * from https://cork-flap-52975231.figma.site/
  */
 @Component({
   selector: 'hq-home-page',
   imports: [
     NgClass,
     PageComponent,
-    CardComponent,
     CountUpDirective,
-    ListStaggerDirective,
     SkeletonComponent,
-    EmptyStateComponent,
     BandComponent,
     ButtonComponent,
     RouterLink,
@@ -74,492 +106,393 @@ import {
           </div>
         </div>
       } @else {
-        <div class="home">
-          @if (isTeacher()) {
-            <!-- ================= Teacher Hero Stat Cards ================= -->
-            <section class="teacher__hero-stats" [attr.aria-label]="'home.cardsLabel' | transloco" data-hq-tour="cards">
-              @for (card of cards(); track card.key) {
-                <div class="teacher__stat-card">
-                  <div class="teacher__stat-header">
-                    <div class="teacher__stat-icon" [ngClass]="statIconClass(card.key)" aria-hidden="true">
-                      @switch (card.key) {
-                        @case ('playedYesterday') {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polygon points="6 3 20 12 6 21 6 3" />
-                          </svg>
-                        }
-                        @case ('lessonsThisWeek') {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="4" width="18" height="18" rx="2" />
-                            <path d="M16 2v4M8 2v4M3 10h18" />
-                          </svg>
-                        }
-                        @case ('needsReview') {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-                          </svg>
-                        }
-                        @default {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10" />
-                          </svg>
-                        }
-                      }
-                    </div>
-                    <span class="teacher__trend-badge teacher__trend-badge--up">
-                      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
-                      +5.1%
-                    </span>
-                  </div>
-                  <div class="teacher__stat-body">
-                    <div class="teacher__stat-value"><span [hqCountUp]="card.value"></span></div>
-                    <div class="teacher__stat-label">{{ cardLabel(card.key) }}</div>
-                  </div>
-                </div>
-              }
-              <!-- Stat: Attendance Rate -->
-              <div class="teacher__stat-card">
-                <div class="teacher__stat-header">
-                  <div class="teacher__stat-icon teacher__stat-icon--purple" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                      <polyline points="22 4 12 14.01 9 11.01" />
-                    </svg>
-                  </div>
-                  <span class="teacher__trend-badge teacher__trend-badge--up">
+        <div class="em-dashboard">
+          <!-- ================= 1. Four Hero Stats Cards ================= -->
+          <section class="em-stats-grid" [attr.aria-label]="'home.cardsLabel' | transloco" data-hq-tour="cards">
+            @for (card of cards(); track card.key) {
+              <div class="em-stat-card">
+                <div class="em-stat-info">
+                  <p class="em-stat-label">{{ cardLabel(card.key) }}</p>
+                  <h3 class="em-stat-value"><span [hqCountUp]="card.value"></span></h3>
+                  <div class="em-stat-trend em-stat-trend--up">
                     <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
-                    +2.4%
-                  </span>
+                    <span>+12.5%</span>
+                    <span class="em-stat-trend-sub">vs last month</span>
+                  </div>
                 </div>
-                <div class="teacher__stat-body">
-                  <div class="teacher__stat-value">98.2%</div>
-                  <div class="teacher__stat-label">{{ 'home.stats.attendanceRate' | transloco }}</div>
-                </div>
-              </div>
-            </section>
-
-            <!-- ================= Quick Actions (6 Cards) ================= -->
-            <section class="teacher__quick-actions" [attr.aria-label]="'home.quickActions.title' | transloco">
-              <div class="teacher__section-title">{{ 'home.quickActions.title' | transloco }}</div>
-              <div class="teacher__actions-grid">
-                <!-- 1. Add Student -->
-                <a class="teacher__action-card teacher__action-card--blue" routerLink="/teacher/classes">
-                  <div class="teacher__action-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                      <circle cx="8.5" cy="7" r="4" />
-                      <line x1="20" y1="8" x2="20" y2="14" />
-                      <line x1="23" y1="11" x2="17" y2="11" />
-                    </svg>
-                  </div>
-                  <span class="teacher__action-title">{{ 'home.quickActions.addStudent' | transloco }}</span>
-                </a>
-
-                <!-- 2. Mark Attendance -->
-                <a class="teacher__action-card teacher__action-card--green" routerLink="/teacher/classes" [queryParams]="{tab: 'attendance'}">
-                  <div class="teacher__action-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M9 11l3 3L22 4" />
-                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                    </svg>
-                  </div>
-                  <span class="teacher__action-title">{{ 'home.quickActions.markAttendance' | transloco }}</span>
-                </a>
-
-                <!-- 3. Lesson Creator -->
-                <a class="teacher__action-card teacher__action-card--purple" routerLink="/teacher/lessons/new">
-                  <div class="teacher__action-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                  </div>
-                  <span class="teacher__action-title">{{ 'home.quickActions.lessonCreator' | transloco }}</span>
-                </a>
-
-                <!-- 4. Create Exam -->
-                <a class="teacher__action-card teacher__action-card--amber" routerLink="/teacher/exams/new">
-                  <div class="teacher__action-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                    </svg>
-                  </div>
-                  <span class="teacher__action-title">{{ 'home.quickActions.createExam' | transloco }}</span>
-                </a>
-
-                <!-- 5. Message Parents -->
-                <a class="teacher__action-card teacher__action-card--cyan" routerLink="/teacher/chat">
-                  <div class="teacher__action-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
-                  </div>
-                  <span class="teacher__action-title">{{ 'home.quickActions.messageParents' | transloco }}</span>
-                </a>
-
-                <!-- 6. Weekly Schedule -->
-                <a class="teacher__action-card teacher__action-card--rose" routerLink="/teacher/week">
-                  <div class="teacher__action-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="3" y="4" width="18" height="18" rx="2" />
-                      <line x1="16" y1="2" x2="16" y2="6" />
-                      <line x1="8" y1="2" x2="8" y2="6" />
-                      <line x1="3" y1="10" x2="21" y2="10" />
-                    </svg>
-                  </div>
-                  <span class="teacher__action-title">{{ 'home.quickActions.weeklySchedule' | transloco }}</span>
-                </a>
-              </div>
-            </section>
-
-            <!-- ================= Main Split: Left (Attendance + Needs) | Right (Classes) ================= -->
-            <div class="teacher__main-split">
-              <!-- Left Column -->
-              <div class="teacher__column">
-                <!-- Weekly Attendance Card -->
-                <div class="teacher__panel">
-                  <div class="teacher__panel-header">
-                    <div class="teacher__panel-heading-group">
-                      <h3 class="teacher__panel-title">{{ 'home.attendance.weeklyTitle' | transloco }}</h3>
-                      <p class="teacher__panel-subtitle">{{ 'home.attendance.weeklySubtitle' | transloco }}</p>
-                    </div>
-                    <div class="teacher__panel-badge">{{ 'home.attendance.thisWeek' | transloco }}</div>
-                  </div>
-
-                  <!-- Metrics Legend Row -->
-                  <div class="teacher__attendance-legend">
-                    <div class="teacher__attendance-pill teacher__attendance-pill--present">
-                      <span class="teacher__dot"></span>
-                      <span class="teacher__pill-label">{{ 'home.attendance.presentRate' | transloco }}</span>
-                      <span class="teacher__pill-value">96.4%</span>
-                    </div>
-                    <div class="teacher__attendance-pill teacher__attendance-pill--late">
-                      <span class="teacher__dot"></span>
-                      <span class="teacher__pill-label">{{ 'home.attendance.lateRate' | transloco }}</span>
-                      <span class="teacher__pill-value">2.1%</span>
-                    </div>
-                    <div class="teacher__attendance-pill teacher__attendance-pill--absent">
-                      <span class="teacher__dot"></span>
-                      <span class="teacher__pill-label">{{ 'home.attendance.absentRate' | transloco }}</span>
-                      <span class="teacher__pill-value">1.5%</span>
-                    </div>
-                  </div>
-
-                  <!-- Bar Chart Visualization -->
-                  <div class="teacher__bars-container">
-                    @for (day of weeklyAttendance; track day.dayKey) {
-                      <div class="teacher__bar-col">
-                        <span class="teacher__bar-value">{{ day.percent }}%</span>
-                        <div class="teacher__bar-track">
-                          <div class="teacher__bar-fill" [style.height.%]="day.percent"></div>
-                        </div>
-                        <span class="teacher__bar-label">{{ 'home.attendance.days.' + day.dayKey | transloco }}</span>
-                      </div>
+                <div class="em-stat-icon-tile" [ngClass]="statIconGradient(card.key)">
+                  @switch (card.key) {
+                    @case ('playedYesterday') {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="6 3 20 12 6 21 6 3" />
+                      </svg>
                     }
-                  </div>
-
-                  <div class="teacher__panel-footer">
-                    <a class="teacher__footer-link" routerLink="/teacher/classes" [queryParams]="{tab: 'attendance'}">
-                      {{ 'home.attendance.openSheet' | transloco }} &rarr;
-                    </a>
-                  </div>
-                </div>
-
-                <!-- Needs You Section -->
-                @if (needsYou().length > 0) {
-                  <div class="teacher__panel" data-hq-tour="needsYou">
-                    <div class="teacher__panel-header">
-                      <h3 class="teacher__panel-title">{{ 'home.needsYou' | transloco }}</h3>
-                      <span class="hq-badge hq-badge--primary">{{ needsYou().length }}</span>
-                    </div>
-                    <ul class="home__list" hqListStagger>
-                      @for (item of needsYou(); track item.kind + item.targetId) {
-                        <li class="home__row">
-                          <a class="home__row-link" [routerLink]="item.href">
-                            <span class="home__row-lead">
-                              <span class="home__row-bullet" aria-hidden="true"></span>
-                              <span class="home__row-text">{{ item.text }}</span>
-                            </span>
-                            <svg class="home__row-arrow" viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
-                              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                            </svg>
-                          </a>
-                        </li>
-                      }
-                    </ul>
-                  </div>
-                }
-
-                <!-- Weak Skills -->
-                @if (weakSkills(); as skills) {
-                  @if (skills.length > 0) {
-                    <div class="teacher__panel">
-                      <div class="teacher__panel-header">
-                        <h3 class="teacher__panel-title">{{ 'home.weakSkills' | transloco }}</h3>
-                        <span class="hq-badge hq-badge--warning">{{ skills.length }}</span>
-                      </div>
-                      <ul class="home__list" hqListStagger>
-                        @for (skill of skills; track skill.skillId) {
-                          <li class="home__row home__row--skill">
-                            <span class="home__skill-name">{{ skill.name }}</span>
-                            <span
-                              class="hq-badge"
-                              [class.hq-badge--warning]="skill.band === 'NEEDS_ANOTHER_LOOK'"
-                              [class.hq-badge--error]="skill.band === 'GETTING_THERE'"
-                              [class.hq-badge--success]="skill.band === 'GOING_WELL'"
-                            >
-                              {{ 'band.level.' + skill.band | transloco }}
-                            </span>
-                          </li>
-                        }
-                      </ul>
-                    </div>
-                  }
-                }
-              </div>
-
-              <!-- Right Column -->
-              <div class="teacher__column">
-                <!-- My Classes Card -->
-                <div class="teacher__panel" data-hq-tour="classes">
-                  <div class="teacher__panel-header">
-                    <div class="teacher__panel-heading-group">
-                      <h3 class="teacher__panel-title">{{ 'home.classes' | transloco }}</h3>
-                      @if (classes()?.length) {
-                        <span class="hq-badge">{{ classes()!.length }}</span>
-                      }
-                    </div>
-                    <a class="teacher__header-link" routerLink="/teacher/classes">
-                      {{ 'home.viewAll' | transloco }}
-                    </a>
-                  </div>
-
-                  @if (classes(); as teacherClasses) {
-                    @if (teacherClasses.length > 0) {
-                      <div class="teacher__classes-list">
-                        @for (klass of teacherClasses; track klass.classId) {
-                          <div class="teacher__class-item">
-                            <div class="teacher__class-meta">
-                              <div class="teacher__class-avatar">G{{ klass.grade }}</div>
-                              <div class="teacher__class-info">
-                                <span class="teacher__class-name">{{ classTitle(klass) }}</span>
-                                <span
-                                  class="teacher__class-status-pill"
-                                  [class.teacher__class-status-pill--ready]="klass.todayLessonId"
-                                  [class.teacher__class-status-pill--missing]="!klass.todayLessonId"
-                                >
-                                  {{ classStatus(klass) }}
-                                </span>
-                              </div>
-                            </div>
-                            <div class="teacher__class-item-actions">
-                              <a
-                                class="teacher__item-btn teacher__item-btn--attendance"
-                                [routerLink]="['/teacher/classes', klass.classId]"
-                                [queryParams]="{tab: 'attendance'}"
-                              >
-                                <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
-                                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                                </svg>
-                                {{ 'home.takeAttendance' | transloco }}
-                              </a>
-                              @if (!klass.todayLessonId) {
-                                <a
-                                  class="teacher__item-btn teacher__item-btn--primary"
-                                  [routerLink]="'/teacher/lessons/new'"
-                                  [queryParams]="newLessonParams(klass)"
-                                >
-                                  {{ 'home.addToday' | transloco }}
-                                </a>
-                              }
-                            </div>
-                          </div>
-                        }
-                      </div>
-                    } @else {
-                      <hq-empty-state [message]="'home.noClasses' | transloco" />
+                    @case ('lessonsThisWeek') {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" />
+                        <path d="M16 2v4M8 2v4M3 10h18" />
+                      </svg>
+                    }
+                    @case ('needsReview') {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+                      </svg>
+                    }
+                    @case ('schools') {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 21h18M3 7l9-4 9 4v14M9 21V9m6 12V9" />
+                      </svg>
+                    }
+                    @case ('children') {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                      </svg>
+                    }
+                    @default {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                      </svg>
                     }
                   }
                 </div>
+              </div>
+            }
+            @if (isTeacher()) {
+              <div class="em-stat-card">
+                <div class="em-stat-info">
+                  <p class="em-stat-label">{{ 'home.attendance.weeklyTitle' | transloco }}</p>
+                  <h3 class="em-stat-value">94.2%</h3>
+                  <div class="em-stat-trend em-stat-trend--up">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+                    <span>+2.4%</span>
+                    <span class="em-stat-trend-sub">vs last month</span>
+                  </div>
+                </div>
+                <div class="em-stat-icon-tile em-gradient--green">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                </div>
+              </div>
+            }
+          </section>
+
+          <!-- ================= 2. Quick Actions Panel ================= -->
+          <section class="em-card em-quick-actions-card" [attr.aria-label]="'home.quickActions.title' | transloco">
+            <div class="em-card-header">
+              <div>
+                <h2 class="em-card-title">{{ 'home.quickActions.title' | transloco }}</h2>
+                <p class="em-card-subtitle">{{ 'home.quickActions.subtitle' | transloco }}</p>
               </div>
             </div>
-          } @else {
-            <!-- Admin / Managerial standard layout -->
-            <section class="home__cards" [attr.aria-label]="'home.cardsLabel' | transloco" data-hq-tour="cards">
-              @for (card of cards(); track card.key) {
-                <hq-card class="home__metric-card">
-                  <div class="home__metric">
-                    <div class="home__metric-tile" aria-hidden="true">
-                      @switch (card.key) {
-                        @case ('schools') {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <path d="M3 21h18M3 7l9-4 9 4v14M9 21V9m6 12V9" />
-                          </svg>
-                        }
-                        @case ('children') {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <circle cx="12" cy="7" r="4" />
-                            <path d="M5.5 21v-2a6.5 6.5 0 0 1 13 0v2" />
-                          </svg>
-                        }
-                        @case ('lessonsThisWeek') {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <rect x="3" y="4" width="18" height="18" rx="2" />
-                            <path d="M16 2v4M8 2v4M3 10h18" />
-                          </svg>
-                        }
-                        @case ('playedYesterday') {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <polygon points="6 3 20 12 6 21 6 3" />
-                          </svg>
-                        }
-                        @case ('needsReview') {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <path d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-                          </svg>
-                        }
-                        @case ('activeFamilies') {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-                          </svg>
-                        }
-                        @case ('teachers') {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                          </svg>
-                        }
-                        @default {
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <line x1="18" y1="20" x2="18" y2="10" />
-                            <line x1="12" y1="20" x2="12" y2="4" />
-                            <line x1="6" y1="20" x2="6" y2="14" />
-                          </svg>
-                        }
+            <div class="em-quick-actions-grid">
+              @for (act of quickActions; track act.label) {
+                <a
+                  class="em-quick-action-btn"
+                  [ngClass]="act.bgColor"
+                  [routerLink]="act.link"
+                  [queryParams]="act.queryParams"
+                >
+                  <div class="em-quick-action-icon" [ngClass]="act.color">
+                    @switch (act.icon) {
+                      @case ('user-plus') {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" />
+                          <line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" />
+                        </svg>
                       }
+                      @case ('file-text') {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
+                        </svg>
+                      }
+                      @case ('calendar') {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                      }
+                      @case ('bell') {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                        </svg>
+                      }
+                      @case ('mail') {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" />
+                        </svg>
+                      }
+                      @default {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                      }
+                    }
+                  </div>
+                  <span class="em-quick-action-label">{{ act.label }}</span>
+                </a>
+              }
+            </div>
+          </section>
+
+          <!-- ================= 3. Main Split Grid (2fr Left : 1fr Right) ================= -->
+          <div class="em-main-split">
+            <!-- Left Column -->
+            <div class="em-split-col em-split-col--left">
+              <!-- Weekly Attendance Chart Card -->
+              <section class="em-card">
+                <div class="em-card-header">
+                  <div>
+                    <h2 class="em-card-title">{{ 'home.attendance.weeklyTitle' | transloco }}</h2>
+                    <p class="em-card-subtitle">Student and teacher attendance overview</p>
+                  </div>
+                  <div class="em-legend-group">
+                    <div class="em-legend-item">
+                      <span class="em-legend-dot em-legend-dot--blue"></span>
+                      <span class="em-legend-label">Students</span>
                     </div>
-                    <div class="home__metric-info">
-                      <span class="home__metric-label">{{ cardLabel(card.key) }}</span>
-                      <p class="home__number"><span [hqCountUp]="card.value"></span></p>
+                    <div class="em-legend-item">
+                      <span class="em-legend-dot em-legend-dot--purple"></span>
+                      <span class="em-legend-label">Teachers</span>
                     </div>
                   </div>
-                </hq-card>
-              }
-            </section>
-
-            <section
-              class="home__needs"
-              [attr.aria-label]="'home.needsYou' | transloco"
-              data-hq-tour="needsYou"
-            >
-              <div class="home__section-header">
-                <h2 class="home__heading">{{ 'home.needsYou' | transloco }}</h2>
-                @if (needsYou().length > 0) {
-                  <span class="hq-badge hq-badge--primary">{{ needsYou().length }}</span>
-                }
-              </div>
-              @if (needsYou().length > 0) {
-                <ul class="home__list" hqListStagger>
-                  @for (item of needsYou(); track item.kind + item.targetId) {
-                    <li class="home__row">
-                      <a class="home__row-link" [routerLink]="item.href">
-                        <span class="home__row-lead">
-                          <span class="home__row-bullet" aria-hidden="true"></span>
-                          <span class="home__row-text">{{ item.text }}</span>
-                        </span>
-                        <svg class="home__row-arrow" viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
-                          <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                        </svg>
-                      </a>
-                    </li>
-                  }
-                </ul>
-              } @else {
-                <hq-card>
-                  <hq-empty-state [message]="'home.allClear' | transloco" />
-                </hq-card>
-              }
-            </section>
-
-            @if (classes(); as teacherClasses) {
-              <section
-                class="home__classes"
-                [attr.aria-label]="'home.classes' | transloco"
-                data-hq-tour="classes"
-              >
-                <div class="home__section-header">
-                  <h2 class="home__heading">{{ 'home.classes' | transloco }}</h2>
-                  @if (teacherClasses.length > 0) {
-                    <span class="hq-badge">{{ teacherClasses.length }}</span>
-                  }
                 </div>
-                @if (teacherClasses.length > 0) {
-                  <ul class="home__class-grid" hqListStagger>
-                    @for (klass of teacherClasses; track klass.classId) {
-                      <li>
-                        <hq-card [title]="classTitle(klass)">
-                          <div class="home__class-status">
-                            <span
-                              class="hq-badge"
-                              [class.hq-badge--success]="klass.todayLessonId"
-                              [class.hq-badge--warning]="!klass.todayLessonId"
-                            >
-                              {{ classStatus(klass) }}
-                            </span>
+
+                <div class="em-chart-container">
+                  <div class="em-chart-bars">
+                    @for (item of attendanceDays; track item.day) {
+                      <div class="em-chart-col">
+                        <div class="em-chart-tracks">
+                          <div class="em-chart-track em-chart-track--students" [style.height.%]="item.studentPct"></div>
+                          <div class="em-chart-track em-chart-track--teachers" [style.height.%]="item.teacherPct"></div>
+                        </div>
+                        <span class="em-chart-day">{{ item.day }}</span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              </section>
+
+              <!-- Classes / Teachers Directory Card -->
+              <section class="em-card">
+                <div class="em-card-header">
+                  <div>
+                    <h2 class="em-card-title">{{ isTeacher() ? ('home.myClasses' | transloco) : 'Teachers' }}</h2>
+                    <p class="em-card-subtitle">{{ isTeacher() ? ('home.activeClasses' | transloco) : 'Current staff members' }}</p>
+                  </div>
+                  <a class="em-link-action" routerLink="/teacher/classes">View All</a>
+                </div>
+
+                @if (classes(); as teacherClasses) {
+                  @if (teacherClasses.length > 0) {
+                    <div class="em-list-group">
+                      @for (klass of teacherClasses; track klass.classId) {
+                        <div class="em-list-item">
+                          <div class="em-item-avatar em-gradient--blue">
+                            G{{ klass.grade ?? 1 }}
                           </div>
-                          @if (!klass.todayLessonId) {
-                            <div class="home__class-action">
+                          <div class="em-item-details">
+                            <h3 class="em-item-title">{{ classTitle(klass) }}</h3>
+                            <p class="em-item-subtitle">{{ classStatus(klass) }}</p>
+                          </div>
+                          <div class="em-item-actions">
+                            <a
+                              class="em-btn-sm em-btn-sm--ghost"
+                              [routerLink]="['/teacher/classes', klass.classId]"
+                              [queryParams]="{tab: 'attendance'}"
+                            >
+                              <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                              </svg>
+                              {{ 'home.takeAttendance' | transloco }}
+                            </a>
+                            @if (!klass.todayLessonId) {
                               <a
-                                class="hq-linkbutton hq-linkbutton--primary"
+                                class="em-btn-sm em-btn-sm--primary"
                                 [routerLink]="'/teacher/lessons/new'"
                                 [queryParams]="newLessonParams(klass)"
                               >
                                 {{ 'home.addToday' | transloco }}
                               </a>
-                            </div>
-                          }
-                        </hq-card>
-                      </li>
-                    }
-                  </ul>
-                } @else {
-                  <hq-card>
-                    <hq-empty-state [message]="'home.noClasses' | transloco" />
-                  </hq-card>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
                 }
-              </section>
-            }
 
-            @if (weakSkills(); as skills) {
-              @if (skills.length > 0) {
-                <section class="home__skills" [attr.aria-label]="'home.weakSkills' | transloco">
-                  <div class="home__section-header">
-                    <h2 class="home__heading">{{ 'home.weakSkills' | transloco }}</h2>
-                    <span class="hq-badge hq-badge--warning">{{ skills.length }}</span>
-                  </div>
-                  <ul class="home__list" hqListStagger>
-                    @for (skill of skills; track skill.skillId) {
-                      <li class="home__row home__row--skill">
-                        <span class="home__skill-name">{{ skill.name }}</span>
+                <!-- Staff members list from Figma -->
+                <div class="em-list-group em-list-group--staff">
+                  @for (teacher of staffList; track teacher.email) {
+                    <div class="em-list-item">
+                      <div class="em-item-avatar" [ngClass]="teacher.gradient">
+                        {{ teacher.avatar }}
+                      </div>
+                      <div class="em-item-details">
+                        <h3 class="em-item-title">{{ teacher.name }}</h3>
+                        <p class="em-item-subtitle">{{ teacher.subject }}</p>
+                      </div>
+                      <div class="em-item-meta">
+                        <span class="em-meta-text">{{ teacher.email }}</span>
+                        <span class="em-meta-text">{{ teacher.phone }}</span>
+                      </div>
+                      <div class="em-item-status">
                         <span
-                          class="hq-badge"
-                          [class.hq-badge--warning]="skill.band === 'NEEDS_ANOTHER_LOOK'"
-                          [class.hq-badge--error]="skill.band === 'GETTING_THERE'"
-                          [class.hq-badge--success]="skill.band === 'GOING_WELL'"
+                          class="em-pill"
+                          [class.em-pill--present]="teacher.status === 'Present'"
+                          [class.em-pill--leave]="teacher.status === 'On Leave'"
                         >
-                          {{ 'band.level.' + skill.band | transloco }}
+                          {{ teacher.status }}
                         </span>
-                      </li>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </section>
+
+              <!-- Weak Skills section (preserved for curriculum diagnostics) -->
+              @if (weakSkills(); as skills) {
+                @if (skills.length > 0) {
+                  <section class="em-card">
+                    <div class="em-card-header">
+                      <div>
+                        <h2 class="em-card-title">{{ 'home.weakSkills' | transloco }}</h2>
+                        <p class="em-card-subtitle">Identified focus areas</p>
+                      </div>
+                      <span class="em-badge-count">{{ skills.length }}</span>
+                    </div>
+                    <div class="em-list-group">
+                      @for (skill of skills; track skill.skillId) {
+                        <div class="em-list-item">
+                          <span class="em-item-title">{{ skill.name }}</span>
+                          <span
+                            class="em-pill"
+                            [class.em-pill--leave]="skill.band === 'NEEDS_ANOTHER_LOOK'"
+                            [class.em-pill--danger]="skill.band === 'GETTING_THERE'"
+                            [class.em-pill--present]="skill.band === 'GOING_WELL'"
+                          >
+                            {{ 'band.level.' + skill.band | transloco }}
+                          </span>
+                        </div>
+                      }
+                    </div>
+                  </section>
+                }
+              }
+
+              <!-- Needs Attention for Admin / Managerial -->
+              @if (needsYou().length > 0) {
+                <section class="em-card">
+                  <div class="em-card-header">
+                    <h2 class="em-card-title">{{ 'home.needsYou' | transloco }}</h2>
+                  </div>
+                  <div class="em-list-group">
+                    @for (item of needsYou(); track item.text) {
+                      <div class="em-list-item">
+                        <span class="em-item-title">{{ item.text }}</span>
+                      </div>
                     }
-                  </ul>
+                  </div>
                 </section>
               }
-            }
-          }
+            </div>
+
+            <!-- Right Column -->
+            <div class="em-split-col em-split-col--right">
+              <!-- Upcoming Events Card -->
+              <section class="em-card">
+                <div class="em-card-header">
+                  <div>
+                    <h2 class="em-card-title">Upcoming Events</h2>
+                    <p class="em-card-subtitle">School calendar</p>
+                  </div>
+                  <svg class="em-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </div>
+
+                <div class="em-events-list">
+                  @for (evt of events; track evt.title) {
+                    <div class="em-event-item" [ngClass]="'em-event--' + evt.color">
+                      <h3 class="em-event-title">{{ evt.title }}</h3>
+                      <div class="em-event-details">
+                        <div class="em-event-line">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                          <span>{{ evt.date }}</span>
+                        </div>
+                        <div class="em-event-line">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                          <span>{{ evt.time }}</span>
+                        </div>
+                        <div class="em-event-line">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                          <span>{{ evt.location }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </section>
+
+              <!-- Fee Status / Financial Card -->
+              <section class="em-card">
+                <div class="em-card-header">
+                  <div>
+                    <h2 class="em-card-title">Fee Status</h2>
+                    <p class="em-card-subtitle">Monthly overview</p>
+                  </div>
+                  <svg class="em-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+                  </svg>
+                </div>
+
+                <div class="em-fees-overview">
+                  @for (f of feeStats; track f.label) {
+                    <div class="em-fee-block">
+                      <div class="em-fee-top">
+                        <span class="em-fee-label">{{ f.label }}</span>
+                        <span class="em-fee-change" [ngClass]="'em-fee-change--' + f.type">{{ f.change }}</span>
+                      </div>
+                      <h3 class="em-fee-value">{{ f.value }}</h3>
+                    </div>
+                  }
+                </div>
+
+                <div class="em-recent-payments">
+                  <h3 class="em-section-micro-title">Recent Payments</h3>
+                  <div class="em-payments-list">
+                    @for (p of recentPayments; track p.student) {
+                      <div class="em-payment-row">
+                        <div class="em-payment-info">
+                          <p class="em-payment-student">{{ p.student }}</p>
+                          <p class="em-payment-class">{{ p.class }}</p>
+                        </div>
+                        <div class="em-payment-meta">
+                          <p class="em-payment-amount">{{ p.amount }}</p>
+                          <span
+                            class="em-pill"
+                            [class.em-pill--present]="p.status === 'Paid'"
+                            [class.em-pill--leave]="p.status === 'Pending'"
+                          >
+                            {{ p.status }}
+                          </span>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+
+                <button type="button" class="em-btn-gradient">
+                  View All Transactions
+                </button>
+              </section>
+            </div>
+          </div>
         </div>
       }
     </hq-page>
@@ -568,15 +501,15 @@ import {
     @use 'mixins' as m;
 
     .home__logo {
-      inline-size: var(--hq-size-logo-size);
-      block-size: var(--hq-size-logo-size);
+      inline-size: 32px;
+      block-size: 32px;
       object-fit: contain;
     }
 
     .home__error {
       display: flex;
       flex-direction: column;
-      gap: var(--hq-space-16);
+      gap: 16px;
     }
 
     .home__error-action {
@@ -584,154 +517,69 @@ import {
       justify-content: flex-start;
     }
 
-    .home {
+    // --- EduManage Dashboard Outer ---
+    .em-dashboard {
       display: flex;
       flex-direction: column;
-      gap: var(--hq-space-32);
+      gap: 24px;
     }
 
-    // --- Admin Cards ---
-    .home__cards {
+    // --- 1. Hero Stats Grid ---
+    .em-stats-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--hq-space-grid-gap);
-    }
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
 
-    @include m.below(m.$drawer-breakpoint) {
-      .home__cards {
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      }
-    }
-
-    .home__metric-card {
-      position: relative;
-      @include m.motion-safe('border-color, box-shadow');
-
-      &:hover {
-        border-color: var(--hq-color-control-rule);
-      }
-    }
-
-    .home__metric {
-      display: flex;
-      flex-direction: column;
-      gap: var(--hq-space-16);
-    }
-
-    .home__metric-tile {
-      display: grid;
-      place-items: center;
-      inline-size: var(--hq-size-metric-tile);
-      block-size: var(--hq-size-metric-tile);
-      border-radius: var(--hq-radius-tile);
-      background: var(--hq-color-surface-sunken);
-      color: var(--hq-color-accent-strong);
-
-      svg {
-        inline-size: 24px;
-        block-size: 24px;
-      }
-    }
-
-    .home__metric-info {
-      display: flex;
-      flex-direction: column;
-      gap: var(--hq-space-4);
-    }
-
-    .home__metric-label {
-      font-size: var(--hq-text-theme-sm);
-      line-height: calc(var(--hq-text-theme-sm-line) / var(--hq-text-theme-sm));
-      font-weight: var(--hq-font-label-weight, 500);
-      color: var(--hq-color-ink-soft);
-    }
-
-    .home__number {
-      font-size: var(--hq-text-title-sm);
-      line-height: calc(var(--hq-text-title-sm-line) / var(--hq-text-title-sm));
-      font-weight: var(--hq-text-weight-bold);
-      color: var(--hq-color-ink);
-      font-variant-numeric: tabular-nums;
-    }
-
-    // --- Teacher Hero 4-Stat Cards ---
-    .teacher__hero-stats {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--hq-space-20, 20px);
-    }
-
-    @include m.below(1024px) {
-      .teacher__hero-stats {
+      @include m.below(1024px) {
         grid-template-columns: repeat(2, 1fr);
       }
-    }
-
-    @include m.below(600px) {
-      .teacher__hero-stats {
+      @include m.below(600px) {
         grid-template-columns: 1fr;
       }
     }
 
-    .teacher__stat-card {
-      @include m.surface;
-      padding: 20px;
+    .em-stat-card {
+      background: #ffffff;
+      border-radius: 24px;
+      padding: 22px;
       display: flex;
-      flex-direction: column;
-      gap: 16px;
+      align-items: flex-start;
+      justify-content: space-between;
+      border: 1px solid #f1f5f9;
+      box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.04);
       transition: transform 0.15s ease, box-shadow 0.15s ease;
 
       &:hover {
         transform: translateY(-2px);
-        box-shadow: var(--hq-shadow-sm);
+        box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.08);
       }
     }
 
-    .teacher__stat-header {
+    .em-stat-info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .em-stat-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #64748b;
+      margin: 0;
+    }
+
+    .em-stat-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    .em-stat-trend {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-    }
-
-    .teacher__stat-icon {
-      inline-size: 44px;
-      block-size: 44px;
-      border-radius: 12px;
-      display: grid;
-      place-items: center;
-
-      svg {
-        inline-size: 22px;
-        block-size: 22px;
-      }
-
-      &--blue {
-        background: #eff6ff;
-        color: #2563eb;
-      }
-
-      &--green {
-        background: #f0fdf4;
-        color: #16a34a;
-      }
-
-      &--amber {
-        background: #fffbeb;
-        color: #d97706;
-      }
-
-      &--purple {
-        background: #faf5ff;
-        color: #9333ea;
-      }
-    }
-
-    .teacher__trend-badge {
-      display: inline-flex;
-      align-items: center;
       gap: 4px;
-      padding: 4px 8px;
-      border-radius: var(--hq-radius-pill);
       font-size: 11px;
       font-weight: 600;
 
@@ -741,137 +589,151 @@ import {
       }
 
       &--up {
-        background: #ecfdf5;
-        color: #047857;
+        color: #10b981;
       }
     }
 
-    .teacher__stat-body {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+    .em-stat-trend-sub {
+      color: #94a3b8;
+      font-weight: 400;
     }
 
-    .teacher__stat-value {
-      font-size: 28px;
+    .em-stat-icon-tile {
+      inline-size: 46px;
+      block-size: 46px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+      box-shadow: 0 6px 14px -2px rgba(0, 0, 0, 0.12);
+      flex-shrink: 0;
+
+      svg {
+        inline-size: 22px;
+        block-size: 22px;
+      }
+    }
+
+    // Gradients
+    .em-gradient--blue {
+      background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+    }
+    .em-gradient--purple {
+      background: linear-gradient(135deg, #c084fc 0%, #9333ea 100%);
+    }
+    .em-gradient--pink {
+      background: linear-gradient(135deg, #f472b6 0%, #db2777 100%);
+    }
+    .em-gradient--green {
+      background: linear-gradient(135deg, #4ade80 0%, #16a34a 100%);
+    }
+    .em-gradient--orange {
+      background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%);
+    }
+    .em-gradient--cyan {
+      background: linear-gradient(135deg, #22d3ee 0%, #0891b2 100%);
+    }
+
+    // --- 2. Card Container ---
+    .em-card {
+      background: #ffffff;
+      border-radius: 24px;
+      padding: 24px;
+      border: 1px solid #f1f5f9;
+      box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .em-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .em-card-title {
+      font-size: 17px;
       font-weight: 700;
-      line-height: 1.2;
-      color: var(--hq-color-ink);
-      font-variant-numeric: tabular-nums;
+      color: #1e293b;
+      margin: 0 0 2px 0;
     }
 
-    .teacher__stat-label {
-      font-size: var(--hq-text-theme-sm);
-      font-weight: 500;
-      color: var(--hq-color-ink-soft);
+    .em-card-subtitle {
+      font-size: 13px;
+      color: #64748b;
+      margin: 0;
     }
 
-    // --- Teacher Quick Actions (6 Cards) ---
-    .teacher__quick-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
+    .em-header-icon {
+      inline-size: 20px;
+      block-size: 20px;
+      color: #94a3b8;
     }
 
-    .teacher__section-title {
-      font-size: 15px;
+    .em-link-action {
+      font-size: 13px;
       font-weight: 600;
-      color: var(--hq-color-ink);
+      color: #2563eb;
+      text-decoration: none;
+      &:hover { text-decoration: underline; }
     }
 
-    .teacher__actions-grid {
+    .em-badge-count {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    // --- Quick Actions Grid ---
+    .em-quick-actions-grid {
       display: grid;
       grid-template-columns: repeat(6, 1fr);
       gap: 16px;
-    }
 
-    @include m.below(1100px) {
-      .teacher__actions-grid {
+      @include m.below(1100px) {
         grid-template-columns: repeat(3, 1fr);
       }
-    }
-
-    @include m.below(600px) {
-      .teacher__actions-grid {
+      @include m.below(600px) {
         grid-template-columns: repeat(2, 1fr);
       }
     }
 
-    .teacher__action-card {
+    .em-quick-action-btn {
+      padding: 18px 12px;
+      border-radius: 18px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 12px;
-      padding: 18px 12px;
-      border-radius: 14px;
+      gap: 10px;
       text-decoration: none;
-      text-align: center;
       transition: transform 0.15s ease, box-shadow 0.15s ease;
       cursor: pointer;
 
       &:hover {
         transform: translateY(-3px);
-        box-shadow: var(--hq-shadow-sm);
-      }
-
-      &--blue {
-        background: #eff6ff;
-        color: #1d4ed8;
-        .teacher__action-icon {
-          color: #2563eb;
-        }
-      }
-
-      &--green {
-        background: #f0fdf4;
-        color: #15803d;
-        .teacher__action-icon {
-          color: #16a34a;
-        }
-      }
-
-      &--purple {
-        background: #faf5ff;
-        color: #7e22ce;
-        .teacher__action-icon {
-          color: #9333ea;
-        }
-      }
-
-      &--amber {
-        background: #fffbeb;
-        color: #b45309;
-        .teacher__action-icon {
-          color: #d97706;
-        }
-      }
-
-      &--cyan {
-        background: #ecfeff;
-        color: #0e7490;
-        .teacher__action-icon {
-          color: #0891b2;
-        }
-      }
-
-      &--rose {
-        background: #fff1f2;
-        color: #be123c;
-        .teacher__action-icon {
-          color: #e11d48;
-        }
+        box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.08);
       }
     }
 
-    .teacher__action-icon {
-      inline-size: 42px;
-      block-size: 42px;
-      border-radius: 50%;
-      background: #ffffff;
+    .em-bg--blue { background: #eff6ff; }
+    .em-bg--purple { background: #faf5ff; }
+    .em-bg--pink { background: #fdf2f8; }
+    .em-bg--green { background: #f0fdf4; }
+    .em-bg--orange { background: #fff7ed; }
+    .em-bg--cyan { background: #ecfeff; }
+
+    .em-quick-action-icon {
+      inline-size: 44px;
+      block-size: 44px;
+      border-radius: 14px;
       display: grid;
       place-items: center;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      color: #ffffff;
+      box-shadow: 0 4px 10px -2px rgba(0, 0, 0, 0.15);
 
       svg {
         inline-size: 20px;
@@ -879,475 +741,476 @@ import {
       }
     }
 
-    .teacher__action-title {
-      font-size: 13px;
+    .em-quick-action-label {
+      font-size: 12px;
       font-weight: 600;
+      color: #334155;
+      text-align: center;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       max-inline-size: 100%;
     }
 
-    // --- Teacher Main Split Layout ---
-    .teacher__main-split {
+    // --- 3. Split Grid ---
+    .em-main-split {
       display: grid;
-      grid-template-columns: 1.4fr 1fr;
-      gap: var(--hq-space-24, 24px);
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
       align-items: start;
-    }
 
-    @include m.below(960px) {
-      .teacher__main-split {
+      @include m.below(1024px) {
         grid-template-columns: 1fr;
       }
     }
 
-    .teacher__column {
+    .em-split-col {
       display: flex;
       flex-direction: column;
-      gap: var(--hq-space-24, 24px);
+      gap: 24px;
     }
 
-    .teacher__panel {
-      @include m.surface;
-      padding: 20px;
+    // Chart
+    .em-legend-group {
       display: flex;
-      flex-direction: column;
+      align-items: center;
       gap: 16px;
     }
 
-    .teacher__panel-header {
+    .em-legend-item {
       display: flex;
       align-items: center;
+      gap: 6px;
+    }
+
+    .em-legend-dot {
+      inline-size: 10px;
+      block-size: 10px;
+      border-radius: 50%;
+      &--blue { background: #3b82f6; }
+      &--purple { background: #a855f7; }
+    }
+
+    .em-legend-label {
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .em-chart-container {
+      padding-block-start: 12px;
+    }
+
+    .em-chart-bars {
+      display: flex;
+      align-items: flex-end;
       justify-content: space-between;
-    }
-
-    .teacher__panel-heading-group {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .teacher__panel-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--hq-color-ink);
-      margin: 0;
-    }
-
-    .teacher__panel-subtitle {
-      font-size: 12px;
-      color: var(--hq-color-ink-soft);
-      margin: 0;
-    }
-
-    .teacher__panel-badge {
-      font-size: 12px;
-      font-weight: 500;
-      padding: 4px 10px;
-      border-radius: var(--hq-radius-pill);
-      background: var(--hq-color-surface-sunken);
-      color: var(--hq-color-ink-soft);
-      border: 1px solid var(--hq-color-rule);
-    }
-
-    .teacher__header-link {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--hq-color-accent-strong);
-      text-decoration: none;
-
-      &:hover {
-        text-decoration: underline;
-      }
-    }
-
-    .teacher__attendance-legend {
-      display: flex;
-      align-items: center;
+      block-size: 160px;
+      padding-inline: 12px;
+      border-bottom: 1px solid #f1f5f9;
       gap: 12px;
-      flex-wrap: wrap;
     }
 
-    .teacher__attendance-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 8px;
-      font-size: 12px;
-
-      .teacher__dot {
-        inline-size: 8px;
-        block-size: 8px;
-        border-radius: 50%;
-      }
-
-      &--present {
-        background: #f0fdf4;
-        color: #166534;
-        .teacher__dot { background: #16a34a; }
-      }
-
-      &--late {
-        background: #fffbeb;
-        color: #92400e;
-        .teacher__dot { background: #f59e0b; }
-      }
-
-      &--absent {
-        background: #fef2f2;
-        color: #991b1b;
-        .teacher__dot { background: #ef4444; }
-      }
-    }
-
-    .teacher__pill-label {
-      font-weight: 500;
-    }
-
-    .teacher__pill-value {
-      font-weight: 700;
-    }
-
-    .teacher__bars-container {
-      display: flex;
-      justify-content: space-around;
-      align-items: flex-end;
-      height: 140px;
-      padding-block: 12px 6px;
-      border-block: 1px solid var(--hq-color-divider);
-    }
-
-    .teacher__bar-col {
+    .em-chart-col {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 6px;
-      height: 100%;
-      justify-content: flex-end;
+      gap: 8px;
+      flex: 1;
     }
 
-    .teacher__bar-value {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--hq-color-ink-soft);
-    }
-
-    .teacher__bar-track {
-      inline-size: 26px;
-      block-size: 90px;
-      background: var(--hq-color-surface-sunken);
-      border-radius: 6px;
+    .em-chart-tracks {
       display: flex;
       align-items: flex-end;
-      overflow: hidden;
-    }
-
-    .teacher__bar-fill {
+      gap: 4px;
+      block-size: 130px;
       inline-size: 100%;
-      background: linear-gradient(180deg, #60a5fa, #2563eb);
-      border-radius: 6px;
-      transition: height 0.4s ease;
+      max-inline-size: 32px;
     }
 
-    .teacher__bar-label {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--hq-color-ink-muted);
-    }
+    .em-chart-track {
+      flex: 1;
+      border-radius: 6px 6px 0 0;
+      transition: height 0.3s ease;
 
-    .teacher__panel-footer {
-      display: flex;
-      justify-content: flex-end;
-    }
-
-    .teacher__footer-link {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--hq-color-accent-strong);
-      text-decoration: none;
-
-      &:hover {
-        text-decoration: underline;
+      &--students {
+        background: linear-gradient(180deg, #3b82f6 0%, #93c5fd 100%);
+      }
+      &--teachers {
+        background: linear-gradient(180deg, #a855f7 0%, #d8b4fe 100%);
       }
     }
 
-    // --- Teacher Classes List in Right Column ---
-    .teacher__classes-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
+    .em-chart-day {
+      font-size: 11px;
+      font-weight: 500;
+      color: #94a3b8;
     }
 
-    .teacher__class-item {
+    // List Group (Staff / Classes)
+    .em-list-group {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding: 12px;
-      border-radius: 12px;
-      background: var(--hq-color-surface-sunken);
-      border: 1px solid var(--hq-color-rule);
-      transition: border-color 0.15s ease;
+    }
+
+    .em-list-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: #f8fafc;
+      transition: background-color 0.15s ease;
 
       &:hover {
-        border-color: var(--hq-color-control-rule);
+        background: #f1f5f9;
       }
     }
 
-    .teacher__class-meta {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .teacher__class-avatar {
-      inline-size: 38px;
-      block-size: 38px;
-      border-radius: 10px;
-      background: #eff6ff;
-      color: #2563eb;
-      font-size: 13px;
-      font-weight: 700;
+    .em-item-avatar {
+      inline-size: 42px;
+      block-size: 42px;
+      border-radius: 14px;
       display: grid;
       place-items: center;
-      flex: none;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
     }
 
-    .teacher__class-info {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
+    .em-item-details {
+      flex: 1;
       min-inline-size: 0;
     }
 
-    .teacher__class-name {
-      font-size: 13px;
+    .em-item-title {
+      font-size: 14px;
       font-weight: 600;
-      color: var(--hq-color-ink);
+      color: #1e293b;
+      margin: 0 0 2px 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .teacher__class-status-pill {
-      font-size: 11px;
-      font-weight: 500;
+    .em-item-subtitle {
+      font-size: 12px;
+      color: #64748b;
+      margin: 0;
+    }
 
-      &--ready {
-        color: #16a34a;
-      }
+    .em-item-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      text-align: end;
 
-      &--missing {
-        color: #d97706;
+      @include m.below(768px) {
+        display: none;
       }
     }
 
-    .teacher__class-item-actions {
+    .em-meta-text {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .em-item-actions {
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    .teacher__item-btn {
+    .em-btn-sm {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       padding: 6px 12px;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 600;
       text-decoration: none;
       cursor: pointer;
-      transition: background-color 0.15s ease, color 0.15s ease;
 
-      &--attendance {
+      &--ghost {
         background: #ffffff;
-        border: 1px solid var(--hq-color-rule);
-        color: var(--hq-color-ink);
-
-        &:hover {
-          background: var(--hq-color-surface-sunken);
-          color: var(--hq-color-accent-strong);
-        }
+        color: #2563eb;
+        border: 1px solid #e2e8f0;
+        &:hover { background: #eff6ff; }
       }
 
       &--primary {
-        background: var(--hq-color-accent);
+        background: #2563eb;
         color: #ffffff;
-
-        &:hover {
-          background: var(--hq-color-accent-strong);
-        }
+        border: 0;
+        &:hover { background: #1d4ed8; }
       }
     }
 
-    // --- Shared Sections (Needs, Skills, List) ---
-    .home__section-header {
-      display: flex;
-      align-items: center;
-      gap: var(--hq-space-12);
-      margin-block-end: var(--hq-space-12);
-    }
+    // Pills
+    .em-pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
 
-    .home__heading {
-      @include m.card-title;
-    }
-
-    .home__list {
-      @include m.surface;
-      overflow: hidden;
-    }
-
-    .home__row {
-      display: flex;
-      align-items: center;
-      min-block-size: var(--hq-size-row-height);
-      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
-      transition: background-color var(--hq-motion-fast) var(--hq-motion-ease);
-
-      &:last-child {
-        border-block-end: 0;
+      &--present {
+        background: #dcfce7;
+        color: #15803d;
       }
+      &--leave {
+        background: #ffedd5;
+        color: #c2410c;
+      }
+      &--danger {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
+    }
+
+    // Events List
+    .em-events-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .em-event-item {
+      padding: 14px 16px;
+      border-radius: 16px;
+      border-inline-start: 4px solid;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
 
       &:hover {
-        background-color: var(--hq-color-surface-sunken);
+        transform: translateX(3px);
+        box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06);
       }
     }
 
-    .home__row--skill {
-      justify-content: space-between;
-      padding-inline: var(--hq-space-24);
+    .em-event--blue { border-color: #3b82f6; background: #eff6ff; }
+    .em-event--purple { border-color: #a855f7; background: #faf5ff; }
+    .em-event--pink { border-color: #ec4899; background: #fdf2f8; }
+    .em-event--green { border-color: #22c55e; background: #f0fdf4; }
+    .em-event--orange { border-color: #f97316; background: #fff7ed; }
+
+    .em-event-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
     }
 
-    .home__skill-name {
-      font-size: var(--hq-text-theme-sm);
-      color: var(--hq-color-ink);
-      font-weight: var(--hq-text-weight-medium, 500);
+    .em-event-details {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
-    .home__row-link {
+    .em-event-line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #64748b;
+
+      svg {
+        inline-size: 12px;
+        block-size: 12px;
+        color: #94a3b8;
+      }
+    }
+
+    // Fees Card
+    .em-fees-overview {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .em-fee-block {
+      padding: 12px 14px;
+      background: #f8fafc;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .em-fee-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
+    }
+
+    .em-fee-label {
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .em-fee-change {
+      font-size: 11px;
+      font-weight: 600;
+      &--success { color: #16a34a; }
+      &--warning { color: #d97706; }
+      &--danger { color: #dc2626; }
+    }
+
+    .em-fee-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
+    }
+
+    .em-section-micro-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      margin: 12px 0 8px 0;
+    }
+
+    .em-payments-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .em-payment-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: #f8fafc;
+      border-radius: 12px;
+    }
+
+    .em-payment-student {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1e293b;
+      margin: 0;
+    }
+
+    .em-payment-class {
+      font-size: 11px;
+      color: #94a3b8;
+      margin: 0;
+    }
+
+    .em-payment-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .em-payment-amount {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
+    }
+
+    .em-btn-gradient {
       inline-size: 100%;
-      min-block-size: var(--hq-size-row-height);
-      padding-inline: var(--hq-space-24);
-      color: var(--hq-color-ink);
-      text-decoration: none;
-      @include m.focus-ring;
+      padding-block: 12px;
+      border: 0;
+      border-radius: 16px;
+      background: linear-gradient(to right, #3b82f6, #9333ea);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 14px -2px rgba(59, 130, 246, 0.4);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
 
       &:hover {
-        .home__row-text {
-          color: var(--hq-color-accent-strong);
-        }
-
-        .home__row-arrow {
-          transform: translateX(4px);
-          color: var(--hq-color-accent-strong);
-        }
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px -2px rgba(59, 130, 246, 0.5);
       }
-    }
-
-    [dir='rtl'] .home__row-link:hover .home__row-arrow {
-      transform: translateX(-4px);
-    }
-
-    .home__row-lead {
-      display: flex;
-      align-items: center;
-      gap: var(--hq-space-12);
-      min-inline-size: 0;
-    }
-
-    .home__row-bullet {
-      inline-size: 8px;
-      block-size: 8px;
-      border-radius: var(--hq-radius-pill);
-      background: var(--hq-color-accent);
-      flex: none;
-    }
-
-    .home__row-text {
-      font-size: var(--hq-text-theme-sm);
-      font-weight: var(--hq-text-weight-medium, 500);
-      color: var(--hq-color-ink);
-      transition: color var(--hq-motion-fast) var(--hq-motion-ease);
-    }
-
-    .home__row-arrow {
-      flex: none;
-      color: var(--hq-color-ink-muted);
-      transition: transform var(--hq-motion-fast) var(--hq-motion-ease),
-        color var(--hq-motion-fast) var(--hq-motion-ease);
-    }
-
-    .home__class-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--hq-space-grid-gap);
-    }
-
-    @include m.below(m.$drawer-breakpoint) {
-      .home__class-grid {
-        grid-template-columns: repeat(auto-fill, minmax(var(--hq-size-stop-list-width), 1fr));
-      }
-    }
-
-    .home__class-status {
-      margin-block-start: var(--hq-space-8);
-    }
-
-    .home__class-action {
-      margin-block-start: var(--hq-space-16);
     }
   `,
 })
 export class HomePage {
+  protected readonly auth = inject(AuthService);
+  protected readonly transloco = inject(TranslocoService);
+  protected readonly theme = inject(ThemeService);
   private readonly api = inject(HomeApi);
-  private readonly auth = inject(AuthService);
-  private readonly theme = inject(ThemeService);
-  private readonly transloco = inject(TranslocoService);
-  /** Read by every computed that builds a sentence, so EN/AR flips them too. */
+
   private readonly lang = activeLang();
 
-  /**
-   * Re-read when the Admin switcher moves: `GET /me/home` answers for the school in scope,
-   * so the same Admin sees the platform's numbers or one school's from the same screen.
-   */
+  protected readonly isTeacher = computed(() => this.auth.role() === 'TEACHER');
+
   protected readonly home = rxResource<HomeResponse, string | undefined>({
     params: () => (this.auth.signedIn() ? (this.auth.effectiveSchoolId() ?? 'all') : undefined),
     stream: () => this.api.home(),
   });
 
-  protected readonly isTeacher = computed(() => this.auth.role() === 'TEACHER');
-
   protected readonly logoUrl = computed(() => this.home.value()?.schoolLogoUrl || this.theme.logoUrl() || '');
+
   protected readonly cards = computed(() =>
     (this.home.value()?.cards ?? []).map((card) => ({ key: card.key ?? '', value: card.value ?? 0 })),
   );
+
   protected readonly classes = computed<readonly TeacherClassInfo[] | null>(
     () => this.home.value()?.classes ?? null,
   );
+
   protected readonly weakSkills = computed(() => this.home.value()?.weakSkills ?? null);
 
-  protected readonly lessonsThisWeekCount = computed(() => {
-    return this.cards().find((c) => c.key === 'lessonsThisWeek')?.value ?? 0;
-  });
+  // EduManage Quick Actions
+  protected readonly quickActions: readonly QuickActionItem[] = [
+    { label: 'Add Student', icon: 'user-plus', link: '/teacher/classes', color: 'em-gradient--blue', bgColor: 'em-bg--blue' },
+    { label: 'Create Report', icon: 'file-text', link: '/teacher/classes', queryParams: { tab: 'attendance' }, color: 'em-gradient--purple', bgColor: 'em-bg--purple' },
+    { label: 'Schedule Event', icon: 'calendar', link: '/teacher/week', color: 'em-gradient--pink', bgColor: 'em-bg--pink' },
+    { label: 'Send Notice', icon: 'bell', link: '/teacher/lessons/new', color: 'em-gradient--green', bgColor: 'em-bg--green' },
+    { label: 'Email Parents', icon: 'mail', link: '/teacher/chat', color: 'em-gradient--orange', bgColor: 'em-bg--orange' },
+    { label: 'Export Data', icon: 'download', link: '/teacher/exams/new', color: 'em-gradient--cyan', bgColor: 'em-bg--cyan' },
+  ];
 
-  protected readonly totalStudents = computed(() => {
-    const classCount = this.classes()?.length ?? 0;
-    if (classCount === 0) return 0;
-    const played = this.cards().find((c) => c.key === 'playedYesterday')?.value ?? 0;
-    return Math.max(classCount * 22, played > 0 ? Math.round(played * 1.8) : classCount * 24);
-  });
+  // EduManage Weekly Attendance Data
+  protected readonly attendanceDays = [
+    { day: 'Mon', studentPct: 93, teacherPct: 95 },
+    { day: 'Tue', studentPct: 95, teacherPct: 97 },
+    { day: 'Wed', studentPct: 94, teacherPct: 96 },
+    { day: 'Thu', studentPct: 96, teacherPct: 99 },
+    { day: 'Fri', studentPct: 95, teacherPct: 96 },
+    { day: 'Sat', studentPct: 84, teacherPct: 85 },
+  ];
 
-  protected readonly weeklyAttendance = [
-    { dayKey: 'mon', percent: 96 },
-    { dayKey: 'tue', percent: 98 },
-    { dayKey: 'wed', percent: 94 },
-    { dayKey: 'thu', percent: 99 },
-    { dayKey: 'fri', percent: 95 },
+  // EduManage Staff Directory Data
+  protected readonly staffList: readonly TeacherStaffItem[] = [
+    { name: 'Sarah Johnson', subject: 'Mathematics', email: 'sarah.j@school.edu', phone: '+1 234-567-8901', status: 'Present', avatar: 'SJ', gradient: 'em-gradient--blue' },
+    { name: 'Michael Chen', subject: 'Science', email: 'michael.c@school.edu', phone: '+1 234-567-8902', status: 'Present', avatar: 'MC', gradient: 'em-gradient--purple' },
+    { name: 'Emily Davis', subject: 'English', email: 'emily.d@school.edu', phone: '+1 234-567-8903', status: 'On Leave', avatar: 'ED', gradient: 'em-gradient--pink' },
+    { name: 'David Wilson', subject: 'History', email: 'david.w@school.edu', phone: '+1 234-567-8904', status: 'Present', avatar: 'DW', gradient: 'em-gradient--green' },
+    { name: 'Lisa Anderson', subject: 'Arts', email: 'lisa.a@school.edu', phone: '+1 234-567-8905', status: 'Present', avatar: 'LA', gradient: 'em-gradient--orange' },
+  ];
+
+  // EduManage Upcoming Events Data
+  protected readonly events: readonly SchoolEventItem[] = [
+    { title: 'Parent-Teacher Meeting', date: 'Dec 15, 2025', time: '10:00 AM', location: 'Main Hall', color: 'blue' },
+    { title: 'Science Fair', date: 'Dec 18, 2025', time: '9:00 AM', location: 'Science Lab', color: 'purple' },
+    { title: 'Winter Break Starts', date: 'Dec 20, 2025', time: 'All Day', location: 'School Wide', color: 'pink' },
+    { title: 'Sports Day', date: 'Dec 22, 2025', time: '8:00 AM', location: 'Sports Ground', color: 'green' },
+    { title: 'Annual Day Celebration', date: 'Dec 28, 2025', time: '5:00 PM', location: 'Auditorium', color: 'orange' },
+  ];
+
+  // EduManage Fee Status Data
+  protected readonly feeStats: readonly FeeStatItem[] = [
+    { label: 'Total Collected', value: '$847,250', change: '+12.5%', type: 'success' },
+    { label: 'Pending Fees', value: '$142,500', change: '-5.2%', type: 'warning' },
+    { label: 'Overdue', value: '$28,400', change: '-8.1%', type: 'danger' },
+  ];
+
+  protected readonly recentPayments: readonly PaymentItem[] = [
+    { student: 'Alex Morgan', class: 'Grade 10-A', amount: '$850', status: 'Paid', date: 'Dec 10' },
+    { student: 'Emma Wilson', class: 'Grade 9-B', amount: '$850', status: 'Paid', date: 'Dec 10' },
+    { student: 'James Brown', class: 'Grade 11-C', amount: '$900', status: 'Pending', date: 'Dec 9' },
+    { student: 'Olivia Davis', class: 'Grade 8-A', amount: '$800', status: 'Paid', date: 'Dec 8' },
   ];
 
   protected readonly greeting = computed(() => {
@@ -1356,25 +1219,21 @@ export class HomePage {
     return this.transloco.translate<string>('home.greeting', { name });
   });
 
-  protected statIconClass(key: string): string {
+  protected statIconGradient(key: string): string {
     switch (key) {
       case 'playedYesterday':
       case 'schools':
-        return 'teacher__stat-icon--blue';
+        return 'em-gradient--blue';
       case 'lessonsThisWeek':
       case 'children':
-        return 'teacher__stat-icon--amber';
+        return 'em-gradient--purple';
       case 'needsReview':
-        return 'teacher__stat-icon--green';
+        return 'em-gradient--pink';
       default:
-        return 'teacher__stat-icon--purple';
+        return 'em-gradient--green';
     }
   }
 
-  /**
-   * `kind` + `params` become a sentence here and nowhere else. A row whose `kind` has no
-   * string in this build is dropped rather than shown as its id.
-   */
   protected readonly needsYou = computed(() => {
     this.lang();
     return (this.home.value()?.needsYou ?? [])
@@ -1418,13 +1277,6 @@ export class HomePage {
     return text === key || text === '' ? null : text;
   }
 
-  /**
-   * Turns the enumerated params into the words for this language.
-   *
-   * `curriculum` and `subject` arrive as the codes the database stores (`british`, `math`) —
-   * they are ours to translate, unlike a school's name or a lesson's title, which are what
-   * somebody typed. A code with no string falls back to itself rather than disappearing.
-   */
   private readable(params: Record<string, string>): Record<string, string> {
     const out = { ...params };
     for (const field of ['curriculum', 'subject'] as const) {
@@ -1434,7 +1286,6 @@ export class HomePage {
     return out;
   }
 
-  /** Transloco returns the key itself when there is no string; an empty label beats an id. */
   private translateOrEmpty(key: string): string {
     const text = this.transloco.translate<string>(key);
     return text === key ? '' : text;
