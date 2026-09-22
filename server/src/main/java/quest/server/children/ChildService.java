@@ -96,7 +96,7 @@ public class ChildService {
 
     private static void validate(String name, int grade, String avatar) {
         if (name == null || name.isBlank() || name.length() > 40) throw ApiException.badRequest("Name must be 1–40 characters.");
-        if (grade < 1 || grade > 3) throw ApiException.badRequest("Grade must be 1, 2 or 3.");
+        if (grade < 1 || grade > 6) throw ApiException.badRequest("Grade must be between 1 and 6.");
         if (!List.of("sky", "sun", "mint", "lavender").contains(avatar)) throw ApiException.badRequest("Avatar colour must be sky, sun, mint or lavender.");
     }
 

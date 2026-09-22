@@ -9,6 +9,8 @@ import quest.api.dto.ChatMessage
 import quest.api.dto.ChatReadReceipt
 import quest.api.dto.ChatThread
 import quest.api.dto.Child
+import quest.api.dto.ChildAttendanceRecord
+import quest.api.dto.ChildAttendanceResponse
 import quest.api.dto.CreateChildRequest
 import quest.api.dto.MapResponse
 import quest.api.dto.MediaKind
@@ -104,6 +106,13 @@ interface ContentApi {
 
     /** `POST /children/{id}/chat/threads/{teacherId}/read` — everything the teacher wrote is read. */
     suspend fun markChatRead(childId: String, teacherId: String): ChatReadReceipt = throw NotImplementedError("markChatRead needs a backend")
+
+    /** `GET /children/{id}/attendance?from=&to=` — child attendance history & summary. */
+    suspend fun childAttendance(childId: String, from: String? = null, to: String? = null): ChildAttendanceResponse =
+        ChildAttendanceResponse()
+
+    /** `GET /children/{id}/attendance/today` — child today's attendance record. */
+    suspend fun todayAttendance(childId: String): ChildAttendanceRecord? = null
 }
 
 /**
@@ -134,7 +143,7 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "exams" to false,
     "teacher.rosterEdit" to false,
     "join.byList" to false,
-    // C1: parent ↔ teacher chat (REST + `/ws/chat`), off until a school switches it on.
+    // C1/C3: parent ↔ teacher chat (REST + `/ws/chat`).
     "chat" to false,
 )
 

@@ -324,11 +324,17 @@ export interface NavItem<T extends string = string> {
       }
 
       &.is-active {
-        background: var(--hq-color-accent-soft);
-        color: var(--hq-color-accent-on-soft);
+        background: linear-gradient(to right, #3b82f6, #9333ea);
+        color: #ffffff;
+        box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.25);
 
         .nav__icon {
-          color: var(--hq-color-accent-on-soft);
+          color: #ffffff;
+        }
+
+        .nav__badge {
+          background: rgba(255, 255, 255, 0.25);
+          color: #ffffff;
         }
       }
     }
@@ -349,11 +355,12 @@ export interface NavItem<T extends string = string> {
       place-items: center;
       inline-size: var(--hq-size-control-height);
       block-size: var(--hq-size-control-height);
-      border-radius: var(--hq-radius-tile);
-      background: var(--hq-color-accent);
-      color: var(--hq-color-on-accent);
+      border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6 0%, #9333ea 100%);
+      color: #ffffff;
       font-size: var(--hq-text-card-title);
       font-weight: var(--hq-text-weight-semibold);
+      box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
     }
 
     .nav__icon {

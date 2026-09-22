@@ -52,7 +52,7 @@ fun CourseChooser(choice: CourseChoice, onChange: (CourseChoice) -> Unit, enable
             Spacer(Modifier.height(AdminTokens.gutter / 2))
             SectionLabel("Grade")
             Row(horizontalArrangement = Arrangement.spacedBy(AdminTokens.gutter / 2)) {
-                (1..3).forEach { g -> SelectCard("Grade $g", null, choice.grade == g, { onChange(choice.choose(g)) }, size = AdminTokens.gradeCard, enabled = enabled) }
+                (1..6).forEach { g -> SelectCard("Grade $g", null, choice.grade == g, { onChange(choice.choose(g)) }, size = AdminTokens.gradeCard, enabled = enabled) }
             }
         } else {
             Spacer(Modifier.height(AdminTokens.gutter / 2))

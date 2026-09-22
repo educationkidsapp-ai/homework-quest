@@ -35,6 +35,11 @@ import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
 import quest.api.dto.Child
+import quest.api.dto.ChildAttendanceRecord
+import quest.api.dto.ChildAttendanceResponse
+import quest.api.dto.ChatMessage
+import quest.api.dto.ChatReadReceipt
+import quest.api.dto.ChatThread
 import quest.api.dto.CreateChildRequest
 import quest.api.dto.MapResponse
 import quest.api.dto.MediaKind
@@ -43,6 +48,7 @@ import quest.api.dto.PlatformSettings
 import quest.api.dto.ProgressResponse
 import quest.api.dto.PublishedLesson
 import quest.api.dto.SchoolTheme
+import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UpdateChildRequest
 import quest.core.json.AppJson
 import quest.feature.content.domain.SchoolApi
@@ -103,6 +109,54 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
     }
 
     override suspend fun platformSettings(): PlatformSettings = call { client.get("$baseUrl/platform-settings") }
+
+    // ---- C1: chat with the child's teachers (`docs/runbook.md` "Chat")
+    override suspend fun chatThreads(childId: String): List<ChatThread> =
+        call { client.get("$baseUrl/children/$childId/chat/threads") { authed() } }
+
+    override suspend fun chatMessages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> =
+        call {
+            client.get("$baseUrl/children/$childId/chat/threads/$teacherId/messages") {
+                authed()
+                if (!before.isNullOrBlank()) parameter("before", before)
+                if (!since.isNullOrBlank()) parameter("since", since)
+                if (limit != null) parameter("limit", limit)
+            }
+        }
+
+    override suspend fun sendChatMessage(childId: String, teacherId: String, request: SendChatMessageRequest): ChatMessage =
+        call {
+            client.post("$baseUrl/children/$childId/chat/threads/$teacherId/messages") {
+                authed()
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+        }
+
+    override suspend fun markChatRead(childId: String, teacherId: String): ChatReadReceipt =
+        call { client.post("$baseUrl/children/$childId/chat/threads/$teacherId/read") { authed() } }
+
+    override suspend fun childAttendance(childId: String, from: String?, to: String?): ChildAttendanceResponse =
+        call {
+            client.get("$baseUrl/children/$childId/attendance") {
+                authed()
+                if (!from.isNullOrBlank()) parameter("from", from)
+                if (!to.isNullOrBlank()) parameter("to", to)
+            }
+        }
+
+    override suspend fun todayAttendance(childId: String): ChildAttendanceRecord? =
+        try {
+            val response = client.get("$baseUrl/children/$childId/attendance/today") { authed() }
+            if (response.status == HttpStatusCode.NoContent || !response.status.isSuccess()) {
+                null
+            } else {
+                val text = response.bodyAsText().trim()
+                if (text.isEmpty() || text == "null") null else AppJson.decodeFromString(ChildAttendanceRecord.serializer(), text)
+            }
+        } catch (_: Exception) {
+            null
+        }
 
     private suspend inline fun <reified T> call(block: () -> HttpResponse): T {
         val response = try { block() } catch (e: ApiException) { throw e } catch (e: Exception) { throw ApiException(ApiError(ApiError.NETWORK, e.message ?: "network"), e) }

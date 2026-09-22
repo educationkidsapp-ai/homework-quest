@@ -31,7 +31,7 @@ interface ChildrenRepository {
 class AddChildUseCase(private val repo: ChildrenRepository) {
     suspend operator fun invoke(request: CreateChildRequest): Child {
         require(request.name.isNotBlank()) { "Please enter a name." }
-        require(request.grade in 1..3) { "Grade must be 1, 2 or 3." }
+        require(request.grade in 1..6) { "Grade must be between 1 and 6." }
         return repo.create(request).also { repo.select(it.id) }
     }
 }

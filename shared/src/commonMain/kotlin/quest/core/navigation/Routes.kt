@@ -24,4 +24,6 @@ object Routes {
     @Serializable object Settings
     @Serializable object ChangePin
     @Serializable data class LessonPanel(val lessonId: String)
+    @Serializable object ChatThreads
+    @Serializable data class ChatConversation(val childId: String, val teacherId: String, val teacherName: String)
 }

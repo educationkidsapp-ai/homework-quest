@@ -7,6 +7,7 @@
  */
 export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'announcement.write',
+  'attendance.write',
   'auth.changePassword',
   'auth.forgotPassword',
   'auth.refresh',

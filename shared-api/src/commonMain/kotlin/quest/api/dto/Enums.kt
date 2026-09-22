@@ -9,12 +9,12 @@ enum class Subject { @SerialName("math") MATH, @SerialName("english") ENGLISH }
 @Serializable
 enum class Curriculum { @SerialName("american") AMERICAN, @SerialName("british") BRITISH }
 
-/** A (curriculum, grade) pair; six courses exist. */
+/** A (curriculum, grade) pair; twelve courses exist. */
 @Serializable
 data class Course(val curriculum: Curriculum, val grade: Int) {
     val key: String get() = "${curriculum.name.lowercase()}/$grade"
     companion object {
-        val all: List<Course> = Curriculum.entries.flatMap { c -> (1..3).map { Course(c, it) } }
+        val all: List<Course> = Curriculum.entries.flatMap { c -> (1..6).map { Course(c, it) } }
         fun parse(key: String): Course { val (c, g) = key.split('/'); return Course(Curriculum.valueOf(c.uppercase()), g.toInt()) }
     }
 }

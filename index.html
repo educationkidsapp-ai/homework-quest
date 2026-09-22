@@ -1,0 +1,1776 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Homework Quest — Gamified Teacher Weekly Dashboard</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome 6 Free CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts: Outfit & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            space: {
+              950: '#0b0f19',
+              900: '#131b2e',
+              850: '#18223a',
+              800: '#1e293b',
+              700: '#334155',
+            },
+            brand: {
+              indigo: '#6366f1',
+              violet: '#8b5cf6',
+              purple: '#a855f7',
+              emerald: '#10b981',
+              rose: '#f43f5e',
+              amber: '#f59e0b',
+              cyan: '#06b6d4',
+            }
+          },
+          fontFamily: {
+            display: ['Outfit', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          boxShadow: {
+            'glow-indigo': '0 0 25px -5px rgba(99, 102, 241, 0.4)',
+            'glow-purple': '0 0 25px -5px rgba(168, 85, 247, 0.4)',
+            'glow-rose': '0 0 25px -5px rgba(244, 63, 94, 0.4)',
+            'glow-emerald': '0 0 25px -5px rgba(16, 185, 129, 0.4)',
+            'card-lift': '0 12px 28px -6px rgba(0, 0, 0, 0.45)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(11, 15, 25, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #6366f1;
+    }
+
+    /* Glassmorphism Classes */
+    .glass-panel {
+      background: rgba(19, 27, 46, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .light .glass-panel {
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+
+    .glass-card {
+      background: rgba(24, 34, 58, 0.65);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .light .glass-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+    }
+    .glass-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(99, 102, 241, 0.4);
+      box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.25);
+    }
+
+    /* Tier Styling */
+    .tier-badge-boss {
+      background: linear-gradient(135deg, rgba(244, 63, 94, 0.2), rgba(245, 158, 11, 0.2));
+      border: 1px solid rgba(244, 63, 94, 0.5);
+      color: #fb7185;
+      animation: pulseGlow 2.5s infinite;
+    }
+    .tier-badge-rare {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(59, 130, 246, 0.2));
+      border: 1px solid rgba(168, 85, 247, 0.45);
+      color: #c084fc;
+    }
+    .tier-badge-common {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% {
+        box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
+      }
+      50% {
+        box-shadow: 0 0 20px rgba(244, 63, 94, 0.55), 0 0 30px rgba(245, 158, 11, 0.3);
+      }
+    }
+
+    /* Range slider custom thumb */
+    input[type=range]::-webkit-slider-thumb {
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #818cf8;
+      border: 3px solid #131b2e;
+      cursor: pointer;
+      box-shadow: 0 0 15px rgba(129, 140, 248, 0.8);
+      transition: all 0.15s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      background: #6366f1;
+    }
+  </style>
+</head>
+<body class="bg-space-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white transition-colors duration-300">
+
+  <!-- Floating Toast Notifications Container -->
+  <div id="toastContainer" class="fixed top-6 right-6 z-50 flex flex-col gap-3 max-w-sm pointer-events-none"></div>
+
+  <!-- Mobile Overlay Backdrop -->
+  <div id="mobileDrawerBackdrop" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 hidden transition-opacity lg:hidden" onclick="toggleMobileDrawer()"></div>
+
+  <div class="flex flex-1 min-h-screen relative overflow-x-hidden">
+
+    <!-- ==================== 1. SIDEBAR NAVIGATION ==================== -->
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-72 glass-panel flex flex-col border-r border-space-800/80 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+      
+      <!-- Brand Logo Header -->
+      <div class="p-6 border-b border-space-800/60 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="relative w-11 h-11 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 p-0.5 shadow-glow-indigo flex items-center justify-center">
+            <div class="w-full h-full bg-space-900 rounded-[10px] flex items-center justify-center">
+              <i class="fa-solid fa-shield-halved text-indigo-400 text-lg"></i>
+            </div>
+            <span class="absolute -top-1 -right-1 flex h-3 w-3">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+            </span>
+          </div>
+          <div>
+            <h1 class="font-display font-extrabold text-base tracking-wider bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent">
+              HOMEWORK QUEST
+            </h1>
+            <p class="text-[11px] font-mono text-indigo-400/90 tracking-wide">/dashboard/teacher/week</p>
+          </div>
+        </div>
+        <!-- Mobile close button -->
+        <button onclick="toggleMobileDrawer()" class="lg:hidden text-slate-400 hover:text-white p-2 rounded-lg" aria-label="Close Sidebar">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Teacher Profile Card -->
+      <div class="px-5 py-4 border-b border-space-800/50">
+        <div class="p-3.5 rounded-xl bg-space-850/80 border border-space-700/40 flex items-center gap-3 shadow-inner">
+          <div class="relative">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-600 to-amber-500 p-0.5 shadow-md">
+              <div class="w-full h-full rounded-[10px] bg-space-950 flex items-center justify-center font-display font-bold text-amber-300 text-base">
+                HV
+              </div>
+            </div>
+            <span class="absolute -bottom-1 -right-1 bg-amber-500 text-space-950 text-[10px] font-black px-1.5 py-0.2 rounded-full border border-space-950">
+              42
+            </span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <h3 class="font-display font-semibold text-sm text-white truncate">Prof. Helena Vance</h3>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                Subject Lead
+              </span>
+              <span class="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
+                <i class="fa-solid fa-gem text-[10px]"></i> 48.2k XP
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation Links -->
+      <div class="flex-1 px-4 py-4 overflow-y-auto space-y-6">
+        <div>
+          <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 font-mono">Main Operations</p>
+          <nav class="space-y-1">
+            <button onclick="navigateTab('planner')" id="nav-planner" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-glow-indigo">
+              <div class="flex items-center gap-3">
+                <i class="fa-solid fa-calendar-week w-5 text-center text-indigo-200"></i>
+                <span>Weekly Planner</span>
+              </div>
+              <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+            </button>
+
+            <button onclick="navigateTab('vault')" id="nav-vault" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-space-800/50 transition-all">
+              <div class="flex items-center gap-3">
+                <i class="fa-solid fa-scroll w-5 text-center text-slate-400"></i>
+                <span>Quest Vault</span>
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-space-800 text-slate-300 font-mono">24</span>
+            </button>
+
+            <button onclick="navigateTab('leaderboards')" id="nav-leaderboards" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-space-800/50 transition-all">
+              <div class="flex items-center gap-3">
+                <i class="fa-solid fa-trophy w-5 text-center text-amber-400"></i>
+                <span>XP Leaderboards</span>
+              </div>
+              <span class="text-xs px-1.5 py-0.5 rounded text-amber-400/90 bg-amber-400/10 font-mono">Top 3</span>
+            </button>
+
+            <button onclick="openGradingModal()" id="nav-grading" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-space-800/50 transition-all group">
+              <div class="flex items-center gap-3">
+                <i class="fa-solid fa-swords w-5 text-center text-rose-400 group-hover:rotate-12 transition-transform"></i>
+                <span>Grading Arena</span>
+              </div>
+              <span id="navPendingBadge" class="text-xs px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 font-semibold font-mono animate-pulse">3</span>
+            </button>
+
+            <button onclick="navigateTab('analytics')" id="nav-analytics" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-space-800/50 transition-all">
+              <div class="flex items-center gap-3">
+                <i class="fa-solid fa-chart-line w-5 text-center text-cyan-400"></i>
+                <span>Class Analytics</span>
+              </div>
+              <i class="fa-solid fa-arrow-up-right-from-square text-xs text-slate-500"></i>
+            </button>
+          </nav>
+        </div>
+
+        <!-- Class Quick Filter Selector -->
+        <div>
+          <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 font-mono">Assigned Classes</p>
+          <div class="space-y-1.5">
+            <button onclick="selectClassFilter('all')" data-class="all" class="class-filter-btn w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600/30 border border-indigo-500/50 transition-all">
+              <span class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                All Classes (Roster)
+              </span>
+              <span id="allClassesCount" class="font-mono text-slate-300">8 Quests</span>
+            </button>
+
+            <button onclick="selectClassFilter('Physics 101')" data-class="Physics 101" class="class-filter-btn w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-space-800/40 border border-transparent transition-all">
+              <span class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-brand-cyan"></span>
+                Physics 101
+              </span>
+              <span class="font-mono text-slate-400">Sec A</span>
+            </button>
+
+            <button onclick="selectClassFilter('Calculus II')" data-class="Calculus II" class="class-filter-btn w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-space-800/40 border border-transparent transition-all">
+              <span class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-brand-purple"></span>
+                Calculus II
+              </span>
+              <span class="font-mono text-slate-400">Sec B</span>
+            </button>
+
+            <button onclick="selectClassFilter('Astronomy')" data-class="Astronomy" class="class-filter-btn w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-space-800/40 border border-transparent transition-all">
+              <span class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-brand-amber"></span>
+                Astronomy
+              </span>
+              <span class="font-mono text-slate-400">Sec C</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar Footer Controls: SFX Audio & Theme Switcher -->
+      <div class="p-4 border-t border-space-800/70 space-y-2.5 bg-space-950/40">
+        <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-space-900/60 border border-space-800">
+          <div class="flex items-center gap-2.5">
+            <i id="sfxIcon" class="fa-solid fa-volume-high text-indigo-400 text-sm"></i>
+            <span class="text-xs font-medium text-slate-300">RPG Audio SFX</span>
+          </div>
+          <button onclick="toggleAudioSFX()" id="sfxToggleBtn" class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-indigo-600 transition-colors duration-200 ease-in-out focus:outline-none" role="switch" aria-checked="true">
+            <span id="sfxToggleKnob" class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out translate-x-4"></span>
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-space-900/60 border border-space-800">
+          <div class="flex items-center gap-2.5">
+            <i id="themeIcon" class="fa-solid fa-moon text-purple-400 text-sm"></i>
+            <span id="themeLabel" class="text-xs font-medium text-slate-300">Deep Space Dark</span>
+          </div>
+          <button onclick="toggleTheme()" class="text-xs px-2.5 py-1 rounded-lg bg-space-800 hover:bg-space-700 text-slate-300 font-semibold transition-colors">
+            Toggle
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ==================== MAIN CONTENT WRAPPER ==================== -->
+    <div class="flex-1 lg:ml-72 flex flex-col min-w-0">
+
+      <!-- ==================== 2. HEADER BAR ==================== -->
+      <header class="sticky top-0 z-30 glass-panel border-b border-space-800/80 px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+        
+        <!-- Left: Mobile Menu Toggle & Global Search -->
+        <div class="flex items-center gap-3.5 flex-1 min-w-[280px]">
+          <button onclick="toggleMobileDrawer()" class="lg:hidden p-2 rounded-xl bg-space-850 border border-space-700 text-slate-300 hover:text-white" aria-label="Open Navigation">
+            <i class="fa-solid fa-bars text-base"></i>
+          </button>
+
+          <!-- Global Search Input with ⌘K Indicator -->
+          <div class="relative w-full max-w-md">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <i class="fa-solid fa-magnifying-glass text-sm"></i>
+            </div>
+            <input 
+              id="globalSearchInput" 
+              type="text" 
+              oninput="handleGlobalSearch(this.value)" 
+              placeholder="Search quests, topics, or students... (⌘K)"
+              class="w-full pl-10 pr-14 py-2 text-xs sm:text-sm bg-space-900/90 border border-space-700/70 rounded-xl text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+            />
+            <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
+              <kbd class="px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-400 bg-space-800 border border-space-700 rounded shadow-sm">⌘K</kbd>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Week Navigator & + New Quest Button -->
+        <div class="flex items-center gap-3">
+          <!-- Week Navigator Controls -->
+          <div class="flex items-center bg-space-900/80 border border-space-800 rounded-xl p-1 shadow-sm">
+            <button onclick="navigateWeek(-1)" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-space-800 transition-colors" title="Previous Week">
+              <i class="fa-solid fa-chevron-left text-xs"></i>
+            </button>
+            <div class="px-3 text-center">
+              <span id="currentWeekDisplay" class="font-display font-semibold text-xs sm:text-sm text-slate-200">Sept 20 - Sept 26, 2026</span>
+            </div>
+            <button onclick="navigateWeek(1)" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-space-800 transition-colors" title="Next Week">
+              <i class="fa-solid fa-chevron-right text-xs"></i>
+            </button>
+            <button onclick="resetWeekToToday()" class="ml-1 px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 transition-all">
+              TODAY
+            </button>
+          </div>
+
+          <!-- Primary Action Button: Forge New Quest -->
+          <button onclick="openForgeModal()" class="relative group inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-display font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 hover:from-indigo-600 hover:via-purple-700 hover:to-pink-600 shadow-glow-indigo transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
+            <i class="fa-solid fa-wand-magic-sparkles text-amber-300 animate-pulse"></i>
+            <span>+ New Quest</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Scrollable Dashboard Content -->
+      <main class="flex-1 p-4 sm:p-8 space-y-8 max-w-7xl mx-auto w-full">
+
+        <!-- ==================== 3. EXECUTIVE KPI METRIC CARDS ==================== -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          
+          <!-- Card 1: Active Weekly Quests -->
+          <div class="glass-card p-5 rounded-2xl relative overflow-hidden group">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Weekly Quests</p>
+                <h4 id="kpiActiveQuests" class="font-display font-black text-3xl text-white mt-1.5">8</h4>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-scroll text-xl"></i>
+              </div>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-xs">
+              <span class="inline-flex items-center gap-1 text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                <i class="fa-solid fa-arrow-trend-up text-[10px]"></i> +14%
+              </span>
+              <span class="text-slate-400">vs last week</span>
+            </div>
+            <div class="absolute -bottom-1 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
+          </div>
+
+          <!-- Card 2: Submission Rate -->
+          <div class="glass-card p-5 rounded-2xl relative overflow-hidden group">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Submission Rate</p>
+                <h4 id="kpiSubmissionRate" class="font-display font-black text-3xl text-emerald-400 mt-1.5">88.4%</h4>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-circle-check text-xl"></i>
+              </div>
+            </div>
+            <div class="mt-4">
+              <div class="w-full bg-space-800 rounded-full h-2 overflow-hidden">
+                <div id="kpiSubmissionProgress" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full transition-all duration-500" style="width: 88.4%"></div>
+              </div>
+              <div class="flex justify-between items-center mt-2 text-[11px] text-slate-400 font-mono">
+                <span id="kpiSubmissionsDetail">142 / 160 Submitted</span>
+                <span class="text-emerald-400 font-bold">On Pace</span>
+              </div>
+            </div>
+            <div class="absolute -bottom-1 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
+          </div>
+
+          <!-- Card 3: Avg Class XP -->
+          <div class="glass-card p-5 rounded-2xl relative overflow-hidden group">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Avg Class XP</p>
+                <h4 id="kpiAvgXp" class="font-display font-black text-3xl text-amber-400 mt-1.5">1,420 XP</h4>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-gem text-xl"></i>
+              </div>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-xs">
+              <span class="inline-flex items-center gap-1.5 text-amber-300 font-semibold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 font-mono">
+                <i class="fa-solid fa-shield text-[10px]"></i> Gold League
+              </span>
+              <span class="text-slate-400">+350 XP per student</span>
+            </div>
+            <div class="absolute -bottom-1 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500"></div>
+          </div>
+
+          <!-- Card 4: Needs Grading -->
+          <div onclick="openGradingModal()" class="glass-card p-5 rounded-2xl relative overflow-hidden group cursor-pointer border-rose-500/30 hover:border-rose-500/60 shadow-glow-rose/20">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-rose-300">Needs Grading</p>
+                <div class="flex items-baseline gap-2 mt-1.5">
+                  <h4 id="kpiNeedsGrading" class="font-display font-black text-3xl text-rose-400">3</h4>
+                  <span class="text-xs text-rose-400 font-semibold">Submissions</span>
+                </div>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500/20 to-red-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 group-hover:rotate-12 transition-transform">
+                <i class="fa-solid fa-swords text-xl"></i>
+              </div>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-xs">
+              <span class="text-rose-400 group-hover:underline font-semibold flex items-center gap-1">
+                Enter Grading Arena <i class="fa-solid fa-arrow-right text-[10px]"></i>
+              </span>
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+            </div>
+            <div class="absolute -bottom-1 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-red-500"></div>
+          </div>
+        </section>
+
+        <!-- ==================== 4. INTERACTIVE WEEKLY QUEST BOARD (5-COLUMN KANBAN) ==================== -->
+        <section class="space-y-4">
+          <!-- Board Controls & Filter Bar -->
+          <div class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl glass-panel border border-space-800">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                <i class="fa-solid fa-dungeon text-base"></i>
+              </div>
+              <div>
+                <h3 class="font-display font-bold text-base text-white">Quest Command Board</h3>
+                <p class="text-xs text-slate-400">Dynamic weekly schedule & rarity tiered assignments</p>
+              </div>
+            </div>
+
+            <!-- Filter Pills -->
+            <div class="flex flex-wrap items-center gap-2">
+              <!-- Tier Filter -->
+              <div class="flex items-center bg-space-900 border border-space-800 rounded-xl p-1 text-xs">
+                <span class="px-2 text-slate-400 text-[11px] font-mono uppercase">Tier:</span>
+                <button onclick="setTierFilter('all')" data-tier="all" class="tier-filter-btn px-2.5 py-1 rounded-lg font-medium bg-indigo-600 text-white transition-colors">All</button>
+                <button onclick="setTierFilter('Common')" data-tier="Common" class="tier-filter-btn px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition-colors">Common</button>
+                <button onclick="setTierFilter('Rare')" data-tier="Rare" class="tier-filter-btn px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition-colors">Rare</button>
+                <button onclick="setTierFilter('Boss Raid')" data-tier="Boss Raid" class="tier-filter-btn px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition-colors">Boss Raid</button>
+              </div>
+
+              <!-- Status Filter -->
+              <div class="flex items-center bg-space-900 border border-space-800 rounded-xl p-1 text-xs">
+                <span class="px-2 text-slate-400 text-[11px] font-mono uppercase">Status:</span>
+                <select id="statusFilterSelect" onchange="setStatusFilter(this.value)" class="bg-transparent text-slate-200 focus:outline-none pr-2 cursor-pointer font-medium">
+                  <option value="all" class="bg-space-900 text-white">All Statuses</option>
+                  <option value="Active" class="bg-space-900 text-white">Active</option>
+                  <option value="In Review" class="bg-space-900 text-white">In Review</option>
+                  <option value="Completed" class="bg-space-900 text-white">Completed</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5-Column Kanban Board Grid (Monday to Friday) -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            
+            <!-- Column 1: Monday -->
+            <div class="flex flex-col rounded-2xl glass-panel border border-space-800 p-3 min-h-[520px]">
+              <div class="flex items-center justify-between pb-3 mb-3 border-b border-space-800/80 px-1">
+                <div class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                  <h4 class="font-display font-bold text-sm text-white">Monday</h4>
+                  <span id="badge-count-Monday" class="text-[11px] px-2 py-0.2 rounded-full bg-space-800 text-slate-300 font-mono">0</span>
+                </div>
+                <button onclick="openForgeModal('Monday')" class="w-6 h-6 rounded-lg bg-space-800 hover:bg-indigo-600 text-slate-300 hover:text-white flex items-center justify-center transition-colors text-xs" title="Add quest to Monday">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+              </div>
+              <div id="column-Monday" class="flex-1 space-y-3 kanban-dropzone">
+                <!-- Injected via JavaScript -->
+              </div>
+            </div>
+
+            <!-- Column 2: Tuesday -->
+            <div class="flex flex-col rounded-2xl glass-panel border border-space-800 p-3 min-h-[520px]">
+              <div class="flex items-center justify-between pb-3 mb-3 border-b border-space-800/80 px-1">
+                <div class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                  <h4 class="font-display font-bold text-sm text-white">Tuesday</h4>
+                  <span id="badge-count-Tuesday" class="text-[11px] px-2 py-0.2 rounded-full bg-space-800 text-slate-300 font-mono">0</span>
+                </div>
+                <button onclick="openForgeModal('Tuesday')" class="w-6 h-6 rounded-lg bg-space-800 hover:bg-purple-600 text-slate-300 hover:text-white flex items-center justify-center transition-colors text-xs" title="Add quest to Tuesday">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+              </div>
+              <div id="column-Tuesday" class="flex-1 space-y-3 kanban-dropzone">
+                <!-- Injected via JavaScript -->
+              </div>
+            </div>
+
+            <!-- Column 3: Wednesday -->
+            <div class="flex flex-col rounded-2xl glass-panel border border-space-800 p-3 min-h-[520px]">
+              <div class="flex items-center justify-between pb-3 mb-3 border-b border-space-800/80 px-1">
+                <div class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
+                  <h4 class="font-display font-bold text-sm text-white">Wednesday</h4>
+                  <span id="badge-count-Wednesday" class="text-[11px] px-2 py-0.2 rounded-full bg-space-800 text-slate-300 font-mono">0</span>
+                </div>
+                <button onclick="openForgeModal('Wednesday')" class="w-6 h-6 rounded-lg bg-space-800 hover:bg-cyan-600 text-slate-300 hover:text-white flex items-center justify-center transition-colors text-xs" title="Add quest to Wednesday">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+              </div>
+              <div id="column-Wednesday" class="flex-1 space-y-3 kanban-dropzone">
+                <!-- Injected via JavaScript -->
+              </div>
+            </div>
+
+            <!-- Column 4: Thursday -->
+            <div class="flex flex-col rounded-2xl glass-panel border border-space-800 p-3 min-h-[520px]">
+              <div class="flex items-center justify-between pb-3 mb-3 border-b border-space-800/80 px-1">
+                <div class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                  <h4 class="font-display font-bold text-sm text-white">Thursday</h4>
+                  <span id="badge-count-Thursday" class="text-[11px] px-2 py-0.2 rounded-full bg-space-800 text-slate-300 font-mono">0</span>
+                </div>
+                <button onclick="openForgeModal('Thursday')" class="w-6 h-6 rounded-lg bg-space-800 hover:bg-amber-600 text-slate-300 hover:text-white flex items-center justify-center transition-colors text-xs" title="Add quest to Thursday">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+              </div>
+              <div id="column-Thursday" class="flex-1 space-y-3 kanban-dropzone">
+                <!-- Injected via JavaScript -->
+              </div>
+            </div>
+
+            <!-- Column 5: Friday -->
+            <div class="flex flex-col rounded-2xl glass-panel border border-space-800 p-3 min-h-[520px]">
+              <div class="flex items-center justify-between pb-3 mb-3 border-b border-space-800/80 px-1">
+                <div class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                  <h4 class="font-display font-bold text-sm text-white">Friday</h4>
+                  <span id="badge-count-Friday" class="text-[11px] px-2 py-0.2 rounded-full bg-space-800 text-slate-300 font-mono">0</span>
+                </div>
+                <button onclick="openForgeModal('Friday')" class="w-6 h-6 rounded-lg bg-space-800 hover:bg-rose-600 text-slate-300 hover:text-white flex items-center justify-center transition-colors text-xs" title="Add quest to Friday">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+              </div>
+              <div id="column-Friday" class="flex-1 space-y-3 kanban-dropzone">
+                <!-- Injected via JavaScript -->
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ==================== 6. ANALYTICS & LIVE FEED SECTION ==================== -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Left 2 Cols: Submission Engagement Chart -->
+          <div class="lg:col-span-2 glass-panel p-6 rounded-2xl border border-space-800 space-y-4">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 class="font-display font-bold text-base text-white flex items-center gap-2">
+                  <i class="fa-solid fa-chart-area text-indigo-400"></i>
+                  Weekly Submission Engagement
+                </h3>
+                <p class="text-xs text-slate-400">Comparing real-time quest turn-ins across classes</p>
+              </div>
+              <div class="flex items-center gap-4 text-xs">
+                <span class="flex items-center gap-1.5 text-indigo-300 font-medium">
+                  <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Physics 101
+                </span>
+                <span class="flex items-center gap-1.5 text-purple-300 font-medium">
+                  <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Calculus II
+                </span>
+              </div>
+            </div>
+            <div class="h-64 relative">
+              <canvas id="engagementChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Right Col: XP Leaderboard & Live Activity Feed -->
+          <div class="space-y-6">
+            
+            <!-- XP Leaderboard (Top 3 Students) -->
+            <div class="glass-panel p-5 rounded-2xl border border-space-800 space-y-4">
+              <div class="flex items-center justify-between">
+                <h4 class="font-display font-bold text-sm text-white flex items-center gap-2">
+                  <i class="fa-solid fa-crown text-amber-400"></i>
+                  Class XP Leaderboard
+                </h4>
+                <span class="text-[11px] font-mono text-slate-400">Top Adventurers</span>
+              </div>
+
+              <div class="space-y-2.5">
+                <!-- Rank 1: Gold -->
+                <div class="p-2.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-space-850 to-space-850 border border-amber-500/30 flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center font-display font-black text-amber-300 text-sm">
+                      #1
+                    </div>
+                    <div>
+                      <p class="font-display font-semibold text-xs text-white">Leo Vance</p>
+                      <p class="text-[10px] text-amber-400/90 font-mono">Lvl 28 Grandmaster</p>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <span class="font-display font-bold text-xs text-amber-300">3,850 XP</span>
+                    <p class="text-[10px] text-slate-400">Physics 101</p>
+                  </div>
+                </div>
+
+                <!-- Rank 2: Silver -->
+                <div class="p-2.5 rounded-xl bg-space-850/80 border border-slate-700/50 flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-slate-400/20 border border-slate-400/40 flex items-center justify-center font-display font-black text-slate-300 text-sm">
+                      #2
+                    </div>
+                    <div>
+                      <p class="font-display font-semibold text-xs text-white">Maya Lin</p>
+                      <p class="text-[10px] text-indigo-400 font-mono">Lvl 25 Sorcerer</p>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <span class="font-display font-bold text-xs text-slate-200">3,420 XP</span>
+                    <p class="text-[10px] text-slate-400">Calculus II</p>
+                  </div>
+                </div>
+
+                <!-- Rank 3: Bronze -->
+                <div class="p-2.5 rounded-xl bg-space-850/80 border border-orange-700/30 flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-orange-700/20 border border-orange-700/40 flex items-center justify-center font-display font-black text-orange-400 text-sm">
+                      #3
+                    </div>
+                    <div>
+                      <p class="font-display font-semibold text-xs text-white">Aiden Thorne</p>
+                      <p class="text-[10px] text-rose-400 font-mono">Lvl 22 Paladin</p>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <span class="font-display font-bold text-xs text-orange-300">3,110 XP</span>
+                    <p class="text-[10px] text-slate-400">Physics 101</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Submission Activity Feed -->
+            <div class="glass-panel p-5 rounded-2xl border border-space-800 space-y-3">
+              <div class="flex items-center justify-between">
+                <h4 class="font-display font-bold text-sm text-white flex items-center gap-2">
+                  <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  Live Quest Feed
+                </h4>
+                <span class="text-[10px] text-slate-400 font-mono">Real-time Turns</span>
+              </div>
+
+              <div id="liveActivityFeed" class="space-y-2.5 text-xs max-h-48 overflow-y-auto pr-1">
+                <!-- Activity Items -->
+                <div class="p-2 rounded-lg bg-space-850/60 border border-space-800/80 flex items-start gap-2.5">
+                  <i class="fa-solid fa-circle-check text-emerald-400 mt-0.5 text-xs"></i>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-slate-200 text-[11px]"><strong class="text-white">Leo Vance</strong> turned in Quantum Tunneling Lab</p>
+                    <span class="text-[10px] text-slate-400 font-mono">10m ago · Physics 101</span>
+                  </div>
+                  <button onclick="openGradingModal('Aiden Thorne', 'Quantum Tunneling Lab Report')" class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/40 text-[10px] font-semibold">
+                    Grade
+                  </button>
+                </div>
+
+                <div class="p-2 rounded-lg bg-space-850/60 border border-space-800/80 flex items-start gap-2.5">
+                  <i class="fa-solid fa-clock text-amber-400 mt-0.5 text-xs"></i>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-slate-200 text-[11px]"><strong class="text-white">Maya Lin</strong> completed Taylor Series Dungeon</p>
+                    <span class="text-[10px] text-slate-400 font-mono">24m ago · Calculus II</span>
+                  </div>
+                  <button onclick="openGradingModal('Maya Lin', 'Taylor Series Dungeon Quest')" class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/40 text-[10px] font-semibold">
+                    Grade
+                  </button>
+                </div>
+
+                <div class="p-2 rounded-lg bg-space-850/60 border border-space-800/80 flex items-start gap-2.5">
+                  <i class="fa-solid fa-paper-plane text-purple-400 mt-0.5 text-xs"></i>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-slate-200 text-[11px]"><strong class="text-white">Lucas Gray</strong> submitted Kepler's Planetary Orbits</p>
+                    <span class="text-[10px] text-slate-400 font-mono">1h ago · Astronomy</span>
+                  </div>
+                  <button onclick="openGradingModal('Lucas Gray', 'Kepler\\'s Orbits & Gravitation')" class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/40 text-[10px] font-semibold">
+                    Grade
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ==================== 5. MODALS & INTERACTIVE OVERLAYS ==================== -->
+
+  <!-- Modal 1: Forge New Homework Quest Modal -->
+  <div id="forgeModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md hidden transition-opacity">
+    <div class="glass-panel w-full max-w-lg rounded-2xl border border-indigo-500/30 shadow-glow-indigo overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      
+      <!-- Modal Header -->
+      <div class="p-5 border-b border-space-800 flex items-center justify-between bg-gradient-to-r from-space-900 via-indigo-950/40 to-space-900">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-glow-indigo">
+            <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
+          </div>
+          <div>
+            <h3 class="font-display font-bold text-base text-white">Forge New Homework Quest</h3>
+            <p class="text-xs text-slate-400">Craft a gamified assignment for your class roster</p>
+          </div>
+        </div>
+        <button onclick="closeForgeModal()" class="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-space-800 transition-colors">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Modal Form -->
+      <form id="forgeQuestForm" onsubmit="handleForgeQuestSubmit(event)" class="p-6 space-y-4">
+        
+        <!-- Quest Title -->
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">Quest Title</label>
+          <input 
+            type="text" 
+            id="questTitleInput" 
+            required 
+            placeholder="e.g., Electromagnetic Field Discovery Mission" 
+            class="w-full px-3.5 py-2.5 text-sm bg-space-900 border border-space-700/80 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+          />
+        </div>
+
+        <!-- Class & Scheduled Day Row -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">Target Class</label>
+            <select id="questClassSelect" required class="w-full px-3.5 py-2.5 text-sm bg-space-900 border border-space-700/80 rounded-xl text-white focus:outline-none focus:border-indigo-500">
+              <option value="Physics 101">Physics 101 (Sec A)</option>
+              <option value="Calculus II">Calculus II (Sec B)</option>
+              <option value="Astronomy">Astronomy (Sec C)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">Scheduled Day</label>
+            <select id="questDaySelect" required class="w-full px-3.5 py-2.5 text-sm bg-space-900 border border-space-700/80 rounded-xl text-white focus:outline-none focus:border-indigo-500">
+              <option value="Monday">Monday</option>
+              <option value="Tuesday">Tuesday</option>
+              <option value="Wednesday">Wednesday</option>
+              <option value="Thursday">Thursday</option>
+              <option value="Friday">Friday</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Difficulty Tier & XP Reward -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">Difficulty Tier</label>
+            <select id="questTierSelect" onchange="updateDefaultXpByTier(this.value)" required class="w-full px-3.5 py-2.5 text-sm bg-space-900 border border-space-700/80 rounded-xl text-white focus:outline-none focus:border-indigo-500">
+              <option value="Common">Common (Easy) · 100 XP</option>
+              <option value="Rare">Rare (Medium) · 250 XP</option>
+              <option value="Boss Raid">Boss Raid (Hard) · 500 XP</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">XP Reward</label>
+            <div class="relative">
+              <input 
+                type="number" 
+                id="questXpInput" 
+                min="25" 
+                max="1000" 
+                value="250" 
+                required 
+                class="w-full px-3.5 py-2.5 pl-9 text-sm bg-space-900 border border-space-700/80 rounded-xl text-amber-300 font-display font-bold focus:outline-none focus:border-indigo-500"
+              />
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-amber-400">
+                <i class="fa-solid fa-gem text-xs"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instructions / Objectives -->
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">Objectives & Instructions</label>
+          <textarea 
+            id="questInstructionsInput" 
+            rows="3" 
+            placeholder="Solve the 5 challenge problems, chart the trajectory in the laboratory simulator, and provide written findings..." 
+            class="w-full px-3.5 py-2.5 text-sm bg-space-900 border border-space-700/80 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+          ></textarea>
+        </div>
+
+        <!-- AI Hint Auto-Generator Toggle -->
+        <div class="flex items-center justify-between p-3 rounded-xl bg-space-900/80 border border-space-800">
+          <div class="flex items-center gap-2.5">
+            <i class="fa-solid fa-microchip-ai text-indigo-400 text-sm"></i>
+            <div>
+              <p class="text-xs font-semibold text-slate-200">AI Hint Auto-Generator</p>
+              <p class="text-[10px] text-slate-400">Unlocks progressive hints if students are stuck after 2 attempts</p>
+            </div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="aiHintCheckbox" checked class="sr-only peer">
+            <div class="w-9 h-5 bg-space-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+          </label>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="pt-2 flex items-center justify-end gap-3">
+          <button type="button" onclick="closeForgeModal()" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-space-800 transition-colors">
+            Cancel
+          </button>
+          <button type="submit" class="px-6 py-2.5 rounded-xl font-display font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 hover:from-indigo-600 hover:via-purple-700 hover:to-pink-600 shadow-glow-indigo transition-all">
+            <i class="fa-solid fa-sparkles mr-1.5 text-amber-300"></i> Forge Quest
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: Grading Arena & Review Modal -->
+  <div id="gradingModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md hidden transition-opacity">
+    <div class="glass-panel w-full max-w-xl rounded-2xl border border-rose-500/40 shadow-glow-rose/30 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      
+      <!-- Grading Header -->
+      <div class="p-5 border-b border-space-800 flex items-center justify-between bg-gradient-to-r from-space-900 via-rose-950/40 to-space-900">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 to-amber-600 flex items-center justify-center text-white shadow-glow-rose">
+            <i class="fa-solid fa-swords text-lg"></i>
+          </div>
+          <div>
+            <h3 class="font-display font-bold text-base text-white">Grading Arena & Review</h3>
+            <p class="text-xs text-rose-300">Grade assignment and award XP to the adventurer</p>
+          </div>
+        </div>
+        <button onclick="closeGradingModal()" class="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-space-800 transition-colors">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Student & Assignment Info -->
+      <div class="p-6 space-y-5">
+        <div class="flex items-center justify-between p-4 rounded-xl bg-space-850/80 border border-space-700/60">
+          <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 via-purple-600 to-indigo-500 p-0.5">
+              <div class="w-full h-full rounded-[10px] bg-space-950 flex items-center justify-center font-display font-bold text-rose-400 text-base">
+                AT
+              </div>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h4 id="gradingStudentName" class="font-display font-bold text-sm text-white">Aiden Thorne</h4>
+                <span class="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  Lvl 14 Rogue
+                </span>
+              </div>
+              <p id="gradingQuestTitle" class="text-xs text-slate-300 mt-0.5">Quantum Tunneling Lab Report</p>
+              <p class="text-[10px] text-slate-400 font-mono mt-0.5">Turned in Today, 2:45 PM · Physics 101</p>
+            </div>
+          </div>
+          <span class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-400/10 text-amber-300 border border-amber-400/20">
+            Pending Grade
+          </span>
+        </div>
+
+        <!-- Simulated Attached Document / Rubric Preview -->
+        <div class="p-4 rounded-xl bg-space-900/90 border border-space-800 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 text-xs font-medium text-slate-300">
+              <i class="fa-solid fa-file-pdf text-rose-400 text-sm"></i>
+              <span>submission_aiden_thorne_v2.pdf</span>
+              <span class="text-[10px] text-slate-400 font-mono">(4.2 MB)</span>
+            </div>
+            <button class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold">
+              <i class="fa-solid fa-eye text-xs"></i> View Full Paper
+            </button>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 pt-2 border-t border-space-800/80 text-[11px]">
+            <div class="p-2 rounded bg-space-800/50 text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-check text-emerald-400"></i> Methodology
+            </div>
+            <div class="p-2 rounded bg-space-800/50 text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-check text-emerald-400"></i> Formulas Applied
+            </div>
+            <div class="p-2 rounded bg-space-800/50 text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-check text-emerald-400"></i> Clarity & Charts
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive XP Slider -->
+        <div class="space-y-2 p-4 rounded-xl bg-space-850/60 border border-space-800">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold uppercase tracking-wider text-slate-300 font-mono">
+              Award XP Rating (0 - 500)
+            </label>
+            <div class="flex items-baseline gap-1 text-amber-400 font-display font-black text-lg">
+              <span id="sliderXpDisplay">450</span>
+              <span class="text-xs text-amber-300 font-semibold font-sans">XP</span>
+            </div>
+          </div>
+          <input 
+            type="range" 
+            id="xpSlider" 
+            min="50" 
+            max="500" 
+            step="10" 
+            value="450" 
+            oninput="handleXpSliderChange(this.value)" 
+            class="w-full h-2 bg-space-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+          />
+          <div class="flex justify-between text-[10px] text-slate-400 font-mono">
+            <span>Pass (50 XP)</span>
+            <span id="xpTierTierFeedback" class="text-indigo-400 font-bold">Legendary Mastery (+450 XP)</span>
+            <span>Max (500 XP)</span>
+          </div>
+        </div>
+
+        <!-- Teacher Feedback Textarea -->
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">
+            Master Feedback / Lore Notes
+          </label>
+          <textarea 
+            id="gradingFeedbackInput" 
+            rows="2" 
+            class="w-full px-3.5 py-2.5 text-sm bg-space-900 border border-space-700/80 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-rose-500"
+            placeholder="Write constructive notes for the student's adventure log..."
+          >Outstanding derivation of the wavefunction boundary conditions. Keep up the high caliber work!</textarea>
+        </div>
+
+        <!-- Action Button -->
+        <div class="pt-2 flex items-center justify-end gap-3">
+          <button type="button" onclick="closeGradingModal()" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-space-800 transition-colors">
+            Cancel
+          </button>
+          <button type="button" onclick="submitGradingAward()" class="px-6 py-2.5 rounded-xl font-display font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 hover:opacity-95 shadow-glow-rose transition-all flex items-center gap-2">
+            <i class="fa-solid fa-award text-amber-200"></i>
+            <span>Award XP & Pass Quest</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PURE VANILLA JAVASCRIPT STATE & LOGIC ==================== -->
+  <script>
+    /* -------------------------------------------------------------
+       1. INITIAL STATE & MOCK DATA
+       ------------------------------------------------------------- */
+    const state = {
+      selectedClass: 'all',
+      selectedTier: 'all',
+      selectedStatus: 'all',
+      searchQuery: '',
+      sfxEnabled: true,
+      darkMode: true,
+      currentWeekOffset: 0,
+      needsGradingCount: 3,
+      totalClassXp: 48250,
+
+      // Initial Quests spanning different days, classes, and difficulties
+      quests: [
+        {
+          id: 'q1',
+          title: 'Quantum Tunneling Lab Report',
+          subject: 'Quantum Mechanics',
+          classId: 'Physics 101',
+          day: 'Monday',
+          tier: 'Boss Raid', // Legendary / Boss
+          xp: 450,
+          completedCount: 28,
+          totalCount: 30,
+          dueTime: 'Due 11:59 PM',
+          status: 'In Review',
+          hintEnabled: true
+        },
+        {
+          id: 'q2',
+          title: 'Harmonic Oscillator Simulation',
+          subject: 'Classical Mechanics',
+          classId: 'Physics 101',
+          day: 'Monday',
+          tier: 'Common',
+          xp: 150,
+          completedCount: 30,
+          totalCount: 30,
+          dueTime: 'Due 5:00 PM',
+          status: 'Completed',
+          hintEnabled: false
+        },
+        {
+          id: 'q3',
+          title: 'Taylor Series Dungeon Quest',
+          subject: 'Calculus',
+          classId: 'Calculus II',
+          day: 'Tuesday',
+          tier: 'Rare',
+          xp: 280,
+          completedCount: 22,
+          totalCount: 26,
+          dueTime: 'Due 11:59 PM',
+          status: 'In Review',
+          hintEnabled: true
+        },
+        {
+          id: 'q4',
+          title: 'Kepler\'s Orbits & Gravitation',
+          subject: 'Astrophysics',
+          classId: 'Astronomy',
+          day: 'Wednesday',
+          tier: 'Rare',
+          xp: 320,
+          completedCount: 16,
+          totalCount: 24,
+          dueTime: 'Due 11:59 PM',
+          status: 'Active',
+          hintEnabled: true
+        },
+        {
+          id: 'q5',
+          title: 'Multi-variable Vector Derivatives',
+          subject: 'Calculus',
+          classId: 'Calculus II',
+          day: 'Thursday',
+          tier: 'Common',
+          xp: 120,
+          completedCount: 18,
+          totalCount: 26,
+          dueTime: 'Due 6:00 PM',
+          status: 'Active',
+          hintEnabled: false
+        },
+        {
+          id: 'q6',
+          title: 'General Relativity Epic Raid',
+          subject: 'Modern Physics',
+          classId: 'Physics 101',
+          day: 'Friday',
+          tier: 'Boss Raid',
+          xp: 500,
+          completedCount: 12,
+          totalCount: 30,
+          dueTime: 'Due 11:59 PM',
+          status: 'Active',
+          hintEnabled: true
+        },
+        {
+          id: 'q7',
+          title: 'Stellar Nucleosynthesis Analysis',
+          subject: 'Cosmology',
+          classId: 'Astronomy',
+          day: 'Friday',
+          tier: 'Common',
+          xp: 150,
+          completedCount: 8,
+          totalCount: 24,
+          dueTime: 'Due 4:00 PM',
+          status: 'Active',
+          hintEnabled: false
+        }
+      ]
+    };
+
+    /* -------------------------------------------------------------
+       2. PURE VANILLA JS WEB AUDIO API SYNTHESIZER
+       ------------------------------------------------------------- */
+    let audioCtx = null;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    /**
+     * Plays synthetic audio feedback using native HTML5 Web Audio API
+     * @param {'click' | 'quest_created' | 'xp_award' | 'toggle'} type
+     */
+    function playAudioFeedback(type) {
+      if (!state.sfxEnabled) return;
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+
+      if (type === 'click') {
+        // Crisp UI click blip
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(400, now + 0.05);
+
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.05);
+
+      } else if (type === 'quest_created') {
+        // Magical ascending triad arpeggio (C5 - E5 - G5 - C6)
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const start = now + (idx * 0.08);
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, start);
+
+          gain.gain.setValueAtTime(0, start);
+          gain.gain.linearRampToValueAtTime(0.2, start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(start);
+          osc.stop(start + 0.35);
+        });
+
+      } else if (type === 'xp_award') {
+        // Victorious arcade power fanfare chord (E5, G#5, B5, E6)
+        const chords = [
+          { freq: 659.25, delay: 0 },
+          { freq: 830.61, delay: 0.06 },
+          { freq: 987.77, delay: 0.12 },
+          { freq: 1318.51, delay: 0.18 }
+        ];
+
+        chords.forEach(({ freq, delay }) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const start = now + delay;
+
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, start);
+          osc.frequency.exponentialRampToValueAtTime(freq * 1.05, start + 0.4);
+
+          gain.gain.setValueAtTime(0, start);
+          gain.gain.linearRampToValueAtTime(0.25, start + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.5);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(start);
+          osc.stop(start + 0.5);
+        });
+
+      } else if (type === 'toggle') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      }
+    }
+
+    /* -------------------------------------------------------------
+       3. TOAST NOTIFICATION SYSTEM
+       ------------------------------------------------------------- */
+    function showToast(message, type = 'success', icon = 'fa-circle-check') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto p-3.5 rounded-xl border glass-panel shadow-card-lift flex items-center gap-3 transition-all duration-300 transform translate-x-12 opacity-0 text-xs sm:text-sm font-medium ${
+        type === 'xp' ? 'border-amber-500/50 text-amber-200' :
+        type === 'rose' ? 'border-rose-500/50 text-rose-200' :
+        'border-emerald-500/50 text-emerald-200'
+      }`;
+
+      toast.innerHTML = `
+        <i class="fa-solid ${icon} text-base ${type === 'xp' ? 'text-amber-400' : type === 'rose' ? 'text-rose-400' : 'text-emerald-400'}"></i>
+        <span class="flex-1">${message}</span>
+        <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white ml-2 text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      `;
+
+      container.appendChild(toast);
+
+      // Trigger animation
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-x-12', 'opacity-0');
+      });
+
+      // Auto dismiss after 3.8s
+      setTimeout(() => {
+        toast.classList.add('translate-x-12', 'opacity-0');
+        setTimeout(() => toast.remove(), 350);
+      }, 3800);
+    }
+
+    /* -------------------------------------------------------------
+       4. KANBAN RENDERING & FILTERING
+       ------------------------------------------------------------- */
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+    function getFilteredQuests() {
+      return state.quests.filter(q => {
+        // Class filter
+        if (state.selectedClass !== 'all' && q.classId !== state.selectedClass) return false;
+        // Tier filter
+        if (state.selectedTier !== 'all' && q.tier !== state.selectedTier) return false;
+        // Status filter
+        if (state.selectedStatus !== 'all' && q.status !== state.selectedStatus) return false;
+        // Search query
+        if (state.searchQuery.trim() !== '') {
+          const query = state.searchQuery.toLowerCase();
+          const matchTitle = q.title.toLowerCase().includes(query);
+          const matchSubject = q.subject.toLowerCase().includes(query);
+          const matchClass = q.classId.toLowerCase().includes(query);
+          if (!matchTitle && !matchSubject && !matchClass) return false;
+        }
+        return true;
+      });
+    }
+
+    function renderKanbanBoard() {
+      const filtered = getFilteredQuests();
+
+      DAYS.forEach(day => {
+        const colEl = document.getElementById(`column-${day}`);
+        const countBadge = document.getElementById(`badge-count-${day}`);
+        if (!colEl) return;
+
+        const dayQuests = filtered.filter(q => q.day === day);
+        if (countBadge) countBadge.textContent = dayQuests.length;
+
+        if (dayQuests.length === 0) {
+          colEl.innerHTML = `
+            <div class="h-44 rounded-xl border border-dashed border-space-800 flex flex-col items-center justify-center text-center p-4 text-slate-500">
+              <i class="fa-solid fa-shield-cat text-2xl mb-1.5 opacity-40"></i>
+              <p class="text-xs font-medium">No Quests Scheduled</p>
+              <button onclick="openForgeModal('${day}')" class="mt-2 text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1">
+                <i class="fa-solid fa-plus text-[10px]"></i> Forge One
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        colEl.innerHTML = dayQuests.map(q => {
+          const tierClass = 
+            q.tier === 'Boss Raid' ? 'tier-badge-boss' :
+            q.tier === 'Rare' ? 'tier-badge-rare' : 'tier-badge-common';
+
+          const pct = Math.round((q.completedCount / q.totalCount) * 100);
+
+          return `
+            <div class="glass-card p-4 rounded-xl relative group flex flex-col gap-2.5">
+              <!-- Tier & Class Badge -->
+              <div class="flex items-center justify-between gap-1 text-[10px]">
+                <span class="px-2 py-0.5 rounded-full font-bold uppercase tracking-wider font-mono ${tierClass}">
+                  ${q.tier === 'Boss Raid' ? '🔥 ' : ''}${q.tier}
+                </span>
+                <span class="text-slate-400 font-medium truncate max-w-[100px]">${q.classId}</span>
+              </div>
+
+              <!-- Title & Subject -->
+              <div>
+                <h5 class="font-display font-bold text-xs sm:text-sm text-white leading-tight group-hover:text-indigo-300 transition-colors">
+                  ${q.title}
+                </h5>
+                <p class="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                  <i class="fa-solid fa-tag text-[9px] text-indigo-400"></i> ${q.subject}
+                </p>
+              </div>
+
+              <!-- XP Counter & Ratio -->
+              <div class="space-y-1.5 pt-1">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-amber-400 font-display font-extrabold flex items-center gap-1">
+                    <i class="fa-solid fa-gem text-[10px]"></i> +${q.xp} XP
+                  </span>
+                  <span class="text-[11px] font-mono text-slate-300">${q.completedCount}/${q.totalCount} Done</span>
+                </div>
+                <div class="w-full bg-space-800 rounded-full h-1.5 overflow-hidden">
+                  <div class="h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-300" style="width: ${pct}%"></div>
+                </div>
+              </div>
+
+              <!-- Card Footer: Due Date & Action -->
+              <div class="pt-2 border-t border-space-800/80 flex items-center justify-between text-[11px]">
+                <span class="text-slate-400 font-mono text-[10px] flex items-center gap-1">
+                  <i class="fa-regular fa-clock text-[9px]"></i> ${q.dueTime}
+                </span>
+
+                <div class="flex items-center gap-1">
+                  ${q.status === 'In Review' ? `
+                    <button onclick="openGradingModal('Aiden Thorne', '${q.title.replace(/'/g, "\\'")}')" class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 text-[10px] font-bold transition-all">
+                      Grade
+                    </button>
+                  ` : ''}
+                  <button onclick="cycleQuestDay('${q.id}')" title="Move to next weekday" class="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-space-800 transition-colors">
+                    <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      });
+
+      updateGlobalMetrics();
+    }
+
+    function updateGlobalMetrics() {
+      const activeQuests = state.quests.length;
+      document.getElementById('kpiActiveQuests').textContent = activeQuests;
+      document.getElementById('allClassesCount').textContent = `${activeQuests} Quests`;
+
+      // Submission rate
+      let totalAssigned = 0;
+      let totalCompleted = 0;
+      state.quests.forEach(q => {
+        totalAssigned += q.totalCount;
+        totalCompleted += q.completedCount;
+      });
+      const rate = totalAssigned > 0 ? ((totalCompleted / totalAssigned) * 100).toFixed(1) : 0;
+      document.getElementById('kpiSubmissionRate').textContent = `${rate}%`;
+      document.getElementById('kpiSubmissionProgress').style.width = `${rate}%`;
+      document.getElementById('kpiSubmissionsDetail').textContent = `${totalCompleted} / ${totalAssigned} Submitted`;
+
+      // Needs Grading
+      document.getElementById('kpiNeedsGrading').textContent = state.needsGradingCount;
+      document.getElementById('navPendingBadge').textContent = state.needsGradingCount;
+    }
+
+    /* -------------------------------------------------------------
+       5. FILTER & SEARCH HANDLERS
+       ------------------------------------------------------------- */
+    function selectClassFilter(classId) {
+      playAudioFeedback('click');
+      state.selectedClass = classId;
+
+      document.querySelectorAll('.class-filter-btn').forEach(btn => {
+        if (btn.getAttribute('data-class') === classId) {
+          btn.className = "class-filter-btn w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600/30 border border-indigo-500/50 transition-all";
+        } else {
+          btn.className = "class-filter-btn w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-space-800/40 border border-transparent transition-all";
+        }
+      });
+
+      renderKanbanBoard();
+    }
+
+    function setTierFilter(tier) {
+      playAudioFeedback('click');
+      state.selectedTier = tier;
+
+      document.querySelectorAll('.tier-filter-btn').forEach(btn => {
+        if (btn.getAttribute('data-tier') === tier) {
+          btn.className = "tier-filter-btn px-2.5 py-1 rounded-lg font-medium bg-indigo-600 text-white transition-colors";
+        } else {
+          btn.className = "tier-filter-btn px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition-colors";
+        }
+      });
+
+      renderKanbanBoard();
+    }
+
+    function setStatusFilter(status) {
+      playAudioFeedback('click');
+      state.selectedStatus = status;
+      renderKanbanBoard();
+    }
+
+    function handleGlobalSearch(query) {
+      state.searchQuery = query;
+      renderKanbanBoard();
+    }
+
+    function cycleQuestDay(questId) {
+      playAudioFeedback('click');
+      const quest = state.quests.find(q => q.id === questId);
+      if (!quest) return;
+      const idx = DAYS.indexOf(quest.day);
+      const nextDay = DAYS[(idx + 1) % DAYS.length];
+      quest.day = nextDay;
+      renderKanbanBoard();
+      showToast(`Moved "${quest.title}" to ${nextDay}`, 'success', 'fa-arrows-left-right');
+    }
+
+    /* -------------------------------------------------------------
+       6. WEEK NAVIGATION
+       ------------------------------------------------------------- */
+    const WEEKS = [
+      'Sept 13 - Sept 19, 2026',
+      'Sept 20 - Sept 26, 2026',
+      'Sept 27 - Oct 03, 2026',
+      'Oct 04 - Oct 10, 2026'
+    ];
+    let currentWeekIdx = 1;
+
+    function navigateWeek(delta) {
+      playAudioFeedback('click');
+      currentWeekIdx = Math.max(0, Math.min(WEEKS.length - 1, currentWeekIdx + delta));
+      document.getElementById('currentWeekDisplay').textContent = WEEKS[currentWeekIdx];
+      showToast(`Showing Schedule for ${WEEKS[currentWeekIdx]}`, 'success', 'fa-calendar-week');
+    }
+
+    function resetWeekToToday() {
+      playAudioFeedback('click');
+      currentWeekIdx = 1;
+      document.getElementById('currentWeekDisplay').textContent = WEEKS[currentWeekIdx];
+      showToast('Reset to Current Week', 'success', 'fa-clock-rotate-left');
+    }
+
+    /* -------------------------------------------------------------
+       7. FORGE NEW QUEST MODAL FLOW
+       ------------------------------------------------------------- */
+    function openForgeModal(defaultDay = 'Monday') {
+      playAudioFeedback('click');
+      const modal = document.getElementById('forgeModal');
+      document.getElementById('questDaySelect').value = defaultDay;
+      modal.classList.remove('hidden');
+      setTimeout(() => document.getElementById('questTitleInput').focus(), 50);
+    }
+
+    function closeForgeModal() {
+      playAudioFeedback('click');
+      document.getElementById('forgeModal').classList.add('hidden');
+      document.getElementById('forgeQuestForm').reset();
+      updateDefaultXpByTier('Rare');
+    }
+
+    function updateDefaultXpByTier(tier) {
+      const xpInput = document.getElementById('questXpInput');
+      if (tier === 'Common') xpInput.value = 100;
+      else if (tier === 'Rare') xpInput.value = 250;
+      else if (tier === 'Boss Raid') xpInput.value = 500;
+    }
+
+    function handleForgeQuestSubmit(e) {
+      e.preventDefault();
+      const title = document.getElementById('questTitleInput').value.trim();
+      const classId = document.getElementById('questClassSelect').value;
+      const day = document.getElementById('questDaySelect').value;
+      const tier = document.getElementById('questTierSelect').value;
+      const xp = parseInt(document.getElementById('questXpInput').value, 10) || 200;
+      const hint = document.getElementById('aiHintCheckbox').checked;
+
+      const newQuest = {
+        id: 'q_' + Date.now(),
+        title,
+        subject: classId.includes('Physics') ? 'Physics' : classId.includes('Calculus') ? 'Calculus' : 'Astronomy',
+        classId,
+        day,
+        tier,
+        xp,
+        completedCount: 0,
+        totalCount: classId.includes('Physics') ? 30 : 26,
+        dueTime: 'Due 11:59 PM',
+        status: 'Active',
+        hintEnabled: hint
+      };
+
+      state.quests.push(newQuest);
+      playAudioFeedback('quest_created');
+      closeForgeModal();
+      renderKanbanBoard();
+      showToast(`⚔️ Quest Forged: "${title}" assigned to ${classId} on ${day}!`, 'success', 'fa-wand-magic-sparkles');
+    }
+
+    /* -------------------------------------------------------------
+       8. GRADING ARENA & REVIEW MODAL FLOW
+       ------------------------------------------------------------- */
+    function openGradingModal(student = 'Aiden Thorne', questTitle = 'Quantum Tunneling Lab Report') {
+      playAudioFeedback('click');
+      document.getElementById('gradingStudentName').textContent = student;
+      document.getElementById('gradingQuestTitle').textContent = questTitle;
+      document.getElementById('xpSlider').value = 450;
+      handleXpSliderChange(450);
+      document.getElementById('gradingModal').classList.remove('hidden');
+    }
+
+    function closeGradingModal() {
+      playAudioFeedback('click');
+      document.getElementById('gradingModal').classList.add('hidden');
+    }
+
+    function handleXpSliderChange(val) {
+      document.getElementById('sliderXpDisplay').textContent = val;
+      const feedback = document.getElementById('xpTierTierFeedback');
+      if (val >= 450) feedback.textContent = "Legendary Mastery (+ " + val + " XP)";
+      else if (val >= 300) feedback.textContent = "Great Adventure (+ " + val + " XP)";
+      else if (val >= 150) feedback.textContent = "Satisfactory Pass (+ " + val + " XP)";
+      else feedback.textContent = "Needs Revision (+ " + val + " XP)";
+    }
+
+    function submitGradingAward() {
+      const awardedXp = parseInt(document.getElementById('xpSlider').value, 10);
+      const student = document.getElementById('gradingStudentName').textContent;
+
+      playAudioFeedback('xp_award');
+      state.needsGradingCount = Math.max(0, state.needsGradingCount - 1);
+      state.totalClassXp += awardedXp;
+
+      // Prepend to live activity feed
+      const feed = document.getElementById('liveActivityFeed');
+      if (feed) {
+        const item = document.createElement('div');
+        item.className = "p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/30 flex items-start gap-2.5 animate-in fade-in";
+        item.innerHTML = `
+          <i class="fa-solid fa-award text-amber-400 mt-0.5 text-xs"></i>
+          <div class="flex-1 min-w-0">
+            <p class="text-slate-200 text-[11px]"><strong class="text-white">${student}</strong> was awarded <span class="text-amber-300 font-bold">+${awardedXp} XP</span></p>
+            <span class="text-[10px] text-slate-400 font-mono">Just now · Graded by Helena Vance</span>
+          </div>
+        `;
+        feed.insertBefore(item, feed.firstChild);
+      }
+
+      closeGradingModal();
+      updateGlobalMetrics();
+      showToast(`🎉 Awarded +${awardedXp} XP to ${student}! Quest Completed.`, 'xp', 'fa-trophy');
+    }
+
+    /* -------------------------------------------------------------
+       9. AUDIO & THEME TOGGLES
+       ------------------------------------------------------------- */
+    function toggleAudioSFX() {
+      state.sfxEnabled = !state.sfxEnabled;
+      playAudioFeedback('toggle');
+
+      const btn = document.getElementById('sfxToggleBtn');
+      const knob = document.getElementById('sfxToggleKnob');
+      const icon = document.getElementById('sfxIcon');
+
+      if (state.sfxEnabled) {
+        btn.classList.add('bg-indigo-600');
+        btn.classList.remove('bg-space-700');
+        knob.classList.add('translate-x-4');
+        knob.classList.remove('translate-x-0');
+        icon.className = 'fa-solid fa-volume-high text-indigo-400 text-sm';
+        showToast('RPG Synthesizer SFX Enabled', 'success', 'fa-volume-high');
+      } else {
+        btn.classList.remove('bg-indigo-600');
+        btn.classList.add('bg-space-700');
+        knob.classList.remove('translate-x-4');
+        knob.classList.add('translate-x-0');
+        icon.className = 'fa-solid fa-volume-xmark text-slate-500 text-sm';
+        showToast('Audio SFX Muted', 'rose', 'fa-volume-xmark');
+      }
+    }
+
+    function toggleTheme() {
+      state.darkMode = !state.darkMode;
+      playAudioFeedback('toggle');
+
+      const html = document.documentElement;
+      const label = document.getElementById('themeLabel');
+      const icon = document.getElementById('themeIcon');
+
+      if (state.darkMode) {
+        html.classList.add('dark');
+        html.classList.remove('light');
+        label.textContent = 'Deep Space Dark';
+        icon.className = 'fa-solid fa-moon text-purple-400 text-sm';
+      } else {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        label.textContent = 'Daylight Theme';
+        icon.className = 'fa-solid fa-sun text-amber-400 text-sm';
+      }
+    }
+
+    function toggleMobileDrawer() {
+      playAudioFeedback('click');
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('mobileDrawerBackdrop');
+      sidebar.classList.toggle('-translate-x-full');
+      backdrop.classList.toggle('hidden');
+    }
+
+    function navigateTab(tab) {
+      playAudioFeedback('click');
+      if (tab === 'grading') {
+        openGradingModal();
+      } else {
+        showToast(`Viewing ${tab.toUpperCase()} Area`, 'success', 'fa-compass');
+      }
+    }
+
+    /* -------------------------------------------------------------
+       10. CHART.JS INITIALIZATION
+       ------------------------------------------------------------- */
+    function initEngagementChart() {
+      const ctx = document.getElementById('engagementChart');
+      if (!ctx) return;
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+          datasets: [
+            {
+              label: 'Physics 101 Submissions',
+              data: [28, 30, 24, 27, 29],
+              borderColor: '#6366f1',
+              backgroundColor: 'rgba(99, 102, 241, 0.15)',
+              tension: 0.35,
+              borderWidth: 2.5,
+              pointBackgroundColor: '#818cf8',
+              pointBorderColor: '#0b0f19',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              fill: true,
+            },
+            {
+              label: 'Calculus II Submissions',
+              data: [22, 25, 26, 21, 25],
+              borderColor: '#a855f7',
+              backgroundColor: 'rgba(168, 85, 247, 0.1)',
+              tension: 0.35,
+              borderWidth: 2.5,
+              pointBackgroundColor: '#c084fc',
+              pointBorderColor: '#0b0f19',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              fill: true,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(19, 27, 46, 0.95)',
+              titleFont: { family: 'Outfit', size: 12, weight: 'bold' },
+              bodyFont: { family: 'Plus Jakarta Sans', size: 11 },
+              padding: 10,
+              borderColor: 'rgba(99, 102, 241, 0.3)',
+              borderWidth: 1,
+              displayColors: true,
+              callbacks: {
+                label: function(context) {
+                  return ` ${context.dataset.label}: ${context.raw} turns`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: '#94a3b8',
+                font: { family: 'Plus Jakarta Sans', size: 11 }
+              }
+            },
+            y: {
+              min: 15,
+              max: 35,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: '#94a3b8',
+                font: { family: 'Plus Jakarta Sans', size: 11 }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    /* -------------------------------------------------------------
+       11. KEYBOARD SHORTCUTS & INIT
+       ------------------------------------------------------------- */
+    window.addEventListener('keydown', (e) => {
+      // ⌘K or Ctrl+K focuses search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        const search = document.getElementById('globalSearchInput');
+        if (search) search.focus();
+      }
+      // ESC closes open modals
+      if (e.key === 'Escape') {
+        closeForgeModal();
+        closeGradingModal();
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      renderKanbanBoard();
+      initEngagementChart();
+    });
+  </script>
+</body>
+</html>

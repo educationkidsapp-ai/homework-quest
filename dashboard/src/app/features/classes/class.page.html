@@ -39,6 +39,9 @@
       @case ('children') {
         <hq-class-children [classId]="classId()" [className]="className()" />
       }
+      @case ('attendance') {
+        <hq-class-attendance [classId]="classId()" [className]="className()" />
+      }
       @case ('gradebook') {
         <!-- N4.2. Behind the same flag the server's `GradingController` carries. A school
              without it keeps the tab and is told what it would hold, rather than losing a tab

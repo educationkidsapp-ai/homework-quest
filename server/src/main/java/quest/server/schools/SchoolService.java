@@ -88,7 +88,7 @@ public class SchoolService {
         school.setName(request.name().trim());
         school.setCode(request.code() == null || request.code().isBlank() ? freshCode() : claim(request.code().trim().toUpperCase(Locale.ROOT)));
         school.setCurriculumOptionsJson(json.write(validCurricula(request.curriculumOptions(), CURRICULA)));
-        school.setGradeOptionsJson(json.write(validGrades(request.gradeOptions(), List.of(1, 2, 3))));
+        school.setGradeOptionsJson(json.write(validGrades(request.gradeOptions(), List.of(1, 2, 3, 4, 5, 6))));
         school.setStatus("active");
         school.setCreatedAt(Instant.now());
         schools.save(school);

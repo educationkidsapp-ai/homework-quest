@@ -13,3 +13,4 @@ export * from './generated';
 export { provideApiClient } from './api.providers';
 export type { ApiError } from './api-error';
 export { apiErrorOf, apiErrorCodeOf, readableServerText } from './api-error';
+export { AttendanceApi } from './attendance.api';

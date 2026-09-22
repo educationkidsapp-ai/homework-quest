@@ -1,0 +1,163 @@
+<div class="attendance">
+  @if (saveSuccess()) {
+    <hq-band variant="confirm" [open]="true" [title]="'attendance.savedTitle' | transloco" [dismissible]="true">
+      {{ 'attendance.savedBody' | transloco }}
+    </hq-band>
+  }
+
+  @if (errorMessage(); as err) {
+    <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="true">
+      {{ err }}
+    </hq-band>
+  }
+
+  <!-- Date Navigation & Controls -->
+  <div class="attendance__controls">
+    <div class="attendance__date-nav">
+      <hq-button variant="quiet" (pressed)="shiftDate(-1)" [attr.aria-label]="'attendance.prevDay' | transloco">
+        ‹
+      </hq-button>
+      <div class="attendance__date-display">
+        <span class="attendance__date-label">{{ formattedDate() }}</span>
+        <input
+          type="date"
+          class="attendance__date-input"
+          [value]="selectedDate()"
+          (change)="onDateChange($event)"
+          [attr.aria-label]="'attendance.pickDate' | transloco"
+        />
+      </div>
+      <hq-button variant="quiet" (pressed)="shiftDate(1)" [attr.aria-label]="'attendance.nextDay' | transloco">
+        ›
+      </hq-button>
+      @if (selectedDate() !== todayStr) {
+        <hq-button variant="secondary" (pressed)="setToday()">
+          {{ 'attendance.today' | transloco }}
+        </hq-button>
+      }
+    </div>
+
+    <div class="attendance__actions">
+      <hq-button variant="quiet" (pressed)="markAll('PRESENT')">
+        {{ 'attendance.markAllPresent' | transloco }}
+      </hq-button>
+      <hq-button variant="primary" [disabled]="isSaving() || isLoading()" (pressed)="save()">
+        {{ isSaving() ? ('attendance.saving' | transloco) : ('attendance.saveAttendance' | transloco) }}
+      </hq-button>
+    </div>
+  </div>
+
+  <!-- Metric Summary Cards Row -->
+  <div class="attendance__summary">
+    <div class="attendance__metric-card attendance__metric-card--total">
+      <span class="attendance__metric-label">{{ 'attendance.totalStudents' | transloco }}</span>
+      <span class="attendance__metric-val">{{ totalCount() }}</span>
+    </div>
+    <div class="attendance__metric-card attendance__metric-card--present">
+      <span class="attendance__metric-label">{{ 'attendance.present' | transloco }}</span>
+      <span class="attendance__metric-val">{{ presentCount() }}</span>
+    </div>
+    <div class="attendance__metric-card attendance__metric-card--late">
+      <span class="attendance__metric-label">{{ 'attendance.late' | transloco }}</span>
+      <span class="attendance__metric-val">{{ lateCount() }}</span>
+    </div>
+    <div class="attendance__metric-card attendance__metric-card--absent">
+      <span class="attendance__metric-label">{{ 'attendance.absent' | transloco }}</span>
+      <span class="attendance__metric-val">{{ absentCount() }}</span>
+    </div>
+    <div class="attendance__metric-card attendance__metric-card--excused">
+      <span class="attendance__metric-label">{{ 'attendance.excused' | transloco }}</span>
+      <span class="attendance__metric-val">{{ excusedCount() }}</span>
+    </div>
+    <div class="attendance__metric-card attendance__metric-card--rate">
+      <span class="attendance__metric-label">{{ 'attendance.rate' | transloco }}</span>
+      <span class="attendance__metric-val">{{ attendanceRate() }}%</span>
+    </div>
+  </div>
+
+  <!-- Students Roster List -->
+  @if (isLoading()) {
+    <hq-skeleton [loading]="true" [lines]="6" height="64px" [label]="'attendance.loading' | transloco" />
+  } @else if (students().length === 0) {
+    <hq-card>
+      <div class="attendance__empty">
+        <p>{{ 'attendance.noStudents' | transloco }}</p>
+      </div>
+    </hq-card>
+  } @else {
+    <hq-card [flush]="true">
+      <div class="attendance__roster">
+        @for (student of students(); track student.childId) {
+          <div class="attendance__row" [class.attendance__row--absent]="student.status === 'ABSENT'">
+            <div class="attendance__student">
+              <span
+                class="attendance__avatar"
+                [style.--avatar-bg]="'var(--hq-color-' + (student.avatarColor || 'sky') + ', #38bdf8)'"
+                aria-hidden="true"
+              >
+                {{ student.childName ? student.childName.charAt(0).toUpperCase() : 'S' }}
+              </span>
+              <div class="attendance__student-info">
+                <span class="attendance__student-name">{{ student.childName }}</span>
+              </div>
+            </div>
+
+            <!-- Segmented Status Pills -->
+            <div class="attendance__status-group" role="radiogroup" [attr.aria-label]="student.childName + ' attendance'">
+              <button
+                type="button"
+                class="attendance__status-btn attendance__status-btn--present"
+                [class.attendance__status-btn--active]="student.status === 'PRESENT'"
+                (click)="setStatus(student.childId, 'PRESENT')"
+              >
+                <span class="attendance__status-indicator">✓</span>
+                {{ 'attendance.present' | transloco }}
+              </button>
+
+              <button
+                type="button"
+                class="attendance__status-btn attendance__status-btn--late"
+                [class.attendance__status-btn--active]="student.status === 'LATE'"
+                (click)="setStatus(student.childId, 'LATE')"
+              >
+                <span class="attendance__status-indicator">⏰</span>
+                {{ 'attendance.late' | transloco }}
+              </button>
+
+              <button
+                type="button"
+                class="attendance__status-btn attendance__status-btn--absent"
+                [class.attendance__status-btn--active]="student.status === 'ABSENT'"
+                (click)="setStatus(student.childId, 'ABSENT')"
+              >
+                <span class="attendance__status-indicator">✕</span>
+                {{ 'attendance.absent' | transloco }}
+              </button>
+
+              <button
+                type="button"
+                class="attendance__status-btn attendance__status-btn--excused"
+                [class.attendance__status-btn--active]="student.status === 'EXCUSED'"
+                (click)="setStatus(student.childId, 'EXCUSED')"
+              >
+                <span class="attendance__status-indicator">📝</span>
+                {{ 'attendance.excused' | transloco }}
+              </button>
+            </div>
+
+            <!-- Notes Input -->
+            <div class="attendance__notes">
+              <input
+                type="text"
+                class="attendance__notes-input"
+                [placeholder]="'attendance.notesPlaceholder' | transloco"
+                [value]="student.notes || ''"
+                (input)="onNotesChange(student.childId, $any($event.target).value)"
+              />
+            </div>
+          </div>
+        }
+      </div>
+    </hq-card>
+  }
+</div>
