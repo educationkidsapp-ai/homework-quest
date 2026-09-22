@@ -1,5 +1,6 @@
 /* hq-flag: none (shell) — every role's Home. A flag can empty a section of it; it cannot
    take away the screen `/` redirects to. */
+import { NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
@@ -30,6 +31,7 @@ import {
 @Component({
   selector: 'hq-home-page',
   imports: [
+    NgClass,
     PageComponent,
     CardComponent,
     CountUpDirective,
@@ -74,72 +76,48 @@ import {
       } @else {
         <div class="home">
           @if (isTeacher()) {
-            <!-- ================= Teacher Hero Stat Cards (4 Cards) ================= -->
+            <!-- ================= Teacher Hero Stat Cards ================= -->
             <section class="teacher__hero-stats" [attr.aria-label]="'home.cardsLabel' | transloco" data-hq-tour="cards">
-              <!-- Stat 1: Total Students -->
-              <div class="teacher__stat-card">
-                <div class="teacher__stat-header">
-                  <div class="teacher__stat-icon teacher__stat-icon--blue" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                    </svg>
+              @for (card of cards(); track card.key) {
+                <div class="teacher__stat-card">
+                  <div class="teacher__stat-header">
+                    <div class="teacher__stat-icon" [ngClass]="statIconClass(card.key)" aria-hidden="true">
+                      @switch (card.key) {
+                        @case ('playedYesterday') {
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="6 3 20 12 6 21 6 3" />
+                          </svg>
+                        }
+                        @case ('lessonsThisWeek') {
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" />
+                            <path d="M16 2v4M8 2v4M3 10h18" />
+                          </svg>
+                        }
+                        @case ('needsReview') {
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+                          </svg>
+                        }
+                        @default {
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10" />
+                          </svg>
+                        }
+                      }
+                    </div>
+                    <span class="teacher__trend-badge teacher__trend-badge--up">
+                      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+                      +5.1%
+                    </span>
                   </div>
-                  <span class="teacher__trend-badge teacher__trend-badge--up">
-                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
-                    +12.5%
-                  </span>
-                </div>
-                <div class="teacher__stat-body">
-                  <div class="teacher__stat-value"><span [hqCountUp]="totalStudents()"></span></div>
-                  <div class="teacher__stat-label">{{ 'home.stats.totalStudents' | transloco }}</div>
-                </div>
-              </div>
-
-              <!-- Stat 2: Active Classes -->
-              <div class="teacher__stat-card">
-                <div class="teacher__stat-header">
-                  <div class="teacher__stat-icon teacher__stat-icon--green" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                    </svg>
+                  <div class="teacher__stat-body">
+                    <div class="teacher__stat-value"><span [hqCountUp]="card.value"></span></div>
+                    <div class="teacher__stat-label">{{ cardLabel(card.key) }}</div>
                   </div>
-                  <span class="teacher__trend-badge teacher__trend-badge--up">
-                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
-                    +3.2%
-                  </span>
                 </div>
-                <div class="teacher__stat-body">
-                  <div class="teacher__stat-value"><span [hqCountUp]="classes()?.length ?? 0"></span></div>
-                  <div class="teacher__stat-label">{{ 'home.stats.activeClasses' | transloco }}</div>
-                </div>
-              </div>
-
-              <!-- Stat 3: Lessons This Week -->
-              <div class="teacher__stat-card">
-                <div class="teacher__stat-header">
-                  <div class="teacher__stat-icon teacher__stat-icon--amber" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="3" y="4" width="18" height="18" rx="2" />
-                      <path d="M16 2v4M8 2v4M3 10h18" />
-                      <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
-                    </svg>
-                  </div>
-                  <span class="teacher__trend-badge teacher__trend-badge--up">
-                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
-                    +5.1%
-                  </span>
-                </div>
-                <div class="teacher__stat-body">
-                  <div class="teacher__stat-value"><span [hqCountUp]="lessonsThisWeekCount()"></span></div>
-                  <div class="teacher__stat-label">{{ 'home.stats.lessonsThisWeek' | transloco }}</div>
-                </div>
-              </div>
-
-              <!-- Stat 4: Attendance Rate -->
+              }
+              <!-- Stat: Attendance Rate -->
               <div class="teacher__stat-card">
                 <div class="teacher__stat-header">
                   <div class="teacher__stat-icon teacher__stat-icon--purple" aria-hidden="true">
@@ -1375,9 +1353,23 @@ export class HomePage {
   protected readonly greeting = computed(() => {
     this.lang();
     const name = this.home.value()?.displayName ?? this.auth.displayName();
-    const key = this.isTeacher() ? 'home.teacherGreeting' : 'home.greeting';
-    return this.transloco.translate<string>(key, { name });
+    return this.transloco.translate<string>('home.greeting', { name });
   });
+
+  protected statIconClass(key: string): string {
+    switch (key) {
+      case 'playedYesterday':
+      case 'schools':
+        return 'teacher__stat-icon--blue';
+      case 'lessonsThisWeek':
+      case 'children':
+        return 'teacher__stat-icon--amber';
+      case 'needsReview':
+        return 'teacher__stat-icon--green';
+      default:
+        return 'teacher__stat-icon--purple';
+    }
+  }
 
   /**
    * `kind` + `params` become a sentence here and nowhere else. A row whose `kind` has no

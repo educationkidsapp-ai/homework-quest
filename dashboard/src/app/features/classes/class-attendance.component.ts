@@ -33,8 +33,8 @@ export class ClassAttendanceComponent {
   @Input({ required: true }) classId!: string;
   @Input() className = '';
 
-  protected readonly todayStr = new Date().toISOString().split('T')[0];
-  protected readonly selectedDate = signal<string>(this.todayStr);
+  protected readonly todayStr: string = new Date().toISOString().split('T')[0] ?? '';
+  protected readonly selectedDate = signal<string>(new Date().toISOString().split('T')[0] ?? '');
   protected readonly isLoading = signal<boolean>(false);
   protected readonly isSaving = signal<boolean>(false);
   protected readonly saveSuccess = signal<boolean>(false);
@@ -116,14 +116,21 @@ export class ClassAttendanceComponent {
   }
 
   protected shiftDate(days: number): void {
-    const [y, m, d] = this.selectedDate().split('-').map(Number);
+    const parts = this.selectedDate().split('-').map(Number);
+    const y = parts[0] ?? new Date().getFullYear();
+    const m = parts[1] ?? 1;
+    const d = parts[2] ?? 1;
     const dateObj = new Date(Date.UTC(y, m - 1, d));
     dateObj.setUTCDate(dateObj.getUTCDate() + days);
-    this.selectedDate.set(dateObj.toISOString().split('T')[0]);
+    const nextStr = dateObj.toISOString().split('T')[0];
+    if (nextStr) {
+      this.selectedDate.set(nextStr);
+    }
   }
 
   protected setToday(): void {
-    this.selectedDate.set(this.todayStr);
+    const today = this.todayStr || new Date().toISOString().split('T')[0] || '';
+    this.selectedDate.set(today);
   }
 
   protected onDateChange(event: Event): void {

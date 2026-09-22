@@ -1,6 +1,6 @@
 <div class="attendance">
   @if (saveSuccess()) {
-    <hq-band variant="success" [open]="true" [title]="'attendance.savedTitle' | transloco" [dismissible]="true">
+    <hq-band variant="confirm" [open]="true" [title]="'attendance.savedTitle' | transloco" [dismissible]="true">
       {{ 'attendance.savedBody' | transloco }}
     </hq-band>
   }

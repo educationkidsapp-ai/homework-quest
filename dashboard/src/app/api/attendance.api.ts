@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { BASE_PATH } from './generated/variables';
@@ -11,8 +11,11 @@ export class AttendanceApi {
 
   getClassAttendance(classId: string, date?: string): Observable<ClassAttendanceResponse> {
     const url = `${this.basePath}/teacher/classes/${encodeURIComponent(classId)}/attendance`;
-    const params = date ? { date } : {};
-    return this.http.get<ClassAttendanceResponse>(url, { params });
+    let httpParams = new HttpParams();
+    if (date) {
+      httpParams = httpParams.set('date', date);
+    }
+    return this.http.get<ClassAttendanceResponse>(url, { params: httpParams });
   }
 
   saveClassAttendance(

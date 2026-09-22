@@ -1246,6 +1246,9 @@
   },
   "shell": {
     "darkMode": "الوضع الداكن",
+    "notifications": "التنبيهات",
+    "searchPlaceholder": "البحث في كل شيء...",
+    "searchLabel": "البحث",
     "signOut": "تسجيل الخروج",
     "showMeAround": "جولة سريعة",
     "viewingAs": "أنت تشاهد باسم {{name}} — هذا العرض للقراءة فقط.",
