@@ -71,6 +71,19 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
           </svg>
         </button>
 
+        <div class="header__search" role="search">
+          <svg class="header__search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="search"
+            class="header__search-input"
+            [placeholder]="'shell.searchPlaceholder' | transloco"
+            [attr.aria-label]="'shell.searchLabel' | transloco"
+          />
+        </div>
+
         <div class="header__actions">
           @if (isAdmin()) {
             <button
@@ -84,6 +97,17 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
               {{ scope.scope()?.name ?? ('shell.switcher.all' | transloco) }}
             </button>
           }
+          <button
+            type="button"
+            class="header__icon header__bell-btn"
+            [attr.aria-label]="'shell.notifications' | transloco"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            <span class="header__bell-badge"></span>
+          </button>
           @if (isTeacher()) {
             <a
               *hqFeature="'chat'"
@@ -137,7 +161,10 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
 
           <button type="button" class="header__user" data-hq-tour="profile" [cdkMenuTriggerFor]="profileMenu">
             <span class="header__avatar" aria-hidden="true">{{ monogram() }}</span>
-            <span class="header__user-name">{{ auth.displayName() }}</span>
+            <span class="header__user-info">
+              <span class="header__user-name">{{ auth.displayName() }}</span>
+              <span class="header__user-role">{{ ('nav.label.' + (auth.role() ?? '')) | transloco }}</span>
+            </span>
             <svg class="header__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="m7 10 5 5 5-5" />
             </svg>
@@ -309,6 +336,69 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
       line-height: 1;
     }
 
+    .header__bell-btn {
+      position: relative;
+    }
+
+    .header__bell-badge {
+      position: absolute;
+      top: 6px;
+      inset-inline-end: 8px;
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: var(--hq-radius-pill);
+      background: var(--hq-color-error, #ef4444);
+    }
+
+    .header__search {
+      display: flex;
+      align-items: center;
+      position: relative;
+      flex: 1;
+      max-inline-size: 440px;
+      margin-inline-start: var(--hq-space-12);
+
+      @include m.below(m.$compact-breakpoint) {
+        display: none;
+      }
+    }
+
+    .header__search-icon {
+      position: absolute;
+      inset-inline-start: 14px;
+      inline-size: 16px;
+      block-size: 16px;
+      color: var(--hq-color-ink-soft);
+      pointer-events: none;
+      stroke: currentcolor;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .header__search-input {
+      inline-size: 100%;
+      block-size: 40px;
+      padding-inline-start: 38px;
+      padding-inline-end: 16px;
+      border-radius: var(--hq-radius-pill);
+      border: 1px solid var(--hq-color-rule, #e2e8f0);
+      background: var(--hq-color-surface-sunken, #f8fafc);
+      color: var(--hq-color-ink);
+      font-size: var(--hq-text-theme-sm);
+      outline: none;
+      @include m.motion-safe('border-color, background-color, box-shadow');
+
+      &:focus {
+        border-color: var(--hq-color-accent, #6366f1);
+        background: var(--hq-color-surface-raised, #ffffff);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+      }
+
+      &::placeholder {
+        color: var(--hq-color-ink-soft, #94a3b8);
+      }
+    }
+
     // The language switch says which language it is on rather than drawing a globe nobody can
     // read a language off. Upper-cased by CSS so 'ar'/'en' stay the codes the service uses.
     .header__icon-text {
@@ -376,10 +466,24 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
       font-weight: var(--hq-text-weight-semibold);
     }
 
+    .header__user-info {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      line-height: 1.2;
+    }
+
     .header__user-name {
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
+      font-weight: var(--hq-text-weight-semibold);
+    }
+
+    .header__user-role {
+      font-size: 11px;
+      color: var(--hq-color-ink-soft);
+      font-weight: var(--hq-text-weight-normal);
     }
 
     .header__chevron {

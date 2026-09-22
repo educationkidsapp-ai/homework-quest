@@ -51,7 +51,6 @@ class ChatSocketClient(
     private var watchdogJob: Job? = null
     private var activeSession: DefaultClientWebSocketSession? = null
 
-    @Volatile
     private var lastReceivedMillis: Long = 0L
 
     fun connect() {

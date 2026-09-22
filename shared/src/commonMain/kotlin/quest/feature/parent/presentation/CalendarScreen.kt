@@ -34,6 +34,8 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.plus
 import org.koin.compose.viewmodel.koinViewModel
+import quest.api.ContentApi
+import quest.api.dto.ChildAttendanceRecord
 import quest.api.dto.Subject
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
@@ -47,12 +49,23 @@ import quest.ui.design.Dimens
 import quest.ui.design.Palette
 
 object CalendarContract {
-    data class State(val year: Int = 2026, val month: Int = 1, val today: LocalDate = LocalDate(2026, 1, 1), val selected: LocalDate? = null, val days: Map<LocalDate, CalendarDay> = emptyMap()) : MviState
+    data class State(
+        val year: Int = 2026,
+        val month: Int = 1,
+        val today: LocalDate = LocalDate(2026, 1, 1),
+        val selected: LocalDate? = null,
+        val days: Map<LocalDate, CalendarDay> = emptyMap(),
+        val attendance: Map<LocalDate, ChildAttendanceRecord> = emptyMap(),
+    ) : MviState
     sealed interface Intent : MviIntent { data object Load : Intent; data class Select(val date: LocalDate) : Intent; data class ShiftMonth(val delta: Int) : Intent }
     sealed interface Effect : MviEffect
 }
 
-class CalendarViewModel(private val calendar: CalendarUseCase, private val children: ChildrenRepository) : MviViewModel<CalendarContract.State, CalendarContract.Intent, CalendarContract.Effect>(CalendarContract.State()) {
+class CalendarViewModel(
+    private val calendar: CalendarUseCase,
+    private val children: ChildrenRepository,
+    private val api: ContentApi,
+) : MviViewModel<CalendarContract.State, CalendarContract.Intent, CalendarContract.Effect>(CalendarContract.State()) {
     override suspend fun handle(intent: CalendarContract.Intent) {
         when (intent) {
             CalendarContract.Intent.Load -> { val today = Today.date(); reduce { copy(year = today.year, month = today.monthNumber, today = today, selected = today) }; loadMonth() }
@@ -63,7 +76,13 @@ class CalendarViewModel(private val calendar: CalendarUseCase, private val child
     private suspend fun loadMonth() {
         val child = children.currentChild.value ?: return
         val days = runCatching { calendar(child, current.year, current.month, current.today) }.getOrDefault(emptyList())
-        reduce { copy(days = days.associateBy { it.date }) }
+        val first = LocalDate(current.year, current.month, 1)
+        val last = first.plus(1, DateTimeUnit.MONTH)
+        val attendanceResp = runCatching { api.childAttendance(child.id, from = first.toString(), to = last.toString()) }.getOrNull()
+        val attendanceMap = attendanceResp?.records?.mapNotNull { r ->
+            runCatching { LocalDate.parse(r.date) }.getOrNull()?.let { it to r }
+        }?.toMap() ?: emptyMap()
+        reduce { copy(days = days.associateBy { it.date }, attendance = attendanceMap) }
     }
 }
 
@@ -112,9 +131,45 @@ fun CalendarScreen(state: CalendarContract.State, s: Strings, dispatch: (Calenda
         Spacer(Modifier.height(Dimens.s16))
         state.selected?.let { date ->
             SectionTitle(if (date == state.today) s.today else "${date.dayOfMonth} ${s.months[date.monthNumber - 1]}")
+            val att = state.attendance[date]
+            if (att != null) {
+                ParentCard(Modifier.padding(bottom = Dimens.s8)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            val statusText = when (att.status.uppercase()) {
+                                "PRESENT" -> "✓ ${s.present}"
+                                "LATE" -> "⏰ ${s.late}"
+                                "ABSENT" -> "✕ ${s.absent}"
+                                "EXCUSED" -> "ℹ ${s.excused}"
+                                else -> att.status
+                            }
+                            Text(statusText, style = MaterialTheme.typography.titleMedium, color = Palette.parentInk)
+                            if (!att.notes.isNullOrBlank()) {
+                                Spacer(Modifier.height(Dimens.s4))
+                                Text("${s.attendanceNote}: ${att.notes}", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft)
+                            }
+                        }
+                        val chipColor = when (att.status.uppercase()) {
+                            "PRESENT" -> Palette.mint
+                            "LATE" -> Palette.sunDeep
+                            "ABSENT" -> Palette.coral
+                            "EXCUSED" -> MaterialTheme.colorScheme.primaryContainer
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        }
+                        val chipText = when (att.status.uppercase()) {
+                            "PRESENT" -> s.present
+                            "LATE" -> s.late
+                            "ABSENT" -> s.absent
+                            "EXCUSED" -> s.excused
+                            else -> att.status
+                        }
+                        Chip(chipText, chipColor)
+                    }
+                }
+            }
             val day = state.days[date]
-            if (day == null) ParentCard { Text(s.noLessonsThatDay, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInkSoft) }
-            else day.lessonIds.forEachIndexed { i, id ->
+            if (day == null && att == null) ParentCard { Text(s.noLessonsThatDay, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInkSoft) }
+            else day?.lessonIds?.forEachIndexed { i, id ->
                 ParentCard(Modifier.padding(bottom = Dimens.s8), onClick = { onLessonPanel(id) }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(if (day.subjects.getOrNull(i) == Subject.MATH) "🔢 ${s.math}" else "📖 ${s.english}", style = MaterialTheme.typography.titleMedium, color = Palette.parentInk, modifier = Modifier.weight(1f))

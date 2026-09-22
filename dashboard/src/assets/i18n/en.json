@@ -197,6 +197,7 @@
       "label": "Class",
       "calendar": "Calendar",
       "children": "Children",
+      "attendance": "Attendance",
       "gradebook": "Gradebook",
       "exams": "Exams"
     },
@@ -275,6 +276,33 @@
         "confirm": "Remove from class",
         "done": "{{name}} was removed from {{class}}."
       }
+    },
+    "attendance": {
+      "title": "Daily Attendance",
+      "subtitle": "Record and manage student attendance for this class",
+      "today": "Today",
+      "prevDay": "Previous day",
+      "nextDay": "Next day",
+      "markAllPresent": "Mark all present",
+      "summary": {
+        "total": "Total",
+        "present": "Present",
+        "late": "Late",
+        "absent": "Absent",
+        "excused": "Excused",
+        "rate": "Attendance Rate"
+      },
+      "status": {
+        "PRESENT": "Present",
+        "LATE": "Late",
+        "ABSENT": "Absent",
+        "EXCUSED": "Excused"
+      },
+      "notesPlaceholder": "Optional note for parents (e.g. excused doctor note)",
+      "saved": "Attendance saved successfully",
+      "saving": "Saving...",
+      "save": "Save Attendance",
+      "empty": "No students found in this class."
     }
   },
   "curriculum": {
@@ -468,6 +496,8 @@
   },
   "home": {
     "greeting": "Hello, {{name}}",
+    "teacherGreeting": "Welcome back, {{name}}!",
+    "teacherSubtitle": "Here's what's happening with your classes today.",
     "loading": "Loading your home",
     "cardsLabel": "This week in numbers",
     "needsYou": "What needs you",
@@ -479,6 +509,40 @@
     "todayMissing": "No lesson for today",
     "addToday": "Add today's lesson",
     "weakSkills": "Weakest skills",
+    "viewAll": "View all",
+    "takeAttendance": "Attendance",
+    "stats": {
+      "totalStudents": "Total Students",
+      "activeClasses": "Active Classes",
+      "lessonsThisWeek": "Lessons This Week",
+      "attendanceRate": "Attendance Rate",
+      "fromLastMonth": "from last month"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "addStudent": "Add Student",
+      "markAttendance": "Mark Attendance",
+      "lessonCreator": "Lesson Creator",
+      "createExam": "Create Exam",
+      "messageParents": "Message Parents",
+      "weeklySchedule": "Weekly Schedule"
+    },
+    "attendance": {
+      "weeklyTitle": "Weekly Attendance",
+      "weeklySubtitle": "Class attendance trends over the week",
+      "thisWeek": "This Week",
+      "presentRate": "Present",
+      "absentRate": "Absent",
+      "lateRate": "Late",
+      "openSheet": "Open Attendance Sheet",
+      "days": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri"
+      }
+    },
     "card": {
       "schools": "Schools",
       "children": "Children",

@@ -85,7 +85,7 @@ object AddChildContract {
         val curriculumOptions: List<Curriculum>
             get() = school?.curriculumOptions?.takeIf { joinStep == JoinStep.CONFIRMED && it.isNotEmpty() } ?: listOf(Curriculum.AMERICAN, Curriculum.BRITISH)
         val gradeOptions: List<Int>
-            get() = school?.gradeOptions?.takeIf { joinStep == JoinStep.CONFIRMED && it.isNotEmpty() } ?: listOf(1, 2, 3)
+            get() = school?.gradeOptions?.takeIf { joinStep == JoinStep.CONFIRMED && it.isNotEmpty() } ?: listOf(1, 2, 3, 4, 5, 6)
 
         /**
          * A class card answers the course, so the choosers come off the form rather than disagreeing with the

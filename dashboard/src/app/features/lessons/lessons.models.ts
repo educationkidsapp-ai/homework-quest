@@ -161,9 +161,9 @@ export function jobStatusAsLessonStatus(status: JobRefStatusEnum): AdminLessonSt
   return status as string as AdminLessonStatusEnum;
 }
 
-/** `Course.all`: two curricula, three grades each — the whole space, fixed by the contract. */
+/** `Course.all`: two curricula, six grades each — the whole space, fixed by the contract. */
 export const CURRICULA: readonly Curriculum[] = ['american', 'british'];
-export const GRADES: readonly number[] = [1, 2, 3];
+export const GRADES: readonly number[] = [1, 2, 3, 4, 5, 6];
 export const SUBJECTS: readonly Subject[] = ['math', 'english'];
 
 export function isCurriculum(value: unknown): value is Curriculum {

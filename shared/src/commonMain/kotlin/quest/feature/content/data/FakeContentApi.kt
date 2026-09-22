@@ -153,7 +153,7 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         return sections[code.trim().uppercase()] ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No class with code $code"))
     }
 
-    override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> { net(); return DEFAULT_FLAGS }
+    override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> { net(); return DEFAULT_FLAGS + ("chat" to true) }
 
     override suspend fun schoolTheme(schoolId: String): SchoolTheme { net(); return if (schoolId == AL_NOOR_ID) alNoorTheme else SchoolTheme() }
 
@@ -286,6 +286,21 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         return ChatReadReceipt("th-$childId-$teacherId", ChatSender.PARENT, now)
     }
 
+    override suspend fun childAttendance(childId: String, from: String?, to: String?): quest.api.dto.ChildAttendanceResponse {
+        net()
+        val todayStr = today().toString()
+        val record = quest.api.dto.ChildAttendanceRecord(date = todayStr, status = "PRESENT", notes = "Great participation in class today!")
+        return quest.api.dto.ChildAttendanceResponse(
+            records = listOf(record),
+            summary = quest.api.dto.ChildAttendanceSummary(totalDays = 1, presentDays = 1, absentDays = 0, lateDays = 0, excusedDays = 0, attendanceRate = 100.0)
+        )
+    }
+
+    override suspend fun todayAttendance(childId: String): quest.api.dto.ChildAttendanceRecord? {
+        net()
+        return quest.api.dto.ChildAttendanceRecord(date = today().toString(), status = "PRESENT", notes = "Great participation in class today!")
+    }
+
     companion object {
         /** The one join code the fake answers; anything else is a 404, like the server. */
         const val AL_NOOR_CODE = "ALNOOR"
@@ -316,7 +331,7 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
             name = "Al Noor School",
             logoUrl = null,
             curriculumOptions = listOf(Curriculum.BRITISH, Curriculum.AMERICAN),
-            gradeOptions = listOf(1, 2, 3),
+            gradeOptions = listOf(1, 2, 3, 4, 5, 6),
             theme = alNoorTheme,
         )
 
@@ -331,7 +346,7 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
             name = "Default school",
             logoUrl = null,
             curriculumOptions = listOf(Curriculum.BRITISH, Curriculum.AMERICAN),
-            gradeOptions = listOf(1, 2, 3),
+            gradeOptions = listOf(1, 2, 3, 4, 5, 6),
             theme = null,
         )
 

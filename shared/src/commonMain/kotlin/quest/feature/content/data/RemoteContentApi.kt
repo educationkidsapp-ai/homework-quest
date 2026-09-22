@@ -35,6 +35,8 @@ import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
 import quest.api.dto.Child
+import quest.api.dto.ChildAttendanceRecord
+import quest.api.dto.ChildAttendanceResponse
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatReadReceipt
 import quest.api.dto.ChatThread
@@ -133,6 +135,28 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
 
     override suspend fun markChatRead(childId: String, teacherId: String): ChatReadReceipt =
         call { client.post("$baseUrl/children/$childId/chat/threads/$teacherId/read") { authed() } }
+
+    override suspend fun childAttendance(childId: String, from: String?, to: String?): ChildAttendanceResponse =
+        call {
+            client.get("$baseUrl/children/$childId/attendance") {
+                authed()
+                if (!from.isNullOrBlank()) parameter("from", from)
+                if (!to.isNullOrBlank()) parameter("to", to)
+            }
+        }
+
+    override suspend fun todayAttendance(childId: String): ChildAttendanceRecord? =
+        try {
+            val response = client.get("$baseUrl/children/$childId/attendance/today") { authed() }
+            if (response.status == HttpStatusCode.NoContent || !response.status.isSuccess()) {
+                null
+            } else {
+                val text = response.bodyAsText().trim()
+                if (text.isEmpty() || text == "null") null else AppJson.decodeFromString(ChildAttendanceRecord.serializer(), text)
+            }
+        } catch (_: Exception) {
+            null
+        }
 
     private suspend inline fun <reified T> call(block: () -> HttpResponse): T {
         val response = try { block() } catch (e: ApiException) { throw e } catch (e: Exception) { throw ApiException(ApiError(ApiError.NETWORK, e.message ?: "network"), e) }

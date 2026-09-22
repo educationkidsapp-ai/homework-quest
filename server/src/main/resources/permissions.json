@@ -83,7 +83,10 @@
     "child.chat": ["PARENT"],
     "teacher.chat": ["TEACHER"],
     "chat.support": ["ADMIN"],
-    "chat.socket": ["PARENT", "TEACHER"]
+    "chat.socket": ["PARENT", "TEACHER"],
+    "attendance.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "attendance.write": ["ADMIN", "TEACHER"],
+    "child.attendance.read": ["PARENT"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -302,6 +305,10 @@
     { "method": "POST", "path": "/teacher/chat/threads/{childId}/read", "permission": "teacher.chat" },
     { "method": "GET", "path": "/admin/chat/threads", "permission": "chat.support" },
     { "method": "GET", "path": "/admin/chat/threads/{threadId}/messages", "permission": "chat.support" },
-    { "method": "GET", "path": "/ws/chat", "permission": "chat.socket" }
+    { "method": "GET", "path": "/ws/chat", "permission": "chat.socket" },
+    { "method": "GET", "path": "/teacher/classes/{classId}/attendance", "permission": "attendance.read" },
+    { "method": "POST", "path": "/teacher/classes/{classId}/attendance", "permission": "attendance.write" },
+    { "method": "GET", "path": "/children/{id}/attendance", "permission": "child.attendance.read" },
+    { "method": "GET", "path": "/children/{id}/attendance/today", "permission": "child.attendance.read" }
   ]
 }

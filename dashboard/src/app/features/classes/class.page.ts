@@ -23,9 +23,10 @@ import { ClassCalendarComponent } from './class-calendar.component';
 import { GradebookComponent } from '../results/gradebook.component';
 import { ExamsTabComponent } from '../exams/exams-tab.component';
 import { ClassChildrenComponent } from './class-children.component';
+import { ClassAttendanceComponent } from './class-attendance.component';
 import { calendarCells, monthParam, shiftMonth } from './classes.models';
 
-const TAB_IDS = ['calendar', 'children', 'gradebook', 'exams'] as const;
+const TAB_IDS = ['calendar', 'children', 'attendance', 'gradebook', 'exams'] as const;
 type TabId = (typeof TAB_IDS)[number];
 
 function isTabId(value: string | null): value is TabId {
@@ -54,6 +55,7 @@ function isTabId(value: string | null): value is TabId {
     EmptyStateComponent,
     ClassCalendarComponent,
     ClassChildrenComponent,
+    ClassAttendanceComponent,
     GradebookComponent,
     ExamsTabComponent,
     RouterLink,
@@ -154,6 +156,7 @@ export class ClassPage {
     return [
       { id: 'calendar', label: this.t('classes.tabs.calendar'), controls: 'hq-class-panel' },
       { id: 'children', label: this.t('classes.tabs.children'), controls: 'hq-class-panel' },
+      { id: 'attendance', label: this.t('classes.tabs.attendance'), controls: 'hq-class-panel' },
       { id: 'gradebook', label: this.t('classes.tabs.gradebook'), controls: 'hq-class-panel' },
       { id: 'exams', label: this.t('classes.tabs.exams'), controls: 'hq-class-panel' },
     ];

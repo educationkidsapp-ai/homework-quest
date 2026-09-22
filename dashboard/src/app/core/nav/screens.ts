@@ -107,8 +107,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
   TEACHER: {
     base: '/teacher',
     screens: [
-      // Her Home *is* This week, so `/teacher` redirects rather than drawing a second landing.
-      { id: 'home', path: '', redirectTo: 'week' },
+      { id: 'home', path: '', labelKey: 'nav.dashboard', permission: 'teacher.week' },
       { id: 'week', path: 'week', labelKey: 'nav.thisWeek', permission: 'teacher.week' },
       // N2.3: the real My classes screen, and its class page. Both carry `teacher.week` —
       // the key `GET /teacher/classes` itself is gated by; the calendar and the roster inside
@@ -158,6 +157,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       {
         id: 'chat',
         path: 'chat',
+        labelKey: 'nav.chat',
         flag: FLAGS.chat,
         permission: 'teacher.chat',
       },

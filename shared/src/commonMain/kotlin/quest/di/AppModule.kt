@@ -155,8 +155,8 @@ val parentModule = module {
     factory { CalendarUseCase(get()) }
     factory { ReleasedResultsUseCase(get()) }
     viewModel { (changePin: Boolean) -> PinViewModel(get(), get(), get(), changePin) }
-    viewModel { ParentHomeViewModel(get(), get(), get()) }
-    viewModel { CalendarViewModel(get(), get()) }
+    viewModel { ParentHomeViewModel(get(), get(), get(), get()) }
+    viewModel { CalendarViewModel(get(), get(), get()) }
     viewModel { ProgressViewModel(get(), get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get()) }
 }

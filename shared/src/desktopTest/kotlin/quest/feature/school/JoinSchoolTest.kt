@@ -99,7 +99,7 @@ class JoinSchoolTest {
     @Test fun confirmingAppliesTheThemeAndNarrowsTheChoosers() = runBlocking {
         auth.signIn("parent@example.com", "secret123")
         val vm = viewModel()
-        assertEquals(listOf(1, 2, 3), vm.state.value.gradeOptions)
+        assertEquals(listOf(1, 2, 3, 4, 5, 6), vm.state.value.gradeOptions)
 
         vm.dispatch(AddChildContract.Intent.SchoolCode("ALNOOR"))
         vm.settle { it.school != null }

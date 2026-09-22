@@ -197,6 +197,7 @@
       "label": "الفصل",
       "calendar": "التقويم",
       "children": "الأطفال",
+      "attendance": "الحضور والغياب",
       "gradebook": "سجل الدرجات",
       "exams": "الاختبارات"
     },
@@ -275,6 +276,33 @@
         "confirm": "إزالة من الفصل",
         "done": "تمت إزالة {{name}} من {{class}}."
       }
+    },
+    "attendance": {
+      "title": "سجل الحضور اليومي",
+      "subtitle": "تسجيل وإدارة حضور وغياب الطلاب لهذا الفصل",
+      "today": "اليوم",
+      "prevDay": "اليوم السابق",
+      "nextDay": "اليوم التالي",
+      "markAllPresent": "تحديد الكل حاضر",
+      "summary": {
+        "total": "الإجمالي",
+        "present": "حاضر",
+        "late": "متأخر",
+        "absent": "غائب",
+        "excused": "معذور",
+        "rate": "نسبة الحضور"
+      },
+      "status": {
+        "PRESENT": "حاضر",
+        "LATE": "متأخر",
+        "ABSENT": "غائب",
+        "EXCUSED": "معذور"
+      },
+      "notesPlaceholder": "ملاحظة اختيارية لولي الأمر (مثل: عذر طبي مسبق)",
+      "saved": "تم حفظ الحضور بنجاح",
+      "saving": "جارٍ الحفظ...",
+      "save": "حفظ الحضور",
+      "empty": "لا يوجد طلاب في هذا الفصل."
     }
   },
   "curriculum": {
@@ -468,6 +496,8 @@
   },
   "home": {
     "greeting": "مرحبًا، {{name}}",
+    "teacherGreeting": "مرحبًا بعودتك، {{name}}!",
+    "teacherSubtitle": "إليك نظرة سريعة على ما يحدث في فصولك اليوم.",
     "loading": "جارٍ تحميل صفحتك",
     "cardsLabel": "هذا الأسبوع بالأرقام",
     "needsYou": "ما يحتاج إليك",
@@ -479,6 +509,40 @@
     "todayMissing": "لا درس لليوم",
     "addToday": "أضف درس اليوم",
     "weakSkills": "أضعف المهارات",
+    "viewAll": "عرض الكل",
+    "takeAttendance": "تسجيل الحضور",
+    "stats": {
+      "totalStudents": "إجمالي الطلاب",
+      "activeClasses": "الفصول النشطة",
+      "lessonsThisWeek": "دروس هذا الأسبوع",
+      "attendanceRate": "نسبة الحضور",
+      "fromLastMonth": "مقارنة بالشهر الماضي"
+    },
+    "quickActions": {
+      "title": "إجراءات سريعة",
+      "addStudent": "إضافة طالب",
+      "markAttendance": "تسجيل الحضور",
+      "lessonCreator": "منشئ الدروس",
+      "createExam": "إنشاء اختبار",
+      "messageParents": "مراسلة أولياء الأمور",
+      "weeklySchedule": "الجدول الأسبوعي"
+    },
+    "attendance": {
+      "weeklyTitle": "حضور الأسبوع",
+      "weeklySubtitle": "معدل حضور الطلاب خلال أيام الأسبوع",
+      "thisWeek": "هذا الأسبوع",
+      "presentRate": "حاضر",
+      "absentRate": "غائب",
+      "lateRate": "متأخر",
+      "openSheet": "فتح سجل الحضور الكامل",
+      "days": {
+        "mon": "الإثنين",
+        "tue": "الثلاثاء",
+        "wed": "الأربعاء",
+        "thu": "الخميس",
+        "fri": "الجمعة"
+      }
+    },
     "card": {
       "schools": "المدارس",
       "children": "الأطفال",

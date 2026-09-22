@@ -71,6 +71,15 @@ data class Strings(
     val retry: String = "Retry",
     val failedToSend: String = "Failed to send",
     val chatDisabled: String = "Chat is currently disabled by the school.",
+    // Attendance
+    val attendance: String = "Attendance",
+    val todaysAttendance: String = "Today's Attendance",
+    val present: String = "Present",
+    val absent: String = "Absent",
+    val late: String = "Late",
+    val excused: String = "Excused",
+    val noAttendanceRecorded: String = "Not recorded yet",
+    val attendanceNote: String = "Note from teacher",
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -164,6 +173,14 @@ data class Strings(
             retry = "إعادة المحاولة",
             failedToSend = "فشل الإرسال",
             chatDisabled = "المحادثة معطّلة حالياً من قبل المدرسة.",
+            attendance = "الحضور والغياب",
+            todaysAttendance = "حضور اليوم",
+            present = "حاضر",
+            absent = "غائب",
+            late = "متأخر",
+            excused = "معذور",
+            noAttendanceRecorded = "لم يُسجل بعد",
+            attendanceNote = "ملاحظة المعلم",
         )
 
         fun forLanguage(code: String) = if (code == "ar") ar else en
