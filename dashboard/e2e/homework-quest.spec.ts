@@ -4,169 +4,203 @@ import { resolve } from 'node:path';
 
 const HTML_PATH = `file://${resolve(__dirname, '../public/homework-quest.html')}`;
 
-test.describe('Homework Quest — Gamified Teacher Weekly Dashboard', () => {
+test.describe('EduManage & Homework Quest Dashboard — Theme & Feature Suite', () => {
 
   test.beforeEach(async ({ page }) => {
+    // Clear localStorage to ensure predictable state
+    await page.addInitScript(() => {
+      window.localStorage.clear();
+    });
     await page.goto(HTML_PATH);
   });
 
-  test('loads standalone application with brand header, profile and route indicator', async ({ page }) => {
-    await expect(page).toHaveTitle(/Homework Quest — Gamified Teacher Weekly Dashboard/);
+  test('loads dashboard with EduManage branding, profile, and light theme default', async ({ page }) => {
+    await expect(page).toHaveTitle(/EduManage & Homework Quest/);
 
-    // Brand header
-    await expect(page.locator('h1')).toHaveText('HOMEWORK QUEST');
-    await expect(page.getByText('/dashboard/teacher/week')).toBeVisible();
-
-    // Teacher Profile
+    // Brand and profile
+    await expect(page.locator('h1')).toContainText('EduManage');
     await expect(page.getByText('Prof. Helena Vance')).toBeVisible();
-    await expect(page.getByText('Subject Lead')).toBeVisible();
-    await expect(page.getByText('42', { exact: true })).toBeVisible();
+
+    // Default theme should be light
+    await expect(page.locator('html')).toHaveClass(/light/);
+    await expect(page.locator('#themeLabel')).toHaveText('Daylight Theme');
   });
 
-  test('displays all 4 executive KPI metric cards with initial values', async ({ page }) => {
-    // 1. Active Weekly Quests
-    await expect(page.locator('#kpiActiveQuests')).toHaveText('7');
+  test('toggles seamlessly between Light Theme and Deep Space Dark theme', async ({ page }) => {
+    const html = page.locator('html');
+    const themeLabel = page.locator('#themeLabel');
+    const headerThemeBtn = page.locator('#headerThemeIcon');
 
-    // 2. Submission Rate
-    await expect(page.locator('#kpiSubmissionRate')).toContainText('%');
+    // Initially light
+    await expect(html).toHaveClass(/light/);
+    await expect(themeLabel).toHaveText('Daylight Theme');
 
-    // 3. Avg Class XP
-    await expect(page.locator('#kpiAvgXp')).toHaveText('1,420 XP');
+    // Click header theme button -> switches to dark
+    await headerThemeBtn.click();
+    await expect(html).toHaveClass(/dark/);
+    await expect(themeLabel).toHaveText('Deep Space Dark');
+    await expect(page.locator('#toastContainer')).toContainText('Switched to Deep Space Dark');
 
-    // 4. Needs Grading
-    await expect(page.locator('#kpiNeedsGrading')).toHaveText('3');
+    // Click again -> switches back to light
+    await headerThemeBtn.click();
+    await expect(html).toHaveClass(/light/);
+    await expect(themeLabel).toHaveText('Daylight Theme');
+    await expect(page.locator('#toastContainer')).toContainText('Switched to Daylight Theme');
   });
 
-  test('renders 5 Kanban weekday columns (Monday through Friday)', async ({ page }) => {
+  test('displays all 4 hero KPI metric cards and toggles between School & Quest stats', async ({ page }) => {
+    // School mode initial
+    await expect(page.locator('#kpi-label-1')).toHaveText('Total Students');
+    await expect(page.locator('#kpi-value-1')).toHaveText('2,847');
+    await expect(page.locator('#kpi-label-2')).toHaveText('Total Teachers');
+    await expect(page.locator('#kpi-value-2')).toHaveText('142');
+    await expect(page.locator('#kpi-label-3')).toHaveText('Active Classes');
+    await expect(page.locator('#kpi-value-3')).toHaveText('86');
+    await expect(page.locator('#kpi-label-4')).toHaveText('Attendance Rate');
+    await expect(page.locator('#kpi-value-4')).toHaveText('94.2%');
+
+    // Toggle to Quest stats
+    await page.locator('#kpi-quest-btn').click();
+    await expect(page.locator('#kpi-label-1')).toHaveText('Active Quests');
+    await expect(page.locator('#kpi-value-1')).toHaveText('6');
+    await expect(page.locator('#kpi-label-2')).toHaveText('Submission Rate');
+    await expect(page.locator('#kpi-value-2')).toHaveText('88.4%');
+    await expect(page.locator('#kpi-label-3')).toHaveText('Avg Class XP');
+    await expect(page.locator('#kpi-value-3')).toHaveText('1,420 XP');
+    await expect(page.locator('#kpi-label-4')).toHaveText('Needs Grading');
+    await expect(page.locator('#kpi-value-4')).toHaveText('12');
+
+    // Toggle back to School stats
+    await page.locator('#kpi-school-btn').click();
+    await expect(page.locator('#kpi-label-1')).toHaveText('Total Students');
+  });
+
+  test('renders 5-Column Kanban Board and filters by Class, Tier, and Search', async ({ page }) => {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     for (const day of days) {
       await expect(page.locator(`#column-${day}`)).toBeVisible();
-      await expect(page.locator(`h4:has-text("${day}")`)).toBeVisible();
     }
 
-    // Verify initial cards are present in their respective columns
-    await expect(page.locator('#column-Monday').getByRole('heading', { name: 'Quantum Tunneling Lab Report' })).toBeVisible();
-    await expect(page.locator('#column-Tuesday').getByRole('heading', { name: 'Taylor Series Dungeon Quest' })).toBeVisible();
-    await expect(page.locator('#column-Wednesday').getByRole('heading', { name: "Kepler's Orbits & Gravitation" })).toBeVisible();
-  });
-
-  test('filters quests reactively by class and tier', async ({ page }) => {
+    // Check specific quest cards
     const mondayCol = page.locator('#column-Monday');
-    const tuesdayCol = page.locator('#column-Tuesday');
+    await expect(mondayCol.getByRole('heading', { name: 'Kinematics & Freefall Vectors' })).toBeVisible();
+    await expect(mondayCol.getByRole('heading', { name: 'Derivatives of Trig Functions' })).toBeVisible();
 
-    // Initial: multiple classes visible
-    await expect(mondayCol.getByRole('heading', { name: 'Quantum Tunneling Lab Report' })).toBeVisible(); // Physics
-    await expect(tuesdayCol.getByRole('heading', { name: 'Taylor Series Dungeon Quest' })).toBeVisible(); // Calculus II
+    // Filter by Class: Physics 101
+    await page.locator('#filterClassSelect').selectOption('Physics 101');
+    await expect(mondayCol.getByRole('heading', { name: 'Kinematics & Freefall Vectors' })).toBeVisible();
+    await expect(mondayCol.getByRole('heading', { name: 'Derivatives of Trig Functions' })).not.toBeVisible();
 
-    // Filter by Physics 101
-    await page.locator('button[data-class="Physics 101"]').click();
-    await expect(mondayCol.getByRole('heading', { name: 'Quantum Tunneling Lab Report' })).toBeVisible();
-    await expect(tuesdayCol.getByRole('heading', { name: 'Taylor Series Dungeon Quest' })).not.toBeVisible();
+    // Reset Class filter
+    await page.locator('#filterClassSelect').selectOption('ALL');
+    await expect(mondayCol.getByRole('heading', { name: 'Derivatives of Trig Functions' })).toBeVisible();
 
-    // Reset to All Classes
-    await page.locator('button[data-class="all"]').click();
-    await expect(tuesdayCol.getByRole('heading', { name: 'Taylor Series Dungeon Quest' })).toBeVisible();
+    // Filter by Tier: BOSS
+    await page.locator('#tier-filter-boss').click();
+    await expect(page.locator('#column-Tuesday').getByRole('heading', { name: 'Orbital Mechanics & Kepler' })).toBeVisible();
+    await expect(mondayCol.getByRole('heading', { name: 'Kinematics & Freefall Vectors' })).not.toBeVisible();
 
-    // Filter by Tier: Boss Raid
-    await page.locator('button[data-tier="Boss Raid"]').click();
-    await expect(mondayCol.getByRole('heading', { name: 'Quantum Tunneling Lab Report' })).toBeVisible(); // Boss Raid
-    await expect(mondayCol.getByRole('heading', { name: 'Harmonic Oscillator Simulation' })).not.toBeVisible(); // Common
+    // Reset Tier
+    await page.locator('#tier-filter-all').click();
+
+    // Search filter
+    await page.locator('#globalSearchInput').fill('Kepler');
+    await expect(page.locator('#column-Tuesday').getByRole('heading', { name: 'Orbital Mechanics & Kepler' })).toBeVisible();
+    await expect(mondayCol.getByRole('heading', { name: 'Kinematics & Freefall Vectors' })).not.toBeVisible();
+
+    await page.locator('#globalSearchInput').clear();
+    await expect(mondayCol.getByRole('heading', { name: 'Kinematics & Freefall Vectors' })).toBeVisible();
   });
 
-  test('searches quests in real-time using global search', async ({ page }) => {
-    const searchInput = page.locator('#globalSearchInput');
-    await searchInput.fill('Gravitation');
+  test('interacts with Class Attendance Sheet modal (toggles status, mark all present, saves)', async ({ page }) => {
+    // Open Attendance Modal via Quick Action
+    await page.getByRole('button', { name: /Attendance Daily roll call/i }).click();
+    const modal = page.locator('#attendanceModal');
+    await expect(modal).toBeVisible();
 
-    // Kepler's Orbits should be visible, others hidden
-    await expect(page.locator('#column-Wednesday').getByRole('heading', { name: "Kepler's Orbits & Gravitation" })).toBeVisible();
-    await expect(page.locator('#column-Monday').getByRole('heading', { name: 'Quantum Tunneling Lab Report' })).not.toBeVisible();
+    // Check student list rendered
+    await expect(modal.getByText('Aiden Thorne')).toBeVisible();
+    await expect(modal.getByText('Sophia Martinez')).toBeVisible();
 
-    await searchInput.clear();
-    await expect(page.locator('#column-Monday').getByRole('heading', { name: 'Quantum Tunneling Lab Report' })).toBeVisible();
+    // Click "Mark All Present"
+    await modal.getByRole('button', { name: 'Mark All Present' }).click();
+    await expect(modal.locator('#attCountAbsent')).toHaveText('0');
+    await expect(modal.locator('#attRate')).toHaveText('100%');
+
+    // Change Chloe Dupont status to Absent
+    const chloeRow = modal.locator('#attendanceStudentList > div').filter({ hasText: 'Chloe Dupont' });
+    await chloeRow.getByRole('button', { name: 'Absent' }).click();
+    await expect(modal.locator('#attCountAbsent')).toHaveText('1');
+
+    // Save Attendance
+    await modal.getByRole('button', { name: 'Save Attendance' }).click();
+    await expect(modal).not.toBeVisible();
+    await expect(page.locator('#toastContainer')).toContainText('Class attendance saved');
   });
 
-  test('navigates weeks and resets to today', async ({ page }) => {
-    const weekDisplay = page.locator('#currentWeekDisplay');
-    await expect(weekDisplay).toHaveText('Sept 20 - Sept 26, 2026');
-
-    // Next week
-    await page.locator('button[title="Next Week"]').click();
-    await expect(weekDisplay).toHaveText('Sept 27 - Oct 03, 2026');
-
-    // Reset to Today
-    await page.getByRole('button', { name: 'TODAY' }).click();
-    await expect(weekDisplay).toHaveText('Sept 20 - Sept 26, 2026');
-  });
-
-  test('forges a new homework quest dynamically through the modal', async ({ page }) => {
-    // Open Forge Modal
-    await page.getByRole('button', { name: '+ New Quest' }).click();
-    await expect(page.locator('#forgeModal')).toBeVisible();
+  test('forges a new quest through the Forge Quest modal', async ({ page }) => {
+    // Open modal via Quick Action
+    await page.getByRole('button', { name: /Forge Quest Create lesson task/i }).click();
+    const modal = page.locator('#questModal');
+    await expect(modal).toBeVisible();
 
     // Fill form
-    await page.locator('#questTitleInput').fill('Gravitational Waves Detection Mission');
-    await page.locator('#questClassSelect').selectOption('Physics 101');
-    await page.locator('#questDaySelect').selectOption('Thursday');
-    await page.locator('#questTierSelect').selectOption('Boss Raid');
-    await page.locator('#questInstructionsInput').fill('Analyze the interferometry data.');
+    await page.locator('#questTitleInput').fill('Gravitational Waves Detection Lab');
+    await page.locator('#questClassInput').selectOption('Physics 101');
+    await page.locator('#questDayInput').selectOption('Thursday');
+    await page.locator('#questTierInput').selectOption('BOSS');
+    await page.locator('#questXpInput').fill('450');
 
-    // Submit
-    await page.getByRole('button', { name: 'Forge Quest' }).click();
+    // Submit form
+    await modal.getByRole('button', { name: 'Forge Quest' }).click();
+    await expect(modal).not.toBeVisible();
 
-    // Modal should close
-    await expect(page.locator('#forgeModal')).not.toBeVisible();
-
-    // Quest should now exist under Thursday column
+    // Verify quest appears on Thursday column
     const thursdayCol = page.locator('#column-Thursday');
-    await expect(thursdayCol.getByRole('heading', { name: 'Gravitational Waves Detection Mission' })).toBeVisible();
-
-    // Active quest count should increase from 7 to 8
-    await expect(page.locator('#kpiActiveQuests')).toHaveText('8');
-
-    // Toast notification should appear
-    await expect(page.locator('#toastContainer')).toContainText('Quest Forged');
+    await expect(thursdayCol.getByRole('heading', { name: 'Gravitational Waves Detection Lab' })).toBeVisible();
+    await expect(page.locator('#toastContainer')).toContainText('forged successfully');
   });
 
-  test('grades a submission in the Grading Arena and awards XP', async ({ page }) => {
-    // Open Grading Arena via the KPI card
-    await page.locator('#kpiNeedsGrading').click();
-    await expect(page.locator('#gradingModal')).toBeVisible();
+  test('opens Grading Arena and awards XP to student', async ({ page }) => {
+    // Open Grading Arena via Quick Action
+    await page.getByRole('button', { name: /Grading Arena Award XP points/i }).click();
+    const modal = page.locator('#gradingModal');
+    await expect(modal).toBeVisible();
 
-    // Check student and rubric elements
-    await expect(page.locator('#gradingStudentName')).toBeVisible();
-    await expect(page.getByText('Methodology')).toBeVisible();
+    await expect(modal.getByText('Aiden Thorne')).toBeVisible();
+    await expect(modal.locator('#gradingXpDisplay')).toHaveText('250 XP');
 
     // Award XP
-    await page.getByRole('button', { name: 'Award XP & Pass Quest' }).click();
-
-    // Modal should close
-    await expect(page.locator('#gradingModal')).not.toBeVisible();
-
-    // Needs grading count should decrement from 3 to 2
-    await expect(page.locator('#kpiNeedsGrading')).toHaveText('2');
-
-    // Toast notification for XP should appear
-    await expect(page.locator('#toastContainer')).toContainText('Awarded +450 XP');
-
-    // Activity feed should have new item
-    await expect(page.locator('#liveActivityFeed')).toContainText('was awarded');
+    await modal.getByRole('button', { name: 'Award XP & Pass Quest' }).click();
+    await expect(modal).not.toBeVisible();
+    await expect(page.locator('#toastContainer')).toContainText('Awarded 250 XP');
   });
 
-  test('toggles audio synthesizer and dark/light themes', async ({ page }) => {
-    // Toggle Audio SFX
-    const sfxBtn = page.locator('#sfxToggleBtn');
-    await sfxBtn.click();
-    await expect(page.locator('#toastContainer')).toContainText('Audio SFX Muted');
+  test('opens Parent Chat Messenger and sends a message', async ({ page }) => {
+    // Open Chat Modal via Quick Action
+    await page.getByRole('button', { name: /Parent Chat Direct thread/i }).click();
+    const modal = page.locator('#chatModal');
+    await expect(modal).toBeVisible();
 
-    // Toggle Theme
-    await page.getByRole('button', { name: 'Toggle' }).click();
-    await expect(page.locator('html')).toHaveClass(/light/);
-    await expect(page.locator('#themeLabel')).toHaveText('Daylight Theme');
+    await expect(modal.getByRole('heading', { name: 'Mrs. Thorne' })).toBeVisible();
 
-    // Toggle back to Dark
-    await page.getByRole('button', { name: 'Toggle' }).click();
-    await expect(page.locator('html')).toHaveClass(/dark/);
-    await expect(page.locator('#themeLabel')).toHaveText('Deep Space Dark');
+    // Type and send message
+    const input = page.locator('#chatComposerInput');
+    await input.fill('Looking forward to seeing you at the science fair tomorrow!');
+    await modal.locator('button:has(.fa-paper-plane)').click();
+
+    // Verify message appeared in conversation
+    await expect(modal.locator('#chatMessageList')).toContainText('Looking forward to seeing you at the science fair tomorrow!');
+    await expect(page.locator('#toastContainer')).toContainText('Message sent');
+  });
+
+  test('renders Weekly Attendance Chart with student and teacher datasets', async ({ page }) => {
+    const canvas = page.locator('#weeklyAttendanceChart');
+    await expect(canvas).toBeVisible();
+
+    // Check legend chips
+    await expect(page.getByText('Students', { exact: true })).toBeVisible();
+    await expect(page.getByText('Teachers', { exact: true })).toBeVisible();
   });
 
 });
