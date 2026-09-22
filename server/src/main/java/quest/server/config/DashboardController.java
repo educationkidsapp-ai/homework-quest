@@ -77,6 +77,7 @@ public class DashboardController {
         if (resolved == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         String name = resolved.file().getFileName().toString();
         boolean immutable = resolved.asset() && !resolved.rel().startsWith("assets/") && HASHED.matcher(name).matches();
+        CacheControl cache = immutable ? CacheControl.maxAge(365, TimeUnit.DAYS).immutable() : CacheControl.noCache();
         String csp = name.endsWith(".html") && !name.equals("index.html")
                 ? "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:; font-src 'self' https: data:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' https: data:; media-src 'self' data:; connect-src 'self'"
                 : CSP;
