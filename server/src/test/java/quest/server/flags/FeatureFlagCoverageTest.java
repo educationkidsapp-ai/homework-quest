@@ -80,7 +80,8 @@ class FeatureFlagCoverageTest {
     private static final Set<String> INFRASTRUCTURE = Set.of(
             "FlagController", "ThemeController", "PlatformSettingsController",
             "HomeController", "DashboardDataController", "DashboardController", "TeacherController",
-            "ClassAdminController", "TeacherAdminController", "TeacherLessonController");
+            "ClassAdminController", "TeacherAdminController", "TeacherLessonController",
+            "AttendanceController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

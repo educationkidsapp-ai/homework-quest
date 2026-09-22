@@ -556,6 +556,64 @@
         "required" : [ "avatarColor", "curriculum", "grade", "id", "languages", "name", "schoolId" ],
         "type" : "object"
       },
+      "ChildAttendanceRecord" : {
+        "properties" : {
+          "date" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "notes" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ChildAttendanceResponse" : {
+        "properties" : {
+          "records" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChildAttendanceRecord"
+            },
+            "type" : "array"
+          },
+          "summary" : {
+            "$ref" : "#/components/schemas/ChildAttendanceSummary"
+          }
+        },
+        "type" : "object"
+      },
+      "ChildAttendanceSummary" : {
+        "properties" : {
+          "absentDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "attendanceRate" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "excusedDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lateDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "presentDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "ChildComment" : {
         "properties" : {
           "comment" : {
@@ -889,6 +947,78 @@
           "type" : "object"
         } ],
         "required" : [ "correctOptionId", "hint", "id", "ingredient", "options", "parentTip", "question", "speak", "title", "type" ]
+      },
+      "ClassAttendanceItem" : {
+        "properties" : {
+          "avatarColor" : {
+            "type" : "string"
+          },
+          "childId" : {
+            "type" : "string"
+          },
+          "childName" : {
+            "type" : "string"
+          },
+          "notes" : {
+            "type" : "string"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ClassAttendanceResponse" : {
+        "properties" : {
+          "absentCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "attendanceRate" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "date" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "excusedCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lateCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "presentCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "students" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ClassAttendanceItem"
+            },
+            "type" : "array"
+          },
+          "totalCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
       },
       "ClassCalendar" : {
         "properties" : {
@@ -3582,6 +3712,35 @@
           },
           "photoUrl" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SaveAttendanceItem" : {
+        "properties" : {
+          "childId" : {
+            "type" : "string"
+          },
+          "notes" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SaveAttendanceRequest" : {
+        "properties" : {
+          "date" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SaveAttendanceItem"
+            },
+            "type" : "array"
           }
         },
         "type" : "object"
@@ -8715,6 +8874,74 @@
         "tags" : [ "Children" ]
       }
     },
+    "/children/{id}/attendance" : {
+      "get" : {
+        "operationId" : "getChildAttendance",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildAttendanceResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance" ]
+      }
+    },
+    "/children/{id}/attendance/today" : {
+      "get" : {
+        "operationId" : "getTodayAttendance",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildAttendanceRecord"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance" ]
+      }
+    },
     "/children/{id}/chat/threads" : {
       "get" : {
         "operationId" : "parentChatThreads",
@@ -9805,6 +10032,74 @@
           }
         },
         "tags" : [ "Teacher" ]
+      }
+    },
+    "/teacher/classes/{classId}/attendance" : {
+      "get" : {
+        "operationId" : "getClassAttendance",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "date",
+          "required" : false,
+          "schema" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClassAttendanceResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance" ]
+      },
+      "post" : {
+        "operationId" : "saveClassAttendance",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SaveAttendanceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClassAttendanceResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance" ]
       }
     },
     "/teacher/classes/{classId}/calendar" : {
@@ -11842,6 +12137,9 @@
     }
   },
   "tags" : [ {
+    "description" : "Teacher class attendance taking and parent attendance reflection",
+    "name" : "Attendance"
+  }, {
     "description" : "Exam settings, windows, sittings, results and the printable sheet",
     "name" : "Exams"
   }, {

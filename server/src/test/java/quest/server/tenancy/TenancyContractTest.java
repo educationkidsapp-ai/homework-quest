@@ -27,7 +27,7 @@ class TenancyContractTest extends ApiTestSupport {
         var school = schools.findById("default").orElseThrow();
         assertThat(school.getCode()).isEqualTo("HQ0001");
         assertThat(school.getCurriculumOptionsJson()).contains("american", "british");
-        assertThat(school.getGradeOptionsJson()).isEqualTo("[1,2,3]");
+        assertThat(school.getGradeOptionsJson()).isEqualTo("[1,2,3,4,5,6]");
         assertThat(school.getFeatureFlagsJson()).isEqualTo("{}");
         assertThat(schools.findByCodeIgnoreCase("hq0001")).isPresent();
     }
