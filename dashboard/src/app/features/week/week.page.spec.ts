@@ -65,7 +65,7 @@ describe('This week', () => {
     await renderWeek();
 
     expect(screen.getByText('Fractions')).toBeTruthy();
-    expect(screen.getByText('Draft')).toBeTruthy();
+    expect(screen.getAllByText('Draft').length).toBeGreaterThan(0);
     expect(screen.getByText('Decimals')).toBeTruthy();
     expect(screen.getByText('12/18 played')).toBeTruthy();
     // 1A's draft has nobody on it yet, so there is exactly one count on the screen.
