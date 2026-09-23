@@ -207,10 +207,10 @@ export class WeekPage {
         ...r,
         cells: r.cells.map((c) => {
           if (status === 'exams') {
-            return c.exam ? c : { ...c, lesson: undefined, lessonId: undefined, title: undefined };
+            return c.exam ? c : { ...c, lesson: null, exam: null };
           }
           if (c.status === status) return c;
-          return { ...c, lesson: undefined, lessonId: undefined, title: undefined };
+          return { ...c, lesson: null, exam: null };
         }),
       }));
     }
@@ -225,7 +225,7 @@ export class WeekPage {
     let count = 0;
     for (const row of this.rows()) {
       for (const cell of row.cells) {
-        if (cell.lessonId) count++;
+        if (cell.lesson) count++;
       }
     }
     return count > 0 ? count : 18;
@@ -281,7 +281,7 @@ export class WeekPage {
     }> = [];
 
     for (const row of this.rows()) {
-      const missingCell = row.cells.find((c) => !c.weekend && !c.lessonId);
+      const missingCell = row.cells.find((c) => !c.weekend && !c.lesson);
       if (missingCell) {
         alerts.push({
           type: 'missing',
@@ -331,29 +331,35 @@ export class WeekPage {
   protected readonly assignedClasses = computed(() => {
     const cards = this.classesResource.value();
     if (cards && cards.length > 0) {
-      return cards.map((c, i) => ({
-        id: c.classId,
-        name: c.className,
-        subject: c.subject,
-        curriculum: c.curriculum,
-        grade: c.grade,
-        studentsCount: 18 + ((i * 3) % 7),
-        attendancePct: 94.5 + ((i * 1.5) % 4.5),
-        avatar: c.className.slice(0, 2).toUpperCase(),
-        gradient: ['em-gradient--blue', 'em-gradient--purple', 'em-gradient--pink', 'em-gradient--green', 'em-gradient--orange'][i % 5],
-      }));
+      return cards.map((c, i) => {
+        const name = c.className ?? 'Class';
+        return {
+          id: c.classId ?? '',
+          name,
+          subject: c.subject ?? '',
+          curriculum: c.curriculum ?? '',
+          grade: c.grade ?? 1,
+          studentsCount: 18 + ((i * 3) % 7),
+          attendancePct: 94.5 + ((i * 1.5) % 4.5),
+          avatar: (name.length > 0 ? name.slice(0, 2) : 'CL').toUpperCase(),
+          gradient: ['em-gradient--blue', 'em-gradient--purple', 'em-gradient--pink', 'em-gradient--green', 'em-gradient--orange'][i % 5],
+        };
+      });
     }
-    return this.rows().map((r, i) => ({
-      id: r.classId,
-      name: r.className,
-      subject: r.subject,
-      curriculum: r.curriculum,
-      grade: r.grade,
-      studentsCount: 18 + i * 2,
-      attendancePct: 95.8,
-      avatar: r.className.slice(0, 2).toUpperCase(),
-      gradient: ['em-gradient--blue', 'em-gradient--purple', 'em-gradient--pink', 'em-gradient--green', 'em-gradient--orange'][i % 5],
-    }));
+    return this.rows().map((r, i) => {
+      const name = r.className ?? 'Class';
+      return {
+        id: r.classId,
+        name,
+        subject: r.subject,
+        curriculum: r.curriculum,
+        grade: r.grade,
+        studentsCount: 18 + i * 2,
+        attendancePct: 95.8,
+        avatar: (name.length > 0 ? name.slice(0, 2) : 'CL').toUpperCase(),
+        gradient: ['em-gradient--blue', 'em-gradient--purple', 'em-gradient--pink', 'em-gradient--green', 'em-gradient--orange'][i % 5],
+      };
+    });
   });
 
   protected onClassFilterChange(event: Event): void {
