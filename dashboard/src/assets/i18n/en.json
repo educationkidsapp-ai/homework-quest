@@ -503,6 +503,8 @@
     "needsYou": "What needs you",
     "allClear": "Nothing needs you right now.",
     "classes": "Your classes",
+    "myClasses": "My classes",
+    "activeClasses": "Active classes",
     "noClasses": "No classes yet — your school adds you to one and it appears here.",
     "classTitle": "{{curriculum}} · Grade {{grade}} · {{subject}}",
     "todayPublished": "Today's lesson is published",
@@ -520,6 +522,7 @@
     },
     "quickActions": {
       "title": "Quick Actions",
+      "subtitle": "Frequently used teacher & school actions",
       "addStudent": "Add Student",
       "markAttendance": "Mark Attendance",
       "lessonCreator": "Lesson Creator",
