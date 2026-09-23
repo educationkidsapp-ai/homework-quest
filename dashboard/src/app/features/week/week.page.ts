@@ -38,7 +38,6 @@ import { PlatformService } from '../../core/platform/platform.service';
 import { UndoService } from '../../core/undo/undo.service';
 import {
   BandComponent,
-  ButtonComponent,
   EmptyStateComponent,
   PageComponent,
   SkeletonComponent,
@@ -90,7 +89,6 @@ interface CopyRequest {
   selector: 'hq-week-page',
   imports: [
     PageComponent,
-    ButtonComponent,
     BandComponent,
     EmptyStateComponent,
     SkeletonComponent,
