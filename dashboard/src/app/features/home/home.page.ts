@@ -425,7 +425,7 @@ interface TeacherStaffItem {
               <section class="em-card">
                 <div class="em-card-header">
                   <div>
-                    <h2 class="em-card-title">{{ 'nav.exams' | transloco }}</h2>
+                    <h2 class="em-card-title">{{ 'exams.tab.title' | transloco }}</h2>
                     <p class="em-card-subtitle">{{ 'home.activeClasses' | transloco }}</p>
                   </div>
                   <svg class="em-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -451,7 +451,7 @@ interface TeacherStaffItem {
                 </div>
 
                 <a routerLink="/teacher/exams/new" class="em-btn-gradient">
-                  {{ 'action.create' | transloco }}
+                  {{ 'exams.new' | transloco }}
                 </a>
               </section>
             </div>

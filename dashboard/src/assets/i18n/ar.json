@@ -503,6 +503,8 @@
     "needsYou": "ما يحتاج إليك",
     "allClear": "لا شيء يحتاج إليك الآن.",
     "classes": "فصولك",
+    "myClasses": "فصولي الدراسية",
+    "activeClasses": "الفصول الدراسية النشطة",
     "noClasses": "لا فصول بعد — تضيفك مدرستك إلى فصل فيظهر هنا.",
     "classTitle": "{{curriculum}} · الصف {{grade}} · {{subject}}",
     "todayPublished": "درس اليوم منشور",
@@ -520,6 +522,7 @@
     },
     "quickActions": {
       "title": "إجراءات سريعة",
+      "subtitle": "الإجراءات المدرسية الشائعة للمعلمين",
       "addStudent": "إضافة طالب",
       "markAttendance": "تسجيل الحضور",
       "lessonCreator": "منشئ الدروس",
