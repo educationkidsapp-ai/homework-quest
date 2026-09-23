@@ -11,7 +11,6 @@ import { UndoService } from '../../core/undo/undo.service';
 import {
   BandComponent,
   ButtonComponent,
-  CardComponent,
   CheckboxComponent,
   CountUpDirective,
   EmptyStateComponent,

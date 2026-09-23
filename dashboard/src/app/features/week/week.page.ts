@@ -23,6 +23,7 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import {
   type AdminLesson,
   HomeApi,
+  type HomeResponse,
   TeacherApi,
   type TeacherClassCard,
   TeacherLessonsApi,
@@ -135,7 +136,7 @@ export class WeekPage {
     defaultValue: [] as readonly TeacherClassCard[],
   });
 
-  protected readonly homeResource = rxResource({
+  protected readonly homeResource = rxResource<HomeResponse, true>({
     params: () => true,
     stream: () => this.homeApi.home(),
     defaultValue: {},
@@ -235,7 +236,7 @@ export class WeekPage {
   });
 
   protected readonly needsReviewCount = computed(() => {
-    const val = (this.homeResource.value() as any)?.cards?.find((c: any) => c.key === 'needsReview')?.value;
+    const val = this.homeResource.value().cards?.find((c) => c.key === 'needsReview')?.value;
     if (typeof val === 'number' && val > 0) return val;
     let review = 0;
     for (const row of this.rows()) {
@@ -267,14 +268,14 @@ export class WeekPage {
 
   // ---- Schedule Gaps & Alerts ----------------------------------------------------------------
   protected readonly scheduleAlerts = computed(() => {
-    const alerts: Array<{
+    const alerts: {
       type: string;
       title: string;
       desc: string;
       actionText: string;
       actionLink: string;
       color: string;
-    }> = [];
+    }[] = [];
 
     for (const row of this.rows()) {
       const missingCell = row.cells.find((c) => !c.weekend && !c.lesson);

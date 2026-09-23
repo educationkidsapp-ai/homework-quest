@@ -88,12 +88,12 @@ export class ClassesPage {
 
   // ---- EduManage KPI Metrics ----
   protected readonly totalSections = computed(() => this.sections.value().length);
-  protected readonly activeSections = computed(() => this.sections.value().filter((s) => s.active).length);
+  protected readonly activeSections = computed(() => this.sections.value().filter((s) => s.active !== false).length);
   protected readonly totalStudents = computed(() =>
-    this.sections.value().reduce((acc, s) => acc + (s.childrenCount ?? 0), 0),
+    this.sections.value().reduce((acc, s) => acc + (s.children ?? 0), 0),
   );
   protected readonly unassignedSections = computed(
-    () => this.sections.value().filter((s) => (s.teachersCount ?? 0) === 0).length,
+    () => this.sections.value().filter((s) => (s.assignments ?? 0) === 0).length,
   );
 
   protected readonly filterText = signal('');

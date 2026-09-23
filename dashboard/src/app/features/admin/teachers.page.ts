@@ -91,12 +91,12 @@ export class TeachersPage {
 
   // ---- EduManage KPI Metrics ----
   protected readonly totalTeachers = computed(() => this.staff.value().length);
-  protected readonly activeTeachers = computed(() => this.staff.value().filter((t) => t.active).length);
+  protected readonly activeTeachers = computed(() => this.staff.value().filter((t) => t.status !== 'disabled').length);
   protected readonly totalAssignments = computed(() =>
-    this.staff.value().reduce((acc, t) => acc + (t.assignedSectionIds?.length ?? 0), 0),
+    this.staff.value().reduce((acc, t) => acc + (t.assignments?.length ?? 0), 0),
   );
   protected readonly unassignedTeachers = computed(
-    () => this.staff.value().filter((t) => (t.assignedSectionIds?.length ?? 0) === 0).length,
+    () => this.staff.value().filter((t) => (t.assignments?.length ?? 0) === 0).length,
   );
 
   protected readonly sections = rxResource<readonly AdminClass[], true>({

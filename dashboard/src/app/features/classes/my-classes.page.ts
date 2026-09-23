@@ -1,3 +1,7 @@
+/* hq-flag: none (shell) — My classes is the teacher's second rail item, gated by `teacher.week`
+   (the key `GET /teacher/classes` itself carries) rather than by a flag: a teacher with no way
+   into her own classes has no dashboard. The controls it offers carry their own gates — the
+   roster's live behind `teacher.rosterEdit` + `roster.teacher` on the class page. */
 import { NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
@@ -7,7 +11,6 @@ import { TeacherApi } from '../../api';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PlatformService } from '../../core/platform/platform.service';
 import {
-  CardComponent,
   CountUpDirective,
   EmptyStateComponent,
   ListStaggerDirective,

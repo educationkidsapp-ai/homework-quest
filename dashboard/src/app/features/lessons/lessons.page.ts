@@ -237,13 +237,13 @@ export class LessonsPage {
   // ---- EduManage KPI Metrics ----
   protected readonly totalLessons = computed(() => this.lessons.value().length);
   protected readonly publishedLessons = computed(
-    () => this.lessons.value().filter((l) => l.status === AdminLessonStatusEnum.READY).length,
+    () => this.lessons.value().filter((l) => l.status === AdminLessonStatusEnum.PUBLISHED).length,
   );
   protected readonly draftLessons = computed(
     () => this.lessons.value().filter((l) => isRunningStatus(l.status) || l.status === AdminLessonStatusEnum.DRAFT).length,
   );
   protected readonly failedLessons = computed(
-    () => this.lessons.value().filter((l) => l.status === AdminLessonStatusEnum.ERROR).length,
+    () => this.lessons.value().filter((l) => l.status === AdminLessonStatusEnum.ERROR || l.status === AdminLessonStatusEnum.NEEDS_REVIEW).length,
   );
 
   protected readonly filterText = signal('');
