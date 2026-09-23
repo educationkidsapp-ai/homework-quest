@@ -3,18 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EduManage & Homework Quest — School Management Dashboard</title>
-  <!-- Tailwind CSS CDN -->
+  <title>EduManage & Homework Quest — Teacher Dashboard</title>
+  
+  <!-- Tailwind CSS CDN with Class Dark Mode -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FontAwesome 6 Free CDN -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- Google Fonts: Plus Jakarta Sans & Outfit -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -22,38 +14,40 @@
         extend: {
           colors: {
             space: {
-              950: '#0b0f19',
-              900: '#131b2e',
-              850: '#18223a',
-              800: '#1e293b',
-              750: '#283548',
-              700: '#334155',
-            },
-            brand: {
-              blue: '#3b82f6',
-              purple: '#a855f7',
-              pink: '#ec4899',
-              green: '#10b981',
-              orange: '#f97316',
-              indigo: '#6366f1',
+              700: '#1e293b',
+              800: '#172033',
+              850: '#111827',
+              900: '#0f172a',
+              950: '#080d1a',
             }
           },
           fontFamily: {
-            display: ['Outfit', 'sans-serif'],
-            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-          },
-          boxShadow: {
-            'figma': '0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03)',
-            'figma-hover': '0 10px 25px -3px rgba(0, 0, 0, 0.08), 0 4px 10px -2px rgba(0, 0, 0, 0.04)',
-            'glow-blue': '0 0 20px -5px rgba(59, 130, 246, 0.4)',
-            'glow-purple': '0 0 20px -5px rgba(168, 85, 247, 0.4)',
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['Outfit', 'Inter', 'sans-serif'],
           }
         }
       }
     }
   </script>
 
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome 6 Free CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    h1, h2, h3, h4, .font-display {
+      font-family: 'Outfit', sans-serif;
+    }
     /* Custom Scrollbars */
     ::-webkit-scrollbar {
       width: 6px;
@@ -63,132 +57,89 @@
       background: transparent;
     }
     ::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
+      background: rgba(148, 163, 184, 0.3);
       border-radius: 9999px;
     }
-    .dark ::-webkit-scrollbar-thumb {
-      background: #334155;
-    }
     ::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
-    }
-    .dark ::-webkit-scrollbar-thumb:hover {
-      background: #6366f1;
-    }
-
-    /* Range slider custom thumb */
-    input[type=range]::-webkit-slider-thumb {
-      appearance: none;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #3b82f6;
-      border: 2px solid #ffffff;
-      cursor: pointer;
-      box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
-      transition: all 0.15s ease;
-    }
-    .dark input[type=range]::-webkit-slider-thumb {
-      background: #818cf8;
-      border-color: #131b2e;
-      box-shadow: 0 0 12px rgba(129, 140, 248, 0.7);
-    }
-    input[type=range]::-webkit-slider-thumb:hover {
-      transform: scale(1.15);
-    }
-
-    /* Custom Animations */
-    @keyframes pulseGlow {
-      0%, 100% { box-shadow: 0 0 8px rgba(244, 63, 94, 0.25); }
-      50% { box-shadow: 0 0 16px rgba(244, 63, 94, 0.5), 0 0 24px rgba(245, 158, 11, 0.25); }
-    }
-    .animate-boss-glow {
-      animation: pulseGlow 2.5s infinite;
+      background: rgba(148, 163, 184, 0.5);
     }
   </style>
 </head>
-<body class="bg-slate-50 dark:bg-space-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200 antialiased selection:bg-blue-500 selection:text-white">
 
-  <!-- Toast Notification Container -->
-  <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+<body class="bg-slate-50 dark:bg-space-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-300 antialiased selection:bg-blue-500 selection:text-white">
 
-  <!-- Main App Shell -->
-  <div class="flex h-screen overflow-hidden">
+  <!-- Mobile Drawer Backdrop -->
+  <div id="sidebarBackdrop" onclick="toggleMobileDrawer()" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 hidden lg:hidden"></div>
 
-    <!-- Mobile Drawer Backdrop -->
-    <div id="mobileDrawerBackdrop" onclick="toggleMobileDrawer()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 hidden md:hidden transition-opacity duration-300"></div>
+  <!-- Main Viewport Layout Wrapper -->
+  <div class="flex-1 flex overflow-hidden h-screen">
 
-    <!-- Sidebar Navigation -->
-    <aside id="sidebar" class="fixed md:static inset-y-0 left-0 z-40 w-72 bg-white dark:bg-space-900 border-r border-gray-100 dark:border-slate-800 flex flex-col transition-all duration-300 transform -translate-x-full md:translate-x-0 shadow-sm dark:shadow-none flex-shrink-0">
+    <!-- ==================== SIDEBAR ==================== -->
+    <aside id="sidebar" class="w-64 bg-white dark:bg-space-900 border-r border-gray-100 dark:border-slate-800 flex flex-col justify-between flex-shrink-0 z-50 fixed lg:static inset-y-0 left-0 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out shadow-lg lg:shadow-none">
       
-      <!-- Logo & Brand Header -->
-      <div class="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
-        <div class="flex items-center gap-3.5">
-          <div class="w-11 h-11 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white shadow-md shadow-blue-500/25">
-            <i class="fa-solid fa-graduation-cap text-lg"></i>
+      <!-- Top Brand Logo -->
+      <div>
+        <div class="h-20 flex items-center justify-between px-6 border-b border-gray-100 dark:border-slate-800">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-blue-500/20 text-white font-bold text-lg">
+              <i class="fa-solid fa-graduation-cap"></i>
+            </div>
+            <div>
+              <h1 class="font-display font-bold text-lg text-gray-800 dark:text-white tracking-tight flex items-center gap-1.5">
+                EduManage
+              </h1>
+              <p class="text-[11px] font-semibold text-blue-600 dark:text-blue-400">Homework Quest</p>
+            </div>
           </div>
-          <div>
-            <h1 class="font-display font-bold text-lg text-gray-800 dark:text-white tracking-tight flex items-center gap-1.5">
-              EduManage
-              <span class="text-[10px] font-semibold tracking-wider bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded uppercase">PRO</span>
-            </h1>
-            <p class="text-xs text-gray-400 dark:text-slate-400 font-medium">School System & Quests</p>
-          </div>
+          <!-- Close Mobile Drawer -->
+          <button onclick="toggleMobileDrawer()" class="lg:hidden text-gray-400 hover:text-gray-600 dark:hover:text-white p-1">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
         </div>
-        <button onclick="toggleMobileDrawer()" class="md:hidden text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 p-1">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
+
+        <!-- Navigation Links -->
+        <nav class="p-4 space-y-1.5 overflow-y-auto">
+          <button onclick="navigateTab('planner')" id="nav-planner" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/20">
+            <i class="fa-solid fa-calendar-week text-base w-5 text-center"></i>
+            <span>This Week</span>
+            <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-bold" id="sidebarQuestCount">18</span>
+          </button>
+
+          <button onclick="navigateTab('classes')" id="nav-classes" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
+            <i class="fa-solid fa-users text-base w-5 text-center text-pink-500"></i>
+            <span>My Classes</span>
+            <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-950 text-pink-600 dark:text-pink-400 font-bold">6</span>
+          </button>
+
+          <button onclick="navigateTab('attendance')" id="nav-attendance" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
+            <i class="fa-solid fa-clipboard-user text-base w-5 text-center text-orange-500"></i>
+            <span>Class Attendance</span>
+          </button>
+
+          <button onclick="navigateTab('lessons')" id="nav-lessons" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
+            <i class="fa-solid fa-book-open text-base w-5 text-center text-purple-500"></i>
+            <span>Lessons</span>
+          </button>
+
+          <button onclick="navigateTab('exams')" id="nav-exams" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
+            <i class="fa-solid fa-file-signature text-base w-5 text-center text-cyan-500"></i>
+            <span>Exams & Tests</span>
+            <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950 text-cyan-600 dark:text-cyan-400 font-bold">3</span>
+          </button>
+
+          <button onclick="navigateTab('results')" id="nav-results" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
+            <i class="fa-solid fa-pen-nib text-base w-5 text-center text-amber-500"></i>
+            <span>Results & Grading</span>
+            <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 font-bold" id="sidebarNeedsGradingCount">5</span>
+          </button>
+
+          <button onclick="navigateTab('chat')" id="nav-chat" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
+            <i class="fa-solid fa-comments text-base w-5 text-center text-green-500"></i>
+            <span>Parent Chat</span>
+            <span class="ml-auto w-2 h-2 rounded-full bg-green-500"></span>
+          </button>
+        </nav>
       </div>
-
-      <!-- Navigation Links -->
-      <nav class="flex-1 px-4 py-4 space-y-1.5 overflow-y-auto">
-        <div class="px-3 pb-2 text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Main Menu</div>
-        
-        <button onclick="navigateTab('dashboard')" id="nav-dashboard" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/20">
-          <i class="fa-solid fa-table-columns text-base w-5 text-center"></i>
-          <span>Dashboard</span>
-        </button>
-
-        <button onclick="navigateTab('planner')" id="nav-planner" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
-          <i class="fa-solid fa-calendar-week text-base w-5 text-center text-blue-500"></i>
-          <span>Weekly Planner</span>
-          <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-bold" id="sidebarQuestCount">18</span>
-        </button>
-
-        <button onclick="navigateTab('attendance')" id="nav-attendance" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
-          <i class="fa-solid fa-clipboard-user text-base w-5 text-center text-orange-500"></i>
-          <span>Attendance</span>
-        </button>
-
-        <button onclick="navigateTab('classes')" id="nav-classes" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
-          <i class="fa-solid fa-users text-base w-5 text-center text-pink-500"></i>
-          <span>Classes</span>
-        </button>
-
-        <button onclick="navigateTab('grading')" id="nav-grading" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
-          <i class="fa-solid fa-award text-base w-5 text-center text-amber-500"></i>
-          <span>Grading Arena</span>
-          <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 font-bold" id="sidebarNeedsGradingCount">12</span>
-        </button>
-
-        <button onclick="navigateTab('chat')" id="nav-chat" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
-          <i class="fa-solid fa-comments text-base w-5 text-center text-green-500"></i>
-          <span>Parent Chat</span>
-          <span class="ml-auto w-2 h-2 rounded-full bg-green-500"></span>
-        </button>
-
-        <div class="pt-4 px-3 pb-2 text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Administration</div>
-
-        <button onclick="navigateTab('events')" id="nav-events" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
-          <i class="fa-solid fa-calendar-days text-base w-5 text-center text-purple-500"></i>
-          <span>Events & Calendar</span>
-        </button>
-
-        <button onclick="navigateTab('fees')" id="nav-fees" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850">
-          <i class="fa-solid fa-wallet text-base w-5 text-center text-cyan-500"></i>
-          <span>Fee Status</span>
-        </button>
-      </nav>
 
       <!-- Sidebar Footer Controls -->
       <div class="p-4 border-t border-gray-100 dark:border-slate-800 space-y-2">
@@ -210,152 +161,150 @@
           <span id="themeToggleBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-purple-900/60 text-amber-700 dark:text-purple-300">Light</span>
         </button>
       </div>
+
     </aside>
 
-    <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
-
+    <!-- ==================== MAIN CONTENT AREA ==================== -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+      
       <!-- Top Header Bar -->
-      <header class="bg-white dark:bg-space-900 border-b border-gray-100 dark:border-slate-800 px-4 md:px-8 py-3.5 shadow-sm transition-colors duration-200">
-        <div class="flex items-center justify-between gap-4">
+      <header class="h-20 bg-white dark:bg-space-900 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between px-4 md:px-8 z-30">
+        
+        <div class="flex items-center gap-3">
+          <!-- Mobile Hamburger -->
+          <button onclick="toggleMobileDrawer()" class="lg:hidden p-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl">
+            <i class="fa-solid fa-bars text-lg"></i>
+          </button>
           
-          <!-- Left: Mobile Toggle & Global Search -->
-          <div class="flex items-center gap-3.5 flex-1 max-w-xl">
-            <button onclick="toggleMobileDrawer()" class="p-2.5 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl transition-colors md:hidden text-gray-600 dark:text-slate-300">
-              <i class="fa-solid fa-bars text-lg"></i>
+          <!-- Search input with Cmd+K pill -->
+          <div class="relative hidden md:block w-72 lg:w-96">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
+              <i class="fa-solid fa-magnifying-glass text-xs"></i>
+            </span>
+            <input type="text" id="globalSearchInput" oninput="handleSearch(this.value)" placeholder="Search lessons, classes, exams... (⌘K)" class="w-full pl-9 pr-14 py-2 bg-gray-50 dark:bg-space-850 text-gray-800 dark:text-white placeholder-gray-400 rounded-xl border border-gray-200 dark:border-slate-700 text-xs focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-space-900 transition-colors">
+            <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <kbd class="text-[10px] font-bold text-gray-400 bg-gray-200/60 dark:bg-space-700 px-1.5 py-0.5 rounded">⌘K</kbd>
+            </span>
+          </div>
+        </div>
+
+        <!-- Right Header Actions -->
+        <div class="flex items-center gap-2.5 sm:gap-4">
+          
+          <!-- Top theme toggle button -->
+          <button onclick="toggleTheme()" title="Toggle Light / Dark Mode" class="p-2.5 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl transition-colors">
+            <i id="headerThemeIcon" class="fa-solid fa-moon text-base text-purple-500"></i>
+          </button>
+
+          <!-- Notifications Dropdown -->
+          <div class="relative">
+            <button onclick="toggleNotifications()" class="relative p-2.5 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl transition-colors">
+              <i class="fa-regular fa-bell text-base"></i>
+              <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-space-900"></span>
             </button>
 
-            <div class="relative flex-1">
-              <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-sm"></i>
-              <input type="text" id="globalSearchInput" oninput="handleSearch(this.value)" placeholder="Search students, teachers, classes, quests..." class="w-full pl-11 pr-14 py-2.5 bg-gray-50 dark:bg-space-850 text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 rounded-2xl border border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-space-800 focus:outline-none text-sm transition-all shadow-inner">
-              <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-gray-400 dark:text-slate-500 bg-gray-200 dark:bg-space-700 px-1.5 py-0.5 rounded tracking-wide">⌘K</span>
+            <div id="notificationsMenu" class="hidden absolute right-0 mt-2 w-80 bg-white dark:bg-space-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-800 p-4 z-50 animate-in fade-in slide-in-from-top-2">
+              <div class="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
+                <h4 class="font-bold text-sm text-gray-800 dark:text-white">Notifications</h4>
+                <button onclick="clearNotifications()" class="text-xs text-blue-600 hover:underline">Mark all read</button>
+              </div>
+              <div class="py-2 space-y-2 max-h-64 overflow-y-auto" id="notificationList">
+                <div class="flex items-start gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-space-850 transition-colors">
+                  <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-book-bookmark text-xs"></i>
+                  </div>
+                  <div>
+                    <p class="text-xs font-semibold text-gray-800 dark:text-slate-200">5 open stops waiting for marks</p>
+                    <p class="text-[10px] text-gray-400">Grade 1A Fractions • 15m ago</p>
+                  </div>
+                </div>
+                <div class="flex items-start gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-space-850 transition-colors">
+                  <div class="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-300 flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-comment-dots text-xs"></i>
+                  </div>
+                  <div>
+                    <p class="text-xs font-semibold text-gray-800 dark:text-slate-200">New message from Mrs. Al Mansoor</p>
+                    <p class="text-[10px] text-gray-400">Adam Khalid • 1h ago</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Right: Action Icons, Fast Theme Toggle & Profile -->
-          <div class="flex items-center gap-2.5">
-            
-            <!-- Quick Theme Switcher Button -->
-            <button onclick="toggleTheme()" title="Toggle Light / Dark Mode" class="p-2.5 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl transition-colors">
-              <i id="headerThemeIcon" class="fa-solid fa-sun text-amber-500 text-base"></i>
-            </button>
+          <!-- Parent Chat Trigger -->
+          <button onclick="openChatModal()" title="Parent Chat Messenger" class="relative p-2.5 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl transition-colors">
+            <i class="fa-regular fa-message text-base"></i>
+            <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-white dark:ring-space-900"></span>
+          </button>
 
-            <!-- Notifications Dropdown Trigger -->
-            <div class="relative">
-              <button onclick="toggleNotifications()" class="relative p-2.5 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl transition-colors">
-                <i class="fa-regular fa-bell text-base"></i>
-                <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-space-900"></span>
-              </button>
-
-              <!-- Notifications Dropdown Menu -->
-              <div id="notificationsMenu" class="hidden absolute right-0 mt-2 w-80 bg-white dark:bg-space-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-800 p-4 z-50 animate-in fade-in slide-in-from-top-2">
-                <div class="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
-                  <h4 class="font-bold text-sm text-gray-800 dark:text-white">Notifications</h4>
-                  <button onclick="clearNotifications()" class="text-xs text-blue-600 hover:underline">Mark all read</button>
-                </div>
-                <div class="py-2 space-y-2 max-h-64 overflow-y-auto" id="notificationList">
-                  <div class="flex items-start gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-space-850 transition-colors">
-                    <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center flex-shrink-0">
-                      <i class="fa-solid fa-book-bookmark text-xs"></i>
-                    </div>
-                    <div>
-                      <p class="text-xs font-semibold text-gray-800 dark:text-slate-200">5 submissions pending grading</p>
-                      <p class="text-[10px] text-gray-400">Physics 101 • 15m ago</p>
-                    </div>
-                  </div>
-                  <div class="flex items-start gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-space-850 transition-colors">
-                    <div class="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-300 flex items-center justify-center flex-shrink-0">
-                      <i class="fa-solid fa-comment-dots text-xs"></i>
-                    </div>
-                    <div>
-                      <p class="text-xs font-semibold text-gray-800 dark:text-slate-200">New message from Mrs. Thorne</p>
-                      <p class="text-[10px] text-gray-400">Aiden Thorne • 1h ago</p>
-                    </div>
-                  </div>
-                </div>
+          <!-- User Profile Avatar Card -->
+          <div class="hidden sm:flex items-center gap-3 pl-3 ml-2 border-l border-gray-200 dark:border-slate-800">
+            <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md">
+              SA
+            </div>
+            <div class="text-left hidden lg:block">
+              <p class="text-sm font-bold text-gray-800 dark:text-slate-100 leading-tight">Sara Al Harbi</p>
+              <div class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <p class="text-xs text-gray-400 dark:text-slate-400">Teacher • Math (British)</p>
               </div>
             </div>
-
-            <!-- Messages / Chat Trigger -->
-            <button onclick="openChatModal()" title="Parent Chat Messenger" class="relative p-2.5 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl transition-colors">
-              <i class="fa-regular fa-message text-base"></i>
-              <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-white dark:ring-space-900"></span>
-            </button>
-
-            <!-- User Profile Avatar Card -->
-            <div class="hidden sm:flex items-center gap-3 pl-3 ml-2 border-l border-gray-200 dark:border-slate-800">
-              <div class="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md">
-                HV
-              </div>
-              <div class="text-left hidden lg:block">
-                <p class="text-sm font-bold text-gray-800 dark:text-slate-100 leading-tight">Prof. Helena Vance</p>
-                <div class="flex items-center gap-1.5">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <p class="text-xs text-gray-400 dark:text-slate-400">Teacher • Lead Questmaster</p>
-                </div>
-              </div>
-            </div>
-
           </div>
 
         </div>
+
       </header>
 
-      <!-- Scrollable Main Viewport -->
+      <!-- Scrollable Main Content -->
       <main class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
         <div class="max-w-7xl mx-auto space-y-6">
 
-          <!-- 4 Hero Stat Cards (Figma Style) -->
+          <!-- 4 Hero Stat Cards (Real Dashboard Telemetry) -->
           <div class="space-y-3">
             <div class="flex items-center justify-between">
               <div>
-                <h2 class="text-xl font-bold font-display text-gray-900 dark:text-white">School & Quest Overview</h2>
-                <p class="text-xs text-gray-500 dark:text-slate-400">Real-time telemetry, attendance, and weekly homework metrics</p>
-              </div>
-              <!-- KPI View Toggle -->
-              <div class="inline-flex p-1 bg-gray-100 dark:bg-space-850 rounded-xl text-xs font-semibold">
-                <button onclick="setKpiMode('school')" id="kpi-school-btn" class="px-3 py-1.5 rounded-lg bg-white dark:bg-space-800 text-blue-600 dark:text-blue-400 shadow-sm transition-all">School Stats</button>
-                <button onclick="setKpiMode('quest')" id="kpi-quest-btn" class="px-3 py-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 transition-all">Quest Stats</button>
+                <h2 class="text-xl font-bold font-display text-gray-900 dark:text-white">Teacher Command Center</h2>
+                <p class="text-xs text-gray-500 dark:text-slate-400">Real-time attendance, weekly lessons, scheduled exams, and gradebook status</p>
               </div>
             </div>
 
             <!-- KPI Cards Grid -->
-            <div id="kpiCardsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               
-              <!-- Card 1: Total Students -->
+              <!-- Card 1: Lessons This Week -->
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 border border-gray-100 dark:border-slate-800">
                 <div class="flex items-start justify-between">
                   <div class="flex-1">
-                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-1">Total Students</p>
-                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-1">2,847</h3>
+                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-1">Lessons This Week</p>
+                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-1">18</h3>
                     <div class="flex items-center gap-1.5">
                       <span class="inline-flex items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
-                        <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +12.5%
+                        <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +3
                       </span>
-                      <span class="text-xs text-gray-400 dark:text-slate-500">vs last month</span>
+                      <span class="text-xs text-gray-400 dark:text-slate-500">vs last week</span>
                     </div>
                   </div>
                   <div class="p-3.5 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 shadow-lg shadow-blue-500/20 text-white flex-shrink-0">
-                    <i class="fa-solid fa-user-graduate text-xl" id="kpi-icon-1"></i>
+                    <i class="fa-solid fa-book-open text-xl"></i>
                   </div>
                 </div>
               </div>
 
-              <!-- Card 2: Total Teachers -->
+              <!-- Card 2: Attendance Rate -->
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 border border-gray-100 dark:border-slate-800">
                 <div class="flex items-start justify-between">
                   <div class="flex-1">
-                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-2">Total Teachers</p>
-                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-2">142</h3>
+                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-2">Attendance Rate</p>
+                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-2">96.4%</h3>
                     <div class="flex items-center gap-1.5">
-                      <span class="inline-flex items-center text-xs font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-full">
-                        <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +3.2%
+                      <span class="inline-flex items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
+                        <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +2.4%
                       </span>
-                      <span class="text-xs text-gray-400 dark:text-slate-500">vs last month</span>
+                      <span class="text-xs text-gray-400 dark:text-slate-500">weekly average</span>
                     </div>
                   </div>
-                  <div class="p-3.5 rounded-2xl bg-gradient-to-br from-purple-400 to-purple-600 shadow-lg shadow-purple-500/20 text-white flex-shrink-0">
-                    <i class="fa-solid fa-chalkboard-user text-xl" id="kpi-icon-2"></i>
+                  <div class="p-3.5 rounded-2xl bg-gradient-to-br from-green-400 to-green-600 shadow-lg shadow-green-500/20 text-white flex-shrink-0">
+                    <i class="fa-solid fa-clipboard-check text-xl"></i>
                   </div>
                 </div>
               </div>
@@ -365,35 +314,34 @@
                 <div class="flex items-start justify-between">
                   <div class="flex-1">
                     <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-3">Active Classes</p>
-                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-3">86</h3>
+                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-3">6</h3>
                     <div class="flex items-center gap-1.5">
-                      <span class="inline-flex items-center text-xs font-semibold text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/60 px-2 py-0.5 rounded-full">
-                        <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +5.1%
+                      <span class="inline-flex items-center text-xs font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-full">
+                        British Curriculum
                       </span>
-                      <span class="text-xs text-gray-400 dark:text-slate-500">vs last month</span>
                     </div>
                   </div>
-                  <div class="p-3.5 rounded-2xl bg-gradient-to-br from-pink-400 to-pink-600 shadow-lg shadow-pink-500/20 text-white flex-shrink-0">
-                    <i class="fa-solid fa-school text-xl" id="kpi-icon-3"></i>
+                  <div class="p-3.5 rounded-2xl bg-gradient-to-br from-purple-400 to-purple-600 shadow-lg shadow-purple-500/20 text-white flex-shrink-0">
+                    <i class="fa-solid fa-users text-xl"></i>
                   </div>
                 </div>
               </div>
 
-              <!-- Card 4: Attendance Rate -->
+              <!-- Card 4: Needs Review -->
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 border border-gray-100 dark:border-slate-800">
                 <div class="flex items-start justify-between">
                   <div class="flex-1">
-                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-4">Attendance Rate</p>
-                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2" id="kpi-value-4">94.2%</h3>
+                    <p class="text-gray-500 dark:text-slate-400 text-sm font-medium mb-1.5" id="kpi-label-4">Needs Review</p>
+                    <h3 class="text-gray-900 dark:text-white text-3xl font-bold font-display mb-2 text-rose-600 dark:text-rose-400" id="kpi-value-4">5</h3>
                     <div class="flex items-center gap-1.5">
-                      <span class="inline-flex items-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
-                        <i class="fa-solid fa-arrow-trend-up text-[10px] mr-1"></i> +2.4%
+                      <span class="inline-flex items-center text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-full">
+                        <i class="fa-solid fa-clock text-[10px] mr-1"></i> Action Req.
                       </span>
-                      <span class="text-xs text-gray-400 dark:text-slate-500">vs last month</span>
+                      <span class="text-xs text-gray-400 dark:text-slate-500">open stops</span>
                     </div>
                   </div>
-                  <div class="p-3.5 rounded-2xl bg-gradient-to-br from-green-400 to-green-600 shadow-lg shadow-green-500/20 text-white flex-shrink-0">
-                    <i class="fa-solid fa-clipboard-check text-xl" id="kpi-icon-4"></i>
+                  <div class="p-3.5 rounded-2xl bg-gradient-to-br from-pink-400 to-rose-600 shadow-lg shadow-rose-500/20 text-white flex-shrink-0">
+                    <i class="fa-solid fa-pen-nib text-xl"></i>
                   </div>
                 </div>
               </div>
@@ -401,25 +349,52 @@
             </div>
           </div>
 
-          <!-- 6 Quick Action Cards (Figma Component Qb) -->
+          <!-- 6 Quick Action Cards (Strictly Homework Quest Features) -->
           <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
             <div class="mb-4">
-              <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Quick Actions</h2>
-              <p class="text-xs text-gray-500 dark:text-slate-400">Frequently used teacher tasks and actions</p>
+              <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Teacher Workflows</h2>
+              <p class="text-xs text-gray-500 dark:text-slate-400">One-tap access to your weekly schedule, classes, lesson authoring, exams, attendance, and parent messaging</p>
             </div>
             
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
               
-              <!-- 1. Add Student -->
-              <button onclick="openAddStudentModal()" class="bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-blue-100 dark:border-blue-900/40">
+              <!-- 1. This Week -->
+              <button onclick="scrollToPlanner()" class="bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-blue-100 dark:border-blue-900/40">
                 <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
-                  <i class="fa-solid fa-user-plus text-lg"></i>
+                  <i class="fa-solid fa-calendar-week text-lg"></i>
                 </div>
-                <p class="text-xs font-bold text-blue-900 dark:text-blue-200">Add Student</p>
-                <p class="text-[10px] text-blue-600/70 dark:text-blue-400">Enroll new child</p>
+                <p class="text-xs font-bold text-blue-900 dark:text-blue-200">This Week</p>
+                <p class="text-[10px] text-blue-600/70 dark:text-blue-400">Weekly schedule</p>
               </button>
 
-              <!-- 2. Mark Attendance -->
+              <!-- 2. My Classes -->
+              <button onclick="scrollToClasses()" class="bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-indigo-100 dark:border-indigo-900/40">
+                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
+                  <i class="fa-solid fa-users text-lg"></i>
+                </div>
+                <p class="text-xs font-bold text-indigo-900 dark:text-indigo-200">My Classes</p>
+                <p class="text-[10px] text-indigo-600/70 dark:text-indigo-400">Sections & rosters</p>
+              </button>
+
+              <!-- 3. New Lesson -->
+              <button onclick="openLessonModal()" class="bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-purple-100 dark:border-purple-900/40">
+                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
+                  <i class="fa-solid fa-book-open text-lg"></i>
+                </div>
+                <p class="text-xs font-bold text-purple-900 dark:text-purple-200">New Lesson</p>
+                <p class="text-[10px] text-purple-600/70 dark:text-purple-400">PDF / slides / manual</p>
+              </button>
+
+              <!-- 4. Create Exam -->
+              <button onclick="openExamModal()" class="bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-cyan-100 dark:border-cyan-900/40">
+                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
+                  <i class="fa-solid fa-file-signature text-lg"></i>
+                </div>
+                <p class="text-xs font-bold text-cyan-900 dark:text-cyan-200">Create Exam</p>
+                <p class="text-[10px] text-cyan-600/70 dark:text-cyan-400">Scheduled test</p>
+              </button>
+
+              <!-- 5. Attendance -->
               <button onclick="openAttendanceModal()" class="bg-orange-50 dark:bg-orange-950/40 hover:bg-orange-100 dark:hover:bg-orange-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-orange-100 dark:border-orange-900/40">
                 <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
                   <i class="fa-solid fa-clipboard-user text-lg"></i>
@@ -428,67 +403,40 @@
                 <p class="text-[10px] text-orange-600/70 dark:text-orange-400">Daily roll call</p>
               </button>
 
-              <!-- 3. Forge Quest / Lesson -->
-              <button onclick="openQuestModal()" class="bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-purple-100 dark:border-purple-900/40">
-                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
-                  <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
-                </div>
-                <p class="text-xs font-bold text-purple-900 dark:text-purple-200">Forge Quest</p>
-                <p class="text-[10px] text-purple-600/70 dark:text-purple-400">Create lesson task</p>
-              </button>
-
-              <!-- 4. Grading Arena -->
-              <button onclick="openGradingModal()" class="bg-pink-50 dark:bg-pink-950/40 hover:bg-pink-100 dark:hover:bg-pink-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-pink-100 dark:border-pink-900/40">
-                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-pink-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
-                  <i class="fa-solid fa-award text-lg"></i>
-                </div>
-                <p class="text-xs font-bold text-pink-900 dark:text-pink-200">Grading Arena</p>
-                <p class="text-[10px] text-pink-600/70 dark:text-pink-400">Award XP points</p>
-              </button>
-
-              <!-- 5. Message Parents -->
+              <!-- 6. Parent Chat -->
               <button onclick="openChatModal()" class="bg-green-50 dark:bg-green-950/40 hover:bg-green-100 dark:hover:bg-green-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-green-100 dark:border-green-900/40">
-                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
+                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
                   <i class="fa-solid fa-comments text-lg"></i>
                 </div>
                 <p class="text-xs font-bold text-green-900 dark:text-green-200">Parent Chat</p>
-                <p class="text-[10px] text-green-600/70 dark:text-green-400">Direct thread</p>
-              </button>
-
-              <!-- 6. Weekly Schedule -->
-              <button onclick="scrollToPlanner()" class="bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 p-4 rounded-2xl hover:shadow-md transition-all hover:-translate-y-0.5 group text-center border border-indigo-100 dark:border-indigo-900/40">
-                <div class="w-12 h-12 mx-auto mb-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-white">
-                  <i class="fa-solid fa-calendar-week text-lg"></i>
-                </div>
-                <p class="text-xs font-bold text-indigo-900 dark:text-indigo-200">Weekly Board</p>
-                <p class="text-[10px] text-indigo-600/70 dark:text-indigo-400">5-Day Kanban</p>
+                <p class="text-[10px] text-green-600/70 dark:text-green-400">Direct message</p>
               </button>
 
             </div>
           </div>
 
-          <!-- Main 2-Column / 1-Column Content Grid -->
+          <!-- Main 2-Column Grid -->
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            <!-- Left 2 Columns: Weekly Attendance Chart & 5-Day Weekly Kanban Board -->
+            <!-- Left 2 Columns: Weekly Attendance Chart & 5-Day Weekly Planner -->
             <div class="lg:col-span-2 space-y-6">
 
-              <!-- Weekly Attendance Chart Card (Figma Component Ub) -->
+              <!-- Weekly Attendance Chart Card -->
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
-                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Weekly Attendance & Submissions</h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Comparative attendance trends for students vs teachers</p>
+                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Weekly Class Attendance</h2>
+                    <p class="text-xs text-gray-500 dark:text-slate-400">Daily student attendance percentage across your assigned classes</p>
                   </div>
                   
                   <div class="flex items-center gap-4">
                     <div class="flex items-center gap-2">
                       <div class="w-3 h-3 rounded-full bg-blue-500"></div>
-                      <span class="text-xs font-semibold text-gray-600 dark:text-slate-300">Students</span>
+                      <span class="text-xs font-semibold text-gray-600 dark:text-slate-300">Grade 1-3</span>
                     </div>
                     <div class="flex items-center gap-2">
                       <div class="w-3 h-3 rounded-full bg-purple-500"></div>
-                      <span class="text-xs font-semibold text-gray-600 dark:text-slate-300">Teachers</span>
+                      <span class="text-xs font-semibold text-gray-600 dark:text-slate-300">Grade 4-6</span>
                     </div>
                   </div>
                 </div>
@@ -498,20 +446,20 @@
                 </div>
               </div>
 
-              <!-- 5-Column Weekly Kanban Planner Card -->
+              <!-- 5-Column Weekly Planner (This Week) -->
               <div id="plannerSection" class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800 space-y-5">
                 
-                <!-- Planner Header & Reactive Filters -->
+                <!-- Planner Header & Filters -->
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-slate-800">
                   <div>
                     <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display flex items-center gap-2">
-                      <span>Weekly Quest Planner</span>
-                      <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300" id="kanbanActiveCountBadge">18 Active</span>
+                      <span>This Week: Lessons & Exams Schedule</span>
+                      <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300" id="kanbanActiveCountBadge">6 Lessons</span>
                     </h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Plan and assign weekly homework quests across Monday to Friday</p>
+                    <p class="text-xs text-gray-500 dark:text-slate-400">Scheduled lessons, published plays, and active exams across Monday to Friday</p>
                   </div>
 
-                  <!-- Action Buttons -->
+                  <!-- Controls -->
                   <div class="flex items-center gap-2">
                     <button onclick="changeWeek(-1)" class="p-2 hover:bg-gray-100 dark:hover:bg-space-850 rounded-xl text-gray-600 dark:text-slate-300">
                       <i class="fa-solid fa-chevron-left text-xs"></i>
@@ -521,36 +469,33 @@
                       <i class="fa-solid fa-chevron-right text-xs"></i>
                     </button>
                     <button onclick="resetWeek()" class="text-xs font-semibold px-2.5 py-1.5 rounded-xl bg-gray-100 dark:bg-space-850 text-gray-700 dark:text-slate-300 hover:bg-gray-200">Today</button>
-                    <button onclick="openQuestModal()" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:opacity-95 transition-all flex items-center gap-1.5">
-                      <i class="fa-solid fa-plus text-xs"></i> Forge Quest
+                    <button onclick="openLessonModal()" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:opacity-95 transition-all flex items-center gap-1.5">
+                      <i class="fa-solid fa-plus text-xs"></i> New Lesson
                     </button>
                   </div>
                 </div>
 
                 <!-- Filters Strip -->
                 <div class="flex flex-wrap items-center gap-2.5 text-xs">
-                  <!-- Class Filter -->
                   <select id="filterClassSelect" onchange="setFilterClass(this.value)" class="bg-gray-50 dark:bg-space-850 text-gray-800 dark:text-slate-200 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-slate-700 font-medium focus:outline-none">
-                    <option value="ALL">All Classes (Grade 1-6)</option>
-                    <option value="Physics 101">Physics 101 (Grade 10-A)</option>
-                    <option value="Calculus II">Calculus II (Grade 9-B)</option>
-                    <option value="Astronomy">Astronomy (Grade 11-C)</option>
-                    <option value="Algebra">Algebra (Grade 8-A)</option>
+                    <option value="ALL">All Assigned Classes</option>
+                    <option value="Grade 1A · Math">Grade 1A · Math</option>
+                    <option value="Grade 1B · Math">Grade 1B · Math</option>
+                    <option value="Grade 2C · Math">Grade 2C · Math</option>
+                    <option value="Grade 3A · Math">Grade 3A · Math</option>
                   </select>
 
-                  <!-- Tier Filter -->
                   <div class="flex items-center gap-1 bg-gray-100 dark:bg-space-850 p-1 rounded-xl">
-                    <button onclick="setFilterTier('ALL')" id="tier-filter-all" class="px-2.5 py-1 rounded-lg bg-white dark:bg-space-800 text-gray-800 dark:text-white font-bold shadow-xs">All Tiers</button>
-                    <button onclick="setFilterTier('COMMON')" id="tier-filter-common" class="px-2.5 py-1 rounded-lg text-emerald-600 font-medium hover:bg-white/50">Common</button>
-                    <button onclick="setFilterTier('RARE')" id="tier-filter-rare" class="px-2.5 py-1 rounded-lg text-purple-600 font-medium hover:bg-white/50">Rare</button>
-                    <button onclick="setFilterTier('BOSS')" id="tier-filter-boss" class="px-2.5 py-1 rounded-lg text-rose-600 font-medium hover:bg-white/50">Boss Raid</button>
+                    <button onclick="setFilterStatus('ALL')" id="status-filter-all" class="px-2.5 py-1 rounded-lg bg-white dark:bg-space-800 text-gray-800 dark:text-white font-bold shadow-xs">All Statuses</button>
+                    <button onclick="setFilterStatus('PUBLISHED')" id="status-filter-published" class="px-2.5 py-1 rounded-lg text-emerald-600 font-medium hover:bg-white/50">Published</button>
+                    <button onclick="setFilterStatus('READY')" id="status-filter-ready" class="px-2.5 py-1 rounded-lg text-blue-600 font-medium hover:bg-white/50">Ready</button>
+                    <button onclick="setFilterStatus('DRAFT')" id="status-filter-draft" class="px-2.5 py-1 rounded-lg text-amber-600 font-medium hover:bg-white/50">Draft</button>
+                    <button onclick="setFilterStatus('EXAM')" id="status-filter-exam" class="px-2.5 py-1 rounded-lg text-purple-600 font-medium hover:bg-white/50">Exams</button>
                   </div>
                 </div>
 
                 <!-- 5-Column Kanban Board Grid (Mon - Fri) -->
                 <div class="grid grid-cols-1 md:grid-cols-5 gap-3.5">
-                  
-                  <!-- Monday Column -->
                   <div class="bg-gray-50/70 dark:bg-space-850/60 rounded-2xl p-3 border border-gray-100 dark:border-slate-800 flex flex-col">
                     <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200 dark:border-slate-800">
                       <span class="text-xs font-bold text-gray-800 dark:text-slate-200">Monday</span>
@@ -559,7 +504,6 @@
                     <div id="column-Monday" class="space-y-2.5 flex-1 min-h-[140px]"></div>
                   </div>
 
-                  <!-- Tuesday Column -->
                   <div class="bg-gray-50/70 dark:bg-space-850/60 rounded-2xl p-3 border border-gray-100 dark:border-slate-800 flex flex-col">
                     <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200 dark:border-slate-800">
                       <span class="text-xs font-bold text-gray-800 dark:text-slate-200">Tuesday</span>
@@ -568,7 +512,6 @@
                     <div id="column-Tuesday" class="space-y-2.5 flex-1 min-h-[140px]"></div>
                   </div>
 
-                  <!-- Wednesday Column -->
                   <div class="bg-gray-50/70 dark:bg-space-850/60 rounded-2xl p-3 border border-gray-100 dark:border-slate-800 flex flex-col">
                     <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200 dark:border-slate-800">
                       <span class="text-xs font-bold text-gray-800 dark:text-slate-200">Wednesday</span>
@@ -577,7 +520,6 @@
                     <div id="column-Wednesday" class="space-y-2.5 flex-1 min-h-[140px]"></div>
                   </div>
 
-                  <!-- Thursday Column -->
                   <div class="bg-gray-50/70 dark:bg-space-850/60 rounded-2xl p-3 border border-gray-100 dark:border-slate-800 flex flex-col">
                     <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200 dark:border-slate-800">
                       <span class="text-xs font-bold text-gray-800 dark:text-slate-200">Thursday</span>
@@ -586,7 +528,6 @@
                     <div id="column-Thursday" class="space-y-2.5 flex-1 min-h-[140px]"></div>
                   </div>
 
-                  <!-- Friday Column -->
                   <div class="bg-gray-50/70 dark:bg-space-850/60 rounded-2xl p-3 border border-gray-100 dark:border-slate-800 flex flex-col">
                     <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200 dark:border-slate-800">
                       <span class="text-xs font-bold text-gray-800 dark:text-slate-200">Friday</span>
@@ -594,122 +535,127 @@
                     </div>
                     <div id="column-Friday" class="space-y-2.5 flex-1 min-h-[140px]"></div>
                   </div>
-
                 </div>
 
               </div>
 
-              <!-- My Active Classes Card (Figma Component Wb adapted for classes) -->
-              <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
+              <!-- My Active Classes Card (Grade 1 - Grade 6) -->
+              <div id="classesSection" class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
                 <div class="flex items-center justify-between mb-5">
                   <div>
-                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">My Classes</h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Manage student rosters, attendance, and weekly curriculum</p>
+                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">My Classes & Assignments</h2>
+                    <p class="text-xs text-gray-500 dark:text-slate-400">Section rosters, today's lesson status, student counts, and class calendars</p>
                   </div>
                   <button onclick="openAttendanceModal()" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">Mark Today's Attendance</button>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="classesListContainer">
-                  <!-- Populated dynamically by JS -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="classesGridContainer">
+                  <!-- Populated by JS -->
                 </div>
               </div>
 
             </div>
 
-            <!-- Right 1 Column: Upcoming Events, Fee Status, Top Leaderboard -->
+            <!-- Right Column: Weekly Gaps & Alerts + Exams Hub -->
             <div class="space-y-6">
 
-              <!-- Upcoming Events Widget (Figma Component Xb) -->
-              <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
-                <div class="flex items-center justify-between mb-5">
-                  <div>
-                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Upcoming Events</h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">School calendar & milestones</p>
-                  </div>
-                  <div class="w-8 h-8 rounded-xl bg-gray-50 dark:bg-space-850 flex items-center justify-center text-gray-400">
-                    <i class="fa-regular fa-calendar text-sm"></i>
-                  </div>
-                </div>
-
-                <div class="space-y-3" id="eventsListContainer">
-                  <!-- Populated by JS -->
-                </div>
-              </div>
-
-              <!-- Fee Status Widget (Figma Component $b) -->
+              <!-- Weekly Gaps & Action Items (Step 2 of docs/teacher-flow.md) -->
               <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
                 <div class="flex items-center justify-between mb-4">
                   <div>
-                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Fee Status</h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Monthly administrative overview</p>
+                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Schedule Gaps & Alerts</h2>
+                    <p class="text-xs text-gray-500 dark:text-slate-400">Action items across your teaching week</p>
                   </div>
-                  <div class="w-8 h-8 rounded-xl bg-gray-50 dark:bg-space-850 flex items-center justify-center text-gray-400">
-                    <i class="fa-solid fa-receipt text-sm"></i>
+                  <div class="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center text-sm">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
                   </div>
                 </div>
 
-                <div class="space-y-3 mb-5">
-                  <div class="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 flex items-center justify-between">
-                    <div>
-                      <span class="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Total Collected</span>
-                      <h4 class="text-lg font-bold font-display text-emerald-950 dark:text-emerald-100">$48,250</h4>
+                <div class="space-y-3" id="gapsListContainer">
+                  <div class="p-3.5 bg-amber-50/60 dark:bg-amber-950/30 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 flex items-center justify-center flex-shrink-0 text-xs">
+                      <i class="fa-solid fa-calendar-xmark"></i>
                     </div>
-                    <span class="text-xs font-bold text-emerald-600 bg-white dark:bg-space-900 px-2 py-1 rounded-lg">+8.4%</span>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center justify-between">
+                        <p class="text-xs font-bold text-amber-950 dark:text-amber-200">Class 1B · Math</p>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200/70 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300">Missing Lesson</span>
+                      </div>
+                      <p class="text-[11px] text-amber-800/80 dark:text-amber-300/80 mt-0.5">No lesson scheduled for Tuesday</p>
+                      <button onclick="openLessonModal()" class="mt-2 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                        <i class="fa-solid fa-plus text-[10px]"></i> Add Tuesday Lesson
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="p-3.5 bg-purple-50/60 dark:bg-purple-950/30 rounded-2xl border border-purple-200/60 dark:border-purple-900/40 flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 flex items-center justify-center flex-shrink-0 text-xs">
+                      <i class="fa-solid fa-file-signature"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center justify-between">
+                        <p class="text-xs font-bold text-purple-950 dark:text-purple-200">Grade 2C · Math Exam</p>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-200/70 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300">Closing Soon</span>
+                      </div>
+                      <p class="text-[11px] text-purple-800/80 dark:text-purple-300/80 mt-0.5">Assessment closes in 2 days (4 submissions received)</p>
+                      <a href="#plannerSection" class="mt-2 inline-block text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline">
+                        View Exam on Calendar &rarr;
+                      </a>
+                    </div>
+                  </div>
+
+                  <div class="p-3.5 bg-rose-50/60 dark:bg-rose-950/30 rounded-2xl border border-rose-200/60 dark:border-rose-900/40 flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-300 flex items-center justify-center flex-shrink-0 text-xs">
+                      <i class="fa-solid fa-pen-nib"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center justify-between">
+                        <p class="text-xs font-bold text-rose-950 dark:text-rose-200">Grade 1A · Fractions</p>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-200/70 dark:bg-rose-900/60 text-rose-800 dark:text-rose-300">3 Open Stops</span>
+                      </div>
+                      <p class="text-[11px] text-rose-800/80 dark:text-rose-300/80 mt-0.5">Waiting for teacher retell marks</p>
+                      <button onclick="openGradingModal()" class="mt-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1">
+                        <i class="fa-solid fa-check text-[10px]"></i> Review & Mark Stops
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Exams & Homework Tests Hub -->
+              <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Exams & Tests Hub</h2>
+                    <p class="text-xs text-gray-500 dark:text-slate-400">Scheduled exams & question analytics</p>
+                  </div>
+                  <button onclick="openExamModal()" class="text-xs font-bold px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 hover:bg-blue-100 flex items-center gap-1">
+                    <i class="fa-solid fa-plus text-[10px]"></i> New Exam
+                  </button>
+                </div>
+
+                <div class="space-y-3 mb-5">
+                  <div class="p-3.5 bg-blue-50/70 dark:bg-blue-950/30 rounded-2xl border border-blue-100 dark:border-blue-900/40 flex items-center justify-between">
+                    <div>
+                      <span class="text-xs font-semibold text-blue-800 dark:text-blue-300">Active Exams</span>
+                      <h4 class="text-lg font-bold font-display text-blue-950 dark:text-blue-100">3 Scheduled</h4>
+                    </div>
+                    <span class="text-xs font-bold text-blue-600 bg-white dark:bg-space-900 px-2 py-1 rounded-lg">Grade 1-3</span>
                   </div>
 
                   <div class="p-3.5 bg-amber-50/70 dark:bg-amber-950/30 rounded-2xl border border-amber-100 dark:border-amber-900/40 flex items-center justify-between">
                     <div>
-                      <span class="text-xs font-semibold text-amber-800 dark:text-amber-300">Pending Fees</span>
-                      <h4 class="text-lg font-bold font-display text-amber-950 dark:text-amber-100">$6,180</h4>
+                      <span class="text-xs font-semibold text-amber-800 dark:text-amber-300">Submissions to Grade</span>
+                      <h4 class="text-lg font-bold font-display text-amber-950 dark:text-amber-100">5 Pending</h4>
                     </div>
-                    <span class="text-xs font-bold text-amber-600 bg-white dark:bg-space-900 px-2 py-1 rounded-lg">64 Students</span>
+                    <button onclick="openGradingModal()" class="text-xs font-bold text-amber-600 bg-white dark:bg-space-900 px-2 py-1 rounded-lg hover:underline">Grade Now</button>
                   </div>
                 </div>
 
                 <div>
-                  <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5">Recent Invoices</h3>
-                  <div class="space-y-2 text-xs" id="recentPaymentsList">
+                  <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5">Recent Exams Overview</h3>
+                  <div class="space-y-2 text-xs" id="recentExamsList">
                     <!-- Populated dynamically -->
-                  </div>
-                </div>
-              </div>
-
-              <!-- Top Class XP Leaderboard -->
-              <div class="bg-white dark:bg-space-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-800">
-                <div class="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 class="text-gray-900 dark:text-white font-bold text-lg font-display mb-0.5">Top Questers</h2>
-                    <p class="text-xs text-gray-500 dark:text-slate-400">Class XP champions this week</p>
-                  </div>
-                  <i class="fa-solid fa-trophy text-amber-500 text-lg"></i>
-                </div>
-
-                <div class="space-y-2.5">
-                  <div class="flex items-center gap-3 p-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-2xl border border-amber-200/60 dark:border-amber-900/40">
-                    <span class="w-6 h-6 rounded-full bg-amber-400 text-white font-bold text-xs flex items-center justify-center">1</span>
-                    <div class="flex-1 min-w-0">
-                      <p class="text-xs font-bold text-gray-900 dark:text-white truncate">Aiden Thorne</p>
-                      <p class="text-[10px] text-gray-500 dark:text-slate-400">Level 14 • Physics 101</p>
-                    </div>
-                    <span class="text-xs font-bold text-amber-600 dark:text-amber-400">2,840 XP</span>
-                  </div>
-
-                  <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-space-850 rounded-2xl border border-gray-100 dark:border-slate-800">
-                    <span class="w-6 h-6 rounded-full bg-slate-400 text-white font-bold text-xs flex items-center justify-center">2</span>
-                    <div class="flex-1 min-w-0">
-                      <p class="text-xs font-bold text-gray-900 dark:text-white truncate">Maya Lin</p>
-                      <p class="text-[10px] text-gray-500 dark:text-slate-400">Level 12 • Calculus II</p>
-                    </div>
-                    <span class="text-xs font-bold text-purple-600 dark:text-purple-400">2,610 XP</span>
-                  </div>
-
-                  <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-space-850 rounded-2xl border border-gray-100 dark:border-slate-800">
-                    <span class="w-6 h-6 rounded-full bg-amber-700 text-white font-bold text-xs flex items-center justify-center">3</span>
-                    <div class="flex-1 min-w-0">
-                      <p class="text-xs font-bold text-gray-900 dark:text-white truncate">Leo Vance</p>
-                      <p class="text-[10px] text-gray-500 dark:text-slate-400">Level 11 • Astronomy</p>
-                    </div>
-                    <span class="text-xs font-bold text-blue-600 dark:text-blue-400">2,390 XP</span>
                   </div>
                 </div>
               </div>
@@ -727,114 +673,78 @@
 
   <!-- ==================== MODALS ==================== -->
 
-  <!-- 1. Interactive Class Attendance Modal -->
+  <!-- 1. Class Attendance Modal -->
   <div id="attendanceModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-space-900 rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 dark:border-slate-800 max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
-      
-      <!-- Modal Header -->
+    <div class="bg-white dark:bg-space-900 rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 dark:border-slate-800 max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
       <div class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800">
         <div>
           <h3 class="text-lg font-bold font-display text-gray-900 dark:text-white flex items-center gap-2">
             <i class="fa-solid fa-clipboard-user text-orange-500"></i>
-            <span>Class Attendance Sheet</span>
+            <span>Daily Class Attendance</span>
           </h3>
-          <p class="text-xs text-gray-500 dark:text-slate-400">Mark daily student attendance & add teacher feedback</p>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Mark daily student presence for Grade 1A · Math (Today)</p>
         </div>
         <button onclick="closeAttendanceModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
 
-      <!-- Controls & Summary Strip -->
-      <div class="py-4 border-b border-gray-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-          <select id="attendanceClassSelect" onchange="loadAttendanceForClass(this.value)" class="bg-gray-50 dark:bg-space-850 text-gray-800 dark:text-slate-100 text-xs font-bold px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-700">
-            <option value="Physics 101">Physics 101 (Grade 10-A)</option>
-            <option value="Calculus II">Calculus II (Grade 9-B)</option>
-            <option value="Astronomy">Astronomy (Grade 11-C)</option>
-          </select>
-          <span class="text-xs font-bold text-gray-600 dark:text-slate-300 bg-gray-100 dark:bg-space-850 px-3 py-1.5 rounded-xl">Today: Sep 23</span>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <button onclick="markAllPresent()" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 transition-colors">
-            <i class="fa-solid fa-check-double mr-1"></i> Mark All Present
-          </button>
-        </div>
-      </div>
-
-      <!-- Live Attendance KPI Stats -->
-      <div class="grid grid-cols-4 gap-2.5 py-3 text-center text-xs">
-        <div class="p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl">
-          <p class="text-[10px] text-emerald-600 font-bold uppercase">Present</p>
-          <p class="text-base font-bold text-emerald-900 dark:text-emerald-200" id="attCountPresent">25</p>
-        </div>
-        <div class="p-2 bg-amber-50 dark:bg-amber-950/40 rounded-xl">
-          <p class="text-[10px] text-amber-600 font-bold uppercase">Late</p>
-          <p class="text-base font-bold text-amber-900 dark:text-amber-200" id="attCountLate">2</p>
-        </div>
-        <div class="p-2 bg-rose-50 dark:bg-rose-950/40 rounded-xl">
-          <p class="text-[10px] text-rose-600 font-bold uppercase">Absent</p>
-          <p class="text-base font-bold text-rose-900 dark:text-rose-200" id="attCountAbsent">1</p>
-        </div>
-        <div class="p-2 bg-blue-50 dark:bg-blue-950/40 rounded-xl">
-          <p class="text-[10px] text-blue-600 font-bold uppercase">Rate</p>
-          <p class="text-base font-bold text-blue-900 dark:text-blue-200" id="attRate">96.4%</p>
-        </div>
-      </div>
-
-      <!-- Students List -->
-      <div class="flex-1 overflow-y-auto space-y-2 py-2 pr-1" id="attendanceStudentList">
-        <!-- Rendered dynamically -->
-      </div>
-
-      <!-- Modal Footer -->
-      <div class="pt-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-end gap-3">
-        <button onclick="closeAttendanceModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-space-850">Cancel</button>
-        <button onclick="saveAttendance()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold shadow-md shadow-orange-500/20 hover:opacity-95 flex items-center gap-1.5">
-          <i class="fa-solid fa-floppy-disk"></i> Save Attendance
+      <div class="py-4 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 text-xs">
+        <span class="font-semibold text-gray-600 dark:text-slate-400" id="attStatsSummary">Calculated: 5 Present, 1 Late, 0 Absent</span>
+        <button onclick="markAllPresent()" class="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 font-bold hover:bg-emerald-100 transition-colors">
+          Mark All Present
         </button>
       </div>
 
+      <div class="flex-1 overflow-y-auto py-2 space-y-2.5 max-h-80" id="attendanceStudentsList">
+        <!-- Rendered by JS -->
+      </div>
+
+      <div class="pt-4 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
+        <button onclick="closeAttendanceModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-space-850">Cancel</button>
+        <button onclick="saveAttendance()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:opacity-95 flex items-center gap-1.5">
+          <i class="fa-solid fa-check"></i> Save Attendance
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- 2. Forge Quest / Lesson Modal -->
-  <div id="questModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <!-- 2. New Lesson Modal -->
+  <div id="lessonModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white dark:bg-space-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
       <div class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800 mb-4">
         <div>
           <h3 class="text-lg font-bold font-display text-gray-900 dark:text-white flex items-center gap-2">
-            <i class="fa-solid fa-wand-magic-sparkles text-purple-500"></i>
-            <span>Forge New Homework Quest</span>
+            <i class="fa-solid fa-book-open text-purple-500"></i>
+            <span>Create New Lesson</span>
           </h3>
-          <p class="text-xs text-gray-500 dark:text-slate-400">Design a gamified weekly assignment for your students</p>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Author or upload learning stops for your assigned class</p>
         </div>
-        <button onclick="closeQuestModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1">
+        <button onclick="closeLessonModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
 
-      <form id="forgeQuestForm" onsubmit="handleForgeQuest(event)" class="space-y-4 text-xs font-medium">
+      <form id="createLessonForm" onsubmit="handleCreateLesson(event)" class="space-y-4 text-xs font-medium">
         <div>
-          <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Quest Title *</label>
-          <input type="text" id="questTitleInput" required placeholder="e.g. Newton's 2nd Law Problem Set" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500">
+          <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Lesson Title *</label>
+          <input type="text" id="lessonTitleInput" required placeholder="e.g. Fractions Intro: Equal Parts" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500">
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Target Class</label>
-            <select id="questClassInput" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
-              <option value="Physics 101">Physics 101 (Grade 10-A)</option>
-              <option value="Calculus II">Calculus II (Grade 9-B)</option>
-              <option value="Astronomy">Astronomy (Grade 11-C)</option>
-              <option value="Algebra">Algebra (Grade 8-A)</option>
+            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Target Assignment</label>
+            <select id="lessonClassInput" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+              <option value="Grade 1A · Math">Grade 1A · Math</option>
+              <option value="Grade 1B · Math">Grade 1B · Math</option>
+              <option value="Grade 2C · Math">Grade 2C · Math</option>
+              <option value="Grade 3A · Math">Grade 3A · Math</option>
             </select>
           </div>
 
           <div>
             <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Scheduled Day</label>
-            <select id="questDayInput" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+            <select id="lessonDayInput" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
               <option value="Monday">Monday</option>
               <option value="Tuesday">Tuesday</option>
               <option value="Wednesday">Wednesday</option>
@@ -844,127 +754,176 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Difficulty Tier</label>
-            <select id="questTierInput" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
-              <option value="COMMON">Common (Standard)</option>
-              <option value="RARE">Rare (Challenging)</option>
-              <option value="BOSS">Boss Raid (Exam / Group)</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">XP Reward Points</label>
-            <input type="number" id="questXpInput" min="50" max="1000" step="50" value="250" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
-          </div>
+        <div>
+          <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Lesson Source</label>
+          <select id="lessonSourceInput" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+            <option value="PDF">PDF document (text extracted automatically)</option>
+            <option value="SLIDES">Presentation slides (PPTX converted to PDF)</option>
+            <option value="PHOTOS">Page photos / textbook camera scans</option>
+            <option value="MANUAL">Manual entry (create stops by hand)</option>
+          </select>
         </div>
 
         <div>
-          <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Quest Objectives</label>
-          <textarea id="questObjectivesInput" rows="2" placeholder="e.g. Complete questions 1 to 5 on orbital mechanics" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white focus:outline-none"></textarea>
-        </div>
-
-        <div class="flex items-center gap-2 pt-2">
-          <input type="checkbox" id="questAiHintInput" checked class="w-4 h-4 rounded text-blue-600">
-          <label for="questAiHintInput" class="text-gray-700 dark:text-slate-300 text-xs">Enable AI Assistant Tutor Hints for struggling students</label>
+          <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Notes to Analyzer</label>
+          <textarea id="lessonNotesInput" rows="2" placeholder="e.g. Teacher used a number line during explanation" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white focus:outline-none"></textarea>
         </div>
 
         <div class="pt-4 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
-          <button type="button" onclick="closeQuestModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-space-850">Cancel</button>
+          <button type="button" onclick="closeLessonModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-space-850">Cancel</button>
           <button type="submit" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-xs font-bold shadow-md shadow-purple-500/20 hover:opacity-95 flex items-center gap-1.5">
-            <i class="fa-solid fa-sparkles"></i> Forge Quest
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Create & Analyze Lesson
           </button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- 3. Grading Arena Modal -->
+  <!-- 3. Create Exam Modal -->
+  <div id="examModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-space-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+      <div class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800 mb-4">
+        <div>
+          <h3 class="text-lg font-bold font-display text-gray-900 dark:text-white flex items-center gap-2">
+            <i class="fa-solid fa-file-signature text-cyan-500"></i>
+            <span>Create Homework Exam</span>
+          </h3>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Author a structured test with question analytics</p>
+        </div>
+        <button onclick="closeExamModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="createExamForm" onsubmit="handleCreateExam(event)" class="space-y-4 text-xs font-medium">
+        <div>
+          <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Exam Title *</label>
+          <input type="text" id="examTitleInput" required placeholder="e.g. Midterm Math Assessment" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white focus:outline-none focus:border-cyan-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Class</label>
+            <select id="examClassInput" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+              <option value="Grade 1A · Math">Grade 1A · Math</option>
+              <option value="Grade 1B · Math">Grade 1B · Math</option>
+              <option value="Grade 2C · Math">Grade 2C · Math</option>
+              <option value="Grade 3A · Math">Grade 3A · Math</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Questions Count</label>
+            <input type="number" id="examQuestionsInput" min="5" max="50" value="10" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Pass Score %</label>
+            <input type="number" id="examPassScoreInput" min="50" max="100" value="70" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+          </div>
+
+          <div>
+            <label class="block text-gray-700 dark:text-slate-300 font-bold mb-1.5">Due Date</label>
+            <input type="date" id="examDueDateInput" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <input type="checkbox" id="examFaultsInput" checked class="w-4 h-4 rounded text-blue-600">
+          <label for="examFaultsInput" class="text-gray-700 dark:text-slate-300 text-xs">Enable automatic question fault analysis & skill tagging</label>
+        </div>
+
+        <div class="pt-4 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
+          <button type="button" onclick="closeExamModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-space-850">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-bold shadow-md shadow-cyan-500/20 hover:opacity-95 flex items-center gap-1.5">
+            <i class="fa-solid fa-check"></i> Create Exam
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. Results & Mark Open Stops Modal -->
   <div id="gradingModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white dark:bg-space-900 rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
       <div class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800 mb-4">
         <div>
           <h3 class="text-lg font-bold font-display text-gray-900 dark:text-white flex items-center gap-2">
-            <i class="fa-solid fa-award text-amber-500"></i>
-            <span>Grading Arena</span>
+            <i class="fa-solid fa-pen-nib text-amber-500"></i>
+            <span>Review Open Stop & Gradebook</span>
           </h3>
-          <p class="text-xs text-gray-500 dark:text-slate-400">Review student work, assign rubric marks, and award XP</p>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Mark student oral retell response and release to parent</p>
         </div>
         <button onclick="closeGradingModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
 
-      <!-- Student Card -->
       <div class="p-3.5 bg-gray-50 dark:bg-space-850 rounded-2xl flex items-center gap-3.5 mb-4">
-        <div class="w-11 h-11 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center text-white font-bold">
-          AT
+        <div class="w-11 h-11 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold">
+          AK
         </div>
         <div class="flex-1">
           <div class="flex items-center justify-between">
-            <h4 class="text-sm font-bold text-gray-900 dark:text-white">Aiden Thorne</h4>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300">Level 14 Rogue</span>
+            <h4 class="text-sm font-bold text-gray-900 dark:text-white">Adam Khalid</h4>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300">Grade 1A · Math</span>
           </div>
-          <p class="text-xs text-gray-500 dark:text-slate-400">Quest: Newton's 2nd Law Problem Set • Physics 101</p>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Lesson: Fractions Intro • Stop 3 (Retell)</p>
         </div>
       </div>
 
-      <!-- Rubric Criteria Checkbox Group -->
+      <div class="p-3.5 bg-blue-50/50 dark:bg-blue-950/20 rounded-2xl border border-blue-100 dark:border-blue-900/40 mb-4 text-xs space-y-1.5">
+        <span class="font-bold text-blue-900 dark:text-blue-200">Stop Prompt:</span>
+        <p class="text-gray-700 dark:text-slate-300">"Explain in your own words what a numerator is and what it represents in a fraction."</p>
+        <div class="pt-2 border-t border-blue-100 dark:border-blue-900/40 flex items-center gap-2 text-blue-700 dark:text-blue-300 font-medium">
+          <i class="fa-solid fa-microphone"></i>
+          <span>Student Audio: "The numerator is the top number that tells how many equal parts we have." (0:14)</span>
+        </div>
+      </div>
+
       <div class="space-y-2 mb-4">
-        <label class="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Evaluation Rubric</label>
-        <div class="p-3 bg-gray-50 dark:bg-space-850 rounded-xl space-y-2 text-xs">
-          <label class="flex items-center gap-2">
-            <input type="checkbox" id="rubric1" checked class="w-4 h-4 rounded text-blue-600">
-            <span>Free-body diagram accurate and well-labeled (+100 XP)</span>
-          </label>
-          <label class="flex items-center gap-2">
-            <input type="checkbox" id="rubric2" checked class="w-4 h-4 rounded text-blue-600">
-            <span>Mathematical calculations and units fully verified (+100 XP)</span>
-          </label>
-          <label class="flex items-center gap-2">
-            <input type="checkbox" id="rubric3" checked class="w-4 h-4 rounded text-blue-600">
-            <span>Critical thinking conclusion and error analysis (+50 XP)</span>
-          </label>
+        <label class="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Evaluation Mark</label>
+        <div class="grid grid-cols-3 gap-2.5 text-xs font-semibold">
+          <button type="button" class="p-2.5 rounded-xl border border-emerald-500 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-check"></i> Correct
+          </button>
+          <button type="button" class="p-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-space-850 text-gray-600 dark:text-slate-300 flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-minus"></i> Partial
+          </button>
+          <button type="button" class="p-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-space-850 text-gray-600 dark:text-slate-300 flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-xmark"></i> Needs Work
+          </button>
         </div>
       </div>
 
-      <!-- Interactive XP Slider -->
-      <div class="mb-5 space-y-2">
-        <div class="flex items-center justify-between">
-          <label class="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Award XP Points</label>
-          <span id="gradingXpDisplay" class="text-base font-bold text-amber-500 font-display">250 XP</span>
-        </div>
-        <input type="range" id="gradingXpSlider" min="50" max="500" step="25" value="250" oninput="updateGradingXp(this.value)" class="w-full h-2 bg-gray-200 dark:bg-space-700 rounded-lg appearance-none cursor-pointer">
-      </div>
-
-      <!-- Teacher Feedback Textarea -->
       <div class="mb-5 space-y-1.5">
-        <label class="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Note to Student & Parent</label>
-        <textarea id="gradingFeedbackInput" rows="2" placeholder="e.g. Exceptional attention to detail on the acceleration vector calculations!" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white text-xs focus:outline-none"></textarea>
+        <label class="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Feedback Note to Parent</label>
+        <textarea id="gradingFeedbackInput" rows="2" placeholder="e.g. Excellent explanation of equal parts! Kept clear rhythm and tone." class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-space-850 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white text-xs focus:outline-none"></textarea>
       </div>
 
       <div class="pt-4 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
         <button type="button" onclick="closeGradingModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-space-850">Skip</button>
-        <button type="button" onclick="submitGrading()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold shadow-md shadow-amber-500/20 hover:opacity-95 flex items-center gap-1.5">
-          <i class="fa-solid fa-trophy"></i> Award XP & Pass Quest
+        <button type="button" onclick="submitGrading()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-bold shadow-md shadow-emerald-500/20 hover:opacity-95 flex items-center gap-1.5">
+          <i class="fa-solid fa-check-double"></i> Save Mark & Release to Parent
         </button>
       </div>
     </div>
   </div>
 
-  <!-- 4. Parent Chat Messenger Modal -->
+  <!-- 5. Parent Chat Messenger Modal -->
   <div id="chatModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white dark:bg-space-900 rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-gray-100 dark:border-slate-800 max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95">
       <div class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white font-bold text-sm">
-            MT
+            MA
           </div>
           <div>
-            <h3 class="text-sm font-bold text-gray-900 dark:text-white">Mrs. Thorne</h3>
+            <h3 class="text-sm font-bold text-gray-900 dark:text-white">Mrs. Al Mansoor</h3>
             <p class="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online • Parent of Aiden Thorne (Grade 10-A)
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online • Parent of Adam Khalid (Grade 1A)
             </p>
           </div>
         </div>
@@ -973,26 +932,24 @@
         </button>
       </div>
 
-      <!-- Message History -->
-      <div id="chatMessageList" class="flex-1 overflow-y-auto py-4 space-y-3 pr-1 text-xs">
-        <div class="flex items-start gap-2.5">
-          <div class="w-7 h-7 rounded-lg bg-green-100 text-green-700 flex items-center justify-center font-bold text-[10px] flex-shrink-0">MT</div>
-          <div class="bg-gray-100 dark:bg-space-850 p-3 rounded-2xl rounded-tl-none max-w-[80%]">
-            <p class="text-gray-800 dark:text-slate-200">Hello Professor Vance, Aiden was very excited about his recent score on the projectile motion homework quest! Thank you for the detailed feedback.</p>
-            <span class="text-[9px] text-gray-400 block mt-1">Today at 10:14 AM</span>
+      <div class="flex-1 overflow-y-auto py-4 space-y-3" id="chatMessagesContainer">
+        <div class="flex items-start gap-2.5 max-w-[80%]">
+          <div class="w-7 h-7 rounded-full bg-gray-200 dark:bg-space-800 text-[10px] flex items-center justify-center font-bold">MA</div>
+          <div class="p-3 bg-gray-100 dark:bg-space-850 rounded-2xl rounded-tl-xs text-xs text-gray-800 dark:text-slate-200">
+            Good morning Ms. Sara! Adam really enjoyed yesterday's fractions lesson and the audio practice.
+            <span class="block text-[9px] text-gray-400 mt-1">Yesterday 4:15 PM</span>
           </div>
         </div>
 
-        <div class="flex items-start gap-2.5 flex-row-reverse">
-          <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-[10px] flex-shrink-0">HV</div>
-          <div class="bg-blue-600 text-white p-3 rounded-2xl rounded-tr-none max-w-[80%]">
-            <p>You're very welcome, Mrs. Thorne! Aiden displayed excellent mastery of vectors. We are forging the boss raid quest for tomorrow.</p>
-            <span class="text-[9px] text-blue-200 block mt-1">Today at 10:20 AM</span>
+        <div class="flex items-start gap-2.5 max-w-[80%] ml-auto flex-row-reverse">
+          <div class="w-7 h-7 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">SA</div>
+          <div class="p-3 bg-blue-600 text-white rounded-2xl rounded-tr-xs text-xs">
+            Hello Mrs. Al Mansoor! That is wonderful to hear. He explained the numerator concept with great confidence!
+            <span class="block text-[9px] text-blue-200 mt-1">Today 8:30 AM</span>
           </div>
         </div>
       </div>
 
-      <!-- Composer Input -->
       <div class="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center gap-2">
         <input type="text" id="chatComposerInput" onkeydown="if(event.key==='Enter') sendChatMessage()" placeholder="Type a message to parent..." class="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-space-850 text-gray-800 dark:text-white placeholder-gray-400 rounded-xl border border-gray-200 dark:border-slate-700 text-xs focus:outline-none focus:border-blue-500">
         <button onclick="sendChatMessage()" class="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors">
@@ -1002,72 +959,63 @@
     </div>
   </div>
 
-  <!-- ==================== JAVASCRIPT APPLICATION LOGIC ==================== -->
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- ==================== LOGIC ==================== -->
   <script>
-    // Initial State
     const state = {
       darkMode: false,
       audioEnabled: true,
-      kpiMode: 'school', // 'school' | 'quest'
       currentWeekOffset: 0,
       activeFilterClass: 'ALL',
-      activeFilterTier: 'ALL',
+      activeFilterStatus: 'ALL',
       searchQuery: '',
       chartInstance: null,
-      
-      // Quests array (Kanban Monday-Friday)
-      quests: [
-        { id: 1, title: "Kinematics & Freefall Vectors", class: "Physics 101", tier: "COMMON", day: "Monday", xp: 200, done: 26, total: 28, due: "Mon 4:00 PM", status: "ACTIVE", objective: "Solve questions 1-5" },
-        { id: 2, title: "Derivatives of Trig Functions", class: "Calculus II", tier: "RARE", day: "Monday", xp: 350, done: 22, total: 24, due: "Mon 5:30 PM", status: "ACTIVE", objective: "Chain rule derivation" },
-        { id: 3, title: "Orbital Mechanics & Kepler", class: "Astronomy", tier: "BOSS", day: "Tuesday", xp: 500, done: 18, total: 20, due: "Tue 6:00 PM", status: "ACTIVE", objective: "Calculate elliptical eccentricity" },
-        { id: 4, title: "Polynomial Factoring Gauntlet", class: "Algebra", tier: "COMMON", day: "Wednesday", xp: 150, done: 30, total: 30, due: "Wed 3:00 PM", status: "COMPLETED", objective: "Factor 10 quad expressions" },
-        { id: 5, title: "Electromagnetism Circuit Lab", class: "Physics 101", tier: "RARE", day: "Thursday", xp: 300, done: 15, total: 28, due: "Thu 4:00 PM", status: "ACTIVE", objective: "Breadboard resistor simulation" },
-        { id: 6, title: "Midterm Quest: Stellar Evolution", class: "Astronomy", tier: "BOSS", day: "Friday", xp: 600, done: 0, total: 20, due: "Fri 5:00 PM", status: "ACTIVE", objective: "Synthesize HR diagram data" }
+
+      // Lessons array (This Week: Monday-Friday)
+      lessons: [
+        { id: 1, title: "Fractions Intro: Equal Parts", class: "Grade 1A · Math", status: "PUBLISHED", day: "Monday", done: 14, total: 18, due: "Mon 4:00 PM" },
+        { id: 2, title: "Addition with Regrouping", class: "Grade 1B · Math", status: "READY", day: "Monday", done: 0, total: 18, due: "Mon 5:30 PM" },
+        { id: 3, title: "Geometry & 2D Shapes", class: "Grade 2C · Math", status: "PUBLISHED", day: "Tuesday", done: 16, total: 20, due: "Tue 6:00 PM" },
+        { id: 4, title: "Midterm Assessment", class: "Grade 1A · Math", status: "EXAM", day: "Wednesday", done: 4, total: 18, due: "Wed 3:00 PM" },
+        { id: 5, title: "Multiplication Tables: 3 & 4", class: "Grade 2C · Math", status: "DRAFT", day: "Thursday", done: 0, total: 20, due: "Thu 4:00 PM" },
+        { id: 6, title: "Word Problems & Reasoning", class: "Grade 1A · Math", status: "READY", day: "Friday", done: 0, total: 18, due: "Fri 5:00 PM" }
       ],
 
       // Students array for attendance
       students: [
-        { id: 1, name: "Aiden Thorne", roll: "10A-01", status: "PRESENT", note: "Outstanding participation in kinematics." },
-        { id: 2, name: "Maya Lin", roll: "10A-02", status: "PRESENT", note: "" },
-        { id: 3, name: "Leo Vance", roll: "10A-03", status: "PRESENT", note: "" },
-        { id: 4, name: "Sophia Martinez", roll: "10A-04", status: "LATE", note: "Arrived at 8:15 AM (traffic)." },
-        { id: 5, name: "Ethan Hunt", roll: "10A-05", status: "PRESENT", note: "" },
-        { id: 6, name: "Chloe Dupont", roll: "10A-06", status: "ABSENT", note: "Doctor appointment excused note." }
+        { id: 1, name: "Adam Khalid", roll: "1A-01", status: "PRESENT", note: "Great engagement in today's lesson." },
+        { id: 2, name: "Layla Hassan", roll: "1A-02", status: "PRESENT", note: "" },
+        { id: 3, name: "Omar Farooq", roll: "1A-03", status: "LATE", note: "Arrived at 8:15 AM (traffic)." },
+        { id: 4, name: "Mariam Saeed", roll: "1A-04", status: "PRESENT", note: "" },
+        { id: 5, name: "Tariq Ziyad", roll: "1A-05", status: "ABSENT", note: "Excused note from parent." },
+        { id: 6, name: "Noor Al Huda", roll: "1A-06", status: "PRESENT", note: "" }
       ],
 
-      // Classes
+      // Classes (6 Assignments)
       classes: [
-        { id: 'c1', name: "Physics 101", grade: "Grade 10-A", students: 28, attendanceRate: "96.4%", color: "from-blue-500 to-indigo-600", lightBg: "bg-blue-50" },
-        { id: 'c2', name: "Calculus II", grade: "Grade 9-B", students: 24, attendanceRate: "95.8%", color: "from-purple-500 to-pink-600", lightBg: "bg-purple-50" },
-        { id: 'c3', name: "Astronomy", grade: "Grade 11-C", students: 20, attendanceRate: "98.0%", color: "from-pink-500 to-rose-600", lightBg: "bg-pink-50" },
-        { id: 'c4', name: "Algebra", grade: "Grade 8-A", students: 30, attendanceRate: "93.3%", color: "from-emerald-500 to-teal-600", lightBg: "bg-emerald-50" }
+        { id: 'c1', name: "Grade 1A · Math", grade: "British Curriculum", students: 18, attendanceRate: "97.2%", color: "from-blue-500 to-indigo-600" },
+        { id: 'c2', name: "Grade 1B · Math", grade: "British Curriculum", students: 18, attendanceRate: "95.8%", color: "from-purple-500 to-pink-600" },
+        { id: 'c3', name: "Grade 2C · Math", grade: "British Curriculum", students: 20, attendanceRate: "96.5%", color: "from-pink-500 to-rose-600" },
+        { id: 'c4', name: "Grade 3A · Math", grade: "British Curriculum", students: 22, attendanceRate: "94.0%", color: "from-emerald-500 to-teal-600" },
+        { id: 'c5', name: "Grade 4A · Math", grade: "British Curriculum", students: 24, attendanceRate: "96.0%", color: "from-cyan-500 to-blue-600" },
+        { id: 'c6', name: "Grade 5A · Math", grade: "British Curriculum", students: 25, attendanceRate: "97.0%", color: "from-amber-500 to-orange-600" }
       ],
 
-      // Events
-      events: [
-        { id: 'e1', title: "Parent-Teacher Conference", date: "Tomorrow, Sep 24", time: "10:00 AM", location: "Main Hall", color: "blue" },
-        { id: 'e2', title: "Physics Science Fair Submissions", date: "Thu, Sep 25", time: "02:00 PM", location: "Lab 3", color: "purple" },
-        { id: 'e3', title: "Midterm Curriculum Review", date: "Mon, Sep 29", time: "09:00 AM", location: "Room 204", color: "pink" },
-        { id: 'e4', title: "Council Assembly", date: "Fri, Oct 03", time: "03:30 PM", location: "Auditorium", color: "green" }
-      ],
-
-      // Recent fee payments
-      recentPayments: [
-        { student: "Chloe Dupont", grade: "Grade 10-A", amount: "$450.00", date: "Today", status: "Paid" },
-        { student: "Marcus Brody", grade: "Grade 9-B", amount: "$380.00", date: "Yesterday", status: "Paid" },
-        { student: "Zara Al-Mansoor", grade: "Grade 11-C", amount: "$520.00", date: "Sep 21", status: "Paid" }
+      // Real exams data
+      recentExams: [
+        { title: "Midterm Math Assessment", class: "Grade 1A · Math", score: "88.5% Avg", status: "Active" },
+        { title: "Fractions Mastery Quiz", class: "Grade 1B · Math", score: "92.0% Avg", status: "Graded" },
+        { title: "Geometry & Shapes Unit Test", class: "Grade 2C · Math", score: "86.4% Avg", status: "Graded" }
       ]
     };
 
     // ==================== AUDIO SYNTHESIZER ====================
     let audioCtx = null;
     function getAudioContext() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
       return audioCtx;
     }
 
@@ -1097,98 +1045,77 @@
           gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
           osc.start(now);
           osc.stop(now + 0.08);
-        } else if (type === 'quest_created') {
-          // Rising triad arpeggio (C5 - E5 - G5 - C6)
-          const notes = [523.25, 659.25, 783.99, 1046.50];
-          notes.forEach((freq, idx) => {
-            const noteOsc = ctx.createOscillator();
-            const noteGain = ctx.createGain();
-            noteOsc.connect(noteGain);
-            noteGain.connect(ctx.destination);
-            noteOsc.type = 'triangle';
-            noteOsc.frequency.setValueAtTime(freq, now + idx * 0.06);
-            noteGain.gain.setValueAtTime(0.15, now + idx * 0.06);
-            noteGain.gain.linearRampToValueAtTime(0.01, now + (idx + 1) * 0.06 + 0.08);
-            noteOsc.start(now + idx * 0.06);
-            noteOsc.stop(now + (idx + 1) * 0.06 + 0.08);
-          });
-        } else if (type === 'xp_award') {
-          // Victorious chord
-          [659.25, 830.61, 987.77, 1318.51].forEach((freq) => {
-            const chordOsc = ctx.createOscillator();
-            const chordGain = ctx.createGain();
-            chordOsc.connect(chordGain);
-            chordGain.connect(ctx.destination);
-            chordOsc.type = 'sine';
-            chordOsc.frequency.setValueAtTime(freq, now);
-            chordGain.gain.setValueAtTime(0.15, now);
-            chordGain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-            chordOsc.start(now);
-            chordOsc.stop(now + 0.6);
-          });
+        } else if (type === 'success') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(523.25, now);
+          osc.frequency.setValueAtTime(659.25, now + 0.08);
+          osc.frequency.setValueAtTime(783.99, now + 0.16);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+          osc.start(now);
+          osc.stop(now + 0.3);
         }
-      } catch (err) {
-        // AudioContext may be restricted by browser gesture requirements
+      } catch (e) {
+        // Fallback silently if audio context is blocked
       }
     }
 
-    // ==================== THEME MANAGEMENT ====================
+    // ==================== THEME CONTROLLER ====================
     function initTheme() {
-      const savedTheme = localStorage.getItem('hq_theme');
-      if (savedTheme === 'dark') {
-        state.darkMode = true;
-      } else if (savedTheme === 'light') {
-        state.darkMode = false;
-      } else {
-        // Default to light as requested in "fix light theme"
-        state.darkMode = false;
-      }
-      applyThemeClasses();
+      const savedTheme = localStorage.getItem('hq_theme') || 'light';
+      state.darkMode = savedTheme === 'dark';
+      applyTheme(false);
     }
 
     function toggleTheme() {
       state.darkMode = !state.darkMode;
       localStorage.setItem('hq_theme', state.darkMode ? 'dark' : 'light');
+      applyTheme(true);
       playAudio('toggle');
-      applyThemeClasses();
-      updateChartColors();
-      showToast(state.darkMode ? 'Switched to Deep Space Dark' : 'Switched to Daylight Theme', 'blue', 'fa-circle-half-stroke');
     }
 
-    function applyThemeClasses() {
+    function applyTheme(showFeedback = true) {
       const html = document.documentElement;
       const themeLabel = document.getElementById('themeLabel');
+      const themeBadge = document.getElementById('themeToggleBadge');
       const themeIcon = document.getElementById('themeIcon');
       const headerThemeIcon = document.getElementById('headerThemeIcon');
-      const themeToggleBadge = document.getElementById('themeToggleBadge');
 
       if (state.darkMode) {
-        html.classList.remove('light');
         html.classList.add('dark');
+        html.classList.remove('light');
         if (themeLabel) themeLabel.textContent = 'Deep Space Dark';
-        if (themeIcon) themeIcon.className = 'fa-solid fa-moon text-purple-400 text-sm';
-        if (headerThemeIcon) headerThemeIcon.className = 'fa-solid fa-moon text-purple-400 text-base';
-        if (themeToggleBadge) {
-          themeToggleBadge.textContent = 'Dark';
-          themeToggleBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-950 text-purple-300';
+        if (themeBadge) {
+          themeBadge.textContent = 'Dark';
+          themeBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-900/60 text-purple-300';
         }
+        if (themeIcon) themeIcon.className = 'fa-solid fa-moon text-purple-400 text-sm';
+        if (headerThemeIcon) headerThemeIcon.className = 'fa-solid fa-sun text-base text-amber-400';
+        if (showFeedback) showToast('Switched to Deep Space Dark', 'purple', 'fa-moon');
       } else {
         html.classList.remove('dark');
         html.classList.add('light');
         if (themeLabel) themeLabel.textContent = 'Daylight Theme';
-        if (themeIcon) themeIcon.className = 'fa-solid fa-sun text-amber-500 text-sm';
-        if (headerThemeIcon) headerThemeIcon.className = 'fa-solid fa-sun text-amber-500 text-base';
-        if (themeToggleBadge) {
-          themeToggleBadge.textContent = 'Light';
-          themeToggleBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700';
+        if (themeBadge) {
+          themeBadge.textContent = 'Light';
+          themeBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700';
         }
+        if (themeIcon) themeIcon.className = 'fa-solid fa-sun text-amber-500 text-sm';
+        if (headerThemeIcon) headerThemeIcon.className = 'fa-solid fa-moon text-base text-purple-500';
+        if (showFeedback) showToast('Switched to Daylight Theme', 'amber', 'fa-sun');
+      }
+
+      if (state.chartInstance) {
+        updateChartTheme();
       }
     }
 
+    // ==================== AUDIO SFX CONTROLLER ====================
     function toggleAudioSFX() {
       state.audioEnabled = !state.audioEnabled;
       const icon = document.getElementById('audioIcon');
       const badge = document.getElementById('audioBadge');
+
       if (state.audioEnabled) {
         icon.className = 'fa-solid fa-volume-high text-blue-500 text-sm';
         badge.textContent = 'ON';
@@ -1203,90 +1130,31 @@
       }
     }
 
-    // ==================== TOAST MESSAGES ====================
     function showToast(message, color = 'blue', icon = 'fa-circle-check') {
       const container = document.getElementById('toastContainer');
       const toast = document.createElement('div');
       toast.className = `flex items-center gap-3 px-4 py-3 rounded-2xl bg-white dark:bg-space-900 border border-gray-100 dark:border-slate-800 shadow-xl text-gray-800 dark:text-white text-xs font-semibold pointer-events-auto transform transition-all duration-300 translate-y-2 opacity-0`;
-      toast.innerHTML = `
-        <i class="fa-solid ${icon} text-${color}-500 text-sm"></i>
-        <span>${message}</span>
-      `;
+      toast.innerHTML = `<i class="fa-solid ${icon} text-${color}-500 text-sm"></i><span>${message}</span>`;
       container.appendChild(toast);
-      requestAnimationFrame(() => {
-        toast.classList.remove('translate-y-2', 'opacity-0');
-      });
+      requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
       setTimeout(() => {
         toast.classList.add('opacity-0', 'translate-x-4');
         setTimeout(() => toast.remove(), 300);
       }, 3200);
     }
 
-    // ==================== KPI MODE SWITCHER ====================
-    function setKpiMode(mode) {
-      state.kpiMode = mode;
-      playAudio('click');
-      const schoolBtn = document.getElementById('kpi-school-btn');
-      const questBtn = document.getElementById('kpi-quest-btn');
-
-      if (mode === 'school') {
-        schoolBtn.className = "px-3 py-1.5 rounded-lg bg-white dark:bg-space-800 text-blue-600 dark:text-blue-400 shadow-sm transition-all";
-        questBtn.className = "px-3 py-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 transition-all";
-        
-        document.getElementById('kpi-label-1').textContent = "Total Students";
-        document.getElementById('kpi-value-1').textContent = "2,847";
-        document.getElementById('kpi-icon-1').className = "fa-solid fa-user-graduate text-xl";
-
-        document.getElementById('kpi-label-2').textContent = "Total Teachers";
-        document.getElementById('kpi-value-2').textContent = "142";
-        document.getElementById('kpi-icon-2').className = "fa-solid fa-chalkboard-user text-xl";
-
-        document.getElementById('kpi-label-3').textContent = "Active Classes";
-        document.getElementById('kpi-value-3').textContent = "86";
-        document.getElementById('kpi-icon-3').className = "fa-solid fa-school text-xl";
-
-        document.getElementById('kpi-label-4').textContent = "Attendance Rate";
-        document.getElementById('kpi-value-4').textContent = "94.2%";
-        document.getElementById('kpi-icon-4').className = "fa-solid fa-clipboard-check text-xl";
-      } else {
-        questBtn.className = "px-3 py-1.5 rounded-lg bg-white dark:bg-space-800 text-blue-600 dark:text-blue-400 shadow-sm transition-all";
-        schoolBtn.className = "px-3 py-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:text-gray-900 transition-all";
-
-        document.getElementById('kpi-label-1').textContent = "Active Quests";
-        document.getElementById('kpi-value-1').textContent = state.quests.length.toString();
-        document.getElementById('kpi-icon-1').className = "fa-solid fa-scroll text-xl";
-
-        document.getElementById('kpi-label-2').textContent = "Submission Rate";
-        document.getElementById('kpi-value-2').textContent = "88.4%";
-        document.getElementById('kpi-icon-2').className = "fa-solid fa-chart-line text-xl";
-
-        document.getElementById('kpi-label-3').textContent = "Avg Class XP";
-        document.getElementById('kpi-value-3').textContent = "1,420 XP";
-        document.getElementById('kpi-icon-3').className = "fa-solid fa-bolt text-xl";
-
-        document.getElementById('kpi-label-4').textContent = "Needs Grading";
-        document.getElementById('kpi-value-4').textContent = "12";
-        document.getElementById('kpi-icon-4').className = "fa-solid fa-inbox text-xl";
-      }
-    }
-
-    // ==================== CHART.JS SETUP ====================
+    // ==================== WEEKLY ATTENDANCE CHART ====================
     function initWeeklyAttendanceChart() {
-      const canvas = document.getElementById('weeklyAttendanceChart');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
+      const ctx = document.getElementById('weeklyAttendanceChart');
+      if (!ctx) return;
 
-      const isDark = state.darkMode;
-      const gridColor = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)';
-      const textColor = isDark ? '#94a3b8' : '#64748b';
+      const grad1 = ctx.getContext('2d').createLinearGradient(0, 0, 0, 240);
+      grad1.addColorStop(0, 'rgba(59, 130, 246, 0.35)');
+      grad1.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
 
-      const studentGrad = ctx.createLinearGradient(0, 0, 0, 240);
-      studentGrad.addColorStop(0, 'rgba(59, 130, 246, 0.35)');
-      studentGrad.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
-
-      const teacherGrad = ctx.createLinearGradient(0, 0, 0, 240);
-      teacherGrad.addColorStop(0, 'rgba(168, 85, 247, 0.35)');
-      teacherGrad.addColorStop(1, 'rgba(168, 85, 247, 0.0)');
+      const grad2 = ctx.getContext('2d').createLinearGradient(0, 0, 0, 240);
+      grad2.addColorStop(0, 'rgba(168, 85, 247, 0.35)');
+      grad2.addColorStop(1, 'rgba(168, 85, 247, 0.0)');
 
       state.chartInstance = new Chart(ctx, {
         type: 'line',
@@ -1294,10 +1162,10 @@
           labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
           datasets: [
             {
-              label: 'Students (%)',
+              label: 'Grade 1-3 (%)',
               data: [96.2, 94.8, 97.4, 93.9, 95.5],
               borderColor: '#3b82f6',
-              backgroundColor: studentGrad,
+              backgroundColor: grad1,
               fill: true,
               tension: 0.4,
               borderWidth: 3,
@@ -1306,10 +1174,10 @@
               pointHoverRadius: 6
             },
             {
-              label: 'Teachers (%)',
+              label: 'Grade 4-6 (%)',
               data: [98.5, 97.2, 98.0, 96.5, 99.1],
               borderColor: '#a855f7',
-              backgroundColor: teacherGrad,
+              backgroundColor: grad2,
               fill: true,
               tension: 0.4,
               borderWidth: 3,
@@ -1329,245 +1197,204 @@
               titleColor: '#ffffff',
               bodyColor: '#cbd5e1',
               padding: 10,
-              borderRadius: 12,
-              displayColors: true
+              borderRadius: 12
             }
           },
           scales: {
-            x: {
-              grid: { color: gridColor },
-              ticks: { color: textColor, font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 } }
-            },
             y: {
               min: 85,
               max: 100,
-              grid: { color: gridColor },
-              ticks: {
-                color: textColor,
-                font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
-                callback: (val) => val + '%'
-              }
+              grid: { color: state.darkMode ? '#1e293b' : '#f1f5f9' },
+              ticks: { color: state.darkMode ? '#94a3b8' : '#64748b', font: { size: 10 } }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: state.darkMode ? '#94a3b8' : '#64748b', font: { size: 10 } }
             }
           }
         }
       });
     }
 
-    function updateChartColors() {
+    function updateChartTheme() {
       if (!state.chartInstance) return;
       const isDark = state.darkMode;
-      const gridColor = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)';
-      const textColor = isDark ? '#94a3b8' : '#64748b';
-
-      state.chartInstance.options.scales.x.grid.color = gridColor;
-      state.chartInstance.options.scales.x.ticks.color = textColor;
-      state.chartInstance.options.scales.y.grid.color = gridColor;
-      state.chartInstance.options.scales.y.ticks.color = textColor;
+      state.chartInstance.options.scales.y.grid.color = isDark ? '#1e293b' : '#f1f5f9';
+      state.chartInstance.options.scales.y.ticks.color = isDark ? '#94a3b8' : '#64748b';
+      state.chartInstance.options.scales.x.ticks.color = isDark ? '#94a3b8' : '#64748b';
       state.chartInstance.update();
     }
 
-    // ==================== KANBAN BOARD ====================
-    function renderKanban() {
-      const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-      const filteredQuests = state.quests.filter(q => {
-        if (state.activeFilterClass !== 'ALL' && q.class !== state.activeFilterClass) return false;
-        if (state.activeFilterTier !== 'ALL' && q.tier !== state.activeFilterTier) return false;
-        if (state.searchQuery && !q.title.toLowerCase().includes(state.searchQuery) && !q.class.toLowerCase().includes(state.searchQuery)) return false;
-        return true;
-      });
+    // ==================== KANBAN BOARD RENDERER ====================
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-      weekdays.forEach(day => {
+    function renderKanban() {
+      DAYS.forEach(day => {
         const col = document.getElementById(`column-${day}`);
         const badge = document.getElementById(`badge-count-${day}`);
         if (!col) return;
         col.innerHTML = '';
 
-        const dayQuests = filteredQuests.filter(q => q.day === day);
-        if (badge) badge.textContent = dayQuests.length.toString();
+        const dayLessons = state.lessons.filter(l => {
+          if (l.day !== day) return false;
+          if (state.activeFilterClass !== 'ALL' && l.class !== state.activeFilterClass) return false;
+          if (state.activeFilterStatus !== 'ALL' && l.status !== state.activeFilterStatus) return false;
+          if (state.searchQuery) {
+            const q = state.searchQuery.toLowerCase();
+            return l.title.toLowerCase().includes(q) || l.class.toLowerCase().includes(q);
+          }
+          return true;
+        });
 
-        if (dayQuests.length === 0) {
+        if (badge) badge.textContent = dayLessons.length.toString();
+
+        if (dayLessons.length === 0) {
           col.innerHTML = `
-            <div class="h-28 flex flex-col items-center justify-center text-center p-3 border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-xl text-gray-400 dark:text-slate-600">
-              <i class="fa-solid fa-plus text-xs mb-1"></i>
-              <span class="text-[11px]">No quests scheduled</span>
+            <div class="h-28 border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center p-3 text-center">
+              <span class="text-[11px] text-gray-400">No lessons</span>
+              <button onclick="openLessonModal()" class="mt-1 text-[10px] font-bold text-blue-500 hover:underline">+ Add</button>
             </div>
           `;
           return;
         }
 
-        dayQuests.forEach(quest => {
+        dayLessons.forEach(lesson => {
           const card = document.createElement('div');
-          card.className = "p-3 rounded-xl bg-white dark:bg-space-800 border border-gray-200/80 dark:border-slate-700/60 shadow-xs hover:shadow-md transition-all hover:-translate-y-0.5 group space-y-2 cursor-pointer";
-          card.onclick = () => openGradingModal();
-
-          let tierBadgeHtml = '';
-          if (quest.tier === 'BOSS') {
-            tierBadgeHtml = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 animate-boss-glow">BOSS RAID</span>`;
-          } else if (quest.tier === 'RARE') {
-            tierBadgeHtml = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/60">RARE</span>`;
+          card.className = "bg-white dark:bg-space-900 p-3 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-xs hover:shadow-md transition-all space-y-2 cursor-pointer";
+          
+          let statusBadge = "";
+          if (lesson.status === "PUBLISHED") {
+            statusBadge = `<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">Published</span>`;
+          } else if (lesson.status === "READY") {
+            statusBadge = `<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400">Ready</span>`;
+          } else if (lesson.status === "EXAM") {
+            statusBadge = `<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400">Exam Ribbon</span>`;
           } else {
-            tierBadgeHtml = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/60">COMMON</span>`;
+            statusBadge = `<span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400">Draft</span>`;
           }
 
-          const completionPercent = Math.round((quest.done / quest.total) * 100);
-
           card.innerHTML = `
-            <div class="flex items-start justify-between gap-1.5">
-              ${tierBadgeHtml}
-              <span class="text-[11px] font-bold text-amber-500 font-display">+${quest.xp} XP</span>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-semibold text-gray-400">${lesson.class}</span>
+              ${statusBadge}
             </div>
-            <h4 class="text-xs font-bold text-gray-900 dark:text-white leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">${quest.title}</h4>
-            <p class="text-[11px] text-gray-500 dark:text-slate-400">${quest.class} • ${quest.due}</p>
-            <div class="space-y-1 pt-1">
-              <div class="flex items-center justify-between text-[10px] text-gray-500 dark:text-slate-400">
-                <span>Completed</span>
-                <span class="font-bold text-gray-700 dark:text-slate-300">${quest.done}/${quest.total} (${completionPercent}%)</span>
-              </div>
-              <div class="w-full h-1.5 bg-gray-100 dark:bg-space-900 rounded-full overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full" style="width: ${completionPercent}%"></div>
-              </div>
+            <h4 class="font-bold text-xs text-gray-800 dark:text-white leading-snug">${lesson.title}</h4>
+            <div class="flex items-center justify-between text-[10px] text-gray-500 dark:text-slate-400 pt-1 border-t border-gray-100 dark:border-slate-800">
+              <span><i class="fa-regular fa-clock mr-1"></i>${lesson.due}</span>
+              <span class="font-bold text-blue-600 dark:text-blue-400">${lesson.done}/${lesson.total} played</span>
             </div>
           `;
+          card.onclick = () => {
+            playAudio('click');
+            showToast(`Opening "${lesson.title}" editor`, 'blue', 'fa-book-open');
+          };
           col.appendChild(card);
         });
       });
 
-      const countBadge = document.getElementById('kanbanActiveCountBadge');
-      if (countBadge) countBadge.textContent = `${filteredQuests.length} Active`;
+      const badgeTotal = document.getElementById('kanbanActiveCountBadge');
+      if (badgeTotal) badgeTotal.textContent = `${state.lessons.length} Lessons`;
       const sidebarQuestCount = document.getElementById('sidebarQuestCount');
-      if (sidebarQuestCount) sidebarQuestCount.textContent = state.quests.length.toString();
+      if (sidebarQuestCount) sidebarQuestCount.textContent = state.lessons.length.toString();
     }
 
-    // Filters
     function setFilterClass(className) {
       state.activeFilterClass = className;
       playAudio('click');
       renderKanban();
     }
 
-    function setFilterTier(tier) {
-      state.activeFilterTier = tier;
+    function setFilterStatus(status) {
+      state.activeFilterStatus = status;
       playAudio('click');
-      ['all', 'common', 'rare', 'boss'].forEach(t => {
-        const btn = document.getElementById(`tier-filter-${t}`);
-        if (!btn) return;
-        if (t.toUpperCase() === tier) {
-          btn.className = "px-2.5 py-1 rounded-lg bg-white dark:bg-space-800 text-gray-800 dark:text-white font-bold shadow-xs";
-        } else {
-          btn.className = "px-2.5 py-1 rounded-lg text-gray-500 dark:text-slate-400 font-medium hover:bg-white/50";
+      ['all', 'published', 'ready', 'draft', 'exam'].forEach(s => {
+        const btn = document.getElementById(`status-filter-${s}`);
+        if (btn) {
+          if (s.toUpperCase() === status) {
+            btn.className = "px-2.5 py-1 rounded-lg bg-white dark:bg-space-800 text-gray-800 dark:text-white font-bold shadow-xs";
+          } else {
+            btn.className = "px-2.5 py-1 rounded-lg text-gray-500 dark:text-slate-400 font-medium hover:bg-white/50";
+          }
         }
       });
       renderKanban();
     }
 
     function handleSearch(val) {
-      state.searchQuery = val.trim().toLowerCase();
+      state.searchQuery = val.trim();
       renderKanban();
     }
 
-    function changeWeek(delta) {
-      state.currentWeekOffset += delta;
+    function changeWeek(offset) {
+      state.currentWeekOffset += offset;
       playAudio('click');
-      const label = document.getElementById('currentWeekRange');
+      const rangeEl = document.getElementById('currentWeekRange');
       if (state.currentWeekOffset === 0) {
-        label.textContent = "Week of Sep 22 - 26";
-      } else if (state.currentWeekOffset > 0) {
-        label.textContent = `+${state.currentWeekOffset} Week(s) Ahead`;
+        rangeEl.textContent = "Week of Sep 22 - 26";
+      } else if (state.currentWeekOffset === 1) {
+        rangeEl.textContent = "Week of Sep 29 - Oct 3";
+      } else if (state.currentWeekOffset === -1) {
+        rangeEl.textContent = "Week of Sep 15 - 19";
       } else {
-        label.textContent = `${state.currentWeekOffset} Week(s) Ago`;
+        rangeEl.textContent = `Week offset: ${state.currentWeekOffset}`;
       }
-      showToast(`Navigated to ${label.textContent}`, 'blue', 'fa-calendar-week');
+      renderKanban();
     }
 
     function resetWeek() {
       state.currentWeekOffset = 0;
       playAudio('click');
       document.getElementById('currentWeekRange').textContent = "Week of Sep 22 - 26";
-      showToast('Reset to Current Week', 'blue', 'fa-calendar-day');
+      renderKanban();
     }
 
-    function scrollToPlanner() {
-      playAudio('click');
-      const el = document.getElementById('plannerSection');
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-    }
-
-    // ==================== CLASSES & EVENTS RENDERERS ====================
+    // ==================== MY CLASSES RENDERER ====================
     function renderClasses() {
-      const container = document.getElementById('classesListContainer');
+      const container = document.getElementById('classesGridContainer');
       if (!container) return;
       container.innerHTML = '';
 
       state.classes.forEach(cls => {
-        const item = document.createElement('div');
-        item.className = "p-4 rounded-2xl bg-gray-50 dark:bg-space-850 border border-gray-100 dark:border-slate-800 hover:shadow-md transition-all flex items-center justify-between";
-        item.innerHTML = `
-          <div class="flex items-center gap-3.5">
-            <div class="w-11 h-11 bg-gradient-to-br ${cls.color} rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md">
-              ${cls.grade.split(' ')[1] || 'G'}
+        const card = document.createElement('div');
+        card.className = "p-4 rounded-2xl bg-gray-50/70 dark:bg-space-850/60 border border-gray-100 dark:border-slate-800 hover:shadow-md transition-all";
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr ${cls.color} text-white font-bold flex items-center justify-center text-sm shadow-sm">
+              ${cls.name.substring(0, 2)}
             </div>
-            <div>
-              <h4 class="text-sm font-bold text-gray-900 dark:text-white">${cls.name}</h4>
-              <p class="text-xs text-gray-500 dark:text-slate-400">${cls.grade} • ${cls.students} Students</p>
-            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">${cls.attendanceRate}</span>
           </div>
-          <div class="text-right">
-            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">${cls.attendanceRate}</span>
-            <button onclick="openAttendanceModal()" class="block text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline mt-1">Roll Call</button>
+          <h4 class="font-bold text-sm text-gray-800 dark:text-white">${cls.name}</h4>
+          <p class="text-xs text-gray-400 mb-3">${cls.grade} • ${cls.students} Students</p>
+          <div class="flex items-center justify-between text-xs pt-2 border-t border-gray-200 dark:border-slate-800">
+            <button onclick="openAttendanceModal()" class="text-blue-600 dark:text-blue-400 font-bold hover:underline">Attendance</button>
+            <button onclick="openLessonModal()" class="text-purple-600 dark:text-purple-400 font-bold hover:underline">+ Add Lesson</button>
           </div>
         `;
-        container.appendChild(item);
+        container.appendChild(card);
       });
     }
 
-    function renderEvents() {
-      const container = document.getElementById('eventsListContainer');
+    function renderRecentExams() {
+      const container = document.getElementById('recentExamsList');
       if (!container) return;
       container.innerHTML = '';
 
-      const colorMap = {
-        blue: 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 text-blue-600',
-        purple: 'border-purple-500 bg-purple-50/50 dark:bg-purple-950/20 text-purple-600',
-        pink: 'border-pink-500 bg-pink-50/50 dark:bg-pink-950/20 text-pink-600',
-        green: 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-600'
-      };
-
-      state.events.forEach(evt => {
+      state.recentExams.forEach(ex => {
         const item = document.createElement('div');
-        item.className = `p-3.5 rounded-2xl border-l-4 ${colorMap[evt.color]} transition-all hover:shadow-xs space-y-1.5`;
-        item.innerHTML = `
-          <h4 class="text-xs font-bold text-gray-900 dark:text-white">${evt.title}</h4>
-          <div class="flex items-center gap-3 text-[11px] text-gray-500 dark:text-slate-400">
-            <span><i class="fa-regular fa-calendar mr-1"></i>${evt.date}</span>
-            <span><i class="fa-regular fa-clock mr-1"></i>${evt.time}</span>
-            <span><i class="fa-solid fa-location-dot mr-1"></i>${evt.location}</span>
-          </div>
-        `;
-        container.appendChild(item);
-      });
-    }
-
-    function renderRecentPayments() {
-      const container = document.getElementById('recentPaymentsList');
-      if (!container) return;
-      container.innerHTML = '';
-
-      state.recentPayments.forEach(p => {
-        const item = document.createElement('div');
-        item.className = "flex items-center justify-between p-2 rounded-xl bg-gray-50 dark:bg-space-850";
+        item.className = "flex items-center justify-between p-2.5 rounded-xl bg-gray-50 dark:bg-space-850";
         item.innerHTML = `
           <div>
-            <p class="font-bold text-gray-800 dark:text-slate-200">${p.student}</p>
-            <p class="text-[10px] text-gray-400">${p.grade} • ${p.date}</p>
+            <p class="font-bold text-gray-800 dark:text-slate-200">${ex.title}</p>
+            <p class="text-[10px] text-gray-400">${ex.class}</p>
           </div>
-          <span class="font-bold text-emerald-600 dark:text-emerald-400">${p.amount}</span>
+          <span class="font-bold text-blue-600 dark:text-blue-400">${ex.score}</span>
         `;
         container.appendChild(item);
       });
     }
 
     // ==================== MODAL HANDLERS ====================
-    // Attendance Modal
     function openAttendanceModal() {
       playAudio('click');
       renderAttendanceStudents();
@@ -1579,119 +1406,123 @@
     }
 
     function renderAttendanceStudents() {
-      const container = document.getElementById('attendanceStudentList');
-      if (!container) return;
-      container.innerHTML = '';
+      const list = document.getElementById('attendanceStudentsList');
+      if (!list) return;
+      list.innerHTML = '';
 
-      state.students.forEach(st => {
-        const item = document.createElement('div');
-        item.className = "p-3 rounded-2xl bg-gray-50 dark:bg-space-850 border border-gray-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3";
-        
-        item.innerHTML = `
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-xs">
-              ${st.name.charAt(0)}
-            </div>
-            <div>
-              <p class="text-xs font-bold text-gray-900 dark:text-white">${st.name}</p>
-              <p class="text-[10px] text-gray-400">${st.roll}</p>
-            </div>
+      let presentCount = 0;
+      let lateCount = 0;
+      let absentCount = 0;
+
+      state.students.forEach((stu, idx) => {
+        if (stu.status === 'PRESENT') presentCount++;
+        else if (stu.status === 'LATE') lateCount++;
+        else if (stu.status === 'ABSENT') absentCount++;
+
+        const row = document.createElement('div');
+        row.className = "flex items-center justify-between p-3 rounded-2xl bg-gray-50 dark:bg-space-850 border border-gray-100 dark:border-slate-800 text-xs";
+        row.innerHTML = `
+          <div>
+            <p class="font-bold text-gray-900 dark:text-white">${stu.name}</p>
+            <p class="text-[10px] text-gray-400">Roll: ${stu.roll} ${stu.note ? '• ' + stu.note : ''}</p>
           </div>
-
-          <div class="flex items-center gap-1 text-[11px] font-bold">
-            <button onclick="setStudentStatus(${st.id}, 'PRESENT')" class="px-2.5 py-1 rounded-lg ${st.status === 'PRESENT' ? 'bg-emerald-500 text-white shadow-xs' : 'bg-gray-200 dark:bg-space-750 text-gray-600 dark:text-slate-400'}">Present</button>
-            <button onclick="setStudentStatus(${st.id}, 'LATE')" class="px-2.5 py-1 rounded-lg ${st.status === 'LATE' ? 'bg-amber-500 text-white shadow-xs' : 'bg-gray-200 dark:bg-space-750 text-gray-600 dark:text-slate-400'}">Late</button>
-            <button onclick="setStudentStatus(${st.id}, 'ABSENT')" class="px-2.5 py-1 rounded-lg ${st.status === 'ABSENT' ? 'bg-rose-500 text-white shadow-xs' : 'bg-gray-200 dark:bg-space-750 text-gray-600 dark:text-slate-400'}">Absent</button>
+          <div class="flex items-center gap-1.5">
+            <button onclick="setStudentStatus(${idx}, 'PRESENT')" class="px-2.5 py-1 rounded-lg font-bold text-[10px] transition-colors ${stu.status === 'PRESENT' ? 'bg-emerald-500 text-white' : 'bg-gray-200 dark:bg-space-700 text-gray-600 dark:text-slate-300'}">P</button>
+            <button onclick="setStudentStatus(${idx}, 'LATE')" class="px-2.5 py-1 rounded-lg font-bold text-[10px] transition-colors ${stu.status === 'LATE' ? 'bg-amber-500 text-white' : 'bg-gray-200 dark:bg-space-700 text-gray-600 dark:text-slate-300'}">L</button>
+            <button onclick="setStudentStatus(${idx}, 'ABSENT')" class="px-2.5 py-1 rounded-lg font-bold text-[10px] transition-colors ${stu.status === 'ABSENT' ? 'bg-rose-500 text-white' : 'bg-gray-200 dark:bg-space-700 text-gray-600 dark:text-slate-300'}">A</button>
           </div>
         `;
-        container.appendChild(item);
+        list.appendChild(row);
       });
-      recalcAttendanceStats();
-    }
 
-    function setStudentStatus(id, status) {
-      playAudio('click');
-      const st = state.students.find(s => s.id === id);
-      if (st) {
-        st.status = status;
-        renderAttendanceStudents();
+      const summary = document.getElementById('attStatsSummary');
+      if (summary) {
+        summary.textContent = `Calculated: ${presentCount} Present, ${lateCount} Late, ${absentCount} Absent`;
       }
     }
 
-    function markAllPresent() {
-      playAudio('quest_created');
-      state.students.forEach(s => s.status = 'PRESENT');
+    function setStudentStatus(idx, status) {
+      state.students[idx].status = status;
+      playAudio('click');
       renderAttendanceStudents();
-      showToast('All students marked present!', 'emerald', 'fa-check-double');
     }
 
-    function recalcAttendanceStats() {
-      const present = state.students.filter(s => s.status === 'PRESENT').length;
-      const late = state.students.filter(s => s.status === 'LATE').length;
-      const absent = state.students.filter(s => s.status === 'ABSENT').length;
-      const total = state.students.length;
-      const rate = Math.round(((present + late * 0.5) / total) * 100);
-
-      document.getElementById('attCountPresent').textContent = present.toString();
-      document.getElementById('attCountLate').textContent = late.toString();
-      document.getElementById('attCountAbsent').textContent = absent.toString();
-      document.getElementById('attRate').textContent = rate + '%';
+    function markAllPresent() {
+      state.students.forEach(s => s.status = 'PRESENT');
+      playAudio('success');
+      renderAttendanceStudents();
+      showToast('All students marked Present!', 'emerald', 'fa-check');
     }
 
     function saveAttendance() {
-      playAudio('xp_award');
+      playAudio('success');
       closeAttendanceModal();
-      showToast('Class attendance saved and synced to cloud!', 'emerald', 'fa-cloud-arrow-up');
+      showToast('Class attendance saved & synced successfully!', 'blue', 'fa-cloud-arrow-up');
     }
 
-    function loadAttendanceForClass(val) {
+    // Lesson Modal
+    function openLessonModal() {
       playAudio('click');
-      showToast(`Loaded roster for ${val}`, 'blue', 'fa-users');
-      renderAttendanceStudents();
+      document.getElementById('lessonModal').classList.remove('hidden');
     }
 
-    // Forge Quest Modal
-    function openQuestModal() {
-      playAudio('click');
-      document.getElementById('questModal').classList.remove('hidden');
+    function closeLessonModal() {
+      document.getElementById('lessonModal').classList.add('hidden');
     }
 
-    function closeQuestModal() {
-      document.getElementById('questModal').classList.add('hidden');
-    }
-
-    function handleForgeQuest(e) {
+    function handleCreateLesson(e) {
       e.preventDefault();
-      const title = document.getElementById('questTitleInput').value.trim();
-      const targetClass = document.getElementById('questClassInput').value;
-      const day = document.getElementById('questDayInput').value;
-      const tier = document.getElementById('questTierInput').value;
-      const xp = parseInt(document.getElementById('questXpInput').value) || 250;
-      const objective = document.getElementById('questObjectivesInput').value.trim() || 'Complete assignment tasks';
+      const title = document.getElementById('lessonTitleInput').value.trim();
+      const cls = document.getElementById('lessonClassInput').value;
+      const day = document.getElementById('lessonDayInput').value;
 
-      const newQuest = {
+      playAudio('success');
+      closeLessonModal();
+
+      state.lessons.unshift({
         id: Date.now(),
         title,
-        class: targetClass,
-        tier,
+        class: cls,
         day,
-        xp,
+        status: "READY",
         done: 0,
-        total: 28,
-        due: `${day.substring(0, 3)} 5:00 PM`,
-        status: "ACTIVE",
-        objective
-      };
+        total: 18,
+        due: `${day.substring(0,3)} 4:00 PM`
+      });
 
-      state.quests.unshift(newQuest);
-      playAudio('quest_created');
-      closeQuestModal();
       renderKanban();
-      document.getElementById('forgeQuestForm').reset();
-      showToast(`Quest "${title}" forged successfully!`, 'purple', 'fa-wand-magic-sparkles');
+      document.getElementById('createLessonForm').reset();
+      showToast(`Lesson "${title}" created and analyzed!`, 'purple', 'fa-book-open');
     }
 
-    // Grading Arena Modal
+    // Exam Modal
+    function openExamModal() {
+      playAudio('click');
+      document.getElementById('examModal').classList.remove('hidden');
+    }
+
+    function closeExamModal() {
+      document.getElementById('examModal').classList.add('hidden');
+    }
+
+    function handleCreateExam(e) {
+      e.preventDefault();
+      const title = document.getElementById('examTitleInput').value.trim();
+      const cls = document.getElementById('examClassInput').value;
+      playAudio('success');
+      closeExamModal();
+      state.recentExams.unshift({
+        title,
+        class: cls,
+        score: "Scheduled",
+        status: "Active"
+      });
+      renderRecentExams();
+      document.getElementById('createExamForm').reset();
+      showToast(`Exam "${title}" scheduled!`, 'cyan', 'fa-file-signature');
+    }
+
+    // Grading Modal
     function openGradingModal() {
       playAudio('click');
       document.getElementById('gradingModal').classList.remove('hidden');
@@ -1701,21 +1532,20 @@
       document.getElementById('gradingModal').classList.add('hidden');
     }
 
-    function updateGradingXp(val) {
-      document.getElementById('gradingXpDisplay').textContent = `${val} XP`;
-    }
-
     function submitGrading() {
-      const xp = document.getElementById('gradingXpSlider').value;
-      playAudio('xp_award');
+      playAudio('success');
       closeGradingModal();
-      showToast(`Awarded ${xp} XP to Aiden Thorne!`, 'amber', 'fa-trophy');
+      showToast(`Mark saved and released to Adam Khalid's parents!`, 'emerald', 'fa-check-double');
     }
 
-    // Parent Chat Messenger Modal
+    // Chat Modal
     function openChatModal() {
       playAudio('click');
       document.getElementById('chatModal').classList.remove('hidden');
+      setTimeout(() => {
+        const box = document.getElementById('chatMessagesContainer');
+        if (box) box.scrollTop = box.scrollHeight;
+      }, 50);
     }
 
     function closeChatModal() {
@@ -1727,30 +1557,23 @@
       const text = input.value.trim();
       if (!text) return;
 
-      const list = document.getElementById('chatMessageList');
-      const bubble = document.createElement('div');
-      bubble.className = "flex items-start gap-2.5 flex-row-reverse animate-in fade-in";
-      bubble.innerHTML = `
-        <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-[10px] flex-shrink-0">HV</div>
-        <div class="bg-blue-600 text-white p-3 rounded-2xl rounded-tr-none max-w-[80%]">
-          <p>${text}</p>
-          <span class="text-[9px] text-blue-200 block mt-1">Just now</span>
+      playAudio('click');
+      const container = document.getElementById('chatMessagesContainer');
+      const msg = document.createElement('div');
+      msg.className = "flex items-start gap-2.5 max-w-[80%] ml-auto flex-row-reverse animate-in fade-in";
+      msg.innerHTML = `
+        <div class="w-7 h-7 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">SA</div>
+        <div class="p-3 bg-blue-600 text-white rounded-2xl rounded-tr-xs text-xs">
+          ${text}
+          <span class="block text-[9px] text-blue-200 mt-1">Just now</span>
         </div>
       `;
-      list.appendChild(bubble);
+      container.appendChild(msg);
       input.value = '';
-      playAudio('click');
-      list.scrollTop = list.scrollHeight;
-      showToast('Message sent to Mrs. Thorne', 'emerald', 'fa-paper-plane');
+      container.scrollTop = container.scrollHeight;
+      showToast('Message sent to Mrs. Al Mansoor', 'emerald', 'fa-paper-plane');
     }
 
-    // Add Student Placeholder
-    function openAddStudentModal() {
-      playAudio('click');
-      showToast('Enroll Student Dialog: Ready to accept new student application', 'blue', 'fa-user-plus');
-    }
-
-    // Notifications Menu
     function toggleNotifications() {
       playAudio('click');
       const menu = document.getElementById('notificationsMenu');
@@ -1759,23 +1582,30 @@
 
     function clearNotifications() {
       playAudio('click');
-      document.getElementById('notificationList').innerHTML = '<p class="text-xs text-center text-gray-400 py-4">No unread notifications</p>';
+      document.getElementById('notificationList').innerHTML = '<p class="text-xs text-gray-400 p-2">No new notifications</p>';
       showToast('All notifications marked as read', 'blue', 'fa-check');
     }
 
-    // Mobile Drawer
     function toggleMobileDrawer() {
       playAudio('click');
       const sidebar = document.getElementById('sidebar');
-      const backdrop = document.getElementById('mobileDrawerBackdrop');
+      const backdrop = document.getElementById('sidebarBackdrop');
       sidebar.classList.toggle('-translate-x-full');
       backdrop.classList.toggle('hidden');
     }
 
-    // Sidebar navigation dispatcher
+    function scrollToPlanner() {
+      playAudio('click');
+      document.getElementById('plannerSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function scrollToClasses() {
+      playAudio('click');
+      document.getElementById('classesSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
     function navigateTab(tab) {
       playAudio('click');
-      // Update nav styling
       document.querySelectorAll('.nav-item').forEach(el => {
         el.className = "nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-space-850";
       });
@@ -1784,37 +1614,30 @@
         activeEl.className = "nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/20";
       }
 
-      if (tab === 'attendance') {
-        openAttendanceModal();
-      } else if (tab === 'grading') {
-        openGradingModal();
-      } else if (tab === 'chat') {
-        openChatModal();
-      } else if (tab === 'planner') {
-        scrollToPlanner();
-      } else {
-        showToast(`Viewing ${tab.toUpperCase()} Area`, 'blue', 'fa-table-columns');
-      }
+      if (tab === 'attendance') openAttendanceModal();
+      else if (tab === 'results') openGradingModal();
+      else if (tab === 'chat') openChatModal();
+      else if (tab === 'lessons') openLessonModal();
+      else if (tab === 'exams') openExamModal();
+      else if (tab === 'classes') scrollToClasses();
+      else if (tab === 'planner') scrollToPlanner();
     }
 
-    // ==================== INITIALIZATION ====================
     window.addEventListener('DOMContentLoaded', () => {
       initTheme();
       initWeeklyAttendanceChart();
       renderKanban();
       renderClasses();
-      renderEvents();
-      renderRecentPayments();
+      renderRecentExams();
 
-      // Keyboard shortcut ⌘K for search focus
       window.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
           e.preventDefault();
-          const search = document.getElementById('globalSearchInput');
-          if (search) search.focus();
+          document.getElementById('globalSearchInput')?.focus();
         }
       });
     });
   </script>
+
 </body>
 </html>
