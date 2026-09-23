@@ -34,7 +34,6 @@ import { type ClassCardView, cardsOf, groupCardsByGrade } from './classes.models
   imports: [
     NgClass,
     PageComponent,
-    CardComponent,
     EmptyStateComponent,
     SkeletonComponent,
     StatusSquareComponent,

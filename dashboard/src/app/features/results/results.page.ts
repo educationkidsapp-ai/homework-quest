@@ -70,7 +70,6 @@ const SECURE_FLOOR = 60;
   selector: 'hq-results-page',
   imports: [
     PageComponent,
-    CardComponent,
     CountUpDirective,
     TableComponent,
     ButtonComponent,
