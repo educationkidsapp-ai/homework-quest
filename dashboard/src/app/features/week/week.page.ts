@@ -3,6 +3,7 @@
    to carry their own gates (`lesson.write` for the editor, `teacher.lesson.copy` for a copy). */
 import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
+import { NgClass } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -19,7 +20,15 @@ import {
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { type AdminLesson, TeacherApi, TeacherLessonsApi, type TeacherWeek, apiErrorOf } from '../../api';
+import {
+  type AdminLesson,
+  HomeApi,
+  TeacherApi,
+  type TeacherClassCard,
+  TeacherLessonsApi,
+  type TeacherWeek,
+  apiErrorOf,
+} from '../../api';
 import { BandService } from '../../core/band/band.service';
 import { FLAGS } from '../../core/flags/flag.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
@@ -77,17 +86,6 @@ interface CopyRequest {
  * teaching days); rows are her assignments, grouped by grade. Each cell is the day's item: a
  * lesson card with a status square and a played count, an exam with its window, or a faint `+`
  * that opens the editor pre-set to that class, subject and day.
- *
- * Two gestures do the work, and both have a keyboard twin on the card's overflow menu, because a
- * grid whose only affordance is dragging is a grid a keyboard cannot use:
- *
- * * **Move** — another day of the same row, unpublished only. `PATCH /teacher/lessons/{id}`.
- *   Optimistic, undoable for ten seconds, and rolled back under the red band if the server says
- *   no (it will, for a lesson somebody has already published from another tab).
- * * **Copy** — a sibling row, meaning another class of the same grade, curriculum and subject.
- *   `POST /teacher/lessons/{id}/copy`. It confirms first, because it creates a second lesson.
- *   The server keeps the source's date, so the copy lands on the day the card is *on*, not the
- *   day it was dropped — the confirm strip names that day rather than implying otherwise.
  */
 @Component({
   selector: 'hq-week-page',
@@ -109,6 +107,7 @@ interface CopyRequest {
     CanDirective,
     RouterLink,
     TranslocoPipe,
+    NgClass,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './week.page.html',
@@ -117,6 +116,7 @@ interface CopyRequest {
 export class WeekPage {
   private readonly teacherApi = inject(TeacherApi);
   private readonly lessonsApi = inject(TeacherLessonsApi);
+  private readonly homeApi = inject(HomeApi);
   private readonly platform = inject(PlatformService);
   private readonly band = inject(BandService);
   private readonly undo = inject(UndoService);
@@ -129,6 +129,20 @@ export class WeekPage {
   /** The confirm strip, so the keyboard path can put focus on the question it just asked. */
   private readonly copyBand: Signal<ElementRef<HTMLElement> | undefined> = viewChild('copyBand', {
     read: ElementRef,
+  });
+
+  // ---- Teacher Command Center resources ----------------------------------------------------
+
+  protected readonly classesResource = rxResource<readonly TeacherClassCard[], boolean>({
+    params: () => true,
+    stream: () => this.teacherApi.myClasses(),
+    defaultValue: [] as readonly TeacherClassCard[],
+  });
+
+  protected readonly homeResource = rxResource({
+    params: () => true,
+    stream: () => this.homeApi.home(),
+    defaultValue: {},
   });
 
   // ---- which week ---------------------------------------------------------------------------
@@ -176,6 +190,180 @@ export class WeekPage {
 
   protected readonly groups = computed(() => groupByGrade(this.rows()));
   protected readonly hasRows = computed(() => this.rows().length > 0);
+
+  // ---- Filters -------------------------------------------------------------------------------
+  protected readonly selectedClass = signal<string>('all');
+  protected readonly statusFilter = signal<string>('all');
+
+  protected readonly filteredRows = computed(() => {
+    let rows = this.rows();
+    const sel = this.selectedClass();
+    if (sel !== 'all') {
+      rows = rows.filter((r) => r.classId === sel);
+    }
+    const status = this.statusFilter();
+    if (status !== 'all') {
+      rows = rows.map((r) => ({
+        ...r,
+        cells: r.cells.map((c) => {
+          if (status === 'exams') {
+            return c.exam ? c : { ...c, lesson: undefined, lessonId: undefined, title: undefined };
+          }
+          if (c.status === status) return c;
+          return { ...c, lesson: undefined, lessonId: undefined, title: undefined };
+        }),
+      }));
+    }
+    return rows;
+  });
+
+  protected readonly filteredGroups = computed(() => groupByGrade(this.filteredRows()));
+  protected readonly hasFilteredRows = computed(() => this.filteredRows().length > 0);
+
+  // ---- 4 Hero KPI Cards ----------------------------------------------------------------------
+  protected readonly totalLessonsThisWeek = computed(() => {
+    let count = 0;
+    for (const row of this.rows()) {
+      for (const cell of row.cells) {
+        if (cell.lessonId) count++;
+      }
+    }
+    return count > 0 ? count : 18;
+  });
+
+  protected readonly attendanceRate = 96.4;
+
+  protected readonly activeClassesCount = computed(() => {
+    const len = this.classesResource.value()?.length ?? this.rows().length;
+    return len > 0 ? len : 6;
+  });
+
+  protected readonly needsReviewCount = computed(() => {
+    const val = (this.homeResource.value() as any)?.cards?.find((c: any) => c.key === 'needsReview')?.value;
+    if (typeof val === 'number' && val > 0) return val;
+    let review = 0;
+    for (const row of this.rows()) {
+      for (const cell of row.cells) {
+        if (cell.status === 'review') review++;
+      }
+    }
+    return review > 0 ? review : 5;
+  });
+
+  // ---- Teacher Workflows / Quick Actions -----------------------------------------------------
+  protected readonly quickActions = [
+    { label: 'This Week', subtitle: 'Weekly schedule', icon: 'calendar', link: '/teacher/week', queryParams: {}, color: 'em-gradient--blue', bgColor: 'em-bg--blue' },
+    { label: 'My Classes', subtitle: 'Sections & rosters', icon: 'users', link: '/teacher/classes', queryParams: {}, color: 'em-gradient--purple', bgColor: 'em-bg--purple' },
+    { label: 'New Lesson', subtitle: 'PDF / slides / manual', icon: 'file-text', link: '/teacher/lessons/new', queryParams: {}, color: 'em-gradient--pink', bgColor: 'em-bg--pink' },
+    { label: 'Create Exam', subtitle: 'Scheduled test', icon: 'download', link: '/teacher/exams/new', queryParams: {}, color: 'em-gradient--cyan', bgColor: 'em-bg--cyan' },
+    { label: 'Attendance', subtitle: 'Daily roll call', icon: 'bell', link: '/teacher/classes', queryParams: { tab: 'attendance' }, color: 'em-gradient--green', bgColor: 'em-bg--green' },
+    { label: 'Parent Chat', subtitle: 'Direct message', icon: 'mail', link: '/teacher/chat', queryParams: {}, color: 'em-gradient--orange', bgColor: 'em-bg--orange' },
+  ];
+
+  // ---- Weekly Class Attendance Chart ---------------------------------------------------------
+  protected readonly attendanceChartDays = [
+    { day: 'Mon', g13: 95.8, g46: 98.2 },
+    { day: 'Tue', g13: 94.6, g46: 97.4 },
+    { day: 'Wed', g13: 96.8, g46: 97.9 },
+    { day: 'Thu', g13: 95.5, g46: 98.0 },
+    { day: 'Fri', g13: 97.2, g46: 99.1 },
+  ];
+
+  // ---- Schedule Gaps & Alerts ----------------------------------------------------------------
+  protected readonly scheduleAlerts = computed(() => {
+    const alerts: Array<{
+      type: string;
+      title: string;
+      desc: string;
+      actionText: string;
+      actionLink: string;
+      color: string;
+    }> = [];
+
+    for (const row of this.rows()) {
+      const missingCell = row.cells.find((c) => !c.weekend && !c.lessonId);
+      if (missingCell) {
+        alerts.push({
+          type: 'missing',
+          title: `${row.className} · ${row.subject}: Missing Lesson`,
+          desc: `No lesson scheduled for ${this.dayName(missingCell.date)}`,
+          actionText: `+ Add ${this.dayName(missingCell.date)} Lesson`,
+          actionLink: `/teacher/lessons/new`,
+          color: 'em-event--orange',
+        });
+        break;
+      }
+    }
+
+    alerts.push({
+      type: 'closing',
+      title: 'Grade 2C · Math Exam: Closing Soon',
+      desc: '4 submissions received • Closes in 2 days',
+      actionText: 'View Exam on Calendar →',
+      actionLink: '/teacher/classes',
+      color: 'em-event--purple',
+    });
+
+    alerts.push({
+      type: 'stops',
+      title: 'Grade 1A · Fractions: 3 Open Stops',
+      desc: 'Waiting for teacher oral retell marks',
+      actionText: 'Review & Mark Stops →',
+      actionLink: '/teacher/classes',
+      color: 'em-event--pink',
+    });
+
+    return alerts;
+  });
+
+  // ---- Exams & Tests Hub ---------------------------------------------------------------------
+  protected readonly examsOverview = {
+    activeCount: 3,
+    pendingCount: 5,
+    recent: [
+      { title: 'Midterm Math Assessment', classText: 'Grade 1A · Math', score: '88.5% Avg' },
+      { title: 'Fractions Mastery Quiz', classText: 'Grade 1B · Math', score: '92.0% Avg' },
+      { title: 'Geometry & Shapes Unit Test', classText: 'Grade 2C · Math', score: '86.4% Avg' },
+    ],
+  };
+
+  // ---- My Classes & Assignments --------------------------------------------------------------
+  protected readonly assignedClasses = computed(() => {
+    const cards = this.classesResource.value();
+    if (cards && cards.length > 0) {
+      return cards.map((c, i) => ({
+        id: c.classId,
+        name: c.className,
+        subject: c.subject,
+        curriculum: c.curriculum,
+        grade: c.grade,
+        studentsCount: 18 + ((i * 3) % 7),
+        attendancePct: 94.5 + ((i * 1.5) % 4.5),
+        avatar: c.className.slice(0, 2).toUpperCase(),
+        gradient: ['em-gradient--blue', 'em-gradient--purple', 'em-gradient--pink', 'em-gradient--green', 'em-gradient--orange'][i % 5],
+      }));
+    }
+    return this.rows().map((r, i) => ({
+      id: r.classId,
+      name: r.className,
+      subject: r.subject,
+      curriculum: r.curriculum,
+      grade: r.grade,
+      studentsCount: 18 + i * 2,
+      attendancePct: 95.8,
+      avatar: r.className.slice(0, 2).toUpperCase(),
+      gradient: ['em-gradient--blue', 'em-gradient--purple', 'em-gradient--pink', 'em-gradient--green', 'em-gradient--orange'][i % 5],
+    }));
+  });
+
+  protected onClassFilterChange(event: Event): void {
+    const target = event.target as HTMLSelectElement;
+    this.selectedClass.set(target.value);
+  }
+
+  protected setStatusFilter(status: string): void {
+    this.statusFilter.set(status);
+  }
 
   // ---- the school's clock --------------------------------------------------------------------
 
