@@ -1,7 +1,4 @@
-/* hq-flag: none (shell) — My classes is the teacher's second rail item, gated by `teacher.week`
-   (the key `GET /teacher/classes` itself carries) rather than by a flag: a teacher with no way
-   into her own classes has no dashboard. The controls it offers carry their own gates — the
-   roster's live behind `teacher.rosterEdit` + `roster.teacher` on the class page. */
+import { NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
@@ -35,6 +32,7 @@ import { type ClassCardView, cardsOf, groupCardsByGrade } from './classes.models
 @Component({
   selector: 'hq-my-classes-page',
   imports: [
+    NgClass,
     PageComponent,
     CardComponent,
     EmptyStateComponent,
@@ -64,6 +62,30 @@ export class MyClassesPage {
   protected readonly cards = computed(() => cardsOf(this.classes.value()));
   protected readonly groups = computed(() => groupCardsByGrade(this.cards()));
   protected readonly hasCards = computed(() => this.cards().length > 0);
+
+  // ---- EduManage KPI Metrics ----
+  protected readonly totalClasses = computed(() => this.cards().length);
+  protected readonly totalStudents = computed(() =>
+    this.cards().reduce((sum, c) => sum + (c.childrenCount ?? 0), 0),
+  );
+  protected readonly todayReady = computed(
+    () => this.cards().filter((c) => c.status === 'published' || c.status === 'ready').length,
+  );
+  protected readonly needsAttention = computed(
+    () => this.cards().filter((c) => c.status === 'none' || c.status === 'draft').length,
+  );
+
+  protected gradeGradient(grade: number): string {
+    const grads = [
+      'em-gradient--blue',
+      'em-gradient--purple',
+      'em-gradient--pink',
+      'em-gradient--green',
+      'em-gradient--orange',
+      'em-gradient--cyan',
+    ];
+    return grads[(Math.max(1, grade) - 1) % grads.length] ?? 'em-gradient--blue';
+  }
 
   /** Today in the school's timezone — `en-CA` is the one locale that formats as `YYYY-MM-DD`. */
   private readonly today = computed(() =>

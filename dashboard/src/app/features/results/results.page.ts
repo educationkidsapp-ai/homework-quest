@@ -13,6 +13,7 @@ import {
   ButtonComponent,
   CardComponent,
   CheckboxComponent,
+  CountUpDirective,
   EmptyStateComponent,
   PageComponent,
   SelectComponent,
@@ -70,6 +71,7 @@ const SECURE_FLOOR = 60;
   imports: [
     PageComponent,
     CardComponent,
+    CountUpDirective,
     TableComponent,
     ButtonComponent,
     CheckboxComponent,

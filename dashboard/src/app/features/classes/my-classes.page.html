@@ -9,61 +9,162 @@
   } @else if (!hasCards()) {
     <hq-empty-state [message]="'classes.empty' | transloco" />
   } @else {
-    @for (group of groups(); track group.grade) {
-      <section class="my-classes__group">
-        <h2 class="my-classes__grade">{{ gradeLabel(group.grade) }}</h2>
-        <div class="my-classes__cards" hqListStagger>
-          @for (card of group.items; track trackCard(card)) {
-            <hq-card class="my-classes__card">
-              <!-- §3's metric card: a tile, then the label over the number it counts. -->
-              <span class="my-classes__tile" aria-hidden="true">{{ cardInitial(card) }}</span>
+    <div class="em-dashboard">
+      <!-- 1. Hero KPI Metric Cards -->
+      <section class="em-stats-grid" aria-label="Class Statistics">
+        <div class="em-stat-card">
+          <div class="em-stat-info">
+            <p class="em-stat-label">Assigned Classes</p>
+            <h3 class="em-stat-value"><span [hqCountUp]="totalClasses()"></span></h3>
+            <div class="em-stat-trend em-stat-trend--up">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+              <span>Active Rosters</span>
+            </div>
+          </div>
+          <div class="em-stat-icon-tile em-gradient--blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+          </div>
+        </div>
 
-              <h3 class="my-classes__title">
-                <a class="my-classes__link" [routerLink]="classLink(card)" [queryParams]="classParams(card)">
-                  {{ cardTitle(card) }}
-                </a>
-              </h3>
+        <div class="em-stat-card">
+          <div class="em-stat-info">
+            <p class="em-stat-label">Total Students</p>
+            <h3 class="em-stat-value"><span [hqCountUp]="totalStudents()"></span></h3>
+            <div class="em-stat-trend em-stat-trend--up">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+              <span>Across all grades</span>
+            </div>
+          </div>
+          <div class="em-stat-icon-tile em-gradient--purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </div>
+        </div>
 
-              <p class="my-classes__children">
-                <span class="my-classes__count" [hqCountUp]="card.childrenCount">{{
-                  card.childrenCount
-                }}</span>
-                <span class="my-classes__children-label">{{ 'classes.childrenCount' | transloco }}</span>
-              </p>
+        <div class="em-stat-card">
+          <div class="em-stat-info">
+            <p class="em-stat-label">Today's Lessons Handled</p>
+            <h3 class="em-stat-value"><span [hqCountUp]="todayReady()"></span></h3>
+            <div class="em-stat-trend em-stat-trend--up">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+              <span>Ready or Published</span>
+            </div>
+          </div>
+          <div class="em-stat-icon-tile em-gradient--green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+        </div>
 
-              <p class="my-classes__today">
-                <span class="hq-badge" [class]="'hq-badge--' + statusTone(card.status)">
-                  <hq-status-square [status]="card.status" />
-                  {{ 'week.status.' + card.status | transloco }}
-                </span>
-                @if (card.showsPlayed) {
-                  <span class="my-classes__played">
-                    {{
-                      'classes.playedToday'
-                        | transloco: { played: card.playedToday, total: card.childrenCount }
-                    }}
-                  </span>
-                }
-              </p>
-
-              <!--
-                One primary action per card, and only when today has nothing on it: a class that
-                is already handled does not need a button that would make a second lesson.
-              -->
-              @if (card.status === 'none') {
-                <a
-                  class="hq-linkbutton hq-linkbutton--primary my-classes__action"
-                  [routerLink]="newLessonLink"
-                  [queryParams]="addTodayParams(card)"
-                >
-                  {{ 'classes.addToday' | transloco }}
-                  <span class="hq-sr-only">{{ cardTitle(card) }}</span>
-                </a>
-              }
-            </hq-card>
-          }
+        <div class="em-stat-card">
+          <div class="em-stat-info">
+            <p class="em-stat-label">Action Needed</p>
+            <h3 class="em-stat-value"><span [hqCountUp]="needsAttention()"></span></h3>
+            <div class="em-stat-trend em-stat-trend--down">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5l-4.5-4.5h3V3.5h3V8h3.5L8 12.5z"/></svg>
+              <span>Pending lesson today</span>
+            </div>
+          </div>
+          <div class="em-stat-icon-tile em-gradient--orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
         </div>
       </section>
-    }
+
+      <!-- 2. Classes Grouped by Grade -->
+      @for (group of groups(); track group.grade) {
+        <section class="em-card">
+          <div class="em-card-header">
+            <div class="em-title-row">
+              <h2 class="em-card-title">{{ gradeLabel(group.grade) }}</h2>
+              <span class="em-badge-pill">{{ group.items.length }} {{ group.items.length === 1 ? 'Class' : 'Classes' }}</span>
+            </div>
+          </div>
+
+          <div class="em-classes-grid" hqListStagger>
+            @for (card of group.items; track trackCard(card)) {
+              <div class="em-class-card">
+                <div class="em-class-top">
+                  <div class="em-class-avatar" [ngClass]="gradeGradient(card.grade)">
+                    {{ cardInitial(card) }}
+                  </div>
+                  <span
+                    class="em-pill"
+                    [class.em-pill--present]="card.status === 'published'"
+                    [class.em-pill--info]="card.status === 'ready'"
+                    [class.em-pill--warning]="card.status === 'draft'"
+                    [class.em-pill--leave]="card.status === 'none'"
+                  >
+                    <hq-status-square [status]="card.status" />
+                    {{ 'week.status.' + card.status | transloco }}
+                  </span>
+                </div>
+
+                <div>
+                  <h3 class="em-class-title">
+                    <a class="my-classes__title-link" [routerLink]="classLink(card)" [queryParams]="classParams(card)">
+                      {{ cardTitle(card) }}
+                    </a>
+                  </h3>
+                  <p class="em-class-meta">
+                    <span [hqCountUp]="card.childrenCount">{{ card.childrenCount }}</span>
+                    {{ 'classes.childrenCount' | transloco }}
+                    @if (card.showsPlayed) {
+                      · <strong class="my-classes__played-text">{{ 'classes.playedToday' | transloco: { played: card.playedToday, total: card.childrenCount } }}</strong>
+                    }
+                  </p>
+                </div>
+
+                <div class="em-class-actions">
+                  <a
+                    class="em-btn-sm em-btn-sm--ghost"
+                    [routerLink]="classLink(card)"
+                    [queryParams]="{tab: 'attendance'}"
+                  >
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                    Attendance
+                  </a>
+
+                  @if (card.status === 'none') {
+                    <a
+                      class="em-btn-sm em-btn-sm--primary"
+                      [routerLink]="newLessonLink"
+                      [queryParams]="addTodayParams(card)"
+                    >
+                      <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13">
+                        <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                      </svg>
+                      {{ 'classes.addToday' | transloco }}
+                    </a>
+                  } @else {
+                    <a
+                      class="em-btn-sm em-btn-sm--ghost"
+                      [routerLink]="classLink(card)"
+                      [queryParams]="classParams(card)"
+                    >
+                      View Details
+                    </a>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+      }
+    </div>
   }
 </hq-page>
+

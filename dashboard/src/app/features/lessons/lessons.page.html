@@ -1,26 +1,106 @@
 <hq-page [title]="pageTitle()" [subtitle]="courseSubtitle()">
-  <div class="lessons">
-    <hq-card class="lessons__chooser-card">
+  <div class="lessons em-dashboard">
+    <!-- Course Chooser -->
+    <div class="em-toolbar-card">
       <div class="lessons__chooser">
-      <hq-select
-        class="lessons__chooser-field"
-        [label]="'lessons.chooser.curriculum' | transloco"
-        [placeholder]="'lessons.chooser.curriculumPlaceholder' | transloco"
-        [options]="curriculumOptions()"
-        [value]="curriculum() ?? ''"
-        (valueChange)="onCurriculumChange($event)"
-      />
-      <hq-select
-        class="lessons__chooser-field"
-        [label]="'lessons.chooser.grade' | transloco"
-        [placeholder]="'lessons.chooser.gradePlaceholder' | transloco"
-        [options]="gradeOptions()"
-        [value]="gradeValue()"
-        [disabled]="!curriculum()"
-        (valueChange)="onGradeChange($event)"
-      />
+        <hq-select
+          class="lessons__chooser-field"
+          [label]="'lessons.chooser.curriculum' | transloco"
+          [placeholder]="'lessons.chooser.curriculumPlaceholder' | transloco"
+          [options]="curriculumOptions()"
+          [value]="curriculum() ?? ''"
+          (valueChange)="onCurriculumChange($event)"
+        />
+        <hq-select
+          class="lessons__chooser-field"
+          [label]="'lessons.chooser.grade' | transloco"
+          [placeholder]="'lessons.chooser.gradePlaceholder' | transloco"
+          [options]="gradeOptions()"
+          [value]="gradeValue()"
+          [disabled]="!curriculum()"
+          (valueChange)="onGradeChange($event)"
+        />
       </div>
-    </hq-card>
+    </div>
+
+    @if (courseKey()) {
+      <!-- 1. Hero KPI Metric Cards -->
+      <section class="em-stats-grid" aria-label="Lessons Overview">
+        <div class="em-stat-card">
+          <div class="em-stat-info">
+            <p class="em-stat-label">Total Lessons</p>
+            <h3 class="em-stat-value"><span [hqCountUp]="totalLessons()"></span></h3>
+            <div class="em-stat-trend em-stat-trend--up">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+              <span>In Course</span>
+            </div>
+          </div>
+          <div class="em-stat-icon-tile em-gradient--blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="em-stat-card">
+          <div class="em-stat-info">
+            <p class="em-stat-label">Published</p>
+            <h3 class="em-stat-value"><span [hqCountUp]="publishedLessons()"></span></h3>
+            <div class="em-stat-trend em-stat-trend--up">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+              <span>Ready for class</span>
+            </div>
+          </div>
+          <div class="em-stat-icon-tile em-gradient--green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+        </div>
+
+        <div class="em-stat-card">
+          <div class="em-stat-info">
+            <p class="em-stat-label">Drafts / In Progress</p>
+            <h3 class="em-stat-value"><span [hqCountUp]="draftLessons()"></span></h3>
+            <div class="em-stat-trend em-stat-trend--up">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+              <span>Drafts</span>
+            </div>
+          </div>
+          <div class="em-stat-icon-tile em-gradient--orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+          </div>
+        </div>
+
+        <div class="em-stat-card">
+          <div class="em-stat-info">
+            <p class="em-stat-label">Needs Review</p>
+            <h3 class="em-stat-value"><span [hqCountUp]="failedLessons()"></span></h3>
+            <div class="em-stat-trend" [class.em-stat-trend--down]="failedLessons() > 0" [class.em-stat-trend--up]="failedLessons() === 0">
+              @if (failedLessons() > 0) {
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5l-4.5-4.5h3V3.5h3V8h3.5L8 12.5z"/></svg>
+                <span>Pipeline errors</span>
+              } @else {
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+                <span>All clear</span>
+              }
+            </div>
+          </div>
+          <div class="em-stat-icon-tile em-gradient--rose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+        </div>
+      </section>
+    }
 
     @if (confirmMode()) {
       <hq-band
@@ -46,7 +126,7 @@
     }
 
     @if (courseKey()) {
-      <div class="lessons__toolbar">
+      <div class="em-toolbar-card">
         <div data-hq-search>
           <hq-input
             type="search"
@@ -83,7 +163,7 @@
             [label]="'lessons.loading' | transloco"
           />
         } @else {
-          <hq-card [flush]="true">
+          <hq-card [flush]="true" class="em-table-card">
           <hq-table
             [rows]="rows()"
             [columns]="columns()"
@@ -102,6 +182,7 @@
           </hq-card>
         }
       } @else {
+
         <hq-lessons-calendar
           [curriculum]="curriculum()!"
           [grade]="grade()!"

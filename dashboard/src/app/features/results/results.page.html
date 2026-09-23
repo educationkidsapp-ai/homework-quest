@@ -1,80 +1,145 @@
 <hq-page [title]="title()" [subtitle]="subtitle()" [breadcrumbs]="breadcrumbs()">
   <div page-actions>
-    <a class="hq-linkbutton" [routerLink]="lessonLink()">{{ 'results.openLesson' | transloco }}</a>
+    <a class="em-btn-sm em-btn-sm--ghost" [routerLink]="lessonLink()">{{ 'results.openLesson' | transloco }}</a>
   </div>
 
-  <!-- §3's metric row: what she came to find out, before any table. -->
-  <div class="results__metrics">
-    <hq-card class="results__metric">
-      <span class="results__metric-label">{{ 'results.metric.played' | transloco }}</span>
-      <strong class="results__metric-value">{{ playedLabel() }}</strong>
-    </hq-card>
-    <hq-card class="results__metric">
-      <span class="results__metric-label">{{ 'results.metric.average' | transloco }}</span>
-      <strong class="results__metric-value">{{ averageLabel() }}</strong>
-    </hq-card>
-    <hq-card class="results__metric">
-      <span class="results__metric-label">{{ 'results.metric.needsMarking' | transloco }}</span>
-      <strong class="results__metric-value">{{ summary().needsMarking }}</strong>
-    </hq-card>
-    <hq-card class="results__metric">
-      <span class="results__metric-label">{{ 'results.metric.release' | transloco }}</span>
-      <strong class="results__metric-value results__metric-value--words">{{ releasedLabel() }}</strong>
-    </hq-card>
-  </div>
+  <div class="em-dashboard">
+    <!-- 1. Hero KPI Metric Cards -->
+    <section class="em-stats-grid" aria-label="Lesson Results Overview">
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">{{ 'results.metric.played' | transloco }}</p>
+          <h3 class="em-stat-value">{{ playedLabel() }}</h3>
+          <div class="em-stat-trend em-stat-trend--up">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+            <span>Submissions</span>
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </div>
+      </div>
 
-  <!-- Withdrawing takes a score off a report a parent may already have read: it asks, in the
-       red band, and never in a toast after the fact. -->
-  @if (withdrawing()) {
-    <hq-band
-      variant="confirm"
-      [open]="true"
-      [title]="'results.release.withdrawTitle' | transloco"
-      [confirmLabel]="'results.release.withdrawConfirm' | transloco"
-      (confirmed)="confirmWithdraw()"
-      (dismissed)="cancelWithdraw()"
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">{{ 'results.metric.average' | transloco }}</p>
+          <h3 class="em-stat-value">{{ averageLabel() }}</h3>
+          <div class="em-stat-trend em-stat-trend--up">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+            <span>Class performance</span>
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">{{ 'results.metric.needsMarking' | transloco }}</p>
+          <h3 class="em-stat-value"><span [hqCountUp]="summary().needsMarking"></span></h3>
+          <div class="em-stat-trend" [class.em-stat-trend--down]="summary().needsMarking > 0" [class.em-stat-trend--up]="summary().needsMarking === 0">
+            @if (summary().needsMarking > 0) {
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5l-4.5-4.5h3V3.5h3V8h3.5L8 12.5z"/></svg>
+              <span>Awaiting teacher marks</span>
+            } @else {
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+              <span>All marked</span>
+            }
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--orange">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">{{ 'results.metric.release' | transloco }}</p>
+          <h3 class="em-stat-value" style="font-size: 20px;">{{ releasedLabel() }}</h3>
+          <div class="em-stat-trend" [class.em-stat-trend--up]="summary().released" [class.em-stat-trend--down]="!summary().released">
+            @if (summary().released) {
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+              <span>Visible to parents</span>
+            } @else {
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5l-4.5-4.5h3V3.5h3V8h3.5L8 12.5z"/></svg>
+              <span>Hidden from parents</span>
+            }
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--purple">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- Withdrawing takes a score off a report a parent may already have read: it asks, in the
+         red band, and never in a toast after the fact. -->
+    @if (withdrawing()) {
+      <hq-band
+        variant="confirm"
+        [open]="true"
+        [title]="'results.release.withdrawTitle' | transloco"
+        [confirmLabel]="'results.release.withdrawConfirm' | transloco"
+        (confirmed)="confirmWithdraw()"
+        (dismissed)="cancelWithdraw()"
+      >
+        {{ 'results.release.withdrawMessage' | transloco }}
+      </hq-band>
+    }
+
+    <section class="em-card">
+      <div class="em-card-header">
+        <div>
+          <h2 class="em-card-title">{{ 'results.release.title' | transloco }}</h2>
+          <p class="em-card-subtitle">{{ 'results.release.explain' | transloco }}</p>
+        </div>
+      </div>
+      <hq-toggle
+        *hqCan="'results.write'"
+        data-hq-release
+        [label]="'results.release.toggle' | transloco"
+        [hint]="'results.release.explain' | transloco"
+        [checked]="summary().released"
+        [disabled]="releasing()"
+        (checkedChange)="onReleaseToggled($event)"
+      />
+    </section>
+
+    <div
+      class="results__table em-table-card"
+      [attr.title]="'results.table.title' | transloco"
     >
-      {{ 'results.release.withdrawMessage' | transloco }}
-    </hq-band>
-  }
+      <div class="em-toolbar-card">
+        <hq-select
+          class="results__level-filter"
+          data-hq-level-filter
+          [label]="'results.filter.level' | transloco"
+          [options]="levelOptions()"
+          [(value)]="level"
+        />
+        <hq-checkbox
+          [label]="'results.filter.needsMarking' | transloco"
+          [(checked)]="onlyUnmarked"
+          data-hq-needs-marking
+        />
+        <hq-button variant="secondary" [loading]="exporting()" (pressed)="exportCsv()">
+          {{ 'results.export.csv' | transloco }}
+        </hq-button>
+      </div>
 
-  <hq-card class="results__release" [title]="'results.release.title' | transloco">
-    <hq-toggle
-      *hqCan="'results.write'"
-      data-hq-release
-      [label]="'results.release.toggle' | transloco"
-      [hint]="'results.release.explain' | transloco"
-      [checked]="summary().released"
-      [disabled]="releasing()"
-      (checkedChange)="onReleaseToggled($event)"
-    />
-  </hq-card>
-
-  <hq-card
-    class="results__table"
-    [flush]="true"
-    [title]="'results.table.title' | transloco"
-    [eyebrow]="'results.table.count' | transloco: { count: visibleRows().length }"
-  >
-    <div card-actions class="results__toolbar">
-      <!-- Eighteen stop columns on a three-level lesson. The filter narrows them to one level's
-           and never hides a child: the roster stays whole whatever it is set to. -->
-      <hq-select
-        class="results__level-filter"
-        data-hq-level-filter
-        [label]="'results.filter.level' | transloco"
-        [options]="levelOptions()"
-        [(value)]="level"
-      />
-      <hq-checkbox
-        [label]="'results.filter.needsMarking' | transloco"
-        [(checked)]="onlyUnmarked"
-        data-hq-needs-marking
-      />
-      <hq-button variant="secondary" [loading]="exporting()" (pressed)="exportCsv()">
-        {{ 'results.export.csv' | transloco }}
-      </hq-button>
-    </div>
 
     @if (results.isLoading()) {
       <hq-skeleton
@@ -101,8 +166,10 @@
         />
       </hq-table>
     }
-  </hq-card>
+    </div>
+  </div>
 </hq-page>
+
 
 <ng-template #cell let-row let-column="column">
   @if (isStopColumn(column.key)) {

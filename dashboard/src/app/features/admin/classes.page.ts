@@ -16,6 +16,7 @@ import {
   BandComponent,
   ButtonComponent,
   CardComponent,
+  CountUpDirective,
   DialogComponent,
   EmptyStateComponent,
   InputComponent,
@@ -50,6 +51,7 @@ interface Pending {
   imports: [
     PageComponent,
     CardComponent,
+    CountUpDirective,
     SelectComponent,
     InputComponent,
     ButtonComponent,
@@ -83,6 +85,16 @@ export class ClassesPage {
     stream: () => this.classesApi.classes(),
     defaultValue: [],
   });
+
+  // ---- EduManage KPI Metrics ----
+  protected readonly totalSections = computed(() => this.sections.value().length);
+  protected readonly activeSections = computed(() => this.sections.value().filter((s) => s.active).length);
+  protected readonly totalStudents = computed(() =>
+    this.sections.value().reduce((acc, s) => acc + (s.childrenCount ?? 0), 0),
+  );
+  protected readonly unassignedSections = computed(
+    () => this.sections.value().filter((s) => (s.teachersCount ?? 0) === 0).length,
+  );
 
   protected readonly filterText = signal('');
   protected readonly curriculumFilter = signal<Curriculum | null>(null);

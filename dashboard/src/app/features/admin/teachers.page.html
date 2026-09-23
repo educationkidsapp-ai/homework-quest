@@ -1,5 +1,82 @@
 <hq-page [title]="'admin.teachers.title' | transloco" [subtitle]="'admin.teachers.subtitle' | transloco">
-  <div class="teachers">
+  <div class="teachers em-dashboard">
+    <!-- 1. Hero KPI Metric Cards -->
+    <section class="em-stats-grid" aria-label="Faculty Overview">
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">Total Faculty</p>
+          <h3 class="em-stat-value"><span [hqCountUp]="totalTeachers()"></span></h3>
+          <div class="em-stat-trend em-stat-trend--up">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+            <span>Registered Staff</span>
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">Active Teachers</p>
+          <h3 class="em-stat-value"><span [hqCountUp]="activeTeachers()"></span></h3>
+          <div class="em-stat-trend em-stat-trend--up">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+            <span>With login access</span>
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">Class Assignments</p>
+          <h3 class="em-stat-value"><span [hqCountUp]="totalAssignments()"></span></h3>
+          <div class="em-stat-trend em-stat-trend--up">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+            <span>Teaching loads</span>
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--purple">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">Unassigned Faculty</p>
+          <h3 class="em-stat-value"><span [hqCountUp]="unassignedTeachers()"></span></h3>
+          <div class="em-stat-trend" [class.em-stat-trend--down]="unassignedTeachers() > 0" [class.em-stat-trend--up]="unassignedTeachers() === 0">
+            @if (unassignedTeachers() > 0) {
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5l-4.5-4.5h3V3.5h3V8h3.5L8 12.5z"/></svg>
+              <span>Needs sections</span>
+            } @else {
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+              <span>All assigned</span>
+            }
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--orange">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+      </div>
+    </section>
+
     @if (passwordShown()) {
       <hq-band variant="notice" [open]="true" [title]="passwordTitle()" (dismissed)="dismissPassword()">
         <p class="teachers__password-note">{{ 'admin.teachers.password.note' | transloco }}</p>
@@ -28,7 +105,8 @@
       </hq-band>
     }
 
-    <div class="teachers__toolbar">
+    <!-- 2. Search & Toolbar -->
+    <div class="em-toolbar-card">
       <div data-hq-search class="teachers__search">
         <hq-input
           type="search"
@@ -65,7 +143,7 @@
         </div>
       </hq-card>
     } @else {
-      <hq-card [flush]="true">
+      <hq-card [flush]="true" class="em-table-card">
         <hq-table
           [rows]="rows()"
           [columns]="columns()"
@@ -84,6 +162,7 @@
       </hq-card>
     }
   </div>
+
 
   <ng-template #cell let-row let-column="column">
     @switch (column.key) {

@@ -1,109 +1,20 @@
 @use 'mixins' as m;
 
-.my-classes__group {
-  margin-block-end: var(--hq-space-32);
+:host {
+  display: block;
 }
 
-.my-classes__grade {
-  font-size: var(--hq-text-theme-xs);
-  line-height: calc(var(--hq-text-theme-xs-line) / var(--hq-text-theme-xs));
-  font-weight: var(--hq-text-weight-medium);
-  text-transform: uppercase;
-  letter-spacing: var(--hq-font-letter-spacing-label);
-  margin-block-end: var(--hq-space-12);
-  color: var(--hq-color-ink-soft);
-}
-
-// §2 Grids, "card gallery": three equal columns at 24 px, every track `minmax(0, …)` so a long
-// class name shrinks its own card instead of widening the row. Below the content well's own
-// two-column width it falls to `auto-fill`, which lands on two and then one.
-.my-classes__cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--hq-space-grid-gap);
-}
-
-@include m.below(m.$drawer-breakpoint) {
-  .my-classes__cards {
-    grid-template-columns: repeat(auto-fill, minmax(var(--hq-size-stop-list-width), 1fr));
-  }
-}
-
-// §3's metric card: a 48 px tile, then 20 px down, the label under the number it counts.
-.my-classes__tile {
-  display: grid;
-  place-items: center;
-  inline-size: var(--hq-size-metric-tile);
-  block-size: var(--hq-size-metric-tile);
-  border-radius: var(--hq-radius-tile);
-  background: var(--hq-color-divider);
-  color: var(--hq-color-ink-strong);
-  font-size: var(--hq-text-theme-sm);
-  font-weight: var(--hq-text-weight-semibold);
-}
-
-.my-classes__title {
-  margin-block-start: var(--hq-space-16);
-  font-size: var(--hq-text-theme-sm);
-  font-weight: var(--hq-font-body-weight);
-  color: var(--hq-color-ink-soft);
-}
-
-// The card's name is the link, and the whole card is its hit area: a 56 px row of text is a
-// harder target than a rectangle, and a real `<a>` keeps Tab, Enter and "open in a new tab".
-.my-classes__link {
+.my-classes__title-link {
   color: inherit;
   text-decoration: none;
-  @include m.focus-ring;
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-  }
-}
-
-.my-classes__card {
-  position: relative;
-  @include m.motion-safe('border-color, box-shadow');
+  transition: color 0.15s ease;
 
   &:hover {
-    border-color: var(--hq-color-control-rule);
+    color: #2563eb;
+    text-decoration: underline;
   }
 }
 
-.my-classes__children {
-  display: flex;
-  align-items: baseline;
-  gap: var(--hq-space-8);
-  margin-block-start: var(--hq-space-4);
-}
-
-// §1's 30/38/700 — the one big number on the card.
-.my-classes__count {
-  font-size: var(--hq-text-title-sm);
-  line-height: calc(var(--hq-text-title-sm-line) / var(--hq-text-title-sm));
-  font-weight: var(--hq-text-weight-bold);
-  color: var(--hq-color-ink);
-}
-
-.my-classes__children-label,
-.my-classes__played {
-  font-size: var(--hq-text-theme-sm);
-  color: var(--hq-color-ink-soft);
-}
-
-.my-classes__today {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--hq-space-8);
-  margin-block-start: var(--hq-space-16);
-}
-
-// Above the card's own link overlay, so the one primary action wins the click.
-.my-classes__action {
-  position: relative;
-  z-index: var(--hq-z-sticky);
-  margin-block-start: var(--hq-space-16);
+.my-classes__played-text {
+  color: #10b981;
 }

@@ -19,6 +19,7 @@ import {
   BandComponent,
   ButtonComponent,
   CardComponent,
+  CountUpDirective,
   EmptyStateComponent,
   InputComponent,
   PageComponent,
@@ -78,6 +79,7 @@ const POLL_MS = 2500;
   imports: [
     PageComponent,
     CardComponent,
+    CountUpDirective,
     SelectComponent,
     InputComponent,
     ButtonComponent,
@@ -230,6 +232,18 @@ export class LessonsPage {
   );
   protected readonly hasFailed = computed(() =>
     this.lessons.value().some((row) => row.status === AdminLessonStatusEnum.ERROR),
+  );
+
+  // ---- EduManage KPI Metrics ----
+  protected readonly totalLessons = computed(() => this.lessons.value().length);
+  protected readonly publishedLessons = computed(
+    () => this.lessons.value().filter((l) => l.status === AdminLessonStatusEnum.READY).length,
+  );
+  protected readonly draftLessons = computed(
+    () => this.lessons.value().filter((l) => isRunningStatus(l.status) || l.status === AdminLessonStatusEnum.DRAFT).length,
+  );
+  protected readonly failedLessons = computed(
+    () => this.lessons.value().filter((l) => l.status === AdminLessonStatusEnum.ERROR).length,
   );
 
   protected readonly filterText = signal('');
