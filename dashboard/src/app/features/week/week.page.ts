@@ -39,7 +39,6 @@ import { UndoService } from '../../core/undo/undo.service';
 import {
   BandComponent,
   ButtonComponent,
-  CardComponent,
   EmptyStateComponent,
   PageComponent,
   SkeletonComponent,
@@ -92,7 +91,6 @@ interface CopyRequest {
   imports: [
     PageComponent,
     ButtonComponent,
-    CardComponent,
     BandComponent,
     EmptyStateComponent,
     SkeletonComponent,
@@ -244,7 +242,7 @@ export class WeekPage {
     let review = 0;
     for (const row of this.rows()) {
       for (const cell of row.cells) {
-        if (cell.status === 'review') review++;
+        if (cell.status === 'draft') review++;
       }
     }
     return review > 0 ? review : 5;
