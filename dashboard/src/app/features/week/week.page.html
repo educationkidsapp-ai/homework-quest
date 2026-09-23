@@ -1,5 +1,5 @@
-<hq-page [title]="'week.title' | transloco" [subtitle]="'week.subtitle' | transloco">
-  <div class="week">
+<hq-page [title]="'week.teacherCommandCenter' | transloco" [subtitle]="'week.teacherCommandSubtitle' | transloco">
+  <div class="em-dashboard week">
     @if (copyRequest()) {
       <hq-band
         #copyBand
@@ -14,194 +14,546 @@
       </hq-band>
     }
 
-    <div class="week__bar">
-      <div class="week__nav">
-        <hq-button variant="quiet" (pressed)="shift(-1)">{{ 'week.prev' | transloco }}</hq-button>
-        <hq-button variant="quiet" (pressed)="shift(1)">{{ 'week.next' | transloco }}</hq-button>
+    <!-- 1. Top 4 Hero KPI Metric Cards -->
+    <section class="em-stats-grid" aria-label="Teacher KPIs">
+      <!-- Card 1: Lessons This Week -->
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">{{ 'week.lessonsThisWeek' | transloco }}</p>
+          <h3 class="em-stat-value">{{ totalLessonsThisWeek() }}</h3>
+          <div class="em-stat-trend em-stat-trend--up">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15" /></svg>
+            <span>+3</span>
+            <span class="em-stat-trend-sub">{{ 'week.vsLastWeek' | transloco }}</span>
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+        </div>
       </div>
-      <p class="week__range">
-        {{ rangeLabel() }}
-        <span class="week__zone">{{ timezone() }}</span>
-      </p>
-    </div>
 
-    @if (week.isLoading()) {
-      <hq-skeleton
-        [loading]="true"
-        [lines]="5"
-        height="var(--hq-size-row-height)"
-        [label]="'week.loading' | transloco"
-      />
-    } @else if (!hasRows()) {
-      <hq-empty-state [message]="'week.empty' | transloco" />
-    } @else {
-      <hq-card [flush]="true">
-        <div class="week__scroll">
-          <div
-            class="week__grid"
-            role="grid"
-            cdkDropListGroup
-            tabindex="-1"
-            [attr.aria-label]="'week.title' | transloco"
-            [style.--hq-week-columns]="days().length"
-            (keydown)="onGridKeydown($event)"
+      <!-- Card 2: Attendance Rate -->
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">{{ 'week.attendanceRate' | transloco }}</p>
+          <h3 class="em-stat-value">{{ attendanceRate }}%</h3>
+          <div class="em-stat-trend em-stat-trend--up">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15" /></svg>
+            <span>+2.4%</span>
+            <span class="em-stat-trend-sub">{{ 'week.weeklyAverage' | transloco }}</span>
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Card 3: Active Classes -->
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">{{ 'week.activeClasses' | transloco }}</p>
+          <h3 class="em-stat-value">{{ activeClassesCount() }}</h3>
+          <div class="em-stat-trend">
+            <span class="em-pill em-pill--present">British Curriculum</span>
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--purple">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Card 4: Needs Review -->
+      <div class="em-stat-card">
+        <div class="em-stat-info">
+          <p class="em-stat-label">{{ 'week.needsReview' | transloco }}</p>
+          <h3 class="em-stat-value" style="color: #e11d48;">{{ needsReviewCount() }}</h3>
+          <div class="em-stat-trend">
+            <span class="em-pill em-pill--danger">{{ 'week.actionReq' | transloco }}</span>
+            <span class="em-stat-trend-sub">{{ 'week.openStops' | transloco }}</span>
+          </div>
+        </div>
+        <div class="em-stat-icon-tile em-gradient--pink">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Teacher Workflows / Quick Actions -->
+    <section class="em-card em-quick-actions-card" [attr.aria-label]="'home.quickActions.title' | transloco">
+      <div class="em-card-header">
+        <div>
+          <h2 class="em-card-title">{{ 'home.quickActions.title' | transloco }}</h2>
+          <p class="em-card-subtitle">{{ 'home.quickActions.subtitle' | transloco }}</p>
+        </div>
+      </div>
+      <div class="em-quick-actions-grid">
+        @for (act of quickActions; track act.label) {
+          <a
+            class="em-quick-action-btn"
+            [ngClass]="act.bgColor"
+            [routerLink]="act.link"
+            [queryParams]="act.queryParams"
           >
-            <div class="week__head" role="row">
-              <div class="week__corner" role="columnheader">{{ 'week.classColumn' | transloco }}</div>
-              @for (day of days(); track day) {
-                <div class="week__day" role="columnheader" [class.week__day--weekend]="isWeekend(day)">
-                  {{ dayLabel(day) }}
-                  @if (isWeekend(day)) {
-                    <!-- Today, on a day the school does not teach: named, not merely greyed. -->
-                    <span class="week__weekend-word">{{ weekendLabel() }}</span>
-                  }
+            <div class="em-quick-action-icon" [ngClass]="act.color">
+              @switch (act.icon) {
+                @case ('users') {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                }
+                @case ('file-text') {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                }
+                @case ('calendar') {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                }
+                @case ('bell') {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  </svg>
+                }
+                @case ('mail') {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" />
+                  </svg>
+                }
+                @default {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                }
+              }
+            </div>
+            <span class="em-quick-action-label">{{ act.label }}</span>
+            <span class="em-quick-action-sub">{{ act.subtitle }}</span>
+          </a>
+        }
+      </div>
+    </section>
+
+    <!-- 3. Main 2-Column Split (2fr Left : 1fr Right) -->
+    <div class="em-main-split">
+      
+      <!-- Left Column -->
+      <div class="em-split-col em-split-col--left">
+        
+        <!-- Weekly Attendance Chart Card -->
+        <section class="em-card">
+          <div class="em-card-header">
+            <div>
+              <h2 class="em-card-title">{{ 'week.attendanceTrends' | transloco }}</h2>
+              <p class="em-card-subtitle">{{ 'week.attendanceTrendsSubtitle' | transloco }}</p>
+            </div>
+            <div class="em-legend-group">
+              <div class="em-legend-item">
+                <span class="em-legend-dot em-legend-dot--blue"></span>
+                <span class="em-legend-label">Grade 1–3</span>
+              </div>
+              <div class="em-legend-item">
+                <span class="em-legend-dot em-legend-dot--purple"></span>
+                <span class="em-legend-label">Grade 4–6</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="em-chart-container">
+            <div class="em-chart-bars">
+              @for (item of attendanceChartDays; track item.day) {
+                <div class="em-chart-col">
+                  <div class="em-chart-tracks">
+                    <div class="em-chart-track em-chart-track--students" [style.height.%]="item.g13"></div>
+                    <div class="em-chart-track em-chart-track--teachers" [style.height.%]="item.g46"></div>
+                  </div>
+                  <span class="em-chart-day">{{ item.day }}</span>
                 </div>
               }
             </div>
+          </div>
+        </section>
 
-            @for (group of groups(); track group.grade) {
-              <div class="week__group" role="row">
-                <div class="week__group-label" role="rowheader" [attr.aria-colspan]="days().length + 1">
-                  {{ 'week.grade' | transloco: { grade: group.grade } }}
-                </div>
+        <!-- Weekly Lessons & Exams Schedule (Planner) -->
+        <section class="em-card" id="plannerSection">
+          <div class="em-card-header">
+            <div>
+              <div class="em-title-row">
+                <h2 class="em-card-title">{{ 'week.scheduleTitle' | transloco }}</h2>
+                <span class="em-badge-pill">{{ totalLessonsThisWeek() }} lessons</span>
+              </div>
+              <p class="em-card-subtitle">{{ 'week.scheduleSubtitle' | transloco }}</p>
+            </div>
+          </div>
+
+          <!-- Controls Bar: Class selector, status pills, week nav, + New Lesson -->
+          <div class="em-planner-controls">
+            <div class="em-filters-row">
+              <select class="em-select-filter" (change)="onClassFilterChange($event)">
+                <option value="all">{{ 'week.allClasses' | transloco }}</option>
+                @for (c of assignedClasses(); track c.id) {
+                  <option [value]="c.id">{{ c.name }} · {{ c.subject }}</option>
+                }
+              </select>
+
+              <div class="em-status-pills">
+                <button
+                  type="button"
+                  class="em-status-pill"
+                  [class.is-active]="statusFilter() === 'all'"
+                  (click)="setStatusFilter('all')"
+                >
+                  {{ 'week.filterAll' | transloco }}
+                </button>
+                <button
+                  type="button"
+                  class="em-status-pill em-status-pill--published"
+                  [class.is-active]="statusFilter() === 'published'"
+                  (click)="setStatusFilter('published')"
+                >
+                  {{ 'week.filterPublished' | transloco }}
+                </button>
+                <button
+                  type="button"
+                  class="em-status-pill em-status-pill--ready"
+                  [class.is-active]="statusFilter() === 'ready'"
+                  (click)="setStatusFilter('ready')"
+                >
+                  {{ 'week.filterReady' | transloco }}
+                </button>
+                <button
+                  type="button"
+                  class="em-status-pill em-status-pill--draft"
+                  [class.is-active]="statusFilter() === 'draft'"
+                  (click)="setStatusFilter('draft')"
+                >
+                  {{ 'week.filterDraft' | transloco }}
+                </button>
+                <button
+                  type="button"
+                  class="em-status-pill em-status-pill--exams"
+                  [class.is-active]="statusFilter() === 'exams'"
+                  (click)="setStatusFilter('exams')"
+                >
+                  {{ 'week.filterExams' | transloco }}
+                </button>
+              </div>
+            </div>
+
+            <div class="em-nav-actions-row">
+              <div class="week__nav">
+                <button type="button" class="em-nav-btn" (click)="shift(-1)" title="Previous Week">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6" /></svg>
+                </button>
+                <span class="em-nav-range">{{ rangeLabel() }}</span>
+                <button type="button" class="em-nav-btn" (click)="shift(1)" title="Next Week">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg>
+                </button>
+                <button type="button" class="em-btn-today" (click)="goToday()">
+                  {{ 'week.today' | transloco }}
+                </button>
               </div>
 
-              @for (row of group.rows; track trackRow($index, row)) {
-                <div class="week__row" role="row" [class.week__row--disabled]="rowDisabled(row)">
-                  <div class="week__row-label" role="rowheader">{{ rowLabel(row) }}</div>
+              <a [routerLink]="newLessonLink" class="em-btn-new-lesson">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                <span>{{ 'week.newLessonBtn' | transloco }}</span>
+              </a>
+            </div>
+          </div>
 
-                  @for (cell of row.cells; track cell.date) {
-                    <div
-                      class="week__cell"
-                      role="gridcell"
-                      [class.week__cell--weekend]="cell.weekend"
-                      cdkDropList
-                      [cdkDropListData]="{ row: row, cell: cell }"
-                      [cdkDropListEnterPredicate]="allowDrop"
-                      (cdkDropListDropped)="dropped($event)"
-                    >
-                      @if (cell.pending) {
-                        <!--
-                      A copy the server has not answered for yet. Drawn, focusable so the grid's
-                      arrow keys keep working, and otherwise inert: its id is a placeholder, so a
-                      link would 404 and a drag would PATCH a lesson that does not exist.
-                    -->
-                        <span
-                          class="week__card week__card--pending"
-                          data-hq-cell
-                          tabindex="0"
-                          aria-busy="true"
-                        >
-                          <hq-status-square [status]="cell.status" [pending]="true" />
-                          <span class="week__card-text">
-                            <span class="week__card-title">{{ titleOf(cell) }}</span>
-                            <span class="week__card-meta">{{ 'week.copying' | transloco }}</span>
-                          </span>
-                        </span>
-                      } @else if (cell.lesson; as lesson) {
-                        <div
-                          class="week__card"
-                          cdkDrag
-                          [cdkDragData]="{ row: row, cell: cell }"
-                          [cdkDragDisabled]="!cell.movable"
-                          (cdkDragStarted)="dragStarted(row, cell)"
-                          (cdkDragEnded)="dragEnded()"
-                          [attr.title]="cell.movable ? null : ('week.published.reason' | transloco)"
-                        >
-                          <a
-                            class="week__card-link"
-                            data-hq-cell
-                            [routerLink]="lessonLink(cell)"
-                            [attr.aria-label]="cellLabel(row, cell) + ' — ' + titleOf(cell)"
-                          >
-                            <hq-status-square [status]="cell.status" />
-                            <span class="week__card-text">
-                              <span class="week__card-title">{{ titleOf(cell) }}</span>
-                              <span class="week__card-meta">
-                                {{ 'week.status.' + cell.status | transloco }}
-                                @if (lesson.playedCount) {
-                                  <span class="week__played">
-                                    {{
-                                      'week.played'
-                                        | transloco
-                                          : { played: lesson.playedCount, total: lesson.childrenCount }
-                                    }}
-                                  </span>
-                                }
-                              </span>
-                            </span>
-                          </a>
-
-                          @if (!cell.movable) {
-                            <span class="hq-sr-only">{{ 'week.published.reason' | transloco }}</span>
-                          }
-
-                          <button
-                            type="button"
-                            class="hq-iconbutton hq-iconbutton--quiet"
-                            [cdkMenuTriggerFor]="cardMenu"
-                            (click)="menuCell.set({ row: row, cell: cell })"
-                            [attr.aria-label]="'week.actions' | transloco: { title: titleOf(cell) }"
-                          >
-                            ⋮
-                          </button>
-                        </div>
-                      } @else if (cell.exam; as exam) {
-                        <div class="week__exam">
-                          <span class="week__ribbon">{{ 'week.exam.ribbon' | transloco }}</span>
-                          <a
-                            class="week__card-link"
-                            data-hq-cell
-                            [routerLink]="['/teacher/lessons', exam.lessonId]"
-                          >
-                            {{
-                              'week.exam.window' | transloco: { opens: exam.opensAt, closes: exam.closesAt }
-                            }}
-                          </a>
-                        </div>
-                      } @else if (cell.weekend) {
-                        <!--
-                      No `+`: the server answers 409 `not_teaching_day` for this date, so an
-                      invitation to add a lesson here would be an invitation to be refused. It
-                      stays in the grid's roving order (`data-hq-cell`) so the arrow keys still
-                      step across the week, and says why it is empty rather than just being empty.
-                    -->
-                        <span class="week__weekend-cell" data-hq-cell tabindex="-1">
-                          <span class="hq-sr-only">{{
-                            'week.weekend.cell' | transloco: { day: dayName(cell.date) }
-                          }}</span>
-                        </span>
-                      } @else {
-                        <a
-                          class="week__add"
-                          data-hq-cell
-                          [routerLink]="newLessonLink"
-                          [queryParams]="newLessonParams(row, cell)"
-                          [attr.aria-label]="
-                            'week.addLesson' | transloco: { class: row.className, day: dayName(cell.date) }
-                          "
-                        >
-                          +
-                        </a>
+          <!-- Planner Grid View -->
+          @if (week.isLoading()) {
+            <hq-skeleton
+              [loading]="true"
+              [lines]="5"
+              height="var(--hq-size-row-height)"
+              [label]="'week.loading' | transloco"
+            />
+          } @else if (!hasFilteredRows()) {
+            <hq-empty-state [message]="'week.empty' | transloco" />
+          } @else {
+            <div class="week__scroll">
+              <div
+                class="week__grid"
+                role="grid"
+                cdkDropListGroup
+                tabindex="-1"
+                [attr.aria-label]="'week.title' | transloco"
+                [style.--hq-week-columns]="days().length"
+                (keydown)="onGridKeydown($event)"
+              >
+                <div class="week__head" role="row">
+                  <div class="week__corner" role="columnheader">{{ 'week.classColumn' | transloco }}</div>
+                  @for (day of days(); track day) {
+                    <div class="week__day" role="columnheader" [class.week__day--weekend]="isWeekend(day)">
+                      {{ dayLabel(day) }}
+                      @if (isWeekend(day)) {
+                        <span class="week__weekend-word">{{ weekendLabel() }}</span>
                       }
                     </div>
                   }
                 </div>
-              }
+
+                @for (group of filteredGroups(); track group.grade) {
+                  <div class="week__group" role="row">
+                    <div class="week__group-label" role="rowheader" [attr.aria-colspan]="days().length + 1">
+                      {{ 'week.grade' | transloco: { grade: group.grade } }}
+                    </div>
+                  </div>
+
+                  @for (row of group.rows; track trackRow($index, row)) {
+                    <div class="week__row" role="row" [class.week__row--disabled]="rowDisabled(row)">
+                      <div class="week__row-label" role="rowheader">{{ rowLabel(row) }}</div>
+
+                      @for (cell of row.cells; track cell.date) {
+                        <div
+                          class="week__cell"
+                          role="gridcell"
+                          [class.week__cell--weekend]="cell.weekend"
+                          cdkDropList
+                          [cdkDropListData]="{ row: row, cell: cell }"
+                          [cdkDropListEnterPredicate]="allowDrop"
+                          (cdkDropListDropped)="dropped($event)"
+                        >
+                          @if (cell.pending) {
+                            <span
+                              class="week__card week__card--pending"
+                              data-hq-cell
+                              tabindex="0"
+                              aria-busy="true"
+                            >
+                              <hq-status-square [status]="cell.status" [pending]="true" />
+                              <span class="week__card-text">
+                                <span class="week__card-title">{{ titleOf(cell) }}</span>
+                                <span class="week__card-meta">{{ 'week.copying' | transloco }}</span>
+                              </span>
+                            </span>
+                          } @else if (cell.lesson; as lesson) {
+                            <div
+                              class="week__card"
+                              cdkDrag
+                              [cdkDragData]="{ row: row, cell: cell }"
+                              [cdkDragDisabled]="!cell.movable"
+                              (cdkDragStarted)="dragStarted(row, cell)"
+                              (cdkDragEnded)="dragEnded()"
+                              [attr.title]="cell.movable ? null : ('week.published.reason' | transloco)"
+                            >
+                              <a
+                                class="week__card-link"
+                                data-hq-cell
+                                [routerLink]="lessonLink(cell)"
+                                [attr.aria-label]="cellLabel(row, cell) + ' — ' + titleOf(cell)"
+                              >
+                                <hq-status-square [status]="cell.status" />
+                                <span class="week__card-text">
+                                  <span class="week__card-title">{{ titleOf(cell) }}</span>
+                                  <span class="week__card-meta">
+                                    {{ 'week.status.' + cell.status | transloco }}
+                                    @if (lesson.playedCount) {
+                                      <span class="week__played">
+                                        {{
+                                          'week.played'
+                                            | transloco
+                                              : { played: lesson.playedCount, total: lesson.childrenCount }
+                                        }}
+                                      </span>
+                                    }
+                                  </span>
+                                </span>
+                              </a>
+
+                              @if (!cell.movable) {
+                                <span class="hq-sr-only">{{ 'week.published.reason' | transloco }}</span>
+                              }
+
+                              <button
+                                type="button"
+                                class="hq-iconbutton hq-iconbutton--quiet"
+                                [cdkMenuTriggerFor]="cardMenu"
+                                (click)="menuCell.set({ row: row, cell: cell })"
+                                [attr.aria-label]="'week.actions' | transloco: { title: titleOf(cell) }"
+                              >
+                                ⋮
+                              </button>
+                            </div>
+                          } @else if (cell.exam; as exam) {
+                            <div class="week__exam">
+                              <span class="week__ribbon">{{ 'week.exam.ribbon' | transloco }}</span>
+                              <a
+                                class="week__card-link"
+                                data-hq-cell
+                                [routerLink]="['/teacher/lessons', exam.lessonId]"
+                              >
+                                {{
+                                  'week.exam.window' | transloco: { opens: exam.opensAt, closes: exam.closesAt }
+                                }}
+                              </a>
+                            </div>
+                          } @else if (cell.weekend) {
+                            <span class="week__weekend-cell" data-hq-cell tabindex="-1">
+                              <span class="hq-sr-only">{{
+                                'week.weekend.cell' | transloco: { day: dayName(cell.date) }
+                              }}</span>
+                            </span>
+                          } @else {
+                            <a
+                              class="week__add"
+                              data-hq-cell
+                              [routerLink]="newLessonLink"
+                              [queryParams]="newLessonParams(row, cell)"
+                              [attr.aria-label]="
+                                'week.addLesson' | transloco: { class: row.className, day: dayName(cell.date) }
+                              "
+                            >
+                              +
+                            </a>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                }
+              </div>
+            </div>
+          }
+        </section>
+
+        <!-- My Classes & Assignments Cards -->
+        <section class="em-card">
+          <div class="em-card-header">
+            <div>
+              <h2 class="em-card-title">{{ 'week.myClassesAssignments' | transloco }}</h2>
+              <p class="em-card-subtitle">{{ 'week.myClassesSubtitle' | transloco }}</p>
+            </div>
+            <a routerLink="/teacher/classes" [queryParams]="{ tab: 'attendance' }" class="em-link-action">
+              {{ 'week.markTodayAttendance' | transloco }}
+            </a>
+          </div>
+
+          <div class="em-classes-grid">
+            @for (item of assignedClasses(); track item.id) {
+              <div class="em-class-card">
+                <div class="em-class-top">
+                  <div class="em-class-avatar" [ngClass]="item.gradient">
+                    {{ item.avatar }}
+                  </div>
+                  <span class="em-pill em-pill--present">{{ item.attendancePct }}%</span>
+                </div>
+                <div>
+                  <h3 class="em-class-title">{{ item.name }} · {{ item.subject }}</h3>
+                  <p class="em-class-meta">{{ item.curriculum }} Curriculum • {{ item.studentsCount }} Students</p>
+                </div>
+                <div class="em-class-actions">
+                  <a [routerLink]="['/teacher/classes', item.id]" class="em-btn-sm em-btn-sm--ghost">
+                    Attendance
+                  </a>
+                  <a [routerLink]="newLessonLink" [queryParams]="{ classId: item.id }" class="em-btn-sm em-btn-sm--primary">
+                    + Add Lesson
+                  </a>
+                </div>
+              </div>
             }
           </div>
-        </div>
-      </hq-card>
-    }
+        </section>
+
+      </div>
+
+      <!-- Right Column -->
+      <div class="em-split-col em-split-col--right">
+        
+        <!-- Schedule Gaps & Alerts Card -->
+        <section class="em-card">
+          <div class="em-card-header">
+            <div>
+              <h2 class="em-card-title">{{ 'week.scheduleGapsAlerts' | transloco }}</h2>
+              <p class="em-card-subtitle">{{ 'week.scheduleGapsSubtitle' | transloco }}</p>
+            </div>
+            <svg class="em-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+
+          <div class="em-events-list">
+            @for (alert of scheduleAlerts(); track alert.title) {
+              <div class="em-event-item" [ngClass]="alert.color">
+                <div class="em-event-title-row">
+                  <h3 class="em-event-title">{{ alert.title }}</h3>
+                </div>
+                <div class="em-event-details">
+                  <p class="em-event-line">{{ alert.desc }}</p>
+                  <a [routerLink]="alert.actionLink" class="em-event-action">{{ alert.actionText }}</a>
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- Exams & Tests Hub Card -->
+        <section class="em-card">
+          <div class="em-card-header">
+            <div>
+              <h2 class="em-card-title">{{ 'week.examsHub' | transloco }}</h2>
+              <p class="em-card-subtitle">{{ 'week.examsHubSubtitle' | transloco }}</p>
+            </div>
+            <svg class="em-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+            </svg>
+          </div>
+
+          <div class="em-fees-overview">
+            <div class="em-fee-block">
+              <div class="em-fee-top">
+                <span class="em-fee-label">Active Exams</span>
+                <span class="em-fee-change em-fee-change--success">Scheduled</span>
+              </div>
+              <h3 class="em-fee-value">{{ examsOverview.activeCount }}</h3>
+            </div>
+            <div class="em-fee-block">
+              <div class="em-fee-top">
+                <span class="em-fee-label">Submissions to Grade</span>
+                <span class="em-fee-change em-fee-change--warning">Pending</span>
+              </div>
+              <div class="em-fee-val-row">
+                <h3 class="em-fee-value" style="color: #e11d48;">{{ examsOverview.pendingCount }}</h3>
+                <a routerLink="/teacher/classes" class="em-link-action" style="font-size: 11px;">Grade Now</a>
+              </div>
+            </div>
+          </div>
+
+          <p class="em-section-micro-title">Recent Exams Overview</p>
+          <div class="em-payments-list">
+            @for (exam of examsOverview.recent; track exam.title) {
+              <div class="em-payment-row">
+                <div>
+                  <h4 class="em-payment-student">{{ exam.title }}</h4>
+                  <p class="em-payment-class">{{ exam.classText }}</p>
+                </div>
+                <span class="em-payment-amount" style="color: #2563eb;">{{ exam.score }}</span>
+              </div>
+            }
+          </div>
+
+          <a routerLink="/teacher/exams/new" class="em-btn-gradient">
+            + New Exam
+          </a>
+        </section>
+
+      </div>
+    </div>
   </div>
 
-  <!--
-    Flat, not two submenus: the whole point of this menu is that a keyboard can do what the drag
-    does, and a submenu is one more thing to learn for a list that is never longer than six items.
-  -->
   <ng-template #cardMenu>
     <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
-      <!-- N4.2: who played and what they scored — only once there is something to score. -->
       @if (menuResultsLink(); as link) {
         <span *hqFeature="gradebookFlag">
           <a *hqCan="'results.read'" cdkMenuItem class="hq-menu__item" [routerLink]="link">
