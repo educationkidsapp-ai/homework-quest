@@ -769,6 +769,7 @@
       "classField": "Class",
       "classPlaceholder": "Choose a class",
       "classOption": "{{class}} · {{subject}} · {{curriculum}}",
+      "classOptionShort": "{{class}} · {{subject}}",
       "noClasses": "You have no classes yet. The office assigns them."
     },
     "detail": {

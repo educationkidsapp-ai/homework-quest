@@ -185,14 +185,19 @@ export class NewLessonPage {
   /** Her assignments, as the Class select's options — `1A · Math · British`. */
   protected readonly classOptions = computed<readonly SelectOption[]>(() => {
     this.lang();
-    return this.myClasses.value().map((card) => ({
-      value: assignmentKeyOf(card),
-      label: this.t('lessons.new.classOption', {
-        class: card.className ?? '',
-        subject: this.translateOrEmpty(`subject.${card.subject}`) || (card.subject ?? ''),
-        curriculum: this.translateOrEmpty(`curriculum.${card.curriculum}`) || (card.curriculum ?? ''),
-      }),
-    }));
+    return this.myClasses.value().map((card) => {
+      const cName = card.className ?? '';
+      const curr = this.translateOrEmpty(`curriculum.${card.curriculum}`) || (card.curriculum ?? '');
+      const subject = this.translateOrEmpty(`subject.${card.subject}`) || (card.subject ?? '');
+      const hasCurriculumInName = curr && cName.toLowerCase().includes(curr.toLowerCase());
+      const label = hasCurriculumInName
+        ? this.t('lessons.new.classOptionShort', { class: cName, subject })
+        : this.t('lessons.new.classOption', { class: cName, subject, curriculum: curr });
+      return {
+        value: assignmentKeyOf(card),
+        label: label || `${cName} · ${subject}`,
+      };
+    });
   });
 
   /** The `+` fixed the section; she may not move the lesson to another one from here. */

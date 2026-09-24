@@ -769,6 +769,7 @@
       "classField": "الفصل",
       "classPlaceholder": "اختر فصلًا",
       "classOption": "{{class}} · {{subject}} · {{curriculum}}",
+      "classOptionShort": "{{class}} · {{subject}}",
       "noClasses": "لا توجد لديك فصول بعد. الإدارة هي من تُسنِدها."
     },
     "detail": {
