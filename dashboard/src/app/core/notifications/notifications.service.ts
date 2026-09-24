@@ -72,45 +72,45 @@ export class NotificationsService {
 
   constructor() {
     effect(() => {
-      const user = this.auth.user();
-      if (!user) {
+      const userId = this.auth.user()?.id;
+      if (!userId) {
         this.items.set([]);
         return;
       }
-      const stored = this.loadFromStorage(user.id);
+      const stored = this.loadFromStorage(userId);
       if (stored && stored.length > 0) {
         this.items.set(stored);
       } else {
         this.items.set(DEFAULT_NOTIFICATIONS);
-        this.saveToStorage(user.id, DEFAULT_NOTIFICATIONS);
+        this.saveToStorage(userId, DEFAULT_NOTIFICATIONS);
       }
     });
   }
 
   markAsRead(id: string): void {
-    const user = this.auth.user();
+    const userId = this.auth.user()?.id;
     this.items.update((list) =>
       list.map((item) => (item.id === id ? { ...item, read: true } : item)),
     );
-    if (user) this.saveToStorage(user.id, this.items());
+    if (userId) this.saveToStorage(userId, this.items());
   }
 
   markAllAsRead(): void {
-    const user = this.auth.user();
+    const userId = this.auth.user()?.id;
     this.items.update((list) => list.map((item) => ({ ...item, read: true })));
-    if (user) this.saveToStorage(user.id, this.items());
+    if (userId) this.saveToStorage(userId, this.items());
   }
 
   remove(id: string): void {
-    const user = this.auth.user();
+    const userId = this.auth.user()?.id;
     this.items.update((list) => list.filter((item) => item.id !== id));
-    if (user) this.saveToStorage(user.id, this.items());
+    if (userId) this.saveToStorage(userId, this.items());
   }
 
   clearAll(): void {
-    const user = this.auth.user();
+    const userId = this.auth.user()?.id;
     this.items.set([]);
-    if (user) this.saveToStorage(user.id, []);
+    if (userId) this.saveToStorage(userId, []);
   }
 
   private loadFromStorage(userId: string): readonly AppNotification[] | null {
