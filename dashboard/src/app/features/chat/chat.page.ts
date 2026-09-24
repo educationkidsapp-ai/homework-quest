@@ -123,9 +123,6 @@ import { PageComponent } from '../../ui';
                   @if (active.className) {
                     · {{ active.className }}
                   }
-                  @if (active.subject) {
-                    · {{ active.subject }}
-                  }
                 </span>
               </div>
 

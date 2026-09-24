@@ -97,7 +97,6 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         permission: 'platform.manage',
         phase: 3,
       },
-      { id: 'profile', path: '', fullLink: '/profile', labelKey: 'nav.profile' },
     ],
   },
   // N2.2 (`docs/teacher-flow.md` §4): "No other menu items render." A teacher's rail is **This
@@ -122,7 +121,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       // Her lessons lost their rail label with N2.3: §4's rail is This week · My classes, and
       // the list is one tap away as "All lessons of this class". The route stays — a bookmark
       // and `/teacher/lessons?classId=…` from the class page both have to resolve.
-      { id: 'lessons', path: 'lessons', labelKey: 'nav.allLessons', permission: 'lesson.read' },
+      { id: 'lessons', path: 'lessons', permission: 'lesson.read' },
       { id: 'new-lesson', path: 'lessons/new', permission: 'lesson.write' },
       { id: 'lesson', path: 'lessons/:id', permission: 'lesson.read' },
       // N4.2 (§4 step 9). Neither is a rail item: Results is opened from the lesson she is
@@ -159,11 +158,9 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       {
         id: 'chat',
         path: 'chat',
-        labelKey: 'nav.chat',
         flag: FLAGS.chat,
         permission: 'teacher.chat',
       },
-      { id: 'profile', path: '', fullLink: '/profile', labelKey: 'nav.profile' },
     ],
   },
   MANAGERIAL: {

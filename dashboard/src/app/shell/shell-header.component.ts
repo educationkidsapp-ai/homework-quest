@@ -1,7 +1,7 @@
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -257,7 +257,7 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
             <p class="hq-menu__head-meta">{{ address }}</p>
           }
         </div>
-        <a cdkMenuItem class="hq-menu__item" routerLink="/profile">{{ 'shell.profile.open' | transloco }}</a>
+        <a cdkMenuItem class="hq-menu__item" routerLink="/profile" (cdkMenuItemTriggered)="openProfile()">{{ 'shell.profile.open' | transloco }}</a>
         <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="showMeAround()">
           {{ 'shell.showMeAround' | transloco }}
         </button>
@@ -676,6 +676,7 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
   `,
 })
 export class ShellHeaderComponent {
+  private readonly router = inject(Router);
   private readonly schoolsApi = inject(SchoolsApi);
   private readonly flags = inject(FlagService);
   private readonly tour = inject(TourService);
@@ -734,5 +735,9 @@ export class ShellHeaderComponent {
   protected showMeAround(): void {
     const role = this.auth.role();
     if (role) this.tour.start(role);
+  }
+
+  protected openProfile(): void {
+    void this.router.navigateByUrl('/profile');
   }
 }

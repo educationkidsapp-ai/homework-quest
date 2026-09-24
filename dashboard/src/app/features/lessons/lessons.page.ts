@@ -452,8 +452,8 @@ export class LessonsPage {
       const stored = linked ?? readStoredCourse(userId);
       const curricula = this.availableCurricula();
       const grades = this.availableGrades();
-      const targetCurriculum = stored?.curriculum ?? curricula[0] ?? null;
-      const targetGrade = stored?.grade ?? grades[0] ?? null;
+      const targetCurriculum = stored?.curriculum ?? (!this.isAdmin() ? (curricula[0] ?? null) : null);
+      const targetGrade = stored?.grade ?? (!this.isAdmin() ? (grades[0] ?? null) : null);
       if (
         targetCurriculum &&
         targetGrade &&
