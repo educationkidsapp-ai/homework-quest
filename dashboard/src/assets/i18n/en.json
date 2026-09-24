@@ -167,6 +167,28 @@
       "failedTitle": "Could not change the password"
     }
   },
+  "attendance": {
+    "attendance": "Attendance",
+    "savedTitle": "Attendance Saved",
+    "savedBody": "Class attendance records have been successfully saved.",
+    "today": "Today",
+    "prevDay": "Previous day",
+    "nextDay": "Next day",
+    "pickDate": "Select date",
+    "markAllPresent": "Mark all present",
+    "saving": "Saving...",
+    "saveAttendance": "Save Attendance",
+    "totalStudents": "Total Students",
+    "present": "Present",
+    "late": "Late",
+    "absent": "Absent",
+    "excused": "Excused",
+    "rate": "Attendance Rate",
+    "loading": "Loading attendance...",
+    "empty": "No students found in this class.",
+    "noStudents": "No students found in this class.",
+    "notesPlaceholder": "Optional note (e.g. excused doctor note)"
+  },
   "band": {
     "failed": "That did not work",
     "signedOut": "Signed out",
@@ -546,26 +568,7 @@
         "wed": "Wed",
         "thu": "Thu",
         "fri": "Fri"
-      },
-      "savedTitle": "Attendance Saved",
-      "savedBody": "Class attendance records have been successfully saved.",
-      "today": "Today",
-      "prevDay": "Previous day",
-      "nextDay": "Next day",
-      "pickDate": "Select date",
-      "markAllPresent": "Mark all present",
-      "saving": "Saving...",
-      "saveAttendance": "Save Attendance",
-      "totalStudents": "Total Students",
-      "present": "Present",
-      "late": "Late",
-      "absent": "Absent",
-      "excused": "Excused",
-      "rate": "Attendance Rate",
-      "loading": "Loading attendance...",
-      "empty": "No students found in this class.",
-      "noStudents": "No students found in this class.",
-      "notesPlaceholder": "Optional note (e.g. excused doctor note)"
+      }
     },
     "card": {
       "schools": "Schools",
