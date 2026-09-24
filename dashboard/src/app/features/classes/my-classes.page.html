@@ -94,7 +94,14 @@
 
           <div class="em-classes-grid" hqListStagger>
             @for (card of group.items; track trackCard(card)) {
-              <div class="em-class-card" (click)="openClass(card, $event)" style="cursor: pointer;">
+              <div
+                class="em-class-card"
+                role="button"
+                tabindex="0"
+                (click)="openClass(card, $event)"
+                (keydown.enter)="openClass(card, $event)"
+                style="cursor: pointer;"
+              >
                 <div class="em-class-top">
                   <div class="em-class-avatar" [ngClass]="gradeGradient(card.grade)">
                     {{ cardInitial(card) }}

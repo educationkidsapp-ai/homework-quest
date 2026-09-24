@@ -41,10 +41,13 @@ interface Spotlight {
   selector: 'hq-tour',
   imports: [CdkTrapFocus, TranslocoPipe, ButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '(document:keydown.escape)': 'skip()' },
+  host: {
+    '(document:keydown.escape)': 'skip()',
+    '(click)': 'onHostClick($event)',
+  },
   template: `
     @if (tour.step(); as step) {
-      <div class="tour" role="dialog" aria-modal="true" [attr.aria-label]="step.titleKey | transloco" (click)="onBackdropClick($event)">
+      <div class="tour" role="dialog" aria-modal="true" [attr.aria-label]="step.titleKey | transloco">
         @if (spotlight(); as box) {
           <div
             class="tour__spot"
@@ -63,7 +66,6 @@ interface Spotlight {
           [cdkTrapFocusAutoCapture]="true"
           [style.top.px]="bubbleTop()"
           [style.left.px]="bubbleLeft()"
-          (click)="$event.stopPropagation()"
         >
           <p class="tour__step">
             {{ 'tour.step' | transloco: { index: tour.position().index, total: tour.position().total } }}
@@ -200,7 +202,9 @@ export class TourComponent {
     else this.tour.finish();
   }
 
-  protected onBackdropClick(event: MouseEvent): void {
-    this.skip();
+  protected onHostClick(event: MouseEvent): void {
+    if (event.target && !(event.target as HTMLElement).closest('.tour__bubble')) {
+      this.skip();
+    }
   }
 }

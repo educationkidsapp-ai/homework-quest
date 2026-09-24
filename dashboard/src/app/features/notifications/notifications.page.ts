@@ -1,3 +1,4 @@
+/* hq-flag: none (shell) — notifications are part of the core dashboard shell across all roles. */
 import { DatePipe, NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
@@ -64,7 +65,10 @@ type CategoryFilter = 'all' | 'unread' | 'classes' | 'lessons' | 'system';
               <div
                 class="em-card notification-card"
                 [class.is-unread]="!item.read"
+                role="button"
+                tabindex="0"
                 (click)="onOpenItem(item)"
+                (keydown.enter)="onOpenItem(item)"
               >
                 <div class="notification-card__icon" [ngClass]="iconGradient(item.category)">
                   @switch (item.category) {
@@ -108,12 +112,12 @@ type CategoryFilter = 'all' | 'unread' | 'classes' | 'lessons' | 'system';
                   <p class="notification-card__message">{{ item.message }}</p>
                 </div>
 
-                <div class="notification-card__actions" (click)="$event.stopPropagation()">
+                <div class="notification-card__actions">
                   <button
                     type="button"
                     class="notification-card__dismiss-btn"
                     aria-label="Dismiss notification"
-                    (click)="notificationsService.remove(item.id)"
+                    (click)="onDismiss($event, item.id)"
                   >
                     <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
                       <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -332,5 +336,10 @@ export class NotificationsPage {
     if (item.link) {
       void this.router.navigateByUrl(item.link);
     }
+  }
+
+  protected onDismiss(event: MouseEvent, id: string): void {
+    event.stopPropagation();
+    this.notificationsService.remove(id);
   }
 }
