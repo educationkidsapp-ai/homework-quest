@@ -57,7 +57,7 @@ type CategoryFilter = 'all' | 'unread' | 'classes' | 'lessons' | 'system';
         @if (filteredItems().length === 0) {
           <hq-empty-state
             [message]="'notifications.empty' | transloco"
-            [hint]="'notifications.emptyHint' | transloco"
+            [detail]="'notifications.emptyHint' | transloco"
           />
         } @else {
           <div class="notifications__list">
