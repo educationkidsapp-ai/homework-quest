@@ -97,6 +97,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         permission: 'platform.manage',
         phase: 3,
       },
+      { id: 'profile', path: '', fullLink: '/profile', labelKey: 'nav.profile' },
     ],
   },
   // N2.2 (`docs/teacher-flow.md` §4): "No other menu items render." A teacher's rail is **This
@@ -155,7 +156,6 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       { id: 'students', path: 'students', phase: 4 },
       { id: 'questions', path: 'questions', flag: FLAGS.teacherQuestions, phase: 4 },
       { id: 'announcements', path: 'announcements', flag: FLAGS.announcements, phase: 4 },
-      // C1/C2: parent ↔ teacher chat.
       {
         id: 'chat',
         path: 'chat',
@@ -163,12 +163,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.chat,
         permission: 'teacher.chat',
       },
-      // All-Access Admin Management entries
-      { id: 'admin-classes', path: '', fullLink: '/admin/classes', labelKey: 'nav.classes', permission: 'section.read' },
-      { id: 'admin-teachers', path: '', fullLink: '/admin/teachers', labelKey: 'nav.teachers', permission: 'teacher.read' },
-      { id: 'admin-schools', path: '', fullLink: '/admin/schools', labelKey: 'nav.schools', permission: 'school.read' },
-      { id: 'admin-users', path: '', fullLink: '/admin/users', labelKey: 'nav.users', permission: 'user.read' },
-      { id: 'admin-settings', path: '', fullLink: '/admin/settings', labelKey: 'nav.platformSettings', permission: 'platform.manage' },
+      { id: 'profile', path: '', fullLink: '/profile', labelKey: 'nav.profile' },
     ],
   },
   MANAGERIAL: {

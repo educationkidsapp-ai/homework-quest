@@ -76,6 +76,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/profile/profile.page').then((m) => m.ProfilePage),
       },
       {
+        path: 'notifications',
+        loadComponent: () =>
+          import('./features/notifications/notifications.page').then((m) => m.NotificationsPage),
+      },
+      {
         path: 'no-access',
         loadComponent: () => import('./features/errors/no-access.page').then((m) => m.NoAccessPage),
       },

@@ -204,6 +204,14 @@ export class ClassPage {
       });
     });
 
+    // Sync incoming URL query param ?tab= to the active tab signal
+    effect(() => {
+      const queryTab = this.query().get('tab');
+      if (isTabId(queryTab) && queryTab !== this.tab()) {
+        this.tab.set(queryTab);
+      }
+    });
+
     // §5's third rail item, for as long as she is on this class.
     effect(() => {
       const label = this.title();

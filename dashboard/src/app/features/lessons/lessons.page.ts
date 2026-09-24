@@ -448,17 +448,20 @@ export class LessonsPage {
       if (!userId || userId === this.restoredForUser) return;
       if (!this.isAdmin() && this.teacherOptions.isLoading()) return;
       this.restoredForUser = userId;
-      // A link that names the course wins over what this browser last looked at: arriving from
-      // the class page on the wrong grade would show an empty list and look like a bug.
       const linked = this.linkedCourse();
       const stored = linked ?? readStoredCourse(userId);
-      if (!stored) return;
+      const curricula = this.availableCurricula();
+      const grades = this.availableGrades();
+      const targetCurriculum = stored?.curriculum ?? curricula[0] ?? null;
+      const targetGrade = stored?.grade ?? grades[0] ?? null;
       if (
-        this.availableCurricula().includes(stored.curriculum) &&
-        this.availableGrades().includes(stored.grade)
+        targetCurriculum &&
+        targetGrade &&
+        curricula.includes(targetCurriculum) &&
+        grades.includes(targetGrade)
       ) {
-        this.curriculum.set(stored.curriculum);
-        this.grade.set(stored.grade);
+        this.curriculum.set(targetCurriculum);
+        this.grade.set(targetGrade);
       }
     });
 

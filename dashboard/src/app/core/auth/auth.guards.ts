@@ -48,12 +48,7 @@ export function roleGuard(...roles: readonly Role[]): CanActivateFn {
     const auth = inject(AuthService);
     const router = inject(Router);
     const role = auth.role();
-    if (role !== null) {
-      if (roles.includes(role)) return true;
-      if ((role === 'ADMIN' || role === 'TEACHER') && (roles.includes('ADMIN') || roles.includes('TEACHER'))) {
-        return true;
-      }
-    }
+    if (role !== null && roles.includes(role)) return true;
     return router.parseUrl(role === null ? '/sign-in' : ROLE_HOME[role]);
   };
 }

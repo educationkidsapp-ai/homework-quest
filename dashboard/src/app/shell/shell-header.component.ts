@@ -14,6 +14,7 @@ import { FLAGS, FlagService } from '../core/flags/flag.service';
 import { LANGUAGES, LanguageService } from '../core/i18n/language.service';
 import { SIDEBAR_ID, SidebarService } from '../core/shell/sidebar.service';
 import { DarkModeService } from '../core/theme/dark-mode.service';
+import { NotificationsService } from '../core/notifications/notifications.service';
 import { TourService } from '../core/tour/tour.service';
 import { ViewModeService } from '../core/view-mode/view-mode.service';
 
@@ -100,13 +101,16 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
           <button
             type="button"
             class="header__icon header__bell-btn"
+            [cdkMenuTriggerFor]="notificationsMenu"
             [attr.aria-label]="'shell.notifications' | transloco"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
-            <span class="header__bell-badge"></span>
+            @if (unreadNotifications() > 0) {
+              <span class="header__bell-badge">{{ unreadNotifications() }}</span>
+            }
           </button>
           @if (isTeacher()) {
             <a
@@ -172,6 +176,45 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
         </div>
       </div>
     </header>
+
+    <ng-template #notificationsMenu>
+      <div cdkMenu class="hq-menu hq-menu--notifications" [attr.aria-label]="'shell.notifications' | transloco">
+        <div class="notifications-popup__header">
+          <span class="notifications-popup__title">{{ 'notifications.title' | transloco }}</span>
+          @if (unreadNotifications() > 0) {
+            <button
+              type="button"
+              class="notifications-popup__mark-read"
+              (click)="notificationsService.markAllAsRead()"
+            >
+              {{ 'notifications.markAllRead' | transloco }}
+            </button>
+          }
+        </div>
+        <div class="notifications-popup__list">
+          @for (item of recentNotifications(); track item.id) {
+            <a
+              cdkMenuItem
+              class="notifications-popup__item"
+              [class.is-unread]="!item.read"
+              [routerLink]="item.link ?? '/notifications'"
+              (click)="notificationsService.markAsRead(item.id)"
+            >
+              <div class="notifications-popup__dot" [class.is-active]="!item.read"></div>
+              <div class="notifications-popup__content">
+                <p class="notifications-popup__item-title">{{ item.title }}</p>
+                <p class="notifications-popup__item-msg">{{ item.message }}</p>
+              </div>
+            </a>
+          }
+        </div>
+        <div class="notifications-popup__footer">
+          <a cdkMenuItem class="notifications-popup__view-all" routerLink="/notifications">
+            {{ 'notifications.viewAll' | transloco }} &rarr;
+          </a>
+        </div>
+      </div>
+    </ng-template>
 
     <ng-template #schoolMenu>
       <div cdkMenu class="hq-menu" [attr.aria-label]="'shell.switcher.label' | transloco">
@@ -342,12 +385,136 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
 
     .header__bell-badge {
       position: absolute;
-      top: 6px;
-      inset-inline-end: 8px;
-      inline-size: 8px;
-      block-size: 8px;
+      top: 4px;
+      inset-inline-end: 4px;
+      min-inline-size: 16px;
+      block-size: 16px;
+      padding: 0 4px;
       border-radius: var(--hq-radius-pill);
       background: var(--hq-color-error, #ef4444);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      display: grid;
+      place-items: center;
+      line-height: 1;
+    }
+
+    .hq-menu--notifications {
+      inline-size: 320px;
+      max-inline-size: 90vw;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .notifications-popup__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      background: var(--hq-color-surface-sunken);
+    }
+
+    .notifications-popup__title {
+      font-size: 13px;
+      font-weight: var(--hq-text-weight-bold);
+      color: var(--hq-color-ink);
+    }
+
+    .notifications-popup__mark-read {
+      background: none;
+      border: none;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--hq-color-accent);
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    .notifications-popup__list {
+      max-block-size: 280px;
+      overflow-y: auto;
+    }
+
+    .notifications-popup__item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 14px;
+      text-decoration: none;
+      color: inherit;
+      border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      transition: background-color 0.15s ease;
+
+      &:hover {
+        background: var(--hq-color-hover);
+      }
+
+      &.is-unread {
+        background: var(--hq-color-accent-soft);
+      }
+    }
+
+    .notifications-popup__dot {
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: transparent;
+      margin-block-start: 5px;
+      flex-shrink: 0;
+
+      &.is-active {
+        background: var(--hq-color-accent);
+      }
+    }
+
+    .notifications-popup__content {
+      flex: 1;
+      min-inline-size: 0;
+    }
+
+    .notifications-popup__item-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--hq-color-ink);
+      margin: 0 0 2px;
+      line-height: 1.3;
+    }
+
+    .notifications-popup__item-msg {
+      font-size: 11.5px;
+      color: var(--hq-color-ink-soft);
+      margin: 0;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .notifications-popup__footer {
+      padding: 8px 14px;
+      text-align: center;
+      background: var(--hq-color-surface-sunken);
+    }
+
+    .notifications-popup__view-all {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--hq-color-accent);
+      text-decoration: none;
+      display: block;
+      padding: 4px;
+
+      &:hover {
+        text-decoration: underline;
+      }
     }
 
     .header__search {
@@ -526,6 +693,9 @@ export class ShellHeaderComponent {
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
   protected readonly isTeacher = computed(() => this.auth.role() === 'TEACHER');
   protected readonly unreadChatCount = computed(() => this.chatService.totalUnread());
+  protected readonly notificationsService = inject(NotificationsService);
+  protected readonly unreadNotifications = computed(() => this.notificationsService.unreadCount());
+  protected readonly recentNotifications = computed(() => this.notificationsService.notifications().slice(0, 4));
   protected readonly email = computed(() => this.auth.user()?.email ?? '');
   /** `[...name]` rather than `name[0]`: an Arabic first character is not one UTF-16 unit. */
   protected readonly monogram = computed(() => [...this.auth.displayName().trim()][0] ?? '');

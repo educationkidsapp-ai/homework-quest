@@ -44,7 +44,7 @@ interface Spotlight {
   host: { '(document:keydown.escape)': 'skip()' },
   template: `
     @if (tour.step(); as step) {
-      <div class="tour" role="dialog" aria-modal="true" [attr.aria-label]="step.titleKey | transloco">
+      <div class="tour" role="dialog" aria-modal="true" [attr.aria-label]="step.titleKey | transloco" (click)="onBackdropClick($event)">
         @if (spotlight(); as box) {
           <div
             class="tour__spot"
@@ -63,6 +63,7 @@ interface Spotlight {
           [cdkTrapFocusAutoCapture]="true"
           [style.top.px]="bubbleTop()"
           [style.left.px]="bubbleLeft()"
+          (click)="$event.stopPropagation()"
         >
           <p class="tour__step">
             {{ 'tour.step' | transloco: { index: tour.position().index, total: tour.position().total } }}
@@ -197,5 +198,9 @@ export class TourComponent {
     const role = this.auth.role();
     if (role) this.tour.dismiss(role);
     else this.tour.finish();
+  }
+
+  protected onBackdropClick(event: MouseEvent): void {
+    this.skip();
   }
 }

@@ -5,7 +5,7 @@
 import { NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TeacherApi } from '../../api';
 import { activeLang } from '../../core/i18n/active-lang';
@@ -50,6 +50,7 @@ import { type ClassCardView, cardsOf, groupCardsByGrade } from './classes.models
   styleUrl: './my-classes.page.scss',
 })
 export class MyClassesPage {
+  private readonly router = inject(Router);
   private readonly teacherApi = inject(TeacherApi);
   private readonly platform = inject(PlatformService);
   private readonly transloco = inject(TranslocoService);
@@ -114,6 +115,17 @@ export class MyClassesPage {
 
   protected classParams(card: ClassCardView): Record<string, string> {
     return { subject: card.subject };
+  }
+
+  protected attendanceParams(card: ClassCardView): Record<string, string> {
+    return { tab: 'attendance', subject: card.subject };
+  }
+
+  protected openClass(card: ClassCardView, event?: Event): void {
+    if (event?.target && (event.target as HTMLElement).closest('a, button')) {
+      return;
+    }
+    void this.router.navigate(this.classLink(card), { queryParams: this.classParams(card) });
   }
 
   protected cardTitle(card: ClassCardView): string {

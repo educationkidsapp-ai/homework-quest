@@ -140,6 +140,11 @@ import { ShellHeaderComponent } from './shell-header.component';
       background: linear-gradient(135deg, #eff6ff 0%, #faf5ff 50%, #fff1f2 100%);
     }
 
+    :host-context(html.dark) .shell,
+    :host-context(.dark) .shell {
+      background: var(--hq-color-bg, #0c111d) !important;
+    }
+
     // The rail's own sticky/width behaviour, and its stacking, are the component's; the shell
     // only places it. It carries **no** z-index here on purpose: 'z-index' applies to a flex
     // item whatever its position, so the 20 this used to hold made the rail a stacking context

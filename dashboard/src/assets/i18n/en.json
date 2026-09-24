@@ -1092,7 +1092,30 @@
     "classes": "Classes",
     "thisWeek": "This week",
     "myClasses": "My classes",
-    "chat": "Messages"
+    "chat": "Messages",
+    "profile": "Profile",
+    "notifications": "Notifications"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "subtitle": "Stay updated on your classes, student progress, lessons, and messages",
+    "markAllRead": "Mark all as read",
+    "viewAll": "View all notifications",
+    "empty": "No notifications right now",
+    "emptyHint": "You're completely up to date with your classes and tasks!",
+    "tabs": {
+      "all": "All",
+      "unread": "Unread",
+      "classes": "Classes",
+      "lessons": "Lessons",
+      "system": "System"
+    },
+    "filter": "Filter notifications...",
+    "clearAll": "Clear all",
+    "justNow": "Just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
   },
   "chat": {
     "title": "Messages",
