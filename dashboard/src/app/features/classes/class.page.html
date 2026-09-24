@@ -28,8 +28,8 @@
     role="tabpanel"
     [attr.aria-labelledby]="'hq-tab-' + tab()"
   >
-    @switch (tab()) {
-      @case ('calendar') {
+    @if (hasVisited('calendar')) {
+      <div class="class-tab-pane" [hidden]="tab() !== 'calendar'">
         <hq-class-calendar
           [classId]="classId()"
           [curriculum]="curriculum()"
@@ -42,14 +42,20 @@
           [loading]="calendar.isLoading()"
           (monthShift)="shiftMonth($event)"
         />
-      }
-      @case ('children') {
+      </div>
+    }
+    @if (hasVisited('children')) {
+      <div class="class-tab-pane" [hidden]="tab() !== 'children'">
         <hq-class-children [classId]="classId()" [className]="className()" />
-      }
-      @case ('attendance') {
+      </div>
+    }
+    @if (hasVisited('attendance')) {
+      <div class="class-tab-pane" [hidden]="tab() !== 'attendance'">
         <hq-class-attendance [classId]="classId()" [className]="className()" />
-      }
-      @case ('gradebook') {
+      </div>
+    }
+    @if (hasVisited('gradebook')) {
+      <div class="class-tab-pane" [hidden]="tab() !== 'gradebook'">
         <!-- N4.2. Behind the same flag the server's `GradingController` carries. A school
              without it keeps the tab and is told what it would hold, rather than losing a tab
              its neighbour has and wondering what happened to it. -->
@@ -58,8 +64,10 @@
         } @else {
           <hq-empty-state [message]="'results.gradebook.off' | transloco" />
         }
-      }
-      @case ('exams') {
+      </div>
+    }
+    @if (hasVisited('exams')) {
+      <div class="class-tab-pane" [hidden]="tab() !== 'exams'">
         <!-- N4.4. Behind `exams`, the flag `ExamController` carries over every one of its
              routes — including the exports — so the tab and the API agree about the answer. -->
         @if (examsOn()) {
@@ -67,7 +75,7 @@
         } @else {
           <hq-empty-state [message]="'exams.off' | transloco" />
         }
-      }
+      </div>
     }
   </div>
 </hq-page>

@@ -1137,7 +1137,14 @@
     "backToList": "العودة للمحادثات",
     "read": "تمت القراءة",
     "sent": "تم الإرسال",
-    "failed": "فشل الإرسال"
+    "failed": "فشل الإرسال",
+    "attachFile": "إرفاق صورة أو PDF",
+    "addEmoji": "إضافة رمز تعبيري",
+    "removeAttachment": "إزالة المرفق",
+    "viewImage": "عرض الصورة",
+    "downloadFile": "تحميل",
+    "pdfDocument": "ملف PDF",
+    "close": "إغلاق"
   },
   "profile": {
     "title": "ملفك الشخصي",

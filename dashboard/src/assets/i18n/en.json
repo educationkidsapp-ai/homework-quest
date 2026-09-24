@@ -1137,7 +1137,14 @@
     "backToList": "Back to conversations",
     "read": "Read",
     "sent": "Sent",
-    "failed": "Failed to send"
+    "failed": "Failed to send",
+    "attachFile": "Attach image or PDF",
+    "addEmoji": "Add emoji",
+    "removeAttachment": "Remove attachment",
+    "viewImage": "View image",
+    "downloadFile": "Download",
+    "pdfDocument": "PDF Document",
+    "close": "Close"
   },
   "profile": {
     "title": "Your profile",

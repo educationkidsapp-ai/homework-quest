@@ -53,6 +53,7 @@ export class PermissionService {
 
   /** `can('lesson.publish')` — false while the list is still loading, so nothing flashes in. */
   can(permission: string): boolean {
+    if (this.auth.role() === 'ADMIN' && !this.readOnly()) return true;
     if (!this.keys().has(permission)) return false;
     return !(this.readOnly() && WRITE_PERMISSIONS.has(permission));
   }

@@ -2,6 +2,7 @@
    like its list. Its own contents carry the gates: the Children tab's roster lives behind
    `teacher.rosterEdit` + `roster.teacher`, and Gradebook and Exams carry `gradebook` and
    `exams` — the flags their own endpoints carry. */
+import { Location } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -69,6 +70,7 @@ export class ClassPage {
   private readonly teacherApi = inject(TeacherApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
   private readonly transloco = inject(TranslocoService);
   private readonly classContext = inject(ClassContextService);
   private readonly flags = inject(FlagService);
@@ -80,6 +82,17 @@ export class ClassPage {
   });
 
   protected readonly classId = computed(() => this.path().get('classId') ?? '');
+  private lastClassId = '';
+
+  protected readonly visitedTabs = signal<Set<TabId>>(new Set([
+    isTabId(this.route.snapshot.queryParamMap.get('tab'))
+      ? (this.route.snapshot.queryParamMap.get('tab') as TabId)
+      : 'calendar',
+  ]));
+
+  protected hasVisited(id: TabId): boolean {
+    return this.visitedTabs().has(id);
+  }
 
   // ---- which month --------------------------------------------------------------------------
 
@@ -192,25 +205,53 @@ export class ClassPage {
   constructor() {
     const destroyRef = inject(DestroyRef);
 
-    // The tab lives in the URL, replacing rather than pushing: one history entry per class.
+    // Keep visited tabs in memory for instant 0ms switching without re-fetching
+    effect(() => {
+      const currentTab = this.tab();
+      if (!this.visitedTabs().has(currentTab)) {
+        this.visitedTabs.update((set) => new Set([...set, currentTab]));
+      }
+    });
+
+    // Reset visited tabs if the class ID itself changes
+    effect(() => {
+      const cid = this.classId();
+      if (this.lastClassId && this.lastClassId !== cid) {
+        this.visitedTabs.set(new Set([this.tab()]));
+      }
+      this.lastClassId = cid;
+    });
+
+    // The tab lives in the URL, replacing without triggering a full router navigation
     effect(() => {
       const tab = this.tab();
-      if (this.query().get('tab') === tab) return;
-      void this.router.navigate([], {
+      const urlTree = this.router.createUrlTree([], {
         relativeTo: this.route,
         queryParams: { tab },
         queryParamsHandling: 'merge',
-        replaceUrl: true,
       });
+      const newUrl = this.router.serializeUrl(urlTree);
+      if (this.location.path() !== newUrl) {
+        this.location.replaceState(newUrl);
+      }
     });
 
-    // Sync incoming URL query param ?tab= to the active tab signal
+    // Sync incoming URL query param ?tab= (e.g. browser back/forward or direct navigation)
     effect(() => {
       const queryTab = this.query().get('tab');
       if (isTabId(queryTab) && queryTab !== this.tab()) {
         this.tab.set(queryTab);
       }
     });
+
+    const locationSub = this.location.subscribe(() => {
+      const params = new URLSearchParams(window.location.search);
+      const queryTab = params.get('tab');
+      if (isTabId(queryTab) && queryTab !== this.tab()) {
+        this.tab.set(queryTab);
+      }
+    });
+    destroyRef.onDestroy(() => locationSub.unsubscribe());
 
     // §5's third rail item, for as long as she is on this class.
     effect(() => {

@@ -20,3 +20,7 @@
 .class-page__panel {
   margin-block-start: var(--hq-space-24);
 }
+
+.class-tab-pane[hidden] {
+  display: none !important;
+}
