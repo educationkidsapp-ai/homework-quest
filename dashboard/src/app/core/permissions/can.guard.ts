@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { CanActivateFn, Router } from '@angular/router';
 import { filter, map, take } from 'rxjs/operators';
+import { AuthService } from '../auth/auth.service';
 import { PermissionService } from './permission.service';
 
 /**
@@ -18,11 +19,14 @@ import { PermissionService } from './permission.service';
 export function canGuard(permission: string): CanActivateFn {
   return () => {
     const permissions = inject(PermissionService);
+    const auth = inject(AuthService);
     const router = inject(Router);
     return toObservable(permissions.ready).pipe(
       filter(Boolean),
       take(1),
-      map(() => (permissions.can(permission) ? true : router.createUrlTree(['/no-access']))),
+      map(() =>
+        permissions.can(permission) || auth.role() === 'ADMIN' ? true : router.createUrlTree(['/no-access']),
+      ),
     );
   };
 }
