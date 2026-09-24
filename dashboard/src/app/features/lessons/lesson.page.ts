@@ -25,7 +25,6 @@ import {
   type PublishedCopy,
   AdminLessonSourceEnum,
   AdminLessonStatusEnum,
-  AdminLessonSubjectEnum,
   AdminLessonTypeEnum,
   LessonStepInfoStatusEnum,
   LessonStepInfoStepEnum,
@@ -69,6 +68,7 @@ import {
   type ConfirmedSkillRequest,
   type Subject,
   SUBJECTS,
+  isSubject,
   confirmSkillsBody,
   createPlayBody,
   errorStepOf,
@@ -577,7 +577,7 @@ export class LessonPage {
   }
 
   protected setSkillSubject(index: number, subject: string): void {
-    if (subject !== 'math' && subject !== 'english') return;
+    if (!isSubject(subject)) return;
     this.skillRows.update((rows) => rows.map((row, i) => (i === index ? { ...row, subject } : row)));
   }
 
@@ -586,7 +586,8 @@ export class LessonPage {
   }
 
   protected addSkillRow(): void {
-    const subject: Subject = this.lesson()?.subject === AdminLessonSubjectEnum.MATH ? 'math' : 'english';
+    const rawSub = this.lesson()?.subject;
+    const subject: Subject = isSubject(rawSub) ? rawSub : 'math';
     this.skillRows.update((rows) => [
       ...rows,
       { id: null, name: '', subject, method: '', keep: true, candidates: [], question: null },
@@ -703,9 +704,10 @@ export class LessonPage {
     }
   }
 
-  protected readonly previewSubject = computed<'math' | 'english'>(() =>
-    this.lesson()?.subject === AdminLessonSubjectEnum.MATH ? 'math' : 'english',
-  );
+  protected readonly previewSubject = computed<Subject>(() => {
+    const rawSub = this.lesson()?.subject;
+    return isSubject(rawSub) ? rawSub : 'math';
+  });
 
   // ---- the stop editor: save, attach a picture, add, delete, reorder ------------------------
 

@@ -4,7 +4,14 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class Subject { @SerialName("math") MATH, @SerialName("english") ENGLISH }
+enum class Subject {
+    @SerialName("math") MATH,
+    @SerialName("english") ENGLISH,
+    @SerialName("french") FRENCH,
+    @SerialName("science") SCIENCE,
+    @SerialName("religion") RELIGION,
+    @SerialName("arabic") ARABIC,
+}
 
 @Serializable
 enum class Curriculum { @SerialName("american") AMERICAN, @SerialName("british") BRITISH }

@@ -925,7 +925,9 @@ img[data-hq-media='error'] {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 14px;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 14px;
   border-radius: 12px;
   font-size: 12px;
   font-weight: 600;
@@ -947,7 +949,7 @@ img[data-hq-media='error'] {
   &--primary {
     background: #2563eb;
     color: #ffffff;
-    border: 0;
+    border: 1px solid transparent;
     &:hover { background: #1d4ed8; }
   }
 }
@@ -1028,3 +1030,62 @@ img[data-hq-media='error'] {
   gap: 16px;
   flex-wrap: wrap;
 }
+
+// 8. Global Brand Accents (EduManage Blue)
+:root {
+  --hq-color-accent: #2563eb;
+  --hq-color-accent-strong: #1d4ed8;
+  --hq-color-accent-soft: #eff6ff;
+  --hq-color-accent-on-soft: #2563eb;
+  --hq-color-accent-ink: #2563eb;
+}
+
+// 9. EduManage Pill Tabs (.tabs--chips)
+.tabs--chips {
+  display: inline-flex !important;
+  align-items: center;
+  background: var(--hq-color-surface-sunken, #f1f5f9) !important;
+  padding: 4px !important;
+  border-radius: 14px !important;
+  gap: 4px !important;
+  border: 1px solid var(--hq-color-rule, #e2e8f0);
+
+  .tabs__tab {
+    padding: 8px 18px !important;
+    border-radius: 10px !important;
+    border: none !important;
+    background: transparent !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: var(--hq-color-ink-soft, #64748b) !important;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover:not(:disabled):not([aria-selected='true']) {
+      background: rgba(255, 255, 255, 0.7) !important;
+      color: var(--hq-color-ink, #0f172a) !important;
+    }
+
+    &[aria-selected='true'] {
+      background: #ffffff !important;
+      color: #2563eb !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+      font-weight: 700 !important;
+    }
+  }
+
+  .tabs__badge {
+    background: #e2e8f0 !important;
+    color: #475467 !important;
+    border-radius: 9999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .tabs__tab[aria-selected='true'] .tabs__badge {
+    background: #eff6ff !important;
+    color: #2563eb !important;
+  }
+}
+

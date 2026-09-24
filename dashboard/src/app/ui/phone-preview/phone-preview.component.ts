@@ -163,7 +163,7 @@ export class PhonePreviewComponent {
   /** The stop to render on the practice frame, and the stop the hint sheet belongs to. */
   readonly stop = input<Stop | null>(null);
   /** Picks the world palette. */
-  readonly subject = input<'math' | 'english'>('english');
+  readonly subject = input<string>('english');
   readonly childName = input<string>('Pip');
   /** Resolves a stop's `imageId` / `pageImageId` to a picture. */
   readonly images = input<readonly PreviewImage[]>([]);

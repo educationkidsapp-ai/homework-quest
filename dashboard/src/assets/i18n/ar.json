@@ -188,6 +188,7 @@
     "playedToday": "· لعب {{played}} من {{total}}",
     "childrenCount": "طفلاً",
     "addToday": "أضيفي درس اليوم",
+    "viewDetails": "عرض التفاصيل",
     "allLessons": "كل دروس هذا الفصل",
     "newLesson": "درس جديد",
     "header": {
@@ -531,6 +532,7 @@
       "weeklySchedule": "الجدول الأسبوعي"
     },
     "attendance": {
+      "attendance": "الحضور والغياب",
       "weeklyTitle": "حضور الأسبوع",
       "weeklySubtitle": "معدل حضور الطلاب خلال أيام الأسبوع",
       "thisWeek": "هذا الأسبوع",
@@ -544,7 +546,26 @@
         "wed": "الأربعاء",
         "thu": "الخميس",
         "fri": "الجمعة"
-      }
+      },
+      "savedTitle": "تم حفظ الحضور",
+      "savedBody": "تم حفظ سجلات الحضور والغياب بنجاح.",
+      "today": "اليوم",
+      "prevDay": "اليوم السابق",
+      "nextDay": "اليوم التالي",
+      "pickDate": "تحديد التاريخ",
+      "markAllPresent": "تحديد الكل حاضر",
+      "saving": "جارٍ الحفظ...",
+      "saveAttendance": "حفظ الحضور",
+      "totalStudents": "إجمالي الطلاب",
+      "present": "حاضر",
+      "late": "متأخر",
+      "absent": "غائب",
+      "excused": "معذور",
+      "rate": "نسبة الحضور",
+      "loading": "جارٍ تحميل الحضور...",
+      "empty": "لا يوجد طلاب في هذا الفصل.",
+      "noStudents": "لا يوجد طلاب في هذا الفصل.",
+      "notesPlaceholder": "ملاحظة اختيارية (مثل: عذر طبي)"
     },
     "card": {
       "schools": "المدارس",
@@ -1505,8 +1526,11 @@
   },
   "subject": {
     "math": "الرياضيات",
-    "english": "الإنجليزية",
-    "science": "العلوم"
+    "english": "اللغة الإنجليزية",
+    "french": "اللغة الفرنسية",
+    "science": "العلوم",
+    "religion": "التربية الدينية",
+    "arabic": "اللغة العربية"
   },
   "tour": {
     "step": "الخطوة {{index}} من {{total}}",

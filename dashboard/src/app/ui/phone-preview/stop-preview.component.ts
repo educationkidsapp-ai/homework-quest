@@ -173,7 +173,7 @@ export class StopPreviewComponent {
   /** Resolves this stop's `imageId` / `pageImageId` to something to draw. */
   readonly images = input<readonly PreviewImage[]>([]);
   /** Picks the world palette — a maths lesson is a sea world, an English one a lavender world. */
-  readonly subject = input<'math' | 'english'>('english');
+  readonly subject = input<string>('english');
 
   private readonly syncImages = effect(() => this.pictures.set(this.images()));
 }

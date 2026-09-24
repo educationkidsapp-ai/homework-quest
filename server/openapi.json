@@ -108,7 +108,7 @@
             "type" : "array"
           },
           "subject" : {
-            "enum" : [ "math", "english" ],
+            "enum" : [ "math", "english", "french", "science", "religion", "arabic" ],
             "type" : "string"
           },
           "teacherId" : {
@@ -377,7 +377,7 @@
             "type" : "string"
           },
           "subject" : {
-            "enum" : [ "math", "english" ],
+            "enum" : [ "math", "english", "french", "science", "religion", "arabic" ],
             "type" : "string"
           },
           "tokenUsage" : {
@@ -2041,7 +2041,7 @@
             "type" : "array"
           },
           "subject" : {
-            "enum" : [ "math", "english" ],
+            "enum" : [ "math", "english", "french", "science", "religion", "arabic" ],
             "type" : "string"
           },
           "unsure" : {
@@ -2540,7 +2540,7 @@
             "type" : "string"
           },
           "subject" : {
-            "enum" : [ "math", "english" ],
+            "enum" : [ "math", "english", "french", "science", "religion", "arabic" ],
             "type" : "string"
           },
           "title" : {
@@ -3457,7 +3457,7 @@
             "type" : "array"
           },
           "subject" : {
-            "enum" : [ "math", "english" ],
+            "enum" : [ "math", "english", "french", "science", "religion", "arabic" ],
             "type" : "string"
           },
           "theme" : {
@@ -3583,7 +3583,7 @@
             "type" : "array"
           },
           "subject" : {
-            "enum" : [ "math", "english" ],
+            "enum" : [ "math", "english", "french", "science", "religion", "arabic" ],
             "type" : "string"
           },
           "title" : {
@@ -4343,7 +4343,7 @@
             "type" : "string"
           },
           "subject" : {
-            "enum" : [ "math", "english" ],
+            "enum" : [ "math", "english", "french", "science", "religion", "arabic" ],
             "type" : "string"
           }
         },
@@ -4362,7 +4362,7 @@
             "type" : "string"
           },
           "subject" : {
-            "enum" : [ "math", "english" ],
+            "enum" : [ "math", "english", "french", "science", "religion", "arabic" ],
             "type" : "string"
           }
         },

@@ -23,8 +23,16 @@ export const NAV_ICONS: Readonly<Record<string, string>> = {
   usage: 'M3 20.5h18M6.5 20.5v-6M12 20.5V6M17.5 20.5v-9',
   settings:
     'M12 9.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2ZM12 3v2.6M12 18.4V21M3 12h2.6M18.4 12H21M5.6 5.6l1.9 1.9M16.5 16.5l1.9 1.9M18.4 5.6l-1.9 1.9M7.5 16.5l-1.9 1.9',
+  chat: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
   complaints: 'M4 5h16v11H9.5L4.5 20v-4H4z',
   profile: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20.5c0-3.3 3.1-5.8 7-5.8s7 2.5 7 5.8',
+  'admin-classes': 'M4 5h7v6H4zM13 5h7v6h-7zM4 14h7v5H4zM13 14h7v5h-7z',
+  'admin-teachers':
+    'M9.5 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM3 20c0-3.1 2.9-5.5 6.5-5.5S16 16.9 16 20M16 5.2a3.5 3.5 0 0 1 0 6.6M18 14.9c2 .7 3 2.1 3 4.1',
+  'admin-schools': 'M4 20.5V8.5l8-4 8 4v12M3 20.5h18M9.5 20.5V15h5v5.5M9.5 11h5',
+  'admin-users': 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20.5c0-3.6 3.6-6.5 8-6.5s8 2.9 8 6.5',
+  'admin-settings':
+    'M12 9.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2ZM12 3v2.6M12 18.4V21M3 12h2.6M18.4 12H21M5.6 5.6l1.9 1.9M16.5 16.5l1.9 1.9M18.4 5.6l-1.9 1.9M7.5 16.5l-1.9 1.9',
 };
 
 /** A plain marker rather than nothing: a rail of items where one has no icon reads as broken. */

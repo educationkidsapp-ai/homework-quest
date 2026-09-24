@@ -188,6 +188,7 @@
     "playedToday": "· {{played}} of {{total}} played",
     "childrenCount": "children",
     "addToday": "Add today's lesson",
+    "viewDetails": "View Details",
     "allLessons": "All lessons of this class",
     "newLesson": "New lesson",
     "header": {
@@ -531,6 +532,7 @@
       "weeklySchedule": "Weekly Schedule"
     },
     "attendance": {
+      "attendance": "Attendance",
       "weeklyTitle": "Weekly Attendance",
       "weeklySubtitle": "Class attendance trends over the week",
       "thisWeek": "This Week",
@@ -544,7 +546,26 @@
         "wed": "Wed",
         "thu": "Thu",
         "fri": "Fri"
-      }
+      },
+      "savedTitle": "Attendance Saved",
+      "savedBody": "Class attendance records have been successfully saved.",
+      "today": "Today",
+      "prevDay": "Previous day",
+      "nextDay": "Next day",
+      "pickDate": "Select date",
+      "markAllPresent": "Mark all present",
+      "saving": "Saving...",
+      "saveAttendance": "Save Attendance",
+      "totalStudents": "Total Students",
+      "present": "Present",
+      "late": "Late",
+      "absent": "Absent",
+      "excused": "Excused",
+      "rate": "Attendance Rate",
+      "loading": "Loading attendance...",
+      "empty": "No students found in this class.",
+      "noStudents": "No students found in this class.",
+      "notesPlaceholder": "Optional note (e.g. excused doctor note)"
     },
     "card": {
       "schools": "Schools",
@@ -1506,7 +1527,10 @@
   "subject": {
     "math": "Math",
     "english": "English",
-    "science": "Science"
+    "french": "French",
+    "science": "Science",
+    "religion": "Religion",
+    "arabic": "Arabic"
   },
   "tour": {
     "step": "Step {{index}} of {{total}}",

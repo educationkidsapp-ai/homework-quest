@@ -36,7 +36,7 @@ import quest.server.tenancy.Entities.ClassEntity;
 @Service
 public class TeacherProfileService {
     private static final List<String> CURRICULA = List.of("american", "british");
-    private static final List<String> SUBJECTS = List.of("math", "english");
+    private static final List<String> SUBJECTS = List.of("math", "english", "french", "science", "religion", "arabic");
     /** A teacher's biography on the island and the school page; two paragraphs, not an essay. */
     private static final int MAX_BIO = 2000;
 

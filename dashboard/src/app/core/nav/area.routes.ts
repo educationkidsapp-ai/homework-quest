@@ -26,7 +26,9 @@ export function areaRoutes(role: Role): Routes {
     {
       path: '',
       canActivate: [roleGuard(role)],
-      children: area.screens.map((screen) =>
+      children: area.screens
+        .filter((screen) => !screen.fullLink)
+        .map((screen) =>
         // A redirect row (N2.2's `/teacher` → `/teacher/week`) carries no guards: Angular
         // resolves `redirectTo` before it runs them, and the row it points at is guarded anyway.
         screen.redirectTo === undefined

@@ -116,13 +116,19 @@ export class MyClassesPage {
     return { subject: card.subject };
   }
 
-  /** "1A · Math · British" — literally This week's row label, so the two screens read alike. */
   protected cardTitle(card: ClassCardView): string {
     this.lang();
+    const curriculumWord = this.word(`curriculum.${card.curriculum}`, card.curriculum);
+    const subjectWord = this.word(`subject.${card.subject}`, card.subject);
+    const cName = card.className ?? '';
+    const cLower = cName.toLowerCase();
+    if (cLower.includes(card.curriculum.toLowerCase()) || (curriculumWord && cLower.includes(curriculumWord.toLowerCase()))) {
+      return `${cName} · ${subjectWord}`;
+    }
     return this.t('week.rowLabel', {
-      class: card.className,
-      subject: this.word(`subject.${card.subject}`, card.subject),
-      curriculum: this.word(`curriculum.${card.curriculum}`, card.curriculum),
+      class: cName,
+      subject: subjectWord,
+      curriculum: curriculumWord,
     });
   }
 

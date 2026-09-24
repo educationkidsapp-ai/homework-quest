@@ -27,6 +27,7 @@ export interface Screen {
    * exactly one place to disagree — none.
    */
   readonly redirectTo?: string;
+  readonly fullLink?: string;
 }
 
 export interface Area {
@@ -120,7 +121,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       // Her lessons lost their rail label with N2.3: §4's rail is This week · My classes, and
       // the list is one tap away as "All lessons of this class". The route stays — a bookmark
       // and `/teacher/lessons?classId=…` from the class page both have to resolve.
-      { id: 'lessons', path: 'lessons', permission: 'lesson.read' },
+      { id: 'lessons', path: 'lessons', labelKey: 'nav.allLessons', permission: 'lesson.read' },
       { id: 'new-lesson', path: 'lessons/new', permission: 'lesson.write' },
       { id: 'lesson', path: 'lessons/:id', permission: 'lesson.read' },
       // N4.2 (§4 step 9). Neither is a rail item: Results is opened from the lesson she is
@@ -158,9 +159,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       {
         id: 'chat',
         path: 'chat',
+        labelKey: 'nav.chat',
         flag: FLAGS.chat,
         permission: 'teacher.chat',
       },
+      // All-Access Admin Management entries
+      { id: 'admin-classes', path: '', fullLink: '/admin/classes', labelKey: 'nav.classes', permission: 'section.read' },
+      { id: 'admin-teachers', path: '', fullLink: '/admin/teachers', labelKey: 'nav.teachers', permission: 'teacher.read' },
+      { id: 'admin-schools', path: '', fullLink: '/admin/schools', labelKey: 'nav.schools', permission: 'school.read' },
+      { id: 'admin-users', path: '', fullLink: '/admin/users', labelKey: 'nav.users', permission: 'user.read' },
+      { id: 'admin-settings', path: '', fullLink: '/admin/settings', labelKey: 'nav.platformSettings', permission: 'platform.manage' },
     ],
   },
   MANAGERIAL: {
@@ -183,6 +191,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
 
 /** The full route of a screen, e.g. `/admin/schools/:id`. */
 export function linkOf(area: Area, screen: Screen): string {
+  if (screen.fullLink) return screen.fullLink;
   return screen.path === '' ? area.base : `${area.base}/${screen.path}`;
 }
 

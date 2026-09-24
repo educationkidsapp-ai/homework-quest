@@ -33,11 +33,14 @@ export interface StopTemplate {
 
 const TIP = { en: 'Read the question aloud together first.', ar: 'اقرآ السؤال معًا بصوت عالٍ أولًا.' } as const;
 
-/** `StopTemplates.kt`'s `ing(math)`: the carrot for maths, the tomato for English. */
-const INGREDIENT = {
+const INGREDIENT: Record<Subject, { readonly emoji: string; readonly name: string }> = {
   math: { emoji: '🥕', name: 'carrot' },
   english: { emoji: '🍅', name: 'tomato' },
-} as const;
+  french: { emoji: '🥐', name: 'croissant' },
+  science: { emoji: '🧪', name: 'flask' },
+  religion: { emoji: '🕊️', name: 'dove' },
+  arabic: { emoji: '🌴', name: 'palm' },
+};
 
 function newStopId(): string {
   return `new-${crypto.randomUUID().slice(0, 8)}`;

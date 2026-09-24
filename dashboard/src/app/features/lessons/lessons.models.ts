@@ -31,7 +31,7 @@ import {
  * `JobRef.status` and an `AdminLesson.status` sit in the same `LessonStatus`-typed variable.
  */
 export type Curriculum = 'american' | 'british';
-export type Subject = 'math' | 'english';
+export type Subject = 'math' | 'english' | 'french' | 'science' | 'religion' | 'arabic';
 export type LessonStatus =
   | 'draft'
   | 'uploading'
@@ -164,14 +164,21 @@ export function jobStatusAsLessonStatus(status: JobRefStatusEnum): AdminLessonSt
 /** `Course.all`: two curricula, six grades each — the whole space, fixed by the contract. */
 export const CURRICULA: readonly Curriculum[] = ['american', 'british'];
 export const GRADES: readonly number[] = [1, 2, 3, 4, 5, 6];
-export const SUBJECTS: readonly Subject[] = ['math', 'english'];
+export const SUBJECTS: readonly Subject[] = ['math', 'english', 'french', 'science', 'religion', 'arabic'];
 
 export function isCurriculum(value: unknown): value is Curriculum {
   return value === 'american' || value === 'british';
 }
 
 export function isSubject(value: unknown): value is Subject {
-  return value === 'math' || value === 'english';
+  return (
+    value === 'math' ||
+    value === 'english' ||
+    value === 'french' ||
+    value === 'science' ||
+    value === 'religion' ||
+    value === 'arabic'
+  );
 }
 
 /** `!LessonStatus.isTerminal` for exactly the three that are mid-pipeline. */
