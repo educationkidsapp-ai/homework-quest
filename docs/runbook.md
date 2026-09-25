@@ -863,7 +863,7 @@ children who **reached** the question, not out of the roster: a question the cla
 the class got wrong. A re-opening restarts the sitting's clock, so `secondsTaken` is the re-sitting's own time and
 never the days between an absence and the second chance.
 
-## Chat
+## Chat and notifications
 
 C1 `backend/chat-websocket` (D24): real-time chat between a child's **parent** (the app) and a **teacher** of the
 child's section (the dashboard), on the API itself — Spring WebSocket on the same origin with the same tokens, plain
@@ -906,8 +906,13 @@ rate_limited`. Support: `GET /admin/chat/threads` and `GET /admin/chat/threads/{
 
 **Auth.** `Authorization: Bearer <token>` when the client can send headers (the app), else `?token=<token>` (a
 browser `WebSocket` cannot send headers — the dashboard). Either carrier takes either kind: a dashboard JWT
-(`admin.…`, TEACHER only) or a Firebase ID token, verified by the same code as the request filters. 401 for a
-token nobody issued, 403 for ADMIN/MANAGERIAL or a school with the flag off. The API never logs the token
+(`admin.…`, any of ADMIN / TEACHER / MANAGERIAL) or a Firebase ID token, verified by the same code as the request
+filters. 401 for a token nobody issued; 403 for a dashboard principal with no school (ADMIN excepted — she has
+none by design) and for a parent none of whose children's schools has the flag on. **Since E2 (D26) the flag no
+longer decides the handshake**: every dashboard role is admitted whether `chat` is on or off, because the socket
+also carries notifications. What the flag still decides is the *chat commands* — a `message`, `typing` or `read`
+from a peer who is not a TEACHER of a flag-on school, or a parent, comes back as an `error` frame with code
+`forbidden`, and chat REST 404s for her exactly as before. The API never logs the token
 (`RequestLogging` prints the path only), but Cloud Run's own request log records the full URL — so send the header
 wherever the client can (the app), and remember a dashboard access token in the query is worth 15 minutes at most.
 Allowed origins are `CORS_ORIGINS`; the app sends no `Origin`.
@@ -929,6 +934,7 @@ Server → client (`ChatFrame`, the DTOs REST uses):
 {"type":"message","message":{ChatMessage},"clientId":"7f3a…"}   // clientId only on the sender's own sessions
 {"type":"read","threadId":"…","readBy":"teacher","readAt":1758450000000}
 {"type":"typing","threadId":"…","from":"parent"}
+{"type":"notification","notification":{NotificationView}}       // E2, dashboard only
 {"type":"ping"}   {"type":"pong"}
 {"type":"error","code":"child_not_placed","message":"…","clientId":"7f3a…"}
 ```
@@ -977,6 +983,48 @@ curl "$API/teacher/chat/threads" -H "Authorization: Bearer $TEACHER"
 curl -X POST "$API/teacher/chat/threads/$CHILD/messages" -H "Authorization: Bearer $TEACHER" -H 'Content-Type: application/json' -d '{"body":"Welcome to 1A!"}'
 # the socket, with websocat: a ping answered with a pong, then the live frames
 websocat "wss://${API#https://}/ws/chat?token=$TEACHER" <<< '{"type":"ping"}'
+```
+
+### Notifications (E2, D26)
+
+The dashboard bell is server-side: a row in `notifications` (V17) plus a `notification` frame on the socket above.
+Parents have none. The contract types are `shared-api/src/commonMain/kotlin/quest/api/dto/Notifications.kt`
+(`NotificationView`, `NotificationKind`, `UnreadCount`) and the frame is in `ChatFrame.schema.json` beside the
+chat ones.
+
+| Route (any dashboard role) | Permission | What |
+|---|---|---|
+| `GET /me/notifications?unread=true\|false&limit=` | `notifications.read` | `NotificationView[]`, newest first. `limit` 1–100, default 20. |
+| `GET /me/notifications/unread-count` | `notifications.read` | `{"count": 3}` — the badge on its own. |
+| `POST /me/notifications/{id}/read` | `notifications.write` | Marks one row read (idempotent); **404** for another user's id, not 403. |
+| `POST /me/notifications/read-all` | `notifications.write` | Marks every unread row of the caller read; answers `{"count": 0}`. |
+
+Two keys rather than one because the dashboard derives "what a read-only View-as session must hide" from the
+methods behind a key (`pnpm gen:permissions`): a single key covering the GETs and the POSTs would make the whole
+bell a write and take it off the screen during View-as.
+
+A row is `{id, kind, title, body, link, lessonId, readAt, createdAt}`. `kind` is `lesson.needs_skills`,
+`lesson.ready` or `lesson.failed` — **localise from `kind`**; `title` and `body` are English server strings to fall
+back on. `link` is a dashboard *path* (`/teacher/lessons/{id}`, `/admin/lessons/{id}`), never a URL.
+
+**Who gets one, and when.** Only the lesson's creator (`lessons.created_by`, resolved to a `users` row; a lesson
+created by the seed notifies nobody), and only on a real status *transition* written by `LessonState`:
+`needs_review` → "Skills to confirm", `review` → "Questions ready", `error` or `paused` → "Generation stopped"
+with the ledger's error message as the body. `analyzing` and `generating` notify nobody, a status re-asserted by a
+batch notifies nobody, and polling `/status` writes no status at all and so can never make a row. A retry that
+reaches `review` after an `error` *is* a new transition and does notify — she wants to know it finished the second
+time too.
+
+**Delivery.** The row is written inside the transaction that moved the lesson; the frame is published on the same
+bus as chat (`chat_events`) *after that commit*, so a frame never arrives before REST can explain it. The socket
+key is `user:<userId>` for every dashboard role (parents keep `parent:<parentId>`), and the hub writes only to the
+sessions whose school matches the event's — an ADMIN's session carries no school and is never filtered out, since
+she reads across schools anyway. Nothing is replayed after a missed frame: on reconnect, refetch
+`/me/notifications/unread-count`.
+
+```bash
+curl "$API/me/notifications?unread=true&limit=20" -H "Authorization: Bearer $TEACHER"
+curl -X POST "$API/me/notifications/read-all" -H "Authorization: Bearer $TEACHER"
 ```
 
 `GET /admin/chat/threads -H "X-School-Id: $SCHOOL"` is the support view of every thread in a school. There is no

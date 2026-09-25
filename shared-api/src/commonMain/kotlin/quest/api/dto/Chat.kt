@@ -63,6 +63,9 @@ data class ChatReadReceipt(val threadId: String, val readBy: ChatSender, val rea
  *   [Message.clientId] echoed from the command that sent it — that echo **is** the ack, and a client dedupes on it.
  * - [Read]: the other party (or the caller from another device) marked a thread read.
  * - [Typing]: the other party is typing. Fan-out only — never stored, and dropped first under backpressure.
+ * - [Notification]: D26 — a dashboard notification for the signed-in user. The socket is the dashboard's event
+ *   channel, not only its chat: this frame reaches ADMIN, MANAGERIAL and TEACHER whether or not the school has the
+ *   `chat` flag on, and never a parent. The same row is readable over `/me/notifications`.
  * - [Ping]: sent every 30 s; answer with a `pong` command (any command counts) or the session is closed as idle
  *   after 10 minutes without one.
  * - [Pong]: the reply to a client `ping`.
@@ -73,6 +76,7 @@ sealed class ChatFrame {
     @Serializable @SerialName("message") data class Message(val message: ChatMessage, val clientId: String? = null) : ChatFrame()
     @Serializable @SerialName("read") data class Read(val threadId: String, val readBy: ChatSender, val readAt: Long) : ChatFrame()
     @Serializable @SerialName("typing") data class Typing(val threadId: String, val from: ChatSender) : ChatFrame()
+    @Serializable @SerialName("notification") data class Notification(val notification: NotificationView) : ChatFrame()
     @Serializable @SerialName("ping") data object Ping : ChatFrame()
     @Serializable @SerialName("pong") data object Pong : ChatFrame()
     @Serializable @SerialName("error") data class Error(val code: String, val message: String, val clientId: String? = null) : ChatFrame()

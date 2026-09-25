@@ -8,9 +8,10 @@ import quest.api.dto.ChatMessage;
 import quest.server.config.Json;
 
 /**
- * The bus's one subscriber on each instance: turns a {@link ChatEvent} into frames for the two parties' sockets held
- * here. The sender's own sessions get the message too — with the {@code clientId} it was sent with, which is the ack
- * — so a parent's second device and the dashboard tab beside the one that typed all see the same thread.
+ * The bus's one subscriber on each instance: turns a {@link ChatEvent} into frames for the sockets held here — the
+ * two parties of a thread, or, for E2's `notification`, the one dashboard user it belongs to. The sender's own
+ * sessions get the message too — with the {@code clientId} it was sent with, which is the ack — so a parent's
+ * second device and the dashboard tab beside the one that typed all see the same thread.
  */
 @Component
 public class ChatHub {
@@ -23,7 +24,7 @@ public class ChatHub {
     }
 
     void deliver(ChatEvent e) {
-        String teacherKey = ChatService.key(ChatService.TEACHER, e.teacherId());
+        String teacherKey = ChatService.key(ChatService.USER, e.teacherId());
         String parentKey = e.parentId() == null ? null : ChatService.key(ChatService.PARENT, e.parentId());
         switch (e.kind()) {
             case ChatEvent.MESSAGE -> {
@@ -44,6 +45,8 @@ public class ChatHub {
                 String other = ChatService.PARENT.equals(e.sender()) ? teacherKey : parentKey;
                 if (other != null) sessions.sendDroppable(other, encode(new ChatFrame.Typing(e.threadId(), ChatService.sender(e.sender()))));
             }
+            // E2: not a thread at all — one dashboard user's bell, already encoded, and only on her school's sessions.
+            case ChatEvent.NOTIFICATION -> sessions.sendToSchool(ChatService.key(ChatService.USER, e.userId()), e.schoolId(), e.notificationJson());
             default -> log.warn("chat: unknown event kind {}", e.kind());
         }
     }

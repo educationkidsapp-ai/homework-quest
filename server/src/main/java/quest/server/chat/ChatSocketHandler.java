@@ -56,14 +56,17 @@ public class ChatSocketHandler extends TextWebSocketHandler {
         boolean parent = ChatService.PARENT.equals(peer.role());
         switch (command) {
             case ChatCommand.Send s -> {
+                chatOnly(peer);
                 if (parent) chat.parentSend((Principals.Parent) peer.principal(), s.getChildId(), required(s.getTeacherId()), s.getBody(), s.getClientId());
                 else chat.teacherSend((Principals.User) peer.principal(), s.getChildId(), s.getBody(), s.getClientId());
             }
             case ChatCommand.Read r -> {
+                chatOnly(peer);
                 if (parent) chat.parentRead((Principals.Parent) peer.principal(), r.getChildId(), required(r.getTeacherId()));
                 else chat.teacherRead((Principals.User) peer.principal(), r.getChildId());
             }
             case ChatCommand.Typing t -> {
+                chatOnly(peer);
                 if (parent) chat.parentTyping((Principals.Parent) peer.principal(), t.getChildId(), required(t.getTeacherId()));
                 else chat.teacherTyping((Principals.User) peer.principal(), t.getChildId());
             }
@@ -71,6 +74,13 @@ public class ChatSocketHandler extends TextWebSocketHandler {
             case ChatCommand.Pong p -> { }
         }
     }
+
+    /**
+     * D26: the socket admits every dashboard role so notifications have somewhere to land, but the chat commands
+     * stay gated exactly as chat REST is — the `chat` flag on, and a TEACHER or a parent behind them. Anyone else
+     * gets the same `forbidden` error frame any other refusal produces.
+     */
+    private static void chatOnly(ChatSessions.Peer peer) { if (!peer.chat()) throw ApiException.forbidden("Chat is not available for this account."); }
 
     /** A teacher's commands run with her school's filter on, as her requests do; a parent has no scope, as ever. */
     private void scoped(ChatSessions.Peer peer, Runnable work) {

@@ -6,10 +6,12 @@ import quest.api.dto.ChatMessage
 import quest.api.dto.ChatReadReceipt
 import quest.api.dto.ChatThread
 import quest.api.dto.Curriculum
+import quest.api.dto.NotificationView
 import quest.api.dto.PlatformSettings
 import quest.api.dto.SchoolTheme
 import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.Subject
+import quest.api.dto.UnreadCount
 
 /**
  * The Schools Dashboard contract (§2 tenancy, §5 roles). Kept apart from `AdminApi` on purpose: `webAdmin/`
@@ -626,6 +628,28 @@ interface DashboardApi {
 
     /** `POST /teacher/chat/threads/{childId}/read` — everything the parent wrote is read. */
     suspend fun markChatRead(childId: String): ChatReadReceipt
+
+    // ---------------------------------------------------------------- E2: the bell (D26), every dashboard role
+
+    /**
+     * `GET /me/notifications?unread=&limit=` — the caller's own rows, newest first. `unread=true` keeps only the
+     * unopened ones; `limit` is 1–100 (default 20). Never flagged and never another user's: the rows are the
+     * caller's, and an id that is not hers is 404. The live half is the `notification` frame on `/ws/chat`.
+     */
+    suspend fun notifications(unread: Boolean? = null, limit: Int? = null): List<NotificationView>
+
+    /** `GET /me/notifications/unread-count` — the badge alone, so the bell need not page the list to draw it. */
+    suspend fun unreadNotificationCount(): UnreadCount
+
+    /**
+     * `POST /me/notifications/{id}/read` — marks one row read (idempotent); 404 when it is not the caller's. The
+     * two marks are `notifications.write`, the two reads above `notifications.read`, so a read-only View-as
+     * session keeps the bell and loses only the marking.
+     */
+    suspend fun markNotificationRead(id: String): NotificationView
+
+    /** `POST /me/notifications/read-all` — marks every unread row of the caller read and answers the new count. */
+    suspend fun markAllNotificationsRead(): UnreadCount
 }
 
 /** `PUT /admin/platform-settings` (§A): only the fields that are present are written. */

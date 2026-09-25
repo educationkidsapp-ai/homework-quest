@@ -28,7 +28,7 @@ import org.springframework.web.socket.WebSocketSession;
 class ChatSessionsTest {
     private static final Instant T0 = Instant.parse("2026-09-21T10:00:00Z");
     private final Clock clock = Clock.fixed(T0, ZoneOffset.UTC);
-    private final ChatSessions.Peer peer = new ChatSessions.Peer("parent:p1", "parent", "p1", null, null);
+    private final ChatSessions.Peer peer = new ChatSessions.Peer("parent:p1", "parent", "p1", null, null, true);
 
     private static WebSocketSession session(String id) { var s = mock(WebSocketSession.class); when(s.getId()).thenReturn(id); return s; }
 
@@ -74,7 +74,7 @@ class ChatSessionsTest {
         var sessions = new ChatSessions(clock, 65536, 10, 600);
         var idle = session("idle"); var live = session("live");
         sessions.register(idle, peer);
-        sessions.register(live, new ChatSessions.Peer("teacher:t1", "teacher", "t1", "school", null));
+        sessions.register(live, new ChatSessions.Peer("user:t1", "teacher", "t1", "school", null, true));
         sessions.touch(live);                                                   // heard from at T0, like `idle`
         int closed = sessions.sweep(T0.plus(Duration.ofMinutes(11)));
         assertThat(closed).isEqualTo(2);                                        // both were last heard from at T0

@@ -122,6 +122,13 @@ class OpenApiContractTest extends ApiTestSupport {
             "/teacher/chat/threads", "/teacher/chat/threads/{childId}/messages", "/teacher/chat/threads/{childId}/read",
             "/admin/chat/threads", "/admin/chat/threads/{threadId}/messages");
 
+    /**
+     * E2: the dashboard bell (`quest.api.dto.Notifications.kt`, D26). Not behind a flag and not behind a role
+     * beyond the three dashboard ones — every signed-in dashboard user has a bell, and the rows are her own.
+     */
+    static final List<String> NOTIFICATIONS_API = List.of(
+            "/me/notifications", "/me/notifications/unread-count", "/me/notifications/{id}/read", "/me/notifications/read-all");
+
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
             "/schools/logo", "/classes/lookup");
@@ -138,6 +145,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(EXAMS_API);
         assertThat(paths).containsAll(CLASSES_API);
         assertThat(paths).containsAll(CHAT_API);
+        assertThat(paths).containsAll(NOTIFICATIONS_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
     }
