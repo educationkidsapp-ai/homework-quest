@@ -992,12 +992,16 @@ Parents have none. The contract types are `shared-api/src/commonMain/kotlin/ques
 (`NotificationView`, `NotificationKind`, `UnreadCount`) and the frame is in `ChatFrame.schema.json` beside the
 chat ones.
 
-| Route (any dashboard role, `notifications.read`) | What |
-|---|---|
-| `GET /me/notifications?unread=true\|false&limit=` | `NotificationView[]`, newest first. `limit` 1–100, default 20. |
-| `GET /me/notifications/unread-count` | `{"count": 3}` — the badge on its own. |
-| `POST /me/notifications/{id}/read` | Marks one row read (idempotent); **404** for another user's id, not 403. |
-| `POST /me/notifications/read-all` | Marks every unread row of the caller read; answers `{"count": 0}`. |
+| Route (any dashboard role) | Permission | What |
+|---|---|---|
+| `GET /me/notifications?unread=true\|false&limit=` | `notifications.read` | `NotificationView[]`, newest first. `limit` 1–100, default 20. |
+| `GET /me/notifications/unread-count` | `notifications.read` | `{"count": 3}` — the badge on its own. |
+| `POST /me/notifications/{id}/read` | `notifications.write` | Marks one row read (idempotent); **404** for another user's id, not 403. |
+| `POST /me/notifications/read-all` | `notifications.write` | Marks every unread row of the caller read; answers `{"count": 0}`. |
+
+Two keys rather than one because the dashboard derives "what a read-only View-as session must hide" from the
+methods behind a key (`pnpm gen:permissions`): a single key covering the GETs and the POSTs would make the whole
+bell a write and take it off the screen during View-as.
 
 A row is `{id, kind, title, body, link, lessonId, readAt, createdAt}`. `kind` is `lesson.needs_skills`,
 `lesson.ready` or `lesson.failed` — **localise from `kind`**; `title` and `body` are English server strings to fall

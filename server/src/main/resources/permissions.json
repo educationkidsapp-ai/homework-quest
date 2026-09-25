@@ -85,6 +85,7 @@
     "chat.support": ["ADMIN"],
     "chat.socket": ["PARENT", "TEACHER", "ADMIN", "MANAGERIAL"],
     "notifications.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "notifications.write": ["ADMIN", "TEACHER", "MANAGERIAL"],
     "attendance.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
     "attendance.write": ["ADMIN", "TEACHER"],
     "child.attendance.read": ["PARENT"]
@@ -311,8 +312,8 @@
     { "method": "GET", "path": "/ws/chat", "permission": "chat.socket" },
     { "method": "GET", "path": "/me/notifications", "permission": "notifications.read" },
     { "method": "GET", "path": "/me/notifications/unread-count", "permission": "notifications.read" },
-    { "method": "POST", "path": "/me/notifications/{id}/read", "permission": "notifications.read" },
-    { "method": "POST", "path": "/me/notifications/read-all", "permission": "notifications.read" },
+    { "method": "POST", "path": "/me/notifications/{id}/read", "permission": "notifications.write" },
+    { "method": "POST", "path": "/me/notifications/read-all", "permission": "notifications.write" },
     { "method": "GET", "path": "/teacher/classes/{classId}/attendance", "permission": "attendance.read" },
     { "method": "POST", "path": "/teacher/classes/{classId}/attendance", "permission": "attendance.write" },
     { "method": "GET", "path": "/children/{id}/attendance", "permission": "child.attendance.read" },

@@ -641,7 +641,11 @@ interface DashboardApi {
     /** `GET /me/notifications/unread-count` — the badge alone, so the bell need not page the list to draw it. */
     suspend fun unreadNotificationCount(): UnreadCount
 
-    /** `POST /me/notifications/{id}/read` — marks one row read (idempotent); 404 when it is not the caller's. */
+    /**
+     * `POST /me/notifications/{id}/read` — marks one row read (idempotent); 404 when it is not the caller's. The
+     * two marks are `notifications.write`, the two reads above `notifications.read`, so a read-only View-as
+     * session keeps the bell and loses only the marking.
+     */
     suspend fun markNotificationRead(id: String): NotificationView
 
     /** `POST /me/notifications/read-all` — marks every unread row of the caller read and answers the new count. */

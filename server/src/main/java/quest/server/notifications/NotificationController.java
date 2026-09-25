@@ -26,6 +26,11 @@ import quest.server.flags.FeatureFlag;
  * rows — the service scopes every query by `userId` and answers 404, not 403, for another user's id, because the
  * row is not hers to learn the existence of. The live half is the `notification` frame on `/ws/chat`.
  *
+ * <p>Two keys, not one: `notifications.read` names the two GETs and `notifications.write` the two marks. The
+ * dashboard derives "which actions a read-only View-as session must hide" from the methods behind a key
+ * (`gen:permissions`), so a single key covering both would make the whole bell a write and take it off the screen
+ * during View-as — the very bug `permissions.generated.spec.ts` exists to prevent.
+ *
  * <p>Carries no {@link FeatureFlag} and is listed as infrastructure in `FeatureFlagCoverageTest`, for
  * `HomeController`'s reason turned around: a flag over the bell would silently swallow the only thing that tells a
  * teacher her lesson is ready, on the schools most likely to have flags off. What a notification is *about* is
@@ -50,14 +55,14 @@ public class NotificationController {
     public String unreadNotificationCount(@AuthenticationPrincipal Principals.User caller) { return count(notifications.unreadCount(caller)); }
 
     @PostMapping(value = "/me/notifications/{id}/read", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@permit.has('notifications.read')")
+    @PreAuthorize("@permit.has('notifications.write')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = NotificationView.class)))
     public String markNotificationRead(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
         return json.encodeShared(notifications.markRead(caller, id), NotificationView.Companion.serializer());
     }
 
     @PostMapping(value = "/me/notifications/read-all", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@permit.has('notifications.read')")
+    @PreAuthorize("@permit.has('notifications.write')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = UnreadCount.class)))
     public String markAllNotificationsRead(@AuthenticationPrincipal Principals.User caller) { return count(notifications.markAllRead(caller)); }
 

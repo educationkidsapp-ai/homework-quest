@@ -26,6 +26,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'lesson.publish',
   'lesson.write',
   'me.update',
+  'notifications.write',
   'platform.write',
   'play.write',
   'question.send',
