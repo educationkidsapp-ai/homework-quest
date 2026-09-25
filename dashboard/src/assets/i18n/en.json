@@ -758,10 +758,6 @@
         "viewLesson": "View Lesson",
         "backToList": "Work in background (return to Lessons)"
       },
-      "notification": {
-        "title": "Lesson Ready!",
-        "body": "AI questions and lesson stops are ready to review."
-      },
       "created": "Lesson created — its pipeline starts now.",
       "createdManual": "Lesson created — write its questions below.",
       "rollback": "The upload failed, so the draft lesson was removed: {{message}}",
@@ -770,7 +766,10 @@
       "classPlaceholder": "Choose a class",
       "classOption": "{{class}} · {{subject}} · {{curriculum}}",
       "classOptionShort": "{{class}} · {{subject}}",
-      "noClasses": "You have no classes yet. The office assigns them."
+      "noClasses": "You have no classes yet. The office assigns them.",
+      "uploadFailed": "We could not read the file you uploaded, so nothing was generated from it.",
+      "uploadRetry": "Send the file again",
+      "uploadDelete": "Delete this draft"
     },
     "detail": {
       "stepState": {
@@ -1098,24 +1097,39 @@
   },
   "notifications": {
     "title": "Notifications",
-    "subtitle": "Stay updated on your classes, student progress, lessons, and messages",
+    "subtitle": "What the assistant finished, and what is waiting for you",
     "markAllRead": "Mark all as read",
     "viewAll": "View all notifications",
     "empty": "No notifications right now",
-    "emptyHint": "You're completely up to date with your classes and tasks!",
+    "emptyHint": "You are up to date — nothing is waiting for you.",
     "tabs": {
       "all": "All",
       "unread": "Unread",
-      "classes": "Classes",
-      "lessons": "Lessons",
-      "system": "System"
+      "lessons": "Lessons"
     },
     "filter": "Filter notifications...",
     "clearAll": "Clear all",
     "justNow": "Just now",
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
-    "daysAgo": "{{count}}d ago"
+    "daysAgo": "{{count}}d ago",
+    "notifyMe": "Notify me on this device",
+    "kind": {
+      "lesson": {
+        "needs_skills": {
+          "title": "Skills to confirm",
+          "body": "The assistant read the lesson. Confirm the skills and it will write the questions."
+        },
+        "ready": {
+          "title": "Questions ready",
+          "body": "The questions and the parent panel are ready to review."
+        },
+        "failed": {
+          "title": "Lesson failed",
+          "body": "The lesson stopped before it finished. Open it to retry."
+        }
+      }
+    }
   },
   "chat": {
     "title": "Messages",

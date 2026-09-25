@@ -5,12 +5,8 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
-import {
-  ChatClientCommand,
-  ChatConnectionStatus,
-  ChatServerFrame,
-  LocalMessage,
-} from './chat.models';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ChatClientCommand, ChatConnectionStatus, ChatServerFrame, LocalMessage } from './chat.models';
 
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const TYPING_TIMEOUT_MS = 3_000;
@@ -22,6 +18,7 @@ export class ChatService {
   private readonly auth = inject(AuthService);
   private readonly session = inject(SessionStore);
   private readonly flags = inject(FlagService);
+  private readonly notifications = inject(NotificationsService);
 
   private socket: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -44,21 +41,27 @@ export class ChatService {
     return this.threads().find((t) => t.childId === childId) ?? null;
   });
 
-  readonly totalUnread = computed(() =>
-    this.threads().reduce((acc, t) => acc + (t.unread ?? 0), 0),
-  );
+  readonly totalUnread = computed(() => this.threads().reduce((acc, t) => acc + (t.unread ?? 0), 0));
+
+  /**
+   * A `forbidden` error frame with no `clientId` is the handshake saying "you are on the
+   * socket for notifications, not for chat". It is an answer, not a fault: the socket stays
+   * open, nothing reconnects, and no chat command is sent again.
+   */
+  readonly chatDenied = signal(false);
 
   constructor() {
-    // Automatically connect when teacher is signed in and chat flag is on
+    // D26: the socket is the dashboard's event channel. It opens for every signed-in
+    // dashboard role, because that is how the notification frame reaches an Admin or a
+    // manager; the chat half of it (threads, sends, the screen) stays TEACHER + `chat`.
     effect(() => {
-      const signedIn = this.auth.signedIn();
-      const isTeacher = this.auth.role() === 'TEACHER';
-      const flagOn = this.flags.isOn('chat');
+      const role = this.auth.role();
+      const dashboardRole = role === 'ADMIN' || role === 'MANAGERIAL' || role === 'TEACHER';
 
-      if (signedIn && isTeacher && flagOn) {
+      if (this.auth.signedIn() && dashboardRole) {
         this.intentionalDisconnect = false;
         this.connect();
-        this.loadThreads();
+        if (role === 'TEACHER' && this.flags.isOn('chat')) this.loadThreads();
       } else {
         this.disconnect();
       }
@@ -66,7 +69,10 @@ export class ChatService {
   }
 
   loadThreads(): void {
-    if (this.auth.role() !== 'TEACHER') return;
+    // The socket now opens for three roles; the chat REST routes still answer only one of
+    // them, and only with the flag on. Asking anyway would be a 403 in the band on every
+    // reconnect for an Admin.
+    if (this.auth.role() !== 'TEACHER' || !this.flags.isOn('chat') || this.chatDenied()) return;
     this.loadingThreads.set(true);
     this.api
       .teacherChatThreads()
@@ -113,9 +119,10 @@ export class ChatService {
     const cleanBody = body.trim();
     if (!childId || !cleanBody || cleanBody.length > 2000) return;
 
-    const clientId = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `c-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const clientId =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `c-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
     const optimistic: LocalMessage = {
       id: `temp-${clientId}`,
@@ -183,17 +190,21 @@ export class ChatService {
     }
 
     // Call REST markRead as well for durability
-    this.api.teacherMarkChatRead(childId).pipe(catchError(() => of(null))).subscribe();
+    this.api
+      .teacherMarkChatRead(childId)
+      .pipe(catchError(() => of(null)))
+      .subscribe();
 
     // Clear local unread counter for this thread
-    this.threads.update((list) =>
-      list.map((t) => (t.childId === childId ? { ...t, unread: 0 } : t)),
-    );
+    this.threads.update((list) => list.map((t) => (t.childId === childId ? { ...t, unread: 0 } : t)));
   }
 
   connect(): void {
     if (typeof window === 'undefined') return;
-    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+    if (
+      this.socket &&
+      (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
@@ -222,9 +233,7 @@ export class ChatService {
 
     this.connectionStatus.set(this.reconnectAttempts > 0 ? 'reconnecting' : 'connecting');
 
-    const base =
-      environment.apiBaseUrl ||
-      (typeof window !== 'undefined' ? window.location.origin : '');
+    const base = environment.apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
     const wsProto = base.startsWith('https')
       ? 'wss:'
       : base.startsWith('http')
@@ -246,6 +255,9 @@ export class ChatService {
       this.socket.onopen = () => {
         this.connectionStatus.set('connected');
         this.reconnectAttempts = 0;
+        // Nothing is replayed after a missed frame: whatever arrived while we were away is
+        // only in the database, so the bell asks for it again (E3).
+        this.notifications.onSocketOpen();
         this.loadThreads();
 
         // Refetch recent messages for active thread on reconnect
@@ -281,6 +293,7 @@ export class ChatService {
       };
 
       this.socket.onclose = () => {
+        this.notifications.onSocketClosed();
         if (!this.intentionalDisconnect) {
           this.connectionStatus.set('reconnecting');
           this.scheduleReconnect();
@@ -312,6 +325,10 @@ export class ChatService {
         this.handleServerMessage(frame.message, frame.clientId);
         break;
 
+      case 'notification':
+        this.notifications.receive(frame.notification);
+        break;
+
       case 'typing':
         if (frame.from === 'parent') {
           const active = this.activeThread();
@@ -329,19 +346,21 @@ export class ChatService {
         if (frame.readBy === 'parent') {
           this.messages.update((list) =>
             list.map((m) =>
-              m.sender === ChatMessageSenderEnum.TEACHER && !m.readAt
-                ? { ...m, readAt: frame.readAt }
-                : m,
+              m.sender === ChatMessageSenderEnum.TEACHER && !m.readAt ? { ...m, readAt: frame.readAt } : m,
             ),
           );
         } else if (frame.readBy === 'teacher') {
-          this.threads.update((list) =>
-            list.map((t) => (t.id === frame.threadId ? { ...t, unread: 0 } : t)),
-          );
+          this.threads.update((list) => list.map((t) => (t.id === frame.threadId ? { ...t, unread: 0 } : t)));
         }
         break;
 
       case 'error':
+        // "You are here for notifications" — an answer to a chat command this peer may not
+        // send. The socket is fine; only the chat half of it is closed to us.
+        if (frame.code === 'forbidden' && !frame.clientId) {
+          this.chatDenied.set(true);
+          break;
+        }
         if (frame.clientId) {
           this.messages.update((list) =>
             list.map((m) =>
@@ -394,8 +413,7 @@ export class ChatService {
         return threadsList;
       }
       const existing = threadsList[idx]!;
-      const isUnreadInc =
-        message.sender === ChatMessageSenderEnum.PARENT && !isCurrentThread;
+      const isUnreadInc = message.sender === ChatMessageSenderEnum.PARENT && !isCurrentThread;
       const updated: ChatThread = {
         ...existing,
         lastMessage: message,
@@ -449,6 +467,7 @@ export class ChatService {
       this.socket.close(1000, 'normal_close');
       this.socket = null;
     }
+    this.notifications.onSocketClosed();
     this.connectionStatus.set('disconnected');
   }
 }

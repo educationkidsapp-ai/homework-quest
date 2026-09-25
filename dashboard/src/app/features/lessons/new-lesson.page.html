@@ -2,8 +2,22 @@
   @if (pickSchool()) {
     <hq-empty-state [message]="'lessons.new.pickSchool' | transloco" />
   } @else {
-    <hq-band [open]="error() !== null" [title]="'band.failed' | transloco" (dismissed)="error.set(null)">
-      {{ error() }}
+    <hq-band
+      [open]="bandError() !== null"
+      [title]="'band.failed' | transloco"
+      (dismissed)="dismissError()"
+    >
+      {{ bandError() }}
+      @if (uploadFailed()) {
+        <div class="upload-failed__actions">
+          <hq-button variant="secondary" (pressed)="retryUpload()">
+            {{ 'lessons.new.uploadRetry' | transloco }}
+          </hq-button>
+          <hq-button variant="danger" (pressed)="deleteDraft()">
+            {{ 'lessons.new.uploadDelete' | transloco }}
+          </hq-button>
+        </div>
+      }
     </hq-band>
 
     @if (busy(); as busyText) {
@@ -21,16 +35,24 @@
             <span class="step-badge">✓</span>
             <span class="step-label">{{ 'lessons.new.background.step1' | transloco }}</span>
           </div>
-          <div class="step-item" [class.step-item--active]="busy() === ('lessons.new.busy.uploading' | transloco)" [class.step-item--done]="busy() === ('lessons.new.busy.analyzing' | transloco)">
-            <span class="step-badge">{{ busy() === ('lessons.new.busy.analyzing' | transloco) ? '✓' : '●' }}</span>
+          <div
+            class="step-item"
+            [class.step-item--active]="step() === 'uploading'"
+            [class.step-item--done]="step() === 'analyzing'"
+          >
+            <span class="step-badge">{{ step() === 'analyzing' ? '✓' : '●' }}</span>
             <span class="step-label">{{ 'lessons.new.background.step2' | transloco }}</span>
           </div>
-          <div class="step-item" [class.step-item--active]="busy() === ('lessons.new.busy.analyzing' | transloco)">
+          <div class="step-item" [class.step-item--active]="step() === 'analyzing'">
             <span class="step-badge">●</span>
             <span class="step-label">{{ 'lessons.new.background.step3' | transloco }}</span>
           </div>
         </div>
         <p class="notify-note">{{ 'lessons.new.background.notifyNote' | transloco }}</p>
+        <!-- E3: the work is the service's, not this page's — she may leave and the chain runs on. -->
+        <hq-button variant="secondary" (pressed)="workInBackground()">
+          {{ 'lessons.new.background.backToList' | transloco }}
+        </hq-button>
       </div>
     }
 

@@ -1,132 +1,207 @@
 import { DOCUMENT, Injectable, computed, effect, inject, signal } from '@angular/core';
+import { catchError, of, tap } from 'rxjs';
+import { NotificationsApi, type NotificationView } from '../../api';
 import { AuthService } from '../auth/auth.service';
 
-export interface AppNotification {
-  readonly id: string;
-  readonly title: string;
-  readonly message: string;
-  readonly category: 'classes' | 'lessons' | 'chat' | 'system';
-  readonly read: boolean;
-  readonly createdAt: string;
-  readonly link?: string;
+/** How many the bell's dropdown shows; the page asks for a page's worth. */
+const RECENT = 4;
+const PAGE_SIZE = 50;
+/** The socket is the channel (D26); this is only what covers a socket that is not open. */
+const FALLBACK_POLL_MS = 30_000;
+
+export type NotificationKind = NotificationView['kind'];
+
+/** `notifications.kind.lesson.ready.title` and `.body` — EN/AR, from the kind alone. */
+export function titleKeyOf(kind: NotificationKind): string {
+  return `notifications.kind.${kind}.title`;
 }
 
-const STORAGE_KEY_PREFIX = 'hq.notifications.';
+export function bodyKeyOf(kind: NotificationKind): string {
+  return `notifications.kind.${kind}.body`;
+}
 
-const DEFAULT_NOTIFICATIONS: readonly AppNotification[] = [
-  {
-    id: 'notif-1',
-    title: 'Attendance Reminder',
-    message: 'Class 1A · Math has pending attendance for today.',
-    category: 'classes',
-    read: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-    link: '/teacher/classes/cls_1a?tab=attendance',
-  },
-  {
-    id: 'notif-2',
-    title: 'Lesson Published',
-    message: 'Lesson "Counting & Cardinality" has been successfully published.',
-    category: 'lessons',
-    read: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    link: '/teacher/lessons',
-  },
-  {
-    id: 'notif-3',
-    title: 'New Message from Parent',
-    message: 'Adam\'s mother sent a question regarding homework.',
-    category: 'chat',
-    read: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
-    link: '/teacher/chat',
-  },
-  {
-    id: 'notif-4',
-    title: 'New Class Assigned',
-    message: 'You have been assigned to Grade 1 Section B (Science).',
-    category: 'classes',
-    read: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    link: '/teacher/classes',
-  },
-  {
-    id: 'notif-5',
-    title: 'System Update',
-    message: 'EduManage dashboard updated with new theme and multi-subject support.',
-    category: 'system',
-    read: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-  },
-];
-
+/**
+ * The bell, over E2's rows and E2's socket frame.
+ *
+ * Until E3 this was five hard-coded objects in `localStorage` that re-seeded themselves when
+ * emptied — a demo. It is now `GET /me/notifications`, its unread count, and the `notification`
+ * frame `ChatService` hands over. Nothing is cached anywhere but in these signals: a row the
+ * server has not written does not exist.
+ *
+ * **Nothing is replayed.** The socket sends a frame once; a client that was away during it is
+ * simply behind. So every (re)connect refetches the count (and the list, if it is open), and
+ * when there is no socket at all the count is polled every 30 s — enough for a bell, and two
+ * orders of magnitude cheaper than the lesson poll it replaces.
+ *
+ * `title` and `body` off the wire are English fallbacks; the screens translate from `kind`
+ * ({@link titleKeyOf}) and only `lesson.failed` shows the server's `body`, which is the reason
+ * the pipeline gave.
+ */
 @Injectable({ providedIn: 'root' })
 export class NotificationsService {
-  private readonly doc = inject(DOCUMENT);
+  private readonly api = inject(NotificationsApi);
   private readonly auth = inject(AuthService);
+  private readonly doc = inject(DOCUMENT);
 
-  private readonly items = signal<readonly AppNotification[]>([]);
+  private readonly items = signal<readonly NotificationView[]>([]);
+  private readonly unread = signal(0);
 
   readonly notifications = this.items.asReadonly();
-  readonly unreadCount = computed(() => this.items().filter((n) => !n.read).length);
+  readonly unreadCount = this.unread.asReadonly();
+  /** What the bell's dropdown shows. */
+  readonly recent = computed(() => this.items().slice(0, RECENT));
+  readonly loading = signal(false);
+
+  /** The one that just arrived, for the app-wide toast. The shell clears it when it expires. */
+  readonly toast = signal<NotificationView | null>(null);
+  /** Set by `ChatService`; false turns the fallback poll on. */
+  readonly socketOpen = signal(false);
 
   constructor() {
-    effect(() => {
-      const userId = this.auth.user()?.id;
-      if (!userId) {
+    effect((onCleanup) => {
+      if (!this.auth.signedIn()) {
         this.items.set([]);
+        this.unread.set(0);
+        this.toast.set(null);
         return;
       }
-      const stored = this.loadFromStorage(userId);
-      if (stored && stored.length > 0) {
-        this.items.set(stored);
-      } else {
-        this.items.set(DEFAULT_NOTIFICATIONS);
-        this.saveToStorage(userId, DEFAULT_NOTIFICATIONS);
-      }
+      this.refreshUnreadCount();
+      if (this.socketOpen()) return;
+      const timer = setInterval(() => this.refreshUnreadCount(), FALLBACK_POLL_MS);
+      onCleanup(() => clearInterval(timer));
     });
   }
 
-  markAsRead(id: string): void {
-    const userId = this.auth.user()?.id;
+  refreshUnreadCount(): void {
+    this.api
+      .unreadNotificationCount()
+      .pipe(
+        tap((result) => this.unread.set(result.count)),
+        catchError(() => of(null)),
+      )
+      .subscribe();
+  }
+
+  /** The bell's dropdown and the page read the same list; the bell only shows the first four. */
+  refresh(): void {
+    if (!this.auth.signedIn()) return;
+    this.loading.set(true);
+    this.api
+      .listNotifications(undefined, PAGE_SIZE)
+      .pipe(
+        tap((list) => {
+          this.items.set(list);
+          this.unread.set(list.filter((item) => item.readAt === undefined).length);
+          this.loading.set(false);
+        }),
+        catchError(() => {
+          this.loading.set(false);
+          return of([]);
+        }),
+      )
+      .subscribe();
+  }
+
+  markRead(id: string): void {
+    const already = this.items().find((item) => item.id === id)?.readAt !== undefined;
+    this.applyRead(id);
+    this.api
+      .markNotificationRead(id)
+      .pipe(
+        tap((updated) => this.replace(updated)),
+        catchError(() => {
+          if (!already) this.refreshUnreadCount();
+          return of(null);
+        }),
+      )
+      .subscribe();
+  }
+
+  markAllRead(): void {
+    const now = Date.now();
     this.items.update((list) =>
-      list.map((item) => (item.id === id ? { ...item, read: true } : item)),
+      list.map((item) => (item.readAt === undefined ? { ...item, readAt: now } : item)),
     );
-    if (userId) this.saveToStorage(userId, this.items());
+    this.unread.set(0);
+    this.api
+      .markAllNotificationsRead()
+      .pipe(
+        tap((result) => this.unread.set(result.count)),
+        catchError(() => {
+          this.refreshUnreadCount();
+          return of(null);
+        }),
+      )
+      .subscribe();
   }
 
-  markAllAsRead(): void {
-    const userId = this.auth.user()?.id;
-    this.items.update((list) => list.map((item) => ({ ...item, read: true })));
-    if (userId) this.saveToStorage(userId, this.items());
+  /** A `notification` frame off the socket: straight into the list, the badge and the toast. */
+  receive(notification: NotificationView): void {
+    this.items.update((list) =>
+      list.some((item) => item.id === notification.id) ? list : [notification, ...list],
+    );
+    if (notification.readAt === undefined) this.unread.update((count) => count + 1);
+    this.toast.set(notification);
   }
 
-  remove(id: string): void {
-    const userId = this.auth.user()?.id;
-    this.items.update((list) => list.filter((item) => item.id !== id));
-    if (userId) this.saveToStorage(userId, this.items());
+  /** (Re)connect: nothing was replayed while we were away, so ask again. */
+  onSocketOpen(): void {
+    this.socketOpen.set(true);
+    this.refreshUnreadCount();
+    if (this.items().length > 0) this.refresh();
   }
 
-  clearAll(): void {
-    const userId = this.auth.user()?.id;
-    this.items.set([]);
-    if (userId) this.saveToStorage(userId, []);
+  onSocketClosed(): void {
+    this.socketOpen.set(false);
   }
 
-  private loadFromStorage(userId: string): readonly AppNotification[] | null {
+  // ---- the browser's own notification ---------------------------------------------------
+
+  /** Worth offering "Notify me" only while the answer is still open. */
+  canAskPermission(): boolean {
+    const view = this.doc.defaultView;
+    return !!view && 'Notification' in view && view.Notification.permission === 'default';
+  }
+
+  /**
+   * Asked from a click and never from an effect: a permission prompt that appears because a
+   * page rendered is the reason browsers now bury the prompt for the whole origin.
+   */
+  askPermission(): void {
+    const view = this.doc.defaultView;
+    if (!view || !('Notification' in view)) return;
+    void view.Notification.requestPermission();
+  }
+
+  /**
+   * The desktop notification, and only for the teacher who is looking at something else — a
+   * banner over the tab she is already reading is noise, the toast has her attention.
+   */
+  notifyIfHidden(title: string, body: string): void {
+    const view = this.doc.defaultView;
+    if (!view || !('Notification' in view)) return;
+    if (!this.doc.hidden || view.Notification.permission !== 'granted') return;
     try {
-      const raw = this.doc.defaultView?.localStorage.getItem(STORAGE_KEY_PREFIX + userId);
-      return raw ? (JSON.parse(raw) as AppNotification[]) : null;
+      new view.Notification(title, { body, icon: '/favicon.ico' });
     } catch {
-      return null;
+      // Some clients declare `Notification` and refuse to construct one. Nothing is lost.
     }
   }
 
-  private saveToStorage(userId: string, data: readonly AppNotification[]): void {
-    try {
-      this.doc.defaultView?.localStorage.setItem(STORAGE_KEY_PREFIX + userId, JSON.stringify(data));
-    } catch {
-      // Storage unavailable
-    }
+  private applyRead(id: string): void {
+    const now = Date.now();
+    let changed = false;
+    this.items.update((list) =>
+      list.map((item) => {
+        if (item.id !== id || item.readAt !== undefined) return item;
+        changed = true;
+        return { ...item, readAt: now };
+      }),
+    );
+    if (changed) this.unread.update((count) => Math.max(0, count - 1));
+  }
+
+  private replace(updated: NotificationView): void {
+    this.items.update((list) => list.map((item) => (item.id === updated.id ? updated : item)));
   }
 }

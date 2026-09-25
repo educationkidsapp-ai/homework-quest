@@ -4,10 +4,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { rxResource } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { Observable } from 'rxjs';
 import {
-  type AdminLesson,
-  apiErrorOf,
   type School,
   SchoolsApi,
   TeacherApi,
@@ -29,7 +26,7 @@ import {
   SkeletonComponent,
   type SelectOption,
 } from '../../ui';
-import { LessonApiService } from './lesson-api.service';
+import { LessonCreationService } from './lesson-creation.service';
 import {
   type Curriculum,
   type LessonSource,
@@ -96,9 +93,11 @@ const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
  * action throughout: disabled with a reason while the form is incomplete, and its label
  * changes to name what "Create" will do once a source is picked.
  *
- * PDF, Slides and Images share one upload chain (`createLesson` → `uploadFiles` → `analyze`);
- * Manual only creates the lesson. A failure after the lesson exists rolls it back
- * (`DELETE /admin/lessons/{id}`) rather than leaving an orphan the list would show forever.
+ * PDF, Slides and Images share one upload chain (create → upload → analyze); Manual only
+ * creates the lesson. E3 moved that chain into {@link LessonCreationService}: this page starts
+ * it, draws its progress, and offers "Work in background" — the teacher who leaves is not
+ * pulled back later, and the failure path (rollback, or the upload job's own `error`) is
+ * handled whether or not anybody is still watching.
  */
 @Component({
   selector: 'hq-new-lesson-page',
@@ -120,7 +119,7 @@ const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
   styleUrl: './new-lesson.page.scss',
 })
 export class NewLessonPage {
-  private readonly lessonsApi = inject(LessonApiService);
+  private readonly creation = inject(LessonCreationService);
   private readonly teacherApi = inject(TeacherApi);
   private readonly schoolsApi = inject(SchoolsApi);
   private readonly auth = inject(AuthService);
@@ -292,8 +291,31 @@ export class NewLessonPage {
   protected readonly source = signal<LessonSource | null>(null);
   protected readonly files = signal<readonly File[]>([]);
   protected readonly dragging = signal(false);
-  protected readonly busy = signal<string | null>(null);
+  /** This form's own complaints (a rejected file). The chain's failures live on the service. */
   protected readonly error = signal<string | null>(null);
+
+  protected readonly step = this.creation.step;
+  protected readonly uploadFailed = this.creation.uploadFailed;
+  /** The progress card's caption, and what everything on the form is disabled by. */
+  protected readonly busy = computed<string | null>(() => {
+    this.lang();
+    const step = this.creation.step();
+    return step === null ? null : this.t(`lessons.new.busy.${step}`);
+  });
+  protected readonly bandError = computed(() => this.error() ?? this.creation.error());
+
+  protected dismissError(): void {
+    this.error.set(null);
+    if (!this.uploadFailed()) this.creation.error.set(null);
+  }
+
+  protected retryUpload(): void {
+    this.creation.retryUpload();
+  }
+
+  protected deleteDraft(): void {
+    this.creation.deleteDraft();
+  }
 
   protected readonly curriculumValue = computed(() => this.curriculum() ?? '');
   protected readonly gradeValue = computed(() => (this.grade() === null ? '' : String(this.grade())));
@@ -476,86 +498,37 @@ export class NewLessonPage {
     );
   }
 
-  // ---- create → upload → analyze, with rollback on failure --------------------------------
+  // ---- create → upload → analyze, run by the service --------------------------------------
 
+  /**
+   * The screen starts the chain and then only watches it. {@link LessonCreationService} owns
+   * the three calls, the rollback and the upload job's verdict, so closing this page stops
+   * nothing and pulls nobody back (E3).
+   */
   protected create(): void {
     const source = this.source();
     if (!this.ready() || !source) return;
-
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      void Notification.requestPermission();
-    }
-
     this.error.set(null);
-    this.busy.set(this.t('lessons.new.busy.creating'));
-    this.createLesson(source).subscribe({
-      next: (lesson) => this.afterCreate(lesson, source),
-      error: (err: unknown) => {
-        this.busy.set(null);
-        this.error.set(apiErrorOf(err)?.message ?? this.t('band.unreachable'));
+    this.creation.start(
+      {
+        classId: this.fixedClass()?.classId,
+        curriculum: this.curriculum() ?? undefined,
+        grade: this.grade() ?? undefined,
+        subject: this.subject()!,
+        date: this.date(),
+        source,
+        practiceLength: this.practiceLength(),
+        title: this.title().trim() || undefined,
       },
-    });
-  }
-
-  /**
-   * One form, and `LessonApiService.create` picks the endpoint: a teacher authors into the
-   * section she picked, an Admin into the course. Both halves are filled in and the half the
-   * role does not send is dropped there rather than here.
-   */
-  private createLesson(source: LessonSource): Observable<AdminLesson> {
-    return this.lessonsApi.create({
-      classId: this.fixedClass()?.classId,
-      curriculum: this.curriculum() ?? undefined,
-      grade: this.grade() ?? undefined,
-      subject: this.subject()!,
-      date: this.date(),
       source,
-      practiceLength: this.practiceLength(),
-      title: this.title().trim() || undefined,
-    });
+      this.files(),
+    );
   }
 
-  private afterCreate(lesson: AdminLesson, source: LessonSource): void {
-    if (source === 'manual') {
-      this.busy.set(null);
-      void this.router.navigate([this.basePath(), lesson.id], {
-        queryParams: { notice: 'lessons.new.createdManual' },
-      });
-      return;
-    }
-    this.busy.set(this.t('lessons.new.busy.uploading'));
-    this.lessonsApi.uploadFiles(lesson.id, this.files()).subscribe({
-      next: () => this.startAnalyze(lesson.id),
-      error: (err: unknown) => this.rollback(lesson.id, err),
-    });
-  }
-
-  private startAnalyze(lessonId: string): void {
-    this.busy.set(this.t('lessons.new.busy.analyzing'));
-    this.lessonsApi.analyze(lessonId).subscribe({
-      next: () => {
-        this.busy.set(null);
-        void this.router.navigate([this.basePath(), lessonId], {
-          queryParams: { notice: 'lessons.new.created' },
-        });
-      },
-      error: (err: unknown) => this.rollback(lessonId, err),
-    });
-  }
-
-  /** No orphan lesson: an upload or analyze failure removes the draft the create step made. */
-  private rollback(lessonId: string, cause: unknown): void {
-    const message = apiErrorOf(cause)?.message ?? this.t('band.unreachable');
-    this.lessonsApi.deleteLesson(lessonId).subscribe({
-      next: () => {
-        this.busy.set(null);
-        this.error.set(this.t('lessons.new.rollback', { message }));
-      },
-      error: () => {
-        this.busy.set(null);
-        this.error.set(this.t('lessons.new.rollbackFailed', { message }));
-      },
-    });
+  /** "Work in background": to the list, and the chain carries on without an audience. */
+  protected workInBackground(): void {
+    this.creation.workInBackground();
+    void this.router.navigate([this.basePath()]);
   }
 
   // ---- wiring: query-param preselect, single-option auto-select (teacher only) -----------
@@ -563,6 +536,22 @@ export class NewLessonPage {
   private preselected = false;
 
   constructor() {
+    // A chain she sent to the background and then walked away from has nothing left to say
+    // here: its outcome reached her through the bell. This page starts clean.
+    if (this.creation.background() && !this.creation.busy()) this.creation.reset();
+
+    // The one navigation this page still makes, and only for the teacher who stayed to watch.
+    effect(() => {
+      if (!this.creation.done() || this.creation.background()) return;
+      const id = this.creation.lessonId();
+      const notice = this.creation.noticeKey();
+      if (!id) return;
+      this.creation.reset();
+      void this.router.navigate([this.basePath(), id], {
+        queryParams: notice ? { notice } : {},
+      });
+    });
+
     effect(() => {
       if (this.preselected || this.pickSchool()) return;
       if (this.isAdmin() ? this.adminSchool.isLoading() : this.myClasses.isLoading()) return;

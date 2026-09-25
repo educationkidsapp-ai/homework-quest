@@ -70,11 +70,6 @@
         [message]="'lessons.detail.addStop.added' | transloco"
         (expired)="stopAddedToast.set(false)"
       />
-      <hq-toast
-        [open]="aiReadyToast()"
-        [message]="'lessons.new.notification.body' | transloco"
-        (expired)="aiReadyToast.set(false)"
-      />
 
       @if (publishedCopies().length > 0) {
         <hq-band variant="notice" [open]="true" (dismissed)="dismissPublishedCopies()">

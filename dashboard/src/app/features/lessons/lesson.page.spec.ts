@@ -884,6 +884,22 @@ describe('Lesson', () => {
  * be slow or wrong.
  */
 describe('Lesson — the files being converted', () => {
+  /** `GET …/lessons/{id}/status` as the server answers it for a given lesson fixture. */
+  function statusOf(lesson: {
+    status: string;
+    files: readonly { id?: string; convertStatus?: string }[];
+    steps: readonly { step: string; status: string }[];
+  }) {
+    return {
+      status: lesson.status,
+      steps: lesson.steps.map((step) => ({ ...step, attempt: 1, updatedAt: 0 })),
+      files: lesson.files.map((file) => ({ id: file.id, convertStatus: file.convertStatus })),
+      plays: [],
+      panel: false,
+      updatedAt: 0,
+    };
+  }
+
   const CONVERTING = {
     ...BASE_LESSON,
     status: 'draft',
@@ -933,8 +949,22 @@ describe('Lesson — the files being converted', () => {
     vi.useFakeTimers();
     const { backend } = await renderLesson(CONVERTING);
 
+    // E3: the poll asks the light body. The first one is the baseline — the page already holds
+    // the lesson it describes, so nothing is fetched twice.
     vi.advanceTimersByTime(2_600);
     await Promise.resolve();
+    backend.expectOne('/admin/lessons/l-1/status').flush(statusOf(CONVERTING));
+    await Promise.resolve();
+    TestBed.tick();
+    backend.verify();
+
+    // The file finishes converting: the signature moves, and *that* is what reads the lesson
+    // back in full.
+    vi.advanceTimersByTime(2_600);
+    await Promise.resolve();
+    backend.expectOne('/admin/lessons/l-1/status').flush(statusOf(READY));
+    await Promise.resolve();
+    TestBed.tick();
     backend.expectOne('/admin/lessons/l-1').flush(READY);
     await Promise.resolve();
     TestBed.tick();
