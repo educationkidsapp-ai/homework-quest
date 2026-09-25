@@ -1136,11 +1136,21 @@ is kept rather than regenerated), which means the same deadlines and the same st
 no **Retry** — the way out is pressing *Generate from text* again, and the levels already written are not paid for
 twice.
 
+**The generate steps run two at a time, not five in a row (D25).** Levels 1, 2 and 3 read the same analysis and the
+same confirmed skills and write three different plays, so they run **together**; Again needs the stored Level 1 (it
+excludes its stop ids) and the parent panel needs all three, so those two wait for the levels and then run together
+in turn. Each of the five keeps its own ledger row, its own deadline, its own retry budget and its own error — a
+step that fails or hangs inside a batch ends exactly as it would alone while its siblings finish, so a failure at
+`generate_L2` now leaves `generate_L1` **and** `generate_L3` `done`. `lessons.current_step` shows the **lowest** step
+still running while a batch is in flight. The practical effect: the generate phase's worst case is **two step
+deadlines, not five**.
+
 **How long is the worst case?** One step at a time: its deadline, times the number of attempts. A step retries a
 transient failure **3 times** (`LessonSteps.TRANSIENT_ATTEMPTS`), each attempt bounded by the step's own deadline,
 with `quest.pipeline.retry-delay-ms` (2 s) doubling between them — so a generate step is at most
-**3 × 360 s + 6 s ≈ 18 minutes**, Analyse **3 × 240 s ≈ 12 minutes** and Convert **3 × 180 s ≈ 9 minutes**. A whole lesson that fails at the last step
-is the sum of the steps before it. The sweep's own bound is different and smaller: it only ever waits one deadline +
+**3 × 360 s + 6 s ≈ 18 minutes**, Analyse **3 × 240 s ≈ 12 minutes** and Convert **3 × 180 s ≈ 9 minutes**. A whole
+lesson that fails at the last step is Upload + Convert + Analyse plus **two** generate batches rather than five
+generate steps. The sweep's own bound is different and smaller: it only ever waits one deadline +
 60 s grace + up to one 60 s interval for a row *nothing in this process is holding*. If a lesson has been
 `analyzing`/`generating` for more than 20 minutes, it is not slow — check the logs.
 
@@ -1153,6 +1163,15 @@ write what they have to the lesson on the way out.
 
 To see what is stuck right now: `GET /admin/lessons` and look for `status` `analyzing`/`generating` with an old
 `updatedAt`, or `currentStep` set. Nothing needs to be done by hand — wait one interval.
+
+**Polling one lesson: `GET /teacher/lessons/{id}/status` and `GET /admin/lessons/{id}/status`.** The editor ticks
+every 2.5 s while a lesson is running, and the full lesson is the wrong thing to ask for that often — it decodes
+every play and every stop, writes each one's prose description and backfills the ledger. `/status` answers
+`{ status, currentStep, errorCode, errorMessage, steps, files, plays, panel, tokenUsage, updatedAt }`
+(`quest.api.LessonStatusView`) from four small reads, writes nothing, and takes the same permission (`lesson.read`)
+and the same scope check as the lesson itself. It does **not** backfill a pre-ledger lesson: every job writes the
+ledger before its first step, so anything actually running has one. Read the full lesson once, when the status
+becomes terminal.
 
 ### Cleaning up acceptance data
 

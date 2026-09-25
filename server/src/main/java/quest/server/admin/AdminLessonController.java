@@ -77,6 +77,12 @@ public class AdminLessonController {
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AdminLesson.class)))
     public String getLesson(@PathVariable String id) { return json.encodeShared(service.toAdmin(service.get(id), true), AdminLesson.Companion.serializer()); }
 
+    /** E1: the same lesson as the editor polls it — the strip, the files, the sizes and the counters, nothing else. */
+    @PreAuthorize("@permit.has('lesson.read')")
+    @GetMapping(value = "/admin/lessons/{id}/status", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = quest.api.LessonStatusView.class)))
+    public String getLessonStatus(@PathVariable String id) { return json.encodeShared(service.status(service.get(id)), quest.api.LessonStatusView.Companion.serializer()); }
+
     @PreAuthorize("@permit.has('lesson.write')")
     @PostMapping(value = "/admin/lessons/{id}/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = JobRef.class)))

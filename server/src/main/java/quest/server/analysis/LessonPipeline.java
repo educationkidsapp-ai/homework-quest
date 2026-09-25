@@ -1,7 +1,10 @@
 package quest.server.analysis;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,7 +22,11 @@ import quest.server.content.SourceFileRepository;
  * walks the steps in order, skips the ones already done (cache-first, so a retry never repeats a paid model call)
  * and stops at the first error, which the admin retries from where it failed.
  *
- *   upload → analyze → [admin confirms skills] → generate L1 → L2 → L3 → Again → panel → review
+ *   upload → analyze → [admin confirms skills] → (L1 ‖ L2 ‖ L3) → (Again ‖ panel) → review
+ *
+ * <p>D25: the generate steps run in the two batches above — the levels depend only on the analysis and the
+ * confirmed skills, and Again and the panel only on the levels — so the phase costs two step deadlines rather
+ * than five. Each step keeps its own ledger row, deadline and retries; see {@link #BATCHES}.
  */
 @Service
 public class LessonPipeline {
@@ -94,21 +101,76 @@ public class LessonPipeline {
         if (lesson == null) return;
         live.add(lessonId);
         try {
+            // "Retry this step only" is one step and never a batch: the strip's other rows stay where they are.
+            if (!continueAfter) { if (!runOne(lessonId, from)) return; finish(lessonId, false); return; }
             for (PipelineStep step : LessonSteps.ORDER) {
                 if (step.ordinal() < from.ordinal()) continue;
-                if (steps.isDone(lessonId, step)) { if (!continueAfter && step == from) { finish(lessonId, false); return; } continue; }
-                if (step == PipelineStep.SKILLS) { state.set(lessonId, LessonStatus.NEEDS_REVIEW); return; }   // the admin's turn
-                state.set(lessonId, step.ordinal() <= PipelineStep.ANALYZE.ordinal() ? LessonStatus.ANALYZING : LessonStatus.GENERATING);
-                final LessonEntity current = lessons.findById(lessonId).orElseThrow(() -> new LessonSteps.Stop("lesson deleted"));
-                boolean ok = steps.run(lessonId, step, () -> { failOnce(lessonId, step); hang(step); body(current, step); });
-                if (!ok) { var row = steps.get(lessonId, step).orElseThrow(); state.fail(lessonId, row.getErrorCode(), row.getErrorMessage()); return; }
-                if (step == PipelineStep.ANALYZE && !steps.isDone(lessonId, PipelineStep.SKILLS)) { state.set(lessonId, LessonStatus.NEEDS_REVIEW); return; }
-                if (!continueAfter) { finish(lessonId, false); return; }
+                var batch = BATCHES.stream().filter(b -> b.contains(step)).findFirst().orElse(null);
+                if (batch == null) { if (!runOne(lessonId, step)) return; continue; }
+                if (step != batch.getFirst() && step.ordinal() > from.ordinal()) continue;      // its batch already ran
+                var pending = batch.stream().filter(s -> s.ordinal() >= from.ordinal() && !steps.isDone(lessonId, s)).toList();
+                if (pending.isEmpty()) continue;
+                state.set(lessonId, LessonStatus.GENERATING);
+                var failed = runBatch(lessonId, pending);
+                if (failed != null) { var row = steps.get(lessonId, failed).orElseThrow(); state.fail(lessonId, row.getErrorCode(), row.getErrorMessage()); return; }
             }
             finish(lessonId, true);
         } catch (LessonSteps.Stop e) { log.info("pipeline for {} stopped: {}", lessonId, e.getMessage()); }
         catch (RuntimeException e) { log.error("pipeline for {} crashed", lessonId, e); state.fail(lessonId, "model_failed", LessonSteps.Messages.of("model_failed", e.getMessage())); }
         finally { live.remove(lessonId); }
+    }
+
+    /**
+     * D25: the generate phase in two batches. L1, L2 and L3 read the same analysis and the same confirmed skills and
+     * write three different plays, so nothing orders them; Again needs the stored Level 1 (it excludes its ids) and
+     * the panel needs all three, so they wait — and then run together, being independent of each other in turn. The
+     * worst case for the phase is two step deadlines instead of five.
+     */
+    static final List<List<PipelineStep>> BATCHES = List.of(
+            List.of(PipelineStep.GENERATE_L1, PipelineStep.GENERATE_L2, PipelineStep.GENERATE_L3),
+            List.of(PipelineStep.GENERATE_AGAIN, PipelineStep.PANEL));
+
+    /**
+     * One step of the sequential part of the walk. False means "stop here": the step is the admin's to do, or the
+     * analysis is waiting for her, or it failed — and the lesson's status already says which.
+     */
+    private boolean runOne(String lessonId, PipelineStep step) {
+        if (steps.isDone(lessonId, step)) return true;
+        if (step == PipelineStep.SKILLS) { state.set(lessonId, LessonStatus.NEEDS_REVIEW); return false; }   // the admin's turn
+        state.set(lessonId, step.ordinal() <= PipelineStep.ANALYZE.ordinal() ? LessonStatus.ANALYZING : LessonStatus.GENERATING);
+        if (!run(lessonId, step)) { var row = steps.get(lessonId, step).orElseThrow(); state.fail(lessonId, row.getErrorCode(), row.getErrorMessage()); return false; }
+        if (step == PipelineStep.ANALYZE && !steps.isDone(lessonId, PipelineStep.SKILLS)) { state.set(lessonId, LessonStatus.NEEDS_REVIEW); return false; }
+        return true;
+    }
+
+    private boolean run(String lessonId, PipelineStep step) {
+        final LessonEntity current = lessons.findById(lessonId).orElseThrow(() -> new LessonSteps.Stop("lesson deleted"));
+        return steps.run(lessonId, step, () -> { failOnce(lessonId, step); hang(step); body(current, step); });
+    }
+
+    /**
+     * Runs a batch to the end and answers the first step (in pipeline order) that failed, or null. Every step keeps
+     * its own ledger row, deadline, budget and retries — {@link LessonSteps#run} is unchanged and still bounds each
+     * one on a virtual thread of its own — so an injected failure or hang inside a batch ends that step exactly as
+     * it would alone, while the others finish.
+     *
+     * <p>Nothing of the caller's context is carried into these threads, and that is the point: a pipeline job has no
+     * request behind it, {@link quest.server.tenancy.TenantContext} is a plain (non-inheritable) ThreadLocal that
+     * nothing sets on the `@Async` thread, and so the job already runs with no school filter —
+     * `TenantContext.unfilteredAllowed()` is what permits it. The batch threads inherit that same emptiness, and the
+     * step bodies were running on threads of their own (`LessonSteps.bounded`) before this change anyway.
+     */
+    private PipelineStep runBatch(String lessonId, List<PipelineStep> batch) {
+        if (batch.size() == 1) return run(lessonId, batch.getFirst()) ? null : batch.getFirst();
+        var failed = ConcurrentHashMap.<PipelineStep>newKeySet();
+        var crashed = new AtomicReference<RuntimeException>();
+        var threads = new ArrayList<Thread>(batch.size());
+        for (PipelineStep step : batch) threads.add(Thread.ofVirtual().name("pipeline-batch-" + LessonSteps.stepName(step) + "-" + lessonId)
+                .start(() -> { try { if (!run(lessonId, step)) failed.add(step); } catch (RuntimeException e) { crashed.compareAndSet(null, e); } }));
+        for (Thread t : threads)
+            try { t.join(); } catch (InterruptedException e) { threads.forEach(Thread::interrupt); Thread.currentThread().interrupt(); throw new LessonSteps.Stop("the pipeline thread was interrupted"); }
+        if (failed.isEmpty() && crashed.get() != null) throw crashed.get();
+        return batch.stream().filter(failed::contains).findFirst().orElse(null);
     }
 
     private void body(LessonEntity lesson, PipelineStep step) {

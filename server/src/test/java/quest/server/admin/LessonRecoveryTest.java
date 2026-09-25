@@ -39,11 +39,13 @@ class LessonRecoveryTest extends ApiTestSupport {
         assertThat(l.get("status").asText()).isEqualTo("error");
         assertThat(step(l, "generate_L1")).isEqualTo("done");
         assertThat(step(l, "generate_L2")).isEqualTo("error");
-        assertThat(step(l, "generate_L3")).isEqualTo("pending");
+        // D25: the three levels are one batch, so the sibling of the failing step finished rather than never starting
+        assertThat(step(l, "generate_L3")).isEqualTo("done");
+        assertThat(step(l, "generate_again")).as("the second batch never starts when the first one failed").isEqualTo("pending");
         assertThat(l.path("currentStep").isMissingNode() || l.path("currentStep").isNull()).as("no step running after the failure").isTrue();
         assertThat(l.get("error").get("code").asText()).isEqualTo("model_failed");
         assertThat(l.get("error").get("message").asText()).contains("Retry");
-        assertThat(l.get("plays")).hasSize(1);   // Level 1 stays reviewable
+        assertThat(l.get("plays")).hasSize(2);   // Levels 1 and 3 stay reviewable
         long tokensBefore = l.get("tokenUsage").asLong();
         // partial results stay editable while in error
         var stop = l.get("plays").get(0).get("play").get("stops").get(0).deepCopy();
@@ -96,7 +98,9 @@ class LessonRecoveryTest extends ApiTestSupport {
         l = awaitStatus(token, id, "paused", "review");
         assertThat(l.get("status").asText()).isEqualTo("paused");
         assertThat(step(l, "generate_L2")).isEqualTo("done");
-        assertThat(step(l, "generate_L3")).isEqualTo("pending");
+        // one step and no batch: Again and the panel are still waiting for "Retry and continue"
+        assertThat(step(l, "generate_again")).isEqualTo("pending");
+        assertThat(step(l, "panel")).isEqualTo("pending");
         mvc.perform(admin(post("/admin/lessons/" + id + "/steps/generate_L2/retry"), token)).andExpect(status().isBadRequest());   // already done
         mvc.perform(admin(post("/admin/lessons/" + id + "/retry"), token)).andExpect(status().isOk());   // continues from the first pending step
         assertThat(awaitStatus(token, id, "review").get("plays")).hasSize(4);
@@ -186,7 +190,7 @@ class LessonRecoveryTest extends ApiTestSupport {
         stepRows.deleteAll(stepRows.findByLessonIdOrderByPosition(id));                    // pretend the ledger never existed
         var l = json(mvc.perform(admin(get("/admin/lessons/" + id), token)).andReturn());
         assertThat(step(l, "upload")).isEqualTo("done"); assertThat(step(l, "analyze")).isEqualTo("done"); assertThat(step(l, "skills")).isEqualTo("done");
-        assertThat(step(l, "generate_L1")).isEqualTo("done"); assertThat(step(l, "generate_L2")).isEqualTo("error"); assertThat(step(l, "generate_L3")).isEqualTo("pending");
+        assertThat(step(l, "generate_L1")).isEqualTo("done"); assertThat(step(l, "generate_L2")).isEqualTo("error"); assertThat(step(l, "generate_L3")).isEqualTo("done");
         mvc.perform(admin(post("/admin/lessons/" + id + "/retry"), token)).andExpect(status().isOk());
         assertThat(awaitStatus(token, id, "review").get("plays")).hasSize(4);
     }

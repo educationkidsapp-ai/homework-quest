@@ -69,6 +69,7 @@ class RemoteAdminApi(private val baseUrl: String, private val token: () -> Strin
         }
     }
     override suspend fun lesson(lessonId: String): AdminLesson = call { client.get("$baseUrl/admin/lessons/$lessonId") { authed() } }
+    override suspend fun lessonStatus(lessonId: String): quest.api.LessonStatusView = call { client.get("$baseUrl/admin/lessons/$lessonId/status") { authed() } }
     override suspend fun analyze(lessonId: String): JobRef = call { client.post("$baseUrl/admin/lessons/$lessonId/analyze") { authed() } }
     override suspend fun confirmSkills(lessonId: String, skills: List<ConfirmedSkill>): JobRef = call { client.post("$baseUrl/admin/lessons/$lessonId/skills") { authed(); contentType(ContentType.Application.Json); setBody(skills) } }
     override suspend fun updateStop(stopId: String, stop: Stop): Stop = call { client.put("$baseUrl/admin/stops/$stopId") { authed(); contentType(ContentType.Application.Json); setBody(stop) } }
