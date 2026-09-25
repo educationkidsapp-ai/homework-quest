@@ -41,6 +41,8 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 class ChatWebSocketTest extends ChatTestSupport {
     @LocalServerPort int port;
     @Autowired ChatSessions sessions;
+    @Autowired quest.server.notifications.NotificationService notifications;
+    @Autowired quest.server.notifications.NotificationRepository notificationRows;
 
     private String maya;
     private final List<WebSocketSession> open = Collections.synchronizedList(new ArrayList<>());
@@ -52,6 +54,7 @@ class ChatWebSocketTest extends ChatTestSupport {
 
     @AfterEach void clean() {
         open.forEach(s -> { try { s.close(); } catch (Exception ignored) { } });
+        notificationRows.deleteAll(notificationRows.findAll().stream().filter(n -> n.getSchoolId().startsWith(prefix())).toList());
         removeSeed();
     }
 
@@ -74,12 +77,46 @@ class ChatWebSocketTest extends ChatTestSupport {
         assertThat(frames.next().get("type").asText()).isEqualTo("pong");
     }
 
-    @Test void a_bad_token_is_401_and_the_wrong_role_or_the_flag_off_is_403() {
+    @Test void a_bad_token_is_401_and_a_parent_with_no_school_on_the_flag_is_403() {
         assertThatThrownBy(() -> connect("admin.not-a-token", true, new Frames())).hasMessageContaining("401");
         assertThatThrownBy(() -> connect("", false, new Frames())).hasMessageContaining("401");
-        assertThatThrownBy(() -> connect(adminToken, true, new Frames())).as("ADMIN has no side in a chat").hasMessageContaining("403");
-        assertThatThrownBy(() -> connect(other, true, new Frames())).as("school B has the flag off").hasMessageContaining("403");
         assertThatThrownBy(() -> connect("fake-token-parent-without-children", false, new Frames())).as("no child in a school with the flag on").hasMessageContaining("403");
+    }
+
+    /**
+     * D26: the socket is the dashboard's event channel. ADMIN is admitted although no chat has a side for her, and
+     * so is a teacher of school B, which has the `chat` flag off — both for the notification frame. What the flag
+     * still decides is the chat commands: hers come back as an `error` frame instead of reaching a thread.
+     */
+    @Test void every_dashboard_role_is_admitted_with_the_chat_flag_off_and_only_the_chat_commands_are_refused() throws Exception {
+        connect(adminToken, true, new Frames());
+        var flagOff = new Frames();
+        var session = connect(other, true, flagOff);
+        session.sendMessage(new TextMessage("{\"type\":\"message\",\"childId\":\"" + maya + "\",\"body\":\"hi\",\"clientId\":\"c-1\"}"));
+        var error = flagOff.next();
+        assertThat(error.get("type").asText()).isEqualTo("error");
+        assertThat(error.get("code").asText()).isEqualTo("forbidden");
+        assertThat(error.get("clientId").asText()).isEqualTo("c-1");
+        // …and a teacher of a school that has it on still writes as before
+        var sara1 = new Frames();
+        connect(sara, true, sara1);
+    }
+
+    /**
+     * E2 (D26): a notification written for a user reaches her sockets as a `notification` frame, and the school on
+     * the event is what decides it — a session held by a teacher of school B is not written to for a row that
+     * belongs to school A, even though the bus hands every instance every event.
+     */
+    @Test void a_notification_reaches_its_own_user_and_only_for_its_own_school() throws Exception {
+        var schoolB = new Frames();
+        connect(other, true, schoolB);
+        notifications.notify(A, OTHER, quest.api.dto.NotificationKind.LESSON_READY, "Questions ready", "It is ready.", "/teacher/lessons/x", "x");
+        notifications.notify(B, OTHER, quest.api.dto.NotificationKind.LESSON_FAILED, "Generation stopped", "It stopped.", "/teacher/lessons/y", "y");
+        var frame = schoolB.next();
+        assertThat(frame.get("type").asText()).isEqualTo("notification");
+        assertThat(frame.get("notification").get("kind").asText()).as("school A's row was never written to a school B socket").isEqualTo("lesson.failed");
+        assertThat(frame.get("notification").get("link").asText()).isEqualTo("/teacher/lessons/y");
+        assertThat(schoolB.received).noneMatch(f -> f.contains("lesson.ready"));
     }
 
     // ---------------------------------------------------------------- frames

@@ -49,8 +49,13 @@ public class ChatSessions {
     static final CloseStatus IDLE = CloseStatus.NORMAL.withReason("idle");
     static final CloseStatus STUCK = CloseStatus.SESSION_NOT_RELIABLE.withReason("send buffer over limit");
 
-    /** Who is on the other end, as the handshake resolved it. `schoolId` is the teacher's; a parent has none. */
-    public record Peer(String key, String role, String id, String schoolId, Object principal) {}
+    /**
+     * Who is on the other end, as the handshake resolved it. `schoolId` is the dashboard user's — a parent has
+     * none, and neither has the platform ADMIN, who is cross-school by design (D6). `chat` is D26's split: every
+     * dashboard role is admitted to the socket for notifications, but only a peer with `chat` true may send a
+     * chat command, which is the `chat` flag and the TEACHER/parent rule the REST half keeps.
+     */
+    public record Peer(String key, String role, String id, String schoolId, Object principal, boolean chat) {}
 
     private final Map<String, Set<Live>> byKey = new ConcurrentHashMap<>();
     private final Map<String, Live> byId = new ConcurrentHashMap<>();
@@ -77,6 +82,15 @@ public class ChatSessions {
 
     /** Sends a frame to every socket of a user: queued, never dropped; a stuck socket is closed instead. */
     public void send(String key, String frame) { for (var live : sessions(key)) live.offer(frame, false); }
+
+    /**
+     * D26: a frame for one person, written only to the sessions that belong to the named school. A session with no
+     * school of its own — the platform ADMIN's — is never filtered out: she reads across schools, and the frame was
+     * addressed to her id in the first place.
+     */
+    public void sendToSchool(String key, String schoolId, String frame) {
+        for (var live : sessions(key)) if (live.peer.schoolId() == null || live.peer.schoolId().equals(schoolId)) live.offer(frame, false);
+    }
 
     /** Sends a droppable frame (typing): skipped on any socket that still has frames queued. */
     public void sendDroppable(String key, String frame) { for (var live : sessions(key)) live.offer(frame, true); }

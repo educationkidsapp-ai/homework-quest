@@ -58,6 +58,11 @@ class FeatureFlagCoverageTest {
      *       over them would leave a TEACHER signed in with nothing she can do. The two parts of her dashboard that
      *       <em>are</em> features carry real flags: {@code TeacherQuestionController} is `teacherQuestions` and
      *       {@code AnnouncementController} is `announcements`, both on the class so the parent half is gated too.</li>
+     *   <li>{@code NotificationController} (E2, D26) — {@code HomeController}'s argument turned around: the bell is
+     *       how a teacher learns that the lesson she left generating is ready, and a flag over it would swallow
+     *       exactly that on the schools most likely to have flags off. What a notification is <em>about</em> is
+     *       gated where that feature lives — no lesson, no `lesson.ready` row — and the socket it rides on keeps
+     *       the `chat` flag over the chat commands themselves.</li>
      *   <li>{@code ClassAdminController} (N1.1) — a class is §2's unit of publishing and its roster is who the
      *       lessons are for. A flag over them leaves a school with no classes to teach, no way to create one and —
      *       since the Classes screen is where join codes live — no way for a parent to arrive at all. The part of
@@ -81,7 +86,7 @@ class FeatureFlagCoverageTest {
             "FlagController", "ThemeController", "PlatformSettingsController",
             "HomeController", "DashboardDataController", "DashboardController", "TeacherController",
             "ClassAdminController", "TeacherAdminController", "TeacherLessonController",
-            "AttendanceController");
+            "AttendanceController", "NotificationController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

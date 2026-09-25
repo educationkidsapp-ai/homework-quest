@@ -62,6 +62,8 @@ import quest.server.tenancy.TenantContext;
 public class ChatService {
     static final int MAX_BODY = 2000; static final int DEFAULT_PAGE = 50; static final int MAX_PAGE = 200;
     static final String PARENT = "parent", TEACHER = "teacher";
+    /** D26: every dashboard role shares one socket key, so the hub finds a person's sessions without knowing her role. */
+    public static final String USER = "user";
 
     private final ChatThreadRepository threads; private final ChatMessageRepository messages; private final ChatThreads threadRows;
     private final ChatRateLimiter limiter; private final ChatBus bus; private final ChildService childService; private final ChildRepository children;
@@ -76,8 +78,13 @@ public class ChatService {
         this.tenant = tenant; this.flags = flags; this.clock = clock; this.json = json;
     }
 
-    /** `parent:<parentId>` / `teacher:<userId>` — the key a socket session registers under and an event names its sender by. */
-    public static String key(String role, String id) { return role + ":" + id; }
+    /**
+     * The key a socket session registers under, and the one an event names its sender by: `parent:<parentId>` for a
+     * parent, `user:<userId>` for anyone on the dashboard. D26 widened the second from `teacher:` — the socket
+     * carries notifications for ADMIN and MANAGERIAL too, and one key per person is what lets the hub reach every
+     * session of hers whichever role she holds.
+     */
+    public static String key(String role, String id) { return (PARENT.equals(role) ? PARENT : USER) + ":" + id; }
 
     // ---------------------------------------------------------------- the parent (app)
 

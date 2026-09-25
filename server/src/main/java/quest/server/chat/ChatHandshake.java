@@ -1,6 +1,8 @@
 package quest.server.chat;
 
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -19,13 +21,20 @@ import quest.server.flags.FlagKeys;
 /**
  * Who is opening `/ws/chat`. The token is `Authorization: Bearer …` when the client can send headers (the app) and
  * `?token=` when it cannot (a browser `WebSocket`); either kind — a dashboard JWT or a Firebase ID token — is
- * verified by the same code the two request filters use, and is never logged. 401 for a token nobody issued, 403
- * for a role the chat has no side for (ADMIN, MANAGERIAL) and for a school with the `chat` flag off — a parent's
- * schools are her children's, and she is refused only when none of them has it.
+ * verified by the same code the two request filters use, and is never logged. 401 for a token nobody issued.
+ *
+ * <p>D26 made this socket the dashboard's event channel rather than only its chat: ADMIN, MANAGERIAL and TEACHER
+ * are all admitted, with the `chat` flag on or off, because notifications ride the same connection. What the flag
+ * still decides is whether the peer may <em>send a chat command</em> on it ({@link ChatSessions.Peer#chat}) — a
+ * teacher of a flag-off school gets her lesson notifications and an `error` frame if she tries to write, exactly
+ * as the REST half 404s for her. A dashboard principal with no school at all is refused, as it is on every route.
+ * Parents are unchanged: a parent's schools are her children's, and she is refused only when none has the flag on.
  */
 @Component
 public class ChatHandshake implements HandshakeInterceptor {
     static final String PEER = "chat.peer";
+    /** The three roles a dashboard JWT can carry; every one of them may hold a socket (D26). */
+    private static final Set<String> DASHBOARD_ROLES = Set.of("ADMIN", "TEACHER", "MANAGERIAL");
     private final AdminJwtService jwt; private final FirebaseTokenFilter parents; private final ChildRepository children; private final FeatureFlags flags;
 
     public ChatHandshake(AdminJwtService jwt, FirebaseTokenFilter parents, ChildRepository children, FeatureFlags flags) {
@@ -39,8 +48,11 @@ public class ChatHandshake implements HandshakeInterceptor {
         if (token.startsWith("admin.")) {
             var user = jwt.verify(token).orElse(null);
             if (user == null) return refuse(response, HttpStatus.UNAUTHORIZED);
-            if (!"TEACHER".equals(user.role()) || user.schoolId() == null || !flags.isOn(user.schoolId(), FlagKeys.CHAT)) return refuse(response, HttpStatus.FORBIDDEN);
-            attributes.put(PEER, new ChatSessions.Peer(ChatService.key(ChatService.TEACHER, user.userId()), ChatService.TEACHER, user.userId(), user.schoolId(), user));
+            if (!DASHBOARD_ROLES.contains(user.role())) return refuse(response, HttpStatus.FORBIDDEN);
+            if (!"ADMIN".equals(user.role()) && user.schoolId() == null) return refuse(response, HttpStatus.FORBIDDEN);
+            boolean chat = "TEACHER".equals(user.role()) && flags.isOn(user.schoolId(), FlagKeys.CHAT);
+            attributes.put(PEER, new ChatSessions.Peer(ChatService.key(ChatService.USER, user.userId()), user.role().toLowerCase(Locale.ROOT),
+                    user.userId(), user.schoolId(), user, chat));
             return true;
         }
         Principals.Parent parent = parents.verify(token).orElse(null);
@@ -48,7 +60,7 @@ public class ChatHandshake implements HandshakeInterceptor {
         boolean anyOn = children.findByParentIdAndDeletedAtIsNullOrderByCreatedAt(parent.parentId()).stream().map(ChildEntity::getSchoolId).distinct()
                 .anyMatch(school -> flags.isOn(school, FlagKeys.CHAT));
         if (!anyOn) return refuse(response, HttpStatus.FORBIDDEN);
-        attributes.put(PEER, new ChatSessions.Peer(ChatService.key(ChatService.PARENT, parent.parentId()), ChatService.PARENT, parent.parentId(), null, parent));
+        attributes.put(PEER, new ChatSessions.Peer(ChatService.key(ChatService.PARENT, parent.parentId()), ChatService.PARENT, parent.parentId(), null, parent, true));
         return true;
     }
 

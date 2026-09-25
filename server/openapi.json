@@ -3077,6 +3077,39 @@
         },
         "type" : "object"
       },
+      "NotificationView" : {
+        "properties" : {
+          "body" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed" ],
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "link" : {
+            "type" : "string"
+          },
+          "readAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "createdAt", "id", "kind", "title" ],
+        "type" : "object"
+      },
       "NumberLine" : {
         "properties" : {
           "from" : {
@@ -5541,6 +5574,16 @@
           "type" : "object"
         } ],
         "required" : [ "answer", "hint", "id", "ingredient", "parentTip", "speak", "statement", "title", "type" ]
+      },
+      "UnreadCount" : {
+        "properties" : {
+          "count" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "count" ],
+        "type" : "object"
       },
       "Unsure" : {
         "properties" : {
@@ -9631,6 +9674,105 @@
         "tags" : [ "Home" ]
       }
     },
+    "/me/notifications" : {
+      "get" : {
+        "operationId" : "listNotifications",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "unread",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/NotificationView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Notifications" ]
+      }
+    },
+    "/me/notifications/read-all" : {
+      "post" : {
+        "operationId" : "markAllNotificationsRead",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UnreadCount"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Notifications" ]
+      }
+    },
+    "/me/notifications/unread-count" : {
+      "get" : {
+        "operationId" : "unreadNotificationCount",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UnreadCount"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Notifications" ]
+      }
+    },
+    "/me/notifications/{id}/read" : {
+      "post" : {
+        "operationId" : "markNotificationRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/NotificationView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Notifications" ]
+      }
+    },
     "/me/permissions" : {
       "get" : {
         "operationId" : "myPermissions",
@@ -12286,6 +12428,9 @@
   }, {
     "description" : "Notes a teacher posts to the parents of a class",
     "name" : "Announcements"
+  }, {
+    "description" : "The dashboard bell: the caller's own notifications, unread count and read marks",
+    "name" : "Notifications"
   }, {
     "description" : "Page crops and child recordings",
     "name" : "Media"

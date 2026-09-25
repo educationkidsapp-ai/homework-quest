@@ -166,7 +166,11 @@ public class LessonPipeline {
         var crashed = new AtomicReference<RuntimeException>();
         var threads = new ArrayList<Thread>(batch.size());
         for (PipelineStep step : batch) threads.add(Thread.ofVirtual().name("pipeline-batch-" + LessonSteps.stepName(step) + "-" + lessonId)
-                .start(() -> { try { if (!run(lessonId, step)) failed.add(step); } catch (RuntimeException e) { crashed.compareAndSet(null, e); } }));
+                .start(() -> {
+                    try { if (!run(lessonId, step)) failed.add(step); }
+                    // the first crash is the one rethrown; a second must still be in the log, or it is lost entirely
+                    catch (RuntimeException e) { if (!crashed.compareAndSet(null, e)) log.error("pipeline batch step {} of {} also crashed", LessonSteps.stepName(step), lessonId, e); }
+                }));
         for (Thread t : threads)
             try { t.join(); } catch (InterruptedException e) { threads.forEach(Thread::interrupt); Thread.currentThread().interrupt(); throw new LessonSteps.Stop("the pipeline thread was interrupted"); }
         if (failed.isEmpty() && crashed.get() != null) throw crashed.get();
@@ -197,6 +201,9 @@ public class LessonPipeline {
     private void finish(String lessonId, boolean ranToEnd) {
         boolean allDone = steps.list(lessonId).stream().allMatch(e -> "done".equals(e.getStatus()));
         state.set(lessonId, allDone ? LessonStatus.REVIEW : LessonStatus.PAUSED);
+        // A batch's last `mark` clears `current_step` only if it happens to read the ledger after its siblings
+        // wrote theirs; at Review nothing is running by definition, so say so once and for all.
+        if (allDone) state.clearCurrentStep(lessonId);
     }
 
     /** The hang the deadline exists for: a step that never returns on its own, ended only by the interrupt. */
@@ -250,7 +257,8 @@ public class LessonPipeline {
             }
             steps.done(lessonId, PipelineStep.SKILLS);
             markExistingWork(lessonId);
-            // …and the levels and the panel are the ordinary pipeline, step by step and deadline by deadline.
+            // …and the levels and the panel are the ordinary pipeline: D25's two batches, each step inside its own
+            // ledger row, deadline and budget.
             runFrom(lessonId, PipelineStep.GENERATE_L1, true);
         } catch (ApiException e) { log.warn("text generation for {} failed: {}", lessonId, e.getMessage()); state.fail(lessonId, e.error().code(), LessonSteps.Messages.of(e.error().code(), e.error().message())); }
         catch (RuntimeException e) { log.error("text generation for {} crashed", lessonId, e); state.fail(lessonId, "model_failed", LessonSteps.Messages.of("model_failed", e.getMessage())); }

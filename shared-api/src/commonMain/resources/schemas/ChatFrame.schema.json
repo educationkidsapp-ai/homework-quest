@@ -9,6 +9,7 @@
   { "$ref": "#/$defs/message" },
   { "$ref": "#/$defs/read" },
   { "$ref": "#/$defs/typing" },
+  { "$ref": "#/$defs/notification" },
   { "$ref": "#/$defs/ping" },
   { "$ref": "#/$defs/pong" },
   { "$ref": "#/$defs/error" }
@@ -58,6 +59,30 @@
     "type": { "const": "typing" },
     "threadId": { "type": "string", "minLength": 1 },
     "from": { "$ref": "#/$defs/sender" }
+   }
+  },
+  "notificationView": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["id", "kind", "title", "createdAt"],
+   "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "kind": { "type": "string", "enum": ["lesson.needs_skills", "lesson.ready", "lesson.failed"] },
+    "title": { "type": "string", "minLength": 1 },
+    "body": { "type": ["string", "null"] },
+    "link": { "type": ["string", "null"] },
+    "lessonId": { "type": ["string", "null"] },
+    "readAt": { "type": ["integer", "null"] },
+    "createdAt": { "type": "integer" }
+   }
+  },
+  "notification": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["type", "notification"],
+   "properties": {
+    "type": { "const": "notification" },
+    "notification": { "$ref": "#/$defs/notificationView" }
    }
   },
   "ping": { "type": "object", "additionalProperties": false, "required": ["type"], "properties": { "type": { "const": "ping" } } },

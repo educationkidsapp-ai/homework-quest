@@ -95,6 +95,8 @@ The three levels are written **at the same time** — they read the same analysi
 
 A step strip shows each step as pending, running, done or error. On error the teacher sees a plain message and three actions: **Retry and continue**, **Retry this step only**, **Replace file**. Steps that already succeeded are kept; retries never regenerate them. While the pipeline runs the editor polls `GET /teacher/lessons/{id}/status`, which carries just the strip and the counters.
 
+She does not have to watch it: whoever created the lesson gets a bell notification when the skills are waiting for her ("Skills to confirm"), when the questions are ready ("Questions ready") and when the job stops ("Generation stopped"), persisted server-side and pushed live on `/ws/chat` — `docs/runbook.md` "Chat and notifications" (E2, D26).
+
 ### Step 6 — Review skills
 The skills found in the source, with anything the analyzer was unsure about flagged for a choice. The teacher ticks, renames, removes or adds skills, then **Build the practice**.
 
