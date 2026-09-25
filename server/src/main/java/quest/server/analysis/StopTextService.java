@@ -16,7 +16,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import quest.api.dto.Play;
 import quest.api.dto.Stop;
 import quest.api.dto.StopKt;
@@ -54,16 +55,23 @@ public class StopTextService {
 
     private final StopRepository stops; private final PlayRepository plays; private final LessonRepository lessons;
     private final LessonStore store; private final LlmClient llm; private final Json json; private final LessonState state; private final quest.server.tenancy.TenantGuard guard;
+    private final TransactionTemplate tx;
 
-    public StopTextService(StopRepository stops, PlayRepository plays, LessonRepository lessons, LessonStore store, LlmClient llm, Json json, LessonState state, quest.server.tenancy.TenantGuard guard) {
-        this.stops = stops; this.plays = plays; this.lessons = lessons; this.store = store; this.llm = llm; this.json = json; this.state = state; this.guard = guard;
+    public StopTextService(StopRepository stops, PlayRepository plays, LessonRepository lessons, LessonStore store, LlmClient llm, Json json, LessonState state, quest.server.tenancy.TenantGuard guard, PlatformTransactionManager transactions) {
+        this.stops = stops; this.plays = plays; this.lessons = lessons; this.store = store; this.llm = llm; this.json = json; this.state = state; this.guard = guard; this.tx = new TransactionTemplate(transactions);
     }
 
     /**
      * Saves one stop from the teacher's text: convert, validate, store the JSON <em>and</em> the text, and hand back
      * the stop carrying the text she wrote (so re-opening the editor never re-converts).
+     *
+     * <p>E1: three phases, and the middle one holds nothing. This used to be a single {@code @Transactional} method,
+     * so the Hikari connection it borrowed to read the stop was still checked out while Prompt D ran — up to two
+     * model calls, which is minutes on a bad day. Ten teachers pressing Save at once was the whole default pool,
+     * and every other request queued behind them. So: read what the prompt needs, let the transaction go, call the
+     * model, and take a second short one to store the result. Nothing else changes — the same two attempts, the same
+     * 422 `rephrase`, and the turns are charged whether or not anything could be stored.
      */
-    @Transactional
     public Stop fromText(String stopId, String text) {
         if (text == null || text.isBlank()) throw ApiException.badRequest("Write what this stop should do first.");
         if (text.length() > MAX_TEXT) throw ApiException.badRequest("That is longer than one stop can hold.");
@@ -108,23 +116,24 @@ public class StopTextService {
             LlmFailures.keep("D-" + stopId, r.text(), errors);
         }
         if (accepted == null) {
-            // this transaction is about to roll back, so the turns are charged through `LessonState`'s own
-            // REQUIRES_NEW one: the provider billed for them whether or not anything could be stored
+            // the provider billed for the turns whether or not anything could be stored
             state.addUsage(lesson.getId(), usage, 0);
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, REPHRASE,
                     "Couldn't save, please rephrase. " + String.join("; ", errors.subList(0, Math.min(5, errors.size()))));
         }
 
+        // ---------------------------------------------------------------- store it: one short transaction
         playStops.set(index, accepted);
         Play updated = json.decodeShared(playNode.toString(), Play.Companion.serializer());
-        store.savePlay(lesson.getId(), updated, pe.getPromptVersion(), pe.getSeed());
-        // on the way through, the usage goes on the lesson this transaction already holds: a REQUIRES_NEW update
-        // would be overwritten by the flush of this managed row at commit
-        lesson.setTokenUsage(lesson.getTokenUsage() + usage); lesson.setUpdatedAt(Instant.now()); lessons.save(lesson);
-        // after `savePlay` the stop rows are new ones: the text belongs to the JSON that was just written
-        StopEntity saved = stops.findById(stopId).orElseThrow(() -> ApiException.notFound("stop"));
-        saved.setText(text); saved.setTextUpdatedAt(Instant.now()); stops.save(saved);
-        return StopKt.withTeacherText(json.decodeShared(accepted.toString(), Stop.Companion.serializer()), text);
+        final ObjectNode stored = accepted;
+        tx.executeWithoutResult(t -> {
+            store.savePlay(lesson.getId(), updated, pe.getPromptVersion(), pe.getSeed());
+            // after `savePlay` the stop rows are new ones: the text belongs to the JSON that was just written
+            StopEntity saved = stops.findById(stopId).orElseThrow(() -> ApiException.notFound("stop"));
+            saved.setText(text); saved.setTextUpdatedAt(Instant.now()); stops.save(saved);
+        });
+        state.addUsage(lesson.getId(), usage, 0);
+        return StopKt.withTeacherText(json.decodeShared(stored.toString(), Stop.Companion.serializer()), text);
     }
 
     private LlmClient.Result call(String system, String user) {

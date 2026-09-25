@@ -47,7 +47,9 @@ class StuckLessonTest extends ApiTestSupport {
 
         var l = awaitTerminal(token, id);
         assertThat(l.get("status").asText()).isEqualTo("error");
-        assertThat(step(l, "generate_L2")).as("the steps before the hang finished").isEqualTo("done");
+        // D25: L1, L2 and L3 are one batch — the hang ends its own step by the deadline and the other two finish
+        assertThat(step(l, "generate_L1")).isEqualTo("done");
+        assertThat(step(l, "generate_L2")).as("the siblings of the hang finished").isEqualTo("done");
         assertThat(step(l, "generate_L3")).isEqualTo("error");
         assertThat(l.get("error").get("code").asText()).isEqualTo("timeout");
         assertThat(l.get("error").get("message").asText()).isEqualTo("This step took too long. Retry it.");

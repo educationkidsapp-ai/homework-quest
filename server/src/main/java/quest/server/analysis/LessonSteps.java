@@ -82,13 +82,21 @@ public class LessonSteps {
         }
     }
 
+    /**
+     * D25: `lessons.current_step` is derived from the ledger rather than from the step being marked, because a batch
+     * has three of them running at once — "the step this write is about" would flicker between the three and be
+     * cleared by whichever finished first while the others were still going. The strip shows the lowest step still
+     * running, and null when none is. The write is a single `UPDATE` of that column so the concurrent token
+     * increments beside it ({@link LessonState#addUsage}) are not carried away with a whole-row save.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void mark(String lessonId, PipelineStep s, String status, String code, String message) {
         var e = steps.findById(id(lessonId, s)).orElseGet(() -> { ensure(lessonId); return steps.findById(id(lessonId, s)).orElseThrow(); });
         e.setStatus(status); e.setErrorCode(code); e.setErrorMessage(message); e.setUpdatedAt(Instant.now());
         if ("running".equals(status)) e.setAttempt(e.getAttempt() + 1);
         steps.save(e);
-        lessons.findById(lessonId).ifPresent(l -> { l.setCurrentStep("running".equals(status) ? stepName(s) : null); lessons.save(l); });
+        lessons.setCurrentStep(lessonId, steps.findByLessonIdOrderByPosition(lessonId).stream()
+                .filter(r -> "running".equals(r.getStatus())).map(LessonStepEntity::getStep).findFirst().orElse(null));
     }
 
     public void done(String lessonId, PipelineStep s) { mark(lessonId, s, "done", null, null); }

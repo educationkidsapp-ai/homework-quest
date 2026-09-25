@@ -119,6 +119,7 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
         String playId = plays.findByLessonIdOrderByLevelAscVariantAsc(hers.getId()).getFirst().getId();
 
         mvc.perform(as(get("/teacher/lessons/tp-hers"), otherToken)).andExpect(status().isForbidden());
+        mvc.perform(as(get("/teacher/lessons/tp-hers/status"), otherToken)).andExpect(status().isForbidden());
         mvc.perform(as(post("/teacher/lessons/tp-hers/analyze"), otherToken)).andExpect(status().isForbidden());
         mvc.perform(as(post("/teacher/lessons/tp-hers/retry"), otherToken)).andExpect(status().isForbidden());
         mvc.perform(as(post("/teacher/lessons/tp-hers/steps/analyze/retry"), otherToken)).andExpect(status().isForbidden());
@@ -154,6 +155,32 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
         mvc.perform(as(get("/teacher/lessons/tp-nothing"), teacherToken)).andExpect(status().isNotFound());
         mvc.perform(as(post("/teacher/stops/tp-nothing/regenerate"), teacherToken)).andExpect(status().isNotFound());
         mvc.perform(as(post("/teacher/plays/tp-nothing/regenerate"), teacherToken)).andExpect(status().isNotFound());
+    }
+
+    /**
+     * E1: the poll. The editor ticks every 2.5 s while a job runs, and this is what it asks — the strip, the files,
+     * the size of each level so far and the counters — with the same scope check as the full lesson (the colleague
+     * is refused it above) and none of the editor's work. It is the Admin's poll too, on her own route.
+     */
+    @Test void the_status_poll_is_the_light_view_of_the_same_lesson() throws Exception {
+        readyLesson("tp-poll", SCHOOL, HERS, "british", 1, "english", LocalDate.now().plusDays(6));
+
+        var status = json(mvc.perform(as(get("/teacher/lessons/tp-poll/status"), teacherToken)).andExpect(status().isOk()).andReturn());
+        assertThat(status.get("status").asText()).isEqualTo("review");
+        assertThat(status.path("currentStep").isNull() || status.path("currentStep").isMissingNode()).isTrue();
+        assertThat(status.get("panel").asBoolean()).isTrue();
+        assertThat(status.get("plays")).hasSize(4);
+        assertThat(status.get("plays").get(0).get("level").asInt()).isEqualTo(1);
+        assertThat(status.get("plays").get(0).get("variant").asInt()).isEqualTo(0);
+        assertThat(status.get("plays").findValues("stops").stream().allMatch(n -> n.asInt() > 0)).isTrue();
+        assertThat(status.get("files")).isEmpty();
+        assertThat(status.has("analysis")).as("no analysis, no play JSON, no stop descriptions").isFalse();
+
+        var asAdmin = json(mvc.perform(as(get("/admin/lessons/tp-poll/status"), adminToken())).andExpect(status().isOk()).andReturn());
+        assertThat(asAdmin.get("status").asText()).isEqualTo("review");
+        assertThat(asAdmin.get("plays")).hasSize(4);
+
+        mvc.perform(as(get("/teacher/lessons/tp-nothing/status"), teacherToken)).andExpect(status().isNotFound());
     }
 
     /**

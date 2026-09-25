@@ -56,4 +56,22 @@ public interface LessonRepository extends JpaRepository<Entities.LessonEntity, S
      */
     @Query("select l from LessonEntity l where l.id = :id")
     Optional<Entities.LessonEntity> findOneById(@Param("id") String id);
+
+    /**
+     * E1/D25: the token counters, incremented in the database rather than read-modify-written in Java. Three levels
+     * generate at once now, and each one books what it spent as it goes — a `findById`, `+=`, `save` would lose two
+     * of every three increments, and would also write back the whole row over a column another batch thread had just
+     * changed. Keyed by id alone, like the {@link quest.server.analysis.LessonState} lookup it replaces: it is
+     * called from a background job with no school scope, never with an id that came from a request.
+     */
+    @Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update LessonEntity l set l.tokenUsage = l.tokenUsage + :used, l.tokensSaved = l.tokensSaved + :saved, l.updatedAt = :at where l.id = :id")
+    int addUsage(@Param("id") String id, @Param("used") long used, @Param("saved") long saved, @Param("at") java.time.Instant at);
+
+    /** The step the strip highlights, written on its own so a concurrent counter update is not overwritten with it. */
+    @Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update LessonEntity l set l.currentStep = :step where l.id = :id")
+    int setCurrentStep(@Param("id") String id, @Param("step") String step);
 }

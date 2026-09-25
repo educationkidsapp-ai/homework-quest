@@ -24,9 +24,14 @@ public class LessonState {
         lessons.findById(lessonId).ifPresent(l -> { l.setStatus("error"); l.setErrorCode(code); l.setErrorMessage(message); l.setUpdatedAt(Instant.now()); lessons.save(l); });
     }
 
+    /**
+     * D25: an atomic increment, because the three levels generate at once and each books its own turns. Read the
+     * row, add in Java and save it back and two of every three increments are lost — and the save would carry the
+     * whole row, undoing `current_step` another batch thread had just written.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void addUsage(String lessonId, long used, long saved) {
-        lessons.findById(lessonId).ifPresent(l -> { l.setTokenUsage(l.getTokenUsage() + used); l.setTokensSaved(l.getTokensSaved() + saved); l.setUpdatedAt(Instant.now()); lessons.save(l); });
+        lessons.addUsage(lessonId, used, saved, Instant.now());
     }
 
     public static String name(LessonStatus s) { return s.name().toLowerCase(); }

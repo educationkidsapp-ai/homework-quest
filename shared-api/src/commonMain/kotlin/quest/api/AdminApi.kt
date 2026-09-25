@@ -21,6 +21,8 @@ interface AdminApi {
     suspend fun createLesson(request: CreateLessonRequest): AdminLesson
     suspend fun uploadFiles(lessonId: String, files: List<UploadFile>): JobRef
     suspend fun lesson(lessonId: String): AdminLesson
+    /** The poll (E1): everything the progress strip needs and nothing the editor does — no play JSON, no analysis. */
+    suspend fun lessonStatus(lessonId: String): LessonStatusView
     suspend fun analyze(lessonId: String): JobRef
     suspend fun confirmSkills(lessonId: String, skills: List<ConfirmedSkill>): JobRef
     suspend fun updateStop(stopId: String, stop: Stop): Stop
@@ -149,6 +151,30 @@ data class AdminLesson(
      * cache hit and on a copy; [tokensSaved] is what the cache avoided.
      */
     val analyzedBefore: Boolean = false,
+)
+
+/** One source file, as the poll sees it: whether it converted, and the code to show beside it if it did not. */
+@Serializable data class LessonFileStatus(val id: String, val convertStatus: ConvertStatus = ConvertStatus.PENDING, val convertErrorCode: String? = null)
+/** One generated level: its size, counted in the database rather than by decoding the play. */
+@Serializable data class LessonPlayStatus(val level: Int, val variant: Int, val stops: Int)
+
+/**
+ * E1: what `GET /teacher/lessons/{id}/status` and `GET /admin/lessons/{id}/status` answer while a job runs.
+ *
+ * <p>The editor polls every 2.5 s, and [AdminLesson] is the wrong shape for that: it decodes every play and every
+ * stop, describes each one in the teacher's prose and backfills the ledger — work no progress strip reads. This
+ * carries the strip itself, the per-file conversion state, the size of each level so far, and the counters, so a
+ * poll costs a handful of small reads however large the lesson is. The editor re-reads the full lesson once, when
+ * the status becomes terminal.
+ */
+@Serializable data class LessonStatusView(
+    val status: LessonStatus, val currentStep: PipelineStep? = null,
+    val errorCode: String? = null, val errorMessage: String? = null,
+    val steps: List<LessonStepInfo> = emptyList(),
+    val files: List<LessonFileStatus> = emptyList(),
+    val plays: List<LessonPlayStatus> = emptyList(),
+    val panel: Boolean = false,
+    val tokenUsage: Long = 0, val updatedAt: Long = 0,
 )
 
 @Serializable data class CacheEntry(val fileHash: String, val curriculum: Curriculum, val grade: Int, val subject: Subject, val promptVersion: String, val tokenUsage: Long, val createdAt: Long, val hits: Int, val lessonIds: List<String>)

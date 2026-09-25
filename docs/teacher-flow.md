@@ -89,9 +89,11 @@ Optional notes to the analyzer ("the teacher used a number line").
 ### Step 5 — Analysis (cached)
 The server hashes the file. If the same file was analyzed before, by anyone, the result returns instantly with a badge **Analyzed before · 0 tokens**. Otherwise the pipeline runs:
 
-`upload → analyze → confirm skills → generate L1 → generate L2 → generate L3 → generate variant → parent panel → ready`
+`upload → analyze → confirm skills → (L1 ‖ L2 ‖ L3) → (variant ‖ parent panel) → ready`
 
-A step strip shows each step as pending, running, done or error. On error the teacher sees a plain message and three actions: **Retry and continue**, **Retry this step only**, **Replace file**. Steps that already succeeded are kept; retries never regenerate them.
+The three levels are written **at the same time** — they read the same analysis and the same confirmed skills — and the Again variant and the parent panel then run together, once all three levels are stored (D25). Each is still its own step with its own deadline, so a failure in one leaves the others done.
+
+A step strip shows each step as pending, running, done or error. On error the teacher sees a plain message and three actions: **Retry and continue**, **Retry this step only**, **Replace file**. Steps that already succeeded are kept; retries never regenerate them. While the pipeline runs the editor polls `GET /teacher/lessons/{id}/status`, which carries just the strip and the counters.
 
 ### Step 6 — Review skills
 The skills found in the source, with anything the analyzer was unsure about flagged for a choice. The teacher ticks, renames, removes or adds skills, then **Build the practice**.
@@ -147,7 +149,7 @@ Regardless of what the teacher does: no red X, no percentage, no score, no timer
 
 ## 8. API used by the teacher (summary)
 
-`GET /me` · `GET /teacher/week` · `GET /teacher/classes` · `GET /teacher/classes/{id}/calendar` · `GET /teacher/classes/{id}/children` · `POST /teacher/lessons` · `PATCH /teacher/lessons/{id}` · `POST /teacher/lessons/{id}/copy` · `POST /teacher/lessons/{id}/retry` · `PUT /teacher/lessons/{id}/skills` · `PUT /teacher/stops/{id}` · `POST /teacher/stops/{id}/regenerate` · `POST /teacher/lessons/{id}/publish` · `POST /teacher/lessons/{id}/unpublish` · `DELETE /teacher/lessons/{id}` · `GET /teacher/lessons/{id}/results` · `PUT /teacher/marks` · `POST /teacher/lessons/{id}/release` · `GET /teacher/classes/{id}/gradebook` · `GET /teacher/children/{id}` · `POST /teacher/classes/{id}/exams` · `PATCH /teacher/exams/{id}` · `POST /teacher/exams/{id}/publish` · `POST /teacher/exams/{id}/release` · `POST /teacher/exams/{id}/reopen/{childId}` · `GET /teacher/exams/{id}/results` · exports `.csv`, `.xlsx`, `/results/{childId}.pdf`.
+`GET /me` · `GET /teacher/week` · `GET /teacher/classes` · `GET /teacher/classes/{id}/calendar` · `GET /teacher/classes/{id}/children` · `POST /teacher/lessons` · `PATCH /teacher/lessons/{id}` · `GET /teacher/lessons/{id}/status` · `POST /teacher/lessons/{id}/copy` · `POST /teacher/lessons/{id}/retry` · `PUT /teacher/lessons/{id}/skills` · `PUT /teacher/stops/{id}` · `POST /teacher/stops/{id}/regenerate` · `POST /teacher/lessons/{id}/publish` · `POST /teacher/lessons/{id}/unpublish` · `DELETE /teacher/lessons/{id}` · `GET /teacher/lessons/{id}/results` · `PUT /teacher/marks` · `POST /teacher/lessons/{id}/release` · `GET /teacher/classes/{id}/gradebook` · `GET /teacher/children/{id}` · `POST /teacher/classes/{id}/exams` · `PATCH /teacher/exams/{id}` · `POST /teacher/exams/{id}/publish` · `POST /teacher/exams/{id}/release` · `POST /teacher/exams/{id}/reopen/{childId}` · `GET /teacher/exams/{id}/results` · exports `.csv`, `.xlsx`, `/results/{childId}.pdf`.
 
 ## 9. Feature flags touching this flow
 

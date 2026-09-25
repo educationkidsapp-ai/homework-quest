@@ -387,6 +387,11 @@ public class AdminLessonService {
         }
     }
 
+    /**
+     * E1: no `@Transactional` here or on {@link #regeneratePlay}, and that is load-bearing rather than an oversight.
+     * Both make a model call that takes minutes, and a transaction around one would hold a pooled connection for all
+     * of it; each read and each write takes its own short one instead ({@link LessonStore#savePlay} carries its own).
+     */
     public Stop regenerateStop(String stopId) {
         var se = stops.findById(stopId).orElseThrow(() -> ApiException.notFound("stop"));
         var lesson = getForWrite(se.getLessonId()); requireReview(lesson);
@@ -538,6 +543,26 @@ public class AdminLessonService {
     // ---------------------------------------------------------------- DTO
 
     /** One lesson: its school's name, its files and its ledger cost one lookup each, which is what a detail view can afford. */
+    /**
+     * E1: the poll's answer. The editor asks every 2.5 s while a job runs, and {@link #toAdmin} was the wrong thing
+     * to give it — it decodes every play and every stop, writes each one's prose description, reads the analysis and
+     * the page images, and backfills the ledger on the way. None of that is on the progress strip.
+     *
+     * <p>Four small reads and no writes. It deliberately does <em>not</em> backfill: every job calls
+     * {@link LessonSteps#ensure} before its first step, so a lesson that is actually running always has a ledger,
+     * and the pre-ledger lessons backfill is for are idle ones the editor opens with `GET .../lessons/{id}` anyway.
+     * A poll that writes rows is exactly what this endpoint exists to stop.
+     */
+    public quest.api.LessonStatusView status(LessonEntity l) {
+        var stepInfos = steps.list(l.getId()).stream().map(s -> new LessonStepInfo(LessonSteps.parse(s.getStep()), StepStatus.valueOf(s.getStatus().toUpperCase()), s.getAttempt(), s.getErrorCode(), s.getErrorMessage(), s.getUpdatedAt().toEpochMilli())).toList();
+        var fileInfos = sourceFiles.findByLessonIdOrderByCreatedAt(l.getId()).stream().filter(f -> f.getDeletedAt() == null)
+                .map(f -> new quest.api.LessonFileStatus(f.getId(), quest.api.ConvertStatus.valueOf(f.getConvertStatus().toUpperCase()), f.getConvertErrorCode())).toList();
+        var playInfos = plays.playSizes(l.getId()).stream().map(r -> new quest.api.LessonPlayStatus(((Number) r[0]).intValue(), ((Number) r[1]).intValue(), ((Number) r[2]).intValue())).toList();
+        return new quest.api.LessonStatusView(LessonState.status(l), l.getCurrentStep() == null ? null : LessonSteps.parse(l.getCurrentStep()),
+                l.getErrorCode(), l.getErrorMessage(), stepInfos, fileInfos, playInfos, panels.existsById(l.getId()),
+                l.getTokenUsage(), l.getUpdatedAt().toEpochMilli());
+    }
+
     public AdminLesson toAdmin(LessonEntity l, boolean full) {
         return toAdmin(l, full, schools.namesOf(List.of(l.getSchoolId())).get(l.getSchoolId()),
                 sourceFiles.findByLessonIdOrderByCreatedAt(l.getId()), steps.list(l.getId()));

@@ -110,6 +110,17 @@ public class TeacherLessonController {
         return lesson(service.toAdmin(teacherLessons.require(TeacherScope.require(caller), id), true));
     }
 
+    /**
+     * E1: the poll. Same scope check as the full lesson above, a fraction of the work — no play decoding, no stop
+     * descriptions and no ledger backfill, so the 2.5 s tick during `analyzing`/`generating` costs four small reads.
+     */
+    @GetMapping(value = "/teacher/lessons/{id}/status", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('lesson.read')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = quest.api.LessonStatusView.class)))
+    public String teacherLessonStatus(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
+        return json.encodeShared(service.status(teacherLessons.require(TeacherScope.require(caller), id)), quest.api.LessonStatusView.Companion.serializer());
+    }
+
     /** Dragging a card to another day. 409 while it is published. */
     @PatchMapping(value = "/teacher/lessons/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('lesson.write')")

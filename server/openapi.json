@@ -2591,6 +2591,22 @@
         "type" : "object"
       },
       "JsonNode" : { },
+      "LessonFileStatus" : {
+        "properties" : {
+          "convertErrorCode" : {
+            "type" : "string"
+          },
+          "convertStatus" : {
+            "enum" : [ "pending", "converting", "ready", "error" ],
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "convertStatus", "id" ],
+        "type" : "object"
+      },
       "LessonImage" : {
         "properties" : {
           "id" : {
@@ -2601,6 +2617,24 @@
           }
         },
         "required" : [ "id", "url" ],
+        "type" : "object"
+      },
+      "LessonPlayStatus" : {
+        "properties" : {
+          "level" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "stops" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "variant" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "level", "stops", "variant" ],
         "type" : "object"
       },
       "LessonRelease" : {
@@ -2677,6 +2711,55 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "LessonStatusView" : {
+        "properties" : {
+          "currentStep" : {
+            "enum" : [ "upload", "convert", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel" ],
+            "type" : "string"
+          },
+          "errorCode" : {
+            "type" : "string"
+          },
+          "errorMessage" : {
+            "type" : "string"
+          },
+          "files" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LessonFileStatus"
+            },
+            "type" : "array"
+          },
+          "panel" : {
+            "type" : "boolean"
+          },
+          "plays" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LessonPlayStatus"
+            },
+            "type" : "array"
+          },
+          "status" : {
+            "enum" : [ "draft", "uploading", "analyzing", "needs_review", "generating", "review", "published", "error", "paused" ],
+            "type" : "string"
+          },
+          "steps" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LessonStepInfo"
+            },
+            "type" : "array"
+          },
+          "tokenUsage" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "updatedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "files", "panel", "plays", "status", "steps", "tokenUsage", "updatedAt" ],
         "type" : "object"
       },
       "LessonStepInfo" : {
@@ -7377,6 +7460,32 @@
         "tags" : [ "Admin lessons" ]
       }
     },
+    "/admin/lessons/{id}/status" : {
+      "get" : {
+        "operationId" : "getLessonStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonStatusView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Admin lessons" ]
+      }
+    },
     "/admin/lessons/{id}/steps/{step}/retry" : {
       "post" : {
         "operationId" : "retryStep",
@@ -11560,6 +11669,32 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/JobRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/status" : {
+      "get" : {
+        "operationId" : "teacherLessonStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonStatusView"
                 }
               }
             },
