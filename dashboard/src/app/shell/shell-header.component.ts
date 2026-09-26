@@ -222,11 +222,7 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
         <div class="notifications-popup__footer">
           <!-- E3: the browser's permission prompt, asked from a click and nowhere else. -->
           @if (canAskNotify()) {
-            <button
-              type="button"
-              class="notifications-popup__mark-read"
-              (click)="askNotify()"
-            >
+            <button type="button" class="notifications-popup__mark-read" (click)="askNotify()">
               {{ 'notifications.notifyMe' | transloco }}
             </button>
           }

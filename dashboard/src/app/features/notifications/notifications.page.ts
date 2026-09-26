@@ -15,7 +15,15 @@ type CategoryFilter = 'all' | 'unread' | 'lessons';
 
 @Component({
   selector: 'hq-notifications-page',
-  imports: [NgClass, DatePipe, CanDirective, PageComponent, TabsComponent, EmptyStateComponent, TranslocoPipe],
+  imports: [
+    NgClass,
+    DatePipe,
+    CanDirective,
+    PageComponent,
+    TabsComponent,
+    EmptyStateComponent,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-page [title]="'notifications.title' | transloco" [subtitle]="'notifications.subtitle' | transloco">

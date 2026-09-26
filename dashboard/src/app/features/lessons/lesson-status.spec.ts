@@ -101,7 +101,17 @@ describe('lessonSignature', () => {
       course: { curriculum: 'british', grade: 1 },
       createdAt: 0,
       date: '2026-09-10',
-      files: [{ id: 'f-1', convertStatus: 'ready', deleted: false, cacheHit: false, fileHash: 'h', fileName: 'a.pdf', pageCount: 1 }],
+      files: [
+        {
+          id: 'f-1',
+          convertStatus: 'ready',
+          deleted: false,
+          cacheHit: false,
+          fileHash: 'h',
+          fileName: 'a.pdf',
+          pageCount: 1,
+        },
+      ],
       images: [],
       plays: [
         {
@@ -110,7 +120,13 @@ describe('lessonSignature', () => {
           variant: 0,
           generatedAt: 0,
           promptVersion: 'v1',
-          play: { id: 'p-1', kind: 'gallery', level: 1, variant: 0, stops: Array.from({ length: 7 }, (_, i) => ({ id: `st-${i}` })) },
+          play: {
+            id: 'p-1',
+            kind: 'gallery',
+            level: 1,
+            variant: 0,
+            stops: Array.from({ length: 7 }, (_, i) => ({ id: `st-${i}` })),
+          },
         },
       ],
       skills: [],
@@ -132,9 +148,7 @@ describe('lessonSignature', () => {
 
   it('leaves out a deleted file, which the status body does not list either', () => {
     const deleted = { ...lesson().files[0]!, id: 'f-2', deleted: true };
-    expect(lessonSignature(lesson({ files: [...lesson().files, deleted] }))).toBe(
-      statusSignature(view()),
-    );
+    expect(lessonSignature(lesson({ files: [...lesson().files, deleted] }))).toBe(statusSignature(view()));
   });
 
   it('moves with the lesson: a status that settled, a panel that arrived', () => {
