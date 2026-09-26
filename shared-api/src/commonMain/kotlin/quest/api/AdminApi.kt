@@ -37,6 +37,12 @@ interface AdminApi {
     suspend fun uploadImage(lessonId: String, file: UploadFile): LessonImage
     /** Prompt A + B on a short lesson text: writes the levels the admin has not written (typically 2, 3 and the Again variant) and the parent panel. */
     suspend fun generateFromText(lessonId: String, text: String): JobRef
+    /**
+     * E5 (D27): one level of a hand-written lesson, written on request from its Level 1. [level] is `"2"`, `"3"` or
+     * `"again"` — the cap stays three — and [replace] is the only way to write over a level that already has stops.
+     * 409 `generating` while a step of this lesson is running, 409 `exists` without [replace].
+     */
+    suspend fun generateLevel(lessonId: String, level: String, replace: Boolean = false): JobRef
     suspend fun regenerateStop(stopId: String): Stop
     suspend fun regeneratePlay(playId: String): Play
     suspend fun updateParentPanel(lessonId: String, panel: ParentPanel): ParentPanel

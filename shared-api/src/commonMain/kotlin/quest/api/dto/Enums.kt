@@ -80,6 +80,10 @@ data class ApiError(val code: String, val message: String) {
         const val CHILD_NOT_PLACED = "child_not_placed"
         /** 429 (C1 chat): more than 30 messages in a minute from one sender. */
         const val RATE_LIMITED = "rate_limited"
+        /** 409 (E5): a step of this lesson's pipeline is running, so nothing of it may be written over yet. */
+        const val GENERATING = "generating"
+        /** 409 (E5): that level already has questions — `?replace=true` is the only way to write over them. */
+        const val EXISTS = "exists"
     }
 }
 

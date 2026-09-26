@@ -137,7 +137,27 @@ Editing an existing stop's prose behaves the same way: its row waits, the page d
 Levels are capped at three plus the Again variant. An empty level's tab is open rather than greyed out (except while the pipeline is running) and shows an **Add level** card with two choices:
 
 - **Write it myself** — creates the play and opens the Add question sheet on it.
-- **Let the assistant write it** — today, the *Generate the other levels* note at the bottom of the page (E5 replaces this with one level generated on request from Level 1).
+- **Let the assistant write it** — writes **that one level** from the Level 1 she wrote:
+  `POST /teacher/lessons/{id}/plays/{level}/generate`, where `level` is `2`, `3` or `again`. It answers the usual
+  `JobRef` and runs in the background as a single pipeline step (`generate_L2`, `generate_L3` or `generate_again`), so
+  the lesson goes `generating` → `review` and the editor's poll, the step strip and the bell's *Questions ready*
+  behave exactly as they do for an uploaded lesson.
+
+**What the assistant is given.** A lesson written by hand usually has no analysis at all — she never pressed
+*Generate the other levels* — so the server makes one before it writes the level: Prompt A is run over the lesson's
+title and its **Level 1 stops read out as English** (the same prose the editor shows her), cached by the hash of that
+text and with its skills confirmed for her, because she chose the content herself. It is paid for once; the second
+level she asks for reads the same cache row. Levels 2 and 3 are then asked to be **harder than** her Level 1 and are
+given its stop ids to avoid, so the level cannot come back as a copy of the one she wrote.
+
+**The refusals.** 409 `generating` while any step of that lesson is running (one job at a time), 409 `exists` when the
+level already has questions — `?replace=true` writes over it with a fresh seed — and 400 when Level 1 is still empty,
+because there is nothing to write from. A colleague's lesson is 403 and an unknown lesson 404, like every other
+`/teacher/**` route.
+
+**While it runs, the whole lesson is locked**, not just the level being written: every edit is refused with the
+wait-for-the-pipeline 400, as it is during any other job. The parent panel is not generated here — publish still
+fills in whatever is missing, a missing level repeating Level 1 and the panel derived from the stops.
 
 ### Step 8 — Preview and publish
 **Preview as child** opens the web player on the lesson in preview mode (attempts are not recorded in the gradebook).

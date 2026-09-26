@@ -86,6 +86,15 @@ public class AnalysisService {
         return CacheKeys.INSTANCE.sourceHash(hashes, Curriculum.valueOf(lesson.getCourseId().split("/")[0].toUpperCase()), Integer.parseInt(lesson.getCourseId().split("/")[1]), Subject.valueOf(lesson.getSubject().toUpperCase()), lesson.getNotes());
     }
 
+    /**
+     * The cache identity of an analysis of {@code text}: the very hash {@link #analyzeText} stores on the lesson. E5
+     * compares it against `lessons.source_hash` to tell an analysis derived from <em>this</em> Level 1 from one derived
+     * from an older version of it.
+     */
+    public String textHash(LessonEntity lesson, String text) {
+        return CacheKeys.INSTANCE.sourceHash(List.of(Sha256.INSTANCE.hex(text)), Curriculum.valueOf(lesson.getCourseId().split("/")[0].toUpperCase()), Integer.parseInt(lesson.getCourseId().split("/")[1]), Subject.valueOf(lesson.getSubject().toUpperCase()), lesson.getNotes());
+    }
+
     /** Prompt A, cache first. Returns the analysis JSON and records usage on the lesson. Runs inside the async job. */
     public SourceAnalysis analyze(LessonEntity lesson) {
         var activeFiles = sourceFiles.findByLessonIdOrderByCreatedAt(lesson.getId()).stream().filter(f -> f.getDeletedAt() == null).toList();
@@ -117,7 +126,7 @@ public class AnalysisService {
      * text + course like any upload. Confirms every extracted skill so generation can follow immediately.
      */
     public SourceAnalysis analyzeText(LessonEntity lesson, String text) {
-        String hash = CacheKeys.INSTANCE.sourceHash(List.of(Sha256.INSTANCE.hex(text)), Curriculum.valueOf(lesson.getCourseId().split("/")[0].toUpperCase()), Integer.parseInt(lesson.getCourseId().split("/")[1]), Subject.valueOf(lesson.getSubject().toUpperCase()), lesson.getNotes());
+        String hash = textHash(lesson, text);
         String key = CacheKeys.INSTANCE.analysisKey(hash);
         var cached = cache.findById(key).orElse(null);
         String analysisJson;

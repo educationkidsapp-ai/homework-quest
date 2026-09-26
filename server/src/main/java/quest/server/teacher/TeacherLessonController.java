@@ -318,6 +318,22 @@ public class TeacherLessonController {
         return json.encodeShared(service.createPlay(lessonId, req.getLevel(), req.getVariant()), quest.api.AdminPlay.Companion.serializer());
     }
 
+    /**
+     * E5 (D27): "Add level → Let the assistant write it" on an empty Level 2, Level 3 or Again tab. One level, one
+     * ledger step, run in the background from the Level 1 she wrote — `level` is `2`, `3` or `again`, `?replace=true`
+     * is the only way to write over a level that already has questions, and the answer is the usual `JobRef` the
+     * editor already polls. The lesson is hers before anything is read: `requireId` is the same check every other
+     * handler here makes.
+     */
+    @PostMapping(value = "/teacher/lessons/{id}/plays/{level}/generate", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('play.write')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = JobRef.class)))
+    public String teacherGenerateLevel(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @PathVariable String level,
+                                @RequestParam(defaultValue = "false") boolean replace) {
+        String lessonId = teacherLessons.requireId(TeacherScope.require(caller), id);
+        return job(lessonId, service.generateLevel(lessonId, level, replace));
+    }
+
     @PostMapping(value = "/teacher/plays/{playId}/stops", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('stop.write')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Stop.class)))

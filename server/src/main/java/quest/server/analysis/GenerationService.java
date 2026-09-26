@@ -46,11 +46,24 @@ public class GenerationService {
     }
 
     /** One play (a pipeline step): cache-first on the source hash; the Again variant excludes the stored Level 1's ids. */
-    public void generatePlay(LessonEntity lesson, int level, int variant) {
+    public void generatePlay(LessonEntity lesson, int level, int variant) { play(lesson, level, variant, 0, variant == 1); }
+
+    /**
+     * E5 (D27): one level written on request from the lesson's own Level 1 — the hand-written flow's "let the
+     * assistant write it". The Level 1 stops are excluded exactly as the Again variant's are, which is both a prompt
+     * instruction ({@link Prompts#userB}) and a validator rule, so the level cannot come back as Level 1 again.
+     */
+    public void generateFromLevelOne(LessonEntity lesson, int level, int variant, int seed) { play(lesson, level, variant, seed, true); }
+
+    private void play(LessonEntity lesson, int level, int variant, int seed, boolean excludeLevelOne) {
         String hash = requireHash(lesson);
-        Set<String> excluded = variant == 1 ? store.plays(lesson.getId()).stream().filter(p -> p.getLevel() == 1 && p.getVariant() == 0).findFirst().map(p -> canonicalIds(store.play(p), lesson, 1, 0)).orElse(Set.of()) : Set.of();
-        String canonical = playJson(lesson, hash, analysisJson(hash), confirmedSkillsJson(lesson), level, variant, 0, excluded);
-        attach(lesson, canonical, level, variant, 0);
+        String canonical = playJson(lesson, hash, analysisJson(hash), confirmedSkillsJson(lesson), level, variant, seed, excludeLevelOne ? levelOneIds(lesson) : Set.of());
+        attach(lesson, canonical, level, variant, seed);
+    }
+
+    /** The stored Level 1's stop ids, as the model wrote them (no lesson prefix) — what a level may not reuse. */
+    private Set<String> levelOneIds(LessonEntity lesson) {
+        return store.plays(lesson.getId()).stream().filter(p -> p.getLevel() == 1 && p.getVariant() == 0).findFirst().map(p -> canonicalIds(store.play(p), lesson, 1, 0)).orElse(Set.of());
     }
 
     /** The parent panel (a pipeline step) from the three stored levels. */
@@ -63,11 +76,14 @@ public class GenerationService {
         panel(lesson, hash, analysisJson(hash), plays);
     }
 
-    /** Regenerate one level with the next seed (a fresh cache slot). */
+    /** Regenerate one level with the next seed (a fresh cache slot); every level but Level 1 stays harder than it. */
     public Play regeneratePlay(LessonEntity lesson, PlayEntity existing) {
         String hash = requireHash(lesson);
         int seed = existing.getSeed() + 1;
-        Set<String> excluded = existing.getVariant() == 1 ? store.plays(lesson.getId()).stream().filter(p -> p.getLevel() == 1 && p.getVariant() == 0).findFirst().map(p -> canonicalIds(store.play(p), lesson, 1, 0)).orElse(Set.of()) : Set.of();
+        // Every play except Level 1 itself is a play the child meets after Level 1, so Regenerate keeps the same
+        // exclusion the level was written with — pressing it on an E5-written Level 2 used to drop the
+        // harder-than-Level-1 instruction and could hand back a copy of Level 1.
+        Set<String> excluded = existing.getLevel() == 1 && existing.getVariant() == 0 ? Set.of() : levelOneIds(lesson);
         String canonical = playJson(lesson, hash, analysisJson(hash), confirmedSkillsJson(lesson), existing.getLevel(), existing.getVariant(), seed, excluded);
         return attach(lesson, canonical, existing.getLevel(), existing.getVariant(), seed);
     }
