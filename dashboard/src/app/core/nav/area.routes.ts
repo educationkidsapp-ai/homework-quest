@@ -93,7 +93,10 @@ function componentFor(screen: Screen, role: Role) {
   if (screen.id === 'teachers' && role === 'ADMIN') {
     return import('../../features/admin/teachers.page').then((m) => m.TeachersPage);
   }
-  if (screen.id === 'chat') return import('../../features/chat/chat.page').then((m) => m.ChatPage);
+  // `chat` is the teacher's door to it, `messages` the manager's (R7): one screen, and for her
+  // one fed by the socket alone, because R4 added no thread list a manager may read.
+  if (screen.id === 'chat' || screen.id === 'messages')
+    return import('../../features/chat/chat.page').then((m) => m.ChatPage);
   return import('../../features/stub/stub.page').then((m) => m.StubPage);
 }
 
@@ -119,6 +122,17 @@ function coordinatorComponentFor(screen: Screen) {
     );
   if (screen.id === 'exams')
     return import('../../features/coordinator/coordinator-exams.page').then((m) => m.CoordinatorExamsPage);
+  // R7: Messages is the teacher's chat screen over her own routes (`core/chat/chat-routes.ts`),
+  // so it is the same chunk, not a copy of the list, the conversation and the composer.
+  if (screen.id === 'messages') return import('../../features/chat/chat.page').then((m) => m.ChatPage);
+  if (screen.id === 'complaints')
+    return import('../../features/coordinator/coordinator-complaints.page').then(
+      (m) => m.CoordinatorComplaintsPage,
+    );
+  if (screen.id === 'announcements')
+    return import('../../features/coordinator/coordinator-announcements.page').then(
+      (m) => m.CoordinatorAnnouncementsPage,
+    );
   if (screen.id === 'teachers')
     return import('../../features/coordinator/coordinator-teachers.page').then(
       (m) => m.CoordinatorTeachersPage,

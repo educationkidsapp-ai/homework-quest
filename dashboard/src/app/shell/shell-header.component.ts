@@ -136,10 +136,10 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
               <span class="header__bell-badge">{{ unreadNotifications() }}</span>
             }
           </button>
-          @if (isTeacher()) {
+          @if (chatLink(); as link) {
             <a
               *hqFeature="'chat'"
-              routerLink="/teacher/chat"
+              [routerLink]="link"
               class="header__icon header__chat-btn"
               [attr.aria-label]="'nav.chat' | transloco"
             >
@@ -760,7 +760,23 @@ export class ShellHeaderComponent {
   protected readonly languages = LANGUAGES;
 
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
-  protected readonly isTeacher = computed(() => this.auth.role() === 'TEACHER');
+  /**
+   * Where the header's chat icon goes, or `null` for the roles that hold no conversations.
+   *
+   * R7 gave a coordinator the same badge: her unread count is real (`GET /coordinator/chat/threads`
+   * feeds `totalUnread` through `ChatRoutes`), and a badge with nowhere to go would have been the
+   * one thing on the header that does not answer a click.
+   */
+  protected readonly chatLink = computed<string | null>(() => {
+    switch (this.auth.role()) {
+      case 'TEACHER':
+        return '/teacher/chat';
+      case 'COORDINATOR':
+        return '/coordinator/messages';
+      default:
+        return null;
+    }
+  });
   protected readonly unreadChatCount = computed(() => this.chatService.totalUnread());
   protected readonly notificationsService = inject(NotificationsService);
   private readonly transloco = inject(TranslocoService);

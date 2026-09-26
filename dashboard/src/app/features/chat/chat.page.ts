@@ -14,7 +14,8 @@ import {
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { ChatMessageSenderEnum } from '../../api';
+import { ChatMessageSenderEnum, ChatThread, ChatThreadStaffRoleEnum, ChatThreadTopicEnum } from '../../api';
+import { AuthService } from '../../core/auth/auth.service';
 import { ChatAttachment, ChatAttachmentStore } from '../../core/chat/chat-attachment.store';
 import { ChatService } from '../../core/chat/chat.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
@@ -34,10 +35,38 @@ const EMOJI_CATEGORIES: readonly EmojiCategory[] = [
     icon: '😊',
     name: 'Smileys',
     emojis: [
-      '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
-      '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
-      '😋', '😛', '😜', '🤔', '🤫', '🤗', '🥳', '😎',
-      '👍', '👏', '🙌', '🤝', '💖', '❤️', '⭐', '✨',
+      '😀',
+      '😃',
+      '😄',
+      '😁',
+      '😆',
+      '😅',
+      '😂',
+      '🤣',
+      '😊',
+      '😇',
+      '🙂',
+      '😉',
+      '😌',
+      '😍',
+      '🥰',
+      '😘',
+      '😋',
+      '😛',
+      '😜',
+      '🤔',
+      '🤫',
+      '🤗',
+      '🥳',
+      '😎',
+      '👍',
+      '👏',
+      '🙌',
+      '🤝',
+      '💖',
+      '❤️',
+      '⭐',
+      '✨',
     ],
   },
   {
@@ -45,10 +74,38 @@ const EMOJI_CATEGORIES: readonly EmojiCategory[] = [
     icon: '📚',
     name: 'School',
     emojis: [
-      '📚', '📖', '✏️', '📝', '🎨', '🎒', '🏫', '🔬',
-      '📐', '📏', '📎', '📌', '🏆', '🥇', '🥈', '🥉',
-      '🎯', '💯', '🧠', '💡', '⏰', '📅', '🔔', '📣',
-      '✅', '❌', '❓', '❗', '🎓', '💻', '🏅', '🌟',
+      '📚',
+      '📖',
+      '✏️',
+      '📝',
+      '🎨',
+      '🎒',
+      '🏫',
+      '🔬',
+      '📐',
+      '📏',
+      '📎',
+      '📌',
+      '🏆',
+      '🥇',
+      '🥈',
+      '🥉',
+      '🎯',
+      '💯',
+      '🧠',
+      '💡',
+      '⏰',
+      '📅',
+      '🔔',
+      '📣',
+      '✅',
+      '❌',
+      '❓',
+      '❗',
+      '🎓',
+      '💻',
+      '🏅',
+      '🌟',
     ],
   },
   {
@@ -56,10 +113,38 @@ const EMOJI_CATEGORIES: readonly EmojiCategory[] = [
     icon: '🎉',
     name: 'Fun',
     emojis: [
-      '🍎', '🍌', '🍕', '🍰', '🍪', '⚽', '🏀', '🎮',
-      '🚗', '🚀', '🌈', '☀️', '🌸', '🐱', '🐶', '🦁',
-      '🎉', '🎈', '🎁', '💪', '🙏', '🙋', '👨‍🏫', '👩‍🏫',
-      '👦', '👧', '💬', '💭', '🪄', '🔥', '👋', '🥳',
+      '🍎',
+      '🍌',
+      '🍕',
+      '🍰',
+      '🍪',
+      '⚽',
+      '🏀',
+      '🎮',
+      '🚗',
+      '🚀',
+      '🌈',
+      '☀️',
+      '🌸',
+      '🐱',
+      '🐶',
+      '🦁',
+      '🎉',
+      '🎈',
+      '🎁',
+      '💪',
+      '🙏',
+      '🙋',
+      '👨‍🏫',
+      '👩‍🏫',
+      '👦',
+      '👧',
+      '💬',
+      '💭',
+      '🪄',
+      '🔥',
+      '👋',
+      '🥳',
     ],
   },
 ];
@@ -80,14 +165,18 @@ interface ParsedChatMessage {
   imports: [PageComponent, FormsModule, TranslocoPipe, DatePipe, FeatureDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hq-page [title]="'chat.title' | transloco" [subtitle]="'chat.subtitle' | transloco">
+    <hq-page [title]="title() | transloco" [subtitle]="subtitle() | transloco">
       <div *hqFeature="'chat'" class="chat-layout" [class.chat-layout--show-convo]="mobileShowConvo()">
         <!-- Threads Sidebar -->
         <aside class="chat-sidebar">
           <div class="chat-sidebar__search">
             <div class="search-box">
               <svg class="search-box__icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
+                <path
+                  fill-rule="evenodd"
+                  d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+                  clip-rule="evenodd"
+                />
               </svg>
               <input
                 type="text"
@@ -115,28 +204,40 @@ interface ParsedChatMessage {
               <div class="chat-sidebar__state">{{ 'common.loading' | transloco }}</div>
             } @else if (filteredThreads().length === 0) {
               <div class="chat-sidebar__state">
-                <p class="chat-sidebar__empty-title">{{ 'chat.noThreads' | transloco }}</p>
-                <p class="chat-sidebar__empty-hint">{{ 'chat.noThreadsHint' | transloco }}</p>
+                <p class="chat-sidebar__empty-title">{{ emptyTitle() | transloco }}</p>
+                <p class="chat-sidebar__empty-hint">{{ emptyHint() | transloco }}</p>
               </div>
             } @else {
-              @for (thread of filteredThreads(); track thread.childId) {
+              @for (thread of filteredThreads(); track keyOf(thread)) {
                 <button
                   type="button"
                   class="thread-card"
-                  [class.is-active]="chatService.activeChildId() === thread.childId"
-                  (click)="onSelectThread(thread.childId)"
+                  [class.is-active]="chatService.activeKey() === keyOf(thread)"
+                  (click)="onSelectThread(keyOf(thread))"
                 >
                   <div class="thread-card__avatar">
-                    {{ initialOf(thread.childName) }}
+                    {{ initialOf(nameOf(thread)) }}
                   </div>
                   <div class="thread-card__content">
                     <div class="thread-card__top">
-                      <span class="thread-card__name">{{ thread.childName }}</span>
+                      <span class="thread-card__name">{{ nameOf(thread) }}</span>
                       @if (thread.lastMessage; as msg) {
                         <span class="thread-card__time">{{ msg.createdAt | date: 'shortTime' }}</span>
                       }
                     </div>
                     <div class="thread-card__meta">
+                      @if (isStaff(thread)) {
+                        <!-- R7: a coordinator ↔ manager thread has no child on it at all, so the
+                             row says who the other end is instead of pretending to a class. -->
+                        <span class="thread-card__badge thread-card__badge--staff">
+                          {{ 'chat.management' | transloco }}
+                        </span>
+                      }
+                      @if (thread.topic === topicComplaint) {
+                        <span class="thread-card__badge thread-card__badge--complaint">
+                          {{ 'chat.complaint' | transloco }}
+                        </span>
+                      }
                       @if (thread.className) {
                         <span class="thread-card__class">{{ thread.className }}</span>
                       }
@@ -178,20 +279,31 @@ interface ParsedChatMessage {
                 (click)="mobileShowConvo.set(false)"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M15 19l-7-7 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  <path
+                    d="M15 19l-7-7 7-7"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
                 </svg>
               </button>
 
               <div class="convo-header__avatar">
-                {{ initialOf(active.childName) }}
+                {{ initialOf(nameOf(active)) }}
               </div>
 
               <div class="convo-header__info">
-                <h2 class="convo-header__title">{{ active.childName }}</h2>
+                <h2 class="convo-header__title">{{ nameOf(active) }}</h2>
                 <span class="convo-header__parent">
-                  {{ 'chat.parent' | transloco: { child: active.childName } }}
-                  @if (active.className) {
-                    · {{ active.className }}
+                  @if (isStaff(active)) {
+                    {{ 'chat.management' | transloco }}
+                  } @else {
+                    {{ 'chat.parent' | transloco: { child: active.childName } }}
+                    @if (active.className) {
+                      · {{ active.className }}
+                    }
                   }
                 </span>
               </div>
@@ -200,12 +312,18 @@ interface ParsedChatMessage {
                 <span
                   class="status-pill"
                   [class.status-pill--connected]="chatService.connectionStatus() === 'connected'"
-                  [class.status-pill--connecting]="chatService.connectionStatus() === 'connecting' || chatService.connectionStatus() === 'reconnecting'"
+                  [class.status-pill--connecting]="
+                    chatService.connectionStatus() === 'connecting' ||
+                    chatService.connectionStatus() === 'reconnecting'
+                  "
                 >
                   <span class="status-pill__dot"></span>
                   @if (chatService.connectionStatus() === 'connected') {
                     {{ 'chat.live' | transloco }}
-                  } @else if (chatService.connectionStatus() === 'connecting' || chatService.connectionStatus() === 'reconnecting') {
+                  } @else if (
+                    chatService.connectionStatus() === 'connecting' ||
+                    chatService.connectionStatus() === 'reconnecting'
+                  ) {
                     {{ 'chat.connecting' | transloco }}
                   } @else {
                     {{ 'chat.offline' | transloco }}
@@ -221,10 +339,11 @@ interface ParsedChatMessage {
               } @else {
                 @for (msg of chatService.messages(); track msg.id) {
                   @let parsed = parseMessage(msg.body);
+                  @let mineMsg = isMine(msg);
                   <div
                     class="message-row"
-                    [class.message-row--teacher]="msg.sender === senderTeacher"
-                    [class.message-row--parent]="msg.sender === senderParent"
+                    [class.message-row--teacher]="mineMsg"
+                    [class.message-row--parent]="!mineMsg"
                   >
                     <div class="message-bubble">
                       <!-- Render Attachment if present -->
@@ -246,8 +365,12 @@ interface ParsedChatMessage {
                             }
                             <div class="message-attachment__overlay">
                               <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                                <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
-                                <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                                <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+                                <path
+                                  fill-rule="evenodd"
+                                  d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                                  clip-rule="evenodd"
+                                />
                               </svg>
                               <span>{{ 'chat.viewImage' | transloco }}</span>
                             </div>
@@ -256,16 +379,20 @@ interface ParsedChatMessage {
                           <div class="message-attachment message-attachment--pdf">
                             <div class="message-attachment__pdf-icon">
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                <polyline points="14 2 14 8 20 8"/>
-                                <line x1="16" y1="13" x2="8" y2="13"/>
-                                <line x1="16" y1="17" x2="8" y2="17"/>
-                                <polyline points="10 9 9 9 8 9"/>
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                                <line x1="16" y1="13" x2="8" y2="13" />
+                                <line x1="16" y1="17" x2="8" y2="17" />
+                                <polyline points="10 9 9 9 8 9" />
                               </svg>
                             </div>
                             <div class="message-attachment__pdf-info">
-                              <div class="message-attachment__pdf-name" [title]="att.name">{{ att.name }}</div>
-                              <div class="message-attachment__pdf-size">{{ att.size || ('chat.pdfDocument' | transloco) }}</div>
+                              <div class="message-attachment__pdf-name" [title]="att.name">
+                                {{ att.name }}
+                              </div>
+                              <div class="message-attachment__pdf-size">
+                                {{ att.size || ('chat.pdfDocument' | transloco) }}
+                              </div>
                             </div>
                             <button
                               type="button"
@@ -274,7 +401,11 @@ interface ParsedChatMessage {
                               (click)="downloadAttachment(att.name, att.dataUrl)"
                             >
                               <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                                <path
+                                  fill-rule="evenodd"
+                                  d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                                  clip-rule="evenodd"
+                                />
                               </svg>
                             </button>
                           </div>
@@ -287,13 +418,19 @@ interface ParsedChatMessage {
 
                       <div class="message-bubble__meta">
                         <span class="message-bubble__time">{{ msg.createdAt | date: 'shortTime' }}</span>
-                        @if (msg.sender === senderTeacher) {
+                        @if (mineMsg) {
                           @if (msg.pending) {
                             <span class="message-bubble__status">⏳</span>
                           } @else if (msg.failed) {
-                            <span class="message-bubble__status message-bubble__status--failed">⚠️ {{ 'chat.failed' | transloco }}</span>
+                            <span class="message-bubble__status message-bubble__status--failed"
+                              >⚠️ {{ 'chat.failed' | transloco }}</span
+                            >
                           } @else if (msg.readAt) {
-                            <span class="message-bubble__status message-bubble__status--read" [title]="'chat.read' | transloco">✓✓</span>
+                            <span
+                              class="message-bubble__status message-bubble__status--read"
+                              [title]="'chat.read' | transloco"
+                              >✓✓</span
+                            >
                           } @else {
                             <span class="message-bubble__status" [title]="'chat.sent' | transloco">✓</span>
                           }
@@ -314,158 +451,183 @@ interface ParsedChatMessage {
               }
             </div>
 
-            <!-- Composer Area with Attachment & Emoji Pickers -->
-            <footer class="convo-composer">
-              <!-- Emoji Picker Popup -->
-              @if (showEmojiPicker()) {
-                <div class="emoji-picker">
-                  <div class="emoji-picker__header">
-                    <div class="emoji-picker__categories">
-                      @for (cat of emojiCategories; track cat.id) {
-                        <button
-                          type="button"
-                          class="emoji-picker__cat-btn"
-                          [class.is-active]="activeEmojiCategory() === cat.id"
-                          (click)="activeEmojiCategory.set(cat.id)"
-                        >
-                          <span class="emoji-picker__cat-icon">{{ cat.icon }}</span>
-                          <span class="emoji-picker__cat-name">{{ cat.name }}</span>
+            <!-- Composer Area with Attachment & Emoji Pickers. Absent, not disabled, for the
+                 role the socket refuses a message command from: she has nothing to send with. -->
+            @if (!chatService.canWrite()) {
+              <footer class="convo-readonly">{{ 'chat.readOnlyPeer' | transloco }}</footer>
+            } @else {
+              <footer class="convo-composer">
+                <!-- Emoji Picker Popup -->
+                @if (showEmojiPicker()) {
+                  <div class="emoji-picker">
+                    <div class="emoji-picker__header">
+                      <div class="emoji-picker__categories">
+                        @for (cat of emojiCategories; track cat.id) {
+                          <button
+                            type="button"
+                            class="emoji-picker__cat-btn"
+                            [class.is-active]="activeEmojiCategory() === cat.id"
+                            (click)="activeEmojiCategory.set(cat.id)"
+                          >
+                            <span class="emoji-picker__cat-icon">{{ cat.icon }}</span>
+                            <span class="emoji-picker__cat-name">{{ cat.name }}</span>
+                          </button>
+                        }
+                      </div>
+                      <button
+                        type="button"
+                        class="emoji-picker__close"
+                        (click)="showEmojiPicker.set(false)"
+                        [title]="'chat.close' | transloco"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div class="emoji-picker__search">
+                      <input
+                        type="text"
+                        class="emoji-picker__search-input"
+                        placeholder="Search emojis..."
+                        [ngModel]="emojiSearch()"
+                        (ngModelChange)="emojiSearch.set($event)"
+                      />
+                    </div>
+
+                    <div class="emoji-picker__grid">
+                      @for (emoji of filteredEmojis(); track emoji) {
+                        <button type="button" class="emoji-btn" (click)="onSelectEmoji(emoji)">
+                          {{ emoji }}
                         </button>
                       }
                     </div>
-                    <button
-                      type="button"
-                      class="emoji-picker__close"
-                      (click)="showEmojiPicker.set(false)"
-                      [title]="'chat.close' | transloco"
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  <div class="emoji-picker__search">
-                    <input
-                      type="text"
-                      class="emoji-picker__search-input"
-                      placeholder="Search emojis..."
-                      [ngModel]="emojiSearch()"
-                      (ngModelChange)="emojiSearch.set($event)"
-                    />
-                  </div>
-
-                  <div class="emoji-picker__grid">
-                    @for (emoji of filteredEmojis(); track emoji) {
-                      <button
-                        type="button"
-                        class="emoji-btn"
-                        (click)="onSelectEmoji(emoji)"
-                      >
-                        {{ emoji }}
-                      </button>
-                    }
-                  </div>
-                </div>
-              }
-
-              <div class="convo-composer__box">
-                <!-- Attached File Preview Chip -->
-                @if (attachedFile(); as att) {
-                  <div class="composer-attachment-bar">
-                    <div class="attachment-chip">
-                      @if (att.type === 'image') {
-                        <img [src]="att.dataUrl" alt="Thumbnail" class="attachment-chip__thumb" />
-                      } @else {
-                        <div class="attachment-chip__pdf-icon">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                            <polyline points="14 2 14 8 20 8"/>
-                          </svg>
-                        </div>
-                      }
-                      <div class="attachment-chip__details">
-                        <span class="attachment-chip__name" [title]="att.name">{{ att.name }}</span>
-                        <span class="attachment-chip__size">{{ att.size }}</span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      class="attachment-chip__remove"
-                      (click)="removeAttachment()"
-                      [title]="'chat.removeAttachment' | transloco"
-                    >
-                      ✕
-                    </button>
                   </div>
                 }
 
-                <textarea
-                  #composerInput
-                  class="convo-composer__input"
-                  rows="2"
-                  maxlength="2000"
-                  [placeholder]="'chat.writeMessage' | transloco"
-                  [ngModel]="draftMessage()"
-                  (ngModelChange)="draftMessage.set($event); onInput()"
-                  (keydown.enter)="onEnterKey($event)"
-                ></textarea>
+                <div class="convo-composer__box">
+                  <!-- Attached File Preview Chip -->
+                  @if (attachedFile(); as att) {
+                    <div class="composer-attachment-bar">
+                      <div class="attachment-chip">
+                        @if (att.type === 'image') {
+                          <img [src]="att.dataUrl" alt="Thumbnail" class="attachment-chip__thumb" />
+                        } @else {
+                          <div class="attachment-chip__pdf-icon">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              width="16"
+                              height="16"
+                            >
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                            </svg>
+                          </div>
+                        }
+                        <div class="attachment-chip__details">
+                          <span class="attachment-chip__name" [title]="att.name">{{ att.name }}</span>
+                          <span class="attachment-chip__size">{{ att.size }}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        class="attachment-chip__remove"
+                        (click)="removeAttachment()"
+                        [title]="'chat.removeAttachment' | transloco"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  }
 
-                <div class="convo-composer__bottom">
-                  <div class="convo-composer__tools">
-                    <button
-                      type="button"
-                      class="composer-tool-btn"
-                      (click)="fileInput.click()"
-                      [title]="'chat.attachFile' | transloco"
-                    >
-                      <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
-                        <path fill-rule="evenodd" d="M15.621 4.379a3 3 0 00-4.242 0l-7 7a3 3 0 004.241 4.243h.001l.497-.5a.75.75 0 011.064 1.057l-.498.501-.002.002a4.5 4.5 0 01-6.364-6.364l7-7a4.5 4.5 0 016.368 6.36l-3.455 3.553A2.625 2.625 0 119.5 9.525l3.45-3.451a.75.75 0 111.061 1.06l-3.45 3.451a1.125 1.125 0 001.587 1.595l3.454-3.553a3 3 0 000-4.248z" clip-rule="evenodd"/>
-                      </svg>
-                    </button>
-                    <input
-                      #fileInput
-                      type="file"
-                      accept="image/*,application/pdf"
-                      style="display: none"
-                      (change)="onFileSelected($event)"
-                    />
+                  <textarea
+                    #composerInput
+                    class="convo-composer__input"
+                    rows="2"
+                    maxlength="2000"
+                    [placeholder]="'chat.writeMessage' | transloco"
+                    [ngModel]="draftMessage()"
+                    (ngModelChange)="draftMessage.set($event); onInput()"
+                    (keydown.enter)="onEnterKey($event)"
+                  ></textarea>
 
-                    <button
-                      type="button"
-                      class="composer-tool-btn"
-                      [class.is-active]="showEmojiPicker()"
-                      (click)="toggleEmojiPicker($event)"
-                      [title]="'chat.addEmoji' | transloco"
-                    >
-                      <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-.464 5.535a.75.75 0 10-1.06-1.06 3.5 3.5 0 01-4.952 0 .75.75 0 00-1.06 1.06 5 5 0 007.072 0z" clip-rule="evenodd"/>
-                      </svg>
-                    </button>
-                  </div>
+                  <div class="convo-composer__bottom">
+                    <div class="convo-composer__tools">
+                      <button
+                        type="button"
+                        class="composer-tool-btn"
+                        (click)="fileInput.click()"
+                        [title]="'chat.attachFile' | transloco"
+                      >
+                        <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
+                          <path
+                            fill-rule="evenodd"
+                            d="M15.621 4.379a3 3 0 00-4.242 0l-7 7a3 3 0 004.241 4.243h.001l.497-.5a.75.75 0 011.064 1.057l-.498.501-.002.002a4.5 4.5 0 01-6.364-6.364l7-7a4.5 4.5 0 016.368 6.36l-3.455 3.553A2.625 2.625 0 119.5 9.525l3.45-3.451a.75.75 0 111.061 1.06l-3.45 3.451a1.125 1.125 0 001.587 1.595l3.454-3.553a3 3 0 000-4.248z"
+                            clip-rule="evenodd"
+                          />
+                        </svg>
+                      </button>
+                      <input
+                        #fileInput
+                        type="file"
+                        accept="image/*,application/pdf"
+                        style="display: none"
+                        (change)="onFileSelected($event)"
+                      />
 
-                  <div class="convo-composer__actions">
-                    <span class="convo-composer__count" [class.is-limit]="draftMessage().length > 1900">
-                      {{ 'chat.charCount' | transloco: { count: draftMessage().length } }}
-                    </span>
-                    <button
-                      type="button"
-                      class="convo-composer__send"
-                      [disabled]="!canSend()"
-                      (click)="onSendMessage()"
-                    >
-                      <span>{{ 'chat.send' | transloco }}</span>
-                      <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
-                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
-                      </svg>
-                    </button>
+                      <button
+                        type="button"
+                        class="composer-tool-btn"
+                        [class.is-active]="showEmojiPicker()"
+                        (click)="toggleEmojiPicker($event)"
+                        [title]="'chat.addEmoji' | transloco"
+                      >
+                        <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
+                          <path
+                            fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-.464 5.535a.75.75 0 10-1.06-1.06 3.5 3.5 0 01-4.952 0 .75.75 0 00-1.06 1.06 5 5 0 007.072 0z"
+                            clip-rule="evenodd"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div class="convo-composer__actions">
+                      <span class="convo-composer__count" [class.is-limit]="draftMessage().length > 1900">
+                        {{ 'chat.charCount' | transloco: { count: draftMessage().length } }}
+                      </span>
+                      <button
+                        type="button"
+                        class="convo-composer__send"
+                        [disabled]="!canSend()"
+                        (click)="onSendMessage()"
+                      >
+                        <span>{{ 'chat.send' | transloco }}</span>
+                        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                          <path
+                            d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </footer>
+              </footer>
+            }
           } @else {
             <div class="convo-empty">
               <div class="convo-empty__card">
                 <svg class="convo-empty__icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  <path
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
                 </svg>
                 <h3 class="convo-empty__title">{{ 'chat.selectThread' | transloco }}</h3>
                 <p class="convo-empty__hint">{{ 'chat.selectThreadHint' | transloco }}</p>
@@ -496,7 +658,11 @@ interface ParsedChatMessage {
                   [title]="'chat.downloadFile' | transloco"
                 >
                   <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                    <path
+                      fill-rule="evenodd"
+                      d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                      clip-rule="evenodd"
+                    />
                   </svg>
                   <span>{{ 'chat.downloadFile' | transloco }}</span>
                 </button>
@@ -720,6 +886,19 @@ interface ParsedChatMessage {
       color: var(--hq-color-ink-faint, #94a3b8);
     }
 
+    .thread-card__badge--staff,
+    .thread-card__badge--complaint {
+      border-radius: 0;
+      font-size: var(--hq-font-label-size);
+      font-weight: var(--hq-font-label-weight);
+      letter-spacing: var(--hq-font-letter-spacing-label);
+      text-transform: uppercase;
+    }
+
+    .thread-card__badge--complaint {
+      background: var(--hq-color-accent-strong);
+    }
+
     .thread-card__badge {
       flex-shrink: 0;
       min-width: 20px;
@@ -759,7 +938,10 @@ interface ParsedChatMessage {
       cursor: pointer;
       color: var(--hq-color-ink, #0f172a);
       padding: 4px;
-      svg { width: 22px; height: 22px; }
+      svg {
+        width: 22px;
+        height: 22px;
+      }
     }
 
     .convo-header__avatar {
@@ -824,7 +1006,9 @@ interface ParsedChatMessage {
     .status-pill--connecting {
       background: rgba(245, 158, 11, 0.12);
       color: #d97706;
-      .status-pill__dot { background: #f59e0b; }
+      .status-pill__dot {
+        background: #f59e0b;
+      }
     }
 
     .convo-stream {
@@ -853,10 +1037,19 @@ interface ParsedChatMessage {
           color: #ffffff;
           border-radius: 16px 16px 4px 16px;
           box-shadow: 0 4px 14px -2px rgba(37, 99, 235, 0.25);
-          .message-bubble__time { color: rgba(255, 255, 255, 0.8); }
-          .message-bubble__status { color: rgba(255, 255, 255, 0.9); }
-          .message-bubble__status--read { color: #93c5fd; font-weight: 700; }
-          .message-bubble__status--failed { color: #fecaca; }
+          .message-bubble__time {
+            color: rgba(255, 255, 255, 0.8);
+          }
+          .message-bubble__status {
+            color: rgba(255, 255, 255, 0.9);
+          }
+          .message-bubble__status--read {
+            color: #93c5fd;
+            font-weight: 700;
+          }
+          .message-bubble__status--failed {
+            color: #fecaca;
+          }
         }
       }
       &--parent {
@@ -867,7 +1060,9 @@ interface ParsedChatMessage {
           border: 1px solid var(--hq-color-rule, #e2e8f0);
           border-radius: 16px 16px 16px 4px;
           box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.05);
-          .message-bubble__time { color: var(--hq-color-ink-faint, #94a3b8); }
+          .message-bubble__time {
+            color: var(--hq-color-ink-faint, #94a3b8);
+          }
         }
       }
     }
@@ -1025,8 +1220,12 @@ interface ParsedChatMessage {
       border-radius: 50%;
       background: #94a3b8;
       animation: typingPulse 1.2s infinite ease-in-out;
-      &:nth-child(2) { animation-delay: 0.2s; }
-      &:nth-child(3) { animation-delay: 0.4s; }
+      &:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      &:nth-child(3) {
+        animation-delay: 0.4s;
+      }
     }
 
     .typing-indicator__text {
@@ -1036,8 +1235,24 @@ interface ParsedChatMessage {
     }
 
     @keyframes typingPulse {
-      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-      30% { transform: translateY(-4px); opacity: 1; }
+      0%,
+      60%,
+      100% {
+        transform: translateY(0);
+        opacity: 0.4;
+      }
+      30% {
+        transform: translateY(-4px);
+        opacity: 1;
+      }
+    }
+
+    .convo-readonly {
+      padding: var(--hq-space-16);
+      border-block-start: var(--hq-size-rule) solid var(--hq-color-ink);
+      color: var(--hq-color-ink-muted);
+      font-size: var(--hq-text-note);
+      text-align: center;
     }
 
     .convo-composer {
@@ -1193,7 +1408,10 @@ interface ParsedChatMessage {
     .convo-composer__count {
       font-size: 11px;
       color: var(--hq-color-ink-faint, #94a3b8);
-      &.is-limit { color: var(--hq-color-error, #ef4444); font-weight: 700; }
+      &.is-limit {
+        color: var(--hq-color-error, #ef4444);
+        font-weight: 700;
+      }
     }
 
     .convo-composer__send {
@@ -1327,7 +1545,9 @@ interface ParsedChatMessage {
       border-radius: 6px;
       display: grid;
       place-items: center;
-      transition: transform 0.1s ease, background 0.1s ease;
+      transition:
+        transform 0.1s ease,
+        background 0.1s ease;
 
       &:hover {
         transform: scale(1.25);
@@ -1677,12 +1897,22 @@ interface ParsedChatMessage {
         height: calc(100vh - 130px);
         border-radius: 12px;
       }
-      .chat-sidebar { display: flex; }
-      .chat-convo { display: none; }
+      .chat-sidebar {
+        display: flex;
+      }
+      .chat-convo {
+        display: none;
+      }
       .chat-layout--show-convo {
-        .chat-sidebar { display: none; }
-        .chat-convo { display: flex; }
-        .convo-header__back { display: block; }
+        .chat-sidebar {
+          display: none;
+        }
+        .chat-convo {
+          display: flex;
+        }
+        .convo-header__back {
+          display: block;
+        }
       }
       .emoji-picker {
         width: 290px;
@@ -1694,11 +1924,51 @@ interface ParsedChatMessage {
 export class ChatPage implements AfterViewChecked {
   protected readonly chatService = inject(ChatService);
   private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
   private readonly transloco = inject(TranslocoService);
 
   readonly flag = FLAGS.chat;
   readonly senderTeacher = ChatMessageSenderEnum.TEACHER;
-  readonly senderParent = ChatMessageSenderEnum.PARENT;
+  readonly topicComplaint = ChatThreadTopicEnum.COMPLAINT;
+
+  /**
+   * R7: one screen, three doors. `/teacher/chat` is the parent conversations, and
+   * `/coordinator/messages` is the same list over her own routes plus the staff threads;
+   * `/management/messages` is the manager's read-only side of those (`ChatRoutes`).
+   */
+  protected readonly title = computed(() => {
+    switch (this.auth.role()) {
+      case 'TEACHER':
+        return 'chat.title';
+      // Not "Messages" for her: what she has is a live view of the frames arriving now, and a
+      // title that promised an inbox would be the screen's first untruth (R4 added no
+      // `GET /management/chat/threads`; RM2 does).
+      case 'MANAGERIAL':
+        return 'chat.liveTitle';
+      default:
+        return 'chat.messagesTitle';
+    }
+  });
+
+  protected readonly subtitle = computed(() => {
+    switch (this.auth.role()) {
+      case 'MANAGERIAL':
+        return 'chat.managementSubtitle';
+      // Her threads are not all "parents of your students" — one of them is a manager.
+      case 'COORDINATOR':
+        return 'chat.coordinatorSubtitle';
+      default:
+        return 'chat.subtitle';
+    }
+  });
+
+  /** What the empty threads list says, which is a different fact for the role that cannot ask. */
+  protected readonly emptyTitle = computed(() =>
+    this.auth.role() === 'MANAGERIAL' ? 'chat.liveEmpty' : 'chat.noThreads',
+  );
+  protected readonly emptyHint = computed(() =>
+    this.auth.role() === 'MANAGERIAL' ? 'chat.liveEmptyHint' : 'chat.noThreadsHint',
+  );
 
   readonly emojiCategories = EMOJI_CATEGORIES;
 
@@ -1722,11 +1992,40 @@ export class ChatPage implements AfterViewChecked {
     if (!q) return list;
     return list.filter(
       (t) =>
-        t.childName.toLowerCase().includes(q) ||
+        this.nameOf(t).toLowerCase().includes(q) ||
         (t.className && t.className.toLowerCase().includes(q)) ||
         (t.subject && t.subject.toLowerCase().includes(q)),
     );
   });
+
+  protected keyOf(thread: ChatThread): string {
+    return this.chatService.keyOf(thread);
+  }
+
+  protected isStaff(thread: ChatThread): boolean {
+    return thread.staffRole === ChatThreadStaffRoleEnum.MANAGERIAL;
+  }
+
+  /** The child a parent thread is about, or the staff member on the other end of a staff one. */
+  protected nameOf(thread: ChatThread): string {
+    if (!this.isStaff(thread)) return thread.childName;
+    return thread.teacherName || this.transloco.translate<string>('chat.management');
+  }
+
+  /**
+   * Whose bubble this is — by sender **identity**, not by role.
+   *
+   * On a staff thread both ends serialise as `sender: "teacher"` (the contract's `ChatSender` has
+   * only `parent` and `teacher`), so aligning on the role alone drew the manager's replies as the
+   * coordinator's own. `senderId` is the only thing that tells them apart; a parent thread still
+   * answers the question by role, where the id is the signed-in teacher's anyway.
+   */
+  protected isMine(msg: { sender: ChatMessageSenderEnum; senderId: string }): boolean {
+    if (msg.sender !== ChatMessageSenderEnum.TEACHER) return false;
+    const active = this.chatService.activeThread();
+    if (active === null || !this.isStaff(active)) return true;
+    return msg.senderId === (this.auth.user()?.id ?? '');
+  }
 
   readonly filteredEmojis = computed(() => {
     const cat = this.emojiCategories.find((c) => c.id === this.activeEmojiCategory());
@@ -1751,6 +2050,13 @@ export class ChatPage implements AfterViewChecked {
      */
     effect(() => {
       const params = this.route.snapshot.queryParamMap;
+      // R7: the complaints inbox links here by thread id, which is the key a coordinator's
+      // routes already use — so opening one is `selectThread`, with nothing to invent.
+      const threadId = params.get('thread');
+      if (threadId) {
+        this.chatService.selectThread(threadId);
+        this.mobileShowConvo.set(true);
+      }
       const childId = params.get('childId');
       if (childId) {
         this.chatService.openWith(childId, params.get('name') ?? '', params.get('class') ?? undefined);
@@ -1772,8 +2078,8 @@ export class ChatPage implements AfterViewChecked {
     }
   }
 
-  onSelectThread(childId: string): void {
-    this.chatService.selectThread(childId);
+  onSelectThread(key: string): void {
+    this.chatService.selectThread(key);
     this.mobileShowConvo.set(true);
     this.shouldScrollToBottom = true;
   }

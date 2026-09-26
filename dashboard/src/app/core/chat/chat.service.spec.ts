@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ChatApi,
+  CoordinatorChatApi,
   ChatMessage,
   ChatMessageSenderEnum,
   ChatThread,
@@ -20,6 +21,7 @@ import { ChatService } from './chat.service';
 describe('ChatService', () => {
   let service: ChatService;
   let mockApi: Partial<ChatApi>;
+  let mockCoordinatorApi: Partial<CoordinatorChatApi>;
   let mockAuth: Partial<AuthService>;
   let mockSession: Partial<SessionStore>;
   let mockFlags: Partial<FlagService>;
@@ -55,6 +57,13 @@ describe('ChatService', () => {
       teacherMarkChatRead: vi.fn().mockReturnValue(of({ threadId: 'th-1', readAt: 1700000001000 })),
     };
 
+    mockCoordinatorApi = {
+      coordinatorChatThreads: vi.fn().mockReturnValue(of([])),
+      coordinatorChatMessages: vi.fn().mockReturnValue(of([])),
+      coordinatorSendChatMessage: vi.fn().mockReturnValue(of(sampleMessage)),
+      coordinatorMarkChatRead: vi.fn().mockReturnValue(of({ threadId: 'th-1', readAt: 1 })),
+    };
+
     mockAuth = {
       signedIn: signal(true),
       role: signal('TEACHER' as const),
@@ -74,6 +83,7 @@ describe('ChatService', () => {
       providers: [
         ChatService,
         { provide: ChatApi, useValue: mockApi },
+        { provide: CoordinatorChatApi, useValue: mockCoordinatorApi },
         { provide: AuthService, useValue: mockAuth },
         { provide: SessionStore, useValue: mockSession },
         { provide: FlagService, useValue: mockFlags },
@@ -95,8 +105,8 @@ describe('ChatService', () => {
     service.loadThreads();
     service.selectThread('ch-1');
 
-    expect(service.activeChildId()).toBe('ch-1');
-    expect(mockApi.teacherChatMessages).toHaveBeenCalledWith('ch-1');
+    expect(service.activeKey()).toBe('ch-1');
+    expect(mockApi.teacherChatMessages).toHaveBeenCalledWith('ch-1', undefined, undefined);
     expect(service.messages().length).toBe(1);
     expect(mockApi.teacherMarkChatRead).toHaveBeenCalledWith('ch-1');
     expect(service.totalUnread()).toBe(0);
@@ -119,7 +129,7 @@ describe('ChatService', () => {
     service.loadThreads();
     service.openWith('ch-9', 'Amina', '2B British');
 
-    expect(service.activeChildId()).toBe('ch-9');
+    expect(service.activeKey()).toBe('ch-9');
     expect(service.activeThread()).toMatchObject({ childId: 'ch-9', childName: 'Amina', unread: 0 });
     // `POST /teacher/chat/threads/ch-9/read` is a 404 without a thread, and the interceptor would
     // put that 404 in a red band over a conversation she has only just opened.

@@ -99,13 +99,13 @@ describe('the screen table', () => {
   });
 
   /**
-   * R5 (`docs/coordinator-flow.md`): her rail is Home · Teachers · Classes · All lessons, and the
-   * lesson she opens from it is the *same* page the teacher writes on, in read-only mode. Both
-   * halves are asserted here rather than in the page's own spec, because both are properties of
-   * the table: a row that lost `readOnly` would hand her a publish button, and the page would
-   * never know.
+   * R5 + R7 (`docs/coordinator-flow.md`): her rail is the four read-only screens and then the three
+   * she writes on, and the lesson she opens from it is the *same* page the teacher writes on, in
+   * read-only mode. Both halves are asserted here rather than in a page's own spec, because both
+   * are properties of the table: a row that lost `readOnly` would hand her a publish button, and
+   * the page would never know.
    */
-  it('gives a coordinator seven rail items and read-only detail routes', () => {
+  it('gives a coordinator her ten rail items and read-only detail routes', () => {
     expect(navScreens('COORDINATOR').map(({ screen }) => screen.id)).toEqual([
       'home',
       'teachers',
@@ -115,6 +115,9 @@ describe('the screen table', () => {
       'attendance',
       'gradebook',
       'exams',
+      'messages',
+      'complaints',
+      'announcements',
     ]);
     expect(navScreens('COORDINATOR').map(({ link }) => link)).toEqual([
       '/coordinator',
@@ -124,7 +127,17 @@ describe('the screen table', () => {
       '/coordinator/attendance',
       '/coordinator/gradebook',
       '/coordinator/exams',
+      '/coordinator/messages',
+      '/coordinator/complaints',
+      '/coordinator/announcements',
     ]);
+    // R7: all three carry the flag their server routes carry, so a school without chat has none
+    // of them — in the rail or at the URL.
+    for (const id of ['messages', 'complaints'])
+      expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === id)?.flag).toBe('chat');
+    expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === 'announcements')?.flag).toBe(
+      'announcements',
+    );
 
     // R6: every one of her record screens is read-only too, and the two flagged ones carry the
     // flags their controllers carry — a school without `gradebook` must meet `/not-found` in the
@@ -147,14 +160,16 @@ describe('the screen table', () => {
     const routes = childrenOf(areaRoutes('COORDINATOR'));
     const lesson = routes.find((route) => route.path === 'lessons/:id');
     expect(lesson?.data?.['readOnly']).toBe(true);
-    // The three list screens R5 built are the only rows without `readOnly`, and their flag is
-    // `false` rather than absent: a page reads `data.readOnly` and must never have to tell false
-    // from missing. Everything R6 added is `true` — asserted above, row by row.
-    const listOnly = ['', 'teachers', 'classes', 'lessons'];
+    // R5's list screens and R7's three are the rows without `readOnly`, and their flag is `false`
+    // rather than absent: a page reads `data.readOnly` and must never have to tell false from
+    // missing. Everything R6 added is `true` — asserted above, row by row.
+    const listOnly = ['', 'teachers', 'classes', 'lessons', 'messages', 'complaints', 'announcements'];
     for (const route of routes.filter((candidate) => listOnly.includes(candidate.path ?? '')))
       expect(`${route.path}:${route.data?.['readOnly']}`).toBe(`${route.path}:false`);
 
-    // DR2: she writes nothing here, so not one row may carry a write permission.
+    // DR2: nothing she reads is hers to change, and the two things R7 lets her write — a
+    // complaint's status, an announcement — are her own keys too, so not one row of hers may
+    // carry a permission from somebody else's namespace.
     const keys = AREAS.COORDINATOR.screens.map((screen) => screen.permission ?? '');
     expect(keys.every((key) => key === '' || key.startsWith('coordinator.'))).toBe(true);
   });

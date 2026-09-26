@@ -3,7 +3,7 @@
 One person per subject per track (DR1): Math/British, English/American, and so on. A scope row
 with no curriculum means **both** tracks. She supervises every grade and every class that carries
 her subject, and she is **read-only** on all of it (DR2) — what she does about what she finds is a
-message, which is R7's Messages and Complaints screens.
+message, which is R7's Messages, Complaints and Announcements screens below.
 
 Signing in lands her on `/coordinator`. `roleGuard` keeps everyone else out of the area, and every
 screen of hers carries one of the two keys R2 gates the server routes with — `coordinator.read` or
@@ -122,8 +122,6 @@ alias would poll the teacher's and be answered 404 every 2.5 s, silently.
 - **One class at a time on the calendar.** A calendar cell holds at most one lesson per day, which
   is exactly right for a section and wrong for six grades at once; the class filter is how she
   reaches the rest, rather than a square that silently shows one of four lessons.
-- **Messages, the complaints inbox and announcements are R7.** The notification bell and the chat
-  socket already work for her (she holds `notifications.read` and `chat.socket`).
 
 ## Trying it
 
@@ -132,3 +130,69 @@ staff password. Rasha Kamal supervises Math on both tracks; Sara Al Harbi's 1A/1
 seeded published lesson "Counting to ten". `dashboard/e2e/local/coordinator-area.spec.ts` walks the
 four R5 screens and `coordinator-area-2.spec.ts` the three R6 ones plus the child page;
 `E2E_STAFF_PASSWORD` must be the seeded staff password.
+
+## Her messages (R7, DR3)
+
+| Screen | Reads / writes | What she sees |
+| --- | --- | --- |
+| **Messages** `/coordinator/messages` | `GET` + `POST /coordinator/chat/threads/{id}/messages`, `POST …/read` | The teacher's chat screen — the same threads list, conversation, composer, attachments and emoji — over her own routes. A parent thread carries the child and the class; a **manager** thread carries a "Management" badge, the manager's name and no child at all |
+| **Complaints** `/coordinator/complaints` | `GET /coordinator/complaints?status=`, `PATCH …/threads/{id}/status` | The `complaint` threads she is the staff peer of, filtered open/resolved: child, whose parent, class, last message. A row opens the conversation; **Mark resolved** / **Reopen** ask first, in a red band |
+| **Announcements** `/coordinator/announcements` | `GET` + `POST /coordinator/announcements` | The notes she has posted, and one sheet to write another: body EN (required), AR (optional), the classes of hers it goes to, an optional expiry |
+
+**One screen, two sets of routes.** A teacher's chat is keyed by **child**
+(`/teacher/chat/threads/{childId}/…`); a coordinator's by **thread**, because
+`POST /coordinator/chat/threads {managerUserId}` opens a conversation with no child on it at all.
+`core/chat/chat-routes.ts` is that seam and the only place that knows it: it answers *which* four
+routes this role's chat runs on and *what a key is* (`childId` for a teacher, `threadId` for her,
+also as the socket command's field), so `ChatService` and the screen speak in keys and one chat
+screen serves both roles rather than two that drift. A role with no chat REST at all — an Admin,
+a manager — gets no transport, which is why her reconnect does not put a 403 in a red band.
+
+All three rows carry the **`chat`** flag (announcements carries `announcements`) and one of her R7
+keys, `coordinator.chat` / `coordinator.complaints` / `coordinator.announce`. Complaints is `chat`
+rather than N5.2's `complaints`: DR3 keeps a complaint **in the conversation it arrived in**, so
+there is no complaint record here to gate. A complaint exists only because a parent named it
+(`topic: "complaint"` on the message that opens the thread); nothing on this side can label one.
+
+The **`status` frame** (R4) reaches both parties and lands in `ChatService.threads`. Both screens
+that care read that signal — the thread header, and the Complaints rows, which take a thread's
+status from there over their own `GET /coordinator/complaints` — so a complaint resolved on one
+tab, or in the conversation itself, leaves her open list on the other with no refetch. Her header
+badge is the teacher's, pointed at `/coordinator/messages`.
+
+**What a manager cannot do here.** `/management/messages` says "Live messages" and means it: no
+thread list to ask for, so the rows are the frames that arrived while the screen was open and the
+list starts empty on every reload; and no `Peer.chat`, so the composer is **absent** rather than
+disabled — there is nothing for a `message` command of hers to reach.
+
+## What R7 could not do
+
+- **"New message to manager" is not on the screen.** `POST /coordinator/chat/threads
+  {managerUserId}` exists and `ChatPeers.managersFor` already decides which managers she may reach
+  — but **no endpoint exposes that list**, and a coordinator holds no route that names a MANAGERIAL
+  user (`/admin/users` is the Admin's). A picker cannot be built against nothing, and this package
+  added no server code, so the action waits for a `GET /coordinator/managers`. Manager threads
+  already **display** correctly once one exists.
+- **`/management/messages` is a socket-only inbox.** R4 added no `GET /management/chat/threads`
+  (RM2 does), and `GET /admin/chat/threads` is ADMIN-only support, so the manager's screen is the
+  same chat page with **no transport**: her rows are built from the `message` frames that arrive
+  while it is open, and they are gone on reload. She also cannot **reply** — `ChatHandshake` gives
+  `Peer.chat` to TEACHER and COORDINATOR only, so a `message` command from her comes back
+  `forbidden` — which is why her composer is not rendered at all. The screen's title, subtitle and
+  empty state all say it is a live view, and nothing more.
+- **No parent's name anywhere.** `ChatThread` carries the child, the class and the *staff* peer;
+  the parent has no name on the contract, so the Complaints table says "Parent of <child>".
+- **`POST /coordinator/announcements` is mis-exported.** `CoordinatorDto.CreateAnnouncementRequest`
+  (`classIds`, plural) and `TeacherDto.CreateAnnouncementRequest` (`classId`) share a schema
+  *name*, so `server/openapi.json` shows the teacher's shape on the coordinator's route and the
+  generated client cannot express the field the server reads. The screen declares the real body and
+  asserts it onto the generated call (`coordinator-announcements.page.ts`); naming one of the two
+  schemas on the server removes that.
+
+## Trying R7
+
+Turn `chat` (and `announcements`) on for the school first — both are off in the seed:
+`PUT /admin/schools/{id}/flags/chat {"enabled":true}`. A complaint needs a parent, so
+`dashboard/e2e/local/coordinator-comms.spec.ts` makes one: a fake-auth parent creates a child with
+1A British's join code, asks `GET /children/{id}/coordinators`, and posts her first message with
+`{"topic":"complaint"}`. That spec then walks all three screens.
