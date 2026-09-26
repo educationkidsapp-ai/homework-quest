@@ -23,6 +23,7 @@ describe('ChatPage', () => {
   const activeKeySig = signal<string | null>(null);
   const activeThreadSig = signal<ChatThread | null>(null);
   const messagesSig = signal<LocalMessage[]>([]);
+  const canWriteSig = signal(true);
 
   const sampleThread: ChatThread = {
     id: 'th-1',
@@ -50,6 +51,7 @@ describe('ChatPage', () => {
     activeKeySig.set(null);
     activeThreadSig.set(null);
     messagesSig.set([]);
+    canWriteSig.set(true);
 
     mockChatService = {
       threads: signal([sampleThread]),
@@ -68,6 +70,7 @@ describe('ChatPage', () => {
         messagesSig.set([sampleThread.lastMessage!]);
       }),
       keyOf: (thread: ChatThread) => thread.childId,
+      canWrite: canWriteSig,
       sendMessage: vi.fn(),
       sendTyping: vi.fn(),
       markRead: vi.fn(),
@@ -126,6 +129,22 @@ describe('ChatPage', () => {
     expect(mockChatService.selectThread).toHaveBeenCalledWith('ch-1');
     expect(screen.getByText('Parent of Layla · 1A British')).toBeTruthy();
     expect(screen.getByText('Live')).toBeTruthy();
+  });
+
+  /**
+   * R7: a manager holds the socket and no `Peer.chat`, so a `message` command of hers comes back
+   * `forbidden` and there is no REST route either. The composer is *absent* on that answer — the
+   * review found Send enabled for her, doing nothing whatever on a click.
+   */
+  it('hides the composer entirely for a role that may not write', async () => {
+    canWriteSig.set(false);
+    activeKeySig.set('ch-1');
+    activeThreadSig.set(sampleThread);
+    await renderPage();
+
+    expect(screen.queryByPlaceholderText('Write a message...')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
+    expect(document.querySelector('.convo-readonly')).toBeTruthy();
   });
 
   it('sends message via composer', async () => {

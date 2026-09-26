@@ -1245,7 +1245,8 @@
     "messagesTitle": "Messages",
     "managementSubtitle": "Conversations with the coordinators of your department.",
     "management": "Management",
-    "complaint": "Complaint"
+    "complaint": "Complaint",
+    "readOnlyPeer": "You can read this conversation here, but replies are not enabled for your role yet."
   },
   "profile": {
     "title": "Your profile",

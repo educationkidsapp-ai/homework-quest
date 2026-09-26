@@ -48,6 +48,16 @@ export class ChatService {
   readonly isParentTyping = signal<boolean>(false);
 
   /**
+   * Whether this account may write at all.
+   *
+   * The socket says the same thing from the other end: `ChatHandshake` gives `Peer.chat` to a
+   * TEACHER and a COORDINATOR only, so a `message` command from a manager comes back `forbidden`
+   * and a REST send has no route to go to. The composer is *hidden* on that answer rather than
+   * left to fail — the review found Send enabled for a manager, doing nothing at all on a click.
+   */
+  readonly canWrite = computed(() => this.routes.transport() !== null);
+
+  /**
    * U1 item 6: the conversation she opened from a child who has never been written to.
    *
    * `GET /teacher/chat/threads` lists the threads that exist, and the row is created by the

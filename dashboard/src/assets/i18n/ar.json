@@ -1245,7 +1245,8 @@
     "messagesTitle": "الرسائل",
     "managementSubtitle": "محادثاتك مع منسّقي قسمك.",
     "management": "الإدارة",
-    "complaint": "شكوى"
+    "complaint": "شكوى",
+    "readOnlyPeer": "يمكنك قراءة هذه المحادثة هنا، لكن الردّ غير مفعّل لدورك بعد."
   },
   "profile": {
     "title": "ملفك الشخصي",

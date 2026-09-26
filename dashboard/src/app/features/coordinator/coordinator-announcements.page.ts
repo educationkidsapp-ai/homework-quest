@@ -193,7 +193,7 @@ interface CoordinatorAnnouncementBody {
 
     .co-classes legend {
       padding: 0;
-      font-weight: var(--hq-font-weight-bold);
+      font-weight: var(--hq-font-label-weight);
     }
   `,
 })
