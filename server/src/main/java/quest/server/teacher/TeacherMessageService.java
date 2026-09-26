@@ -24,9 +24,15 @@ import quest.server.notifications.NotificationService;
  * falls back to the server's text when it has no sentence for it, which is exactly what is wanted here: the title is
  * localised ("Message from a teacher"), and the body is what she typed, in her language.
  *
- * <p><strong>Scope.</strong> The school is `TeacherAccess.writeSchoolId()` — her own, read from her token — and the
- * recipients are that school's coordinators and nobody else. A school with no MANAGERIAL account at all is a 409
- * rather than a silent success, because "sent" over a message nobody received is the one answer she must not get.
+ * <p><strong>Scope.</strong> The school is resolved through {@link quest.server.tenancy.TeacherScope#assignmentsOf}
+ * — the school her own teaching assignments are in — and the recipients are that school's coordinators and nobody
+ * else. Not `writeSchoolId()` on its own: that is a claim on her token, and `/teacher/**` resolves what a teacher
+ * reaches through her assignments (§2, `TeacherScopeArchitectureTest`), so the same rule applies to the one school
+ * this route names. A teacher who holds no assignment yet has no school that way; she falls back to the scope's own
+ * write school, which for a TEACHER principal is that same token school and can never be another one.
+ *
+ * <p>A school with no MANAGERIAL account at all is a 409 rather than a silent success, because "sent" over a message
+ * nobody received is the one answer she must not get.
  */
 @Service
 public class TeacherMessageService {
@@ -42,7 +48,7 @@ public class TeacherMessageService {
 
     @Transactional
     public TeacherDto.CoordinatorMessageResult toCoordinator(Principals.User caller, String body) {
-        String schoolId = access.writeSchoolId();
+        String schoolId = schoolOf(caller);
         List<UserEntity> coordinators = users.findBySchoolIdAndRole(schoolId, MANAGERIAL).stream()
                 .filter(user -> !"disabled".equals(user.getStatus()))
                 .toList();
@@ -53,6 +59,21 @@ public class TeacherMessageService {
         for (UserEntity coordinator : coordinators)
             notifications.notify(schoolId, coordinator.getId(), NotificationKind.TEACHER_MESSAGE, title, body, null, null);
         return new TeacherDto.CoordinatorMessageResult(coordinators.size());
+    }
+
+    /**
+     * The school her assignments are in.
+     *
+     * `TeacherScope.assignmentsOf` is the narrowing call every other `/teacher/**` handler goes through, and it is
+     * the one that decides whose school this is — the token is what she claims, an assignment is what the school
+     * says. The fallback is for a teacher who has been created but not yet given a class.
+     */
+    private String schoolOf(Principals.User caller) {
+        return access.assignmentsOf(caller).stream()
+                .map(quest.server.tenancy.Entities.TeachingAssignmentEntity::getSchoolId)
+                .filter(id -> id != null && !id.isBlank())
+                .findFirst()
+                .orElseGet(access::writeSchoolId);
     }
 
     /** Her display name, or the address behind the account — never an empty "Message from". */

@@ -38,6 +38,10 @@ class TeacherCoordinatorMessageTest extends TeacherTestSupport {
         user(MANAGER_A2, A, "m2@tcm.test", "MANAGERIAL");
         teacher(TEACHER_B, B, "b@tcm.test", "Ms Hana", "[\"math\"]", "british", "[1]");
         user(MANAGER_B, B, "m3@tcm.test", "MANAGERIAL");
+        // Each teacher gets a section of her own: the school the message goes to is resolved through her
+        // assignments (`TeacherScope.assignmentsOf`), not from the token alone.
+        klass(A + ":british:1:math", A, "british", 1, "math", TEACHER_A);
+        klass(B + ":british:1:math", B, "british", 1, "math", TEACHER_B);
         teacherAToken = token(TEACHER_A, "TEACHER", A);
         teacherBToken = token(TEACHER_B, "TEACHER", B);
         managerAToken = token(MANAGER_A, "MANAGERIAL", A);
