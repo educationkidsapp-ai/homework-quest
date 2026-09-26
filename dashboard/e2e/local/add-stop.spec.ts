@@ -161,6 +161,61 @@ test('an empty Save is refused under the fields, not in a toast', async ({ page 
   await expect(fields).toBeHidden();
 });
 
+/**
+ * E4b: written out in fields, a choice question is saved by the browser in one request.
+ *
+ * The assertion the owner asked for is the negative one: `/from-text` is never called, so no model
+ * runs, nothing says "the assistant is writing", and the stop is complete in the list and playable
+ * in the phone the moment the POST answers.
+ */
+test('a choice question written out saves in one request, and asks the model nothing', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await openTheLesson(page);
+  const before = await stopRows(page).count();
+
+  let creates = 0;
+  let models = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && /\/plays\/[^/]+\/stops$/.test(request.url())) creates++;
+    if (/\/from-text$/.test(request.url())) models++;
+  });
+
+  const fields = await openTheForm(page);
+  const title = `Sides of a shape ${RUN}`;
+  const question = `Which shape has three sides ${RUN}?`;
+  await fields.getByLabel('Title', { exact: true }).fill(title);
+  await fields.getByLabel('Type', { exact: true }).selectOption('choice');
+  // The paragraph for the assistant is replaced by the question's own fields.
+  await expect(fields.getByLabel('Question / what the child does', { exact: true })).toHaveCount(0);
+  await fields.getByLabel('Question', { exact: true }).fill(question);
+  for (const [index, label] of ['Triangle', 'Circle', 'Square', 'Hexagon'].entries()) {
+    await fields.getByLabel(`Answer ${index + 1}`, { exact: true }).fill(label);
+  }
+  await fields.getByLabel('Which answer is right', { exact: true }).selectOption('0');
+
+  const posted = page.waitForRequest(
+    (request) => request.method() === 'POST' && /\/plays\/[^/]+\/stops$/.test(request.url()),
+  );
+  await page.getByRole('button', { name: 'Save the question' }).click();
+  await posted;
+
+  await expect(fields).toBeHidden();
+  await expect(page.getByText('Question added')).toBeVisible();
+  await expect(stopRows(page)).toHaveCount(before + 1);
+  const added = stopRows(page).filter({ hasText: title }).first();
+  await expect(added).toHaveAttribute('aria-selected', 'true');
+  // It plays: the question and its four tiles are in the phone, not a template's placeholders.
+  const phone = page.locator('hq-phone-preview');
+  await expect(phone.getByText(question)).toBeVisible();
+  await expect(phone.getByText('Hexagon')).toBeVisible();
+  await expect(page.getByText('The assistant is writing…')).toHaveCount(0);
+
+  expect(creates).toBe(1);
+  expect(models).toBe(0);
+});
+
 test('a saved question becomes the selected stop, in her own words', async ({ page }) => {
   test.setTimeout(180_000);
   await openTheLesson(page);
@@ -169,10 +224,12 @@ test('a saved question becomes the selected stop, in her own words', async ({ pa
 
   const title = `Which shape has three sides ${RUN}`;
   await fields.getByLabel('Title', { exact: true }).fill(title);
+  await fields.getByLabel('Type', { exact: true }).selectOption('choice');
+  // E4b: `choice` opens on its fields, and this is the teacher who would rather describe it.
+  await page.getByRole('button', { name: 'Let the assistant write it from my words' }).click();
   await fields
     .getByLabel('Question / what the child does', { exact: true })
     .fill('Pip says: show a triangle, a circle and a square, and ask which one has three sides.');
-  await fields.getByLabel('Type', { exact: true }).selectOption('choice');
   await page.getByRole('button', { name: 'Save the question' }).click();
 
   // The sheet is shut and the toast is up before the model has been asked anything — E4a's whole
@@ -247,10 +304,11 @@ test('a question the assistant refuses stays on its row, and Retry sends the sam
   const title = `Draw the shape ${RUN}`;
   const fields = await openTheForm(page);
   await fields.getByLabel('Title', { exact: true }).fill(title);
+  await fields.getByLabel('Type', { exact: true }).selectOption('choice');
+  await page.getByRole('button', { name: 'Let the assistant write it from my words' }).click();
   await fields
     .getByLabel('Question / what the child does', { exact: true })
     .fill('Pip says: draw a triangle and say how many sides it has.');
-  await fields.getByLabel('Type', { exact: true }).selectOption('choice');
   await page.getByRole('button', { name: 'Save the question' }).click();
   await expect(fields).toBeHidden();
 
