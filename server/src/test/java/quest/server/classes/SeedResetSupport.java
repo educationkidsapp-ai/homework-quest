@@ -116,8 +116,8 @@ abstract class SeedResetSupport {
         assertThat(jdbc.queryForList("SELECT id FROM parents", String.class)).containsExactly("rst-after");
         assertThat(count("seed_resets")).isEqualTo(1);
 
-        assertThat(seed.load("default", "nine-char", false, "seed/acceptance/")).isEqualTo(new SchoolSeed.Counts(3, 2, 1, 3, 0));
-        assertThat(seed.load("default", "nine-char", false, "seed/acceptance/")).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0, 0));
+        assertThat(seed.load("default", "nine-char", false, "seed/acceptance/")).isEqualTo(new SchoolSeed.Counts(3, 2, 2, 2, 3, 0));
+        assertThat(seed.load("default", "nine-char", false, "seed/acceptance/")).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0, 0, 0));
         assertThat(count("classes")).isEqualTo(3);
         assertThat(count("children")).isZero();
     }

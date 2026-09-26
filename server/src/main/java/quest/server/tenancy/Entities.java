@@ -103,4 +103,31 @@ public final class Entities {
         public String getSubject() { return subject; } public void setSubject(String v) { subject = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }
+
+    /**
+     * R2 (DR1): what a supervising staff account may see — `staff_scopes`, read through {@link CoordinatorScope}.
+     *
+     * <p>Two shapes in one table, so the department managers need no second migration: a COORDINATOR row names a
+     * `subject` with `curriculum` null meaning "both tracks", and a MANAGERIAL row names a `curriculum` with
+     * `subject` null, which is a department. Nothing here is ever taken from a request — the row is written by the
+     * Admin API or the seed, and the scope object reads it by the caller's own user id.
+     *
+     * <p>Tenant table: filtered to the caller's school like every other one.
+     */
+    @Entity(name = "StaffScopeEntity") @Table(name = "staff_scopes")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class StaffScopeEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "user_id", nullable = false) private String userId;
+        @Column private String subject;
+        @Column private String curriculum;
+        @Column(name = "created_at", nullable = false) private Instant createdAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getUserId() { return userId; } public void setUserId(String v) { userId = v; }
+        public String getSubject() { return subject; } public void setSubject(String v) { subject = v; }
+        public String getCurriculum() { return curriculum; } public void setCurriculum(String v) { curriculum = v; }
+        public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
+    }
 }

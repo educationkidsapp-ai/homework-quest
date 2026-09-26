@@ -3,14 +3,14 @@
     "health.read": ["PUBLIC"],
     "panel.read": ["PUBLIC"],
     "dashboard.read": ["PUBLIC"],
-    "media.page.read": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL"],
-    "media.child.read": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL"],
+    "media.page.read": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
+    "media.child.read": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
     "auth.signIn": ["PUBLIC"],
     "auth.refresh": ["PUBLIC"],
     "auth.signOut": ["PUBLIC"],
     "auth.forgotPassword": ["PUBLIC"],
     "auth.resetPassword": ["PUBLIC"],
-    "auth.changePassword": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "auth.changePassword": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
     "school.join": ["PUBLIC"],
     "invite.read": ["PUBLIC"],
     "invite.accept": ["PUBLIC"],
@@ -34,9 +34,9 @@
     "user.invite": ["ADMIN", "MANAGERIAL"],
     "user.create": ["ADMIN"],
     "user.impersonate": ["ADMIN"],
-    "me.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
-    "me.permissions": ["ADMIN", "TEACHER", "MANAGERIAL"],
-    "me.update": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "me.read": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
+    "me.permissions": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
+    "me.update": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
 
     "school.flags": ["PUBLIC"],
     "school.theme": ["PUBLIC"],
@@ -84,12 +84,15 @@
     "child.chat": ["PARENT"],
     "teacher.chat": ["TEACHER"],
     "chat.support": ["ADMIN"],
-    "chat.socket": ["PARENT", "TEACHER", "ADMIN", "MANAGERIAL"],
-    "notifications.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
-    "notifications.write": ["ADMIN", "TEACHER", "MANAGERIAL"],
+    "chat.socket": ["PARENT", "TEACHER", "ADMIN", "MANAGERIAL", "COORDINATOR"],
+    "notifications.read": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
+    "notifications.write": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
     "attendance.read": ["ADMIN", "TEACHER", "MANAGERIAL"],
     "attendance.write": ["ADMIN", "TEACHER"],
-    "child.attendance.read": ["PARENT"]
+    "child.attendance.read": ["PARENT"],
+    "coordinator.read": ["ADMIN", "COORDINATOR"],
+    "coordinator.lesson.read": ["ADMIN", "COORDINATOR"],
+    "coordinator.manage": ["ADMIN"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -321,6 +324,16 @@
     { "method": "GET", "path": "/teacher/classes/{classId}/attendance", "permission": "attendance.read" },
     { "method": "POST", "path": "/teacher/classes/{classId}/attendance", "permission": "attendance.write" },
     { "method": "GET", "path": "/children/{id}/attendance", "permission": "child.attendance.read" },
-    { "method": "GET", "path": "/children/{id}/attendance/today", "permission": "child.attendance.read" }
+    { "method": "GET", "path": "/children/{id}/attendance/today", "permission": "child.attendance.read" },
+
+    { "method": "GET", "path": "/coordinator/me", "permission": "coordinator.read" },
+    { "method": "GET", "path": "/coordinator/teachers", "permission": "coordinator.read" },
+    { "method": "GET", "path": "/coordinator/classes", "permission": "coordinator.read" },
+    { "method": "GET", "path": "/coordinator/calendar", "permission": "coordinator.read" },
+    { "method": "GET", "path": "/coordinator/lessons", "permission": "coordinator.lesson.read" },
+    { "method": "GET", "path": "/coordinator/lessons/{id}", "permission": "coordinator.lesson.read" },
+    { "method": "GET", "path": "/admin/coordinators", "permission": "coordinator.manage" },
+    { "method": "POST", "path": "/admin/coordinators", "permission": "coordinator.manage" },
+    { "method": "PUT", "path": "/admin/coordinators/{id}/scopes", "permission": "coordinator.manage" }
   ]
 }

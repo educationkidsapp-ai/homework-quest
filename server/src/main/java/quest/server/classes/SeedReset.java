@@ -29,8 +29,8 @@ import quest.server.tenancy.TenantContext;
  * <p><strong>What it deletes.</strong> Every school-scoped row of every school: lessons and everything hanging off
  * them (steps, source files, page images, skills, plays, stops, parent panels), children and everything keyed by a
  * child (attempts, stop and lesson completions, parent unlocks, stickers, streaks, media), teacher questions, their
- * answers, announcements, sections, teaching assignments, staff invitations, and the staff accounts themselves —
- * TEACHER and MANAGERIAL, never the platform ADMIN. Then the schools that are not `default` go entirely: Al Noor,
+ * answers, announcements, sections, teaching assignments, the supervising scopes (`staff_scopes`), staff invitations,
+ * and the staff accounts themselves — TEACHER, MANAGERIAL and COORDINATOR, never the platform ADMIN. Then the schools that are not `default` go entirely: Al Noor,
  * Green Valley, their flag overrides, their audit trail, their theme. The blobs behind the uploads, the rendered page
  * images, the extracted Markdown and the children's recordings are deleted from the bucket with the rows.
  *
@@ -69,7 +69,7 @@ public class SeedReset implements CommandLineRunner {
     /** The environment variable, for the message the refusal under `prod` prints. */
     static final String ENV = "SEED_RESET";
     private static final Logger log = LoggerFactory.getLogger(SeedReset.class);
-    private static final String STAFF = "'TEACHER','MANAGERIAL'";
+    private static final String STAFF = "'TEACHER','MANAGERIAL','COORDINATOR'";
     /** The lessons of one school, as a subquery every lesson-child statement below reuses. */
     private static final String LESSONS = "SELECT id FROM lessons WHERE school_id = ?";
     private static final String KIDS = "SELECT id FROM children WHERE school_id = ?";
@@ -156,6 +156,7 @@ public class SeedReset implements CommandLineRunner {
                 new Step("lesson_steps", "DELETE FROM lesson_steps WHERE lesson_id IN (" + LESSONS + ")"),
                 new Step("lessons", "DELETE FROM lessons WHERE school_id = ?"),
                 new Step("teaching_assignments", "DELETE FROM teaching_assignments WHERE school_id = ?"),
+                new Step("staff_scopes", "DELETE FROM staff_scopes WHERE school_id = ?"),
                 new Step("classes", "DELETE FROM classes WHERE school_id = ?"),
                 new Step("refresh_tokens", "DELETE FROM refresh_tokens WHERE user_id IN (SELECT id FROM users WHERE school_id = ? AND role IN (" + STAFF + "))"),
                 new Step("teachers", "DELETE FROM teachers WHERE user_id IN (SELECT id FROM users WHERE school_id = ? AND role IN (" + STAFF + "))"),
@@ -168,6 +169,7 @@ public class SeedReset implements CommandLineRunner {
         return List.of(
                 new Step("refresh_tokens", "DELETE FROM refresh_tokens WHERE user_id IN (SELECT id FROM users WHERE school_id = ?)"),
                 new Step("teachers", "DELETE FROM teachers WHERE user_id IN (SELECT id FROM users WHERE school_id = ?)"),
+                new Step("staff_scopes", "DELETE FROM staff_scopes WHERE school_id = ?"),
                 new Step("users", "DELETE FROM users WHERE school_id = ?"),
                 new Step("school_feature_flags", "DELETE FROM school_feature_flags WHERE school_id = ?"),
                 new Step("flag_audit", "DELETE FROM flag_audit WHERE school_id = ?"),

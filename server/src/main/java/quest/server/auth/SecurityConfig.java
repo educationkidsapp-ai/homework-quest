@@ -40,15 +40,21 @@ public class SecurityConfig {
                 // C1: the chat socket. A browser `WebSocket` cannot send a header, so the handshake reads its token
                 // from `?token=` (or the header when the client can) and refuses 401/403 itself — `ChatHandshake`.
                 .requestMatchers("/ws/chat").permitAll()
-                .requestMatchers("/me", "/me/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
+                .requestMatchers("/me", "/me/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
                 // §6 screens 19–20: "my own school", with no school id in the path. Dashboard roles only; which of
                 // them may read what is the `@PreAuthorize` on each route, as everywhere else.
                 .requestMatchers("/school/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 // §6 screens 11-16: the same shape, for the teacher's own profile, classes, students and questions.
                 .requestMatchers("/teacher/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
                 .requestMatchers("/admin/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
+                // R2 (DR1, DR2): the coordinator's own area, the same shape `/teacher/**` has — no school in the
+                // path, and read-only. Only the role itself and the platform ADMIN may knock; a TEACHER or a
+                // MANAGERIAL is stopped here rather than by a permission, and the coordinator is kept out of
+                // `/teacher/**` and `/admin/**` by their matchers above. What she may read inside is the
+                // `@PreAuthorize` on each route, as everywhere else.
+                .requestMatchers("/coordinator/**").hasAnyRole("ADMIN", "COORDINATOR")
                 .requestMatchers("/children/**", "/lessons/**").hasRole("PARENT")
-                .requestMatchers("/media/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL")
+                .requestMatchers("/media/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
                 .anyRequest().authenticated())
             .addFilterBefore(firebase, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(adminJwt, UsernamePasswordAuthenticationFilter.class)

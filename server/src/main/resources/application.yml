@@ -11,6 +11,12 @@ spring:
     properties.hibernate.jdbc.time_zone: UTC
   flyway:
     enabled: true
+    # `db/migration` is every migration there is, with one exception: R2 had to replace the anonymous CHECK that
+    # `V4__schools_roles.sql` put on `users.role`, and the two engines name it differently and need different dynamic
+    # SQL to find it (PostgreSQL `DO $$ … $$`, H2 `EXECUTE IMMEDIATE`). Flyway's own `{vendor}` placeholder is what
+    # that is for: `db/vendor/postgresql` and `db/vendor/h2` hold the same version with the same effect, and each
+    # database only ever sees its own. Put ordinary migrations in `db/migration`.
+    locations: classpath:db/migration,classpath:db/vendor/{vendor}
   servlet.multipart:
     max-file-size: 25MB
     max-request-size: 120MB

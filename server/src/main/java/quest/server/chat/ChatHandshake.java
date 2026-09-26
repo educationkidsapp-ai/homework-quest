@@ -34,7 +34,7 @@ import quest.server.flags.FlagKeys;
 public class ChatHandshake implements HandshakeInterceptor {
     static final String PEER = "chat.peer";
     /** The three roles a dashboard JWT can carry; every one of them may hold a socket (D26). */
-    private static final Set<String> DASHBOARD_ROLES = Set.of("ADMIN", "TEACHER", "MANAGERIAL");
+    private static final Set<String> DASHBOARD_ROLES = Set.of("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR");
     private final AdminJwtService jwt; private final FirebaseTokenFilter parents; private final ChildRepository children; private final FeatureFlags flags;
 
     public ChatHandshake(AdminJwtService jwt, FirebaseTokenFilter parents, ChildRepository children, FeatureFlags flags) {

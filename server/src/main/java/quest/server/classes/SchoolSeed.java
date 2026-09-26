@@ -27,6 +27,7 @@ import quest.server.auth.Principals;
 import quest.server.auth.UserRepository;
 import quest.server.config.ApiException;
 import quest.server.config.QuestProperties;
+import quest.server.tenancy.CoordinatorScope;
 import quest.server.tenancy.TenantContext;
 
 /**
@@ -91,15 +92,18 @@ public class SchoolSeed implements CommandLineRunner {
     private final SectionService sections; private final TeachingStaffService staff; private final RosterService rosters;
     private final UserRepository users; private final PasswordEncoder encoder; private final TenantContext tenant;
     private final QuestProperties props; private final TemporaryPasswords passwords;
+    private final quest.server.tenancy.StaffScopeRepository staffScopes;
 
     public SchoolSeed(SectionService sections, TeachingStaffService staff, RosterService rosters, UserRepository users,
-                      PasswordEncoder encoder, TenantContext tenant, QuestProperties props, TemporaryPasswords passwords) {
+                      PasswordEncoder encoder, TenantContext tenant, QuestProperties props, TemporaryPasswords passwords,
+                      quest.server.tenancy.StaffScopeRepository staffScopes) {
         this.sections = sections; this.staff = staff; this.rosters = rosters; this.users = users;
         this.encoder = encoder; this.tenant = tenant; this.props = props; this.passwords = passwords;
+        this.staffScopes = staffScopes;
     }
 
     /** What one load wrote; a re-run answers zeroes. */
-    public record Counts(int classes, int teachers, int managers, int assignments, int children) {}
+    public record Counts(int classes, int teachers, int managers, int coordinators, int assignments, int children) {}
 
     /** The sections the school has after `classes.csv`, by lower-cased name, and how many of them are new. */
     private record Sections(Map<String, String> byName, int created) {}
@@ -137,19 +141,24 @@ public class SchoolSeed implements CommandLineRunner {
         return load(schoolId, staffPassword, lenient, props.seed() == null ? "seed/" : props.seed().directory());
     }
 
-    /** The same load with the directory named rather than configured — how the tests load one profile per school. */
-    Counts load(String schoolId, String staffPassword, boolean lenient, String dir) {
+    /**
+     * The same load with the directory named rather than configured — how the tests load one profile per school, and
+     * how R2's `/coordinator` tests stand the owner's acceptance fixture up in a school of their own.
+     */
+    public Counts load(String schoolId, String staffPassword, boolean lenient, String dir) {
         tenant.set("ADMIN", null, schoolId);
         try {
             var caller = new Principals.User(ACTOR, ACTOR + "@" + schoolId, "ADMIN", null);
             var sections = phase("classes", lenient, () -> classes(caller, dir), new Sections(Map.of(), 0));  // the order matters: the three below name a class
             int teachers = phase("teachers", lenient, () -> teachers(caller, staffPassword, dir), 0);
             int managers = phase("managers", lenient, () -> managers(schoolId, staffPassword, dir), 0);
+            int coordinators = phase("coordinators", lenient, () -> coordinators(schoolId, staffPassword, dir), 0);
             int assignments = phase("assignments", lenient, () -> assignments(caller, sections.byName(), dir), 0);
             int children = phase("children", lenient, () -> children(caller, sections.byName(), dir), 0);
-            var counts = new Counts(sections.created(), teachers, managers, assignments, children);
-            log.info("school seed {} ready: {} new classes, {} new teachers, {} new managers, {} new assignments, {} new children",
-                    schoolId, counts.classes(), counts.teachers(), counts.managers(), counts.assignments(), counts.children());
+            var counts = new Counts(sections.created(), teachers, managers, coordinators, assignments, children);
+            log.info("school seed {} ready: {} new classes, {} new teachers, {} new managers, {} new coordinators, "
+                            + "{} new assignments, {} new children", schoolId, counts.classes(), counts.teachers(),
+                    counts.managers(), counts.coordinators(), counts.assignments(), counts.children());
             return counts;
         } finally { tenant.clear(); }
     }
@@ -226,48 +235,93 @@ public class SchoolSeed implements CommandLineRunner {
      * is unique platform-wide). Either way the load goes on and the count says one fewer.
      */
     private int managers(String schoolId, String staffPassword, String dir) {
+        return supervisors(schoolId, staffPassword, dir, "managers.csv", MANAGERIAL, "manager");
+    }
+
+    /**
+     * The school's coordinators, from `coordinators.csv` (R2): `fullName, email, subject, curriculum`, the last blank
+     * for both tracks. Written here rather than through `POST /admin/coordinators` for one reason — that route
+     * answers a one-time password in its body, and a seed that called it would have to hold the value in order to
+     * throw it away. Everything else is the same as a teacher's row: matched on a lower-cased email, the shared
+     * password re-applied on every run, an address that is already somebody left alone at WARN, and a
+     * {@link quest.server.tenancy.Entities.StaffScopeEntity} written only when the pair is not there yet.
+     */
+    private int coordinators(String schoolId, String staffPassword, String dir) {
+        return supervisors(schoolId, staffPassword, dir, "coordinators.csv", CoordinatorScope.ROLE, "coordinator");
+    }
+
+    /**
+     * The one loader behind both files, because they differ only in which half of a `staff_scopes` row they fill: a
+     * manager's row is a department (`curriculum` set, `subject` null) and a coordinator's is a subject
+     * (`curriculum` blank meaning both tracks). No service is asked, in either case — nothing in the API creates a
+     * MANAGERIAL account at all, and `POST /admin/coordinators` answers a password this caller would have to hold to
+     * discard.
+     *
+     * <p>An address that is already somebody is skipped at WARN rather than converted: a TEACHER of this school would
+     * lose her profile and her classes to a role change, and an account of another school cannot move at all (`email`
+     * is unique platform-wide). Either way the load goes on and the count says one fewer.
+     */
+    private int supervisors(String schoolId, String staffPassword, String dir, String file, String role, String noun) {
+        boolean coordinator = CoordinatorScope.ROLE.equals(role);
         String hash = staffPassword == null || staffPassword.isBlank() ? null : encoder.encode(staffPassword);
         var known = new LinkedHashMap<String, UserEntity>();                     // email -> the account this school has
         for (var u : users.findBySchoolId(schoolId)) known.put(u.getEmail().toLowerCase(Locale.ROOT), u);
-        int created = 0, total = 0;
-        for (var row : rows(dir, "managers.csv", 2)) {
+        int created = 0, total = 0, scoped = 0;
+        for (var row : rows(dir, file, coordinator ? 4 : 3)) {
             String displayName = row.at(0), email = row.at(1).toLowerCase(Locale.ROOT);
+            String subject = coordinator ? row.at(2).toLowerCase(Locale.ROOT) : null;
+            String curriculum = blankToNull(row.at(coordinator ? 3 : 2).toLowerCase(Locale.ROOT));
+            if (coordinator && (subject == null || subject.isBlank())) throw row.bad("a coordinator needs a subject");
             var existing = known.get(email);
-            if (existing != null && !MANAGERIAL.equals(existing.getRole())) {
-                log.warn("school seed: {} is a {} account already — managers.csv leaves it alone", email, existing.getRole());
+            if (existing != null && !role.equals(existing.getRole())) {
+                log.warn("school seed: {} is a {} account already — {} leaves it alone", email, existing.getRole(), file);
                 continue;
             }
             if (existing == null && users.findIdByEmailAcrossSchools(email).isPresent()) {
-                log.warn("school seed: {} has an account in another school — no manager is created for it", email);
+                log.warn("school seed: {} has an account in another school — no {} is created for it", email, noun);
                 continue;
             }
             if (existing == null) {
-                existing = manager(schoolId, email, displayName);
+                existing = staff(schoolId, email, displayName, role);
                 known.put(email, existing);
                 created++;
             }
             total++;
+            if (scope(schoolId, existing.getId(), subject, curriculum)) scoped++;
             if (hash != null) signInReady(existing.getId(), hash);
         }
-        log.info("school seed: {} managers, {} new{}", total, created,
+        log.info("school seed: {} {}s, {} new, {} new scope row(s){}", total, noun, created, scoped,
                 hash == null ? ", none of them signable-in until " + STAFF_PASSWORD_ENV + " is set" : "");
         return created;
     }
 
     /**
-     * One MANAGERIAL row, shaped like the one {@link TeachingStaffService#create} writes for a teacher: active, one
+     * One supervising row, shaped like the one {@link TeachingStaffService#create} writes for a teacher: active, one
      * school, `must_change_password`, and a one-time password that is generated only so the column is not null and is
      * dropped here unread — with no {@link #STAFF_PASSWORD_ENV} nobody can sign in as her, which is the same place a
-     * seeded teacher is left. No teacher profile: Management teaches nothing.
+     * seeded teacher is left. No teacher profile: neither Management nor a coordinator teaches anything.
      */
-    private UserEntity manager(String schoolId, String email, String displayName) {
+    private UserEntity staff(String schoolId, String email, String displayName, String role) {
         var user = new UserEntity();
-        user.setId(UUID.randomUUID().toString()); user.setSchoolId(schoolId); user.setEmail(email); user.setRole(MANAGERIAL);
+        user.setId(UUID.randomUUID().toString()); user.setSchoolId(schoolId); user.setEmail(email); user.setRole(role);
         user.setStatus("active"); user.setMustChangePassword(true); user.setDisplayName(displayName);
         user.setPasswordHash(encoder.encode(passwords.generate()));
         user.setCreatedAt(Instant.now()); user.setUpdatedAt(Instant.now());
         return users.save(user);
     }
+
+    /** Her `staff_scopes` row, written once: a second run finds the same pair and answers false. */
+    private boolean scope(String schoolId, String userId, String subject, String curriculum) {
+        for (var row : staffScopes.findBySchoolIdAndUserIdOrderBySubjectAscCurriculumAsc(schoolId, userId))
+            if (java.util.Objects.equals(row.getSubject(), subject) && java.util.Objects.equals(row.getCurriculum(), curriculum)) return false;
+        var row = new quest.server.tenancy.Entities.StaffScopeEntity();
+        row.setId(UUID.randomUUID().toString()); row.setSchoolId(schoolId); row.setUserId(userId);
+        row.setSubject(subject); row.setCurriculum(curriculum); row.setCreatedAt(Instant.now());
+        staffScopes.save(row);
+        return true;
+    }
+
+    private static String blankToNull(String value) { return value == null || value.isBlank() ? null : value; }
 
     /**
      * `assignments.csv` is the truth about what a <em>seeded</em> teacher teaches, not merely a list of rows to add.

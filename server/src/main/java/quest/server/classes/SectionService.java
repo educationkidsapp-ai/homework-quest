@@ -151,7 +151,8 @@ public class SectionService {
         return out;
     }
 
-    static String displayName(quest.server.auth.Entities.UserEntity user) {
+    /** Her name as every screen shows it, with the address as the fallback. Public: R2 reads it too. */
+    public static String displayName(quest.server.auth.Entities.UserEntity user) {
         return user.getDisplayName() == null || user.getDisplayName().isBlank() ? user.getEmail() : user.getDisplayName();
     }
 
@@ -186,7 +187,8 @@ public class SectionService {
         return cleaned;
     }
 
-    static String oneOf(String value, List<String> allowed, String field) {
+    /** One of a closed set, lower-cased, or a 400 naming the set. Public: R2 validates a scope with it. */
+    public static String oneOf(String value, List<String> allowed, String field) {
         String cleaned = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
         if (!allowed.contains(cleaned)) throw ApiException.badRequest(field + " is " + String.join(" or ", allowed) + ", not " + value);
         return cleaned;

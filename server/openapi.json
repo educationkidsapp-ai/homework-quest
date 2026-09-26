@@ -285,6 +285,20 @@
         "required" : [ "classId", "subject" ],
         "type" : "object"
       },
+      "AssignmentRef" : {
+        "properties" : {
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AssignmentsRequest" : {
         "properties" : {
           "assignments" : {
@@ -388,6 +402,23 @@
         "required" : [ "createdAt", "curriculum", "fileHash", "grade", "hits", "lessonIds", "promptVersion", "subject", "tokenUsage" ],
         "type" : "object"
       },
+      "CalendarDay" : {
+        "properties" : {
+          "date" : {
+            "type" : "string"
+          },
+          "lessons" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CalendarLesson"
+            },
+            "type" : "array"
+          },
+          "schoolDay" : {
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
       "CalendarDayInfo" : {
         "properties" : {
           "date" : {
@@ -403,6 +434,40 @@
           }
         },
         "required" : [ "date", "english", "math" ],
+        "type" : "object"
+      },
+      "CalendarLesson" : {
+        "properties" : {
+          "childrenCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "playedCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "CalendarResponse" : {
@@ -1188,6 +1253,126 @@
         } ],
         "required" : [ "correctOptionId", "hint", "id", "ingredient", "left", "numberLine", "options", "parentTip", "right", "speak", "title", "type" ]
       },
+      "CoordinatorAccount" : {
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "scopes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Scope"
+            },
+            "type" : "array"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "CoordinatorCalendar" : {
+        "properties" : {
+          "days" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CalendarDay"
+            },
+            "type" : "array"
+          },
+          "from" : {
+            "type" : "string"
+          },
+          "to" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "CoordinatorClass" : {
+        "properties" : {
+          "childrenCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "teacherId" : {
+            "type" : "string"
+          },
+          "teacherName" : {
+            "type" : "string"
+          },
+          "todayLessonId" : {
+            "type" : "string"
+          },
+          "todayStatus" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "CoordinatorCreated" : {
+        "properties" : {
+          "coordinator" : {
+            "$ref" : "#/components/schemas/CoordinatorAccount"
+          },
+          "temporaryPassword" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "CoordinatorMe" : {
+        "properties" : {
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "scopes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Scope"
+            },
+            "type" : "array"
+          },
+          "sections" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "teachers" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "CoordinatorMessageRequest" : {
         "properties" : {
           "body" : {
@@ -1204,6 +1389,35 @@
           "delivered" : {
             "format" : "int32",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "CoordinatorTeacher" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          },
+          "sections" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AssignmentRef"
+            },
+            "type" : "array"
+          },
+          "subjects" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "userId" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -1320,6 +1534,28 @@
           }
         },
         "required" : [ "curriculum", "subject" ],
+        "type" : "object"
+      },
+      "CreateCoordinatorRequest" : {
+        "properties" : {
+          "email" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "fullName" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "scopes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Scope"
+            },
+            "minItems" : 1,
+            "type" : "array"
+          }
+        },
+        "required" : [ "email", "fullName", "scopes" ],
         "type" : "object"
       },
       "CreateExamRequest" : {
@@ -4241,6 +4477,32 @@
         },
         "type" : "object"
       },
+      "Scope" : {
+        "properties" : {
+          "curriculum" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "subject" ],
+        "type" : "object"
+      },
+      "ScopesRequest" : {
+        "properties" : {
+          "scopes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Scope"
+            },
+            "minItems" : 1,
+            "type" : "array"
+          }
+        },
+        "required" : [ "scopes" ],
+        "type" : "object"
+      },
       "SectionClass" : {
         "properties" : {
           "active" : {
@@ -6863,6 +7125,89 @@
           }
         },
         "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/coordinators" : {
+      "get" : {
+        "operationId" : "coordinators",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/CoordinatorAccount"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinators" ]
+      },
+      "post" : {
+        "operationId" : "createCoordinator",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateCoordinatorRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoordinatorCreated"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Coordinators" ]
+      }
+    },
+    "/admin/coordinators/{id}/scopes" : {
+      "put" : {
+        "operationId" : "setCoordinatorScopes",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ScopesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoordinatorAccount"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinators" ]
       }
     },
     "/admin/flags" : {
@@ -9547,6 +9892,175 @@
           }
         },
         "tags" : [ "Schools" ]
+      }
+    },
+    "/coordinator/calendar" : {
+      "get" : {
+        "operationId" : "coordinatorCalendar",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoordinatorCalendar"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator" ]
+      }
+    },
+    "/coordinator/classes" : {
+      "get" : {
+        "operationId" : "coordinatorClasses",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/CoordinatorClass"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator" ]
+      }
+    },
+    "/coordinator/lessons" : {
+      "get" : {
+        "operationId" : "coordinatorLessons",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "classId",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminLesson"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator" ]
+      }
+    },
+    "/coordinator/lessons/{id}" : {
+      "get" : {
+        "operationId" : "coordinatorLesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminLesson"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator" ]
+      }
+    },
+    "/coordinator/me" : {
+      "get" : {
+        "operationId" : "coordinatorMe",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoordinatorMe"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator" ]
+      }
+    },
+    "/coordinator/teachers" : {
+      "get" : {
+        "operationId" : "coordinatorTeachers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/CoordinatorTeacher"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator" ]
       }
     },
     "/health" : {
@@ -12561,6 +13075,12 @@
   }, {
     "description" : "The dashboard bell: the caller's own notifications, unread count and read marks",
     "name" : "Notifications"
+  }, {
+    "description" : "Coordinator accounts and the subjects and tracks they supervise",
+    "name" : "Coordinators"
+  }, {
+    "description" : "A subject coordinator's read-only view of the school she supervises",
+    "name" : "Coordinator"
   }, {
     "description" : "Page crops and child recordings",
     "name" : "Media"

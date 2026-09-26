@@ -130,6 +130,17 @@ class OpenApiContractTest extends ApiTestSupport {
     static final List<String> NOTIFICATIONS_API = List.of(
             "/me/notifications", "/me/notifications/unread-count", "/me/notifications/{id}/read", "/me/notifications/read-all");
 
+    /**
+     * R2: the coordinator's read-only area and the Admin routes that create one (`quest.api.dashboard.Coordinator.kt`,
+     * `docs/plan.md` phase R). Not behind a feature flag — see `FeatureFlagCoverageTest.INFRASTRUCTURE` — and every
+     * path here is a GET except the two that mint an account and set a scope, because DR2 makes the role read-only on
+     * teaching data.
+     */
+    static final List<String> COORDINATOR_API = List.of(
+            "/coordinator/me", "/coordinator/teachers", "/coordinator/classes", "/coordinator/calendar",
+            "/coordinator/lessons", "/coordinator/lessons/{id}",
+            "/admin/coordinators", "/admin/coordinators/{id}/scopes");
+
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
             "/schools/logo", "/classes/lookup");
@@ -147,6 +158,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(CLASSES_API);
         assertThat(paths).containsAll(CHAT_API);
         assertThat(paths).containsAll(NOTIFICATIONS_API);
+        assertThat(paths).containsAll(COORDINATOR_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
     }
