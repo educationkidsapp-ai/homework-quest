@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import quest.server.auth.Entities.UserEntity;
 import quest.server.auth.Principals;
 import quest.server.auth.UserRepository;
 import quest.server.config.ApiException;
@@ -35,18 +37,27 @@ import quest.server.tenancy.TenantContext;
  * {@link TeachingStaffService} and {@link RosterService} are what the Admin dashboard calls, so the seeded school gets
  * the same validation, the same join codes, the same one-time passwords and the same "one teacher per subject per
  * class" refusal as a school an Admin types in by hand — a seed that wrote rows directly could hold data the API
- * itself would reject.
+ * itself would reject. {@link #managers} is the one exception, and not by choice: no route creates a MANAGERIAL
+ * account, so that row is written the way {@link TeachingStaffService#create} writes a teacher's — active,
+ * `must_change_password`, a one-time password generated and dropped for the hash — and nothing else.
  *
  * <p><strong>Off unless asked.</strong> `quest.seed.school` (SEED_SCHOOL) gates it, `prod` is not in the profile list,
- * and a re-run adds nothing: a section is matched by curriculum + grade + name, a teacher by email and a child by her
- * name within her class, so the second run logs the same counts and writes no row.
+ * and a re-run adds nothing: a section is matched by curriculum + grade + name, a teacher and a manager by email and
+ * a child by her name within her class, so the second run logs the same counts and writes no row.
  *
- * <p><strong>Two profiles.</strong> `quest.seed.profile` (SEED_PROFILE) picks which four files are read: `full`
+ * <p><strong>Two profiles.</strong> `quest.seed.profile` (SEED_PROFILE) picks which set of files is read: `full`
  * (the default, `resources/seed/`) is the school above, which the automated e2e suite needs; `acceptance`
  * (`resources/seed/acceptance/`) is the owner's own environment — three sections, two teachers, three assignments and
  * no children at all, because the children arrive when he registers as a parent in the app and are attached to a
  * section with `POST /admin/classes/{id}/roster/attach`. Everything below is the same either way: the same reconcile,
  * the same matching on a lower-cased email, the same shared password.
+ *
+ * <p><strong>Management.</strong> `managers.csv` (fullName, email) is the one staff file with no service behind it:
+ * MANAGERIAL accounts are created by nothing in the API, and a school without one answers a teacher's message to the
+ * office with 409 `no_coordinator` (see {@link quest.server.teacher.TeacherMessageService}). So the seed writes the
+ * row itself, with the same shared password and the same matching on a lower-cased email as a teacher. An address
+ * that already belongs to somebody — a TEACHER of this school, or any account of another school — is left exactly as
+ * it is, at WARN: the seed is not a way to change what an existing account is.
  *
  * <p><strong>The files are the truth, and a broken one is not an outage.</strong> QA is not re-created between
  * deploys, so a run whose `assignments.csv` has moved a slot meets the school still holding the old one: the seed
@@ -73,21 +84,22 @@ import quest.server.tenancy.TenantContext;
 public class SchoolSeed implements CommandLineRunner {
     /** The environment variable that makes the seeded teachers signable-in; never its value. */
     static final String STAFF_PASSWORD_ENV = "SEED_STAFF_PASSWORD";
+    private static final String MANAGERIAL = "MANAGERIAL";
     private static final String ACTOR = "seed";
     private static final Logger log = LoggerFactory.getLogger(SchoolSeed.class);
 
     private final SectionService sections; private final TeachingStaffService staff; private final RosterService rosters;
     private final UserRepository users; private final PasswordEncoder encoder; private final TenantContext tenant;
-    private final QuestProperties props;
+    private final QuestProperties props; private final TemporaryPasswords passwords;
 
     public SchoolSeed(SectionService sections, TeachingStaffService staff, RosterService rosters, UserRepository users,
-                      PasswordEncoder encoder, TenantContext tenant, QuestProperties props) {
+                      PasswordEncoder encoder, TenantContext tenant, QuestProperties props, TemporaryPasswords passwords) {
         this.sections = sections; this.staff = staff; this.rosters = rosters; this.users = users;
-        this.encoder = encoder; this.tenant = tenant; this.props = props;
+        this.encoder = encoder; this.tenant = tenant; this.props = props; this.passwords = passwords;
     }
 
     /** What one load wrote; a re-run answers zeroes. */
-    public record Counts(int classes, int teachers, int assignments, int children) {}
+    public record Counts(int classes, int teachers, int managers, int assignments, int children) {}
 
     /** The sections the school has after `classes.csv`, by lower-cased name, and how many of them are new. */
     private record Sections(Map<String, String> byName, int created) {}
@@ -100,7 +112,7 @@ public class SchoolSeed implements CommandLineRunner {
     }
 
     /**
-     * Loads the four files into one school. The scope is set the way an Admin who picked that school with
+     * Loads the five files into one school. The scope is set the way an Admin who picked that school with
      * `X-School-Id` sets it, so every query underneath is filtered by it exactly as it is during a request.
      */
     public Counts load(String schoolId) {
@@ -132,11 +144,12 @@ public class SchoolSeed implements CommandLineRunner {
             var caller = new Principals.User(ACTOR, ACTOR + "@" + schoolId, "ADMIN", null);
             var sections = phase("classes", lenient, () -> classes(caller, dir), new Sections(Map.of(), 0));  // the order matters: the three below name a class
             int teachers = phase("teachers", lenient, () -> teachers(caller, staffPassword, dir), 0);
+            int managers = phase("managers", lenient, () -> managers(schoolId, staffPassword, dir), 0);
             int assignments = phase("assignments", lenient, () -> assignments(caller, sections.byName(), dir), 0);
             int children = phase("children", lenient, () -> children(caller, sections.byName(), dir), 0);
-            var counts = new Counts(sections.created(), teachers, assignments, children);
-            log.info("school seed {} ready: {} new classes, {} new teachers, {} new assignments, {} new children",
-                    schoolId, counts.classes(), counts.teachers(), counts.assignments(), counts.children());
+            var counts = new Counts(sections.created(), teachers, managers, assignments, children);
+            log.info("school seed {} ready: {} new classes, {} new teachers, {} new managers, {} new assignments, {} new children",
+                    schoolId, counts.classes(), counts.teachers(), counts.managers(), counts.assignments(), counts.children());
             return counts;
         } finally { tenant.clear(); }
     }
@@ -150,7 +163,7 @@ public class SchoolSeed implements CommandLineRunner {
         }
     }
 
-    // ---------------------------------------------------------------- the four files
+    // ---------------------------------------------------------------- the files
 
     /** The sections, by lower-cased name: `assignments.csv` and `children.csv` name a class and nothing else. */
     private Sections classes(Principals.User caller, String dir) {
@@ -201,6 +214,59 @@ public class SchoolSeed implements CommandLineRunner {
                 ? STAFF_PASSWORD_ENV + " unset → passwords not printable; hand one out from Admin › Teachers"
                 : "school seed: " + signable + " teachers carry the password in " + STAFF_PASSWORD_ENV);
         return created;
+    }
+
+    /**
+     * The school's Management accounts, from `managers.csv`. The same rules the teachers get — matched on a
+     * lower-cased email, the shared password re-applied on every run, nothing at all touched without one — except
+     * that the row is written here rather than asked of a service, because no endpoint creates a MANAGERIAL user.
+     *
+     * <p>An address that is already somebody is skipped at WARN rather than converted: a TEACHER of this school would
+     * lose her profile and her classes to a role change, and an account of another school cannot move at all (`email`
+     * is unique platform-wide). Either way the load goes on and the count says one fewer.
+     */
+    private int managers(String schoolId, String staffPassword, String dir) {
+        String hash = staffPassword == null || staffPassword.isBlank() ? null : encoder.encode(staffPassword);
+        var known = new LinkedHashMap<String, UserEntity>();                     // email -> the account this school has
+        for (var u : users.findBySchoolId(schoolId)) known.put(u.getEmail().toLowerCase(Locale.ROOT), u);
+        int created = 0, total = 0;
+        for (var row : rows(dir, "managers.csv", 2)) {
+            String displayName = row.at(0), email = row.at(1).toLowerCase(Locale.ROOT);
+            var existing = known.get(email);
+            if (existing != null && !MANAGERIAL.equals(existing.getRole())) {
+                log.warn("school seed: {} is a {} account already — managers.csv leaves it alone", email, existing.getRole());
+                continue;
+            }
+            if (existing == null && users.findIdByEmailAcrossSchools(email).isPresent()) {
+                log.warn("school seed: {} has an account in another school — no manager is created for it", email);
+                continue;
+            }
+            if (existing == null) {
+                existing = manager(schoolId, email, displayName);
+                known.put(email, existing);
+                created++;
+            }
+            total++;
+            if (hash != null) signInReady(existing.getId(), hash);
+        }
+        log.info("school seed: {} managers, {} new{}", total, created,
+                hash == null ? ", none of them signable-in until " + STAFF_PASSWORD_ENV + " is set" : "");
+        return created;
+    }
+
+    /**
+     * One MANAGERIAL row, shaped like the one {@link TeachingStaffService#create} writes for a teacher: active, one
+     * school, `must_change_password`, and a one-time password that is generated only so the column is not null and is
+     * dropped here unread — with no {@link #STAFF_PASSWORD_ENV} nobody can sign in as her, which is the same place a
+     * seeded teacher is left. No teacher profile: Management teaches nothing.
+     */
+    private UserEntity manager(String schoolId, String email, String displayName) {
+        var user = new UserEntity();
+        user.setId(UUID.randomUUID().toString()); user.setSchoolId(schoolId); user.setEmail(email); user.setRole(MANAGERIAL);
+        user.setStatus("active"); user.setMustChangePassword(true); user.setDisplayName(displayName);
+        user.setPasswordHash(encoder.encode(passwords.generate()));
+        user.setCreatedAt(Instant.now()); user.setUpdatedAt(Instant.now());
+        return users.save(user);
     }
 
     /**

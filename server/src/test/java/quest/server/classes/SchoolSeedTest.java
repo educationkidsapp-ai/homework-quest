@@ -36,6 +36,8 @@ class SchoolSeedTest extends ClassesTestSupport {
     private static final String MOVED = "3A British";
     private static final String SARA = SEEDED_TEACHER;
     private static final String OMAR = "omar.nasser@school.test";
+    /** The only row of `managers.csv`: the school's Management account, which no endpoint can create. */
+    private static final String SEEDED_MANAGER = "manager.a@school.test";
 
     @Autowired SchoolSeed seed;
     @Autowired TeacherRepository profiles;
@@ -54,15 +56,21 @@ class SchoolSeedTest extends ClassesTestSupport {
         var staff = users.findBySchoolIdAndRole(SCHOOL, "TEACHER");
         profiles.deleteAll(profiles.findAllById(staff.stream().map(u -> u.getId()).toList()));
         users.deleteAll(staff);
+        users.deleteAll(users.findBySchoolIdAndRole(SCHOOL, "MANAGERIAL"));
     }
 
     @Test void loads_thirty_classes_forty_teachers_and_six_hundred_children() {
-        assertThat(first).isEqualTo(new SchoolSeed.Counts(30, 40, 60, 600));
+        assertThat(first).isEqualTo(new SchoolSeed.Counts(30, 40, 1, 60, 600));
 
         var sections = classes.findAll().stream().filter(k -> SCHOOL.equals(k.getSchoolId())).toList();
         assertThat(sections).hasSize(30);
         assertThat(sections).allSatisfy(k -> assertThat(k.getJoinCode()).isNotBlank());
         assertThat(users.findBySchoolIdAndRole(SCHOOL, "TEACHER")).hasSize(40);
+        assertThat(users.findBySchoolIdAndRole(SCHOOL, "MANAGERIAL")).singleElement().satisfies(m -> {
+            assertThat(m.getEmail()).isEqualTo(SEEDED_MANAGER);
+            assertThat(m.getDisplayName()).isEqualTo("Huda Salem");
+            assertThat(m.getStatus()).isEqualTo("active");
+        });
 
         var roster = new LinkedHashMap<String, Integer>();
         var names = new LinkedHashMap<String, Integer>();
@@ -89,10 +97,11 @@ class SchoolSeedTest extends ClassesTestSupport {
     }
 
     @Test void a_second_run_writes_nothing() {
-        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0));
+        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0, 0));
 
         assertThat(classes.findAll().stream().filter(k -> SCHOOL.equals(k.getSchoolId()))).hasSize(30);
         assertThat(users.findBySchoolIdAndRole(SCHOOL, "TEACHER")).hasSize(40);
+        assertThat(users.findBySchoolIdAndRole(SCHOOL, "MANAGERIAL")).hasSize(1);
         assertThat(assignments.findAll().stream().filter(a -> SCHOOL.equals(a.getSchoolId()))).hasSize(60);
         assertThat(childRows.findAll().stream().filter(c -> SCHOOL.equals(c.getSchoolId()))).hasSize(600);
     }
@@ -102,14 +111,21 @@ class SchoolSeedTest extends ClassesTestSupport {
      * the teachers an earlier run created — a password that only ever lands on new rows is a password e2e cannot use.
      */
     @Test void a_later_run_gives_the_staff_password_to_teachers_already_seeded() throws Exception {
-        assertThat(seed.load(SCHOOL, STAFF_PASSWORD)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0));
+        assertThat(seed.load(SCHOOL, STAFF_PASSWORD)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0, 0));
 
+        assertThat(signIn(SEEDED_TEACHER).get("role").asText()).isEqualTo("TEACHER");
+        // The Management account is on the same password, and for the same reason: e2e has to be able to be her.
+        assertThat(signIn(SEEDED_MANAGER).get("role").asText()).isEqualTo("MANAGERIAL");
+    }
+
+    /** Signs in with the shared staff password and asserts what every seeded account has in common. */
+    private com.fasterxml.jackson.databind.JsonNode signIn(String email) throws Exception {
         var session = json(mvc.perform(post("/auth/sign-in").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + SEEDED_TEACHER + "\",\"password\":\"" + STAFF_PASSWORD + "\"}"))
+                        .content("{\"email\":\"" + email + "\",\"password\":\"" + STAFF_PASSWORD + "\"}"))
                 .andExpect(status().isOk()).andReturn());
-        assertThat(session.get("role").asText()).isEqualTo("TEACHER");
         assertThat(session.get("schoolId").asText()).isEqualTo(SCHOOL);
         assertThat(session.get("mustChangePassword").asBoolean()).as("e2e signs in without a first-login dance").isFalse();
+        return session;
     }
 
     /**
@@ -121,7 +137,7 @@ class SchoolSeedTest extends ClassesTestSupport {
         String sara = teacherId(SARA), omar = teacherId(OMAR);
         move(classId(MOVED), "math", sara);                                     // the school as the previous deploy left it
 
-        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 1, 0));
+        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 1, 0));
 
         assertThat(slotsOf(omar)).containsExactly("3A British · math", "3B British · math");
         assertThat(slotsOf(sara)).containsExactly("1A British · math", "1B British · math");
@@ -144,7 +160,7 @@ class SchoolSeedTest extends ClassesTestSupport {
 
         assignments.deleteAll(assignments.findAll().stream().filter(a -> outsider.getId().equals(a.getTeacherId())).toList());
         users.delete(outsider);
-        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 1, 0));
+        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 1, 0));
         assertThat(slotsOf(omar)).containsExactly("3A British · math", "3B British · math");
     }
 

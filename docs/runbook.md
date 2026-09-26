@@ -1091,9 +1091,18 @@ that gets from one to the other.
 **What the acceptance profile seeds** (`server/src/main/resources/seed/acceptance/*.csv`, into the **default**
 school): three sections — `1A British` and `1B British` (british, grade 1) and `1A American` (american, grade 1);
 two teachers — **Maya** (math, `maya@test.com`) and **Rami** (english, `rami@test.com`), both signing in with
-`SEED_STAFF_PASSWORD` and no first-login password change; three assignments — Maya on 1A + 1B British math, Rami on
-1A American english. **No children**: they arrive when the owner registers as a parent in the app. Re-running the
-seed changes nothing (sections are matched by curriculum + grade + name, teachers by their lower-cased email).
+`SEED_STAFF_PASSWORD` and no first-login password change; one **Management (MANAGERIAL)** account — **Nour**
+(`manager@test.com`), password `SEED_STAFF_PASSWORD`, the same as the teachers; three assignments — Maya on 1A + 1B
+British math, Rami on 1A American english. **No children**: they arrive when the owner registers as a parent in the
+app. Re-running the seed changes nothing (sections are matched by curriculum + grade + name, teachers and managers by
+their lower-cased email).
+
+> **Why the Management account is seeded at all.** Nothing in the API creates a MANAGERIAL user — there is no
+> `POST /admin/managers` — so QA had the role in `permissions.json` and nobody holding it, and every teacher's
+> `POST /teacher/messages/coordinator` came back 409 `no_coordinator`. `managers.csv` (`fullName,email`, one row) is
+> read by the seed's own `managers` phase, which writes the row directly for that reason and skips an address that
+> already belongs to somebody, at WARN. The `full` profile has one too: **Huda Salem** (`manager.a@school.test`).
+> With `SEED_STAFF_PASSWORD` unset the account exists but nobody can sign in as it, exactly like a seeded teacher.
 
 > The password the owner chose is nine characters, which is under the `MIN_PASSWORD` of 10. That minimum is a
 > validation rule on *changing* and *resetting* a password (`AuthService`, `DashboardDto`), and the seed never goes
