@@ -1,9 +1,13 @@
 <div class="attendance">
-  @if (saveSuccess()) {
-    <hq-band variant="confirm" [open]="true" [title]="'attendance.savedTitle' | transloco" [dismissible]="true">
-      {{ 'attendance.savedBody' | transloco }}
-    </hq-band>
-  }
+  <!-- U1 item 5: a save that worked is green and gets out of the way after three seconds. A
+       failure is still the red band below, which stays until she has read it. -->
+  <hq-toast
+    tone="success"
+    [open]="saveSuccess()"
+    [durationMs]="savedToastMs"
+    [message]="'attendance.savedBody' | transloco"
+    (expired)="saveSuccess.set(false)"
+  />
 
   @if (errorMessage(); as err) {
     <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="true">
@@ -145,15 +149,20 @@
               </button>
             </div>
 
-            <!-- Notes Input -->
+            <!--
+              U1 item 5: the note is prose, not a line — three words of "excused, dentist at 9"
+              were being typed into a 260 px box that scrolled sideways. It is a textarea in the
+              child's own row, two lines tall and as wide as the row's last track.
+            -->
             <div class="attendance__notes">
-              <input
-                type="text"
+              <textarea
                 class="attendance__notes-input"
+                rows="2"
                 [placeholder]="'attendance.notesPlaceholder' | transloco"
+                [attr.aria-label]="'attendance.noteFor' | transloco: { name: student.childName }"
                 [value]="student.notes || ''"
                 (input)="onNotesChange(student.childId, $any($event.target).value)"
-              />
+              ></textarea>
             </div>
           </div>
         }

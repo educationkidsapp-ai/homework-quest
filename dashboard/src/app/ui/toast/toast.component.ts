@@ -1,5 +1,8 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, effect, input, output } from '@angular/core';
 
+/** The strip's two readings: an ordinary "that happened", or a success in green. */
+export type ToastTone = 'neutral' | 'success';
+
 /** Long enough to read six words, short enough that nobody waits for it. */
 const DEFAULT_MS = 4000;
 
@@ -20,7 +23,7 @@ const DEFAULT_MS = 4000;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (open()) {
-      <p class="toast" role="status">{{ message() }}</p>
+      <p class="toast" [class.toast--success]="tone() === 'success'" role="status">{{ message() }}</p>
     }
   `,
   styles: `
@@ -42,6 +45,14 @@ const DEFAULT_MS = 4000;
       font-size: var(--hq-text-theme-sm);
       z-index: var(--hq-z-undo);
     }
+
+    // U1 item 5: a save that worked says so in the success role's own green. The tone is opt-in
+    // because the neutral strip is still the default for "this happened, nothing to undo".
+    .toast--success {
+      background: var(--hq-color-success-soft);
+      border-color: var(--hq-color-band-good);
+      color: var(--hq-color-success-ink);
+    }
   `,
 })
 export class ToastComponent implements OnDestroy {
@@ -51,6 +62,8 @@ export class ToastComponent implements OnDestroy {
   /** What just happened, e.g. "Question added". */
   readonly message = input.required<string>();
   readonly durationMs = input<number>(DEFAULT_MS);
+  /** `success` paints the strip in the success role's green; `neutral` is the raised surface. */
+  readonly tone = input<ToastTone>('neutral');
 
   /** The time is up. The host clears `open`; nothing here closes itself behind its owner's back. */
   readonly expired = output<void>();

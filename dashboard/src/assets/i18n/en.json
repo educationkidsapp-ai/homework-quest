@@ -187,7 +187,8 @@
     "loading": "Loading attendance...",
     "empty": "No students found in this class.",
     "noStudents": "No students found in this class.",
-    "notesPlaceholder": "Optional note (e.g. excused doctor note)"
+    "notesPlaceholder": "Optional note (e.g. excused doctor note)",
+    "noteFor": "Note for {{name}}"
   },
   "band": {
     "failed": "That did not work",

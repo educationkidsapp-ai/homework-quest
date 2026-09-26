@@ -16,11 +16,25 @@ import {
   ClassAttendanceResponse,
 } from '../../core/attendance/attendance.models';
 import { activeLang } from '../../core/i18n/active-lang';
-import { BandComponent, ButtonComponent, CardComponent, SkeletonComponent } from '../../ui';
+import {
+  BandComponent,
+  ButtonComponent,
+  CardComponent,
+  SkeletonComponent,
+  ToastComponent,
+} from '../../ui';
 
 @Component({
   selector: 'hq-class-attendance',
-  imports: [BandComponent, ButtonComponent, CardComponent, SkeletonComponent, FormsModule, TranslocoPipe],
+  imports: [
+    BandComponent,
+    ButtonComponent,
+    CardComponent,
+    SkeletonComponent,
+    ToastComponent,
+    FormsModule,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './class-attendance.component.html',
   styleUrl: './class-attendance.component.scss',
@@ -32,6 +46,9 @@ export class ClassAttendanceComponent {
 
   @Input({ required: true }) classId!: string;
   @Input() className = '';
+
+  /** U1 item 5: the green strip goes away on its own after three seconds. */
+  protected readonly savedToastMs = 3000;
 
   protected readonly todayStr: string = new Date().toISOString().split('T')[0] ?? '';
   protected readonly selectedDate = signal<string>(new Date().toISOString().split('T')[0] ?? '');

@@ -15,7 +15,7 @@ export { ProgressBarComponent } from './progress-bar/progress-bar.component';
 export { SkeletonComponent } from './skeleton/skeleton.component';
 export { PhoneFrameComponent } from './phone-frame/phone-frame.component';
 export { UndoStripComponent } from './undo-strip/undo-strip.component';
-export { ToastComponent } from './toast/toast.component';
+export { ToastComponent, type ToastTone } from './toast/toast.component';
 export { EmptyStateComponent } from './empty-state/empty-state.component';
 export { PageComponent, type Breadcrumb } from './page/page.component';
 export { NavComponent, type NavItem } from './nav/nav.component';
