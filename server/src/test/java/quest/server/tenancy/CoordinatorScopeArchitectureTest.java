@@ -25,8 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>Two rules, because a coordinator has two ways to be wrong. The first is the teacher's: a handler wired straight
  * to a repository, with no scope check anywhere in its reach, would answer with the whole school. The second is this
  * package's own — R2 is a read namespace, and the first POST added under it would quietly make a read-only role a
- * writing one, so the verb is asserted rather than reviewed. R4 adds the communication writes, and does it by
- * amending this list with the argument for each one.
+ * writing one, so the verb is asserted rather than reviewed. R4 added the communication writes by naming each one in
+ * {@link #COMMUNICATION_WRITES} with the argument for it; anything else under `/coordinator` still has to be a GET.
  */
 class CoordinatorScopeArchitectureTest {
     private static final JavaClasses SERVER = new ClassFileImporter()
@@ -63,14 +63,38 @@ class CoordinatorScopeArchitectureTest {
                 + "CoordinatorScope.require only checks that somebody is signed in", CHECKS).isEmpty();
     }
 
-    /** DR2: her writes are communication and arrive with R4, so this package serves reads and nothing else. */
-    @Test void the_coordinator_namespace_is_read_only() {
+    /**
+     * DR2: the reads are read-only, and the only writes under `/coordinator` are R4's communication (DR3, DR4), one
+     * argued line each. A sixth write appearing here is the thing to stop: a read namespace that grows an editor.
+     *
+     * <ul>
+     *   <li>{@code POST /coordinator/chat/threads} — her thread with the manager of her department. She is one of the
+     *       two people on it, so nobody else can open it for her.</li>
+     *   <li>{@code POST …/threads/{id}/messages} and {@code …/read} — the teacher's two chat writes, thread-keyed
+     *       because one of her threads has no child on it. Both go through `ChatService`, which checks the peer.</li>
+     *   <li>{@code PATCH …/threads/{id}/status} — DR3's `open` / `resolved` on a complaint. It writes the thread she
+     *       is the staff peer of and nothing about the child, the class or the teacher.</li>
+     *   <li>{@code POST /coordinator/announcements} — DR4. It writes `announcements` rows for classes in her scope and
+     *       is the one write that reaches parents, which is why it carries the `announcements` flag as well.</li>
+     * </ul>
+     */
+    private static final Set<String> COMMUNICATION_WRITES = Set.of(
+            "POST /coordinator/chat/threads", "POST /coordinator/chat/threads/{id}/messages",
+            "POST /coordinator/chat/threads/{id}/read", "PATCH /coordinator/chat/threads/{id}/status",
+            "POST /coordinator/announcements");
+
+    @Test void the_only_writes_in_the_coordinator_namespace_are_r4s_communication() {
         var writes = new ArrayList<String>();
         for (JavaClass controller : coordinatorControllers())
             for (JavaMethod method : controller.getMethods())
                 for (String route : routes(controller, method))
-                    if (!route.startsWith("GET ")) writes.add(controller.getSimpleName() + "#" + method.getName() + " -> " + route);
-        assertThat(writes).as("DR2: `/coordinator` is read-only until R4 adds the communication routes").isEmpty();
+                    if (!route.startsWith("GET ") && !COMMUNICATION_WRITES.contains(route))
+                        writes.add(controller.getSimpleName() + "#" + method.getName() + " -> " + route);
+        assertThat(writes).as("DR2: `/coordinator` writes nothing but R4's communication (%s)", COMMUNICATION_WRITES).isEmpty();
+        var declared = new ArrayList<String>();
+        for (JavaClass controller : coordinatorControllers())
+            for (JavaMethod method : controller.getMethods()) declared.addAll(routes(controller, method));
+        assertThat(declared).as("a route on the allow-list was renamed or removed: update the list").containsAll(COMMUNICATION_WRITES);
     }
 
     // ---------------------------------------------------------------- the sweep

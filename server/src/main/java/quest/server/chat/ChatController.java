@@ -30,7 +30,9 @@ import quest.server.flags.FlagKeys;
 
 /**
  * C1: the REST half of the chat — history, sending, read receipts — for the parent (`/children/{id}/chat/**`), the
- * teacher (`/teacher/chat/**`) and, read-only, the Admin doing support with `X-School-Id` (`/admin/chat/**`). The
+ * teacher (`/teacher/chat/**`) and, read-only, the Admin doing support with `X-School-Id` (`/admin/chat/**`). R4's
+ * coordinator half is {@code CoordinatorChatController}, which serves the same four things over these very methods
+ * and lives under `/coordinator` so that `CoordinatorScopeArchitectureTest` sees it. The
  * live half is `/ws/chat` ({@link ChatSocketHandler}); both are behind the `chat` flag, and both encode the same
  * shared-api DTOs with the shared codec so the app and the dashboard read one shape.
  */
@@ -50,6 +52,17 @@ public class ChatController {
         return threads(chat.parentThreads(parent, id));
     }
 
+    /**
+     * R4 (DR3): the coordinators of the subjects taught in her child's section, as thread rows — who she may open a
+     * conversation with beyond the child's own teachers. `id` is null on a row nobody has written on yet.
+     */
+    @GetMapping(value = "/children/{id}/coordinators", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('child.coordinators')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatThread.class))))
+    public String parentCoordinators(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) {
+        return threads(chat.parentCoordinators(parent, id));
+    }
+
     @GetMapping(value = "/children/{id}/chat/threads/{teacherId}/messages", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('child.chat')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatMessage.class))))
@@ -65,7 +78,7 @@ public class ChatController {
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
     public String parentSendChatMessage(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @PathVariable String teacherId, @RequestBody String body) {
         var req = decode(body);
-        return message(chat.parentSend(parent, id, teacherId, req.getBody(), req.getClientId()));
+        return message(chat.parentSend(parent, id, teacherId, req.getBody(), req.getClientId(), req.getTopic()));
     }
 
     @PostMapping(value = "/children/{id}/chat/threads/{teacherId}/read", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -125,7 +138,7 @@ public class ChatController {
 
     private SendChatMessageRequest decode(String body) {
         try { return json.decodeShared(body, SendChatMessageRequest.Companion.serializer()); }
-        catch (RuntimeException e) { throw ApiException.badRequest("Send {\"body\": \"…\"} and, optionally, a clientId."); }
+        catch (RuntimeException e) { throw ApiException.badRequest("Send {\"body\": \"…\"} and, optionally, a clientId and a topic."); }
     }
     private String threads(List<ChatThread> rows) { return json.encodeShared(rows, BuiltinSerializersKt.ListSerializer(ChatThread.Companion.serializer())); }
     private String messages(List<ChatMessage> rows) { return json.encodeShared(rows, BuiltinSerializersKt.ListSerializer(ChatMessage.Companion.serializer())); }

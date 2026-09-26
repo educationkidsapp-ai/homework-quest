@@ -2,7 +2,15 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ChatApi, ChatMessage, ChatMessageSenderEnum, ChatThread } from '../../api';
+import {
+  ChatApi,
+  ChatMessage,
+  ChatMessageSenderEnum,
+  ChatThread,
+  ChatThreadStaffRoleEnum,
+  ChatThreadStatusEnum,
+  ChatThreadTopicEnum,
+} from '../../api';
 import { TEACHER_USER } from '../../../testing/fixtures';
 import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
@@ -25,6 +33,9 @@ describe('ChatService', () => {
     teacherId: 'u-sara',
     teacherName: 'Ms Sara',
     unread: 2,
+    staffRole: ChatThreadStaffRoleEnum.TEACHER,
+    topic: ChatThreadTopicEnum.QUESTION,
+    status: ChatThreadStatusEnum.OPEN,
   };
 
   const sampleMessage: ChatMessage = {

@@ -4,7 +4,13 @@ import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHq } from '../../../testing/render';
-import { ChatMessageSenderEnum, ChatThread } from '../../api';
+import {
+  ChatMessageSenderEnum,
+  ChatThread,
+  ChatThreadStaffRoleEnum,
+  ChatThreadStatusEnum,
+  ChatThreadTopicEnum,
+} from '../../api';
 import { LocalMessage } from '../../core/chat/chat.models';
 import { ChatService } from '../../core/chat/chat.service';
 import { FlagService } from '../../core/flags/flag.service';
@@ -34,6 +40,9 @@ describe('ChatPage', () => {
       body: 'Hello teacher',
       createdAt: 1700000000000,
     },
+    staffRole: ChatThreadStaffRoleEnum.TEACHER,
+    topic: ChatThreadTopicEnum.QUESTION,
+    status: ChatThreadStatusEnum.OPEN,
   };
 
   beforeEach(() => {
