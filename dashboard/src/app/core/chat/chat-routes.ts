@@ -64,6 +64,13 @@ export class ChatRoutes {
     }
   });
 
-  /** The manager's side of a staff thread: frames arrive, the thread row is the frame itself. */
-  readonly listensOnly = computed(() => this.auth.role() !== null && this.transport() === null);
+  /**
+   * The manager's side of a staff thread: frames arrive, and the thread row is the frame itself.
+   *
+   * **MANAGERIAL by name, not "anybody without a transport".** An ADMIN has no transport either,
+   * and letting her fall in here would have prepended a manager-shaped row on any `message` frame
+   * she happened to receive — harmless today, because no Admin screen reads this list, and exactly
+   * the kind of harmless that stops being harmless when one does.
+   */
+  readonly listensOnly = computed(() => this.auth.role() === 'MANAGERIAL');
 }

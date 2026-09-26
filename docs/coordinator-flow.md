@@ -154,9 +154,16 @@ rather than N5.2's `complaints`: DR3 keeps a complaint **in the conversation it 
 there is no complaint record here to gate. A complaint exists only because a parent named it
 (`topic: "complaint"` on the message that opens the thread); nothing on this side can label one.
 
-The **`status` frame** (R4) reaches both parties, so a complaint she resolves on one tab stops
-being open on the other without a refetch. Her header badge is the teacher's, pointed at
-`/coordinator/messages`.
+The **`status` frame** (R4) reaches both parties and lands in `ChatService.threads`. Both screens
+that care read that signal — the thread header, and the Complaints rows, which take a thread's
+status from there over their own `GET /coordinator/complaints` — so a complaint resolved on one
+tab, or in the conversation itself, leaves her open list on the other with no refetch. Her header
+badge is the teacher's, pointed at `/coordinator/messages`.
+
+**What a manager cannot do here.** `/management/messages` says "Live messages" and means it: no
+thread list to ask for, so the rows are the frames that arrived while the screen was open and the
+list starts empty on every reload; and no `Peer.chat`, so the composer is **absent** rather than
+disabled — there is nothing for a `message` command of hers to reach.
 
 ## What R7 could not do
 
@@ -171,7 +178,8 @@ being open on the other without a refetch. Her header badge is the teacher's, po
   same chat page with **no transport**: her rows are built from the `message` frames that arrive
   while it is open, and they are gone on reload. She also cannot **reply** — `ChatHandshake` gives
   `Peer.chat` to TEACHER and COORDINATOR only, so a `message` command from her comes back
-  `forbidden`. The screen is honest about being a live view, and nothing more.
+  `forbidden` — which is why her composer is not rendered at all. The screen's title, subtitle and
+  empty state all say it is a live view, and nothing more.
 - **No parent's name anywhere.** `ChatThread` carries the child, the class and the *staff* peer;
   the parent has no name on the contract, so the Complaints table says "Parent of <child>".
 - **`POST /coordinator/announcements` is mis-exported.** `CoordinatorDto.CreateAnnouncementRequest`

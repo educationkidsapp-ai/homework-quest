@@ -453,8 +453,11 @@ export class ChatService {
         break;
 
       case 'status':
-        // R4's `status` frame. The row she is looking at moves under her without a refetch, so
-        // the complaints inbox and the thread header agree about "resolved" on every tab.
+        // R4's `status` frame, which both parties hear. It updates this list and nothing else —
+        // there is no refetch — so every screen that *reads* this signal moves with it: the
+        // thread header, and the complaints inbox, whose rows take their status from here
+        // (`coordinator-complaints.page.ts`). A screen backed only by its own request would not,
+        // which is what the R7 review found.
         this.threads.update((list) =>
           list.map((t) =>
             t.id === frame.threadId
