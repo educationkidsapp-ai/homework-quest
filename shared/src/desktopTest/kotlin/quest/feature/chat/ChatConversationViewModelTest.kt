@@ -1,6 +1,8 @@
 package quest.feature.chat
 
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,13 +73,41 @@ class ChatConversationViewModelTest {
         override fun disconnect() {}
     }
 
+    /**
+     * The view model collects `incomingFrames` forever on `viewModelScope`, and that scope is `Dispatchers.Main`.
+     * A collector left running past [tearDown] dispatches onto a Main that no longer has a delegate, which fails
+     * *the next test class* rather than this one — `JoinSchoolTest` went red on CI that way. So every view model this
+     * class builds is registered here and cancelled before Main is reset.
+     */
+    private val built = mutableListOf<ChatConversationViewModel>()
+
     @BeforeTest fun setUp() = Dispatchers.setMain(Dispatchers.Default)
-    @AfterTest fun tearDown() = Dispatchers.resetMain()
+
+    @AfterTest fun tearDown() {
+        built.forEach { it.viewModelScope.cancel() }
+        built.clear()
+        Dispatchers.resetMain()
+    }
+
+    private fun viewModel(peer: ChatPeer, chat: ChatRepository) =
+        ChatConversationViewModel(peer, chat).also { built.add(it) }
 
     private fun peer(threadId: String? = OURS, topic: ChatTopic = ChatTopic.QUESTION) = ChatPeer(
         childId = "c1", staffId = COORDINATOR, staffName = "Ms. Lina",
         staffRole = ChatStaffRole.COORDINATOR, subject = "math", topic = topic, threadId = threadId,
     )
+
+    /**
+     * `MutableSharedFlow` has no replay here, so a frame emitted before the view model's collector is subscribed is
+     * dropped on the floor — a race that only shows up on a loaded runner. Every emit waits for the subscriber first.
+     */
+    private suspend fun FakeChat.awaitCollector() {
+        repeat(400) {
+            if (frames.subscriptionCount.value > 0) return
+            delay(5)
+        }
+        error("the view model never subscribed to the frame stream")
+    }
 
     private suspend fun ChatConversationViewModel.settle(predicate: (ChatConversationContract.State) -> Boolean) {
         repeat(400) {
@@ -91,11 +121,12 @@ class ChatConversationViewModelTest {
 
     @Test fun aStatusFrameForAnotherThreadLeavesThisOneAlone() = runBlocking {
         val chat = FakeChat()
-        val vm = ChatConversationViewModel(peer(), chat)
+        val vm = viewModel(peer(), chat)
         vm.dispatch(ChatConversationContract.Intent.Load)
         vm.settle { !it.loading }
         assertEquals(OURS, vm.state.value.threadId)
 
+        chat.awaitCollector()
         chat.frames.emit(ChatFrame.Status(THEIRS, ChatThreadStatus.RESOLVED, 1_758_460_000_000L))
         delay(80)
         assertFalse(vm.state.value.resolved, "another thread's resolve must not raise this banner")
@@ -110,11 +141,12 @@ class ChatConversationViewModelTest {
 
     @Test fun aStatusFrameCannotResolveAConversationThatHasNoThreadYet() = runBlocking {
         val chat = FakeChat()
-        val vm = ChatConversationViewModel(peer(threadId = null), chat)
+        val vm = viewModel(peer(threadId = null), chat)
         vm.dispatch(ChatConversationContract.Intent.Load)
         vm.settle { !it.loading }
         assertNull(vm.state.value.threadId)
 
+        chat.awaitCollector()
         chat.frames.emit(ChatFrame.Status(THEIRS, ChatThreadStatus.RESOLVED, 1L))
         delay(80)
         assertFalse(vm.state.value.resolved)
@@ -123,10 +155,11 @@ class ChatConversationViewModelTest {
     @Test fun readAndTypingFramesForAnotherThreadAreIgnoredToo() = runBlocking {
         val chat = FakeChat()
         chat.history = listOf(ChatMessage("m1", OURS, ChatSender.PARENT, "p1", "Hello", 1_758_450_000_000L))
-        val vm = ChatConversationViewModel(peer(), chat)
+        val vm = viewModel(peer(), chat)
         vm.dispatch(ChatConversationContract.Intent.Load)
         vm.settle { !it.loading }
 
+        chat.awaitCollector()
         chat.frames.emit(ChatFrame.Typing(THEIRS, ChatSender.TEACHER))
         chat.frames.emit(ChatFrame.Read(THEIRS, ChatSender.TEACHER, 1_758_450_900_000L))
         delay(80)
@@ -142,7 +175,7 @@ class ChatConversationViewModelTest {
     @Test fun retryResendsTheComplaintTopic() = runBlocking {
         val chat = FakeChat()
         chat.failNextSend = true
-        val vm = ChatConversationViewModel(peer(threadId = null), chat)
+        val vm = viewModel(peer(threadId = null), chat)
         vm.dispatch(ChatConversationContract.Intent.Load)
         vm.settle { !it.loading }
 
@@ -170,7 +203,7 @@ class ChatConversationViewModelTest {
     @Test fun aRetriedQuestionStaysAQuestion() = runBlocking {
         val chat = FakeChat()
         chat.failNextSend = true
-        val vm = ChatConversationViewModel(peer(threadId = null), chat)
+        val vm = viewModel(peer(threadId = null), chat)
         vm.dispatch(ChatConversationContract.Intent.Load)
         vm.settle { !it.loading }
 
