@@ -536,9 +536,14 @@ export class NewLessonPage {
   private preselected = false;
 
   constructor() {
-    // A chain she sent to the background and then walked away from has nothing left to say
-    // here: its outcome reached her through the bell. This page starts clean.
-    if (this.creation.background() && !this.creation.busy()) this.creation.reset();
+    // Only a chain that finishes while *this* page instance is open navigates. A chain that
+    // finished while nobody was here has nothing left to say — its outcome reached her through
+    // the bell — and that is true however she left, not only via "Work in background": a
+    // leftover `done` would otherwise bounce her straight to that old lesson the next time she
+    // opens New lesson. This page starts clean.
+    if (!this.creation.busy() && (this.creation.done() || this.creation.background())) {
+      this.creation.reset();
+    }
 
     // The one navigation this page still makes, and only for the teacher who stayed to watch.
     effect(() => {
