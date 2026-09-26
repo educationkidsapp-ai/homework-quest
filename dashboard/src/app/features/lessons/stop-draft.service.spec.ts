@@ -82,7 +82,12 @@ describe('StopDraftService', () => {
     const draft = t.service.draftOf('st-9');
     expect(draft?.state).toBe('error');
     expect(draft?.reason).toBe("Couldn't save, please rephrase.");
-    expect(t.said).toHaveBeenCalledWith("Couldn't save, please rephrase.");
+    // With the lesson on it: the page filters this the way it filters the other three, so a
+    // refusal on one lesson never raises a toast on another.
+    expect(t.said).toHaveBeenCalledWith({
+      lessonId: 'l-1',
+      message: "Couldn't save, please rephrase.",
+    });
     expect(t.service.writing('st-9')).toBe(false);
 
     t.service.retry('st-9');

@@ -65,8 +65,13 @@ export class StopDraftService {
   readonly written$ = new Subject<DraftStopEvent>();
   /** "Remove" took the template stop away again. */
   readonly removed$ = new Subject<{ readonly lessonId: string; readonly stopId: string }>();
-  /** One sentence for the page to say out loud — a create refusal, or the assistant's. */
-  readonly said$ = new Subject<string>();
+  /**
+   * One sentence for the lesson page to say out loud, with the lesson it is about.
+   *
+   * Without the id a refusal on lesson A raised the toast on whatever lesson happened to be open
+   * — the other three events were filtered and this one was not.
+   */
+  readonly said$ = new Subject<{ readonly lessonId: string; readonly message: string }>();
 
   readonly pending = computed(() => this.drafts().size);
 
@@ -134,7 +139,7 @@ export class StopDraftService {
         error: (cause: unknown) => {
           const reason = this.reasonOf(cause);
           this.put({ ...draft, state: 'error', reason });
-          this.said$.next(reason);
+          this.said$.next({ lessonId: draft.lessonId, message: reason });
         },
       });
   }

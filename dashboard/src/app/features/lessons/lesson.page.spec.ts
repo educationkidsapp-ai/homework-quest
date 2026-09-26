@@ -13,6 +13,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ViewModeService } from '../../core/view-mode/view-mode.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { LessonPage } from './lesson.page';
+import { StopDraftService } from './stop-draft.service';
 
 const ADMIN_PERMISSIONS = {
   role: 'ADMIN',
@@ -648,6 +649,19 @@ describe('Lesson', () => {
     backend.expectOne('/admin/lessons/l-1').flush(withTwo);
     await settle();
     expect(document.querySelector('[data-hq-add-stop]')).not.toBeNull();
+  });
+
+  /** A refusal belongs to its own lesson: this page is l-1, so l-2's is not its news. */
+  it('says nothing about a draft that belongs to another lesson', async () => {
+    await renderLesson(lessonWithStops());
+
+    TestBed.inject(StopDraftService).said$.next({ lessonId: 'l-2', message: 'Something went wrong.' });
+    await settle();
+    expect(screen.queryByText('Something went wrong.')).toBeNull();
+
+    TestBed.inject(StopDraftService).said$.next({ lessonId: 'l-1', message: 'Something went wrong.' });
+    await settle();
+    expect(screen.getByText('Something went wrong.')).toBeInTheDocument();
   });
 
   it('deletes a stop only behind the red confirm band, and offers no Undo', async () => {

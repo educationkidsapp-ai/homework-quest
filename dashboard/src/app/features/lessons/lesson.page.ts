@@ -1514,7 +1514,9 @@ export class LessonPage {
       if (this.selectedStopId() === stopId) this.selectedStopId.set(null);
       this.dropStopLocally(stopId);
     });
-    this.drafts.said$.pipe(takeUntilDestroyed(destroyRef)).subscribe((message) => this.toastText.set(message));
+    this.drafts.said$.pipe(takeUntilDestroyed(destroyRef)).subscribe(({ lessonId, message }) => {
+      if (lessonId === this.lessonId) this.toastText.set(message);
+    });
 
     // E3: poll the **light** body (`GET …/lessons/{id}/status`, a few hundred bytes) and read
     // the whole lesson back only when that body says something the page shows has changed —
