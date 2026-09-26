@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { catchError, of, tap } from 'rxjs';
 import { type ChatThread, ChatThreadStatusEnum, CoordinatorChatApi } from '../../api';
+import { ChatService } from '../../core/chat/chat.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
 import {
@@ -136,6 +137,7 @@ type StatusFilter = 'open' | 'resolved';
 })
 export class CoordinatorComplaintsPage {
   private readonly api = inject(CoordinatorChatApi);
+  private readonly chat = inject(ChatService);
   private readonly router = inject(Router);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
@@ -170,15 +172,41 @@ export class CoordinatorComplaintsPage {
     ];
   });
 
-  protected readonly rows = computed<readonly ComplaintRow[]>(() =>
-    this.threads.value().map((thread) => ({
-      threadId: thread.id ?? '',
-      childName: thread.childName,
-      className: thread.className ?? '',
-      lastAt: thread.lastMessage?.createdAt ?? null,
-      resolved: thread.status === ChatThreadStatusEnum.RESOLVED,
-    })),
+  /**
+   * The status of every thread the socket has spoken about, by thread id.
+   *
+   * `ChatService.threads` is where R4's `status` frame lands, and it holds the coordinator's own
+   * list (the same rows, on the same routes). Reading it here is what makes this screen agree with
+   * the conversation: the review found the frame updating the Messages header while a row in this
+   * table, backed only by its own `rxResource`, sat there still saying "open".
+   */
+  private readonly liveStatus = computed(
+    () =>
+      new Map(
+        this.chat
+          .threads()
+          .filter((thread) => thread.id !== undefined)
+          .map((thread) => [thread.id!, thread.status]),
+      ),
   );
+
+  protected readonly rows = computed<readonly ComplaintRow[]>(() => {
+    const live = this.liveStatus();
+    return (
+      this.threads
+        .value()
+        .map((thread) => ({
+          threadId: thread.id ?? '',
+          childName: thread.childName,
+          className: thread.className ?? '',
+          lastAt: thread.lastMessage?.createdAt ?? null,
+          resolved: (live.get(thread.id ?? '') ?? thread.status) === ChatThreadStatusEnum.RESOLVED,
+        }))
+        // The list is a filter *on* status, so a row the socket has moved has to leave the tab it
+        // no longer belongs to — not merely change the word in its last column.
+        .filter((row) => row.resolved === (this.status() === 'resolved'))
+    );
+  });
 
   /** What the band says, which is the same three questions read in the direction she is going. */
   protected readonly confirm = computed(() => {

@@ -7,7 +7,8 @@ import { screen } from '@testing-library/angular';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { COORDINATOR_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
-import { BASE_PATH } from '../../api';
+import { type ChatThread, BASE_PATH } from '../../api';
+import { ChatService } from '../../core/chat/chat.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { FlagService } from '../../core/flags/flag.service';
@@ -194,5 +195,29 @@ describe('the coordinator comms screens', () => {
     day.dispatchEvent(new Event('input'));
     await settle();
     expect(screen.getByRole('button', { name: 'Post' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  /**
+   * R4 sends the `status` frame to both parties, so a complaint resolved somewhere else — her
+   * other tab, or the conversation itself — has to move here too, and this list is a filter *on*
+   * status, so "move" means leave the tab.
+   */
+  it('lets go of a row the status frame resolved, with no second request', async () => {
+    const { backend } = await signedIn(CoordinatorComplaintsPage);
+    backend.expectOne('/coordinator/complaints?status=open').flush([COMPLAINT]);
+    await settle();
+    expect(screen.getByText('Layla Ahmed')).toBeTruthy();
+
+    TestBed.inject(ChatService).threads.set([COMPLAINT as unknown as ChatThread]);
+    TestBed.inject(ChatService).receive({
+      type: 'status',
+      threadId: 'th-7',
+      status: 'resolved',
+      at: 1700000009000,
+    });
+    await settle();
+
+    expect(screen.getByText('No open complaints.')).toBeTruthy();
+    backend.expectNone('/coordinator/complaints?status=open');
   });
 });
