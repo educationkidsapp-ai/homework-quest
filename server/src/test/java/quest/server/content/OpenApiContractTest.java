@@ -156,8 +156,27 @@ class OpenApiContractTest extends ApiTestSupport {
             "/coordinator/lessons/{id}/results", "/coordinator/children/{id}",
             "/coordinator/classes/{id}/exams", "/coordinator/exams/{id}/results",
             "/coordinator/chat/threads", "/coordinator/chat/threads/{id}/messages", "/coordinator/chat/threads/{id}/read",
-            "/coordinator/chat/threads/{id}/status", "/coordinator/complaints", "/coordinator/announcements",
+            "/coordinator/chat/threads/{id}/status", "/coordinator/complaints", "/coordinator/managers",
+            "/coordinator/announcements",
             "/admin/coordinators", "/admin/coordinators/{id}/scopes");
+
+    /**
+     * RM1: the department manager's read-only area and the Admin routes that create one
+     * (`quest.api.dashboard.Management.kt`, DR5). {@link #COORDINATOR_API}'s mirror one axis over — wide in subject,
+     * narrow in track — and every path is a GET except the two that mint an account and set a department.
+     *
+     * <p>`/management/**` carries no flag except where the feature does: the three `results` paths and the child page
+     * carry `gradebook`, the two exam paths carry `exams`, and the register carries none, exactly as the coordinator's
+     * and the teacher's halves of those features do. The area itself is in `FeatureFlagCoverageTest.INFRASTRUCTURE`.
+     */
+    static final List<String> MANAGEMENT_API = List.of(
+            "/management/me", "/management/coordinators", "/management/teachers", "/management/classes",
+            "/management/calendar", "/management/stats",
+            "/management/lessons", "/management/lessons/{id}", "/management/lessons/{id}/status",
+            "/management/classes/{id}/attendance", "/management/classes/{id}/results",
+            "/management/lessons/{id}/results", "/management/children/{id}",
+            "/management/classes/{id}/exams", "/management/exams/{id}/results",
+            "/admin/managers", "/admin/managers/{id}/scopes");
 
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
@@ -177,6 +196,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(CHAT_API);
         assertThat(paths).containsAll(NOTIFICATIONS_API);
         assertThat(paths).containsAll(COORDINATOR_API);
+        assertThat(paths).containsAll(MANAGEMENT_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
     }
@@ -205,6 +225,33 @@ class OpenApiContractTest extends ApiTestSupport {
             List<String> required = new ArrayList<>(); schema.get("required").forEach(name -> required.add(name.asText()));
             assertThat(serialisedFields(type)).as(type.getSimpleName() + " requires a field the codec never writes").containsAll(required);
         }
+    }
+
+    /**
+     * RM1 addendum: springdoc keys `components/schemas` by <em>simple name</em>, so two records called
+     * `CreateAnnouncementRequest` — the teacher's (`classId`) and the coordinator's (`classIds`) — collapsed into one
+     * schema and `POST /coordinator/announcements` was documented with the teacher's body, which generated a client
+     * that sent the wrong field. `CoordinatorDto.CreateAnnouncementRequest` now carries
+     * `@Schema(name = "CoordinatorCreateAnnouncementRequest")`; this fails the build if that is ever dropped, or if a
+     * third shape joins the collision.
+     */
+    @Test void the_two_announcement_bodies_are_two_schemas() throws Exception {
+        var doc = json(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn());
+        var schemas = doc.get("components").get("schemas");
+        var teacher = schemas.get("CreateAnnouncementRequest");
+        var coordinator = schemas.get("CoordinatorCreateAnnouncementRequest");
+        assertThat(teacher).as("the teacher's announcement body").isNotNull();
+        assertThat(coordinator).as("the coordinator's announcement body must have a schema of its own").isNotNull();
+        assertThat(teacher.get("properties").has("classId")).as("the teacher posts to one class").isTrue();
+        assertThat(coordinator.get("properties").has("classIds")).as("the coordinator posts to the classes in her scope").isTrue();
+        assertThat(coordinator.get("properties").has("classId")).isFalse();
+
+        String ref = doc.get("paths").get("/coordinator/announcements").get("post").get("requestBody")
+                .get("content").get(org.springframework.http.MediaType.APPLICATION_JSON_VALUE).get("schema").get("$ref").asText();
+        assertThat(ref).isEqualTo("#/components/schemas/CoordinatorCreateAnnouncementRequest");
+        assertThat(doc.get("paths").get("/teacher/announcements").get("post").get("requestBody")
+                .get("content").get(org.springframework.http.MediaType.APPLICATION_JSON_VALUE).get("schema").get("$ref").asText())
+                .isEqualTo("#/components/schemas/CreateAnnouncementRequest");
     }
 
     private void collect(Class<?> root, List<Class<?>> out) {

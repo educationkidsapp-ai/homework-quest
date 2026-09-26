@@ -73,6 +73,12 @@ data class ChatThread(
     val topic: ChatTopic = ChatTopic.QUESTION,
     val status: ChatThreadStatus = ChatThreadStatus.OPEN,
     val resolvedAt: Long? = null,
+    /**
+     * RM1 addendum: who wrote, so a Complaints inbox can name the parent rather than only the child. A parent signs in
+     * through Firebase and carries no display name, so this is her registered address — falling back to the one a
+     * teacher typed on the roster, and absent on a staff-to-staff thread, which has no parent on it at all.
+     */
+    val parentName: String? = null,
 )
 
 /**

@@ -50,6 +50,14 @@ public final class CoordinatorDto {
 
     // ---------------------------------------------------------------- communication (R4, DR3/DR4)
 
+    /**
+     * `GET /coordinator/managers` (RM1 addendum): a manager she may open a thread with, and the department that put her
+     * on the list — the chooser can say "Nour · British" without a second request. `ChatPeers.managerOptionsFor` builds
+     * it from `staff_scopes`, so a coordinator of both tracks is offered both managers and an ADMIN reading her area is
+     * offered nobody (a staff thread is the coordinator's own conversation).
+     */
+    public record CoordinatorManager(String userId, String displayName, String curriculum) {}
+
     /** `POST /coordinator/chat/threads`: the manager she wants to talk to, validated against her department. */
     public record StaffThreadRequest(@NotBlank String managerUserId) {}
 
@@ -60,7 +68,14 @@ public final class CoordinatorDto {
      * `POST /coordinator/announcements`: the same note a teacher posts (`bodyEn` required, `bodyAr` optional), sent to
      * the classes named — or, when `classIds` is absent, to every section in her scope. One `announcements` row per
      * class, so the parent's existing read needs no change at all (DR4).
+     *
+     * <p><strong>Named for the document</strong> (RM1 addendum): this record and {@link
+     * quest.server.teacher.TeacherDto.CreateAnnouncementRequest} are different shapes — `classIds` against `classId` —
+     * with the same simple name, and springdoc keys `components/schemas` by simple name, so `openapi.json` exported the
+     * teacher's body for this route and the generated client sent the wrong field. `OpenApiContractTest` now asserts
+     * the two schemas are distinct.
      */
+    @io.swagger.v3.oas.annotations.media.Schema(name = "CoordinatorCreateAnnouncementRequest")
     public record CreateAnnouncementRequest(List<String> classIds, @NotBlank @Size(max = 1000) String bodyEn,
                                             @Size(max = 1000) String bodyAr, Long expiresAt) {}
 

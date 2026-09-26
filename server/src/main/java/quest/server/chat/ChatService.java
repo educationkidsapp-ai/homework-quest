@@ -82,13 +82,16 @@ public class ChatService {
     private final ClassRepository classes; private final UserRepository users; private final TeacherScope scope; private final TenantContext tenant;
     private final CoordinatorScope coordinatorScope; private final ChatPeers peers;
     private final FeatureFlags flags; private final Clock clock; private final Json json;
+    private final quest.server.auth.ParentRepository parents;
 
     public ChatService(ChatThreadRepository threads, ChatMessageRepository messages, ChatThreads threadRows, ChatRateLimiter limiter, ChatBus bus,
                        ChildService childService, ChildRepository children, ClassRepository classes, UserRepository users, TeacherScope scope,
-                       TenantContext tenant, CoordinatorScope coordinatorScope, ChatPeers peers, FeatureFlags flags, Clock clock, Json json) {
+                       TenantContext tenant, CoordinatorScope coordinatorScope, ChatPeers peers, FeatureFlags flags, Clock clock, Json json,
+                       quest.server.auth.ParentRepository parents) {
         this.threads = threads; this.messages = messages; this.threadRows = threadRows; this.limiter = limiter; this.bus = bus;
         this.childService = childService; this.children = children; this.classes = classes; this.users = users; this.scope = scope;
-        this.tenant = tenant; this.coordinatorScope = coordinatorScope; this.peers = peers; this.flags = flags; this.clock = clock; this.json = json;
+        this.tenant = tenant; this.coordinatorScope = coordinatorScope; this.peers = peers; this.flags = flags; this.clock = clock;
+        this.json = json; this.parents = parents;
     }
 
     /**
@@ -119,15 +122,16 @@ public class ChatService {
         var last = lastMessages(byStaff.values());
         var subjects = assignments.stream().collect(Collectors.groupingBy(TeachingAssignmentEntity::getTeacherId, LinkedHashMap::new,
                 Collectors.mapping(TeachingAssignmentEntity::getSubject, Collectors.joining(", "))));
+        String parentName = parentNames(List.of(child)).get(child.getId());
         var rows = new ArrayList<ChatThread>();
         for (String teacherId : teacherIds) {
             var t = byStaff.get(teacherId);
             rows.add(row(t, child.getId(), child.getName(), teacherId, name(staff.get(teacherId)), section,
-                    subjects.get(teacherId), t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), ROLE_TEACHER));
+                    subjects.get(teacherId), t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), ROLE_TEACHER, parentName));
         }
         for (var t : staffThreads)
             rows.add(row(t, child.getId(), child.getName(), t.getTeacherId(), name(staff.get(t.getTeacherId())), section,
-                    null, t.getParentUnread(), last.get(t.getId()), t.getStaffRole()));
+                    null, t.getParentUnread(), last.get(t.getId()), t.getStaffRole(), parentName));
         rows.sort(order());
         return rows;
     }
@@ -143,11 +147,12 @@ public class ChatService {
         if (section == null) return List.of();
         var byStaff = byId(threads.findByChildIdOrderByLastMessageAtDesc(childId), ChatThreadEntity::getTeacherId);
         var last = lastMessages(byStaff.values());
+        String parentName = parentNames(List.of(child)).get(child.getId());
         var rows = new ArrayList<ChatThread>();
         for (var coordinator : peers.coordinatorsOn(child.getSchoolId(), section)) {
             var t = byStaff.get(coordinator.user().getId());
             rows.add(row(t, child.getId(), child.getName(), coordinator.user().getId(), name(coordinator.user()), section.getName(),
-                    coordinator.subjects(), t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), COORDINATOR));
+                    coordinator.subjects(), t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), COORDINATOR, parentName));
         }
         rows.sort(order());
         return rows;
@@ -206,9 +211,11 @@ public class ChatService {
         var sections = byId(classes.findAllById(live.stream().map(t -> kids.get(t.getChildId()).getClassId()).distinct().toList()), ClassEntity::getId);
         var last = lastMessages(live);
         String teacherName = users.findById(teacher.userId()).map(ChatService::name).orElse(teacher.email());
+        var parentNames = parentNames(kids.values());
         return live.stream().map(t -> { var c = kids.get(t.getChildId()); var k = sections.get(c.getClassId());
             return row(t, c.getId(), c.getName(), teacher.userId(), teacherName, k == null ? null : k.getName(),
-                    subjects.get(c.getClassId()), t.getTeacherUnread(), last.get(t.getId()), ROLE_TEACHER); }).toList();
+                    subjects.get(c.getClassId()), t.getTeacherUnread(), last.get(t.getId()), ROLE_TEACHER,
+                    parentNames.get(c.getId())); }).toList();
     }
 
     public List<ChatMessage> teacherMessages(Principals.User caller, String childId, String before, String since, Integer limit) {
@@ -243,9 +250,11 @@ public class ChatService {
         var teachers = byId(users.findAllById(all.stream().map(ChatThreadEntity::getTeacherId).distinct().toList()), UserEntity::getId);
         var sections = byId(classes.findAllById(kids.values().stream().map(ChildEntity::getClassId).filter(Objects::nonNull).distinct().toList()), ClassEntity::getId);
         var last = lastMessages(all);
+        var parentNames = parentNames(kids.values());
         return all.stream().map(t -> { var c = kids.get(t.getChildId()); var k = c == null || c.getClassId() == null ? null : sections.get(c.getClassId());
             return row(t, t.getChildId() == null ? "" : t.getChildId(), c == null ? "" : c.getName(), t.getTeacherId(), name(teachers.get(t.getTeacherId())),
-                    k == null ? null : k.getName(), null, t.getParentUnread() + t.getTeacherUnread(), last.get(t.getId()), t.getStaffRole()); }).toList();
+                    k == null ? null : k.getName(), null, t.getParentUnread() + t.getTeacherUnread(), last.get(t.getId()), t.getStaffRole(),
+                    c == null ? null : parentNames.get(c.getId())); }).toList();
     }
 
     public List<ChatMessage> supportMessages(String threadId, String before, String since, Integer limit) {
@@ -275,13 +284,15 @@ public class ChatService {
         var live = mine.stream().filter(t -> mayAnswer(t, kids, reach)).toList();
         var last = lastMessages(live);
         var people = byId(users.findAllById(live.stream().map(t -> named(t, me.userId())).distinct().toList()), UserEntity::getId);
+        var parentNames = parentNames(kids.values());
         var rows = new ArrayList<ChatThread>(live.size());
         for (var t : live) {
             var child = t.getChildId() == null ? null : kids.get(t.getChildId());
             var section = child == null || child.getClassId() == null ? null : reach.byId().get(child.getClassId());
             String person = named(t, me.userId());
             rows.add(row(t, child == null ? "" : child.getId(), child == null ? "" : child.getName(), person, name(people.get(person)),
-                    section == null ? null : section.getName(), null, unreadFor(t, me.userId()), last.get(t.getId()), t.getStaffRole()));
+                    section == null ? null : section.getName(), null, unreadFor(t, me.userId()), last.get(t.getId()), t.getStaffRole(),
+                    child == null ? null : parentNames.get(child.getId())));
         }
         return List.copyOf(rows);
     }
@@ -393,7 +404,8 @@ public class ChatService {
         String person = named(t, meId);
         return row(t, child == null ? "" : child.getId(), child == null ? "" : child.getName(), person,
                 users.findById(person).map(ChatService::name).orElse(""), section == null ? null : section.getName(),
-                null, unreadFor(t, meId), lastMessages(List.of(t)).get(t.getId()), t.getStaffRole());
+                null, unreadFor(t, meId), lastMessages(List.of(t)).get(t.getId()), t.getStaffRole(),
+                child == null ? null : parentNames(List.of(child)).get(child.getId()));
     }
 
     // ---------------------------------------------------------------- the four things
@@ -529,10 +541,42 @@ public class ChatService {
      */
     private static ChatThread row(ChatThreadEntity t, String childId, String childName, String staffId, String staffName,
                                   String className, String subject, int unread, ChatMessage last, String staffRole) {
+        return row(t, childId, childName, staffId, staffName, className, subject, unread, last, staffRole, null);
+    }
+
+    /**
+     * The same row with the parent named (RM1 addendum): the Complaints inbox shows who wrote, and a thread row
+     * otherwise carries the child's name and the staff peer's only. Null on a staff-to-staff thread, which has no
+     * parent on it at all, and on a roster child nobody has claimed yet.
+     */
+    private static ChatThread row(ChatThreadEntity t, String childId, String childName, String staffId, String staffName,
+                                  String className, String subject, int unread, ChatMessage last, String staffRole,
+                                  String parentName) {
         return new ChatThread(t == null ? null : t.getId(), childId, childName, staffId, staffName, className, subject, unread, last,
                 staffRole(t == null ? staffRole : t.getStaffRole()), topic(t == null ? QUESTION : t.getTopic()),
                 status(t == null ? OPEN : t.getStatus()),
-                t == null || t.getResolvedAt() == null ? null : t.getResolvedAt().toEpochMilli());
+                t == null || t.getResolvedAt() == null ? null : t.getResolvedAt().toEpochMilli(),
+                parentName == null || parentName.isBlank() ? null : parentName);
+    }
+
+    /**
+     * `[childId -> the name the inbox can call her parent by]` — one statement for a whole page of rows, never one per
+     * thread. A parent signs in through Firebase and the `parents` table holds no display name, so the name is her
+     * registered address, falling back to the address a teacher typed on the roster (`children.parent_email`) for a
+     * child nobody has claimed yet, and absent when there is neither.
+     */
+    private java.util.Map<String, String> parentNames(java.util.Collection<ChildEntity> kids) {
+        var out = new LinkedHashMap<String, String>();
+        var ids = kids.stream().filter(Objects::nonNull).map(ChildEntity::getParentId).filter(Objects::nonNull).distinct().toList();
+        var registered = new LinkedHashMap<String, String>();
+        if (!ids.isEmpty()) parents.findAllById(ids).forEach(row -> registered.put(row.getId(), row.getEmail()));
+        for (var kid : kids) {
+            if (kid == null) continue;
+            String name = kid.getParentId() == null ? null : registered.get(kid.getParentId());
+            if (name == null || name.isBlank()) name = kid.getParentEmail();
+            if (name != null && !name.isBlank()) out.put(kid.getId(), name);
+        }
+        return out;
     }
 
     static ChatStaffRole staffRole(String role) {
@@ -543,7 +587,8 @@ public class ChatService {
     /** The wire word a contract enum serialises to, which is the word the column holds. */
     static String key(ChatTopic topic) { return topic == ChatTopic.COMPLAINT ? COMPLAINT : QUESTION; }
 
-    static String name(UserEntity u) { return u == null ? "" : u.getDisplayName() == null || u.getDisplayName().isBlank() ? u.getEmail() : u.getDisplayName(); }
+    /** The name a chooser or a thread row shows: her display name, or her address until she has set one. */
+    public static String name(UserEntity u) { return u == null ? "" : u.getDisplayName() == null || u.getDisplayName().isBlank() ? u.getEmail() : u.getDisplayName(); }
 
     private Map<String, ChatMessage> lastMessages(java.util.Collection<ChatThreadEntity> ts) {
         var ids = ts.stream().map(ChatThreadEntity::getId).toList();

@@ -36,4 +36,16 @@ public interface AttemptRepository extends JpaRepository<Entities.AttemptEntity,
      */
     @Query("select a.lessonId, count(distinct a.childId) from AttemptEntity a where a.lessonId in :lessonIds group by a.lessonId")
     List<Object[]> countPlayersByLessonIdIn(@Param("lessonIds") Collection<String> lessonIds);
+
+    /**
+     * RM1: `[lessonId, childId, stopId, the best stars that child earned on that stop]` for a set of lessons — the one
+     * statement `GET /management/stats` folds a department's exam average and pass rate out of.
+     *
+     * <p>The best of a child's attempts per stop, because that is the star {@link quest.server.grading.Scoring} scores
+     * a stop with, and grouped in the database rather than loaded, because a term of a department's exams is hundreds
+     * of thousands of attempt rows and the statistics screen wants one number per grade out of them.
+     */
+    @Query("select a.lessonId, a.childId, a.stopId, max(a.stars) from AttemptEntity a where a.lessonId in :lessonIds"
+            + " group by a.lessonId, a.childId, a.stopId")
+    List<Object[]> bestStarsByLessonIdIn(@Param("lessonIds") Collection<String> lessonIds);
 }

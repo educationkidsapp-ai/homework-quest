@@ -81,8 +81,14 @@ public class CoordinatorService {
     // ---------------------------------------------------------------- GET /coordinator/teachers
 
     /** Every teacher holding an assignment in scope, with the subjects and sections that put her there. */
-    public List<CoordinatorDto.CoordinatorTeacher> teachers(Principals.User caller) {
-        var reach = scope.reach(caller);
+    public List<CoordinatorDto.CoordinatorTeacher> teachers(Principals.User caller) { return teachers(scope.reach(caller)); }
+
+    /**
+     * The same rows for a scope already resolved — what `GET /management/teachers` answers (RM1). A manager's list is
+     * this list with a wider {@link CoordinatorScope.Reach} behind it, so it is built by this method rather than by a
+     * second copy of it; {@link quest.server.tenancy.ManagerScope#reach} is what narrows her.
+     */
+    public List<CoordinatorDto.CoordinatorTeacher> teachers(CoordinatorScope.Reach reach) {
         var refs = new LinkedHashMap<String, List<CoordinatorDto.AssignmentRef>>();
         var subjects = new LinkedHashMap<String, LinkedHashSet<String>>();
         for (var a : reach.assignments()) {
@@ -103,8 +109,10 @@ public class CoordinatorService {
     // ---------------------------------------------------------------- GET /coordinator/classes
 
     /** One card per (section, subject) in scope, with today's lesson and how many have played it. */
-    public List<CoordinatorDto.CoordinatorClass> classes(Principals.User caller) {
-        var reach = scope.reach(caller);
+    public List<CoordinatorDto.CoordinatorClass> classes(Principals.User caller) { return classes(scope.reach(caller)); }
+
+    /** The same cards for a scope already resolved — the grade groups of `GET /management/classes` (RM1). */
+    public List<CoordinatorDto.CoordinatorClass> classes(CoordinatorScope.Reach reach) {
         var today = calendar.today(tenant.writeSchoolId());
         var lessonsToday = byCell(reach.sectionIds(), today, today);
         var sizes = childCounts(reach.sectionIds());
@@ -130,6 +138,11 @@ public class CoordinatorService {
      * own timezone, so the coordinator of a Gulf school opens on Sunday–Thursday like the teacher's grid.
      */
     public CoordinatorDto.CoordinatorCalendar calendar(Principals.User caller, String from, String to) {
+        return calendar(scope.reach(caller), from, to);
+    }
+
+    /** The same grid for a scope already resolved — `GET /management/calendar` over a whole department (RM1). */
+    public CoordinatorDto.CoordinatorCalendar calendar(CoordinatorScope.Reach reach, String from, String to) {
         var week = calendar.of(tenant.writeSchoolId());
         var today = LocalDate.now(week.zone());
         LocalDate start = from == null || from.isBlank() ? week.startOf(today) : date(from, "from");
@@ -138,7 +151,6 @@ public class CoordinatorService {
         if (start.plusDays(MAX_WINDOW_DAYS).isBefore(end))
             throw ApiException.badRequest("That window is longer than " + MAX_WINDOW_DAYS + " days — ask for a shorter one.");
 
-        var reach = scope.reach(caller);
         var byCell = byCell(reach.sectionIds(), start, end);
         var sizes = childCounts(reach.sectionIds());
         var players = players(byCell.values());
@@ -167,8 +179,17 @@ public class CoordinatorService {
      */
     public List<AdminLesson> lessons(Principals.User caller, String classId, String status, String from, String to) {
         if (classId != null && !classId.isBlank()) scope.requireSection(caller, classId);
-        boolean all = !scope.isCoordinator(caller);                               // an ADMIN needs no slot set built
-        var slots = all ? java.util.Set.<String>of() : scope.reach(caller).slots();
+        // An ADMIN needs no slot set built; an empty set is what `lessonsIn` reads as "narrow nothing".
+        return lessonsIn(scope.isCoordinator(caller) ? scope.reach(caller).slots() : java.util.Set.of(), classId, status, from, to);
+    }
+
+    /**
+     * The same reduction for a set of (section, subject) slots already resolved — `GET /management/lessons` (RM1),
+     * where the slots are every assignment of the department rather than one subject of it. An empty set narrows
+     * nothing, which is the platform ADMIN's answer.
+     */
+    public List<AdminLesson> lessonsIn(java.util.Set<String> slots, String classId, String status, String from, String to) {
+        boolean all = slots.isEmpty();
         var filter = new LessonFilter(null, null, null, iso(from, "from"), iso(to, "to"), null,
                 classId == null || classId.isBlank() ? null : classId);
         var rows = admin.list(filter, l -> all || (l.getClassId() != null && slots.contains(CoordinatorScope.slot(l.getClassId(), l.getSubject()))));
@@ -196,7 +217,7 @@ public class CoordinatorService {
     // ---------------------------------------------------------------- the statements
 
     /** `[classId -> live children]` for every section in scope: one statement, never one per class. */
-    private Map<String, Integer> childCounts(List<String> sectionIds) {
+    public Map<String, Integer> childCounts(List<String> sectionIds) {
         var out = new LinkedHashMap<String, Integer>();
         if (sectionIds.isEmpty()) return out;
         for (Object[] row : children.countByClassIdIn(sectionIds)) out.put((String) row[0], ((Number) row[1]).intValue());

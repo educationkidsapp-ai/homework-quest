@@ -110,6 +110,15 @@ data class CoordinatorCalendar(
     val days: List<CoordinatorCalendarDay> = emptyList(),
 )
 
+/**
+ * `GET /coordinator/managers` (RM1 addendum): a manager she may open a thread with, and the department that put her on
+ * the list, so the chooser can say "Nour · British" without a second request. The list is her own scope's: a
+ * coordinator of both tracks is offered both managers, one of a single track exactly one, and the platform ADMIN
+ * reading her area is offered nobody — a staff thread is the coordinator's own conversation.
+ */
+@Serializable
+data class CoordinatorManager(val userId: String, val displayName: String, val curriculum: Curriculum)
+
 // ---------------------------------------------------------------------------------------------------------------
 // Admin: creating a coordinator and changing what she coordinates (`/admin/coordinators/` routes, ADMIN only)
 // ---------------------------------------------------------------------------------------------------------------

@@ -21,4 +21,15 @@ public interface AttendanceRepository extends JpaRepository<AttendanceEntity, St
     List<AttendanceEntity> findByChildIdOrderByDateDesc(String childId);
 
     long countBySectionIdAndDateAndStatus(String sectionId, LocalDate date, String status);
+
+    /**
+     * RM1: `[sectionId, status, how many rows]` over a window, for every section of a department in one statement —
+     * what `GET /management/stats` folds each grade's attendance rate out of. Counted in the database because a term
+     * of a whole department is tens of thousands of rows and the screen wants one percentage per grade.
+     */
+    @org.springframework.data.jpa.repository.Query("select a.sectionId, a.status, count(a) from AttendanceEntity a"
+            + " where a.sectionId in :sectionIds and a.date between :from and :to group by a.sectionId, a.status")
+    List<Object[]> countByStatusInWindow(@org.springframework.data.repository.query.Param("sectionIds") java.util.Collection<String> sectionIds,
+                                         @org.springframework.data.repository.query.Param("from") LocalDate from,
+                                         @org.springframework.data.repository.query.Param("to") LocalDate to);
 }

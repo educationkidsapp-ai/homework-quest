@@ -183,6 +183,12 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
         assertThat(names(staffJson(lina, "/coordinator/complaints"), "id")).contains(threadId);
         // And a `question` thread is not a complaint: the inbox is the topic, not the whole list.
         assertThat(names(staffJson(lina, "/coordinator/chat/threads"), "id")).contains(threadId);
+
+        // RM1 addendum: the inbox names the parent who wrote, not only the child. A parent has no display name — she
+        // signs in through Firebase — so the row carries her registered address.
+        JsonNode named = null;
+        for (var row : staffJson(lina, "/coordinator/complaints")) if (threadId.equals(row.get("id").asText())) named = row;
+        assertThat(java.util.Objects.requireNonNull(named).get("parentName").asText()).contains("@");
     }
 
     @Test @Order(4) void an_american_parent_cannot_reach_the_british_math_coordinator() throws Exception {
@@ -216,6 +222,15 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
     }
 
     // ---------------------------------------------------------------- coordinator ↔ manager
+
+    /** RM1 addendum: the chooser the `managerUserId` below has to come from, and the department beside each name. */
+    @Test @Order(6) void her_manager_chooser_is_her_own_department() throws Exception {
+        var options = staffJson(lina, "/coordinator/managers");
+        assertThat(names(options, "userId")).as("Lina coordinates British; Sami runs the other department").containsExactly(nour);
+        assertThat(options.get(0).get("curriculum").asText()).isEqualTo("british");
+        assertThat(options.get(0).get("displayName").asText()).isNotBlank();
+        assertThat(names(staffJson(omar, "/coordinator/managers"), "userId")).containsExactly(sami);
+    }
 
     @Test @Order(6) void lina_and_the_british_manager_share_one_thread_and_the_american_one_is_refused() throws Exception {
         var managerSocket = listen("user:" + nour, SCHOOL);
@@ -292,7 +307,8 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
 
     @Test @Order(9) void a_teacher_holds_none_of_the_coordinators_communication_keys() throws Exception {
         String teacher = jwt.issue("comms-who-teacher", "who@x.test", "TEACHER", SCHOOL).token();
-        for (String path : List.of("/coordinator/chat/threads", "/coordinator/complaints", "/coordinator/announcements"))
+        for (String path : List.of("/coordinator/chat/threads", "/coordinator/complaints", "/coordinator/announcements",
+                "/coordinator/managers"))
             mvc.perform(as(get(path), teacher)).andExpect(status().isForbidden());
     }
 

@@ -246,6 +246,19 @@ and `POST /coordinator/announcements`. The keys are `coordinator.chat`, `coordin
 `CoordinatorScopeArchitectureTest` names those five routes in an allow-list, so a sixth write under `/coordinator`
 fails the build until somebody argues for it.
 
+**Three small things RM1 added to her half** (the dashboard's Messages and Complaints screens need them):
+`GET /coordinator/managers` answers the managers whose department intersects her scope, each with that department
+(`{userId, displayName, curriculum}`, key `coordinator.chat`, behind the `chat` flag) — the list a `managerUserId` for
+`POST /coordinator/chat/threads` has to come from, so a coordinator of both tracks is offered both managers and the
+platform ADMIN reading her area is offered nobody. `ChatThread` gained **`parentName`**, so a Complaints inbox can name
+who wrote: a parent signs in through Firebase and the `parents` table holds no display name, so it is her registered
+address, falling back to the one a teacher typed on the roster (`children.parent_email`) and absent on a staff-to-staff
+thread; it is resolved in one statement per page of rows, never one per thread. And `CoordinatorDto`'s
+`CreateAnnouncementRequest` now carries `@Schema(name = "CoordinatorCreateAnnouncementRequest")`: springdoc keys
+`components/schemas` by *simple* name, so it collided with the teacher's record of the same name and `openapi.json`
+documented `POST /coordinator/announcements` with the teacher's `classId` instead of her `classIds`.
+`OpenApiContractTest.the_two_announcement_bodies_are_two_schemas` fails the build if either name is dropped.
+
 **Scoped twice: a section is not a subject.** `requireSection` only proves that *somebody* teaches one of her subjects
 in a section, so in a section that teaches two the teacher's own body carries both — every published lesson of it, an
 exam of each, a `ChildLevel` per subject. The three reads that answer for a whole section (`classes/{id}/results`,
@@ -257,6 +270,62 @@ page; the label on her gradebook comes from her scope rather than from `TeacherS
 assignment" guess, which could otherwise name a subject she does not coordinate. Every other caller passes
 `Subjects.ALL`, so a teacher's, a manager's and the platform ADMIN's bodies are byte for byte what they were.
 The register is not narrowed — a register is per child per day and has no subject.
+
+### The department manager (RM1)
+
+A **manager** runs one department — a curriculum, `british` or `american` — across **every grade** of her school: every
+class, every subject, every teacher and every coordinator of that track, and nothing of the other one. She is
+`Role.MANAGERIAL`, which existed before RM1 as the School/Teachers/Complaints role; RM1 gives her the department scope
+and the area at `/management/**`. `ManagerScope` is `CoordinatorScope` one axis over — a coordinator is narrow in
+subject and wide in grade, a manager wide in subject and narrow in track — and RM1 is read-only, so
+`ManagerScopeArchitectureTest` fails the build on the first write added under `/management` that is not on its
+allow-list (RM2's broadcasts and chat and RM5's staff attendance go on that list with an argument each).
+
+- **Her scope** is the `staff_scopes` rows with **no subject**: `subject NULL, curriculum = <department>`, the same table
+  a coordinator's `(subject, curriculum)` rows live in and the very rows `SchoolSeed` writes from `managers.csv`.
+  `ManagerScope.departments` reads them by the caller's own user id, never from a parameter, and a section is hers when
+  its curriculum is one of them — so every delegate is handed `Subjects.ALL`, because she manages every subject of the
+  track. A coordinator is hers when one of her subject rows names a department of hers **or names no track at all**: a
+  both-tracks coordinator reports to both managers (DR5).
+- **Routes**: `GET /management/me` (departments + five counts), `/management/coordinators`, `/management/teachers`,
+  `/management/classes` (grouped by grade), `/management/calendar?from&to` (≤ 62 days), `/management/lessons`,
+  `/management/lessons/{id}` and `/management/lessons/{id}/status` (the teacher's own read-only lesson view), the six
+  numbers reads (`/management/classes/{id}/attendance`, `…/results`, `…/exams`, `/management/lessons/{id}/results`,
+  `/management/exams/{id}/results`, `/management/children/{id}`) and `GET /management/stats?from&to`.
+- **Keys**: `management.read`, `management.lesson.read`, `management.attendance.read`, `management.results.read` and
+  `management.exams.read` (ADMIN + MANAGERIAL, no `write` sibling), plus `manager.manage` (ADMIN only — a manager cannot
+  widen her own department). `SecurityConfig` matches `/management/**` to ADMIN + MANAGERIAL, so a TEACHER or a
+  COORDINATOR is turned away at the matcher rather than by a key.
+- **Accounts**: `POST /admin/managers {fullName, email, curriculum}` answers the one-time password in the body and
+  nowhere else, `PUT /admin/managers/{id}/scopes {curricula:[…]}` replaces her whole set of departments (her subject
+  rows, if a school ever writes one, are left alone) and `GET /admin/managers` lists them. Both writes leave an
+  `audit_log` row (`manager.create`, `manager.departments`). Before RM1 the seed was the only way a MANAGERIAL account
+  could come into being.
+- **`GET /me`** carries `departments` for a MANAGERIAL caller — `assignments`' sibling for the third role, so the
+  Management area can label itself without a second request. Her *numbers* stay on `/management/me`.
+- **The numbers are the teacher's numbers.** `ManagementService` resolves the id through `ManagerScope` and hands the
+  resolved row to the service the teacher's own screen reads; `ManagementApiTest` asserts the bodies are the same JSON,
+  register included. `ManagementController` and `ManagerAdminController` are in
+  `FeatureFlagCoverageTest.INFRASTRUCTURE` for the coordinator pair's reason; the flagged half is
+  `ManagementReadsController`, where every handler names `gradebook` or `exams`.
+
+**`GET /management/stats?from&to` — DR5's statistics.** A row per grade and the department's own total (that row carries
+`grade` 0 and no `curriculum`): children, sections, attendance rate, lessons published and played, the number of exams
+with their average and pass rate, and the teachers who published nothing in the window. Both bounds absent is the month
+ending today, and the window is capped at a term (186 days). **Seven statements, whatever the size of the department** —
+the scope's two, the child counts, the lessons of the window, one grouped read of `attendance` (`(present + late) /
+marked`, `AttendanceService`'s own formula; *null* rather than 100 when nothing was marked), one grouped read of the
+players per lesson, and one grouped read of the best stars per (exam, child, stop) — so a grade costs nothing to add and
+there is no loop over children anywhere. A teacher counts as having published in a grade when a published lesson sits in
+one of that grade's (section, subject) cells she holds the assignment for, which is the join `HomeService`'s
+`teacher.quiet` card already does.
+
+> **What the exam average is, and is not.** A child's percentage on a paper is the mean of §7's stars-to-score mapping
+> (3 = 100, 2 = 70, 1 = 40) over the stops she answered, the grade's average is the mean over her children, and the pass
+> rate is the share of them at `secure` (60) or better. It is a statistics screen's number: the full scorer additionally
+> reads a teacher's mark for an open stop, a single-answer stop's first try and a lesson-level override, none of which a
+> grouped query can reach, so an exam with hand-marked questions can sit a point or two from the released class average.
+> The exact figure is one click away — `GET /management/exams/{id}/results` is the very body the teacher reads.
 
 ### The matrix
 

@@ -99,7 +99,13 @@
     "coordinator.chat": ["ADMIN", "COORDINATOR"],
     "coordinator.complaints": ["ADMIN", "COORDINATOR"],
     "coordinator.announce": ["ADMIN", "COORDINATOR"],
-    "coordinator.manage": ["ADMIN"]
+    "coordinator.manage": ["ADMIN"],
+    "management.read": ["ADMIN", "MANAGERIAL"],
+    "management.lesson.read": ["ADMIN", "MANAGERIAL"],
+    "management.attendance.read": ["ADMIN", "MANAGERIAL"],
+    "management.results.read": ["ADMIN", "MANAGERIAL"],
+    "management.exams.read": ["ADMIN", "MANAGERIAL"],
+    "manager.manage": ["ADMIN"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -352,12 +358,31 @@
     { "method": "POST", "path": "/coordinator/chat/threads/{id}/read", "permission": "coordinator.chat" },
     { "method": "PATCH", "path": "/coordinator/chat/threads/{id}/status", "permission": "coordinator.complaints" },
     { "method": "GET", "path": "/coordinator/complaints", "permission": "coordinator.complaints" },
+    { "method": "GET", "path": "/coordinator/managers", "permission": "coordinator.chat" },
     { "method": "GET", "path": "/coordinator/announcements", "permission": "coordinator.announce" },
     { "method": "POST", "path": "/coordinator/announcements", "permission": "coordinator.announce" },
     { "method": "GET", "path": "/coordinator/classes/{id}/exams", "permission": "coordinator.exams.read" },
     { "method": "GET", "path": "/coordinator/exams/{id}/results", "permission": "coordinator.exams.read" },
     { "method": "GET", "path": "/admin/coordinators", "permission": "coordinator.manage" },
     { "method": "POST", "path": "/admin/coordinators", "permission": "coordinator.manage" },
-    { "method": "PUT", "path": "/admin/coordinators/{id}/scopes", "permission": "coordinator.manage" }
+    { "method": "PUT", "path": "/admin/coordinators/{id}/scopes", "permission": "coordinator.manage" },
+    { "method": "GET", "path": "/management/me", "permission": "management.read" },
+    { "method": "GET", "path": "/management/coordinators", "permission": "management.read" },
+    { "method": "GET", "path": "/management/teachers", "permission": "management.read" },
+    { "method": "GET", "path": "/management/classes", "permission": "management.read" },
+    { "method": "GET", "path": "/management/calendar", "permission": "management.read" },
+    { "method": "GET", "path": "/management/stats", "permission": "management.read" },
+    { "method": "GET", "path": "/management/lessons", "permission": "management.lesson.read" },
+    { "method": "GET", "path": "/management/lessons/{id}", "permission": "management.lesson.read" },
+    { "method": "GET", "path": "/management/lessons/{id}/status", "permission": "management.lesson.read" },
+    { "method": "GET", "path": "/management/classes/{id}/attendance", "permission": "management.attendance.read" },
+    { "method": "GET", "path": "/management/classes/{id}/results", "permission": "management.results.read" },
+    { "method": "GET", "path": "/management/lessons/{id}/results", "permission": "management.results.read" },
+    { "method": "GET", "path": "/management/children/{id}", "permission": "management.results.read" },
+    { "method": "GET", "path": "/management/classes/{id}/exams", "permission": "management.exams.read" },
+    { "method": "GET", "path": "/management/exams/{id}/results", "permission": "management.exams.read" },
+    { "method": "GET", "path": "/admin/managers", "permission": "manager.manage" },
+    { "method": "POST", "path": "/admin/managers", "permission": "manager.manage" },
+    { "method": "PUT", "path": "/admin/managers/{id}/scopes", "permission": "manager.manage" }
   ]
 }

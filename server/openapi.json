@@ -572,6 +572,9 @@
           "lastMessage" : {
             "$ref" : "#/components/schemas/ChatMessage"
           },
+          "parentName" : {
+            "type" : "string"
+          },
           "resolvedAt" : {
             "format" : "int64",
             "type" : "integer"
@@ -1346,12 +1349,52 @@
         },
         "type" : "object"
       },
+      "CoordinatorCreateAnnouncementRequest" : {
+        "properties" : {
+          "bodyAr" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "bodyEn" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "classIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "expiresAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "bodyEn" ],
+        "type" : "object"
+      },
       "CoordinatorCreated" : {
         "properties" : {
           "coordinator" : {
             "$ref" : "#/components/schemas/CoordinatorAccount"
           },
           "temporaryPassword" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "CoordinatorManager" : {
+        "properties" : {
+          "curriculum" : {
+            "type" : "string"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "userId" : {
             "type" : "string"
           }
         },
@@ -1636,6 +1679,25 @@
         "required" : [ "email", "role" ],
         "type" : "object"
       },
+      "CreateManagerRequest" : {
+        "properties" : {
+          "curriculum" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "email" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "fullName" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "curriculum", "email", "fullName" ],
+        "type" : "object"
+      },
       "CreateRosterChildRequest" : {
         "properties" : {
           "name" : {
@@ -1825,6 +1887,12 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "departments" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
           "displayName" : {
             "type" : "string"
           },
@@ -1878,6 +1946,20 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "DepartmentsRequest" : {
+        "properties" : {
+          "curricula" : {
+            "items" : {
+              "minLength" : 1,
+              "type" : "string"
+            },
+            "minItems" : 1,
+            "type" : "array"
+          }
+        },
+        "required" : [ "curricula" ],
         "type" : "object"
       },
       "ExamBand" : {
@@ -2419,6 +2501,82 @@
           }
         },
         "required" : [ "email" ],
+        "type" : "object"
+      },
+      "GradeGroup" : {
+        "properties" : {
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CoordinatorClass"
+            },
+            "type" : "array"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "sections" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "GradeStats" : {
+        "properties" : {
+          "attendanceRate" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "examAverage" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "examPassRate" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "exams" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lessonsPlayed" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lessonsPublished" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "quietTeachers" : {
+            "items" : {
+              "$ref" : "#/components/schemas/QuietTeacher"
+            },
+            "type" : "array"
+          },
+          "sections" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
         "type" : "object"
       },
       "Gradebook" : {
@@ -3088,6 +3246,133 @@
           }
         },
         "required" : [ "completed", "course", "date", "lessonId", "played", "title" ],
+        "type" : "object"
+      },
+      "ManagementStats" : {
+        "properties" : {
+          "from" : {
+            "type" : "string"
+          },
+          "grades" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GradeStats"
+            },
+            "type" : "array"
+          },
+          "to" : {
+            "type" : "string"
+          },
+          "total" : {
+            "$ref" : "#/components/schemas/GradeStats"
+          }
+        },
+        "type" : "object"
+      },
+      "ManagerAccount" : {
+        "properties" : {
+          "departments" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ManagerCoordinator" : {
+        "properties" : {
+          "curricula" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          },
+          "sections" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "subjects" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ManagerCreated" : {
+        "properties" : {
+          "manager" : {
+            "$ref" : "#/components/schemas/ManagerAccount"
+          },
+          "temporaryPassword" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ManagerMe" : {
+        "properties" : {
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "coordinators" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "departments" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "grades" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "sections" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "teachers" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "MapResponse" : {
@@ -3866,6 +4151,20 @@
           }
         },
         "required" : [ "course", "date", "hintsOff", "id", "kind", "numbersOff", "pageImages", "parentPanel", "plays", "skills", "subject", "theme", "title", "type", "variant", "version" ],
+        "type" : "object"
+      },
+      "QuietTeacher" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "ReadPage" : {
@@ -8034,6 +8333,89 @@
         "tags" : [ "Admin lessons" ]
       }
     },
+    "/admin/managers" : {
+      "get" : {
+        "operationId" : "managers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ManagerAccount"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Managers" ]
+      },
+      "post" : {
+        "operationId" : "createManager",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateManagerRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ManagerCreated"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Managers" ]
+      }
+    },
+    "/admin/managers/{id}/scopes" : {
+      "put" : {
+        "operationId" : "setManagerDepartments",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DepartmentsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ManagerAccount"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Managers" ]
+      }
+    },
     "/admin/platform-settings" : {
       "get" : {
         "operationId" : "adminPlatformSettings",
@@ -9989,7 +10371,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/CreateAnnouncementRequest"
+                "$ref" : "#/components/schemas/CoordinatorCreateAnnouncementRequest"
               }
             }
           },
@@ -10590,6 +10972,27 @@
         "tags" : [ "Coordinator" ]
       }
     },
+    "/coordinator/managers" : {
+      "get" : {
+        "operationId" : "coordinatorManagers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/CoordinatorManager"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
+      }
+    },
     "/coordinator/me" : {
       "get" : {
         "operationId" : "coordinatorMe",
@@ -10751,6 +11154,445 @@
           }
         },
         "tags" : [ "Lessons" ]
+      }
+    },
+    "/management/calendar" : {
+      "get" : {
+        "operationId" : "managementCalendar",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoordinatorCalendar"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management" ]
+      }
+    },
+    "/management/children/{id}" : {
+      "get" : {
+        "operationId" : "managementChild",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildReport"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management results" ]
+      }
+    },
+    "/management/classes" : {
+      "get" : {
+        "operationId" : "managementClasses",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/GradeGroup"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management" ]
+      }
+    },
+    "/management/classes/{id}/attendance" : {
+      "get" : {
+        "operationId" : "managementAttendance",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ClassAttendanceResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management" ]
+      }
+    },
+    "/management/classes/{id}/exams" : {
+      "get" : {
+        "operationId" : "managementClassExams",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ExamRow"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management results" ]
+      }
+    },
+    "/management/classes/{id}/results" : {
+      "get" : {
+        "operationId" : "managementClassResults",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Gradebook"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management results" ]
+      }
+    },
+    "/management/coordinators" : {
+      "get" : {
+        "operationId" : "managementCoordinators",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ManagerCoordinator"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management" ]
+      }
+    },
+    "/management/exams/{id}/results" : {
+      "get" : {
+        "operationId" : "managementExamResults",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ExamResults"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management results" ]
+      }
+    },
+    "/management/lessons" : {
+      "get" : {
+        "operationId" : "managementLessons",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "classId",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminLesson"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management" ]
+      }
+    },
+    "/management/lessons/{id}" : {
+      "get" : {
+        "operationId" : "managementLesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminLesson"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management" ]
+      }
+    },
+    "/management/lessons/{id}/results" : {
+      "get" : {
+        "operationId" : "managementLessonResults",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonResults"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management results" ]
+      }
+    },
+    "/management/lessons/{id}/status" : {
+      "get" : {
+        "operationId" : "managementLessonStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonStatusView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management" ]
+      }
+    },
+    "/management/me" : {
+      "get" : {
+        "operationId" : "managementMe",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ManagerMe"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management" ]
+      }
+    },
+    "/management/stats" : {
+      "get" : {
+        "operationId" : "managementStats",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ManagementStats"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management" ]
+      }
+    },
+    "/management/teachers" : {
+      "get" : {
+        "operationId" : "managementTeachers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/CoordinatorTeacher"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management" ]
       }
     },
     "/me" : {
@@ -13660,6 +14502,12 @@
     "description" : "The teacher's attendance, gradebook and exam numbers, read through a coordinator's scope",
     "name" : "Coordinator results"
   }, {
+    "description" : "The teacher's gradebook and exam numbers, read through a manager's department",
+    "name" : "Management results"
+  }, {
+    "description" : "A department manager's read-only view of every grade she manages",
+    "name" : "Management"
+  }, {
     "description" : "Cache, usage and calendar",
     "name" : "Admin reports"
   }, {
@@ -13698,6 +14546,9 @@
   }, {
     "description" : "Dashboard accounts, invites and View as…",
     "name" : "Dashboard users"
+  }, {
+    "description" : "Department manager accounts and the departments they manage",
+    "name" : "Managers"
   }, {
     "description" : "The role-specific dashboard home (§6 screen 2)",
     "name" : "Home"
