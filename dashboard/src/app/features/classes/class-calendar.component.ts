@@ -37,8 +37,7 @@ import type { CalendarCell } from './classes.models';
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template:
-    `
+  template: `
     <div class="cal">
       <div class="cal__nav">
         <button
@@ -127,11 +126,13 @@ import type { CalendarCell } from './classes.models';
                     } @else if (readOnly()) {
                       <!--
                         R5: a coordinator's month. She plans nothing and removes nothing (DR2), so
-                        an empty day carries no ` +
-    ` and no "this day has passed" explanation of a
-                        ` +
-    ` she was never offered — only the gaps, which are the whole reason she
-                        is looking.
+                        an empty day carries no plus sign, and no "this day has passed" explanation
+                        of a plus sign she was never offered — only the gaps, which are the whole
+                        reason she is looking.
+
+                        The words rather than the character in backticks: this comment sits inside
+                        a template literal, so a backtick here ends the template and turns what
+                        follows into JavaScript. It did, and the comment read "carries no  and no".
                       -->
                       @if (cell.gap) {
                         <span class="cal__gap-label">{{ 'classes.calendar.gap' | transloco }}</span>

@@ -19,7 +19,11 @@ themselves without write controls rather than with disabled ones.
 | **Teachers** `/coordinator/teachers` | `GET /coordinator/teachers` | Name, email, subjects, the classes of hers each teacher takes, and how many of them have today's lesson. Search by name, email or class |
 | **Classes** `/coordinator/classes` | `GET /coordinator/classes`, `/coordinator/calendar?from&to` | Every section in scope with grade, track, teacher, roster size and today's status; below it one section's **month**, drawn by the same calendar the teacher's class page uses |
 | **All lessons** `/coordinator/lessons` | `GET /coordinator/lessons?classId&status&from&to` | Every lesson of every class in scope, narrowed by class, status and a date range |
-| **A lesson** `/coordinator/lessons/{id}` | `GET /coordinator/lessons/{id}` | The teacher's own lesson page in **read-only mode**: the steps, the files, the questions and the phone preview, with nothing that writes |
+| **A lesson** `/coordinator/lessons/{id}` | `GET /coordinator/lessons/{id}` | The teacher's own lesson page in **read-only mode**: the steps, the files, the questions and the phone preview. No control that writes — including the "Lesson day" date input, which is a teacher's. Nothing polls (there is no `/coordinator/lessons/{id}/status`), so the header carries **Refresh**, and a lesson still being generated says so |
+
+A failed read is the house error band with Try again on every one of her four screens, never an
+empty state: "no classes carry your subject yet" is a statement about her school, and a request
+that did not happen has made no such statement.
 
 **What needs you** is the point of the Home: the lessons in her scope that failed, then the ones
 waiting for a review, then the classes with nothing on today. Each line is a way *in* to the lesson
@@ -27,7 +31,7 @@ or the class, never an action of her own.
 
 ## What she cannot do
 
-- Create, edit, publish, unpublish, move or delete a lesson; add, reorder or remove a question;
+- Create, edit, publish, unpublish, **move** or delete a lesson; add, reorder or remove a question;
   confirm skills; upload or re-convert a file; edit the parent panel or an exam's settings. None of
   those controls is rendered on her copy of the lesson page — hidden rather than disabled.
 - Plan anything on the calendar: her month has no `+` and no past-day marker, only the gaps.
