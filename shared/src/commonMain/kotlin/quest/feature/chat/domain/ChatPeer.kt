@@ -21,6 +21,8 @@ data class ChatPeer(
     val subject: String? = null,
     val topic: ChatTopic = ChatTopic.QUESTION,
     val resolved: Boolean = false,
+    /** The thread behind the row, when one exists — what a `status`, `read` or `typing` frame is matched against. */
+    val threadId: String? = null,
 ) {
     companion object {
         fun of(thread: ChatThread): ChatPeer = ChatPeer(
@@ -31,6 +33,7 @@ data class ChatPeer(
             subject = thread.subject,
             topic = thread.topic,
             resolved = thread.status == ChatThreadStatus.RESOLVED,
+            threadId = thread.id,
         )
     }
 }

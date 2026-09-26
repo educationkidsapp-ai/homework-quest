@@ -1,0 +1,194 @@
+package quest.feature.chat
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import quest.api.dto.ChatFrame
+import quest.api.dto.ChatMessage
+import quest.api.dto.ChatSender
+import quest.api.dto.ChatStaffRole
+import quest.api.dto.ChatThread
+import quest.api.dto.ChatThreadStatus
+import quest.api.dto.ChatTopic
+import quest.feature.chat.domain.ChatConnectionState
+import quest.feature.chat.domain.ChatPeer
+import quest.feature.chat.domain.ChatRepository
+import quest.feature.chat.presentation.ChatConversationContract
+import quest.feature.chat.presentation.ChatConversationViewModel
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * The two defects the R8 review found in the open conversation:
+ *
+ * 1. `/ws/chat` is **one socket per parent** and fans out every thread of hers, so a `status` frame has to be matched
+ *    against the open thread — otherwise a coordinator resolving the Math complaint flips the Resolved banner inside
+ *    an open English conversation. The same holds for `read` and `typing`.
+ * 2. A retried send has to carry the `topic` the original send went out with: the failed message is still in
+ *    `messages`, so the complaint toggle is gone, and dropping the topic would file the complaint as a question.
+ */
+class ChatConversationViewModelTest {
+
+    private val OURS = "th-ours"
+    private val THEIRS = "th-theirs"
+    private val COORDINATOR = "co-lina"
+
+    /** Records every send, and fails the next one on demand, so a retry can be driven deterministically. */
+    private class FakeChat : ChatRepository {
+        val frames = MutableSharedFlow<ChatFrame>(extraBufferCapacity = 32)
+        override val connectionState = MutableStateFlow(ChatConnectionState.CONNECTED) as StateFlow<ChatConnectionState>
+        override val incomingFrames: SharedFlow<ChatFrame> = frames
+
+        val sends = mutableListOf<Pair<String, ChatTopic?>>()
+        var history: List<ChatMessage> = emptyList()
+        var failNextSend = false
+        var threadId = "th-ours"
+
+        override suspend fun threads(childId: String): List<ChatThread> = emptyList()
+        override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
+        override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?) = history
+
+        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?): ChatMessage {
+            sends.add(body to topic)
+            if (failNextSend) { failNextSend = false; throw IllegalStateException("boom") }
+            return ChatMessage("m-${sends.size}", threadId, ChatSender.PARENT, "p1", body, 1_758_450_000_000L)
+        }
+
+        override suspend fun markRead(childId: String, teacherId: String) {}
+        override suspend fun sendTyping(childId: String, teacherId: String) {}
+        override fun connect() {}
+        override fun disconnect() {}
+    }
+
+    @BeforeTest fun setUp() = Dispatchers.setMain(Dispatchers.Default)
+    @AfterTest fun tearDown() = Dispatchers.resetMain()
+
+    private fun peer(threadId: String? = OURS, topic: ChatTopic = ChatTopic.QUESTION) = ChatPeer(
+        childId = "c1", staffId = COORDINATOR, staffName = "Ms. Lina",
+        staffRole = ChatStaffRole.COORDINATOR, subject = "math", topic = topic, threadId = threadId,
+    )
+
+    private suspend fun ChatConversationViewModel.settle(predicate: (ChatConversationContract.State) -> Boolean) {
+        repeat(400) {
+            if (predicate(state.value)) return
+            delay(5)
+        }
+        error("state never satisfied the predicate; last was ${state.value}")
+    }
+
+    // ---- 1. a frame names its thread, and only that thread moves
+
+    @Test fun aStatusFrameForAnotherThreadLeavesThisOneAlone() = runBlocking {
+        val chat = FakeChat()
+        val vm = ChatConversationViewModel(peer(), chat)
+        vm.dispatch(ChatConversationContract.Intent.Load)
+        vm.settle { !it.loading }
+        assertEquals(OURS, vm.state.value.threadId)
+
+        chat.frames.emit(ChatFrame.Status(THEIRS, ChatThreadStatus.RESOLVED, 1_758_460_000_000L))
+        delay(80)
+        assertFalse(vm.state.value.resolved, "another thread's resolve must not raise this banner")
+
+        chat.frames.emit(ChatFrame.Status(OURS, ChatThreadStatus.RESOLVED, 1_758_460_000_000L))
+        vm.settle { it.resolved }
+
+        // And re-opening ours lowers it again.
+        chat.frames.emit(ChatFrame.Status(OURS, ChatThreadStatus.OPEN, 1_758_470_000_000L))
+        vm.settle { !it.resolved }
+    }
+
+    @Test fun aStatusFrameCannotResolveAConversationThatHasNoThreadYet() = runBlocking {
+        val chat = FakeChat()
+        val vm = ChatConversationViewModel(peer(threadId = null), chat)
+        vm.dispatch(ChatConversationContract.Intent.Load)
+        vm.settle { !it.loading }
+        assertNull(vm.state.value.threadId)
+
+        chat.frames.emit(ChatFrame.Status(THEIRS, ChatThreadStatus.RESOLVED, 1L))
+        delay(80)
+        assertFalse(vm.state.value.resolved)
+    }
+
+    @Test fun readAndTypingFramesForAnotherThreadAreIgnoredToo() = runBlocking {
+        val chat = FakeChat()
+        chat.history = listOf(ChatMessage("m1", OURS, ChatSender.PARENT, "p1", "Hello", 1_758_450_000_000L))
+        val vm = ChatConversationViewModel(peer(), chat)
+        vm.dispatch(ChatConversationContract.Intent.Load)
+        vm.settle { !it.loading }
+
+        chat.frames.emit(ChatFrame.Typing(THEIRS, ChatSender.TEACHER))
+        chat.frames.emit(ChatFrame.Read(THEIRS, ChatSender.TEACHER, 1_758_450_900_000L))
+        delay(80)
+        assertFalse(vm.state.value.isTeacherTyping, "another thread's typing must not show here")
+        assertNull(vm.state.value.messages.single().readAt, "another thread's read must not tick this message")
+
+        chat.frames.emit(ChatFrame.Read(OURS, ChatSender.TEACHER, 1_758_450_900_000L))
+        vm.settle { it.messages.single().readAt != null }
+    }
+
+    // ---- 2. a retried first message is still the one that creates the thread
+
+    @Test fun retryResendsTheComplaintTopic() = runBlocking {
+        val chat = FakeChat()
+        chat.failNextSend = true
+        val vm = ChatConversationViewModel(peer(threadId = null), chat)
+        vm.dispatch(ChatConversationContract.Intent.Load)
+        vm.settle { !it.loading }
+
+        vm.dispatch(ChatConversationContract.Intent.ToggleComplaint)
+        vm.settle { it.markAsComplaint }
+        vm.dispatch(ChatConversationContract.Intent.UpdateInput("The homework is too long."))
+        vm.dispatch(ChatConversationContract.Intent.SendMessage)
+        vm.settle { it.messages.singleOrNull()?.isFailed == true }
+
+        assertEquals(ChatTopic.COMPLAINT, chat.sends.single().second)
+        // The failed message is still on screen, so the toggle is gone — the topic has to live on the message.
+        assertFalse(vm.state.value.canMarkComplaint)
+        assertEquals(ChatTopic.COMPLAINT, vm.state.value.messages.single().topic)
+
+        val clientId = vm.state.value.messages.single().clientId!!
+        vm.dispatch(ChatConversationContract.Intent.RetrySend(clientId))
+        vm.settle { it.messages.singleOrNull()?.isFailed == false && it.messages.single().isPending.not() }
+
+        assertEquals(2, chat.sends.size)
+        assertEquals(ChatTopic.COMPLAINT, chat.sends[1].second, "the retry must carry the complaint")
+        assertEquals(ChatTopic.COMPLAINT, vm.state.value.topic)
+        assertEquals(OURS, vm.state.value.threadId, "the ack teaches the conversation its thread id")
+    }
+
+    @Test fun aRetriedQuestionStaysAQuestion() = runBlocking {
+        val chat = FakeChat()
+        chat.failNextSend = true
+        val vm = ChatConversationViewModel(peer(threadId = null), chat)
+        vm.dispatch(ChatConversationContract.Intent.Load)
+        vm.settle { !it.loading }
+
+        vm.dispatch(ChatConversationContract.Intent.UpdateInput("When is the trip?"))
+        vm.dispatch(ChatConversationContract.Intent.SendMessage)
+        vm.settle { it.messages.singleOrNull()?.isFailed == true }
+        val clientId = vm.state.value.messages.single().clientId!!
+
+        vm.dispatch(ChatConversationContract.Intent.RetrySend(clientId))
+        vm.settle { it.messages.singleOrNull()?.isFailed == false && it.messages.single().isPending.not() }
+
+        assertTrue(chat.sends.all { it.second == null }, "a question never sends a topic")
+        assertEquals(ChatTopic.QUESTION, vm.state.value.topic)
+    }
+
+    @Test fun theToggleDoesNotFlashWhileHistoryIsStillLoading() {
+        val loading = ChatConversationContract.State(staffRole = ChatStaffRole.COORDINATOR, loading = true)
+        assertFalse(loading.canMarkComplaint)
+        assertTrue(loading.copy(loading = false).canMarkComplaint)
+    }
+}

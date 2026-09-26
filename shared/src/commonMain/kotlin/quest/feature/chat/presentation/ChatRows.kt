@@ -47,12 +47,26 @@ import quest.ui.design.Palette
  * one spelling of "Subject coordinator · Math" is what keeps them from drifting apart.
  */
 
+/**
+ * The server's own `subject` word — or several, comma-joined, when a coordinator holds more than one — in the
+ * parent's language. An unknown key passes through as written rather than being hidden.
+ */
+fun subjectLabel(subject: String, strings: Strings): String =
+    subject.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        .joinToString(", ") { strings.subjectNames[it.lowercase()] ?: it }
+
 /** The word under the name: her role, then the subject she holds and the section, when they are known. */
 fun staffLabel(role: ChatStaffRole, subject: String?, className: String?, strings: Strings): String {
     val word = if (role == ChatStaffRole.COORDINATOR) strings.coordinatorRole else strings.teacherRole
-    val detail = listOfNotNull(subject?.takeIf { it.isNotBlank() }, className?.takeIf { it.isNotBlank() })
+    val detail = listOfNotNull(
+        subject?.takeIf { it.isNotBlank() }?.let { subjectLabel(it, strings) },
+        className?.takeIf { it.isNotBlank() },
+    )
     return (listOf(word) + detail).joinToString(" · ")
 }
+
+/** `400` from a send whose `topic` was `complaint` but whose peer is a teacher — the one code this screen explains. */
+const val COMPLAINT_NEEDS_COORDINATOR = "complaint_needs_coordinator"
 
 fun staffLabel(thread: ChatThread, strings: Strings): String =
     staffLabel(thread.staffRole, thread.subject, thread.className, strings)

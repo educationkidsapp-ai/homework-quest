@@ -95,6 +95,12 @@ object ChatConversationContract {
         val isPending: Boolean = false,
         val isFailed: Boolean = false,
         val clientId: String? = null,
+        /**
+         * The `topic` this send carried, kept so a retry resends it. A failed first message is still in [State.messages],
+         * which turns [State.canMarkComplaint] off — without this the toggle is gone and one transient 5xx would quietly
+         * downgrade a parent's complaint to a question, with no way back.
+         */
+        val topic: ChatTopic? = null,
     )
 
     data class State(
@@ -115,13 +121,21 @@ object ChatConversationContract {
         val markAsComplaint: Boolean = false,
         /** The server's own error code for the last refused send, so the screen picks the translated sentence. */
         val errorCode: String? = null,
+        /**
+         * The thread this conversation is, once one exists. `/ws/chat` is **one socket per parent** and fans out every
+         * thread of hers, so a `status` frame has to be matched against this before it moves anything — otherwise a
+         * coordinator resolving the Math complaint flips the banner inside an open English conversation.
+         */
+        val threadId: String? = null,
     ) : MviState {
         /**
          * The toggle is offered only while the thread does not exist yet, and only for a coordinator: the server reads
          * `topic` on the message that *creates* a thread, so a later send cannot re-label one she has already worked on.
+         *
+         * `!loading` keeps it from flashing over an existing coordinator thread in the moment before its history lands.
          */
         val canMarkComplaint: Boolean
-            get() = staffRole == ChatStaffRole.COORDINATOR && topic == ChatTopic.QUESTION && messages.isEmpty()
+            get() = !loading && staffRole == ChatStaffRole.COORDINATOR && topic == ChatTopic.QUESTION && messages.isEmpty()
     }
 
     sealed interface Intent : MviIntent {
@@ -142,6 +156,7 @@ class ChatConversationViewModel(
     ChatConversationContract.State(
         childId = peer.childId, teacherId = peer.staffId, teacherName = peer.staffName,
         staffRole = peer.staffRole, subject = peer.subject, topic = peer.topic, resolved = peer.resolved,
+        threadId = peer.threadId,
     )
 ) {
     private val childId get() = peer.childId
@@ -165,7 +180,7 @@ class ChatConversationViewModel(
         try {
             val history = chat.messages(childId, teacherId)
             val uiList = history.map { it.toUiMessage() }
-            reduce { copy(loading = false, messages = uiList) }
+            reduce { copy(loading = false, messages = uiList, threadId = history.firstOrNull()?.threadId ?: threadId) }
             chat.markRead(childId, teacherId)
         } catch (e: Throwable) {
             reduce { copy(loading = false, errorMessage = e.message) }
@@ -185,6 +200,10 @@ class ChatConversationViewModel(
         val body = current.inputText.trim()
         if (body.isBlank() || body.length > 2000) return
 
+        // `topic` only says anything on the message that creates the thread, so it rides on the first send alone.
+        val opening = current.canMarkComplaint && current.markAsComplaint
+        val sentTopic = if (opening) ChatTopic.COMPLAINT else null
+
         val clientId = Ids.random()
         val pendingMsg = ChatConversationContract.UiMessage(
             id = clientId,
@@ -193,14 +212,13 @@ class ChatConversationViewModel(
             createdAt = Today.epochMillis(),
             isPending = true,
             clientId = clientId,
+            topic = sentTopic,
         )
 
-        // `topic` only says anything on the message that creates the thread, so it rides on the first send alone.
-        val opening = current.canMarkComplaint && current.markAsComplaint
         reduce { copy(inputText = "", errorCode = null, messages = messages + pendingMsg) }
 
         try {
-            val confirmed = chat.sendMessage(childId, teacherId, body, clientId, if (opening) ChatTopic.COMPLAINT else null)
+            val confirmed = chat.sendMessage(childId, teacherId, body, clientId, sentTopic)
             reduce {
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) confirmed.toUiMessage(isPending = false) else msg
@@ -209,6 +227,7 @@ class ChatConversationViewModel(
                     messages = updated,
                     topic = if (opening) ChatTopic.COMPLAINT else topic,
                     markAsComplaint = false,
+                    threadId = confirmed.threadId,
                 )
             }
         } catch (e: Throwable) {
@@ -232,12 +251,18 @@ class ChatConversationViewModel(
         }
 
         try {
-            val confirmed = chat.sendMessage(childId, teacherId, target.body, clientId)
+            // The original `topic` goes out again: a retried first message is still the one that creates the thread,
+            // and dropping it here would file the parent's complaint as an ordinary question.
+            val confirmed = chat.sendMessage(childId, teacherId, target.body, clientId, target.topic)
             reduce {
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) confirmed.toUiMessage(isPending = false) else msg
                 }
-                copy(messages = updated)
+                copy(
+                    messages = updated,
+                    topic = target.topic ?: topic,
+                    threadId = confirmed.threadId,
+                )
             }
         } catch (_: Throwable) {
             reduce {
@@ -282,6 +307,7 @@ class ChatConversationViewModel(
                         val clientAck = frame.clientId != null && current.messages.any { it.clientId == frame.clientId }
 
                         if (senderTeacher || clientAck) {
+                            reduce { copy(threadId = msg.threadId) }
                             reduce {
                                 if (frame.clientId != null) {
                                     val updated = messages.map {
@@ -299,7 +325,7 @@ class ChatConversationViewModel(
                         }
                     }
                     is ChatFrame.Read -> {
-                        if (frame.readBy == ChatSender.TEACHER) {
+                        if (frame.readBy == ChatSender.TEACHER && isOurs(frame.threadId)) {
                             reduce {
                                 val updated = messages.map { m ->
                                     if (m.isFromParent && m.readAt == null && m.createdAt <= frame.readAt) {
@@ -311,7 +337,7 @@ class ChatConversationViewModel(
                         }
                     }
                     is ChatFrame.Typing -> {
-                        if (frame.from == ChatSender.TEACHER) {
+                        if (frame.from == ChatSender.TEACHER && isOurs(frame.threadId)) {
                             reduce { copy(isTeacherTyping = true) }
                             typingJob?.cancel()
                             typingJob = launch {
@@ -320,9 +346,12 @@ class ChatConversationViewModel(
                             }
                         }
                     }
-                    // R4's additive frame: the coordinator resolved (or re-opened) the thread. The banner follows it.
+                    // R4's additive frame: the coordinator resolved (or re-opened) the thread. The banner follows it —
+                    // but only when the frame is about *this* thread. See [isOurs].
                     is ChatFrame.Status -> {
-                        reduce { copy(resolved = frame.status == ChatThreadStatus.RESOLVED) }
+                        if (isOurs(frame.threadId)) {
+                            reduce { copy(resolved = frame.status == ChatThreadStatus.RESOLVED) }
+                        }
                     }
                     is ChatFrame.Error -> {
                         if (frame.clientId != null) {
@@ -339,6 +368,16 @@ class ChatConversationViewModel(
             }
         }
     }
+
+    /**
+     * Whether a per-thread frame belongs to the conversation on screen.
+     *
+     * `/ws/chat` is one socket per parent and fans out **every** thread of hers, so `status`, `read` and `typing` all
+     * arrive here for conversations this screen is not showing. Without this, a coordinator resolving the Math
+     * complaint flips the Resolved banner inside an open English thread (and the same for read ticks and the typing
+     * dot). A null [State.threadId] means no thread exists yet, so nothing that names one can be about us.
+     */
+    private fun isOurs(frameThreadId: String): Boolean = current.threadId == frameThreadId
 
     private fun ChatMessage.toUiMessage(isPending: Boolean = false): ChatConversationContract.UiMessage =
         ChatConversationContract.UiMessage(
@@ -467,14 +506,14 @@ fun ChatConversationScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "${strings.statusResolved} — ${strings.resolvedBanner}",
+                    text = strings.resolvedBanner,
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.parentInk,
                 )
             }
         }
 
-        if (state.errorCode == "complaint_needs_coordinator") {
+        if (state.errorCode == COMPLAINT_NEEDS_COORDINATOR) {
             Row(
                 Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.errorContainer)
                     .padding(horizontal = Dimens.s16, vertical = Dimens.s8),

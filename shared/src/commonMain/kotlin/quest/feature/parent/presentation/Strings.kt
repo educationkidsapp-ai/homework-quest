@@ -91,10 +91,19 @@ data class Strings(
     val complaintBadge: String = "Complaint",
     val statusOpen: String = "Open",
     val statusResolved: String = "Resolved",
-    val resolvedBanner: String = "The coordinator marked this as resolved. You can still write here.",
+    val resolvedBanner: String = "Resolved — the coordinator answered this. You can still write here.",
     val markAsComplaint: String = "This is a complaint",
     val markAsComplaintHint: String = "The coordinator sees it in her complaints list. You can only set this on the first message.",
     val complaintNeedsCoordinator: String = "A complaint goes to a subject coordinator. Pick one from the coordinator list, or write to the teacher as a question.",
+    /**
+     * The six subjects by the server's own key (`quest.api.dto.Subject`), so a coordinator's `subject` reads in the
+     * parent's language instead of as the raw wire word. A key nobody here knows is shown as the server wrote it,
+     * exactly as an unknown score band is.
+     */
+    val subjectNames: Map<String, String> = mapOf(
+        "math" to "Math", "english" to "English", "science" to "Science",
+        "french" to "French", "religion" to "Religion", "arabic" to "Arabic",
+    ),
     val emptyConversationCoordinator: String = "No messages yet. Write to the coordinator of this subject.",
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
@@ -207,10 +216,14 @@ data class Strings(
             complaintBadge = "شكوى",
             statusOpen = "مفتوحة",
             statusResolved = "تم الحل",
-            resolvedBanner = "قام المنسّق بوضع علامة تم الحل. لا يزال بإمكانك الكتابة هنا.",
+            resolvedBanner = "تم الحل — ردّ المنسّق على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
             markAsComplaint = "هذه شكوى",
             markAsComplaintHint = "ستظهر في قائمة الشكاوى عند المنسّق. يمكن تحديدها في الرسالة الأولى فقط.",
             complaintNeedsCoordinator = "تُرسل الشكوى إلى منسّق المادة. اختر منسّقاً من القائمة، أو اكتب إلى المعلّمة كسؤال.",
+            subjectNames = mapOf(
+                "math" to "رياضيات", "english" to "إنجليزي", "science" to "علوم",
+                "french" to "فرنسي", "religion" to "تربية إسلامية", "arabic" to "عربي",
+            ),
             emptyConversationCoordinator = "لا توجد رسائل بعد. اكتب إلى منسّق هذه المادة.",
         )
 

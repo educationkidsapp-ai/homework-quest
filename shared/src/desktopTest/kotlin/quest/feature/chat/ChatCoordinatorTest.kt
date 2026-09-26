@@ -20,6 +20,7 @@ import quest.feature.chat.domain.applyStatus
 import quest.feature.chat.presentation.ChatThreadsContract
 import quest.feature.chat.presentation.avatarInitial
 import quest.feature.chat.presentation.staffLabel
+import quest.feature.chat.presentation.subjectLabel
 import quest.feature.chat.presentation.threadDescription
 import quest.feature.content.data.FakeContentApi
 import quest.feature.parent.presentation.Strings
@@ -76,7 +77,7 @@ class ChatCoordinatorTest {
         )
         // A row with no subject still says whose side it is rather than falling back to an empty line.
         assertEquals("Subject coordinator", staffLabel(ChatStaffRole.COORDINATOR, null, null, strings))
-        assertEquals("منسّق المادة · رياضيات", staffLabel(ChatStaffRole.COORDINATOR, "رياضيات", null, Strings.ar))
+        assertEquals("منسّق المادة · رياضيات", staffLabel(ChatStaffRole.COORDINATOR, "math", null, Strings.ar))
     }
 
     @Test
@@ -123,6 +124,17 @@ class ChatCoordinatorTest {
         assertEquals("S", avatarInitial("Sara"))
         assertEquals("لينا".take(1), avatarInitial("أ. لينا"))
         assertEquals("M", avatarInitial("  Ms.  "))
+    }
+
+    @Test
+    fun theSubjectReadsInTheParentsLanguage() {
+        // The server sends its own key; AR showed it untranslated before the review.
+        assertEquals("Math", subjectLabel("math", Strings.en))
+        assertEquals("رياضيات", subjectLabel("math", Strings.ar))
+        assertEquals("إنجليزي, علوم", subjectLabel("english, science", Strings.ar))
+        // A key this app does not know is shown as the server wrote it, like an unknown score band.
+        assertEquals("astronomy", subjectLabel("astronomy", Strings.ar))
+        assertEquals("منسّق المادة · رياضيات", staffLabel(ChatStaffRole.COORDINATOR, "math", null, Strings.ar))
     }
 
     // ---- 2. the `status` frame moves a row without a refetch
@@ -212,5 +224,6 @@ class ChatCoordinatorTest {
         assertEquals("Math", peer.subject)
         assertEquals(ChatTopic.COMPLAINT, peer.topic)
         assertTrue(peer.resolved)
+        assertEquals("th-9", peer.threadId, "the row's own thread id is what a status frame is matched against")
     }
 }

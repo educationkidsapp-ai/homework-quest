@@ -42,5 +42,6 @@ object Routes {
         val subject: String? = null,
         val topic: String = "question",
         val resolved: Boolean = false,
+        val threadId: String? = null,
     )
 }

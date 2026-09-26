@@ -62,6 +62,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
                 subject = route.subject,
                 topic = if (route.topic == "complaint") ChatTopic.COMPLAINT else ChatTopic.QUESTION,
                 resolved = route.resolved,
+                threadId = route.threadId,
             ),
             onBack = { nav.popBackStack() },
         )
@@ -80,4 +81,5 @@ private fun ChatThread.asConversation() = Routes.ChatConversation(
     subject = subject,
     topic = if (topic == ChatTopic.COMPLAINT) "complaint" else "question",
     resolved = status == ChatThreadStatus.RESOLVED,
+    threadId = id,
 )
