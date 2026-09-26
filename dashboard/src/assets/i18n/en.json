@@ -1124,6 +1124,7 @@
         "mine": "Write it myself",
         "assistant": "Let the assistant write it",
         "askAgain": "Ask again",
+        "failedHere": "The assistant could not write this level. Ask again, or write it yourself.",
         "stillWriting": "The assistant is still writing — wait for the bell.",
         "needLevel1": "Write at least one question in Level 1 first.",
         "rewrite": "Rewrite this level with the assistant",

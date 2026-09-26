@@ -113,10 +113,13 @@ export class StopDraftService {
    * Unlike {@link add} it hands the request **back**, and the sheet awaits it (E4b review). There
    * is no model in this path, so the wait is one fast round trip rather than minutes — and the
    * refusal it can end in used to be swallowed here, under a sheet that had already closed and
-   * emptied her five fields. The sheet keeps them now and shows what the server said.
+   * emptied her five fields. The sheet keeps them now and shows what the server said — which is
+   * why this one create is `silentErrors()`: the band would repeat the line the sheet already has.
    */
   addNow(lessonId: string, playId: string, body: string): Observable<Stop> {
-    return this.api.addStop(playId, body).pipe(tap((stop) => this.created$.next({ lessonId, playId, stop })));
+    return this.api
+      .addStop(playId, body, true)
+      .pipe(tap((stop) => this.created$.next({ lessonId, playId, stop })));
   }
 
   /** The same words again. Only from an errored row — a second run over a live one would race it. */

@@ -299,8 +299,17 @@ export class LessonApiService {
     return this.isAdmin() ? this.admin.reorder(playId, body) : this.teacher.teacherReorder(playId, body);
   }
 
-  addStop(playId: string, body: string): Observable<Stop> {
-    return this.isAdmin() ? this.admin.addStop(playId, body) : this.teacher.teacherAddStop(playId, body);
+  /**
+   * `silent` is {@link StopDraftService.addNow}'s. That path keeps the Add question sheet open on
+   * the question the server refused and puts the sentence in it, so the interceptor's band would be
+   * the same sentence twice; {@link StopDraftService.add} leaves it loud, because its sheet has
+   * already closed and the band is the only place left to say anything.
+   */
+  addStop(playId: string, body: string, silent = false): Observable<Stop> {
+    const options = silent ? { context: silentErrors() } : undefined;
+    return this.isAdmin()
+      ? this.admin.addStop(playId, body, 'body', false, options)
+      : this.teacher.teacherAddStop(playId, body, 'body', false, options);
   }
 
   updateStop(stopId: string, body: string): Observable<Stop> {
