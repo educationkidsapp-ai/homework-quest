@@ -9,6 +9,20 @@
   </hq-page>
 } @else if (lesson(); as l) {
   <hq-page [title]="pageTitle()" [subtitle]="subtitleLine()" [breadcrumbs]="breadcrumbs()">
+    <!--
+      R5: a read-only page has no status poll (`GET /coordinator/lessons/{id}/status` does not
+      exist), so it has the one thing a poll would have saved her: Refresh. In the header, where
+      every screen's own action is, and a button rather than a reload — the tab and the selected
+      question survive it.
+    -->
+    @if (readOnly) {
+      <div page-actions>
+        <hq-button variant="secondary" [disabled]="loading()" (pressed)="refresh()">
+          {{ 'lessons.detail.refresh' | transloco }}
+        </hq-button>
+      </div>
+    }
+
     <ng-container *hqCan="'lesson.delete'">
       @if (canDelete()) {
         <div page-actions>
@@ -85,6 +99,14 @@
            make it an exam are the one card above the facts. -->
       @if (!readOnly && isExam() && l.classId; as examClassId) {
         <hq-exam-settings-card [examId]="l.id" [classId]="examClassId" />
+      }
+
+      @if (stillGenerating()) {
+        <!-- Politely, once, and not as an error: nothing is wrong, there is simply more to come.
+             `polite` because she did not press anything to make this appear. -->
+        <p class="lesson__generating-note" aria-live="polite">
+          {{ 'lessons.detail.stillGenerating' | transloco }}
+        </p>
       }
 
       <div class="lesson__facts">

@@ -1784,7 +1784,15 @@ export class LessonPage {
     //
     // CR4's second reason to keep asking is still here: a file may be `converting` while the
     // lesson's own status has already settled, and `isStatusActive` folds both in.
+    //
+    // R5: **not** in read-only mode. `GET /coordinator/lessons/{id}/status` does not exist, so a
+    // coordinator's poll would be routed to the teacher's alias, which answers 404 for her — every
+    // 2.5 s, silently (`error: () => undefined`), for as long as she leaves the page open, and the
+    // lesson would sit there looking stuck. She gets {@link refresh} in the header instead, and
+    // {@link stillGenerating} to say why there is something to come back for. R3 is adding the
+    // route; the poll can be turned on here when it lands.
     effect((onCleanup) => {
+      if (this.readOnly) return;
       const lesson = this.lesson();
       const active = lesson !== null && (this.running() || anyConverting(lesson.files ?? []));
       if (!active) return;
@@ -1828,6 +1836,21 @@ export class LessonPage {
       if (this.notFound()) void this.router.navigate(['/not-found']);
     });
   }
+
+  /**
+   * R5: read `GET /coordinator/lessons/{id}` again, by hand.
+   *
+   * What a read-only page has instead of the status poll. `reload()` on the resource rather than a
+   * navigation, so the month, the tab and the selected question all stay where she left them.
+   */
+  protected refresh(): void {
+    this.lessonRes.reload();
+  }
+
+  /** Something is still being written, and a refresh in a minute will show more of it. */
+  protected readonly stillGenerating = computed(
+    () => this.readOnly && (this.running() || anyConverting(this.lesson()?.files ?? [])),
+  );
 
   protected t(key: string, params?: Record<string, unknown>): string {
     return this.transloco.translate<string>(key, params);

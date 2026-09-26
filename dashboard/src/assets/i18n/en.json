@@ -1129,7 +1129,9 @@
         "needLevel1": "Write at least one question in Level 1 first.",
         "rewrite": "Rewrite this level with the assistant",
         "writing": "The assistant is writing {{level}}…"
-      }
+      },
+      "refresh": "Refresh",
+      "stillGenerating": "This lesson is still being generated — refresh in a minute to see the rest."
     },
     "analyzedBefore": "Analyzed before · 0 tokens",
     "analyzedBeforeTooltip": "This file was analyzed before, so the result came back instantly and saved {{tokens}} tokens."
