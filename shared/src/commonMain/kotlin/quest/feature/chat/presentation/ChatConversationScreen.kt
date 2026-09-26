@@ -29,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -57,9 +58,13 @@ import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
+import quest.api.ApiException
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatSender
+import quest.api.dto.ChatStaffRole
+import quest.api.dto.ChatThreadStatus
+import quest.api.dto.ChatTopic
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
@@ -67,8 +72,10 @@ import quest.core.mvi.MviViewModel
 import quest.core.platform.Ids
 import quest.core.platform.Today
 import quest.feature.chat.domain.ChatConnectionState
+import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.parent.domain.ParentRepository
+import quest.feature.parent.presentation.Chip
 import quest.feature.parent.presentation.LocalStrings
 import quest.feature.parent.presentation.Strings
 import quest.feature.school.domain.Flags
@@ -88,6 +95,12 @@ object ChatConversationContract {
         val isPending: Boolean = false,
         val isFailed: Boolean = false,
         val clientId: String? = null,
+        /**
+         * The `topic` this send carried, kept so a retry resends it. A failed first message is still in [State.messages],
+         * which turns [State.canMarkComplaint] off — without this the toggle is gone and one transient 5xx would quietly
+         * downgrade a parent's complaint to a question, with no way back.
+         */
+        val topic: ChatTopic? = null,
     )
 
     data class State(
@@ -100,26 +113,55 @@ object ChatConversationContract {
         val inputText: String = "",
         val messages: List<UiMessage> = emptyList(),
         val errorMessage: String? = null,
-    ) : MviState
+        // R8 (DR3): who holds the other side, what the thread is about, and where it stands.
+        val staffRole: ChatStaffRole = ChatStaffRole.TEACHER,
+        val subject: String? = null,
+        val topic: ChatTopic = ChatTopic.QUESTION,
+        val resolved: Boolean = false,
+        val markAsComplaint: Boolean = false,
+        /** The server's own error code for the last refused send, so the screen picks the translated sentence. */
+        val errorCode: String? = null,
+        /**
+         * The thread this conversation is, once one exists. `/ws/chat` is **one socket per parent** and fans out every
+         * thread of hers, so a `status` frame has to be matched against this before it moves anything — otherwise a
+         * coordinator resolving the Math complaint flips the banner inside an open English conversation.
+         */
+        val threadId: String? = null,
+    ) : MviState {
+        /**
+         * The toggle is offered only while the thread does not exist yet, and only for a coordinator: the server reads
+         * `topic` on the message that *creates* a thread, so a later send cannot re-label one she has already worked on.
+         *
+         * `!loading` keeps it from flashing over an existing coordinator thread in the moment before its history lands.
+         */
+        val canMarkComplaint: Boolean
+            get() = !loading && staffRole == ChatStaffRole.COORDINATOR && topic == ChatTopic.QUESTION && messages.isEmpty()
+    }
 
     sealed interface Intent : MviIntent {
         data object Load : Intent
         data class UpdateInput(val text: String) : Intent
         data object SendMessage : Intent
         data class RetrySend(val clientId: String) : Intent
+        data object ToggleComplaint : Intent
     }
 
     sealed interface Effect : MviEffect
 }
 
 class ChatConversationViewModel(
-    private val childId: String,
-    private val teacherId: String,
-    private val teacherName: String,
+    private val peer: ChatPeer,
     private val chat: ChatRepository,
 ) : MviViewModel<ChatConversationContract.State, ChatConversationContract.Intent, ChatConversationContract.Effect>(
-    ChatConversationContract.State(childId = childId, teacherId = teacherId, teacherName = teacherName)
+    ChatConversationContract.State(
+        childId = peer.childId, teacherId = peer.staffId, teacherName = peer.staffName,
+        staffRole = peer.staffRole, subject = peer.subject, topic = peer.topic, resolved = peer.resolved,
+        threadId = peer.threadId,
+    )
 ) {
+    private val childId get() = peer.childId
+    private val teacherId get() = peer.staffId
+
     private var typingJob: Job? = null
     private var lastTypingSentMillis: Long = 0L
 
@@ -129,6 +171,7 @@ class ChatConversationViewModel(
             is ChatConversationContract.Intent.UpdateInput -> handleInputChanged(intent.text)
             ChatConversationContract.Intent.SendMessage -> sendMessage()
             is ChatConversationContract.Intent.RetrySend -> retrySend(intent.clientId)
+            ChatConversationContract.Intent.ToggleComplaint -> reduce { copy(markAsComplaint = !markAsComplaint, errorCode = null) }
         }
     }
 
@@ -137,7 +180,7 @@ class ChatConversationViewModel(
         try {
             val history = chat.messages(childId, teacherId)
             val uiList = history.map { it.toUiMessage() }
-            reduce { copy(loading = false, messages = uiList) }
+            reduce { copy(loading = false, messages = uiList, threadId = history.firstOrNull()?.threadId ?: threadId) }
             chat.markRead(childId, teacherId)
         } catch (e: Throwable) {
             reduce { copy(loading = false, errorMessage = e.message) }
@@ -157,6 +200,10 @@ class ChatConversationViewModel(
         val body = current.inputText.trim()
         if (body.isBlank() || body.length > 2000) return
 
+        // `topic` only says anything on the message that creates the thread, so it rides on the first send alone.
+        val opening = current.canMarkComplaint && current.markAsComplaint
+        val sentTopic = if (opening) ChatTopic.COMPLAINT else null
+
         val clientId = Ids.random()
         val pendingMsg = ChatConversationContract.UiMessage(
             id = clientId,
@@ -165,24 +212,31 @@ class ChatConversationViewModel(
             createdAt = Today.epochMillis(),
             isPending = true,
             clientId = clientId,
+            topic = sentTopic,
         )
 
-        reduce { copy(inputText = "", messages = messages + pendingMsg) }
+        reduce { copy(inputText = "", errorCode = null, messages = messages + pendingMsg) }
 
         try {
-            val confirmed = chat.sendMessage(childId, teacherId, body, clientId)
+            val confirmed = chat.sendMessage(childId, teacherId, body, clientId, sentTopic)
             reduce {
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) confirmed.toUiMessage(isPending = false) else msg
                 }
-                copy(messages = updated)
+                copy(
+                    messages = updated,
+                    topic = if (opening) ChatTopic.COMPLAINT else topic,
+                    markAsComplaint = false,
+                    threadId = confirmed.threadId,
+                )
             }
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            val code = (e as? ApiException)?.error?.code
             reduce {
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) msg.copy(isPending = false, isFailed = true) else msg
                 }
-                copy(messages = updated)
+                copy(messages = updated, errorCode = code)
             }
         }
     }
@@ -197,12 +251,18 @@ class ChatConversationViewModel(
         }
 
         try {
-            val confirmed = chat.sendMessage(childId, teacherId, target.body, clientId)
+            // The original `topic` goes out again: a retried first message is still the one that creates the thread,
+            // and dropping it here would file the parent's complaint as an ordinary question.
+            val confirmed = chat.sendMessage(childId, teacherId, target.body, clientId, target.topic)
             reduce {
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) confirmed.toUiMessage(isPending = false) else msg
                 }
-                copy(messages = updated)
+                copy(
+                    messages = updated,
+                    topic = target.topic ?: topic,
+                    threadId = confirmed.threadId,
+                )
             }
         } catch (_: Throwable) {
             reduce {
@@ -247,6 +307,7 @@ class ChatConversationViewModel(
                         val clientAck = frame.clientId != null && current.messages.any { it.clientId == frame.clientId }
 
                         if (senderTeacher || clientAck) {
+                            reduce { copy(threadId = msg.threadId) }
                             reduce {
                                 if (frame.clientId != null) {
                                     val updated = messages.map {
@@ -264,7 +325,7 @@ class ChatConversationViewModel(
                         }
                     }
                     is ChatFrame.Read -> {
-                        if (frame.readBy == ChatSender.TEACHER) {
+                        if (frame.readBy == ChatSender.TEACHER && isOurs(frame.threadId)) {
                             reduce {
                                 val updated = messages.map { m ->
                                     if (m.isFromParent && m.readAt == null && m.createdAt <= frame.readAt) {
@@ -276,13 +337,20 @@ class ChatConversationViewModel(
                         }
                     }
                     is ChatFrame.Typing -> {
-                        if (frame.from == ChatSender.TEACHER) {
+                        if (frame.from == ChatSender.TEACHER && isOurs(frame.threadId)) {
                             reduce { copy(isTeacherTyping = true) }
                             typingJob?.cancel()
                             typingJob = launch {
                                 delay(4_500L)
                                 reduce { copy(isTeacherTyping = false) }
                             }
+                        }
+                    }
+                    // R4's additive frame: the coordinator resolved (or re-opened) the thread. The banner follows it —
+                    // but only when the frame is about *this* thread. See [isOurs].
+                    is ChatFrame.Status -> {
+                        if (isOurs(frame.threadId)) {
+                            reduce { copy(resolved = frame.status == ChatThreadStatus.RESOLVED) }
                         }
                     }
                     is ChatFrame.Error -> {
@@ -301,6 +369,16 @@ class ChatConversationViewModel(
         }
     }
 
+    /**
+     * Whether a per-thread frame belongs to the conversation on screen.
+     *
+     * `/ws/chat` is one socket per parent and fans out **every** thread of hers, so `status`, `read` and `typing` all
+     * arrive here for conversations this screen is not showing. Without this, a coordinator resolving the Math
+     * complaint flips the Resolved banner inside an open English thread (and the same for read ticks and the typing
+     * dot). A null [State.threadId] means no thread exists yet, so nothing that names one can be about us.
+     */
+    private fun isOurs(frameThreadId: String): Boolean = current.threadId == frameThreadId
+
     private fun ChatMessage.toUiMessage(isPending: Boolean = false): ChatConversationContract.UiMessage =
         ChatConversationContract.UiMessage(
             id = id,
@@ -314,12 +392,10 @@ class ChatConversationViewModel(
 
 @Composable
 fun ChatConversationRoute(
-    childId: String,
-    teacherId: String,
-    teacherName: String,
+    peer: ChatPeer,
     onBack: () -> Unit,
 ) {
-    val vm: ChatConversationViewModel = koinViewModel { parametersOf(childId, teacherId, teacherName) }
+    val vm: ChatConversationViewModel = koinViewModel(key = peer.staffId) { parametersOf(peer) }
     val state by vm.state.collectAsStateWithLifecycle()
     val parent: ParentRepository = koinInject()
     val language by parent.language.collectAsStateWithLifecycle()
@@ -340,6 +416,7 @@ fun ChatConversationRoute(
                     onInputChange = { vm.dispatch(ChatConversationContract.Intent.UpdateInput(it)) },
                     onSend = { vm.dispatch(ChatConversationContract.Intent.SendMessage) },
                     onRetry = { vm.dispatch(ChatConversationContract.Intent.RetrySend(it)) },
+                    onToggleComplaint = { vm.dispatch(ChatConversationContract.Intent.ToggleComplaint) },
                 )
             }
         }
@@ -354,6 +431,7 @@ fun ChatConversationScreen(
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onRetry: (String) -> Unit,
+    onToggleComplaint: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
 
@@ -381,11 +459,23 @@ fun ChatConversationScreen(
             }
             Spacer(Modifier.width(Dimens.s4))
             Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = state.teacherName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Palette.parentInk,
+                    )
+                    if (state.topic == ChatTopic.COMPLAINT) {
+                        Spacer(Modifier.width(Dimens.s8))
+                        Chip(strings.complaintBadge, Palette.sun)
+                    }
+                }
+                // R8: whose side of the school this is. A row from a pre-R4 server says "Teacher", as it always did.
                 Text(
-                    text = state.teacherName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Palette.parentInk,
+                    text = staffLabel(state.staffRole, state.subject, null, strings),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.parentInkSoft,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val isOnline = state.connectionState == ChatConnectionState.CONNECTED
@@ -408,6 +498,34 @@ fun ChatConversationScreen(
             }
         }
 
+        // A resolved thread is still hers to write in — the server refuses nothing, so the composer stays live and
+        // the banner is the whole of it (R8). The `status` frame flips this without a refetch.
+        if (state.resolved) {
+            Row(
+                Modifier.fillMaxWidth().background(Palette.mint).padding(horizontal = Dimens.s16, vertical = Dimens.s8),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = strings.resolvedBanner,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.parentInk,
+                )
+            }
+        }
+
+        if (state.errorCode == COMPLAINT_NEEDS_COORDINATOR) {
+            Row(
+                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(horizontal = Dimens.s16, vertical = Dimens.s8),
+            ) {
+                Text(
+                    text = strings.complaintNeedsCoordinator,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
+
         // Message List
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (state.loading) {
@@ -417,7 +535,8 @@ fun ChatConversationScreen(
             } else if (state.messages.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(Dimens.s24), contentAlignment = Alignment.Center) {
                     Text(
-                        text = strings.emptyConversation,
+                        text = if (state.staffRole == ChatStaffRole.COORDINATOR) strings.emptyConversationCoordinator
+                               else strings.emptyConversation,
                         style = MaterialTheme.typography.bodyLarge,
                         color = Palette.parentInkSoft,
                     )
@@ -432,6 +551,29 @@ fun ChatConversationScreen(
                         MessageBubble(msg = msg, strings = strings, onRetry = onRetry)
                     }
                 }
+            }
+        }
+
+        // The complaint toggle, offered only while this send would create the thread (state.canMarkComplaint).
+        if (state.canMarkComplaint) {
+            Column(
+                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)
+                    .padding(horizontal = Dimens.s12, vertical = Dimens.s8),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = state.markAsComplaint,
+                        onCheckedChange = { onToggleComplaint() },
+                        modifier = Modifier.semantics { contentDescription = strings.markAsComplaint },
+                    )
+                    Spacer(Modifier.width(Dimens.s8))
+                    Text(strings.markAsComplaint, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk)
+                }
+                Text(
+                    strings.markAsComplaintHint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.parentInkSoft,
+                )
             }
         }
 

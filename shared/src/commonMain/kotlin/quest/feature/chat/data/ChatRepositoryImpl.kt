@@ -7,6 +7,7 @@ import quest.api.dto.ChatCommand
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatThread
+import quest.api.dto.ChatTopic
 import quest.api.dto.SendChatMessageRequest
 import quest.feature.chat.domain.ChatConnectionState
 import quest.feature.chat.domain.ChatRepository
@@ -21,6 +22,10 @@ class ChatRepositoryImpl(
 
     override suspend fun threads(childId: String): List<ChatThread> {
         return contentApi.chatThreads(childId)
+    }
+
+    override suspend fun coordinators(childId: String): List<ChatThread> {
+        return contentApi.parentCoordinators(childId)
     }
 
     override suspend fun messages(
@@ -38,8 +43,9 @@ class ChatRepositoryImpl(
         teacherId: String,
         body: String,
         clientId: String,
+        topic: ChatTopic?,
     ): ChatMessage {
-        val request = SendChatMessageRequest(body = body.trim(), clientId = clientId)
+        val request = SendChatMessageRequest(body = body.trim(), clientId = clientId, topic = topic)
         // Sending via REST gives immediate guaranteed HTTP status (rate-limits, error handling)
         // while the server fans out the ChatFrame.Message(echo) to all active sessions including the socket.
         return contentApi.sendChatMessage(childId, teacherId, request)

@@ -80,6 +80,31 @@ data class Strings(
     val excused: String = "Excused",
     val noAttendanceRecorded: String = "Not recorded yet",
     val attendanceNote: String = "Note from teacher",
+    // R8: the parent writes to the coordinator of a subject, and may mark that first message a complaint (DR3).
+    val teacherRole: String = "Teacher",
+    val coordinatorRole: String = "Subject coordinator",
+    val teachersGroup: String = "Your child's teachers",
+    val coordinatorsGroup: String = "Subject coordinators",
+    val messageCoordinator: String = "Message a coordinator",
+    val pickCoordinator: String = "Who would you like to write to?",
+    val noCoordinators: String = "No subject coordinator for this class yet.",
+    val complaintBadge: String = "Complaint",
+    val statusOpen: String = "Open",
+    val statusResolved: String = "Resolved",
+    val resolvedBanner: String = "Resolved — the coordinator answered this. You can still write here.",
+    val markAsComplaint: String = "This is a complaint",
+    val markAsComplaintHint: String = "The coordinator sees it in her complaints list. You can only set this on the first message.",
+    val complaintNeedsCoordinator: String = "A complaint goes to a subject coordinator. Pick one from the coordinator list, or write to the teacher as a question.",
+    /**
+     * The six subjects by the server's own key (`quest.api.dto.Subject`), so a coordinator's `subject` reads in the
+     * parent's language instead of as the raw wire word. A key nobody here knows is shown as the server wrote it,
+     * exactly as an unknown score band is.
+     */
+    val subjectNames: Map<String, String> = mapOf(
+        "math" to "Math", "english" to "English", "science" to "Science",
+        "french" to "French", "religion" to "Religion", "arabic" to "Arabic",
+    ),
+    val emptyConversationCoordinator: String = "No messages yet. Write to the coordinator of this subject.",
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -181,6 +206,25 @@ data class Strings(
             excused = "معذور",
             noAttendanceRecorded = "لم يُسجل بعد",
             attendanceNote = "ملاحظة المعلم",
+            teacherRole = "معلّمة",
+            coordinatorRole = "منسّق المادة",
+            teachersGroup = "معلّمو طفلك",
+            coordinatorsGroup = "منسّقو المواد",
+            messageCoordinator = "مراسلة منسّق مادة",
+            pickCoordinator = "إلى مَن تريد أن تكتب؟",
+            noCoordinators = "لا يوجد منسّق مادة لهذا الفصل بعد.",
+            complaintBadge = "شكوى",
+            statusOpen = "مفتوحة",
+            statusResolved = "تم الحل",
+            resolvedBanner = "تم الحل — ردّ المنسّق على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
+            markAsComplaint = "هذه شكوى",
+            markAsComplaintHint = "ستظهر في قائمة الشكاوى عند المنسّق. يمكن تحديدها في الرسالة الأولى فقط.",
+            complaintNeedsCoordinator = "تُرسل الشكوى إلى منسّق المادة. اختر منسّقاً من القائمة، أو اكتب إلى المعلّمة كسؤال.",
+            subjectNames = mapOf(
+                "math" to "رياضيات", "english" to "إنجليزي", "science" to "علوم",
+                "french" to "فرنسي", "religion" to "تربية إسلامية", "arabic" to "عربي",
+            ),
+            emptyConversationCoordinator = "لا توجد رسائل بعد. اكتب إلى منسّق هذه المادة.",
         )
 
         fun forLanguage(code: String) = if (code == "ar") ar else en

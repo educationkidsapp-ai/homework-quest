@@ -114,6 +114,9 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
     override suspend fun chatThreads(childId: String): List<ChatThread> =
         call { client.get("$baseUrl/children/$childId/chat/threads") { authed() } }
 
+    override suspend fun parentCoordinators(childId: String): List<ChatThread> =
+        call { client.get("$baseUrl/children/$childId/coordinators") { authed() } }
+
     override suspend fun chatMessages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> =
         call {
             client.get("$baseUrl/children/$childId/chat/threads/$teacherId/messages") {

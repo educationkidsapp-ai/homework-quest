@@ -36,13 +36,18 @@ import quest.ui.design.ThemeOverrides
 import quest.api.dashboard.ClassLookup
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatSender
+import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
+import quest.api.dto.ChatThreadStatus
+import quest.api.dto.ChatTopic
 import quest.api.dto.ReleasedResult
 import quest.feature.chat.domain.ChatConnectionState
 import quest.feature.chat.presentation.ChatConversationContract
 import quest.feature.chat.presentation.ChatConversationScreen
 import quest.feature.chat.presentation.ChatThreadsContract
 import quest.feature.chat.presentation.ChatThreadsScreen
+import quest.feature.chat.presentation.CoordinatorPickerContract
+import quest.feature.chat.presentation.CoordinatorPickerScreen
 import quest.ui.design.schoolThemeOverrides
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -128,10 +133,15 @@ class ParentScreensScreenshotTest {
                 threads = listOf(
                     ChatThread("th-1", "c1", "Maya", "t1", "Ms. Sara", "1A British", "Math", 2, ChatMessage("m1", "th-1", ChatSender.TEACHER, "t1", "Please make sure to review counting by 2s today.", 1_758_450_000_000L)),
                     ChatThread("th-2", "c1", "Maya", "t2", "Ms. Noor", "1A British", "English", 0, ChatMessage("m2", "th-2", ChatSender.PARENT, "p1", "Thank you, Maya enjoyed the story!", 1_758_440_000_000L)),
+                    ChatThread(
+                        "th-3", "c1", "Maya", "co1", "Ms. Lina", "1A British", "Math", 0,
+                        ChatMessage("m3", "th-3", ChatSender.TEACHER, "co1", "I have spoken to the teacher about the homework.", 1_758_430_000_000L),
+                        ChatStaffRole.COORDINATOR, ChatTopic.COMPLAINT, ChatThreadStatus.RESOLVED, 1_758_431_000_000L,
+                    ),
                 ),
             ),
             strings = s,
-            onSelectTeacher = {},
+            onSelectThread = {},
         )
     }
 
@@ -141,10 +151,14 @@ class ParentScreensScreenshotTest {
                 loading = false,
                 threads = listOf(
                     ChatThread("th-1", "c1", "مايا", "t1", "أ. سارة", "1A البريطاني", "رياضيات", 1, ChatMessage("m1", "th-1", ChatSender.TEACHER, "t1", "مرحبًا! يرجى مراجعة درس العد بالاثنينات.", 1_758_450_000_000L)),
+                    ChatThread(
+                        "th-3", "c1", "مايا", "co1", "أ. لينا", "1A البريطاني", "رياضيات", 0, null,
+                        ChatStaffRole.COORDINATOR, ChatTopic.COMPLAINT, ChatThreadStatus.OPEN,
+                    ),
                 ),
             ),
             strings = s,
-            onSelectTeacher = {},
+            onSelectThread = {},
         )
     }
 
@@ -188,6 +202,70 @@ class ParentScreensScreenshotTest {
             onInputChange = {},
             onSend = {},
             onRetry = {},
+        )
+    }
+
+    // R8: the coordinator picker, and a complaint conversation the coordinator has resolved.
+    @Test fun coordinatorPicker() = shot("51-coordinator-picker") { s ->
+        CoordinatorPickerScreen(
+            state = CoordinatorPickerContract.State(
+                loading = false,
+                coordinators = listOf(
+                    ChatThread(null, "c1", "Maya", "co1", "Ms. Lina", "1A British", "Math", 0, null, ChatStaffRole.COORDINATOR),
+                    ChatThread(null, "c1", "Maya", "co2", "Mr. Omar", "1A British", "English, Science", 0, null, ChatStaffRole.COORDINATOR),
+                ),
+            ),
+            strings = s,
+            onSelect = {},
+        )
+    }
+
+    @Test fun coordinatorPickerArabic() = shot("51b-coordinator-picker-ar", Strings.ar) { s ->
+        CoordinatorPickerScreen(
+            state = CoordinatorPickerContract.State(
+                loading = false,
+                coordinators = listOf(
+                    ChatThread(null, "c1", "مايا", "co1", "أ. لينا", "1A البريطاني", "رياضيات", 0, null, ChatStaffRole.COORDINATOR),
+                ),
+            ),
+            strings = s,
+            onSelect = {},
+        )
+    }
+
+    @Test fun chatComplaintResolved() = shot("52-chat-complaint-resolved") { s ->
+        ChatConversationScreen(
+            state = ChatConversationContract.State(
+                childId = "c1", teacherId = "co1", teacherName = "Ms. Lina",
+                loading = false,
+                connectionState = ChatConnectionState.CONNECTED,
+                staffRole = ChatStaffRole.COORDINATOR,
+                subject = "Math",
+                topic = ChatTopic.COMPLAINT,
+                resolved = true,
+                messages = listOf(
+                    ChatConversationContract.UiMessage("m1", "The nightly homework is taking Maya over an hour.", true, 1_758_450_000_000L, readAt = 1_758_450_050_000L),
+                    ChatConversationContract.UiMessage("m2", "Thank you — I have asked the teacher to shorten it this week.", false, 1_758_450_300_000L),
+                ),
+            ),
+            strings = s,
+            onBack = {}, onInputChange = {}, onSend = {}, onRetry = {}, onToggleComplaint = {},
+        )
+    }
+
+    @Test fun chatComplaintToggle() = shot("53-chat-complaint-toggle") { s ->
+        ChatConversationScreen(
+            state = ChatConversationContract.State(
+                childId = "c1", teacherId = "co1", teacherName = "Ms. Lina",
+                loading = false,
+                connectionState = ChatConnectionState.CONNECTED,
+                staffRole = ChatStaffRole.COORDINATOR,
+                subject = "Math",
+                markAsComplaint = true,
+                inputText = "The nightly homework is taking Maya over an hour.",
+            ),
+            strings = s,
+            onBack = {}, onInputChange = {}, onSend = {}, onRetry = {}, onToggleComplaint = {},
         )
     }
 }

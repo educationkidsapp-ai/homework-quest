@@ -1224,6 +1224,13 @@ curl -X POST "$API/me/notifications/read-all" -H "Authorization: Bearer $TEACHER
 delete: a thread is part of the school's record, and `DELETE /admin/children/{id}` (the Admin's hard delete, which
 removes her threads and messages with her) is the one thing that removes one; `SEED_RESET` wipes them with the rest.
 
+**R8, the app's coordinator side** (`docs/reports/mobile-r8.md`): the parent's thread list groups teachers and
+coordinators and shows the R4 fields as chips (Complaint, Open/Resolved); `+ Message a coordinator` lists
+`GET /children/{id}/coordinators` (which answers `ChatThread` rows, not a coordinator DTO) and a `This is a complaint`
+switch puts `topic: "complaint"` on the **thread-creating** message only — `400 complaint_needs_coordinator` if the
+peer is a teacher. The `status` frame carries **`at`**, not `resolvedAt`, and moves the row and the conversation's
+banner without a refetch; a resolved thread still accepts the parent's reply, so the composer stays live.
+
 ## The app and the contract
 
 **The app's JSON is strict, so app and server ship together.** `SchemaValidator.json` — the one `Json` the app's

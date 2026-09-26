@@ -19,7 +19,10 @@ import quest.api.dto.Child
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatReadReceipt
 import quest.api.dto.ChatSender
+import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
+import quest.api.dto.ChatThreadStatus
+import quest.api.dto.ChatTopic
 import quest.api.dto.CreateChildRequest
 import quest.api.dto.Curriculum
 import quest.api.dto.LessonCompletionInfo
@@ -204,29 +207,51 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
 
     private val fakeMessages = mutableMapOf<String, MutableList<ChatMessage>>()
 
+    /** The topic the first message of a thread carried, so the fake's rows label a complaint the way the server does. */
+    private val fakeTopics = mutableMapOf<String, ChatTopic>()
+
+    private val fakeTeachers = listOf(
+        Triple("t-sara", "Ms. Sara", "Math"),
+        Triple("t-noor", "Ms. Noor", "English"),
+    )
+
+    /** R4: the coordinators of the subjects taught in the child's section — not teachers of hers, so listed apart. */
+    private val fakeCoordinators = listOf(
+        Triple("co-lina", "Ms. Lina", "Math"),
+        Triple("co-omar", "Mr. Omar", "English, Science"),
+    )
+
+    private fun fakeRow(childId: String, staffId: String, staffName: String, subject: String, role: ChatStaffRole): ChatThread {
+        val msgs = fakeMessages["$childId:$staffId"].orEmpty()
+        return ChatThread(
+            id = if (msgs.isEmpty()) null else "th-$childId-$staffId",
+            childId = childId,
+            childName = "Maya",
+            teacherId = staffId,
+            teacherName = staffName,
+            className = "1A British",
+            subject = subject,
+            unread = msgs.count { it.sender == ChatSender.TEACHER && it.readAt == null },
+            lastMessage = msgs.lastOrNull(),
+            staffRole = role,
+            topic = fakeTopics["$childId:$staffId"] ?: ChatTopic.QUESTION,
+            status = ChatThreadStatus.OPEN,
+        )
+    }
+
     override suspend fun chatThreads(childId: String): List<ChatThread> {
         net()
-        val defaultTeachers = listOf(
-            Triple("t-sara", "Ms. Sara", "Math"),
-            Triple("t-noor", "Ms. Noor", "English"),
-        )
-        return defaultTeachers.map { (tId, tName, subj) ->
-            val key = "$childId:$tId"
-            val msgs = fakeMessages[key].orEmpty()
-            val last = msgs.lastOrNull()
-            val unreadCount = msgs.count { it.sender == ChatSender.TEACHER && it.readAt == null }
-            ChatThread(
-                id = if (msgs.isEmpty()) null else "th-$childId-$tId",
-                childId = childId,
-                childName = "Maya",
-                teacherId = tId,
-                teacherName = tName,
-                className = "1A British",
-                subject = subj,
-                unread = unreadCount,
-                lastMessage = last,
-            )
-        }
+        val teachers = fakeTeachers.map { (id, name, subj) -> fakeRow(childId, id, name, subj, ChatStaffRole.TEACHER) }
+        // A coordinator appears in the parent's list only once a thread with her exists, as `ChatService` does it.
+        val coordinators = fakeCoordinators
+            .map { (id, name, subj) -> fakeRow(childId, id, name, subj, ChatStaffRole.COORDINATOR) }
+            .filter { it.id != null }
+        return teachers + coordinators
+    }
+
+    override suspend fun parentCoordinators(childId: String): List<ChatThread> {
+        net()
+        return fakeCoordinators.map { (id, name, subj) -> fakeRow(childId, id, name, subj, ChatStaffRole.COORDINATOR) }
     }
 
     override suspend fun chatMessages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> {
@@ -262,6 +287,14 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         net()
         val key = "$childId:$teacherId"
         val list = fakeMessages.getOrPut(key) { mutableListOf() }
+        // `topic` is read only while this very message creates the thread, and a complaint needs a coordinator peer.
+        val topic = request.topic
+        if (list.isEmpty() && topic != null) {
+            if (topic == ChatTopic.COMPLAINT && fakeCoordinators.none { it.first == teacherId }) {
+                throw ApiException(ApiError("complaint_needs_coordinator", "A complaint goes to the coordinator of the subject."))
+            }
+            fakeTopics[key] = topic
+        }
         val msg = ChatMessage(
             id = "m-${Ids.random()}",
             threadId = "th-$childId-$teacherId",

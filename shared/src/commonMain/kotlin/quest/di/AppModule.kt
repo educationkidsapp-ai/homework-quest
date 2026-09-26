@@ -7,9 +7,11 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 import quest.feature.chat.data.ChatRepositoryImpl
 import quest.feature.chat.data.ChatSocketClient
+import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.presentation.ChatConversationViewModel
 import quest.feature.chat.presentation.ChatThreadsViewModel
+import quest.feature.chat.presentation.CoordinatorPickerViewModel
 import quest.api.AuthProvider
 import quest.api.ContentApi
 import quest.core.db.Db
@@ -163,9 +165,8 @@ val parentModule = module {
 
 val chatModule = module {
     viewModel { ChatThreadsViewModel(get(), get()) }
-    viewModel { (childId: String, teacherId: String, teacherName: String) ->
-        ChatConversationViewModel(childId, teacherId, teacherName, get())
-    }
+    viewModel { CoordinatorPickerViewModel(get(), get()) }
+    viewModel { (peer: ChatPeer) -> ChatConversationViewModel(peer, get()) }
 }
 
 fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule)
