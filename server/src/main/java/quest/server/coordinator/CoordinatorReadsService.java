@@ -27,6 +27,13 @@ import quest.server.tenancy.CoordinatorScope;
  * lesson or an exam, {@link CoordinatorScope#requireChild} for a child — 404 for another school's row, 403 for
  * another subject's or another track's. `CoordinatorScopeArchitectureTest` fails the build if a handler skips it.
  *
+ * <p><strong>Scoped twice, because a section is not a subject.</strong> `requireSection` only proves that somebody
+ * teaches one of her subjects in a section; the three reads that answer for a whole section — the gradebook, the
+ * Exams tab and the child page — are narrowed again by {@link CoordinatorScope#subjectsIn} and hand the delegate a
+ * {@link CoordinatorScope.Subjects}, so a section that teaches maths and english shows the maths coordinator neither
+ * the english columns, nor the english exam her own {@link #examResults} would refuse, nor an english level on the
+ * child page. Every other caller passes {@link CoordinatorScope.Subjects#ALL} and reads exactly what it read before.
+ *
  * <p>Attendance is the one delegate that could not take the caller: the teacher's route resolves its class through
  * `TeacherScope`, which would ask a coordinator which classes she teaches. {@link
  * AttendanceService#classAttendanceWindow} takes the section this class has already resolved instead, and builds the
@@ -57,9 +64,17 @@ public class CoordinatorReadsService {
         return attendance.classAttendanceWindow(section, start, end);
     }
 
-    /** `GET /coordinator/classes/{id}/results` — §7's gradebook grid for a section she supervises. */
+    /**
+     * `GET /coordinator/classes/{id}/results` — §7's gradebook grid, for her subjects of a section she supervises.
+     *
+     * <p>{@link CoordinatorScope#requireSection} only proves somebody teaches one of her subjects there, so the grid
+     * is narrowed a second time by {@link CoordinatorScope#subjectsIn} — otherwise a section that teaches maths and
+     * english hands the maths coordinator the english columns, and labels the body with whichever subject the section
+     * happens to have been assigned first.
+     */
     public GradingDto.Gradebook gradebook(Principals.User caller, String classId, String from, String to) {
-        return grading.gradebook(caller, scope.requireSection(caller, classId).getId(), from, to);
+        var section = scope.requireSection(caller, classId);
+        return grading.gradebook(caller, section.getId(), from, to, scope.subjectsIn(caller, section));
     }
 
     /** `GET /coordinator/lessons/{id}/results` — §7's per-lesson results body, her subject only. */
@@ -67,14 +82,31 @@ public class CoordinatorReadsService {
         return grading.results(caller, scope.requireLesson(caller, lessonId).getId());
     }
 
-    /** `GET /coordinator/children/{id}` — §7's child page: her placed section, released scores, exam results. */
+    /**
+     * `GET /coordinator/children/{id}` — §7's child page: her placed section, released scores, exam results.
+     *
+     * <p>Narrowed to the subjects she coordinates in the section the child is placed in, because the page rolls a
+     * level and a trend line <em>per subject</em>.
+     */
     public GradingDto.ChildReport child(Principals.User caller, String childId) {
-        return grading.child(caller, scope.requireChild(caller, childId).getId());
+        var child = scope.requireChild(caller, childId);
+        // A child on no roster is refused for a coordinator and reachable by the platform ADMIN (N2.3b), and she has
+        // no section to take subjects from, so that caller reads the page whole — as she does on `/teacher/children`.
+        var subjects = child.getClassId() == null ? CoordinatorScope.Subjects.ALL
+                : scope.subjectsIn(caller, scope.requireSection(caller, child.getClassId()));
+        return grading.child(caller, child.getId(), subjects);
     }
 
-    /** `GET /coordinator/classes/{id}/exams` — §8's Exams tab: a row per exam with its state and three counts. */
+    /**
+     * `GET /coordinator/classes/{id}/exams` — §8's Exams tab: a row per exam with its state and three counts.
+     *
+     * <p>Narrowed to her subjects, so the tab lists exactly the exams {@link #examResults} will open: an english exam
+     * in a section the maths coordinator supervises is absent here and a 403 there, rather than a row whose counts she
+     * can read and whose results she cannot.
+     */
     public List<ExamDto.ExamRow> classExams(Principals.User caller, String classId) {
-        return exams.ofClass(caller, scope.requireSection(caller, classId).getId());
+        var section = scope.requireSection(caller, classId);
+        return exams.ofClass(caller, section.getId(), scope.subjectsIn(caller, section));
     }
 
     /**

@@ -37,8 +37,12 @@ class CoordinatorReadsApiTest extends GradingTestSupport {
     private static final String P = "coord-reads-";
     private static final String SCHOOL = P + "school", CODE = "CRDRD1";
     private static final String MAYA = P + "maya", RAMI = P + "rami", LINA = P + "lina";
-    private static final String MINE = P + "1a-british", THEIRS = P + "1a-american";
+    private static final String MINE = P + "1a-british", THEIRS = P + "1a-american", SOLO = P + "1b-british";
     private static final String LESSON = P + "lesson", EXAM = P + "exam", THEIR_EXAM = P + "their-exam";
+    /** The second subject of Lina's own section: english is taught in 1A British too, and is not hers. */
+    private static final String ENGLISH_LESSON = P + "english-lesson", ENGLISH_EXAM = P + "english-exam";
+    /** 1B British teaches maths and nothing else, so its bodies are the same for the teacher and the coordinator. */
+    private static final String SOLO_LESSON = P + "solo-lesson", SOLO_EXAM = P + "solo-exam";
 
     @Override public String prefix() { return P; }
 
@@ -46,8 +50,8 @@ class CoordinatorReadsApiTest extends GradingTestSupport {
     @Autowired ExamSettingsRepository examSettings;
     @Autowired quest.server.exams.ExamAttemptRepository examSittings;
 
-    private String adminToken, teacher, coordinator, kidMine, kidTheirs;
-    private ClassEntity mine, theirs;
+    private String adminToken, teacher, coordinator, kidMine, kidTheirs, kidSolo;
+    private ClassEntity mine, theirs, solo;
     private final LocalDate day = LocalDate.now().minusDays(2);
 
     @BeforeEach void seed() throws Exception {
@@ -57,6 +61,10 @@ class CoordinatorReadsApiTest extends GradingTestSupport {
         scopeRow(P + "scope-math", LINA, "math", "british");
 
         mine = klass(MINE, SCHOOL, MAYA, "1A British");
+        // Maths and nothing else, so the subject narrowing is the identity on it and its bodies must match Maya's.
+        // Grade 2 rather than a second grade-1 section: `classes` is unique on (school, curriculum, grade, subject, teacher).
+        solo = ClassFixtures.section(classes, assignments, SOLO, SCHOOL, "british", 2, "math", MAYA);
+        solo.setName("2A British"); classes.save(solo);
         theirs = ClassFixtures.section(classes, assignments, THEIRS, SCHOOL, "american", 1, "english", RAMI);
         theirs.setName("1A American"); classes.save(theirs);
 
@@ -67,12 +75,25 @@ class CoordinatorReadsApiTest extends GradingTestSupport {
         coordinator = token(LINA, "COORDINATOR", SCHOOL);
 
         kidMine = child("Hana", CODE, mine);
+        kidSolo = child("Zaid", CODE, solo);
         kidTheirs = child("Yousef", CODE, theirs);
 
         lesson(LESSON, SCHOOL, mine, day);
         playTheSample(kidMine, LESSON);
-        examLesson(EXAM, mine);
-        examLesson(THEIR_EXAM, theirs);
+        examLesson(EXAM, mine, "math");
+        examLesson(THEIR_EXAM, theirs, "english");
+
+        // 1A British teaches english as well, and Rami teaches it: the section is Lina's, the subject is not. Every
+        // body that answers for a whole section has to narrow to her subject or it hands her Rami's numbers.
+        ClassFixtures.assign(assignments, mine, "english", RAMI);
+        var english = lesson(ENGLISH_LESSON, SCHOOL, mine, day);
+        english.setSubject("english"); lessons.save(english);
+        playTheSample(kidMine, ENGLISH_LESSON);
+        examLesson(ENGLISH_EXAM, mine, "english");
+
+        lesson(SOLO_LESSON, SCHOOL, solo, day);
+        playTheSample(kidSolo, SOLO_LESSON);
+        examLesson(SOLO_EXAM, solo, "math");
     }
 
     @AfterEach void clean() {
@@ -106,32 +127,74 @@ class CoordinatorReadsApiTest extends GradingTestSupport {
         assertThat(thisWeek.get(6).get("date").asText()).isEqualTo(LocalDate.now().toString());
     }
 
-    @Test void the_gradebook_the_results_and_the_child_page_are_the_teachers_own_bodies() throws Exception {
-        String window = "?from=" + day.minusDays(1) + "&to=" + day.plusDays(1);
-        assertSameBody("/teacher/classes/" + MINE + "/gradebook" + window, "/coordinator/classes/" + MINE + "/results" + window);
+    /**
+     * The two bodies that name one row carry no subject dimension at all, so parity holds even on the section that
+     * teaches two subjects.
+     */
+    @Test void a_lesson_and_an_exam_answer_the_teachers_own_bodies() throws Exception {
         assertSameBody("/teacher/lessons/" + LESSON + "/results", "/coordinator/lessons/" + LESSON + "/results");
-        assertSameBody("/teacher/children/" + kidMine, "/coordinator/children/" + kidMine);
+        assertSameBody("/teacher/exams/" + EXAM + "/results", "/coordinator/exams/" + EXAM + "/results");
+    }
+
+    /**
+     * The three that answer for a whole section are narrowed by subject, so parity is asserted on 2A British, which
+     * teaches maths and nothing else: there the narrowing is the identity and the bodies must be the same JSON.
+     */
+    @Test void on_a_single_subject_section_the_gradebook_exams_and_child_page_are_the_teachers_own() throws Exception {
+        String window = "?from=" + day.minusDays(1) + "&to=" + day.plusDays(1);
+        assertSameBody("/teacher/classes/" + SOLO + "/gradebook" + window, "/coordinator/classes/" + SOLO + "/results" + window);
+        assertSameBody("/teacher/classes/" + SOLO + "/exams", "/coordinator/classes/" + SOLO + "/exams");
+        assertSameBody("/teacher/children/" + kidSolo, "/coordinator/children/" + kidSolo);
 
         // Not an empty grid dressed up as parity: the hand-scored sample is in both of them.
-        var book = json(mvc.perform(as(get("/coordinator/classes/" + MINE + "/results" + window), coordinator)).andReturn());
+        var book = json(mvc.perform(as(get("/coordinator/classes/" + SOLO + "/results" + window), coordinator)).andReturn());
         assertThat(book.get("subject").asText()).isEqualTo("math");
         assertThat(book.get("needsMarking").asInt()).as("the sample's retell is still waiting for the teacher").isOne();
         assertThat(book.get("lessons")).anySatisfy(column -> {
-            assertThat(column.get("lessonId").asText()).isEqualTo(LESSON);
+            assertThat(column.get("lessonId").asText()).isEqualTo(SOLO_LESSON);
             assertThat(column.get("classAverage").asInt()).isEqualTo(50);
         });
-        assertThat(json(mvc.perform(as(get("/coordinator/children/" + kidMine), coordinator)).andReturn())
-                .get("classId").asText()).isEqualTo(MINE);
+        var rows = json(mvc.perform(as(get("/coordinator/classes/" + SOLO + "/exams"), coordinator)).andReturn());
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("examId").asText()).isEqualTo(SOLO_EXAM);
+        assertThat(rows.get(0).get("state").asText()).isEqualTo(ExamLevels.CLOSED);
+        assertThat(json(mvc.perform(as(get("/coordinator/children/" + kidSolo), coordinator)).andReturn())
+                .get("classId").asText()).isEqualTo(SOLO);
     }
 
-    @Test void the_exams_tab_and_the_exam_results_are_the_teachers_own_bodies() throws Exception {
-        assertSameBody("/teacher/classes/" + MINE + "/exams", "/coordinator/classes/" + MINE + "/exams");
-        assertSameBody("/teacher/exams/" + EXAM + "/results", "/coordinator/exams/" + EXAM + "/results");
+    /**
+     * 1A British teaches english too, and Lina coordinates maths. `requireSection` lets her into the section; the
+     * subject narrowing is what keeps Rami's english numbers out of her three section-wide bodies — and Maya's own
+     * bodies for the same section still carry both subjects, because nothing changed for a teacher.
+     */
+    @Test void the_other_subject_of_her_own_section_is_narrowed_out_and_the_teachers_body_is_not() throws Exception {
+        String window = "?from=" + day.minusDays(1) + "&to=" + day.plusDays(1);
 
-        var rows = json(mvc.perform(as(get("/coordinator/classes/" + MINE + "/exams"), coordinator)).andReturn());
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).get("examId").asText()).isEqualTo(EXAM);
-        assertThat(rows.get(0).get("state").asText()).isEqualTo(ExamLevels.CLOSED);
+        var hers = json(mvc.perform(as(get("/coordinator/classes/" + MINE + "/results" + window), coordinator))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(columns(hers)).containsExactlyInAnyOrder(LESSON, EXAM);
+        // `english` is the section's first teaching assignment in subject order, so a body labelled from the section
+        // rather than from her scope would call the maths coordinator's gradebook an english one.
+        assertThat(hers.get("subject").asText()).isEqualTo("math");
+        var teachers = json(mvc.perform(as(get("/teacher/classes/" + MINE + "/gradebook" + window), teacher))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(columns(teachers)).containsExactlyInAnyOrder(LESSON, EXAM, ENGLISH_LESSON, ENGLISH_EXAM);
+        assertThat(teachers.get("subject").asText()).isEqualTo("math");
+
+        assertThat(ids(json(mvc.perform(as(get("/coordinator/classes/" + MINE + "/exams"), coordinator))
+                .andExpect(status().isOk()).andReturn()), "examId")).containsExactly(EXAM);
+        assertThat(ids(json(mvc.perform(as(get("/teacher/classes/" + MINE + "/exams"), teacher)).andReturn()), "examId"))
+                .containsExactlyInAnyOrder(EXAM, ENGLISH_EXAM);
+        // The tab lists exactly what she may open: the english exam is absent above and a 403 here.
+        mvc.perform(as(get("/coordinator/exams/" + ENGLISH_EXAM + "/results"), coordinator)).andExpect(status().isForbidden());
+        mvc.perform(as(get("/coordinator/lessons/" + ENGLISH_LESSON + "/results"), coordinator)).andExpect(status().isForbidden());
+
+        var herChild = json(mvc.perform(as(get("/coordinator/children/" + kidMine), coordinator))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(subjects(herChild, "levels")).containsExactly("math");
+        assertThat(subjects(herChild, "trend")).containsOnly("math");
+        assertThat(subjects(json(mvc.perform(as(get("/teacher/children/" + kidMine), teacher)).andReturn()), "levels"))
+                .containsExactlyInAnyOrder("math", "english");
     }
 
     // ---------------------------------------------------------------- what she may not read
@@ -183,6 +246,16 @@ class CoordinatorReadsApiTest extends GradingTestSupport {
 
     // ---------------------------------------------------------------- fixture helpers
 
+    private java.util.List<String> columns(JsonNode gradebook) { return ids(gradebook.get("lessons"), "lessonId"); }
+
+    private java.util.List<String> ids(JsonNode rows, String field) {
+        var out = new java.util.ArrayList<String>();
+        rows.forEach(row -> out.add(row.get(field).asText()));
+        return out;
+    }
+
+    private java.util.List<String> subjects(JsonNode body, String field) { return ids(body.get(field), "subject"); }
+
     /** The two routes answer the same JSON — the whole body, not a field of it. */
     private void assertSameBody(String teacherPath, String coordinatorPath) throws Exception {
         JsonNode hers = json(mvc.perform(as(get(teacherPath), teacher)).andExpect(status().isOk()).andReturn());
@@ -210,9 +283,9 @@ class CoordinatorReadsApiTest extends GradingTestSupport {
     }
 
     /** A closed exam on a section: the hand-scored lesson, typed `exam`, with its `exam_settings` row beside it. */
-    private void examLesson(String id, ClassEntity section) {
+    private void examLesson(String id, ClassEntity section, String subject) {
         var l = lesson(id, SCHOOL, section, day);
-        l.setType("exam"); l.setSubject(section.getSubject()); lessons.save(l);
+        l.setType("exam"); l.setSubject(subject); lessons.save(l);
         var now = Instant.now();
         var row = examSettings.findById(id).orElseGet(quest.server.exams.Entities.ExamSettingsEntity::new);
         row.setLessonId(id); row.setSchoolId(SCHOOL); row.setLevel(ExamLevels.ONE);

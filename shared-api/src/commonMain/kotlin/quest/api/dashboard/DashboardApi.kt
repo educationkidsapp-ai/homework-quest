@@ -702,16 +702,30 @@ interface DashboardApi {
     // per-day body per day of the window — the teacher's, day for day — the week ending today when both bounds are
     // absent, and is capped at 62 days like the calendar.
 
-    /** `GET /coordinator/classes/{id}/results?from&to` — §7's gradebook grid for a section in scope ([gradebook]). */
+    /**
+     * `GET /coordinator/classes/{id}/results?from&to` — §7's gradebook grid for a section in scope ([gradebook]).
+     *
+     * Narrowed to the subjects she coordinates in that section: a section that teaches maths and english answers the
+     * maths coordinator the maths columns only, and [Gradebook.subject] is her subject rather than the section's.
+     * Every number in it is still §7's own arithmetic over those columns, so a per-child average is the mean of the
+     * cells on screen.
+     */
     suspend fun coordinatorClassResults(classId: String, from: String? = null, to: String? = null): Gradebook
 
     /** `GET /coordinator/lessons/{id}/results` — §7's per-lesson results, for a lesson of her own subject. */
     suspend fun coordinatorLessonResults(lessonId: String): LessonResults
 
-    /** `GET /coordinator/children/{id}` — §7's child page for a child placed in a section she supervises. */
+    /**
+     * `GET /coordinator/children/{id}` — §7's child page for a child placed in a section she supervises, narrowed the
+     * same way: a [ChildLevel] and a trend line only for the subjects she coordinates in that child's section.
+     */
     suspend fun coordinatorChild(childId: String): ChildReport
 
-    /** `GET /coordinator/classes/{id}/exams` — §8's Exams tab: a row per exam with its state and three counts. */
+    /**
+     * `GET /coordinator/classes/{id}/exams` — §8's Exams tab: a row per exam with its state and three counts.
+     *
+     * Narrowed to her subjects, so the tab lists exactly the exams [coordinatorExamResults] will open for her.
+     */
     suspend fun coordinatorClassExams(classId: String): List<ExamRow>
 
     /**

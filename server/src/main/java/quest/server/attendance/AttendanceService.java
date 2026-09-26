@@ -3,6 +3,7 @@ package quest.server.attendance;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -61,13 +62,19 @@ public class AttendanceService {
      *
      * <p>Two statements whatever the window: the roster once, and the window's rows once. Calling
      * {@link #getClassAttendance} per day would be two per day, which is a hundred and twenty for a month.
+     *
+     * @param section a section the caller has <strong>already</strong> been scoped to — this method runs no check of
+     *                its own, so passing a section straight off a request parameter would answer for any class of the
+     *                school. Resolve it with `CoordinatorScope.requireSection` or {@link TeacherScope#requireClass}.
+     * @param from    the first day of the window, inclusive
+     * @param to      the last day, inclusive; the caller bounds the window (`/coordinator` caps it at 62 days)
      */
     @Transactional(readOnly = true)
     public List<AttendanceDto.ClassAttendanceResponse> classAttendanceWindow(ClassEntity section, LocalDate from, LocalDate to) {
         var roster = children.findByClassIdAndActiveTrueAndDeletedAtIsNullOrderByNameAsc(section.getId());
-        var byDate = new java.util.HashMap<LocalDate, Map<String, AttendanceEntity>>();
+        var byDate = new HashMap<LocalDate, Map<String, AttendanceEntity>>();
         for (AttendanceEntity row : attendance.findBySectionIdAndDateBetweenOrderByDateAsc(section.getId(), from, to))
-            byDate.computeIfAbsent(row.getDate(), d -> new java.util.HashMap<>()).putIfAbsent(row.getChildId(), row);
+            byDate.computeIfAbsent(row.getDate(), d -> new HashMap<String, AttendanceEntity>()).putIfAbsent(row.getChildId(), row);
         var days = new ArrayList<AttendanceDto.ClassAttendanceResponse>();
         for (LocalDate day = from; !day.isAfter(to); day = day.plusDays(1))
             days.add(dayOf(section, day, roster, byDate.getOrDefault(day, Map.of())));

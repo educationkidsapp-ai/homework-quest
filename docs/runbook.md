@@ -234,6 +234,18 @@ carry `gradebook` and `exams` on the handler — the same keys the teacher's `Gr
 carry, so a school with a feature off answers 404 to both roles — and the register carries none, because
 `AttendanceController` carries none and `FlagKeys` has no key for taking a register.
 
+**Scoped twice: a section is not a subject.** `requireSection` only proves that *somebody* teaches one of her subjects
+in a section, so in a section that teaches two the teacher's own body carries both — every published lesson of it, an
+exam of each, a `ChildLevel` per subject. The three reads that answer for a whole section (`classes/{id}/results`,
+`classes/{id}/exams`, `children/{id}`) therefore narrow again through `CoordinatorScope.subjectsIn`, which reduces the
+section's teaching assignments by the same rule `requireLesson` applies to one lesson, and pass the result to the
+delegate as a `CoordinatorScope.Subjects`. So the maths coordinator of a maths-and-english section sees no english
+column, no english exam in the tab (the tab lists exactly the exams she may open) and no english level on a child
+page; the label on her gradebook comes from her scope rather than from `TeacherScope.subjectOf`'s "the section's first
+assignment" guess, which could otherwise name a subject she does not coordinate. Every other caller passes
+`Subjects.ALL`, so a teacher's, a manager's and the platform ADMIN's bodies are byte for byte what they were.
+The register is not narrowed — a register is per child per day and has no subject.
+
 ### The matrix
 
 Generated from `permissions.json` on `develop` (`152f2c8`), before `COORDINATOR` existed — the three keys above are
