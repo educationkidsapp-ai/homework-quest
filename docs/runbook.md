@@ -1285,9 +1285,13 @@ it supersedes already carries — so a school with it off answers 404 to compose
 | `POST /coordinator/broadcasts` | `coordinator.broadcast` | `announcement` or `event` for the parents of the classes she coordinates; `weekly_plan` is 400 (the plan is the department's). |
 | `GET /coordinator/broadcasts` | `coordinator.broadcast` | Hers, newest first. |
 | `GET /me/broadcasts` | `broadcast.read` | `BroadcastFeed` — what this teacher, coordinator or manager is an audience of, with her own `unread`. |
-| `POST /me/broadcasts/{id}/read` | `broadcast.read` | Marks one row read; 404 for a row she is not an audience of. |
+| `POST /me/broadcasts/{id}/read` | `broadcast.write` | Marks one row read; 404 for a row she is not an audience of. |
 | `GET /children/{id}/broadcasts` | `child.broadcast.read` | The app's feed for that child, with the child's `unread`. |
-| `POST /children/{id}/broadcasts/{broadcastId}/read` | `child.broadcast.read` | The parent's read mark. |
+| `POST /children/{id}/broadcasts/{broadcastId}/read` | `child.broadcast.write` | The parent's read mark. |
+
+Each feed has **two keys**, as the bell does: the GET is `broadcast.read` / `child.broadcast.read` and the read mark
+`broadcast.write` / `child.broadcast.write`, so a read-only "View as" session still sees the feed instead of losing it
+to a single key that counted as a write.
 
 **Who receives one.** The audience is resolved from `staff_scopes` and never from the request: a manager's row names her
 department (`curriculum`) or the sections she named (each checked through `ManagerScope.requireSection` — the other

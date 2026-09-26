@@ -83,8 +83,13 @@ public class BroadcastController {
         return broadcasts.forStaff(quest.server.tenancy.TeacherScope.require(caller));
     }
 
+    /**
+     * The read mark is its own key, for `NotificationController`'s reason: the dashboard derives "what a read-only
+     * View-as session must hide" from the methods behind a key, so one key over the feed and its mark would take the
+     * whole feed off the screen during View-as.
+     */
     @PostMapping(value = "/me/broadcasts/{id}/read", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@permit.has('broadcast.read')")
+    @PreAuthorize("@permit.has('broadcast.write')")
     public BroadcastDto.View markMyBroadcastRead(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
         return broadcasts.staffRead(quest.server.tenancy.TeacherScope.require(caller), id);
     }
@@ -103,7 +108,7 @@ public class BroadcastController {
     }
 
     @PostMapping(value = "/children/{id}/broadcasts/{broadcastId}/read", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@permit.has('child.broadcast.read')")
+    @PreAuthorize("@permit.has('child.broadcast.write')")
     public BroadcastDto.View markChildBroadcastRead(@AuthenticationPrincipal Principals.Parent parent,
                                                     @PathVariable String id, @PathVariable String broadcastId) {
         return broadcasts.parentRead(parent, id, broadcastId);
