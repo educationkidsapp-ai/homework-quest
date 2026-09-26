@@ -12,6 +12,7 @@ import {
   type PublishedCopy,
   type Stop,
   AdminLessonsApi,
+  CoordinatorApi,
   TeacherLessonsApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
@@ -31,6 +32,8 @@ export interface LessonListFilters {
   readonly to?: string;
   readonly classId?: string;
   readonly schoolId?: string;
+  /** R5: `GET /coordinator/lessons` narrows by status; the other two lists do not. */
+  readonly status?: string;
 }
 
 /**
@@ -63,20 +66,42 @@ export interface LessonListFilters {
 export class LessonApiService {
   private readonly admin = inject(AdminLessonsApi);
   private readonly teacher = inject(TeacherLessonsApi);
+  private readonly coordinator = inject(CoordinatorApi);
   private readonly auth = inject(AuthService);
 
   /**
    * MANAGERIAL reads lessons through the Admin routes too: `/teacher/**` is scoped to the
    * caller's own assignments, and a manager has none — every one of her reads would 404.
+   *
+   * Written as two exclusions rather than as a list of the roles that *are* admin-side, so the
+   * answer before `/me` has landed stays what it has always been — the Admin routes — and a fifth
+   * dashboard role added later does not silently start reading `/teacher/**`.
    */
-  readonly isAdmin = computed(() => this.auth.role() !== 'TEACHER');
+  readonly isAdmin = computed(() => {
+    const role = this.auth.role();
+    return role !== 'TEACHER' && role !== 'COORDINATOR';
+  });
+
+  /**
+   * R5: a coordinator reads the same two shapes through her own namespace.
+   *
+   * She has exactly two lesson routes — `GET /coordinator/lessons` and
+   * `GET /coordinator/lessons/{id}` — and neither an Admin's nor a teacher's alias would answer
+   * for her: `/admin/**` refuses her role outright and `/teacher/**` is scoped to the caller's
+   * own assignments, which she has none of. Every other method here stays unreachable, and it
+   * stays unreachable by *permission* rather than by an `if`: she holds no `lesson.write`,
+   * `lesson.publish`, `play.write` or `stop.write`, so the controls that would call them are
+   * never rendered (`lesson.page.html`, `*hqCan`).
+   */
+  readonly isCoordinator = computed(() => this.auth.role() === 'COORDINATOR');
   /** `DELETE /admin/lessons/failed` has no teacher alias — it is a tenant-wide sweep. */
   readonly supportsDeleteFailed = computed(() => this.isAdmin());
 
   // ---- the list and the create --------------------------------------------------------------
 
   list(filters: LessonListFilters): Observable<readonly AdminLesson[]> {
-    const { curriculum, grade, subject, from, to, classId, schoolId } = filters;
+    const { curriculum, grade, subject, from, to, classId, schoolId, status } = filters;
+    if (this.isCoordinator()) return this.coordinator.coordinatorLessons(classId, status, from, to);
     return this.isAdmin()
       ? this.admin.listLessons(curriculum, grade, subject, from, to, schoolId, classId)
       : this.teacher.listTeacherLessons(curriculum, grade, subject, from, to, classId);
@@ -126,6 +151,7 @@ export class LessonApiService {
   // ---- the lesson ---------------------------------------------------------------------------
 
   getLesson(id: string): Observable<AdminLesson> {
+    if (this.isCoordinator()) return this.coordinator.coordinatorLesson(id);
     return this.isAdmin() ? this.admin.getLesson(id) : this.teacher.teacherLesson(id);
   }
 

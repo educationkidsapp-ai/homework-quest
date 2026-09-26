@@ -1139,7 +1139,8 @@
     "label": {
       "ADMIN": "Admin",
       "TEACHER": "Teacher",
-      "MANAGERIAL": "Management"
+      "MANAGERIAL": "Management",
+      "COORDINATOR": "Coordinator"
     },
     "home": "Home",
     "schools": "Schools",
@@ -1388,7 +1389,8 @@
   "role": {
     "ADMIN": "Admin",
     "TEACHER": "Teacher",
-    "MANAGERIAL": "Management"
+    "MANAGERIAL": "Management",
+    "COORDINATOR": "Coordinator"
   },
   "shell": {
     "darkMode": "Dark mode",
@@ -1709,6 +1711,16 @@
         "title": "The three numbers",
         "body": "Children, families active this week, and teachers."
       }
+    },
+    "coordinator": {
+      "nav": {
+        "title": "Your screens",
+        "body": "Home, your teachers, your classes and their lessons. You read them all; the teacher is the one who changes them."
+      },
+      "cards": {
+        "title": "Your scope",
+        "body": "How many classes, teachers and children carry your subject."
+      }
     }
   },
   "ui": {
@@ -1818,6 +1830,51 @@
       "title": "Preview as child",
       "comingIn": "The web player arrives in N3. Until then, the lesson is ready and children will see it on its day.",
       "back": "Back to the lesson"
+    }
+  },
+  "coordinator": {
+    "scope": {
+      "bothTracks": "both tracks"
+    },
+    "count": {
+      "sections": "Classes in scope",
+      "teachers": "Teachers",
+      "children": "Children"
+    },
+    "need": {
+      "needs_review": "Needs review",
+      "error": "Failed",
+      "no_lesson": "Nothing on today"
+    },
+    "teachers": {
+      "subtitle": "The teachers of your subject, and whether today has happened in their classes.",
+      "search": "Search by name, email or class",
+      "empty": "No teachers teach your subject yet.",
+      "today": "{{done}} of {{total}} today",
+      "columns": {
+        "name": "Teacher",
+        "email": "Email",
+        "subjects": "Subjects",
+        "sections": "Classes",
+        "today": "Today"
+      }
+    },
+    "classes": {
+      "sections": "Classes in your scope",
+      "empty": "No classes carry your subject yet.",
+      "children": "{{count}} children",
+      "grade": "Grade {{grade}}",
+      "filter": "Calendar for"
+    },
+    "lessons": {
+      "subtitle": "Every lesson of every class in your scope. You can read them; only the teacher changes them.",
+      "byClass": "Class",
+      "byStatus": "Status",
+      "allClasses": "All classes",
+      "allStatuses": "Any status",
+      "from": "From",
+      "to": "To",
+      "empty": "No lessons match these filters."
     }
   }
 }

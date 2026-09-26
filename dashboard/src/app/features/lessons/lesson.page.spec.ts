@@ -58,7 +58,10 @@ function routeFor(id: string, query: Record<string, string> = {}): Partial<Activ
     snapshot: {
       paramMap: convertToParamMap({ id }),
       queryParamMap: convertToParamMap(query),
-    } as ActivatedRoute['snapshot'],
+      // R5: `data.readOnly` is what the coordinator's row sets (`core/nav/screens.ts`). Present and
+      // false here, the way `areaRoutes` always sets it, so these tests describe a writable page.
+      data: { readOnly: false },
+    } as unknown as ActivatedRoute['snapshot'],
   };
 }
 

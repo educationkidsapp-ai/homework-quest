@@ -29,17 +29,21 @@ export function areaRoutes(role: Role): Routes {
       children: area.screens
         .filter((screen) => !screen.fullLink)
         .map((screen) =>
-        // A redirect row (N2.2's `/teacher` → `/teacher/week`) carries no guards: Angular
-        // resolves `redirectTo` before it runs them, and the row it points at is guarded anyway.
-        screen.redirectTo === undefined
-          ? {
-              path: screen.path,
-              canActivate: gatesOf(screen),
-              canDeactivate: exitGatesOf(screen),
-              loadComponent: () => componentFor(screen, role),
-            }
-          : { path: screen.path, pathMatch: 'full' as const, redirectTo: screen.redirectTo },
-      ),
+          // A redirect row (N2.2's `/teacher` → `/teacher/week`) carries no guards: Angular
+          // resolves `redirectTo` before it runs them, and the row it points at is guarded anyway.
+          screen.redirectTo === undefined
+            ? {
+                path: screen.path,
+                canActivate: gatesOf(screen),
+                canDeactivate: exitGatesOf(screen),
+                // R5: `data.readOnly` is how the row's read-only flag reaches the component. The
+                // key is always present so a page reading it never has to tell "false" from
+                // "this route forgot to say".
+                data: { readOnly: screen.readOnly === true },
+                loadComponent: () => componentFor(screen, role),
+              }
+            : { path: screen.path, pathMatch: 'full' as const, redirectTo: screen.redirectTo },
+        ),
     },
   ];
 }
@@ -55,6 +59,9 @@ export function areaRoutes(role: Role): Routes {
  * and the teacher's My classes (N2.3). Both are keyed by role as well as by id.
  */
 function componentFor(screen: Screen, role: Role) {
+  // R5: the coordinator's four screens are her own — `GET /home`, `/teacher/**` and `/admin/**`
+  // all answer 403 for her — except the lesson, which is the teacher's page in read-only mode.
+  if (role === 'COORDINATOR' && screen.id !== 'lesson') return coordinatorComponentFor(screen);
   if (screen.path === '') return import('../../features/home/home.page').then((m) => m.HomePage);
   if (screen.id === 'week') return import('../../features/week/week.page').then((m) => m.WeekPage);
   if (screen.id === 'lessons')
@@ -85,6 +92,23 @@ function componentFor(screen: Screen, role: Role) {
   }
   if (screen.id === 'chat') return import('../../features/chat/chat.page').then((m) => m.ChatPage);
   return import('../../features/stub/stub.page').then((m) => m.StubPage);
+}
+
+/** R5's area, one lazy chunk per screen so her Home never carries the calendar or the filters. */
+function coordinatorComponentFor(screen: Screen) {
+  if (screen.id === 'teachers')
+    return import('../../features/coordinator/coordinator-teachers.page').then(
+      (m) => m.CoordinatorTeachersPage,
+    );
+  if (screen.id === 'classes')
+    return import('../../features/coordinator/coordinator-classes.page').then(
+      (m) => m.CoordinatorClassesPage,
+    );
+  if (screen.id === 'lessons')
+    return import('../../features/coordinator/coordinator-lessons.page').then(
+      (m) => m.CoordinatorLessonsPage,
+    );
+  return import('../../features/coordinator/coordinator-home.page').then((m) => m.CoordinatorHomePage);
 }
 
 /**

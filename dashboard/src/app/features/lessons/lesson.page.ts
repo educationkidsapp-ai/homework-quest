@@ -204,7 +204,26 @@ export class LessonPage {
   private readonly stopButtons = viewChildren<ElementRef<HTMLButtonElement>>('stopBtn');
 
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
-  protected readonly basePath = computed(() => (this.isAdmin() ? '/admin/lessons' : '/teacher/lessons'));
+
+  /**
+   * R5: this page, read and nothing else.
+   *
+   * `data.readOnly` comes off the row in `core/nav/screens.ts` — `/coordinator/lessons/:id` is
+   * the only one that sets it — so the flag is a property of the *route* rather than something
+   * this component infers from a role it would then have to keep in step with.
+   *
+   * Most of the write surface needs nothing from it: a coordinator holds none of `lesson.write`,
+   * `lesson.publish`, `lesson.delete`, `play.write` or `stop.write`, so `*hqCan` already renders
+   * none of those controls. This covers what is *not* behind a permission because for a teacher
+   * it never needed to be — the exam settings card, the skills confirmation, drag-and-drop, the
+   * stop editor and the parent-panel editor. Hidden rather than disabled: a disabled Save is
+   * still a promise that somewhere there is a way to press it.
+   */
+  protected readonly readOnly = this.route.snapshot.data['readOnly'] === true;
+
+  protected readonly basePath = computed(() =>
+    this.readOnly ? '/coordinator/lessons' : this.isAdmin() ? '/admin/lessons' : '/teacher/lessons',
+  );
   protected readonly lessonId = this.route.snapshot.paramMap.get('id') ?? '';
 
   // N4.2: the way in to §4 step 9. Only from a teacher's copy of this screen and only once the
@@ -277,7 +296,10 @@ export class LessonPage {
   protected readonly breadcrumbs = computed(() => {
     this.lang();
     return [
-      { label: this.t(this.isAdmin() ? 'nav.allLessons' : 'nav.myLessons'), link: this.basePath() },
+      {
+        label: this.t(this.isAdmin() || this.readOnly ? 'nav.allLessons' : 'nav.myLessons'),
+        link: this.basePath(),
+      },
       { label: this.pageTitle() },
     ];
   });
@@ -321,6 +343,9 @@ export class LessonPage {
 
   /** Preview as child opens the web player; N3 builds it, the route is a placeholder until then. */
   protected readonly canPreview = computed(() => {
+    // R5: the player reads the lesson through the teacher's own routes, which answer 404 for a
+    // coordinator — so the link is not offered rather than offered and broken.
+    if (this.readOnly) return false;
     const status = this.lesson()?.status;
     return status === AdminLessonStatusEnum.REVIEW || status === AdminLessonStatusEnum.PUBLISHED;
   });
@@ -832,7 +857,10 @@ export class LessonPage {
     const inner = toInnerStop(stop);
     this.updatePlays((play) =>
       play.play.stops.some((current) => current.id === stop.id)
-        ? { ...play, play: { ...play.play, stops: play.play.stops.map((c) => (c.id === stop.id ? inner : c)) } }
+        ? {
+            ...play,
+            play: { ...play.play, stops: play.play.stops.map((c) => (c.id === stop.id ? inner : c)) },
+          }
         : play,
     );
   }

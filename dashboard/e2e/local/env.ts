@@ -163,6 +163,20 @@ export const OMAR: Account = {
   },
 };
 
+/**
+ * R5: the full seed's Math coordinator (`seed/coordinators.csv`, Rasha Kamal).
+ *
+ * Her scope row names no curriculum, so she supervises Math on **both** tracks (DR1) — which is
+ * why `coordinator-area.spec.ts` asserts "both tracks" rather than a track name. The acceptance
+ * seed has a different pair (`coord.math@test.com`, British only) and no spec here runs on it.
+ */
+export const COORDINATOR: Account = {
+  email: 'coordinator.math@school.test',
+  get password() {
+    return env('E2E_STAFF_PASSWORD');
+  },
+};
+
 export const ADMIN: Account = {
   email: process.env['E2E_ADMIN_EMAIL'] ?? 'admin@quest.local',
   get password() {

@@ -37,7 +37,8 @@ import type { CalendarCell } from './classes.models';
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+  template:
+    `
     <div class="cal">
       <div class="cal__nav">
         <button
@@ -92,7 +93,7 @@ import type { CalendarCell } from './classes.models';
                     <span class="cal__day">{{ cell.day }}</span>
 
                     @if (cell.lessonId; as lessonId) {
-                      <a class="cal__lesson" [routerLink]="['/teacher/lessons', lessonId]">
+                      <a class="cal__lesson" [routerLink]="[lessonBase(), lessonId]">
                         <hq-status-square [status]="cell.status" />
                         <span class="cal__lesson-text">
                           <!-- N4.4: the exam ribbon This week already wears (§4 step 10), on the
@@ -122,6 +123,18 @@ import type { CalendarCell } from './classes.models';
                         <span class="cal__results">
                           {{ 'classes.calendar.played' | transloco: { count: cell.playedCount } }}
                         </span>
+                      }
+                    } @else if (readOnly()) {
+                      <!--
+                        R5: a coordinator's month. She plans nothing and removes nothing (DR2), so
+                        an empty day carries no ` +
+    ` and no "this day has passed" explanation of a
+                        ` +
+    ` she was never offered — only the gaps, which are the whole reason she
+                        is looking.
+                      -->
+                      @if (cell.gap) {
+                        <span class="cal__gap-label">{{ 'classes.calendar.gap' | transloco }}</span>
                       }
                     } @else if (cell.schoolDay && !isPast(cell.iso)) {
                       <a
@@ -374,6 +387,14 @@ export class ClassCalendarComponent {
   protected readonly examsFlag = FLAGS.exams;
 
   readonly classId = input.required<string>();
+  /**
+   * R5: the area this month's lessons open in — `/teacher/lessons` for the teacher who owns them,
+   * `/coordinator/lessons` for the coordinator who may only read them. An input rather than a
+   * role lookup inside the grid, because the grid is dumb and this is the page's decision.
+   */
+  readonly lessonBase = input('/teacher/lessons');
+  /** No `+`, no past-day marker, nothing to press: the month as a report (DR2). */
+  readonly readOnly = input(false);
   readonly curriculum = input('');
   readonly grade = input(0);
   readonly subject = input('');
@@ -424,7 +445,9 @@ export class ClassCalendarComponent {
     const rows: (readonly CalendarCell[])[] = [];
     for (let index = 0; index < all.length; index += 7) {
       const week = all.slice(index, index + 7);
-      const row = shown.map((column) => week[column]).filter((cell): cell is CalendarCell => cell !== undefined);
+      const row = shown
+        .map((column) => week[column])
+        .filter((cell): cell is CalendarCell => cell !== undefined);
       if (row.length > 0) rows.push(row);
     }
     return rows;
