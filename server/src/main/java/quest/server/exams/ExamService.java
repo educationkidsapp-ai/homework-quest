@@ -374,10 +374,21 @@ public class ExamService {
      * whole tab, and `ExamListQueryCountTest` pins that against the shape growing back.
      */
     public List<ExamDto.ExamRow> ofClass(Principals.User caller, String classId) {
+        return ofClass(caller, classId, quest.server.tenancy.CoordinatorScope.Subjects.ALL);
+    }
+
+    /**
+     * The same tab, narrowed to some of the section's subjects (R3). `/coordinator/exams/{id}/results` refuses an exam
+     * of a subject a coordinator does not coordinate, so her tab must not list it either — a list and a detail route
+     * that disagree is a row she can see the counts of and not open. Every other caller passes
+     * {@link quest.server.tenancy.CoordinatorScope.Subjects#ALL}.
+     */
+    public List<ExamDto.ExamRow> ofClass(Principals.User caller, String classId,
+                                         quest.server.tenancy.CoordinatorScope.Subjects subjects) {
         var section = scope.requireClass(caller, classId);
         var mine = lessons.findByClassIdInAndDateBetweenOrderByDateAsc(List.of(section.getId()),
                 LocalDate.now(clock).minusYears(1), LocalDate.now(clock).plusYears(1)).stream()
-                .filter(ExamPlays::isExam).toList();
+                .filter(ExamPlays::isExam).filter(l -> subjects.covers(l.getSubject())).toList();
         if (mine.isEmpty()) return List.of();
         var byLesson = new LinkedHashMap<String, Entities.ExamSettingsEntity>();
         for (var e : settings.findByLessonIdIn(mine.stream().map(LessonEntity::getId).toList())) byLesson.put(e.getLessonId(), e);

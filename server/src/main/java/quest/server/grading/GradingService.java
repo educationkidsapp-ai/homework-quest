@@ -29,6 +29,7 @@ import quest.server.content.LessonRepository;
 import quest.server.content.LessonStore;
 import quest.server.content.PlayRepository;
 import quest.server.tenancy.Entities.ClassEntity;
+import quest.server.tenancy.CoordinatorScope;
 import quest.server.tenancy.TeacherScope;
 
 /**
@@ -194,13 +195,27 @@ public class GradingService {
     // ---------------------------------------------------------------- the gradebook (§7)
 
     public GradingDto.Gradebook gradebook(Principals.User caller, String classId, String from, String to) {
+        return gradebook(caller, classId, from, to, CoordinatorScope.Subjects.ALL);
+    }
+
+    /**
+     * The same grid, narrowed to some of the section's subjects (R3). A coordinator reads one subject of a section
+     * that may teach three, so `/coordinator/classes/{id}/results` passes the subjects her scope covers and every
+     * other caller passes {@link CoordinatorScope.Subjects#ALL}, which is this method as it was.
+     *
+     * <p>The narrowing is applied to the window's lessons, before anything is scored: the columns, the cells, the
+     * per-lesson averages, each child's average, band and trend and the `needsMarking` total are then all §7's own
+     * arithmetic over the lessons she may read, rather than the teacher's numbers with rows crossed out afterwards.
+     */
+    public GradingDto.Gradebook gradebook(Principals.User caller, String classId, String from, String to,
+                                          CoordinatorScope.Subjects subjects) {
         var section = scope.requireClass(caller, classId);
         LocalDate end = parse(to, LocalDate.now()), start = parse(from, end.minusDays(DEFAULT_WINDOW_DAYS));
         if (end.isBefore(start)) throw ApiException.badRequest("to must not be before from");
         if (start.plusDays(MAX_WINDOW_DAYS).isBefore(end)) throw ApiException.badRequest("the window must be at most " + MAX_WINDOW_DAYS + " days");
 
         var published = lessons.findByClassIdAndDateBetweenOrderByDateAsc(section.getId(), start, end).stream()
-                .filter(l -> "published".equals(l.getStatus())).toList();
+                .filter(l -> "published".equals(l.getStatus())).filter(l -> subjects.covers(l.getSubject())).toList();
         var lessonIds = published.stream().map(LessonEntity::getId).toList();
         var roster = children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(section.getId());
         var childIds = roster.stream().map(ChildEntity::getId).toList();
@@ -261,13 +276,24 @@ public class GradingService {
                     all.isEmpty() ? null : (int) Math.round(all.stream().mapToInt(Integer::intValue).average().orElse(0)),
                     perLessonMarking.getOrDefault(l.getId(), 0));
         }).toList();
-        return new GradingDto.Gradebook(section.getId(), section.getName(), scope.subjectOf(caller, section),
+        return new GradingDto.Gradebook(section.getId(), section.getName(),
+                subjects.label() == null ? scope.subjectOf(caller, section) : subjects.label(),
                 start.toString(), end.toString(), columns, List.copyOf(rows), needsMarking);
     }
 
     // ---------------------------------------------------------------- the child page (§7)
 
     public GradingDto.ChildReport child(Principals.User caller, String childId) {
+        return child(caller, childId, CoordinatorScope.Subjects.ALL);
+    }
+
+    /**
+     * The same page, narrowed to some of her section's subjects (R3). The filter lands on the section's published
+     * lessons, which is what the levels, the trend chart, the skill bands and the comment list are all derived from,
+     * so a coordinator's copy of the page is §7's own page for her subject rather than the teacher's page with the
+     * other subjects hidden. Every other caller passes {@link CoordinatorScope.Subjects#ALL}.
+     */
+    public GradingDto.ChildReport child(Principals.User caller, String childId, CoordinatorScope.Subjects subjects) {
         var child = childService.scoped(childId);
         requireTeaches(caller, child);
         var section = child.getClassId() == null ? null : classes.findById(child.getClassId()).orElse(null);
@@ -276,8 +302,9 @@ public class GradingService {
         // which is below `Bands.TREND_POINTS` and answers "no trend" for a child who plainly has one. The read is
         // still bounded — the last ten of any one subject cannot lie outside the last `ten × subjects` lessons of
         // the section — and the cap that matters is applied to each subject's own list below.
-        var all = child.getClassId() == null ? List.<LessonEntity>of()
-                : lessons.findByClassIdInAndStatusOrderByDateAsc(List.of(child.getClassId()), "published");
+        var all = (child.getClassId() == null ? List.<LessonEntity>of()
+                : lessons.findByClassIdInAndStatusOrderByDateAsc(List.of(child.getClassId()), "published")).stream()
+                .filter(l -> subjects.covers(l.getSubject())).toList();
         var published = cap(all, TREND_LESSONS * Math.max(1, subjectsOf(all)));
         var scores = scoresOf(child, published);
 
@@ -309,7 +336,12 @@ public class GradingService {
 
         var titles = published.stream().collect(LinkedHashMap<String, String>::new,
                 (m, l) -> m.put(l.getId(), l.getTitle()), Map::putAll);
+        // Narrowed the same way, and by the whole subject rather than by the capped window: a teacher's comment on a
+        // lesson older than the window still shows with a null title, as it always has, but a comment on a subject a
+        // coordinator does not coordinate is not hers to read at all.
+        var readable = all.stream().map(LessonEntity::getId).collect(java.util.stream.Collectors.toSet());
         var comments = marks.findByChildIdOrderByMarkedAtDesc(child.getId()).stream()
+                .filter(m -> subjects.all() || readable.contains(m.getLessonId()))
                 .filter(m -> m.getComment() != null && !m.getComment().isBlank())
                 .map(m -> new GradingDto.ChildComment(m.getLessonId(), titles.get(m.getLessonId()),
                         m.isLessonLevel() ? null : m.getStopId(), m.getStars(), m.getComment(), m.getMarkedAt().toEpochMilli()))

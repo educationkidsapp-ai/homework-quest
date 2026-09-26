@@ -687,6 +687,61 @@ interface DashboardApi {
     /** `GET /coordinator/lessons/{id}` — the same lesson view the teacher gets, and no route that writes it. */
     suspend fun coordinatorLesson(lessonId: String): quest.api.AdminLesson
 
+    /**
+     * `GET /coordinator/lessons/{id}/status` — E1's poll ([AdminApi.lessonStatus]'s answer) for a lesson in her scope,
+     * so her read-only lesson page ticks against her own area: `SecurityConfig` refuses a COORDINATOR every route
+     * under `/teacher`.
+     * `coordinator.lesson.read`, and no feature flag — the subject of the route is the lesson itself.
+     */
+    suspend fun coordinatorLessonStatus(lessonId: String): quest.api.LessonStatusView
+
+    // ---- R3: the teacher's numbers, read through her scope (DR2)
+    //
+    // Every return type below is the teacher's own: the server delegates to the grading and exam services rather
+    // than scoring a second time, so a coordinator screen can reuse the teacher component that already draws it and
+    // R6's "the numbers equal the teacher's for the same class" holds by construction. The keys are her own family —
+    // `coordinator.results.read` and `coordinator.exams.read`, granted to COORDINATOR and the platform ADMIN — and
+    // the routes stay behind the features' own flags, `gradebook` (§7) and `exams` (§8), so a school with a feature
+    // off gets 404 here exactly as the teacher does.
+    //
+    // `GET /coordinator/classes/{id}/attendance?from&to` is deliberately absent, as `GET
+    // /teacher/classes/{id}/attendance` is: the class register has never been in this interface, its body is a
+    // server record, and the dashboard reads both of them through the generated OpenAPI client. It answers one
+    // per-day body per day of the window — the teacher's, day for day — the week ending today when both bounds are
+    // absent, and is capped at 62 days like the calendar.
+
+    /**
+     * `GET /coordinator/classes/{id}/results?from&to` — §7's gradebook grid for a section in scope ([gradebook]).
+     *
+     * Narrowed to the subjects she coordinates in that section: a section that teaches maths and english answers the
+     * maths coordinator the maths columns only, and [Gradebook.subject] is her subject rather than the section's.
+     * Every number in it is still §7's own arithmetic over those columns, so a per-child average is the mean of the
+     * cells on screen.
+     */
+    suspend fun coordinatorClassResults(classId: String, from: String? = null, to: String? = null): Gradebook
+
+    /** `GET /coordinator/lessons/{id}/results` — §7's per-lesson results, for a lesson of her own subject. */
+    suspend fun coordinatorLessonResults(lessonId: String): LessonResults
+
+    /**
+     * `GET /coordinator/children/{id}` — §7's child page for a child placed in a section she supervises, narrowed the
+     * same way: a [ChildLevel] and a trend line only for the subjects she coordinates in that child's section.
+     */
+    suspend fun coordinatorChild(childId: String): ChildReport
+
+    /**
+     * `GET /coordinator/classes/{id}/exams` — §8's Exams tab: a row per exam with its state and three counts.
+     *
+     * Narrowed to her subjects, so the tab lists exactly the exams [coordinatorExamResults] will open for her.
+     */
+    suspend fun coordinatorClassExams(classId: String): List<ExamRow>
+
+    /**
+     * `GET /coordinator/exams/{id}/results` — §8's results and band distribution. Resolved like a lesson rather
+     * than like a class: an exam of another subject sitting in a section she supervises is a 403.
+     */
+    suspend fun coordinatorExamResults(examId: String): ExamResults
+
     // ---- Admin: coordinator accounts and their scopes (ADMIN only, `coordinator.manage`)
 
     /** `GET /admin/coordinators` — every coordinator of the school with her whole scope. */

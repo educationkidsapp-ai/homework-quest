@@ -156,6 +156,47 @@ public class CoordinatorScope {
         return child;
     }
 
+    /**
+     * <strong>Which subjects of one section are hers</strong> (R3). {@link #requireSection} only proves that
+     * <em>somebody</em> teaches one of her subjects in a section; in a section that also teaches another, the
+     * teacher's own body for that class carries both — every published lesson of it, a level per subject, every exam.
+     * A coordinator reads her own subject and nothing else (DR2), so the three reads that answer for a whole section
+     * narrow by this before the teacher's service is asked anything.
+     *
+     * <p>The unit is the (section, subject) teaching assignment, which is the unit {@link Reach#slots} and R2's lesson
+     * list already use, reduced by the same rule {@link #requireLesson} applies to one lesson: her scope covers the
+     * subject and the section's track. {@link Subjects#ALL} for a caller this class does not narrow, so an ADMIN
+     * reading the same route still gets the whole section.
+     */
+    public Subjects subjectsIn(Principals.User caller, ClassEntity section) {
+        if (!isCoordinator(caller)) return Subjects.ALL;
+        var mine = scopesOf(caller);
+        var kept = new LinkedHashSet<String>();
+        for (var a : assignments.findByClassIdOrderBySubjectAsc(section.getId()))
+            if (covers(mine, a.getSubject(), section.getCurriculum())) kept.add(normalise(a.getSubject()));
+        return new Subjects(Set.copyOf(kept), kept.isEmpty() ? null : kept.iterator().next());
+    }
+
+    /**
+     * The subjects of one section a caller may read, or all of them. Passed into the grading and exam services in
+     * place of a coordinator-shaped overload of each read: {@link #ALL} is what every other caller passes and means
+     * "do not narrow", so a teacher's body is byte for byte what it was.
+     *
+     * @param only  the subjects to keep, already normalised; empty means every subject
+     * @param label the one subject a body that carries a single subject name should be labelled with, or null for
+     *              {@link TeacherScope#subjectOf}'s answer — never its "the section's first assignment" guess, which
+     *              for a coordinator can name a subject she does not coordinate
+     */
+    public record Subjects(Set<String> only, String label) {
+        /** Every subject of the section: what a teacher, a manager and the platform ADMIN read. */
+        public static final Subjects ALL = new Subjects(Set.of(), null);
+
+        /** True while nothing is being narrowed, so a caller can keep its own single-subject path. */
+        public boolean all() { return only.isEmpty(); }
+
+        public boolean covers(String subject) { return only.isEmpty() || only.contains(normalise(subject)); }
+    }
+
     /** The (section, subject) key the lesson list and the calendar are built on. */
     public static String slot(String classId, String subject) { return classId + "\u0000" + normalise(subject); }
 

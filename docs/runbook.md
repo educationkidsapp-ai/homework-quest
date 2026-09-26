@@ -198,7 +198,10 @@ curriculum track (`american` / `british`) or for both, across every grade and ev
   is a department (British / American). The seed writes those rows; the manager's own reads are RM1.
 - **Routes**: `GET /coordinator/me` (scope + counts), `/coordinator/teachers`, `/coordinator/classes`,
   `/coordinator/calendar?from&to` (every class in scope, day by day, ≤ 62 days), `/coordinator/lessons` and
-  `/coordinator/lessons/{id}` (the teacher's own lesson view, read-only; `status` is `draft`, `ready` or `published`).
+  `/coordinator/lessons/{id}` (the teacher's own lesson view, read-only; `status` is `draft`, `ready` or `published`)
+  and `/coordinator/lessons/{id}/status` (R3 — E1's poll, the same `LessonStatusView` the teacher's and the Admin's
+  `/status` routes answer, so her read-only lesson page never ticks against a `/teacher` route her role is refused at
+  the matcher; `coordinator.lesson.read`, no flag, because the subject of the route is the lesson itself).
 - **Keys**: `coordinator.read` and `coordinator.lesson.read` (ADMIN + COORDINATOR), `coordinator.manage` (ADMIN only —
   a coordinator cannot widen her own scope). She also holds `me.*`, `auth.changePassword`, `notifications.*`,
   `chat.socket` and the two `media.*` reads, and no `*.write` key of the teacher's at all.
@@ -218,6 +221,33 @@ Neither coordinator controller carries a `@FeatureFlag`: both are listed in `Fea
 beside `TeacherController` and `TeacherAdminController`, because `/coordinator` is the dashboard of a role rather than
 one feature of it, and the Admin half is how a coordinator comes to exist at all. Her *features* stay flagged where
 they live (R3's `gradebook` and `exams`, R4's `chat`, `complaints` and `announcements`).
+
+**R3 — the teacher's numbers, read through her scope.** `GET /coordinator/classes/{id}/attendance?from&to` (one
+per-day register per day of the window; the week ending today when both bounds are absent, ≤ 62 days),
+`/coordinator/classes/{id}/results` and `/coordinator/lessons/{id}/results` (§7's gradebook grid and per-lesson
+results), `/coordinator/children/{id}` (§7's child page) and `/coordinator/classes/{id}/exams` +
+`/coordinator/exams/{id}/results` (§8's Exams tab and results). Each one resolves the id it names through
+`CoordinatorScope` — `requireSection` for a class, `requireLesson` for a lesson **or an exam**, so an english exam
+parked in a section the maths coordinator supervises is still a 403, `requireChild` for a child — and then hands the
+resolved row to the very service the teacher's route uses, so there is no second gradebook to drift out of step with
+§7's and `CoordinatorReadsApiTest` asserts the two bodies are the same JSON. The keys continue R2's family:
+`coordinator.attendance.read`, `coordinator.results.read` and `coordinator.exams.read` (ADMIN + COORDINATOR, no
+`write` sibling), so an owner can close the gradebook to coordinators without closing the area. The five flagged reads
+carry `gradebook` and `exams` on the handler — the same keys the teacher's `GradingController` and `ExamController`
+carry, so a school with a feature off answers 404 to both roles — and the register carries none, because
+`AttendanceController` carries none and `FlagKeys` has no key for taking a register.
+
+**Scoped twice: a section is not a subject.** `requireSection` only proves that *somebody* teaches one of her subjects
+in a section, so in a section that teaches two the teacher's own body carries both — every published lesson of it, an
+exam of each, a `ChildLevel` per subject. The three reads that answer for a whole section (`classes/{id}/results`,
+`classes/{id}/exams`, `children/{id}`) therefore narrow again through `CoordinatorScope.subjectsIn`, which reduces the
+section's teaching assignments by the same rule `requireLesson` applies to one lesson, and pass the result to the
+delegate as a `CoordinatorScope.Subjects`. So the maths coordinator of a maths-and-english section sees no english
+column, no english exam in the tab (the tab lists exactly the exams she may open) and no english level on a child
+page; the label on her gradebook comes from her scope rather than from `TeacherScope.subjectOf`'s "the section's first
+assignment" guess, which could otherwise name a subject she does not coordinate. Every other caller passes
+`Subjects.ALL`, so a teacher's, a manager's and the platform ADMIN's bodies are byte for byte what they were.
+The register is not narrowed — a register is per child per day and has no subject.
 
 ### The matrix
 

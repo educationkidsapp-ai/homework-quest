@@ -3,6 +3,7 @@ package quest.server.attendance;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,7 +52,38 @@ public class AttendanceService {
         List<AttendanceEntity> recorded = attendance.findBySectionIdAndDate(classId, targetDate);
         Map<String, AttendanceEntity> byChild = recorded.stream()
                 .collect(Collectors.toMap(AttendanceEntity::getChildId, Function.identity(), (a, b) -> a));
+        return dayOf(section, targetDate, roster, byChild);
+    }
 
+    /**
+     * R3: the same per-day body, once per day of a window, for a section a caller has <em>already</em> been scoped
+     * to — `/coordinator/classes/{id}/attendance` resolves it through {@link quest.server.tenancy.CoordinatorScope}
+     * and hands it over, because {@link TeacherScope} would answer a coordinator a question about a teacher.
+     *
+     * <p>Two statements whatever the window: the roster once, and the window's rows once. Calling
+     * {@link #getClassAttendance} per day would be two per day, which is a hundred and twenty for a month.
+     *
+     * @param section a section the caller has <strong>already</strong> been scoped to — this method runs no check of
+     *                its own, so passing a section straight off a request parameter would answer for any class of the
+     *                school. Resolve it with `CoordinatorScope.requireSection` or {@link TeacherScope#requireClass}.
+     * @param from    the first day of the window, inclusive
+     * @param to      the last day, inclusive; the caller bounds the window (`/coordinator` caps it at 62 days)
+     */
+    @Transactional(readOnly = true)
+    public List<AttendanceDto.ClassAttendanceResponse> classAttendanceWindow(ClassEntity section, LocalDate from, LocalDate to) {
+        var roster = children.findByClassIdAndActiveTrueAndDeletedAtIsNullOrderByNameAsc(section.getId());
+        var byDate = new HashMap<LocalDate, Map<String, AttendanceEntity>>();
+        for (AttendanceEntity row : attendance.findBySectionIdAndDateBetweenOrderByDateAsc(section.getId(), from, to))
+            byDate.computeIfAbsent(row.getDate(), d -> new HashMap<String, AttendanceEntity>()).putIfAbsent(row.getChildId(), row);
+        var days = new ArrayList<AttendanceDto.ClassAttendanceResponse>();
+        for (LocalDate day = from; !day.isAfter(to); day = day.plusDays(1))
+            days.add(dayOf(section, day, roster, byDate.getOrDefault(day, Map.of())));
+        return List.copyOf(days);
+    }
+
+    /** One day of one section: the roster in name order, each child's row or `NOT_MARKED`, and the five counts. */
+    private AttendanceDto.ClassAttendanceResponse dayOf(ClassEntity section, LocalDate targetDate,
+                                                       List<ChildEntity> roster, Map<String, AttendanceEntity> byChild) {
         List<AttendanceDto.ClassAttendanceItem> items = new ArrayList<>();
         int present = 0, absent = 0, late = 0, excused = 0;
 

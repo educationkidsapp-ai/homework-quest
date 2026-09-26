@@ -9927,6 +9927,32 @@
         "tags" : [ "Coordinator" ]
       }
     },
+    "/coordinator/children/{id}" : {
+      "get" : {
+        "operationId" : "coordinatorChild",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildReport"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator results" ]
+      }
+    },
     "/coordinator/classes" : {
       "get" : {
         "operationId" : "coordinatorClasses",
@@ -9946,6 +9972,144 @@
           }
         },
         "tags" : [ "Coordinator" ]
+      }
+    },
+    "/coordinator/classes/{id}/attendance" : {
+      "get" : {
+        "operationId" : "coordinatorAttendance",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ClassAttendanceResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator" ]
+      }
+    },
+    "/coordinator/classes/{id}/exams" : {
+      "get" : {
+        "operationId" : "coordinatorClassExams",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ExamRow"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator results" ]
+      }
+    },
+    "/coordinator/classes/{id}/results" : {
+      "get" : {
+        "operationId" : "coordinatorClassResults",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Gradebook"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator results" ]
+      }
+    },
+    "/coordinator/exams/{id}/results" : {
+      "get" : {
+        "operationId" : "coordinatorExamResults",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ExamResults"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator results" ]
       }
     },
     "/coordinator/lessons" : {
@@ -10015,6 +10179,58 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminLesson"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator" ]
+      }
+    },
+    "/coordinator/lessons/{id}/results" : {
+      "get" : {
+        "operationId" : "coordinatorLessonResults",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonResults"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator results" ]
+      }
+    },
+    "/coordinator/lessons/{id}/status" : {
+      "get" : {
+        "operationId" : "coordinatorLessonStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonStatusView"
                 }
               }
             },
@@ -13090,6 +13306,9 @@
   }, {
     "description" : "Teacher accounts and teaching assignments",
     "name" : "Teachers"
+  }, {
+    "description" : "The teacher's attendance, gradebook and exam numbers, read through a coordinator's scope",
+    "name" : "Coordinator results"
   }, {
     "description" : "Cache, usage and calendar",
     "name" : "Admin reports"
