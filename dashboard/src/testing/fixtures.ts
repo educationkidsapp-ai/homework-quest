@@ -48,6 +48,20 @@ export const MANAGERIAL_USER: DashboardUser = {
   platformName: 'Al Noor',
 };
 
+/** R5: the subject coordinator — one subject, both tracks, like the full seed's Rasha Kamal. */
+export const COORDINATOR_USER: DashboardUser = {
+  id: 'u-rasha',
+  email: 'coordinator.math@school.test',
+  role: 'COORDINATOR',
+  schoolId: 'school-a',
+  schoolName: 'Al Noor School',
+  status: 'active',
+  displayName: 'Rasha Kamal',
+  mustChangePassword: false,
+  createdAt: 0,
+  platformName: 'Al Noor',
+};
+
 export const ADMIN_HOME: HomeResponse = {
   role: 'ADMIN',
   displayName: 'Platform Admin',

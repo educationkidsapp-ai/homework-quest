@@ -6,7 +6,7 @@ import { MediaService } from '../media/media.service';
 import { SchoolScopeStore } from './school-scope.store';
 import { SessionStore } from './session.store';
 
-export type Role = 'ADMIN' | 'TEACHER' | 'MANAGERIAL';
+export type Role = 'ADMIN' | 'TEACHER' | 'MANAGERIAL' | 'COORDINATOR';
 export type AuthStatus = 'unknown' | 'anonymous' | 'authenticated';
 
 /**
@@ -20,10 +20,11 @@ export const ROLE_HOME: Readonly<Record<Role, string>> = {
   ADMIN: '/admin',
   TEACHER: '/teacher',
   MANAGERIAL: '/management',
+  COORDINATOR: '/coordinator',
 };
 
 export function isRole(value: string | undefined): value is Role {
-  return value === 'ADMIN' || value === 'TEACHER' || value === 'MANAGERIAL';
+  return value === 'ADMIN' || value === 'TEACHER' || value === 'MANAGERIAL' || value === 'COORDINATOR';
 }
 
 /**

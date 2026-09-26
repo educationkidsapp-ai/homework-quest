@@ -28,6 +28,15 @@ export interface Screen {
    */
   readonly redirectTo?: string;
   readonly fullLink?: string;
+  /**
+   * R5: this row opens a screen that may only be read.
+   *
+   * It becomes `data.readOnly` on the route (`area.routes.ts`), which is what the lesson page
+   * reads to draw itself without a single write control. A flag on the *row* rather than a
+   * signal inside the page, because the same component serves three areas and only the table
+   * knows which of them is the coordinator's.
+   */
+  readonly readOnly?: boolean;
 }
 
 export interface Area {
@@ -177,6 +186,28 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       { id: 'complaint', path: 'complaints/:id', flag: FLAGS.complaints, phase: 5 },
       { id: 'usage', path: 'usage', labelKey: 'nav.schoolUsage', permission: 'usage.school', phase: 5 },
       { id: 'teachers', path: 'teachers', labelKey: 'nav.teachers', permission: 'teacher.read', phase: 5 },
+    ],
+  },
+  // R5 (DR2, `docs/coordinator-flow.md`): the subject coordinator's area. Every row carries one
+  // of the two keys `/coordinator/**` is gated by and nothing else — she holds no `lesson.*`,
+  // `calendar.read` or `results.read` at all (`permissions.json`), which is what makes the
+  // shared lesson page draw itself with no write control rather than with disabled ones.
+  //
+  // Attendance, results, exams and the child page are R6's rows; they are deliberately absent
+  // rather than stubbed, because the routes they would read do not exist yet.
+  COORDINATOR: {
+    base: '/coordinator',
+    screens: [
+      // No permission on the Home, like every other area's: it is what `/` redirects to, and a
+      // redirect target that can be refused has nowhere to send her. `roleGuard` is what keeps
+      // everyone but her (and an Admin) out of `/coordinator/**`.
+      { id: 'home', path: '', labelKey: 'nav.home' },
+      { id: 'teachers', path: 'teachers', labelKey: 'nav.teachers', permission: 'coordinator.read' },
+      { id: 'classes', path: 'classes', labelKey: 'nav.classes', permission: 'coordinator.read' },
+      { id: 'lessons', path: 'lessons', labelKey: 'nav.allLessons', permission: 'coordinator.lesson.read' },
+      // No `labelKey`: a lesson is opened from a row, a card or a calendar square, never from
+      // the rail. `readOnly` is the whole of R5's "reuse the teacher lesson page in read mode".
+      { id: 'lesson', path: 'lessons/:id', permission: 'coordinator.lesson.read', readOnly: true },
     ],
   },
 };

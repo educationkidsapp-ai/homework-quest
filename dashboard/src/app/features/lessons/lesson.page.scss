@@ -166,6 +166,13 @@
 
 // Where the pipeline strip would be, for a lesson that never had one: three words, the last
 // of them the one she is on.
+// R5: the read-only page's "there is more to come" line, in the quiet secondary colour — this is
+// information, not a warning, so it is not the error ink.
+.lesson__generating-note {
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-sm);
+}
+
 .lesson__manual-steps {
   display: flex;
   flex-wrap: wrap;

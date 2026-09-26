@@ -4,7 +4,7 @@ import type { Role } from '../auth/auth.service';
 import { areaRoutes } from './area.routes';
 import { AREAS, linkOf, navScreens, phaseOf } from './screens';
 
-const ROLES: readonly Role[] = ['ADMIN', 'TEACHER', 'MANAGERIAL'];
+const ROLES: readonly Role[] = ['ADMIN', 'TEACHER', 'MANAGERIAL', 'COORDINATOR'];
 
 /** Guards are closures, so they are counted rather than identified by reference. */
 function gateCount(route: Route): number {
@@ -96,6 +96,40 @@ describe('the screen table', () => {
     expect(home?.loadComponent).toBeUndefined();
     // And the week itself is behind the permission only a TEACHER holds.
     expect(AREAS.TEACHER.screens.find((screen) => screen.id === 'week')?.permission).toBe('teacher.week');
+  });
+
+  /**
+   * R5 (`docs/coordinator-flow.md`): her rail is Home · Teachers · Classes · All lessons, and the
+   * lesson she opens from it is the *same* page the teacher writes on, in read-only mode. Both
+   * halves are asserted here rather than in the page's own spec, because both are properties of
+   * the table: a row that lost `readOnly` would hand her a publish button, and the page would
+   * never know.
+   */
+  it('gives a coordinator four rail items and a read-only lesson route', () => {
+    expect(navScreens('COORDINATOR').map(({ screen }) => screen.id)).toEqual([
+      'home',
+      'teachers',
+      'classes',
+      'lessons',
+    ]);
+    expect(navScreens('COORDINATOR').map(({ link }) => link)).toEqual([
+      '/coordinator',
+      '/coordinator/teachers',
+      '/coordinator/classes',
+      '/coordinator/lessons',
+    ]);
+
+    const routes = childrenOf(areaRoutes('COORDINATOR'));
+    const lesson = routes.find((route) => route.path === 'lessons/:id');
+    expect(lesson?.data?.['readOnly']).toBe(true);
+    // Every other screen of hers is writable by nobody, so the flag is false rather than absent:
+    // the page reads `data.readOnly` and must never have to tell false from missing.
+    for (const route of routes.filter((candidate) => candidate.path !== 'lessons/:id'))
+      expect(`${route.path}:${route.data?.['readOnly']}`).toBe(`${route.path}:false`);
+
+    // DR2: she writes nothing here, so not one row may carry a write permission.
+    const keys = AREAS.COORDINATOR.screens.map((screen) => screen.permission ?? '');
+    expect(keys.every((key) => key === '' || key.startsWith('coordinator.'))).toBe(true);
   });
 
   it('names the phase of a stub, including on a detail route', () => {
