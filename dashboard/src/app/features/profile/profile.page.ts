@@ -1,22 +1,23 @@
 /* hq-flag: none (shell) — every account has a profile; there is no school that does not. */
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { TeacherApi, apiErrorOf } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
-import { LANGUAGES, LanguageService, type Language } from '../../core/i18n/language.service';
-import { TourService } from '../../core/tour/tour.service';
 import {
   ButtonComponent,
   CardComponent,
+  DialogComponent,
   InputComponent,
   PageComponent,
-  SelectComponent,
-  type SelectOption,
+  TextareaComponent,
+  ToastComponent,
 } from '../../ui';
 
 /**
- * Profile (§6, Shared screen 3): name, photo, language, password.
+ * Profile (§6, Shared screen 3): name, photo, password, and a word to the coordinator.
  *
  * **Name and photo are read-only here.** The contract has `PATCH /admin/users/{id}` — an
  * Admin editing someone — and no self-edit: a teacher cannot change her own display name or
@@ -24,10 +25,16 @@ import {
  * and who can change it, which is truer than a form whose Save would 403. The gap is reported
  * to the backend worker rather than papered over with a hand-written call.
  *
- * **The language toggle is instant and local.** `DashboardUser.language` exists on the read
- * side but there is nothing to write it with, so the choice lives in this browser
- * (`LanguageService`). Switching flips `dir` on `<html>` and re-renders in place — §6's "EN/AR
- * toggle flips the whole dashboard live", no reload.
+ * **U1 item 2 took three things off this screen.** The guided tour ("Show me around") was a
+ * second way into something the header's own menu offers, and the language card was a third
+ * place to change a language the header changes in one click — a setting with two homes is a
+ * setting people look for in the wrong one. What is left is what only this screen has.
+ *
+ * **Message to coordinator** is the one action here. It is `POST /teacher/messages/coordinator`
+ * (U1 item 2), which writes a notification to every coordinator of her school: there was no
+ * path for a teacher writing *to* the school — questions go to children, announcements to
+ * parents, chat is per child — so the smallest new endpoint carries it. A send that worked says
+ * so in a green strip; a send that failed says why in the red band, as every failure here does.
  */
 @Component({
   selector: 'hq-profile-page',
@@ -35,8 +42,10 @@ import {
     PageComponent,
     CardComponent,
     InputComponent,
-    SelectComponent,
+    TextareaComponent,
     ButtonComponent,
+    DialogComponent,
+    ToastComponent,
     RouterLink,
     TranslocoPipe,
   ],
@@ -57,16 +66,6 @@ import {
           </div>
         </hq-card>
 
-        <hq-card [title]="'profile.language' | transloco">
-          <hq-select
-            [label]="'profile.language' | transloco"
-            [options]="languageOptions()"
-            [value]="language.language()"
-            (valueChange)="setLanguage($event)"
-            [hint]="'profile.languageHint' | transloco"
-          />
-        </hq-card>
-
         <hq-card [title]="'profile.security' | transloco">
           <div class="profile__fields">
             <p class="profile__hint">{{ 'profile.passwordHint' | transloco }}</p>
@@ -76,12 +75,43 @@ import {
           </div>
         </hq-card>
 
-        <hq-card [title]="'profile.help' | transloco">
-          <hq-button variant="secondary" (pressed)="showMeAround()">{{
-            'shell.showMeAround' | transloco
-          }}</hq-button>
-        </hq-card>
+        @if (isTeacher()) {
+          <hq-card [title]="'profile.coordinator.title' | transloco">
+            <div class="profile__fields">
+              <p class="profile__hint">{{ 'profile.coordinator.hint' | transloco }}</p>
+              <hq-button class="profile__change" variant="primary" (pressed)="openMessage()">
+                {{ 'profile.coordinator.action' | transloco }}
+              </hq-button>
+            </div>
+          </hq-card>
+        }
       </div>
+
+      <hq-toast
+        tone="success"
+        [open]="sent()"
+        [message]="'profile.coordinator.sent' | transloco"
+        (expired)="sent.set(false)"
+      />
+
+      <hq-dialog
+        [(open)]="messageOpen"
+        [sheet]="true"
+        [title]="'profile.coordinator.title' | transloco"
+        [confirmLabel]="'profile.coordinator.send' | transloco"
+        [confirmDisabled]="message().trim().length === 0"
+        [loading]="sending()"
+        (confirmed)="send()"
+      >
+        <hq-textarea
+          [label]="'profile.coordinator.label' | transloco"
+          [required]="true"
+          [rows]="6"
+          [placeholder]="'profile.coordinator.placeholder' | transloco"
+          [value]="message()"
+          (valueChange)="message.set($event)"
+        />
+      </hq-dialog>
     </hq-page>
   `,
   styles: `
@@ -108,32 +138,56 @@ import {
   `,
 })
 export class ProfilePage {
-  private readonly tour = inject(TourService);
   private readonly transloco = inject(TranslocoService);
+  private readonly teacherApi = inject(TeacherApi);
+  private readonly band = inject(BandService);
   private readonly lang = activeLang();
 
   protected readonly auth = inject(AuthService);
-  protected readonly language = inject(LanguageService);
 
   protected readonly displayName = computed(() => this.auth.user()?.displayName ?? '');
   protected readonly photoUrl = computed(() => this.auth.user()?.photoUrl ?? '');
+  protected readonly isTeacher = computed(() => this.auth.role() === 'TEACHER');
   protected readonly roleLabel = computed(() => {
     this.lang();
     const role = this.auth.role();
     return role === null ? '' : this.transloco.translate(`role.${role}`);
   });
 
-  protected readonly languageOptions = computed<readonly SelectOption<Language>[]>(() => {
-    this.lang();
-    return LANGUAGES.map((value) => ({ value, label: this.transloco.translate(`shell.language.${value}`) }));
-  });
+  // ---- a word to the coordinator -------------------------------------------------------------
 
-  protected setLanguage(value: Language | ''): void {
-    if (value !== '') this.language.use(value);
+  protected readonly messageOpen = signal(false);
+  protected readonly message = signal('');
+  protected readonly sending = signal(false);
+  /** "Sent to your coordinator", in green, for the four seconds the strip lives. */
+  protected readonly sent = signal(false);
+
+  protected openMessage(): void {
+    this.message.set('');
+    this.messageOpen.set(true);
   }
 
-  protected showMeAround(): void {
-    const role = this.auth.role();
-    if (role) this.tour.start(role);
+  protected send(): void {
+    const body = this.message().trim();
+    if (!body || this.sending()) return;
+    this.sending.set(true);
+    this.teacherApi.messageCoordinator({ body }).subscribe({
+      next: () => {
+        this.sending.set(false);
+        this.messageOpen.set(false);
+        this.message.set('');
+        this.sent.set(true);
+      },
+      error: (error: unknown) => {
+        this.sending.set(false);
+        // The sheet stays open with her words in it: a failure that also loses the message is two
+        // failures. The band says what the server said.
+        this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
+      },
+    });
+  }
+
+  private t(key: string): string {
+    return this.transloco.translate<string>(key);
   }
 }

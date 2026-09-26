@@ -178,8 +178,9 @@ export function searchRows(rows: readonly GridRow[], query: string): readonly Gr
       out.push(row);
       continue;
     }
-    const cells = row.cells.map((cell) =>
-      cellMatches(cell, term) ? cell : { ...cell, lesson: null, exam: null, status: 'none' as CellStatus },
+    const cells = row.cells.map(
+      (cell): GridCell =>
+        cellMatches(cell, term) ? cell : { ...cell, lesson: null, exam: null, status: 'none' },
     );
     if (cells.some((cell) => cell.lesson !== null || cell.exam !== null)) out.push({ ...row, cells });
   }

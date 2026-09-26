@@ -1188,6 +1188,26 @@
         } ],
         "required" : [ "correctOptionId", "hint", "id", "ingredient", "left", "numberLine", "options", "parentTip", "right", "speak", "title", "type" ]
       },
+      "CoordinatorMessageRequest" : {
+        "properties" : {
+          "body" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "body" ],
+        "type" : "object"
+      },
+      "CoordinatorMessageResult" : {
+        "properties" : {
+          "delivered" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "CopyLessonRequest" : {
         "properties" : {
           "classId" : {
@@ -3090,7 +3110,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -11934,6 +11954,34 @@
           }
         },
         "tags" : [ "Results and gradebook" ]
+      }
+    },
+    "/teacher/messages/coordinator" : {
+      "post" : {
+        "operationId" : "messageCoordinator",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CoordinatorMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoordinatorMessageResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teacher" ]
       }
     },
     "/teacher/options" : {

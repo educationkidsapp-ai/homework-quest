@@ -21,6 +21,12 @@ enum class NotificationKind {
     @SerialName("lesson.ready") LESSON_READY,
     /** Generation stopped — an error or a paused retry. [NotificationView.body] is the reason. */
     @SerialName("lesson.failed") LESSON_FAILED,
+    /**
+     * A teacher wrote to her school's coordinator (U1 item 2). [NotificationView.body] is what she
+     * wrote, in her own words and her own language, so the dashboard shows the server's body here
+     * rather than a translated sentence.
+     */
+    @SerialName("teacher.message") TEACHER_MESSAGE,
 }
 
 /**

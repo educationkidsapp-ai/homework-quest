@@ -290,7 +290,9 @@ export class WeekPage {
   protected readonly newExamParams = computed<Record<string, string>>(() => {
     const selected = this.selectedClass();
     const classId = selected !== 'all' ? selected : (this.assignedClasses()[0]?.id ?? '');
-    return classId ? { classId } : ({} as Record<string, string>);
+    const params: Record<string, string> = {};
+    if (classId) params['classId'] = classId;
+    return params;
   });
 
   // ---- Schedule Gaps & Alerts ----------------------------------------------------------------

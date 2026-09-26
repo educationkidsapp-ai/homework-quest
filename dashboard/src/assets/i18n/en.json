@@ -1125,6 +1125,11 @@
           "title": "Lesson failed",
           "body": "The lesson stopped before it finished. Open it to retry."
         }
+      },
+      "teacher": {
+        "message": {
+          "title": "Message from a teacher"
+        }
       }
     }
   },
@@ -1162,12 +1167,18 @@
     "details": "Your details",
     "photoUrl": "Photo URL",
     "role": "Role",
-    "language": "Language",
-    "languageHint": "Applies straight away, in this browser.",
     "managedByAdmin": "Your school administrator changes this.",
     "security": "Password",
     "passwordHint": "Passwords are at least 10 characters and are never shown.",
-    "help": "Help"
+    "coordinator": {
+      "title": "Message to coordinator",
+      "hint": "A word to the people who handle your school’s messages. They see it in their notifications.",
+      "action": "Message to coordinator",
+      "label": "Your message",
+      "placeholder": "What would you like the coordinator to know?",
+      "send": "Send",
+      "sent": "Sent to your coordinator."
+    }
   },
   "results": {
     "title": "Results",
