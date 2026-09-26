@@ -17,6 +17,7 @@ import {
 import { ClassCalendarComponent } from '../classes/class-calendar.component';
 import { calendarCells } from '../classes/classes.models';
 import { StatusSquareComponent } from '../week/status-square.component';
+import { CoordinatorReadFailedComponent } from './read-failed.component';
 import { CoordinatorService } from './coordinator.service';
 import { scopeLabel } from './coordinator.labels';
 
@@ -44,6 +45,7 @@ import { scopeLabel } from './coordinator.labels';
   imports: [
     CardComponent,
     ClassCalendarComponent,
+    CoordinatorReadFailedComponent,
     PageComponent,
     SelectComponent,
     SkeletonComponent,
@@ -55,6 +57,8 @@ import { scopeLabel } from './coordinator.labels';
     <hq-page [title]="'nav.classes' | transloco" [subtitle]="scopeLine()">
       @if (co.loading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'ui.loading' | transloco" />
+      } @else if (co.failed()) {
+        <hq-coordinator-read-failed (retry)="co.reload()" />
       } @else {
         <hq-card [title]="'coordinator.classes.sections' | transloco">
           @if (co.classes().length === 0) {
@@ -84,6 +88,11 @@ import { scopeLabel } from './coordinator.labels';
             (valueChange)="selectedClassId.set($event)"
           />
 
+          @if (calendar.error()) {
+            <!-- The month is its own request: it can fail on its own, with the sections above it
+                 perfectly readable, so it says so on its own rather than blanking the screen. -->
+            <hq-coordinator-read-failed (retry)="calendar.reload()" />
+          }
           <hq-class-calendar
             [classId]="selectedClassId()"
             [readOnly]="true"

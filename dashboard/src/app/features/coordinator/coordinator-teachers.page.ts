@@ -12,6 +12,7 @@ import {
   SkeletonComponent,
   TableComponent,
 } from '../../ui';
+import { CoordinatorReadFailedComponent } from './read-failed.component';
 import { CoordinatorService } from './coordinator.service';
 import { translateOr } from './coordinator.labels';
 
@@ -41,6 +42,7 @@ interface TeacherRow {
 @Component({
   selector: 'hq-coordinator-teachers-page',
   imports: [
+    CoordinatorReadFailedComponent,
     EmptyStateComponent,
     InputComponent,
     PageComponent,
@@ -53,6 +55,10 @@ interface TeacherRow {
     <hq-page [title]="'nav.teachers' | transloco" [subtitle]="'coordinator.teachers.subtitle' | transloco">
       @if (co.loading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'ui.loading' | transloco" />
+      } @else if (co.failed()) {
+        <!-- Never the empty state on a failed read: "no teachers teach your subject yet" is a
+             statement about her school, and this read did not happen. -->
+        <hq-coordinator-read-failed (retry)="co.reload()" />
       } @else {
         <div data-hq-search>
           <hq-input

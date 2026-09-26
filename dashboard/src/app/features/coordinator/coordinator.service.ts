@@ -100,7 +100,19 @@ export class CoordinatorService {
   readonly loading = computed(
     () => this.meRes.isLoading() || this.teachersRes.isLoading() || this.classesRes.isLoading(),
   );
-  readonly failed = computed(() => this.meRes.error() !== undefined || this.classesRes.error() !== undefined);
+  /**
+   * Any of the three shared reads failed.
+   *
+   * All three, including the teachers: the review found `teachersRes` missing here, which made a
+   * failed `GET /coordinator/teachers` invisible on every screen — the Home drew its preview card
+   * empty and the Teachers table said "no teachers teach your subject yet".
+   */
+  readonly failed = computed(
+    () =>
+      this.meRes.error() !== undefined ||
+      this.teachersRes.error() !== undefined ||
+      this.classesRes.error() !== undefined,
+  );
 
   readonly displayName = computed(() => this.meRes.value().displayName ?? '');
   readonly counts = computed(() => ({

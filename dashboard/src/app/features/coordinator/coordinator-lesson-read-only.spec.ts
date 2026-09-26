@@ -220,9 +220,7 @@ describe('the lesson page in read-only mode', () => {
     await renderAsTeacher();
 
     for (const name of WRITE_CONTROLS)
-      expect(`${name}:${screen.queryAllByRole('button', { name }).length}`).not.toBe(
-        `${name}:0`,
-      );
+      expect(`${name}:${screen.queryAllByRole('button', { name }).length}`).not.toBe(`${name}:0`);
     expect(screen.queryByLabelText(DATE_LABEL)).not.toBeNull();
     expect(document.querySelector('hq-stop-editor')).not.toBeNull();
     expect(document.querySelector('hq-parent-panel-editor')).not.toBeNull();

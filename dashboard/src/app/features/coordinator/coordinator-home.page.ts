@@ -5,15 +5,9 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { activeLang } from '../../core/i18n/active-lang';
-import {
-  BandComponent,
-  ButtonComponent,
-  CardComponent,
-  CountUpDirective,
-  PageComponent,
-  SkeletonComponent,
-} from '../../ui';
+import { CardComponent, CountUpDirective, PageComponent, SkeletonComponent } from '../../ui';
 import { StatusSquareComponent } from '../week/status-square.component';
+import { CoordinatorReadFailedComponent } from './read-failed.component';
 import { CoordinatorService } from './coordinator.service';
 import { scopeLabel } from './coordinator.labels';
 
@@ -32,9 +26,8 @@ import { scopeLabel } from './coordinator.labels';
 @Component({
   selector: 'hq-coordinator-home-page',
   imports: [
-    BandComponent,
-    ButtonComponent,
     CardComponent,
+    CoordinatorReadFailedComponent,
     CountUpDirective,
     PageComponent,
     RouterLink,
@@ -48,10 +41,7 @@ import { scopeLabel } from './coordinator.labels';
       @if (co.loading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'home.loading' | transloco" />
       } @else if (co.failed()) {
-        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
-          {{ 'band.unreachable' | transloco }}
-        </hq-band>
-        <hq-button variant="secondary" (pressed)="co.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+        <hq-coordinator-read-failed (retry)="co.reload()" />
       } @else {
         <div class="em-dashboard">
           <section

@@ -18,6 +18,7 @@ import {
   TableComponent,
 } from '../../ui';
 import { LessonApiService } from '../lessons/lesson-api.service';
+import { CoordinatorReadFailedComponent } from './read-failed.component';
 import { CoordinatorService } from './coordinator.service';
 
 interface LessonRow {
@@ -53,6 +54,7 @@ const STATUSES: readonly AdminLessonStatusEnum[] = [
 @Component({
   selector: 'hq-coordinator-lessons-page',
   imports: [
+    CoordinatorReadFailedComponent,
     EmptyStateComponent,
     InputComponent,
     PageComponent,
@@ -96,6 +98,10 @@ const STATUSES: readonly AdminLessonStatusEnum[] = [
 
       @if (lessons.isLoading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'lessons.loading' | transloco" />
+      } @else if (lessons.error()) {
+        <!-- Its own resource, so its own error: "no lessons match these filters" would be a lie
+             about the filters when what failed was the request. -->
+        <hq-coordinator-read-failed (retry)="lessons.reload()" />
       } @else {
         <hq-table
           [rows]="rows()"
