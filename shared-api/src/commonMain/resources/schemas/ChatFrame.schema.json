@@ -69,7 +69,7 @@
    "required": ["id", "kind", "title", "createdAt"],
    "properties": {
     "id": { "type": "string", "minLength": 1 },
-    "kind": { "type": "string", "enum": ["lesson.needs_skills", "lesson.ready", "lesson.failed"] },
+    "kind": { "type": "string", "enum": ["lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted"] },
     "title": { "type": "string", "minLength": 1 },
     "body": { "type": ["string", "null"] },
     "link": { "type": ["string", "null"] },

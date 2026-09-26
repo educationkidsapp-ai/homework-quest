@@ -1058,8 +1058,18 @@ parent on the message that opens it) and a `status` (`open` / `resolved`, moved 
   only the threads a coordinator is the staff peer of and the label would otherwise sit in nobody's inbox.
 - **Coordinator ↔ manager.** `POST /coordinator/chat/threads {"managerUserId":"…"}` — one thread per pair, however
   many times either side asks for it, limited to a manager whose department (her `curriculum` scope) meets hers; any
-  other manager is 404. `childId` is empty on those rows and the manager's own REST list arrives with RM2, but her
-  `user:<id>` socket session already receives the message frames.
+  other manager is 404. `childId` is empty on those rows. RM2 gave the manager the other end of it:
+  `POST /management/chat/threads {"coordinatorUserId":"…"}` opens the same row from her side.
+- **Parent ↔ manager (RM2, DR5).** `GET /children/{id}/managers` answers the manager of the department the child's
+  section is in, as `ChatThread` rows with `id: null` until the parent writes — `GET /children/{id}/coordinators`'
+  mirror. She then posts to `/children/{id}/chat/threads/{managerUserId}/messages`, and `{"topic":"complaint"}` is
+  allowed here too: a complaint about a coordinator is exactly what the manager is for. A manager of the other
+  department is 404.
+- **Manager ↔ admin (RM2, DR5).** "The manager reports to and chats with the admin":
+  `POST /management/chat/threads {"adminUserId":"…"}` from her side (the ids come from `GET /management/admins`) or
+  `POST /admin/chat/threads {"managerUserId":"…"}` from the Admin's, with `X-School-Id`. One row either way. The
+  manager holds the `teacher_id` side of it, and the coordinator holds it on a coordinator ↔ manager thread, so
+  `findForStaff` always finds a person's threads whichever pair she is in.
 
 One thread per (child, teacher), and only between the child's parent and a teacher who
 holds an assignment on the child's section — checked from both ends, the same way the rest of the teacher API is
@@ -1087,11 +1097,21 @@ The coordinator's half is keyed by **thread**, not by child, because one of her 
 the chat rather than in a store of their own, so the `complaints` flag is still N5.2's and these routes carry `chat`.
 A parent thread leaves her list when the child leaves her scope, the way a teacher's does when the assignment goes.
 
+The **manager's** half is keyed by thread for the same reason (RM2): `GET /management/chat/threads?status=`,
+`GET|POST /management/chat/threads/{id}/messages`, `POST /management/chat/threads/{id}/read` and
+`POST /management/chat/threads {coordinatorUserId | adminUserId}`, all behind `management.chat` and the `chat` flag.
+Her list is the coordinator's one scope wider: the parents who wrote to her about a child of her department, her
+coordinators, and the admin. A parent thread leaves it when the child leaves the department; a thread she is not on is
+404. The Admin writes only in **her own** threads — `POST /admin/chat/threads`, `POST /admin/chat/threads/{id}/messages`
+and `POST /admin/chat/threads/{id}/read`, behind `admin.chat` with `X-School-Id` — while `GET /admin/chat/threads`
+still reads every thread of the school for support.
+
 Her announcement is `POST /coordinator/announcements {bodyEn, bodyAr?, classIds?, expiresAt?}` — one `announcements`
 row per class (every section in scope when `classIds` is absent, each named one checked through `requireSection`
 otherwise), which the parent reads through the existing `GET /children/{id}/announcements`. Parents have no bell of
 their own, so there is no notification row for them: the app's announcements screen is the delivery.
-`GET /coordinator/announcements` lists hers.
+`GET /coordinator/announcements` lists hers. Since RM2 that route is a **door onto Broadcasts** (below): the same call
+writes a `broadcasts` row too, so what she posts appears in both her feeds and nothing about the app screen changes.
 
 `limit` is 1–200 (default 50). `before=<messageId>` pages backwards from that message; `since=<messageId>` answers
 everything after it, oldest first — the reconnect refetch. Either cursor must be a message of that thread (400
@@ -1206,7 +1226,7 @@ methods behind a key (`pnpm gen:permissions`): a single key covering the GETs an
 bell a write and take it off the screen during View-as.
 
 A row is `{id, kind, title, body, link, lessonId, readAt, createdAt}`. `kind` is `lesson.needs_skills`,
-`lesson.ready` or `lesson.failed` — **localise from `kind`**; `title` and `body` are English server strings to fall
+`lesson.ready`, `lesson.failed`, `teacher.message` or — RM2 — `broadcast.posted` — **localise from `kind`**; `title` and `body` are English server strings to fall
 back on. `link` is a dashboard *path* (`/teacher/lessons/{id}`, `/admin/lessons/{id}`), never a URL.
 
 **Who gets one, and when.** Only the lesson's creator (`lessons.created_by`, resolved to a `users` row; a lesson
@@ -1249,6 +1269,56 @@ coordinators and shows the R4 fields as chips (Complaint, Open/Resolved); `+ Mes
 switch puts `topic: "complaint"` on the **thread-creating** message only — `400 complaint_needs_coordinator` if the
 peer is a teacher. The `status` frame carries **`at`**, not `resolvedAt`, and moves the row and the conversation's
 banner without a refetch; a resolved thread still accepts the parent's reply, so the composer stays live.
+
+### Broadcasts (RM2, DR6)
+
+The weekly plan, announcements and events are **one feature with two composers**, in `broadcasts` (V21). A row carries
+its own audience, so the manager and the coordinator write the same shape and every reader asks it the same question.
+Contract: `shared-api/src/commonMain/kotlin/quest/api/dto/Broadcasts.kt` (`BroadcastKind`, `BroadcastAudience`,
+`BroadcastView`, `BroadcastFeed`, `CreateBroadcastRequest`). Behind the **`announcements`** flag — the key the feature
+it supersedes already carries — so a school with it off answers 404 to composer and feed alike.
+
+| Route | Permission | What |
+|---|---|---|
+| `POST /management/broadcasts` | `management.broadcast` | `kind` `weekly_plan` \| `announcement` \| `event`, `audience` a non-empty subset of `parents` / `teachers` / `coordinators`, `sectionIds` empty = the whole department. 201 `BroadcastView`. |
+| `GET /management/broadcasts` | `management.broadcast` | What she posted, newest first, expired rows included. |
+| `POST /coordinator/broadcasts` | `coordinator.broadcast` | `announcement` or `event` for the parents of the classes she coordinates; `weekly_plan` is 400 (the plan is the department's). |
+| `GET /coordinator/broadcasts` | `coordinator.broadcast` | Hers, newest first. |
+| `GET /me/broadcasts` | `broadcast.read` | `BroadcastFeed` — what this teacher, coordinator or manager is an audience of, with her own `unread`. |
+| `POST /me/broadcasts/{id}/read` | `broadcast.read` | Marks one row read; 404 for a row she is not an audience of. |
+| `GET /children/{id}/broadcasts` | `child.broadcast.read` | The app's feed for that child, with the child's `unread`. |
+| `POST /children/{id}/broadcasts/{broadcastId}/read` | `child.broadcast.read` | The parent's read mark. |
+
+**Who receives one.** The audience is resolved from `staff_scopes` and never from the request: a manager's row names her
+department (`curriculum`) or the sections she named (each checked through `ManagerScope.requireSection` — the other
+department is 403, another school 404), and a coordinator's always names the classes she coordinates. A reader is in the
+audience when her role is in `audience_roles` **and** the row touches her: one of her sections when `section_ids` is
+set, her track when it is not. A parent's rule is the same from the child's side — the row is for `parents` and names her
+child's section or her child's track.
+
+Each feed answers the **newest 50 live rows of the school**, filtered to the caller; an expired row (`expiresAt` in the
+past) drops out of every feed and stays in the composer's own list.
+
+**Delivery.** A dashboard recipient gets a `notifications` row and the `broadcast.posted` frame on `/ws/chat` (the
+author gets neither — she wrote it), and reads `GET /me/broadcasts`. A parent has no bell: the app polls
+`GET /children/{id}/broadcasts`, and a coordinator's **announcement** additionally still writes the `announcements`
+rows the app's existing screen reads, because `POST /coordinator/announcements` is now a second door onto the same
+service. `unread` is `broadcast_reads`: one row per (broadcast, reader), the reader being a `users` id on the dashboard
+and a `parents` id in the app.
+
+**The weekly plan** is `kind=weekly_plan` with `weekStart` — any date in the week; the server snaps it back to the
+Sunday. There is **one per week per department**: posting it again deletes the previous row and its read marks, so the
+replacement arrives unread. `weekStart` is required for a plan and refused on the other two kinds.
+
+**Attachments** are a reference, not an upload: `{"attachment":{"url":"/media/pages/…","name":"plan.pdf"}}`, pointing at
+bytes that already exist. RM2 adds no upload route.
+
+```bash
+curl -X POST "$API/management/broadcasts" -H "Authorization: Bearer $MANAGER" -H 'Content-Type: application/json' \
+  -d '{"kind":"weekly_plan","weekStart":"2026-09-27","title":"Week of subtraction",
+       "bodyEn":"Subtraction all week; swimming on Thursday.","audience":["parents","teachers","coordinators"]}'
+curl "$API/me/broadcasts" -H "Authorization: Bearer $TEACHER"
+```
 
 ## The app and the contract
 

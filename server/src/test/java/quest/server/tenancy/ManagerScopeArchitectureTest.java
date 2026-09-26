@@ -67,19 +67,32 @@ class ManagerScopeArchitectureTest {
     }
 
     /**
-     * DR5: RM1 is read-only. The manager's writes are the weekly plan, announcements and her chat threads (RM2) and
-     * the staff-attendance roster (RM5); each arrives in its own package, behind its own key, and is added here with
-     * the argument for it. An unlisted write appearing under `/management` is the thing to stop: a read namespace that
-     * grows an editor.
+     * DR5: RM1 was read-only. The manager's writes arrive package by package, behind their own key (and their own flag
+     * where the feature has one), and each is named here with the argument for it. An unlisted write appearing under
+     * `/management` is the thing to stop: a read namespace that grows an editor.
      *
      * <p>RM5's one write is the staff register. It writes about the <em>staff</em> of her own department and never
      * about a child, a lesson or a class: the roster it upserts is {@link ManagerScope#teachersOf} and
      * {@link ManagerScope#coordinatorsOf}, so a `userId` the department does not hold is a 403 before a row is touched,
      * and no other part of the area became writable with it.
+     *
+     * <p>RM2 (DR6, DR5) brings four, all of them the manager <em>speaking</em> rather than editing teaching data:
+     * <ul>
+     *   <li>`POST /management/broadcasts` — the weekly plan, an announcement or an event for her department, behind
+     *       the `announcements` flag and `management.broadcast`. It writes a `broadcasts` row and notifications, and
+     *       touches nothing a teacher owns.</li>
+     *   <li>the three chat writes — her thread with a coordinator or the admin, a message in one of her threads, and
+     *       the read receipt — behind the `chat` flag and `management.chat`, on `chat_threads` rows that are hers.</li>
+     * </ul>
      */
-    private static final Set<String> ALLOWED_WRITES = Set.of("PUT /management/staff-attendance");
+    private static final Set<String> ALLOWED_WRITES = Set.of(
+            "PUT /management/staff-attendance",
+            "POST /management/broadcasts",
+            "POST /management/chat/threads",
+            "POST /management/chat/threads/{id}/messages",
+            "POST /management/chat/threads/{id}/read");
 
-    @Test void nothing_in_the_management_namespace_writes_yet() {
+    @Test void the_management_namespace_writes_only_what_rm2_added() {
         var writes = new ArrayList<String>();
         for (JavaClass controller : managementControllers())
             for (JavaMethod method : controller.getMethods())

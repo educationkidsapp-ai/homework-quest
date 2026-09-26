@@ -125,7 +125,8 @@ class OpenApiContractTest extends ApiTestSupport {
             "/children/{id}/chat/threads", "/children/{id}/chat/threads/{teacherId}/messages", "/children/{id}/chat/threads/{teacherId}/read",
             "/children/{id}/coordinators",
             "/teacher/chat/threads", "/teacher/chat/threads/{childId}/messages", "/teacher/chat/threads/{childId}/read",
-            "/admin/chat/threads", "/admin/chat/threads/{threadId}/messages");
+            "/admin/chat/threads", "/admin/chat/threads/{threadId}/messages", "/admin/chat/threads/{threadId}/read",
+            "/children/{id}/managers");
 
     /**
      * E2: the dashboard bell (`quest.api.dto.Notifications.kt`, D26). Not behind a flag and not behind a role
@@ -157,7 +158,7 @@ class OpenApiContractTest extends ApiTestSupport {
             "/coordinator/classes/{id}/exams", "/coordinator/exams/{id}/results",
             "/coordinator/chat/threads", "/coordinator/chat/threads/{id}/messages", "/coordinator/chat/threads/{id}/read",
             "/coordinator/chat/threads/{id}/status", "/coordinator/complaints", "/coordinator/managers",
-            "/coordinator/announcements",
+            "/coordinator/announcements", "/coordinator/broadcasts",
             "/admin/coordinators", "/admin/coordinators/{id}/scopes");
 
     /**
@@ -181,6 +182,20 @@ class OpenApiContractTest extends ApiTestSupport {
             "/management/staff-attendance", "/management/staff-attendance/summary", "/management/staff-attendance/{userId}",
             "/management/people/children", "/management/people/teachers", "/management/people/coordinators");
 
+    /**
+     * RM2 (DR6): the broadcast feature — the two composers, the dashboard feed and the app feed — and the manager's
+     * half of the chat (`quest.api.dto.Broadcasts.kt`, `docs/runbook.md` "Broadcasts"). The broadcast paths carry the
+     * `announcements` flag and the chat paths `chat`, the very keys the features they supersede and join already
+     * carry; both are in the document, because it describes the API the server can serve rather than what one school
+     * has switched on.
+     */
+    static final List<String> BROADCASTS_API = List.of(
+            "/management/broadcasts", "/coordinator/broadcasts",
+            "/me/broadcasts", "/me/broadcasts/{id}/read",
+            "/children/{id}/broadcasts", "/children/{id}/broadcasts/{broadcastId}/read",
+            "/management/chat/threads", "/management/chat/threads/{id}/messages",
+            "/management/chat/threads/{id}/read", "/management/admins");
+
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
             "/schools/logo", "/classes/lookup");
@@ -200,6 +215,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(NOTIFICATIONS_API);
         assertThat(paths).containsAll(COORDINATOR_API);
         assertThat(paths).containsAll(MANAGEMENT_API);
+        assertThat(paths).containsAll(BROADCASTS_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
     }

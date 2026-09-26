@@ -56,24 +56,26 @@ public class ChatSocketHandler extends TextWebSocketHandler {
 
     private void run(ChatSessions.Peer peer, ChatCommand command, ChatSessions.Live live) {
         boolean parent = ChatService.PARENT.equals(peer.role());
-        boolean coordinator = CoordinatorScope.ROLE.equalsIgnoreCase(peer.role());
+        // R4, RM2: a coordinator, a manager and an admin all name a thread by id — one of their threads has no child.
+        boolean byThread = CoordinatorScope.ROLE.equalsIgnoreCase(peer.role())
+                || quest.server.tenancy.ManagerScope.ROLE.equalsIgnoreCase(peer.role()) || "ADMIN".equalsIgnoreCase(peer.role());
         switch (command) {
             case ChatCommand.Send s -> {
                 chatOnly(peer);
                 if (parent) chat.parentSend((Principals.Parent) peer.principal(), required(s.getChildId(), "childId"), required(s.getTeacherId(), "teacherId"), s.getBody(), s.getClientId(), null);
-                else if (coordinator) chat.coordinatorSend((Principals.User) peer.principal(), required(s.getThreadId(), "threadId"), s.getBody(), s.getClientId());
+                else if (byThread) chat.staffSend((Principals.User) peer.principal(), required(s.getThreadId(), "threadId"), s.getBody(), s.getClientId());
                 else chat.teacherSend((Principals.User) peer.principal(), required(s.getChildId(), "childId"), s.getBody(), s.getClientId());
             }
             case ChatCommand.Read r -> {
                 chatOnly(peer);
                 if (parent) chat.parentRead((Principals.Parent) peer.principal(), required(r.getChildId(), "childId"), required(r.getTeacherId(), "teacherId"));
-                else if (coordinator) chat.coordinatorRead((Principals.User) peer.principal(), required(r.getThreadId(), "threadId"));
+                else if (byThread) chat.staffRead((Principals.User) peer.principal(), required(r.getThreadId(), "threadId"));
                 else chat.teacherRead((Principals.User) peer.principal(), required(r.getChildId(), "childId"));
             }
             case ChatCommand.Typing t -> {
                 chatOnly(peer);
                 if (parent) chat.parentTyping((Principals.Parent) peer.principal(), required(t.getChildId(), "childId"), required(t.getTeacherId(), "teacherId"));
-                else if (coordinator) chat.coordinatorTyping((Principals.User) peer.principal(), required(t.getThreadId(), "threadId"));
+                else if (byThread) chat.staffTyping((Principals.User) peer.principal(), required(t.getThreadId(), "threadId"));
                 else chat.teacherTyping((Principals.User) peer.principal(), required(t.getChildId(), "childId"));
             }
             case ChatCommand.Ping p -> live.offer(hub.encode(ChatFrame.Pong.INSTANCE), false);

@@ -1,6 +1,5 @@
 package quest.server.coordinator;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -10,8 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import quest.server.auth.Principals;
 import quest.server.auth.UserRepository;
-import quest.server.config.ApiException;
-import quest.server.platform.SafeText;
 import quest.server.teacher.AnnouncementRepository;
 import quest.server.teacher.Entities.AnnouncementEntity;
 import quest.server.teacher.TeacherDto;
@@ -25,10 +22,11 @@ import quest.server.tenancy.TenantContext;
  * coordinator's own user id in `teacher_id` — and the parent's `GET /children/{id}/announcements` picks them up with
  * no change at all, in the app screen phase 2 shipped.
  *
- * <p><strong>The audience is her scope.</strong> An empty `classIds` means every section {@link CoordinatorScope}
- * gives her; a named list is checked one section at a time through {@link CoordinatorScope#requireSection}, so a
- * section of the other track or of a subject she does not coordinate is 403 and another school's is 404. Nothing
- * reads a school, a curriculum or a grade from the request.
+ * <p><strong>RM2 (DR6) put the broadcast in front of it.</strong> `POST /coordinator/announcements` and
+ * `POST /coordinator/broadcasts` are two doors onto {@link quest.server.broadcasts.BroadcastService}, which resolves
+ * her scope, validates the body and writes the `broadcasts` row; {@link #mirror} is what it calls to keep the rows this
+ * class always wrote. So there is one feature with one set of rules, and the app screen that already exists keeps
+ * working while RM4 moves the app to `GET /children/{id}/broadcasts`.
  *
  * <p><strong>No parent notification row.</strong> Notifications (E2) are a dashboard user's bell — the `/me/…` routes
  * and the `user:<id>` socket — and a parent has neither, so a coordinator's note reaches her through the
@@ -36,9 +34,6 @@ import quest.server.tenancy.TenantContext;
  */
 @Service
 public class CoordinatorAnnouncementService {
-    /** A note, not an essay, and never scheduled to outlive a school year — `AnnouncementService`'s two numbers. */
-    private static final int MAX_BODY = 1000, MAX_LIFETIME_DAYS = 400;
-
     private final AnnouncementRepository announcements; private final CoordinatorScope scope;
     private final UserRepository users; private final TenantContext tenant;
 
@@ -55,20 +50,17 @@ public class CoordinatorAnnouncementService {
         return dtos(rows, sections(caller), caller);
     }
 
+    /**
+     * RM2 (DR6): the `announcements` rows behind a coordinator's broadcast. {@link quest.server.broadcasts.BroadcastService}
+     * is the single writer now — `POST /coordinator/announcements` and `POST /coordinator/broadcasts` are two doors onto
+     * it — and this keeps writing the rows the app screen phase 2 shipped reads, so a coordinator's note reaches a
+     * parent through `GET /children/{id}/announcements` exactly as it did before the broadcast row existed. The targets,
+     * the body and the expiry are already resolved and validated by the caller, whose scope decided them.
+     */
     @Transactional
-    public List<TeacherDto.Announcement> create(Principals.User caller, CoordinatorDto.CreateAnnouncementRequest request) {
-        var byId = sections(caller);
-        var targets = new ArrayList<ClassEntity>();
-        if (request.classIds() == null || request.classIds().isEmpty()) targets.addAll(byId.values());
-        else for (String classId : request.classIds().stream().distinct().toList()) targets.add(scope.requireSection(caller, classId));
-        if (targets.isEmpty()) throw ApiException.badRequest("You coordinate no class yet, so there is nobody to tell.");
-
-        String bodyEn = SafeText.plainText(request.bodyEn(), "bodyEn", MAX_BODY);
-        if (bodyEn == null) throw ApiException.badRequest("bodyEn must not be empty");
-        String bodyAr = SafeText.plainText(request.bodyAr(), "bodyAr", MAX_BODY);
+    public List<TeacherDto.Announcement> mirror(Principals.User caller, List<ClassEntity> targets, String bodyEn,
+                                                String bodyAr, Instant expiresAt) {
         var now = Instant.now();
-        var expiresAt = expiry(request.expiresAt(), now);
-
         var written = new ArrayList<AnnouncementEntity>(targets.size());
         for (var target : targets) {
             var row = new AnnouncementEntity();
@@ -79,6 +71,7 @@ public class CoordinatorAnnouncementService {
             written.add(row);
         }
         announcements.saveAll(written);
+        var byId = sections(caller);
         for (var target : targets) byId.putIfAbsent(target.getId(), target);
         return dtos(written, byId, caller);
     }
@@ -101,14 +94,5 @@ public class CoordinatorAnnouncementService {
                     row.getCreatedAt().toEpochMilli()));
         }
         return List.copyOf(out);
-    }
-
-    private static Instant expiry(Long millis, Instant now) {
-        if (millis == null) return null;
-        var at = Instant.ofEpochMilli(millis);
-        if (!at.isAfter(now)) throw ApiException.badRequest("expiresAt must be in the future");
-        if (at.isAfter(now.plus(Duration.ofDays(MAX_LIFETIME_DAYS))))
-            throw ApiException.badRequest("expiresAt must be within " + MAX_LIFETIME_DAYS + " days");
-        return at;
     }
 }

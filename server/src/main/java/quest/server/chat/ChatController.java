@@ -63,6 +63,17 @@ public class ChatController {
         return threads(chat.parentCoordinators(parent, id));
     }
 
+    /**
+     * RM2 (DR5): the manager of the department her child's section is in, as a thread row — whom she may write to about
+     * the school, the child or a coordinator, `complaint` included. `id` is null until she writes the first message.
+     */
+    @GetMapping(value = "/children/{id}/managers", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('child.managers')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatThread.class))))
+    public String parentManagers(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) {
+        return threads(chat.parentManagers(parent, id));
+    }
+
     @GetMapping(value = "/children/{id}/chat/threads/{teacherId}/messages", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('child.chat')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatMessage.class))))
@@ -132,6 +143,39 @@ public class ChatController {
     public String supportChatMessages(@PathVariable String threadId, @RequestParam(required = false) String before, @RequestParam(required = false) String since,
                                       @RequestParam(required = false) Integer limit) {
         return messages(chat.supportMessages(threadId, before, since, limit));
+    }
+
+    /**
+     * RM2 (DR5): the admin's own thread with one manager of the school she named — "the manager reports to and chats
+     * with the admin". The same row `POST /management/chat/threads` creates from the other side.
+     */
+    @PostMapping(value = "/admin/chat/threads", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('admin.chat')")
+    @ResponseStatus(HttpStatus.CREATED)
+    @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatThread.class)))
+    public String supportManagerThread(@AuthenticationPrincipal Principals.User caller, @RequestBody ManagerThreadRequest body) {
+        return json.encodeShared(chat.adminManagerThread(caller, body.managerUserId()), ChatThread.Companion.serializer());
+    }
+
+    /** `POST /admin/chat/threads` — a manager of the school in `X-School-Id`. */
+    public record ManagerThreadRequest(String managerUserId) {}
+
+    /** Into her own thread only: support reads every thread of a school, and writes into none but hers. */
+    @PostMapping(value = "/admin/chat/threads/{threadId}/messages", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('admin.chat')")
+    @ResponseStatus(HttpStatus.CREATED)
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = SendChatMessageRequest.class)))
+    @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
+    public String supportSendChatMessage(@AuthenticationPrincipal Principals.User caller, @PathVariable String threadId, @RequestBody String body) {
+        var req = decode(body);
+        return message(chat.adminSend(caller, threadId, req.getBody(), req.getClientId()));
+    }
+
+    @PostMapping(value = "/admin/chat/threads/{threadId}/read", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('admin.chat')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatReadReceipt.class)))
+    public String supportMarkChatRead(@AuthenticationPrincipal Principals.User caller, @PathVariable String threadId) {
+        return receipt(chat.adminRead(caller, threadId));
     }
 
     // ---------------------------------------------------------------- codec

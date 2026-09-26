@@ -5,6 +5,8 @@ import kotlinx.datetime.LocalDate
 import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
+import quest.api.dto.BroadcastFeed
+import quest.api.dto.BroadcastView
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatReadReceipt
 import quest.api.dto.ChatThread
@@ -117,6 +119,26 @@ interface ContentApi {
 
     /** `POST /children/{id}/chat/threads/{teacherId}/read` — everything the teacher wrote is read. */
     suspend fun markChatRead(childId: String, teacherId: String): ChatReadReceipt = throw NotImplementedError("markChatRead needs a backend")
+
+    /**
+     * `GET /children/{id}/managers` — RM2 (DR5): the manager of the department her child's section is in, as thread
+     * rows, so she can write to her about the school, the child or a coordinator. `topic = complaint` is allowed on
+     * this thread as it is on a coordinator's. Behind the `chat` flag.
+     */
+    suspend fun childManagers(childId: String): List<ChatThread> = throw NotImplementedError("childManagers needs a backend")
+
+    // ---- RM2: broadcasts (`docs/runbook.md` "Broadcasts"). Behind the `announcements` flag: 404 while off.
+
+    /**
+     * `GET /children/{id}/broadcasts` — the weekly plans, announcements and events sent to the parents of this child's
+     * section, newest first, with the unread count for that child. Named by child like every other flagged parent
+     * route: the school whose `announcements` flag decides it is the child's own.
+     */
+    suspend fun childBroadcasts(childId: String): BroadcastFeed = BroadcastFeed()
+
+    /** `POST /children/{id}/broadcasts/{broadcastId}/read` — this one is read; the row comes back with `read = true`. */
+    suspend fun markBroadcastRead(childId: String, broadcastId: String): BroadcastView =
+        throw NotImplementedError("markBroadcastRead needs a backend")
 
     /** `GET /children/{id}/attendance?from=&to=` — child attendance history & summary. */
     suspend fun childAttendance(childId: String, from: String? = null, to: String? = null): ChildAttendanceResponse =

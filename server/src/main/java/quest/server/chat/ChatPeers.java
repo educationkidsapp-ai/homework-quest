@@ -86,6 +86,25 @@ public class ChatPeers {
         return managerOptionsFor(caller).stream().map(Manager::user).toList();
     }
 
+    /**
+     * RM2 (DR5): the managers of the department a section belongs to — `GET /children/{id}/managers`, the parent's
+     * chooser, and the check behind her first message. The mirror of {@link #coordinatorsOn}: a MANAGERIAL scope row is
+     * `subject` NULL and `curriculum` set, so a manager belongs to a section when that row names the section's track.
+     * The school is the child's own, as it is there, because a parent carries no tenant scope.
+     */
+    public List<UserEntity> managersOn(String schoolId, ClassEntity section) {
+        var staff = users.findBySchoolIdAndRole(schoolId, ChatService.MANAGERIAL);
+        if (staff.isEmpty()) return List.of();
+        var rows = rowsOf(schoolId, staff);
+        String curriculum = normalise(section.getCurriculum());
+        var out = new ArrayList<UserEntity>();
+        for (var person : staff)
+            for (var row : rows.getOrDefault(person.getId(), List.of()))
+                if (row.getSubject() == null && curriculum.equals(normalise(row.getCurriculum()))) { out.add(person); break; }
+        out.sort(java.util.Comparator.comparing(ChatService::name));
+        return List.copyOf(out);
+    }
+
     /** A manager she may write to, with the department that made her reachable — `GET /coordinator/managers`. */
     public record Manager(UserEntity user, String curriculum) {}
 

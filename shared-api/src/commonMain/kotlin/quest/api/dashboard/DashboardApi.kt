@@ -854,6 +854,63 @@ interface DashboardApi {
 
     /** `GET /management/people/coordinators?q&page&size` — her coordinators, with subjects and tracks. */
     suspend fun directoryCoordinators(q: String? = null, page: Int = 0, size: Int = 0): CoordinatorDirectory
+    // ---- RM2 (DR6): her broadcasts and her chat. `management.broadcast` behind the `announcements` flag,
+    // `management.chat` behind `chat` — the keys the features they belong to already carry.
+
+    /**
+     * `POST /management/broadcasts` — the weekly plan, an announcement or an event for her department. An empty
+     * `sectionIds` is the whole department; a section of the other one is 403. Re-posting a `weekly_plan` for a week
+     * replaces the plan that was there.
+     */
+    suspend fun createManagementBroadcast(request: quest.api.dto.CreateBroadcastRequest): quest.api.dto.BroadcastView
+
+    /** `GET /management/broadcasts` — what she posted, newest first, expired rows included. */
+    suspend fun managementBroadcasts(): List<quest.api.dto.BroadcastView>
+
+    /** `GET /management/chat/threads?status=` — the parents of her department, her coordinators and the admin. */
+    suspend fun managementChatThreads(status: String? = null): List<quest.api.dto.ChatThread>
+
+    /** `GET /management/chat/threads/{id}/messages?before&since&limit` — a page, oldest first, as a teacher's is. */
+    suspend fun managementChatMessages(threadId: String, before: String? = null, since: String? = null,
+                                       limit: Int? = null): List<quest.api.dto.ChatMessage>
+
+    /** `POST /management/chat/threads/{id}/messages` — 1–2000 characters of plain text. */
+    suspend fun sendManagementChatMessage(threadId: String, request: quest.api.dto.SendChatMessageRequest): quest.api.dto.ChatMessage
+
+    /** `POST /management/chat/threads/{id}/read` — everything the other side wrote is read. */
+    suspend fun markManagementChatRead(threadId: String): quest.api.dto.ChatReadReceipt
+
+    /**
+     * `POST /management/chat/threads` — her thread with one coordinator of her department (`coordinatorUserId`) or with
+     * a platform admin (`adminUserId`), whichever the body names. The same thread whichever side opens it.
+     */
+    suspend fun createManagementChatThread(coordinatorUserId: String? = null, adminUserId: String? = null): quest.api.dto.ChatThread
+
+    /** `GET /management/admins` — whom `adminUserId` may name. `GET /management/coordinators` is the other chooser. */
+    suspend fun managementAdmins(): List<ManagerAdmin>
+
+    // ---- RM2: the feed every dashboard role reads, and the Admin's own threads with managers
+
+    /** `GET /me/broadcasts` — what this teacher, coordinator or manager is an audience of, with her unread count. */
+    suspend fun myBroadcasts(): quest.api.dto.BroadcastFeed
+
+    /** `POST /me/broadcasts/{id}/read` — this one is read; the row comes back with `read = true`. */
+    suspend fun markMyBroadcastRead(broadcastId: String): quest.api.dto.BroadcastView
+
+    /** `POST /coordinator/broadcasts` — an announcement or an event for the parents of the classes she coordinates. */
+    suspend fun createCoordinatorBroadcast(request: quest.api.dto.CreateBroadcastRequest): quest.api.dto.BroadcastView
+
+    /** `GET /coordinator/broadcasts` — hers, newest first. */
+    suspend fun coordinatorBroadcasts(): List<quest.api.dto.BroadcastView>
+
+    /** `POST /admin/chat/threads` — the admin's thread with one manager of the school in `X-School-Id`. */
+    suspend fun createSupportManagerThread(managerUserId: String): quest.api.dto.ChatThread
+
+    /** `POST /admin/chat/threads/{threadId}/messages` — into her own thread only; support otherwise reads. */
+    suspend fun sendSupportChatMessage(threadId: String, request: quest.api.dto.SendChatMessageRequest): quest.api.dto.ChatMessage
+
+    /** `POST /admin/chat/threads/{threadId}/read` — everything the manager wrote is read. */
+    suspend fun markSupportChatRead(threadId: String): quest.api.dto.ChatReadReceipt
 
     // ---- Admin: manager accounts and their departments (ADMIN only, `manager.manage`)
 

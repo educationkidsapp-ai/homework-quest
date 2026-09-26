@@ -50,8 +50,10 @@ public class ChatHandshake implements HandshakeInterceptor {
             if (user == null) return refuse(response, HttpStatus.UNAUTHORIZED);
             if (!DASHBOARD_ROLES.contains(user.role())) return refuse(response, HttpStatus.FORBIDDEN);
             if (!"ADMIN".equals(user.role()) && user.schoolId() == null) return refuse(response, HttpStatus.FORBIDDEN);
-            // R4: a COORDINATOR writes on the socket as a teacher does; every other dashboard role still only listens.
-            boolean chat = ("TEACHER".equals(user.role()) || "COORDINATOR".equals(user.role())) && flags.isOn(user.schoolId(), FlagKeys.CHAT);
+            // R4 and RM2: a COORDINATOR, a MANAGERIAL and an ADMIN write on the socket as a teacher does — each has a
+            // chat of her own now — and the flag still decides it. An ADMIN's token carries no school, so hers is on
+            // only while she holds one (she writes over REST with `X-School-Id` otherwise); nobody else can be here.
+            boolean chat = user.schoolId() != null && flags.isOn(user.schoolId(), FlagKeys.CHAT);
             attributes.put(PEER, new ChatSessions.Peer(ChatService.key(ChatService.USER, user.userId()), user.role().toLowerCase(Locale.ROOT),
                     user.userId(), user.schoolId(), user, chat));
             return true;
