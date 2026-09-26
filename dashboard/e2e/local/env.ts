@@ -462,8 +462,13 @@ export async function addStopThroughForm(
   const form = page.locator('[data-hq-add-stop]');
   await expect(form).toBeVisible();
   await form.getByLabel('Title', { exact: true }).fill(stop.title);
-  await form.getByLabel('Question / what the child does', { exact: true }).fill(stop.question);
   await form.getByLabel('Type', { exact: true }).selectOption(stop.type);
+  // E4b: on the five types the sheet writes out itself, the paragraph is behind this switch. A
+  // stop that is only a precondition wants one way in for all twenty-two, so this takes it —
+  // `add-stop.spec.ts` is where the structured fields and their single request are tested.
+  const toWords = form.getByRole('button', { name: 'Let the assistant write it from my words' });
+  if ((await toWords.count()) > 0) await toWords.click();
+  await form.getByLabel('Question / what the child does', { exact: true }).fill(stop.question);
   await page.getByRole('button', { name: 'Save the question' }).click();
 
   // The one toast in this system: a success, politely announced, with no Undo on it.

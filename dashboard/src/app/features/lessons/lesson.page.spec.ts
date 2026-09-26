@@ -740,7 +740,9 @@ describe('Lesson', () => {
     const { backend } = await renderLessonAs(lessonWithStops(), TEACHER_USER, TEACHER_PERMISSIONS);
 
     await userEvent.click(screen.getByRole('button', { name: '+ Add stop' }));
-    await fillAddStopForm('Is it true?', 'Say whether ten is bigger than five.', 'trueFalse');
+    // A type the assistant writes, so this test is about the alias and nothing else — E4b's
+    // structured five save the same way, through `LessonApiService.addStop`.
+    await fillAddStopForm('Is it true?', 'Say whether ten is bigger than five.', 'openAnswer');
     await userEvent.click(screen.getByRole('button', { name: 'Save the question' }));
 
     backend.expectOne('/teacher/plays/p-1/stops');

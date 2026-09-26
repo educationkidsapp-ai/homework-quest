@@ -104,8 +104,12 @@ async function addStop(page: Page, type: string, title: string, question: string
   const form = addStopForm(page);
   await expect(form).toBeVisible();
   await form.getByLabel('Title', { exact: true }).fill(title);
-  await form.getByLabel('Question / what the child does', { exact: true }).fill(question);
   await form.getByLabel('Type', { exact: true }).selectOption(type);
+  // E4b: these tests are about the prose the assistant writes, so the five types that would
+  // otherwise ask for their fields are switched back to her words.
+  const toWords = form.getByRole('button', { name: 'Let the assistant write it from my words' });
+  if ((await toWords.count()) > 0) await toWords.click();
+  await form.getByLabel('Question / what the child does', { exact: true }).fill(question);
   await page.getByRole('button', { name: 'Save the question' }).click();
   await expect(stopRows(page)).toHaveCount(before + 1, { timeout: 30_000 });
   await expect(stopRows(page).filter({ hasText: title }).first()).toBeVisible();

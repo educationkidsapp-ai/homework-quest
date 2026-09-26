@@ -102,6 +102,22 @@ export class StopDraftService {
     });
   }
 
+  /**
+   * E4b: a stop that is already finished — one request, and no draft row at all.
+   *
+   * The sheet built the whole document from its fields (`structured-stop.ts`), so there is nothing
+   * for the assistant to do and nothing to wait for: the create lands, `created$` puts the stop in
+   * the level's list selected, and a refusal is the error interceptor's red band as usual. It goes
+   * through this service rather than the page only so that the "a new stop appeared" path is one
+   * path, whichever way it was written.
+   */
+  addNow(lessonId: string, playId: string, body: string): void {
+    this.api.addStop(playId, body).subscribe({
+      next: (stop) => this.created$.next({ lessonId, playId, stop }),
+      error: () => undefined,
+    });
+  }
+
   /** The same words again. Only from an errored row — a second run over a live one would race it. */
   retry(stopId: string): void {
     const draft = this.drafts().get(stopId);

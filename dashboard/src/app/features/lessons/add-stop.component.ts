@@ -27,6 +27,16 @@ import { type Subject, stopBody } from './lessons.models';
 import { StopDraftService } from './stop-draft.service';
 import { type EditorImage } from './stop-editor.component';
 import { STOP_TEMPLATES, STOP_TEMPLATE_GROUPS, templatesByGroup } from './stop-templates';
+import { StructuredFieldsComponent } from './structured-fields.component';
+import {
+  EMPTY_STRUCTURED,
+  type StructuredType,
+  type StructuredValue,
+  buildStructuredStop,
+  isStructured,
+  structuredDirty,
+  structuredProblems,
+} from './structured-stop';
 
 /**
  * `Play.schema.json`'s `maxLength` on a stop's `title`, refused here rather than by the server.
@@ -63,6 +73,13 @@ type FieldName = 'title' | 'question' | 'type';
  * it up by id). So there is no "convert first, create after" order available: this creates the
  * chosen type's template with her title, picture and parent tip on it, then converts.
  *
+ * **E4b: the five most-used types skip the assistant altogether.** `choice`, `trueFalse`,
+ * `writeSentence`, `readPage` and `exitTicket` are asked for as fields (`hq-structured-fields`),
+ * the client builds the finished document from the template and the fields (`structured-stop.ts`)
+ * and one `POST …/plays/{id}/stops` saves it — no model call, no draft row, no wait. "Let the
+ * assistant write it from my words" is one click away for the same types, for a teacher who would
+ * rather describe the question than fill it in; the other seventeen types only have that path.
+ *
  * **E4a: neither call is awaited here.** Both belong to {@link StopDraftService}, so Save closes
  * the sheet — or, for "Save and add another", empties it and puts the caret back in Title — while
  * the assistant writes. The new stop is already in the level's list with a row that says so, and
@@ -79,6 +96,7 @@ type FieldName = 'title' | 'question' | 'type';
     InputComponent,
     TextareaComponent,
     SelectComponent,
+    StructuredFieldsComponent,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -104,7 +122,9 @@ type FieldName = 'title' | 'question' | 'type';
            can land on. -->
       @if (open()) {
         <div class="add-stop" data-hq-add-stop>
-          <p class="add-stop__lede">{{ 'lessons.detail.addStop.lede' | transloco }}</p>
+          <p class="add-stop__lede">
+            {{ (byHand() ? 'lessons.detail.addStop.ledeFields' : 'lessons.detail.addStop.lede') | transloco }}
+          </p>
 
           <hq-input
             #titleField
@@ -118,18 +138,8 @@ type FieldName = 'title' | 'question' | 'type';
             (blurred)="touch('title')"
           />
 
-          <hq-textarea
-            [label]="'lessons.detail.addStop.questionLabel' | transloco"
-            [hint]="'lessons.detail.addStop.questionHint' | transloco"
-            [rows]="5"
-            [required]="true"
-            [maxLength]="MAX_QUESTION"
-            [error]="errorFor('question')"
-            [value]="questionValue()"
-            (valueChange)="onQuestionChange($event)"
-            (blurred)="touch('question')"
-          />
-
+          <!-- E4b: the type comes before the question, because on five of the twenty-two it
+               decides which fields are asked for at all. -->
           <hq-select
             [label]="'lessons.detail.addStop.typeLabel' | transloco"
             [placeholder]="'lessons.detail.addStop.typePlaceholder' | transloco"
@@ -141,6 +151,38 @@ type FieldName = 'title' | 'question' | 'type';
             (valueChange)="typeValue.set($event)"
             (blurred)="touch('type')"
           />
+
+          @if (byHand(); as fieldsType) {
+            <hq-structured-fields
+              [type]="fieldsType"
+              [(value)]="fields"
+              [problems]="fieldProblems()"
+              [show]="submitted()"
+            />
+          } @else {
+            <hq-textarea
+              [label]="'lessons.detail.addStop.questionLabel' | transloco"
+              [hint]="'lessons.detail.addStop.questionHint' | transloco"
+              [rows]="5"
+              [required]="true"
+              [maxLength]="MAX_QUESTION"
+              [error]="errorFor('question')"
+              [value]="questionValue()"
+              (valueChange)="onQuestionChange($event)"
+              (blurred)="touch('question')"
+            />
+          }
+
+          <!-- Hers to choose, on the five types that have both paths: the fields save instantly,
+               her own words go to the assistant. -->
+          @if (canWriteByHand()) {
+            <hq-button variant="quiet" (pressed)="toggleWriter()">
+              {{
+                (byHand() ? 'lessons.detail.addStop.useAssistant' : 'lessons.detail.addStop.useFields')
+                  | transloco
+              }}
+            </hq-button>
+          }
 
           <div class="add-stop__picture">
             <hq-select
@@ -324,9 +366,36 @@ export class AddStopComponent {
   protected readonly tipEn = signal('');
   protected readonly tipAr = signal('');
 
+  /** E4b: the typed fields of the five types that need no assistant. One object, one signal. */
+  protected readonly fields = signal<StructuredValue>(EMPTY_STRUCTURED);
+  /** Her choice on those five: the fields (the default) or her own words. Sticky across saves. */
+  private readonly writer = signal<'fields' | 'assistant'>('fields');
+
   protected readonly discardOpen = signal(false);
   private readonly touched = signal<ReadonlySet<FieldName>>(new Set());
-  private readonly submitted = signal(false);
+  protected readonly submitted = signal(false);
+
+  /** The selected type, when this sheet can write it out itself and she has not opted out. */
+  protected readonly canWriteByHand = computed(() => isStructured(this.typeValue()));
+  protected readonly byHand = computed<StructuredType | null>(() => {
+    const type = this.typeValue();
+    return isStructured(type) && this.writer() === 'fields' ? type : null;
+  });
+
+  protected toggleWriter(): void {
+    this.writer.update((writer) => (writer === 'fields' ? 'assistant' : 'fields'));
+    this.submitted.set(false);
+  }
+
+  /** The structured fields' problems, translated — `structured-stop.ts` holds the rules. */
+  protected readonly fieldProblems = computed<ReadonlyMap<string, string>>(() => {
+    this.lang();
+    const type = this.byHand();
+    if (type === null) return new Map();
+    const problems = new Map<string, string>();
+    for (const [field, key] of structuredProblems(type, this.fields())) problems.set(field, this.t(key));
+    return problems;
+  });
 
   protected readonly typeGroups = computed<readonly SelectOptionGroup<StopType>[]>(() => {
     this.lang();
@@ -363,16 +432,19 @@ export class AddStopComponent {
     if (title === '') problems.set('title', this.t('lessons.detail.addStop.titleRequired'));
     else if (title.length > MAX_TITLE) problems.set('title', this.t('lessons.detail.addStop.titleTooLong'));
 
-    const question = this.questionValue().trim();
-    if (question === '') problems.set('question', this.t('lessons.detail.addStop.questionRequired'));
-    else if (question.length > MAX_QUESTION)
-      problems.set('question', this.t('lessons.detail.addStop.questionTooLong'));
+    // Only the assistant path asks for a paragraph: written by hand, the question *is* the fields.
+    if (this.byHand() === null) {
+      const question = this.questionValue().trim();
+      if (question === '') problems.set('question', this.t('lessons.detail.addStop.questionRequired'));
+      else if (question.length > MAX_QUESTION)
+        problems.set('question', this.t('lessons.detail.addStop.questionTooLong'));
+    }
 
     if (this.typeValue() === '') problems.set('type', this.t('lessons.detail.addStop.typeRequired'));
     return problems;
   });
 
-  protected readonly valid = computed(() => this.problems().size === 0);
+  protected readonly valid = computed(() => this.problems().size === 0 && this.fieldProblems().size === 0);
 
   /**
    * A field says what is wrong once the teacher has left it, or once she has pressed Save —
@@ -399,15 +471,18 @@ export class AddStopComponent {
   }
 
   /** Dirty means she wrote something. An untouched form closes without a question. */
-  protected readonly dirty = computed(
-    () =>
+  protected readonly dirty = computed(() => {
+    const type = this.byHand();
+    return (
       this.titleValue() !== '' ||
       this.questionValue() !== '' ||
       this.typeValue() !== '' ||
       this.imageValue() !== '' ||
       this.tipEn() !== '' ||
-      this.tipAr() !== '',
-  );
+      this.tipAr() !== '' ||
+      (type !== null && structuredDirty(type, this.fields()))
+    );
+  });
 
   protected requestCancel(): void {
     if (this.dirty()) this.discardOpen.set(true);
@@ -427,6 +502,7 @@ export class AddStopComponent {
   private reset(): void {
     this.titleValue.set('');
     this.questionValue.set('');
+    this.fields.set(EMPTY_STRUCTURED);
     this.typeValue.set('');
     this.imageValue.set('');
     this.tipEn.set('');
@@ -457,6 +533,7 @@ export class AddStopComponent {
     if (!this.submit()) return;
     this.titleValue.set('');
     this.questionValue.set('');
+    this.fields.set(EMPTY_STRUCTURED);
     this.touched.set(new Set());
     this.submitted.set(false);
     this.titleField()?.nativeElement.querySelector('input')?.focus();
@@ -477,6 +554,19 @@ export class AddStopComponent {
     const tip = skeleton['parentTip'] as { en: string; ar: string } | undefined;
     if (tip && (this.tipEn().trim() !== '' || this.tipAr().trim() !== '')) {
       draft['parentTip'] = { en: this.tipEn().trim() || tip.en, ar: this.tipAr().trim() || tip.ar };
+    }
+
+    // E4b: written out by hand, the document is finished here — one request, and the stop is in
+    // the list complete rather than as a row waiting on a model.
+    const byHand = this.byHand();
+    if (byHand !== null) {
+      this.drafts.addNow(
+        this.lessonId(),
+        this.playId(),
+        stopBody(buildStructuredStop(byHand, this.fields(), draft)),
+      );
+      this.added.emit();
+      return true;
     }
 
     // The title leads the text because that is the shape `StopText.describe` gives a stop back

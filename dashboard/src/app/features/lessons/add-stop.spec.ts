@@ -152,7 +152,7 @@ describe('hq-add-stop', () => {
   it('keeps the sheet, the type and the tip on "Save and add another", and empties her words', async () => {
     const { backend, added, rendered } = await renderForm();
 
-    await fill('Which shape has three sides', 'Show a triangle and a circle.', 'choice');
+    await fill('Which shape has three sides', 'Show a triangle and a circle.', 'match');
     await userEvent.type(form().getByLabelText(/^Parent tip \(English\)/), 'Count the sides together.');
     await userEvent.click(screen.getByRole('button', { name: 'Save and add another' }));
     await settle(rendered);
@@ -161,7 +161,7 @@ describe('hq-add-stop', () => {
     expect(form().getByLabelText(/^Title/)).toHaveValue('');
     expect(form().getByLabelText(/^Question \/ what the child does/)).toHaveValue('');
     // The type and the tip are the settings for a run of questions, so they stay.
-    expect(form().getByLabelText(/^Type/)).toHaveValue('choice');
+    expect(form().getByLabelText(/^Type/)).toHaveValue('match');
     expect(form().getByLabelText(/^Parent tip \(English\)/)).toHaveValue('Count the sides together.');
     // And nothing is red: an emptied form she has not submitted again has nothing to complain of.
     expect(form().queryByText('Give this question a title.')).not.toBeInTheDocument();
@@ -171,7 +171,7 @@ describe('hq-add-stop', () => {
     expect(added).toHaveBeenCalledOnce();
 
     // The second question is a second draft, not a second attempt at the first.
-    await fill('Which shape is round', 'Show the same three shapes.', 'choice');
+    await fill('Which shape is round', 'Show the same three shapes.', 'match');
     await userEvent.click(screen.getByRole('button', { name: 'Save and add another' }));
     await settle(rendered);
     expect(backend.match('/admin/plays/p-1/stops')).toHaveLength(1);
@@ -190,6 +190,102 @@ describe('hq-add-stop', () => {
 
     expect(backend.match('/admin/plays/p-1/stops')).toHaveLength(1);
     expect(form().getByText('Give this question a title.')).toBeInTheDocument();
+  });
+
+  /**
+   * E4b: the five most-used types are written out here and saved in one request.
+   *
+   * `POST …/plays/{id}/stops` carries the finished document — the assistant is not asked, so
+   * `backend.verify()` after the flush is the whole assertion: a second request of any kind would
+   * fail it.
+   */
+  it('writes a choice question out itself and saves it in one request', async () => {
+    const { backend, rendered } = await renderForm();
+
+    await userEvent.type(form().getByLabelText(/^Title/), 'Which shape has three sides');
+    await userEvent.selectOptions(form().getByLabelText(/^Type/), 'choice');
+    await settle(rendered);
+    // The paragraph for the assistant is gone: on these five the fields *are* the question.
+    expect(form().queryByLabelText(/^Question \/ what the child does/)).not.toBeInTheDocument();
+
+    await userEvent.type(form().getByLabelText(/^Question$/), 'Which shape has three sides?');
+    await userEvent.type(form().getByLabelText(/^Answer 1/), 'Triangle');
+    await userEvent.type(form().getByLabelText(/^Answer 2/), 'Circle');
+    await userEvent.type(form().getByLabelText(/^Answer 3/), 'Square');
+    await userEvent.type(form().getByLabelText(/^Answer 4/), 'Hexagon');
+    await userEvent.selectOptions(form().getByLabelText(/^Which answer is right/), '0');
+    await pressSave(rendered);
+
+    const created = backend.expectOne('/admin/plays/p-1/stops');
+    expect(created.request.method).toBe('POST');
+    expect(JSON.parse(created.request.body as string) as object).toMatchObject({
+      type: 'choice',
+      title: 'Which shape has three sides',
+      question: 'Which shape has three sides?',
+      options: [
+        { id: 'a', label: 'Triangle' },
+        { id: 'b', label: 'Circle' },
+        { id: 'c', label: 'Square' },
+        { id: 'd', label: 'Hexagon' },
+      ],
+      correctOptionId: 'a',
+    });
+    created.flush({ id: 'st-4', type: 'choice', title: 'Which shape has three sides' });
+    await settle(rendered);
+    // No `from-text`, no second call of any kind: the stop was finished before it was sent.
+    backend.verify();
+  });
+
+  it('says what the fields are missing, under the fields, and sends nothing', async () => {
+    const { backend, rendered } = await renderForm();
+
+    await userEvent.type(form().getByLabelText(/^Title/), 'Half a question');
+    await userEvent.selectOptions(form().getByLabelText(/^Type/), 'choice');
+    await userEvent.type(form().getByLabelText(/^Answer 1/), 'Triangle');
+    await pressSave(rendered);
+
+    expect(form().getByText('Write the question the child answers.')).toBeInTheDocument();
+    expect(form().getByText('Write at least two answers to choose from.')).toBeInTheDocument();
+    expect(rendered.fixture.componentInstance.open()).toBe(true);
+    backend.verify();
+  });
+
+  /** Her choice, on those five types only: the fields, or the words and the assistant. */
+  it('hands the same type to the assistant when she asks for words instead', async () => {
+    const { backend, rendered } = await renderForm();
+
+    await userEvent.type(form().getByLabelText(/^Title/), 'True or false');
+    await userEvent.selectOptions(form().getByLabelText(/^Type/), 'trueFalse');
+    await settle(rendered);
+    expect(form().getByLabelText(/^Statement/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Let the assistant write it from my words' }));
+    await settle(rendered);
+    expect(form().queryByLabelText(/^Statement/)).not.toBeInTheDocument();
+
+    await userEvent.type(
+      form().getByLabelText(/^Question \/ what the child does/),
+      'Ask whether a triangle has three sides.',
+    );
+    await pressSave(rendered);
+
+    const created = backend.expectOne('/admin/plays/p-1/stops');
+    created.flush({ id: 'st-5', type: 'trueFalse', title: 'True or false' });
+    await settle(rendered);
+    expect(backend.expectOne('/admin/stops/st-5/from-text').request.method).toBe('POST');
+  });
+
+  /** The seventeen other types never grow fields, and never lose the paragraph. */
+  it('leaves the assistant path alone on a type it cannot write itself', async () => {
+    const { rendered } = await renderForm();
+
+    await userEvent.selectOptions(form().getByLabelText(/^Type/), 'retell');
+    await settle(rendered);
+
+    expect(form().getByLabelText(/^Question \/ what the child does/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Let the assistant write it from my words' }),
+    ).not.toBeInTheDocument();
   });
 
   it('asks before throwing away words, and does not ask when there are none', async () => {
