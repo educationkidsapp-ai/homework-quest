@@ -18,6 +18,7 @@ import {
   BandComponent,
   ButtonComponent,
   CardComponent,
+  DayPickerComponent,
   EmptyStateComponent,
   InputComponent,
   PageComponent,
@@ -106,6 +107,7 @@ const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
     CardComponent,
     SelectComponent,
     InputComponent,
+    DayPickerComponent,
     ButtonComponent,
     BandComponent,
     ProgressBarComponent,
@@ -388,6 +390,17 @@ export class NewLessonPage {
     }));
   });
 
+  /**
+   * The source cards on screen.
+   *
+   * Once "Write it yourself" is chosen the three Upload cards go (owner, 2026-09-26): she has
+   * said there is no file, and three invitations to add one are the only thing left on the screen
+   * that mentions them. "Pick another source" clears the choice and brings all four back.
+   */
+  protected readonly visibleSourceCards = computed<readonly SourceCardView[]>(() =>
+    this.source() === 'manual' ? this.sourceCards().filter((card) => card.id === 'manual') : this.sourceCards(),
+  );
+
   protected readonly acceptFor = computed(() => {
     const source = this.source();
     return source && source !== 'manual' ? ACCEPT[source] : '';
@@ -399,10 +412,11 @@ export class NewLessonPage {
     return source && source !== 'manual' ? this.t(`lessons.new.dropzone.${source}`) : '';
   });
 
-  protected selectSource(id: LessonSource): void {
+  /** `null` un-picks, which is what "Pick another source" does. */
+  protected selectSource(id: LessonSource | null): void {
     if (this.busy() !== null) return;
     this.source.set(id);
-    this.files.set(id === 'manual' ? [] : this.files().filter((file) => acceptsFile(id, file.name)));
+    this.files.set(id === null || id === 'manual' ? [] : this.files().filter((f) => acceptsFile(id, f.name)));
     this.error.set(null);
   }
 

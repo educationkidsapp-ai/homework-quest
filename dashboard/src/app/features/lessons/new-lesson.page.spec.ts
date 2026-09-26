@@ -238,6 +238,33 @@ describe('New lesson', () => {
     );
   });
 
+  /** Owner, 2026-09-26: "Write it yourself" leaves nothing about files on the screen. */
+  it('hides the Upload cards and the drop zone once she chooses to write it herself', async () => {
+    const { backend } = await renderTeacher();
+    await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
+
+    await userEvent.click(screen.getByRole('button', { name: /Write it yourself/ }));
+
+    expect(screen.queryByRole('button', { name: /Upload a PDF/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Upload slides/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Upload photos/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Drop a PDF here/)).not.toBeInTheDocument();
+    expect(document.querySelector('input[type="file"]')).toBeNull();
+
+    // And the choice is not a trap: this brings all four back.
+    await userEvent.click(screen.getByRole('button', { name: 'Pick another source' }));
+    expect(screen.getByRole('button', { name: /Upload a PDF/ })).toBeInTheDocument();
+  });
+
+  /** The Lesson day is a 56 px grid of days, not the browser's popup (owner, 2026-09-26). */
+  it('offers the day as a grid rather than a native date field', async () => {
+    const { backend } = await renderTeacher();
+    await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
+
+    expect(screen.getByRole('grid', { name: 'Lesson day' })).toBeInTheDocument();
+    expect(document.querySelector('input[type="date"]')).toBeNull();
+  });
+
   it('rolls the draft lesson back when the upload fails, leaving no orphan', async () => {
     const { backend } = await renderTeacher();
     await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);

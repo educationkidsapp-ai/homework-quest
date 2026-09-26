@@ -20,6 +20,7 @@ import {
   CardComponent,
   CheckboxComponent,
   CountUpDirective,
+  DayPickerComponent,
   EmptyStateComponent,
   InputComponent,
   MotionService,
@@ -81,6 +82,7 @@ interface DemoLesson {
     PageComponent,
     ButtonComponent,
     InputComponent,
+    DayPickerComponent,
     SelectComponent,
     CheckboxComponent,
     ToggleComponent,
@@ -244,6 +246,8 @@ export class StyleguidePage {
   protected readonly schoolName = signal('');
   protected readonly schoolCode = signal('HQ0001');
   protected readonly curriculum = signal<'american' | 'british' | ''>('');
+  /** A fixed day rather than today's, so the styleguide screenshots do not change daily. */
+  protected readonly lessonDay = signal('2026-09-17');
   protected readonly inviteByEmail = signal(true);
   protected readonly includeDisabled = signal(false);
   protected readonly complaintsOn = signal(true);

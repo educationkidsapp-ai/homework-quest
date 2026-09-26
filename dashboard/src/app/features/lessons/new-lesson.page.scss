@@ -120,6 +120,13 @@
   gap: var(--hq-space-16);
 }
 
+// The day grid is seven columns wide; it takes the whole row rather than being squeezed into a
+// third of it beside the title and the practice length.
+.lesson-fields__day {
+  grid-column: 1 / -1;
+  max-inline-size: var(--hq-size-content-max-width);
+}
+
 .sources {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(var(--hq-size-stop-list-width), 1fr));

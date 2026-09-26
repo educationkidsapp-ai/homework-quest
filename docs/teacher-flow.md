@@ -75,7 +75,9 @@ A grid of her classes (rows) by the days of the school week (columns; default Su
 - **Exams** — see Step 10.
 
 ### Step 4 — Create a lesson
-From This week, the class calendar or **New lesson**. Class and subject are fixed; the teacher sets the date and picks a source:
+From This week, the class calendar or **New lesson**. Class and subject are fixed; the teacher sets the date and picks a source.
+
+**Lesson day** is a month grid laid out on the page — 56 px cells with 20 px numerals, one tab stop, the arrows moving a day and Page Up/Down a month — not the browser's date popup. Choosing **Write it yourself** also takes every mention of files off the screen: no drop zone, no file input, and the three *Upload* cards go too (**Pick another source** brings them back).
 
 | Source | What happens |
 |---|---|

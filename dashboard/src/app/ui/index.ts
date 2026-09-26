@@ -9,6 +9,7 @@ export { TableComponent, type TableColumn, type TableGroup } from './table/table
 export { TabsComponent, type Tab } from './tabs/tabs.component';
 export { CardComponent } from './card/card.component';
 export { DialogComponent } from './dialog/dialog.component';
+export { DayPickerComponent } from './day-picker/day-picker.component';
 export { BandComponent, type BandVariant } from './band/band.component';
 export { StepStripComponent, type PipelineStep, type StepState } from './step-strip/step-strip.component';
 export { ProgressBarComponent } from './progress-bar/progress-bar.component';

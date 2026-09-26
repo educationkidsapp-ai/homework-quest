@@ -769,7 +769,8 @@
       "noClasses": "You have no classes yet. The office assigns them.",
       "uploadFailed": "We could not read the file you uploaded, so nothing was generated from it.",
       "uploadRetry": "Send the file again",
-      "uploadDelete": "Delete this draft"
+      "uploadDelete": "Delete this draft",
+      "otherSource": "Pick another source"
     },
     "detail": {
       "stepState": {
@@ -1396,7 +1397,8 @@
       "countUp": "Count up",
       "motion": "Motion",
       "foundations": "Foundations",
-      "badge": "Badge"
+      "badge": "Badge",
+      "dayPicker": "Day picker"
     },
     "button": {
       "primary": "Primary",
@@ -1578,6 +1580,9 @@
       "success": "Published",
       "warning": "Needs review",
       "error": "Failed"
+    },
+    "dayPicker": {
+      "label": "Lesson day"
     }
   },
   "subject": {
@@ -1657,7 +1662,11 @@
       "error": "failed"
     },
     "cancel": "Cancel",
-    "retry": "Try again"
+    "retry": "Try again",
+    "dayPicker": {
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month"
+    }
   },
   "week": {
     "title": "This week",

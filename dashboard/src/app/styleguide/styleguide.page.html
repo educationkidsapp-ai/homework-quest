@@ -213,6 +213,12 @@
         </div>
       </hq-card>
 
+      <!-- The day grid that replaced the browser's date popup on New lesson (owner, 2026-09-26):
+           56 px cells, 20 px numerals, one tab stop and the arrows moving the selection. -->
+      <hq-card [title]="'styleguide.sections.dayPicker' | transloco">
+        <hq-day-picker [label]="'styleguide.dayPicker.label' | transloco" [(value)]="lessonDay" />
+      </hq-card>
+
       <!-- Badges: §3's status pill, in every tone and in both weights. A global class rather
            than a kit component (styles.scss:204), so nothing else would ever have drawn it. -->
       <hq-card [title]="'styleguide.sections.badge' | transloco">
