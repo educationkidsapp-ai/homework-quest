@@ -7,6 +7,7 @@ import { NgClass } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   Injector,
   afterNextRender,
@@ -36,6 +37,7 @@ import { FeatureDirective } from '../../core/flags/feature.directive';
 import { CanDirective } from '../../core/permissions/can.directive';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PlatformService } from '../../core/platform/platform.service';
+import { ScreenSearchService } from '../../core/shell/screen-search.service';
 import { UndoService } from '../../core/undo/undo.service';
 import {
   BandComponent,
@@ -54,6 +56,7 @@ import {
   groupByGrade,
   pendingCopyId,
   rowsOf,
+  searchRows,
   siblingsOf,
   weekendDaysOf,
   withCopiedLesson,
@@ -121,6 +124,9 @@ export class WeekPage {
   private readonly route = inject(ActivatedRoute);
   private readonly transloco = inject(TranslocoService);
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
+  /** U1 item 1: the header's search box while This week is showing. */
+  protected readonly search = inject(ScreenSearchService);
   private readonly lang = activeLang();
 
   /** The confirm strip, so the keyboard path can put focus on the question it just asked. */
@@ -189,11 +195,23 @@ export class WeekPage {
   protected readonly hasRows = computed(() => this.rows().length > 0);
 
   // ---- Filters -------------------------------------------------------------------------------
+
+  /**
+   * U1 item 1: the header's search box, which used to be wired to nothing.
+   *
+   * This week claims it on arrival and hands it back on leave, so the box says what it searches
+   * ("class, subject or lesson") and disappears on a screen that cannot answer it.
+   */
+  constructor() {
+    this.search.claim('week.search.placeholder');
+    this.destroyRef.onDestroy(() => this.search.release());
+  }
+
   protected readonly selectedClass = signal<string>('all');
   protected readonly statusFilter = signal<string>('all');
 
   protected readonly filteredRows = computed(() => {
-    let rows = this.rows();
+    let rows = searchRows(this.rows(), this.search.term());
     const sel = this.selectedClass();
     if (sel !== 'all') {
       rows = rows.filter((r) => r.classId === sel);
@@ -248,23 +266,34 @@ export class WeekPage {
   });
 
   // ---- Teacher Workflows / Quick Actions -----------------------------------------------------
-  protected readonly quickActions = [
-    { label: 'This Week', subtitle: 'Weekly schedule', icon: 'calendar', link: '/teacher/week', queryParams: {}, color: 'em-gradient--blue', bgColor: 'em-bg--blue' },
+  /**
+   * U1 item 3: "This week" is gone — it was the card's own screen, so the tile did nothing but
+   * reload the page a teacher is already on. New exam carries a class (see
+   * {@link newExamParams}): `/teacher/exams/new` without one draws a screen whose only action is
+   * refused, which is how "Create Exam" came to look broken.
+   */
+  protected readonly quickActions = computed(() => [
     { label: 'My Classes', subtitle: 'Sections & rosters', icon: 'users', link: '/teacher/classes', queryParams: {}, color: 'em-gradient--purple', bgColor: 'em-bg--purple' },
     { label: 'New Lesson', subtitle: 'PDF / slides / manual', icon: 'file-text', link: '/teacher/lessons/new', queryParams: {}, color: 'em-gradient--pink', bgColor: 'em-bg--pink' },
-    { label: 'Create Exam', subtitle: 'Scheduled test', icon: 'download', link: '/teacher/exams/new', queryParams: {}, color: 'em-gradient--cyan', bgColor: 'em-bg--cyan' },
+    { label: 'Create Exam', subtitle: 'Scheduled test', icon: 'download', link: '/teacher/exams/new', queryParams: this.newExamParams(), color: 'em-gradient--cyan', bgColor: 'em-bg--cyan' },
     { label: 'Attendance', subtitle: 'Daily roll call', icon: 'bell', link: '/teacher/classes', queryParams: { tab: 'attendance' }, color: 'em-gradient--green', bgColor: 'em-bg--green' },
     { label: 'Parent Chat', subtitle: 'Direct message', icon: 'mail', link: '/teacher/chat', queryParams: {}, color: 'em-gradient--orange', bgColor: 'em-bg--orange' },
-  ];
+  ]);
 
-  // ---- Weekly Class Attendance Chart ---------------------------------------------------------
-  protected readonly attendanceChartDays = [
-    { day: 'Mon', g13: 95.8, g46: 98.2 },
-    { day: 'Tue', g13: 94.6, g46: 97.4 },
-    { day: 'Wed', g13: 96.8, g46: 97.9 },
-    { day: 'Thu', g13: 95.5, g46: 98.0 },
-    { day: 'Fri', g13: 97.2, g46: 99.1 },
-  ];
+  /**
+   * The class New exam opens on: the one the planner is filtered to, else the first she teaches.
+   *
+   * `POST /teacher/classes/{classId}/exams` is the only way to make an exam, so the screen needs
+   * a class before its primary action can do anything; arriving with none is the `exams.create.noClass`
+   * dead end. `{}` when she teaches nothing at all — then the screen's own message is the honest answer.
+   */
+  protected readonly newExamParams = computed<Record<string, string>>(() => {
+    const selected = this.selectedClass();
+    const classId = selected !== 'all' ? selected : (this.assignedClasses()[0]?.id ?? '');
+    const params: Record<string, string> = {};
+    if (classId) params['classId'] = classId;
+    return params;
+  });
 
   // ---- Schedule Gaps & Alerts ----------------------------------------------------------------
   protected readonly scheduleAlerts = computed(() => {

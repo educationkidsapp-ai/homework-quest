@@ -1743,11 +1743,17 @@ export class ChatPage implements AfterViewChecked {
   });
 
   constructor() {
-    // Check query params for childId
+    /*
+     * U1 item 6: "Message parent" arrives here as `?childId=…&name=…`, and it has to open the
+     * conversation even when the child has never been written to — the thread row is created by
+     * the first message, so there is nothing in the list to select yet. `openWith` draws that
+     * conversation from the name the link carried; the server's own row replaces it on send.
+     */
     effect(() => {
-      const childId = this.route.snapshot.queryParamMap.get('childId');
+      const params = this.route.snapshot.queryParamMap;
+      const childId = params.get('childId');
       if (childId) {
-        this.chatService.selectThread(childId);
+        this.chatService.openWith(childId, params.get('name') ?? '', params.get('class') ?? undefined);
         this.mobileShowConvo.set(true);
       }
     });

@@ -96,7 +96,7 @@
         </div>
       </div>
       <div class="em-quick-actions-grid">
-        @for (act of quickActions; track act.label) {
+        @for (act of quickActions(); track act.label) {
           <a
             class="em-quick-action-btn"
             [ngClass]="act.bgColor"
@@ -150,40 +150,9 @@
       <!-- Left Column -->
       <div class="em-split-col em-split-col--left">
         
-        <!-- Weekly Attendance Chart Card -->
-        <section class="em-card">
-          <div class="em-card-header">
-            <div>
-              <h2 class="em-card-title">{{ 'week.attendanceTrends' | transloco }}</h2>
-              <p class="em-card-subtitle">{{ 'week.attendanceTrendsSubtitle' | transloco }}</p>
-            </div>
-            <div class="em-legend-group">
-              <div class="em-legend-item">
-                <span class="em-legend-dot em-legend-dot--blue"></span>
-                <span class="em-legend-label">Grade 1–3</span>
-              </div>
-              <div class="em-legend-item">
-                <span class="em-legend-dot em-legend-dot--purple"></span>
-                <span class="em-legend-label">Grade 4–6</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="em-chart-container">
-            <div class="em-chart-bars">
-              @for (item of attendanceChartDays; track item.day) {
-                <div class="em-chart-col">
-                  <div class="em-chart-tracks">
-                    <div class="em-chart-track em-chart-track--students" [style.height.%]="item.g13"></div>
-                    <div class="em-chart-track em-chart-track--teachers" [style.height.%]="item.g46"></div>
-                  </div>
-                  <span class="em-chart-day">{{ item.day }}</span>
-                </div>
-              }
-            </div>
-          </div>
-        </section>
-
+        <!-- U1 item 3: the Weekly Class Attendance card is gone from the teacher's This week.
+             Its numbers were a fixture, and the real roll call is one tap away on the class's
+             Attendance tab, which is where she marks it. -->
         <!-- Weekly Lessons & Exams Schedule (Planner) -->
         <section class="em-card" id="plannerSection">
           <div class="em-card-header">
@@ -280,7 +249,11 @@
               [label]="'week.loading' | transloco"
             />
           } @else if (!hasFilteredRows()) {
-            <hq-empty-state [message]="'week.empty' | transloco" />
+            <!-- U1 item 1: an empty grid because of the search says so, rather than reading as a
+                 week with nothing in it. -->
+            <hq-empty-state
+              [message]="(search.term() ? 'week.searchEmpty' : 'week.empty') | transloco: { term: search.term() }"
+            />
           } @else {
             <div class="week__scroll">
               <div
@@ -543,8 +516,13 @@
             }
           </div>
 
-          <a routerLink="/teacher/exams/new" class="em-btn-gradient">
-            + New Exam
+          <!-- U1 item 3: with the class on it, so New exam opens on a class it can create for. -->
+          <a
+            routerLink="/teacher/exams/new"
+            [queryParams]="newExamParams()"
+            class="em-btn-gradient"
+          >
+            {{ 'week.newExamBtn' | transloco }}
           </a>
         </section>
 

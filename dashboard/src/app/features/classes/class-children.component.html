@@ -5,20 +5,26 @@
   [eyebrow]="'classes.children.count' | transloco: { count: rows().length }"
 >
   <div card-actions>
-    <!-- Behind both gates: the school must have roster editing, and the account must hold the key. -->
+    <!--
+      Behind both gates: the school must have roster editing, and the account must hold the key.
+      U1 item 6 adds a third — who the roster belongs to. A teacher does not add children to the
+      school or take them off a roster, so for her the two buttons are not drawn at all.
+    -->
     <span *hqFeature="rosterFlag">
       <span class="children__toolbar" *hqCan="'roster.teacher'">
-        <!--
-          Place comes first and is the quiet one: the child a parent has already registered is
-          the common case, but Add a child is the tab's one primary action (§3's rule), and two
-          filled buttons side by side would be two.
-        -->
-        <hq-button variant="secondary" (pressed)="openPlace()">
-          {{ 'classes.children.place.action' | transloco }}
-        </hq-button>
-        <hq-button variant="primary" (pressed)="openAdd()">
-          {{ 'classes.children.add.action' | transloco }}
-        </hq-button>
+        @if (canPlace()) {
+          <!--
+            Place comes first and is the quiet one: the child a parent has already registered is
+            the common case, but Add a child is the tab's one primary action (§3's rule), and two
+            filled buttons side by side would be two.
+          -->
+          <hq-button variant="secondary" (pressed)="openPlace()">
+            {{ 'classes.children.place.action' | transloco }}
+          </hq-button>
+          <hq-button variant="primary" (pressed)="openAdd()">
+            {{ 'classes.children.add.action' | transloco }}
+          </hq-button>
+        }
       </span>
     </span>
   </div>
@@ -158,12 +164,17 @@
     <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="startEdit(menuRow()!)">
       {{ 'classes.children.edit' | transloco }}
     </button>
+    <!--
+      U1 item 6: straight into the conversation with this child's parent. The name travels with
+      the link so the chat screen can draw the conversation before a thread exists — the thread
+      row is created by the first message.
+    -->
     <a
       *hqFeature="'chat'"
       cdkMenuItem
       class="hq-menu__item"
       [routerLink]="['/teacher/chat']"
-      [queryParams]="{ childId: menuRow()?.childId }"
+      [queryParams]="{ childId: menuRow()?.childId, name: menuRow()?.name, class: className() }"
     >
       {{ 'classes.children.messageParent' | transloco }}
     </a>
@@ -173,14 +184,16 @@
           | transloco
       }}
     </button>
-    <button
-      type="button"
-      cdkMenuItem
-      class="hq-menu__item hq-menu__item--danger"
-      (cdkMenuItemTriggered)="askRemove(menuRow()!)"
-    >
-      {{ 'classes.children.remove.action' | transloco }}
-    </button>
+    @if (canPlace()) {
+      <button
+        type="button"
+        cdkMenuItem
+        class="hq-menu__item hq-menu__item--danger"
+        (cdkMenuItemTriggered)="askRemove(menuRow()!)"
+      >
+        {{ 'classes.children.remove.action' | transloco }}
+      </button>
+    }
   </div>
 </ng-template>
 

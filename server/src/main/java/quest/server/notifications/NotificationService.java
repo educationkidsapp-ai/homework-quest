@@ -42,8 +42,14 @@ import quest.server.notifications.Entities.NotificationEntity;
 @Service
 public class NotificationService {
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
-    /** Titles and bodies are English server strings; the dashboard localises from `kind` and falls back to these. */
-    static final int TITLE_MAX = 120, BODY_MAX = 500;
+    /**
+     * Titles and bodies are English server strings; the dashboard localises from `kind` and falls back to these.
+     *
+     * <p>`BODY_MAX` is public because it is a contract, not an implementation detail: a caller whose text *becomes*
+     * a notification body has to refuse a longer one at the edge rather than let {@link #clip} shorten it silently.
+     * `TeacherDto.CoordinatorMessageRequest` is validated against this very number.
+     */
+    public static final int TITLE_MAX = 120, BODY_MAX = 500;
     private static final int DEFAULT_LIMIT = 20, MAX_LIMIT = 100;
 
     private final NotificationRepository rows; private final UserRepository users; private final ChatBus bus; private final Json json; private final Clock clock;
@@ -83,16 +89,20 @@ public class NotificationService {
         if (kind == null) return;
         String recipient = creatorId(lesson);
         if (recipient == null) return;
+        // The three lesson kinds are the only ones `now` can map to above; TEACHER_MESSAGE is written
+        // by `TeacherMessageService`, never by a lesson transition, and the switch has to say so.
         String title = switch (kind) {
             case LESSON_NEEDS_SKILLS -> "Skills to confirm";
             case LESSON_READY -> "Questions ready";
             case LESSON_FAILED -> "Generation stopped";
+            case TEACHER_MESSAGE -> throw new IllegalStateException("teacher.message is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
         String body = switch (kind) {
             case LESSON_NEEDS_SKILLS -> name + " has been analysed. Confirm the skills to start writing the questions.";
             case LESSON_READY -> name + " is ready to review.";
             case LESSON_FAILED -> lesson.getErrorMessage() == null || lesson.getErrorMessage().isBlank() ? name + " stopped before it finished." : lesson.getErrorMessage();
+            case TEACHER_MESSAGE -> throw new IllegalStateException("teacher.message is not a lesson transition");
         };
         try {
             notify(lesson.getSchoolId(), recipient, kind, title, body, link(roleOf(recipient), lesson.getId()), lesson.getId());

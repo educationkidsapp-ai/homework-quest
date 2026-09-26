@@ -8,6 +8,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,10 +37,30 @@ import quest.server.flags.FeatureFlag;
 public class TeacherController {
     private final TeacherProfileService profiles; private final TeacherCalendarService calendar;
     private final TeacherStudentService students; private final TeacherWeekService week;
+    private final TeacherMessageService messages;
 
     public TeacherController(TeacherProfileService profiles, TeacherCalendarService calendar,
-                             TeacherStudentService students, TeacherWeekService week) {
+                             TeacherStudentService students, TeacherWeekService week,
+                             TeacherMessageService messages) {
         this.profiles = profiles; this.calendar = calendar; this.students = students; this.week = week;
+        this.messages = messages;
+    }
+
+    // ---------------------------------------------------------------- a word to the coordinator (U1 item 2)
+
+    /**
+     * `POST /teacher/messages/coordinator`: her message to the people who handle the school's messages.
+     *
+     * Core rather than a feature, like the rest of this controller: a teacher who cannot reach her own school's
+     * office is a teacher with no way to raise anything at all. See {@link TeacherMessageService} for why this
+     * exists instead of reusing questions, announcements or chat.
+     */
+    @PostMapping(value = "/teacher/messages/coordinator", consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.message.coordinator')")
+    public TeacherDto.CoordinatorMessageResult messageCoordinator(@AuthenticationPrincipal Principals.User caller,
+                                                                  @RequestBody @Valid TeacherDto.CoordinatorMessageRequest body) {
+        return messages.toCoordinator(TeacherAccess.require(caller), body.body().strip());
     }
 
     // ---------------------------------------------------------------- profile (§5)

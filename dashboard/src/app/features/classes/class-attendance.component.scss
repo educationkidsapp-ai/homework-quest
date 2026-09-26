@@ -107,12 +107,15 @@
 .attendance__roster {
   display: flex;
   flex-direction: column;
-  divide-y: 1px solid var(--hq-color-rule, #e2e8f0);
+  // U1 item 5: the list of children starts a step below the metric cards above it.
+  padding-block-start: var(--hq-space-24);
 }
 
 .attendance__row {
   display: grid;
-  grid-template-columns: 240px 1fr 260px;
+  // U1 item 5: the note takes the row's last track and grows with the row, rather than sitting
+  // in a fixed 260 px box; the status pills take exactly the width they need.
+  grid-template-columns: 220px max-content minmax(260px, 1fr);
   align-items: center;
   gap: var(--hq-space-16);
   padding: var(--hq-space-16) var(--hq-space-20);
@@ -218,6 +221,11 @@
 // Notes Input
 .attendance__notes-input {
   inline-size: 100%;
+  // Two lines to start, and it grows rather than scrolling a single line sideways.
+  min-block-size: 64px;
+  resize: vertical;
+  // A textarea does not inherit the page's face on its own.
+  font-family: inherit;
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid var(--hq-color-rule, #cbd5e1);

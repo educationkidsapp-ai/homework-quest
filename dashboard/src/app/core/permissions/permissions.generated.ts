@@ -41,6 +41,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'teacher.lesson.copy',
   'teacher.lesson.publish',
   'teacher.manage',
+  'teacher.message.coordinator',
   'teacher.profile',
   'teacher.profile.manage',
   'theme.write',

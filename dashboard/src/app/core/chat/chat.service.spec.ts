@@ -99,6 +99,35 @@ describe('ChatService', () => {
     expect(mockApi.teacherSendChatMessage).toHaveBeenCalledWith('ch-1', { body: 'Hello parent' });
   });
 
+  /**
+   * U1 item 6 — "Message parent" on a child nobody has written to yet. The thread row is created
+   * by the first message, so there is nothing in the list to select: the conversation is drawn
+   * from the name the link carried and the composer works straight away.
+   */
+  it('opens a conversation for a child who has no thread yet, and does not mark it read', () => {
+    service.loadThreads();
+    service.openWith('ch-9', 'Amina', '2B British');
+
+    expect(service.activeChildId()).toBe('ch-9');
+    expect(service.activeThread()).toMatchObject({ childId: 'ch-9', childName: 'Amina', unread: 0 });
+    // `POST /teacher/chat/threads/ch-9/read` is a 404 without a thread, and the interceptor would
+    // put that 404 in a red band over a conversation she has only just opened.
+    expect(mockApi.teacherMarkChatRead).not.toHaveBeenCalled();
+
+    service.sendMessage('Good afternoon');
+    expect(mockApi.teacherSendChatMessage).toHaveBeenCalledWith('ch-9', { body: 'Good afternoon' });
+  });
+
+  it('prefers the server’s own thread over the placeholder once it exists', () => {
+    service.openWith('ch-1', 'Layla');
+    expect(service.activeThread()?.id).toBe('');
+
+    service.loadThreads();
+    expect(service.activeThread()?.id).toBe('th-1');
+    // The list is also the moment the unread badge can finally be cleared.
+    expect(mockApi.teacherMarkChatRead).toHaveBeenCalledWith('ch-1');
+  });
+
   it('does not send empty messages or messages exceeding 2000 chars', () => {
     service.loadThreads();
     service.selectThread('ch-1');

@@ -7,7 +7,7 @@ import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../../api';
-import { TEACHER_USER } from '../../../testing/fixtures';
+import { MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
@@ -23,6 +23,16 @@ const providers: (Provider | EnvironmentProviders)[] = [
 
 const TEACHER_PERMISSIONS = {
   role: 'TEACHER',
+  permissions: ['teacher.week', 'student.read', 'roster.teacher'],
+  readOnly: false,
+};
+
+/**
+ * U1 item 6: adding a child, placing one and taking one off the roster are the office's
+ * decisions, so the specs that exercise those three controls are run as the office.
+ */
+const OFFICE_PERMISSIONS = {
+  role: 'MANAGERIAL',
   permissions: ['teacher.week', 'student.read', 'roster.teacher'],
   readOnly: false,
 };
@@ -56,7 +66,7 @@ async function settle(): Promise<void> {
  * The flag map and the permission set are both answered here because the tab reads both before
  * it decides whether to ask for the roster at all — which is the behaviour under test.
  */
-async function renderTab(rosterEdit: boolean, permissions = TEACHER_PERMISSIONS) {
+async function renderTab(rosterEdit: boolean, permissions = TEACHER_PERMISSIONS, user = TEACHER_USER) {
   const rendered = await renderHq(ClassChildrenComponent, {
     providers,
     inputs: { classId: 'c-1a', className: '1A British' },
@@ -65,12 +75,13 @@ async function renderTab(rosterEdit: boolean, permissions = TEACHER_PERMISSIONS)
 
   TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
   TestBed.inject(AuthService).loadMe().subscribe();
-  backend.expectOne('/me').flush(TEACHER_USER);
+  backend.expectOne('/me').flush(user);
   TestBed.tick();
   backend.expectOne('/me/permissions').flush(permissions);
   TestBed.inject(FlagService).flags();
   await settle();
-  backend.expectOne('/schools/school-a/flags').flush({ 'teacher.rosterEdit': rosterEdit });
+  // `chat` is on because Message parent lives in the same row menu as the roster's verbs.
+  backend.expectOne('/schools/school-a/flags').flush({ 'teacher.rosterEdit': rosterEdit, chat: true });
   await settle();
 
   backend.expectOne('/teacher/classes/c-1a/students').flush([STUDENT]);
@@ -96,7 +107,7 @@ describe('the class page Children tab', () => {
   });
 
   it('fetches the roster and offers add, edit and deactivate once the flag is on', async () => {
-    const { backend } = await renderTab(true);
+    const { backend } = await renderTab(true, OFFICE_PERMISSIONS, MANAGERIAL_USER);
 
     backend
       .expectOne('/teacher/classes/c-1a/children')
@@ -120,7 +131,7 @@ describe('the class page Children tab', () => {
    * colleague reads tomorrow is not a thing to change by brushing past a button.
    */
   it('asks in a red band before it takes a child off the section, then detaches her', async () => {
-    const { backend } = await renderTab(true);
+    const { backend } = await renderTab(true, OFFICE_PERMISSIONS, MANAGERIAL_USER);
 
     backend
       .expectOne('/teacher/classes/c-1a/children')
@@ -152,7 +163,7 @@ describe('the class page Children tab', () => {
   });
 
   it('leaves the roster alone when the red band is dismissed', async () => {
-    const { backend } = await renderTab(true);
+    const { backend } = await renderTab(true, OFFICE_PERMISSIONS, MANAGERIAL_USER);
 
     backend
       .expectOne('/teacher/classes/c-1a/children')
@@ -166,6 +177,37 @@ describe('the class page Children tab', () => {
     await settle();
 
     backend.expectNone('/teacher/classes/c-1a/roster/ch-1');
+    backend.verify();
+  });
+
+  /**
+   * U1 item 6 — the roster is the office's, the class is hers.
+   *
+   * With the flag on and `roster.teacher` in hand, a TEACHER still gets neither button and no
+   * Remove in the row menu: those three are an Admin's or a manager's decisions. What is hers —
+   * the rename, activate/deactivate and Message parent — is untouched.
+   */
+  it('gives a teacher no way to add, place or remove a child', async () => {
+    const { backend } = await renderTab(true);
+
+    backend
+      .expectOne('/teacher/classes/c-1a/children')
+      .flush([{ id: 'ch-1', classId: 'c-1a', name: 'Amina', parentEmail: 'p@x.test', active: true }]);
+    await settle();
+
+    expect(screen.queryByRole('button', { name: /add a child/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Place an existing child' })).toBeNull();
+
+    await openRowMenu('Amina');
+    expect(screen.queryByRole('menuitem', { name: 'Remove' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Deactivate' })).toBeTruthy();
+    // Straight into the conversation with this child's parent, with her name on the link so the
+    // chat screen can draw it before a thread exists.
+    const message = screen.getByRole('menuitem', { name: 'Message parent' });
+    const href = message.getAttribute('href') ?? '';
+    expect(href).toContain('childId=ch-1');
+    expect(href).toContain('name=Amina');
     backend.verify();
   });
 
