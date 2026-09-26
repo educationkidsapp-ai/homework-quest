@@ -37,6 +37,7 @@ public final class Entities {
         @Column(name = "attachment_name") private String attachmentName;
         @Column(name = "audience_roles", nullable = false) private String audienceRoles;
         @Column private String curriculum;
+        @Column private String subject;
         @Column(name = "section_ids") private String sectionIds;
         @Column(name = "expires_at") private Instant expiresAt;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
@@ -53,6 +54,7 @@ public final class Entities {
         public String getAttachmentName() { return attachmentName; } public void setAttachmentName(String v) { attachmentName = v; }
         public String getAudienceRoles() { return audienceRoles; } public void setAudienceRoles(String v) { audienceRoles = v; }
         public String getCurriculum() { return curriculum; } public void setCurriculum(String v) { curriculum = v; }
+        public String getSubject() { return subject; } public void setSubject(String v) { subject = v; }
         public String getSectionIds() { return sectionIds; } public void setSectionIds(String v) { sectionIds = v; }
         public Instant getExpiresAt() { return expiresAt; } public void setExpiresAt(Instant v) { expiresAt = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }

@@ -42,8 +42,10 @@ enum class BroadcastAudience {
 data class BroadcastAttachment(val url: String, val name: String? = null)
 
 /**
- * One row of a feed or of a composer's own list. [sectionIds] is empty when the row is the whole department's, and
- * [curriculum] is absent on a coordinator's, whose sections say which track they are in. [read] is the caller's own
+ * One row of a feed or of a composer's own list. [sectionIds] is empty when the row is the whole department's.
+ * [authorRole] with [curriculum] or [subject] is how a client labels the card — a manager speaks for a department
+ * ([curriculum] set, [subject] absent) and a coordinator for her subjects ([subject] a comma-separated list of them,
+ * [curriculum] absent because her sections say which track they are in). [read] is the caller's own
  * flag, never the other recipients'. Times are epoch milliseconds; [weekStart] is an ISO date (`2026-09-27`).
  */
 @Serializable
@@ -58,6 +60,7 @@ data class BroadcastView(
     val bodyAr: String? = null,
     val weekStart: String? = null,
     val curriculum: Curriculum? = null,
+    val subject: String? = null,
     val sectionIds: List<String> = emptyList(),
     val audience: List<BroadcastAudience> = emptyList(),
     val attachment: BroadcastAttachment? = null,

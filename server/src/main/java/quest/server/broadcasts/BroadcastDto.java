@@ -26,8 +26,9 @@ public final class BroadcastDto {
     /** One row of a feed or of a composer's list; `read` is the caller's own flag, never another recipient's. */
     @Schema(name = "BroadcastView")
     public record View(String id, String kind, String authorId, String authorName, String authorRole, String title,
-                       String bodyEn, String bodyAr, String weekStart, String curriculum, List<String> sectionIds,
-                       List<String> audience, Attachment attachment, Long expiresAt, long createdAt, boolean read) {}
+                       String bodyEn, String bodyAr, String weekStart, String curriculum, String subject,
+                       List<String> sectionIds, List<String> audience, Attachment attachment, Long expiresAt,
+                       long createdAt, boolean read) {}
 
     /** `GET /me/broadcasts` and `GET /children/{id}/broadcasts`: newest first, with the caller's own unread count. */
     @Schema(name = "BroadcastFeed")

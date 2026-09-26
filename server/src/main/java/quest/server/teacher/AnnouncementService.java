@@ -40,11 +40,12 @@ public class AnnouncementService {
 
     private final AnnouncementRepository announcements; private final ClassRepository classes;
     private final UserRepository users; private final TeacherAccess access; private final TenantContext tenant;
+    private final quest.server.tenancy.StaffScopeRepository scopes;
 
     public AnnouncementService(AnnouncementRepository announcements, ClassRepository classes, UserRepository users,
-                               TeacherAccess access, TenantContext tenant) {
+                               TeacherAccess access, TenantContext tenant, quest.server.tenancy.StaffScopeRepository scopes) {
         this.announcements = announcements; this.classes = classes; this.users = users;
-        this.access = access; this.tenant = tenant;
+        this.access = access; this.tenant = tenant; this.scopes = scopes;
     }
 
     // ---------------------------------------------------------------- the teacher's side
@@ -117,23 +118,54 @@ public class AnnouncementService {
      * deliberately not changed here.
      */
     public List<ParentAnnouncement> forChild(quest.server.children.Entities.ChildEntity child) {
-        var hers = classes.findBySchoolIdAndCurriculumAndGrade(child.getSchoolId(), child.getCurriculum(), child.getGrade())
-                .stream().map(ClassEntity::getId).toList();
-        if (hers.isEmpty()) return List.of();
-        var rows = announcements.findLive(child.getSchoolId(), hers, Instant.now());
+        var sections = classes.findBySchoolIdAndCurriculumAndGrade(child.getSchoolId(), child.getCurriculum(), child.getGrade());
+        if (sections.isEmpty()) return List.of();
+        var rows = announcements.findLive(child.getSchoolId(), sections.stream().map(ClassEntity::getId).toList(), Instant.now());
         if (rows.isEmpty()) return List.of();
         var authors = authorsById(rows.stream().map(Entities.AnnouncementEntity::getTeacherId).distinct().toList());
+        var byId = new java.util.LinkedHashMap<String, ClassEntity>();
+        for (var section : sections) byId.put(section.getId(), section);
+        var supervisorSubjects = supervisorSubjects(child.getSchoolId(), authors.values());
 
         var out = new ArrayList<ParentAnnouncement>(rows.size());
         for (var row : rows) {
             var author = authors.get(row.getTeacherId());
+            var section = byId.get(row.getClassId());
             out.add(new ParentAnnouncement(row.getId(),
                     TeacherQuestionService.displayName(author == null ? null : author.getDisplayName()),
                     author == null ? null : author.getPhotoUrl(),
                     row.getBodyEn(), row.getBodyAr(), row.getPublishedAt().toEpochMilli(),
-                    row.getExpiresAt() == null ? null : row.getExpiresAt().toEpochMilli()));
+                    row.getExpiresAt() == null ? null : row.getExpiresAt().toEpochMilli(),
+                    // RM2: who is speaking. A coordinator writes these too (R4), and the app labels the card with her
+                    // role and the section's subject and track rather than leaving every note looking like a teacher's.
+                    author == null ? null : quest.server.chat.ChatService.staffRole(author.getRole()),
+                    author == null ? null : supervisorSubjects.get(author.getId()),
+                    section == null ? null : curriculum(section.getCurriculum())));
         }
         return List.copyOf(out);
+    }
+
+    /**
+     * `[userId -> "math, english"]` for the authors who are not teachers — RM2, so the app can say "from your maths
+     * coordinator". The subjects are her `staff_scopes` rows and not the section's: a section carries no subject of its
+     * own since V7. One statement for a whole page, and none at all when every author is a teacher.
+     */
+    private java.util.Map<String, String> supervisorSubjects(String schoolId, java.util.Collection<quest.server.auth.Entities.UserEntity> authors) {
+        var ids = authors.stream().filter(u -> u != null && !"TEACHER".equals(u.getRole()))
+                .map(quest.server.auth.Entities.UserEntity::getId).distinct().toList();
+        if (ids.isEmpty()) return java.util.Map.of();
+        var out = new java.util.LinkedHashMap<String, String>();
+        for (var row : scopes.findBySchoolIdAndUserIdInOrderBySubjectAscCurriculumAsc(schoolId, ids)) {
+            if (row.getSubject() == null || row.getSubject().isBlank()) continue;
+            String word = row.getSubject().trim().toLowerCase(java.util.Locale.ROOT);
+            out.merge(row.getUserId(), word, (had, add) -> had.contains(add) ? had : had + ", " + add);
+        }
+        return out;
+    }
+
+    private static quest.api.dto.Curriculum curriculum(String value) {
+        try { return value == null ? null : quest.api.dto.Curriculum.valueOf(value.trim().toUpperCase(java.util.Locale.ROOT)); }
+        catch (IllegalArgumentException unknown) { return null; }
     }
 
     // ---------------------------------------------------------------- helpers

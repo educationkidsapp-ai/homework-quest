@@ -11,6 +11,9 @@
 --     words in one column rather than a child table: nothing joins on it and every read wants all of it.
 --   * `curriculum` — the author's department, set on a manager's row and NULL on a coordinator's, whose audience is
 --     named section by section instead.
+--   * `subject` — the coordinator's own subjects, comma-separated, and NULL on a manager's row: a manager is wide in
+--     subject and narrow in track, so the pair of columns is how the app labels the card ("from your maths
+--     coordinator", "from the British department") without a second request.
 --   * `section_ids` — comma-separated class ids, or NULL meaning "every section of the department". A coordinator's row
 --     always names them (they are the classes she coordinates), so the delivery rule is one line: match the sections
 --     when they are named, the curriculum when they are not.
@@ -41,6 +44,7 @@ CREATE TABLE IF NOT EXISTS broadcasts (
     attachment_name TEXT,
     audience_roles  TEXT NOT NULL,
     curriculum      TEXT,
+    subject         TEXT,
     section_ids     TEXT,
     expires_at      TIMESTAMP,
     created_at      TIMESTAMP NOT NULL

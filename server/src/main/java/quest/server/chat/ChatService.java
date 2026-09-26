@@ -119,7 +119,13 @@ public class ChatService {
         var lookup = new ArrayList<>(teacherIds);
         staffThreads.forEach(t -> lookup.add(t.getTeacherId()));
         var staff = byId(users.findAllById(lookup.stream().distinct().toList()), UserEntity::getId);
-        var section = classes.findOneById(child.getClassId()).map(ClassEntity::getName).orElse(null);
+        var sectionRow = classes.findOneById(child.getClassId()).orElse(null);
+        var section = sectionRow == null ? null : sectionRow.getName();
+        // RM2: a coordinator row here carries her subjects too, as `GET /children/{id}/coordinators` already does —
+        // the app labels the thread "Lina · maths" whether the parent reached it from the chooser or from this list.
+        var coordinatorSubjects = new HashMap<String, String>();
+        if (sectionRow != null && staffThreads.stream().anyMatch(t -> COORDINATOR.equals(t.getStaffRole())))
+            for (var c : peers.coordinatorsOn(child.getSchoolId(), sectionRow)) coordinatorSubjects.put(c.user().getId(), c.subjects());
         var last = lastMessages(byStaff.values());
         var subjects = assignments.stream().collect(Collectors.groupingBy(TeachingAssignmentEntity::getTeacherId, LinkedHashMap::new,
                 Collectors.mapping(TeachingAssignmentEntity::getSubject, Collectors.joining(", "))));
@@ -132,7 +138,7 @@ public class ChatService {
         }
         for (var t : staffThreads)
             rows.add(row(t, child.getId(), child.getName(), t.getTeacherId(), name(staff.get(t.getTeacherId())), section,
-                    null, t.getParentUnread(), last.get(t.getId()), t.getStaffRole(), parentName));
+                    coordinatorSubjects.get(t.getTeacherId()), t.getParentUnread(), last.get(t.getId()), t.getStaffRole(), parentName));
         rows.sort(order());
         return rows;
     }
@@ -762,7 +768,8 @@ public class ChatService {
         return out;
     }
 
-    static ChatStaffRole staffRole(String role) {
+    /** The wire word for a staff role; public because `AnnouncementService` labels a parent's card with it (RM2). */
+    public static ChatStaffRole staffRole(String role) {
         return switch (role == null ? ROLE_TEACHER : role) { case COORDINATOR -> ChatStaffRole.COORDINATOR; case MANAGERIAL -> ChatStaffRole.MANAGERIAL; default -> ChatStaffRole.TEACHER; };
     }
     static ChatTopic topic(String topic) { return COMPLAINT.equals(topic) ? ChatTopic.COMPLAINT : ChatTopic.QUESTION; }

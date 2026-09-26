@@ -102,7 +102,7 @@ public class BroadcastService {
         if (targets.isEmpty()) throw ApiException.badRequest("You manage no class yet, so there is nobody to tell.");
         String curriculum = named ? oneTrack(targets) : one(departments);
         var audience = audience(request.audience());
-        var row = write(schoolId, caller.userId(), ManagerScope.ROLE, request, curriculum, named ? targets : null, audience);
+        var row = write(schoolId, caller.userId(), ManagerScope.ROLE, request, curriculum, null, named ? targets : null, audience);
         fanOut(row, schoolId, audience, targets, reach.assignments());
         return view(row, displayName(caller.userId()), true);
     }
@@ -130,7 +130,7 @@ public class BroadcastService {
         var targets = named ? request.sectionIds().stream().distinct().map(id -> coordinators.requireSection(caller, id)).toList()
                 : coordinators.sectionsOf(caller);
         if (targets.isEmpty()) throw ApiException.badRequest("You coordinate no class yet, so there is nobody to tell.");
-        var row = write(schoolId, caller.userId(), CoordinatorScope.ROLE, request, null, targets, List.of(PARENTS));
+        var row = write(schoolId, caller.userId(), CoordinatorScope.ROLE, request, null, subjectsOf(caller, targets), targets, List.of(PARENTS));
         var mirrored = ANNOUNCEMENT.equals(row.getKind())
                 ? announcements.mirror(caller, targets, row.getBodyEn(), row.getBodyAr(), row.getExpiresAt()) : List.<TeacherDto.Announcement>of();
         return new CoordinatorPost(view(row, displayName(caller.userId()), true), mirrored);
@@ -198,7 +198,7 @@ public class BroadcastService {
     // ---------------------------------------------------------------- writing
 
     private BroadcastEntity write(String schoolId, String authorId, String authorRole, BroadcastDto.CreateRequest request,
-                                  String curriculum, List<ClassEntity> sections, List<String> audience) {
+                                  String curriculum, String subject, List<ClassEntity> sections, List<String> audience) {
         String kind = kind(request.kind());
         String bodyEn = SafeText.plainText(request.bodyEn(), "bodyEn", MAX_BODY);
         if (bodyEn == null) throw ApiException.badRequest("bodyEn must not be empty");
@@ -214,7 +214,7 @@ public class BroadcastService {
             row.setAttachmentName(SafeText.plainText(request.attachment().name(), "attachment.name", 200));
             if (row.getAttachmentUrl() == null) throw ApiException.badRequest("attachment.url must not be empty");
         }
-        row.setAudienceRoles(String.join(",", audience)); row.setCurriculum(curriculum);
+        row.setAudienceRoles(String.join(",", audience)); row.setCurriculum(curriculum); row.setSubject(subject);
         row.setSectionIds(sections == null ? null : sections.stream().map(ClassEntity::getId).collect(Collectors.joining(",")));
         row.setExpiresAt(expiry(request.expiresAt(), now)); row.setCreatedAt(now);
         if (WEEKLY_PLAN.equals(kind)) replacePlan(schoolId, row);
@@ -337,7 +337,7 @@ public class BroadcastService {
 
     private static BroadcastDto.View view(BroadcastEntity b, String authorName, boolean read) {
         return new BroadcastDto.View(b.getId(), b.getKind(), b.getAuthorUserId(), authorName, b.getAuthorRole(), b.getTitle(),
-                b.getBodyEn(), b.getBodyAr(), b.getWeekStart() == null ? null : b.getWeekStart().toString(), b.getCurriculum(),
+                b.getBodyEn(), b.getBodyAr(), b.getWeekStart() == null ? null : b.getWeekStart().toString(), b.getCurriculum(), b.getSubject(),
                 b.getSectionIds() == null || b.getSectionIds().isBlank() ? List.of() : List.of(b.getSectionIds().split(",")),
                 List.of(b.getAudienceRoles().split(",")),
                 b.getAttachmentUrl() == null ? null : new BroadcastDto.Attachment(b.getAttachmentUrl(), b.getAttachmentName()),
@@ -396,6 +396,19 @@ public class BroadcastService {
     private static Set<String> tracksOf(List<ClassEntity> sections) { return sections.stream().map(k -> ManagerScope.normalise(k.getCurriculum())).collect(Collectors.toSet()); }
     private static Set<String> tracks(BroadcastEntity row, List<ClassEntity> targets) {
         return row.getCurriculum() == null ? tracksOf(targets) : Set.of(ManagerScope.normalise(row.getCurriculum()));
+    }
+
+    /**
+     * The subjects of the coordinator's own scope that reach these sections — what the app labels her card with ("from
+     * your maths coordinator"). Her scope rows, not the sections' subjects: she coordinates maths in a section where
+     * english is also taught, and it is her subject the parent is being written to about.
+     */
+    private String subjectsOf(Principals.User caller, List<ClassEntity> targets) {
+        var tracks = tracksOf(targets);
+        var subjects = coordinators.scopesOf(caller).stream()
+                .filter(s -> s.curriculum() == null || tracks.contains(ManagerScope.normalise(s.curriculum())))
+                .map(CoordinatorScope.Scope::subject).filter(Objects::nonNull).distinct().sorted().toList();
+        return subjects.isEmpty() ? null : String.join(", ", subjects);
     }
 
     /** The one track a named list of sections is in, or null when it spans both — the row then names its sections. */

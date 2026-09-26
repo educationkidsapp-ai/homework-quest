@@ -337,7 +337,15 @@ data class TeacherAnswerUpload(
     val answeredAt: Long,
 )
 
-/** What the parent app shows in the Announcements card; no teacher id, no school internals. */
+/**
+ * What the parent app shows in the Announcements card; no teacher id, no school internals.
+ *
+ * RM2 appended the last three, with defaults, so the app can say **who** is speaking rather than only what was said:
+ * [authorRole] is `TEACHER`, `COORDINATOR` or `MANAGERIAL` (R4 let a coordinator write these too) — "from your maths
+ * coordinator". [subject] is the author's own subjects, comma-separated, and is present for a coordinator only: a
+ * section carries no subject of its own since V7, and a teacher's is the assignment she wrote it under. [curriculum]
+ * is the section's track. Absent where the author's row no longer exists.
+ */
 @Serializable
 data class ParentAnnouncement(
     val id: String,
@@ -347,6 +355,9 @@ data class ParentAnnouncement(
     val bodyAr: String? = null,
     val publishedAt: Long = 0,
     val expiresAt: Long? = null,
+    val authorRole: quest.api.dto.ChatStaffRole? = null,
+    val subject: String? = null,
+    val curriculum: quest.api.dto.Curriculum? = null,
 )
 
 // ---------------------------------------------------------------------------------------------------------------

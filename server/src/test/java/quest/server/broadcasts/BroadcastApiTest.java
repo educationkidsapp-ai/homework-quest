@@ -200,6 +200,9 @@ class BroadcastApiTest extends ApiTestSupport {
         assertThat(ids(written.get("sectionIds"))).containsExactlyInAnyOrder(britishA, britishB);
         assertThat(written.get("authorRole").asText()).isEqualTo("COORDINATOR");
         assertThat(written.get("curriculum").isNull()).as("her sections say which track it is").isTrue();
+        // The app labels the card from these two: "from your maths coordinator" / "from the British department".
+        assertThat(written.get("subject").asText()).isEqualTo("math");
+        assertThat(written.get("authorName").asText()).isNotBlank();
 
         for (var pair : List.of(List.of(BRITISH_PARENT, childBritishA), List.of(BRITISH_B_PARENT, childBritishB)))
             assertThat(names(parentGet(pair.get(0), "/children/" + pair.get(1) + "/broadcasts").get("items"), "bodyEn"))
@@ -207,9 +210,15 @@ class BroadcastApiTest extends ApiTestSupport {
         assertThat(names(parentGet(AMERICAN_PARENT, "/children/" + childAmerican + "/broadcasts").get("items"), "bodyEn"))
                 .doesNotContain("Times tables week starts Sunday.");
 
-        // DR6 is one feature: the same call keeps the `announcements` row the app screen already reads.
-        assertThat(names(parentGet(BRITISH_PARENT, "/children/" + childBritishA + "/announcements"), "bodyEn"))
-                .contains("Times tables week starts Sunday.");
+        // DR6 is one feature: the same call keeps the `announcements` row the app screen already reads — and that row
+        // now says who is speaking, so the app need not treat a coordinator's note as a teacher's.
+        var cards = parentGet(BRITISH_PARENT, "/children/" + childBritishA + "/announcements");
+        assertThat(names(cards, "bodyEn")).contains("Times tables week starts Sunday.");
+        var card = rowWith(cards, "bodyEn", "Times tables week starts Sunday.");
+        assertThat(card.get("authorRole").asText()).isEqualTo("COORDINATOR");
+        assertThat(card.get("subject").asText()).isEqualTo("math");
+        assertThat(card.get("curriculum").asText()).isEqualTo("british");
+        assertThat(card.get("teacherName").asText()).isNotBlank();
         // And the legacy door writes exactly one broadcast of its own.
         created(lina, "COORDINATOR", "/coordinator/announcements", "{\"bodyEn\":\"Bring a ruler tomorrow.\"}");
         assertThat(names(staffGet(lina, "COORDINATOR", "/coordinator/broadcasts"), "bodyEn"))
@@ -277,6 +286,13 @@ class BroadcastApiTest extends ApiTestSupport {
         assertThat(names(options, "teacherId")).containsExactly(nour);
         assertThat(options.get(0).get("staffRole").asText()).isEqualTo("MANAGERIAL");
         assertThat(options.get(0).has("id")).as("no thread until she writes").isFalse();
+        // A coordinator thread on her ordinary list carries the subjects the chooser showed (RM2 addendum): she writes
+        // to Lina, and the row that appears beside the teachers' names the subject rather than leaving it null.
+        mvc.perform(post("/children/" + childBritishA + "/chat/threads/" + lina + "/messages")
+                        .header("Authorization", bearer(BRITISH_PARENT)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Is the ruler for maths or art?\"}")).andExpect(status().isCreated());
+        assertThat(rowWith(parentGet(BRITISH_PARENT, "/children/" + childBritishA + "/chat/threads"), "staffRole", "COORDINATOR")
+                .get("subject").asText()).isEqualTo("math");
 
         var opened = json(mvc.perform(post("/children/" + childBritishA + "/chat/threads/" + nour + "/messages")
                         .header("Authorization", bearer(BRITISH_PARENT)).contentType(MediaType.APPLICATION_JSON)
