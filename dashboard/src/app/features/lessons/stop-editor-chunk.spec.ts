@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../../api';
 import { TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
@@ -11,7 +11,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
 import type { Stop } from '../../ui/phone-preview';
 import { StopEditorComponent } from './stop-editor.component';
-import { validatorsRequested } from './stop-validator';
+import { forgetValidators, validatorsRequested } from './stop-validator';
 
 /**
  * E4a: `stop-validators.generated.js` is 605 kB (34 kB gzipped) of precompiled Ajv, and it used to
@@ -19,9 +19,9 @@ import { validatorsRequested } from './stop-validator';
  * ran the editor's validation effect, which imports the module. The only thing on the screen that
  * needs it is the Raw JSON panel, which `ViewModeService` opens for an Admin in debug mode alone.
  *
- * A file of its own: `stop-validator.ts` remembers the loaded module for the life of the module
- * registry, and vitest gives each spec file its own — so "was it ever asked for" is only a clean
- * question in a file where nothing is allowed to ask for it.
+ * A file of its own, with `forgetValidators()` first: `stop-validator.ts` remembers the loaded
+ * module, and the registry it remembers it in is shared with whatever other spec file ran in this
+ * worker — so the slate is wiped here rather than assumed.
  */
 const STOP = {
   id: 'st-1',
@@ -62,6 +62,8 @@ async function pastTheDebounce(): Promise<void> {
 }
 
 describe('the schema-validator chunk', () => {
+  beforeEach(() => forgetValidators());
+
   it('is not requested when a teacher opens a stop, nor when she edits its fields or its prose', async () => {
     await renderAsTeacher();
     await pastTheDebounce();
