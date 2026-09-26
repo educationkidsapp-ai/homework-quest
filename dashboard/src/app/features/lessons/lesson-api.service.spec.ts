@@ -74,6 +74,22 @@ describe('LessonApiService', () => {
   });
 
   /** The teacher route answers with the copies it made, so the lesson itself is re-read. */
+  /** E5: one level on request, on the route family of whoever is signed in. */
+  it('asks for one level through the route family of the signed-in role', () => {
+    const teacher = signIn(TEACHER_USER);
+    teacher.api.generateLevel('l-1', 'again').subscribe();
+    const asked = teacher.backend.expectOne('/teacher/lessons/l-1/plays/again/generate?replace=false');
+    expect(asked.request.method).toBe('POST');
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: BASE_PATH, useValue: '' }],
+    });
+    const admin = signIn(ADMIN_USER);
+    admin.api.generateLevel('l-1', '2', true).subscribe();
+    admin.backend.expectOne('/admin/lessons/l-1/plays/2/generate?replace=true');
+  });
+
   it('publishes a teacher lesson into its own class, then reads the lesson back', () => {
     const { api, backend } = signIn(TEACHER_USER);
 

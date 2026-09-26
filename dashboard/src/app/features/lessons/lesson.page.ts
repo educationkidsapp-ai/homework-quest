@@ -12,9 +12,7 @@ import {
   computed,
   effect,
   inject,
-  type Signal,
   signal,
-  viewChild,
   viewChildren,
 } from '@angular/core';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -34,6 +32,7 @@ import {
   LessonStepInfoStatusEnum,
   LessonStepInfoStepEnum,
   TeacherApi,
+  apiErrorCodeOf,
   apiErrorOf,
   readableServerText,
 } from '../../api';
@@ -66,7 +65,7 @@ import {
 import { type Play, type Stop, PhonePreviewComponent } from '../../ui/phone-preview';
 import { AddStopComponent } from './add-stop.component';
 import { anyConverting, reasonKeyOf } from './file-conversion';
-import { LessonApiService } from './lesson-api.service';
+import { type AskLevel, LessonApiService } from './lesson-api.service';
 import { lessonSignature, statusSignature } from './lesson-status';
 import { toInnerStop, toPreviewPlay } from './lesson-preview.mapper';
 import { LessonSourcesComponent } from './lesson-sources.component';
@@ -105,13 +104,33 @@ interface SkillRowView {
 }
 
 type PlayTabId = 'L1' | 'L2' | 'L3' | 'Again';
-const PLAY_TAB_DEFS: readonly { readonly id: PlayTabId; readonly level: number; readonly variant: number }[] =
-  [
-    { id: 'L1', level: 1, variant: 0 },
-    { id: 'L2', level: 2, variant: 0 },
-    { id: 'L3', level: 3, variant: 0 },
-    { id: 'Again', level: 1, variant: 1 },
-  ];
+interface PlayTabDef {
+  readonly id: PlayTabId;
+  readonly level: number;
+  readonly variant: number;
+  /** E5's `level` segment for this tab, or `null` on Level 1 — hers to write, never asked for. */
+  readonly ask: AskLevel | null;
+}
+const PLAY_TAB_DEFS: readonly PlayTabDef[] = [
+  { id: 'L1', level: 1, variant: 0, ask: null },
+  { id: 'L2', level: 2, variant: 0, ask: '2' },
+  { id: 'L3', level: 3, variant: 0, ask: '3' },
+  { id: 'Again', level: 1, variant: 1, ask: 'again' },
+];
+
+/**
+ * Which tab a generate step belongs to (E5).
+ *
+ * The ledger is what the page reads the assistant's whereabouts from rather than a flag it sets
+ * on the click: a per-level generate resets exactly one of these rows, so the row survives a
+ * reload, a second tab and a refresh — none of which a local signal would.
+ */
+const STEP_TAB: Partial<Record<LessonStepInfoStepEnum, PlayTabId>> = {
+  [LessonStepInfoStepEnum.GENERATE_L1]: 'L1',
+  [LessonStepInfoStepEnum.GENERATE_L2]: 'L2',
+  [LessonStepInfoStepEnum.GENERATE_L3]: 'L3',
+  [LessonStepInfoStepEnum.GENERATE_AGAIN]: 'Again',
+};
 
 type PendingAction =
   | { readonly kind: 'publish' }
@@ -119,6 +138,7 @@ type PendingAction =
   | { readonly kind: 'regeneratePlay'; readonly playId: string }
   | { readonly kind: 'regenerateStop'; readonly stopId: string; readonly title: string }
   | { readonly kind: 'deleteStop'; readonly stopId: string; readonly title: string }
+  | { readonly kind: 'replaceLevel'; readonly ask: AskLevel; readonly tab: PlayTabId }
   | { readonly kind: 'leave' };
 
 /**
@@ -630,6 +650,13 @@ export class LessonPage {
   // ---- plays: L1 / L2 / L3 / Again, stop list + pinned preview -----------------------------
 
   protected readonly playTab = signal<PlayTabId>('L1');
+
+  /** A step of this lesson's pipeline is live — the lesson-wide lock, in one place. */
+  protected readonly running = computed(() => {
+    const status = this.lesson()?.status;
+    return status !== undefined && isRunningStatus(status);
+  });
+
   /**
    * An empty level is a tab you can open (D27), not a dead one.
    *
@@ -642,7 +669,7 @@ export class LessonPage {
     this.lang();
     const lesson = this.lesson();
     const plays = lesson?.plays ?? [];
-    const running = lesson === null || isRunningStatus(lesson.status);
+    const running = lesson === null || this.running();
     return PLAY_TAB_DEFS.map((def) => ({
       id: def.id,
       label: this.t(`lessons.detail.playTab.${def.id}`),
@@ -974,8 +1001,17 @@ export class LessonPage {
   // ---- manual authoring: create a missing level, generate the rest from a note --------------
 
   protected readonly isManual = computed(() => this.lesson()?.source === AdminLessonSourceEnum.MANUAL);
-  /** A manual lesson never ran the pipeline, so its (empty) step strip says nothing worth space. */
-  protected readonly showSteps = computed(() => !this.isManual() && this.stripSteps().length > 0);
+  /**
+   * A manual lesson has no strip to show — until E5 gives it one.
+   *
+   * "Let the assistant write it" queues a real ledger step, and the one thing a teacher wants
+   * while it runs is the strip saying which step is on. Once it has settled the strip goes away
+   * again: a hand-written lesson's two done rows say less than the "class → lesson → questions"
+   * line above them.
+   */
+  protected readonly showSteps = computed(
+    () => this.stripSteps().length > 0 && (!this.isManual() || this.running() || this.isErrorStatus()),
+  );
 
   /** The tab that is on screen but has no play behind it yet — what "Create level" would make. */
   protected readonly missingPlay = computed(() => {
@@ -985,26 +1021,39 @@ export class LessonPage {
     return plays.some((play) => play.level === def.level && play.variant === def.variant) ? null : def;
   });
 
+  /** Level 1's questions — the only thing the assistant writes another level from (E5). */
+  private readonly level1Stops = computed(() => {
+    const one = (this.lesson()?.plays ?? []).find((play) => play.level === 1 && play.variant === 0);
+    return one?.play.stops.length ?? 0;
+  });
+
   /**
-   * "Add level" (D27): two ways to fill an empty Level 2, Level 3 or Again.
+   * "Add level" (D27/E5): two ways to fill an empty Level 2, Level 3 or Again.
    *
    * *Write it myself* makes the play and opens the Add question sheet on it, so the level exists
-   * and has its first question in one gesture rather than in two screens. *Let the assistant write
-   * it* is, for now, the note flow that already exists — E5 replaces that one branch with `POST
-   * …/plays/{level}/generate`, and this method is where it plugs in.
+   * and has its first question in one gesture rather than in two screens. *Let the assistant
+   * write it* posts `…/plays/{level}/generate` for the tab she is on and then gets out of the
+   * way — the job runs one ledger step, so the `/status` poll draws the rest.
    *
-   * That note flow is a *manual* lesson's card and is not rendered for any other source, so the
-   * second choice is only offered where it leads somewhere ({@link canAssistLevel}). A PDF lesson
-   * missing a level has the step strip's "Retry this step only" until E5 gives every source the
-   * per-level endpoint; offering a button that scrolls to nothing was worse than not offering it.
+   * Every source is offered it now that the server derives the analysis from Level 1 itself: the
+   * one condition left is a Level 1 with questions in it, which is what the endpoint's 400 is
+   * about, and {@link level1Stops} is the same rule said before she presses anything.
    */
-  protected readonly canAssistLevel = computed(() => this.isManual());
+  protected readonly canAssistLevel = computed(() => this.level1Stops() > 0);
+
+  /** E5's own sentence under the two choices — the 400, and anything else unexpected. */
+  private readonly assistHint = signal<string | null>(null);
+
+  /** What the server said about the ask, or the one rule for it said before she presses. */
+  protected readonly assistHintText = computed(() => {
+    this.lang();
+    return this.assistHint() ?? (this.canAssistLevel() ? null : this.t('lessons.detail.addLevel.needLevel1'));
+  });
 
   protected addLevel(choice: 'mine' | 'assistant'): void {
     if (choice === 'assistant') {
-      if (!this.canAssistLevel()) return;
-      this.generateCard()?.nativeElement.scrollIntoView({ block: 'center' });
-      this.generateCard()?.nativeElement.querySelector('textarea')?.focus();
+      const ask = this.askLevel();
+      if (ask && this.canAssistLevel()) this.askAssistant(ask, false);
       return;
     }
     const lesson = this.lesson();
@@ -1023,9 +1072,127 @@ export class LessonPage {
     });
   }
 
-  /** `hq-card` is a component, so the element itself has to be asked for by name. */
-  private readonly generateCard: Signal<ElementRef<HTMLElement> | undefined> = viewChild('generateCard', {
-    read: ElementRef,
+  /** The `level` segment for the tab on screen — `null` on Level 1, which is never asked for. */
+  protected readonly askLevel = computed<AskLevel | null>(
+    () => PLAY_TAB_DEFS.find((def) => def.id === this.playTab())?.ask ?? null,
+  );
+
+  /**
+   * "Rewrite this level with the assistant" — the same endpoint with `?replace=true`, behind the
+   * red band, on a level that already has questions. Never on Level 1: hers is the one the other
+   * two are written from, and rewriting it would rewrite what they were derived from.
+   */
+  protected readonly canRewriteLevel = computed(
+    () =>
+      this.askLevel() !== null &&
+      this.canAssistLevel() &&
+      this.currentAdminPlay() !== null &&
+      !this.running(),
+  );
+
+  protected requestRewriteLevel(): void {
+    const ask = this.askLevel();
+    if (ask && this.canRewriteLevel())
+      this.pendingAction.set({ kind: 'replaceLevel', ask, tab: this.playTab() });
+  }
+
+  /**
+   * E5: ask for one level and let the poll take it from there.
+   *
+   * Nothing is drawn from the answer but the status it carries — the lesson is `generating`, and
+   * the effect in the constructor already knows what to do with that. The refusals are the whole
+   * of the rest of this pair, because they are the only thing she could not read off the screen.
+   */
+  private askAssistant(ask: AskLevel, replace: boolean): void {
+    const lesson = this.lesson();
+    if (!lesson) return;
+    this.assistHint.set(null);
+    this.asked.set(null);
+    this.busy.set(this.t('lessons.detail.busy.writingLevel'));
+    this.api.generateLevel(lesson.id, ask, replace).subscribe({
+      next: (job) => {
+        this.busy.set(null);
+        this.asked.set(PLAY_TAB_DEFS.find((def) => def.ask === ask)?.id ?? null);
+        this.lessonRes.update((current) =>
+          current ? { ...current, status: jobStatusAsLessonStatus(job.status) } : current,
+        );
+      },
+      error: (cause: unknown) => {
+        this.busy.set(null);
+        this.onAssistRefused(cause, ask);
+      },
+    });
+  }
+
+  private onAssistRefused(cause: unknown, ask: AskLevel): void {
+    const code = apiErrorCodeOf(cause);
+    // `exists` is not a failure: she asked for a level that already has questions, and the only
+    // thing missing is her word that they may go. The band asks for it and re-posts with
+    // `?replace=true`, so the second attempt is one click rather than a new journey.
+    if (code === 'exists') {
+      this.pendingAction.set({ kind: 'replaceLevel', ask, tab: this.playTab() });
+      return;
+    }
+    // The lesson-wide lock. A strip rather than the card, because the card she pressed is about
+    // to be replaced by the level itself, and the bell is what will actually tell her.
+    if (code === 'generating') {
+      this.toastText.set(this.t('lessons.detail.addLevel.stillWriting'));
+      return;
+    }
+    this.assistHint.set(apiErrorOf(cause)?.message ?? this.t('lessons.detail.addLevel.needLevel1'));
+  }
+
+  /**
+   * The only way out of a failed per-level generate, and the reason a hand-written lesson has no
+   * "Retry this step": the step it failed at is not one of a pipeline she started, it is the one
+   * question she asked. `replace` is true because a half-written level may already hold stops.
+   */
+  protected askAgain(): void {
+    const ask = this.askLevel();
+    if (ask) this.askAssistant(ask, true);
+  }
+
+  /**
+   * The level the ledger says the assistant is on, so the tab she opened says so rather than
+   * "This level does not exist yet."
+   *
+   * A running row names it outright. A pending one only counts when it is the *only* generate row
+   * left to do — which is exactly the per-level case, where `analyze` may run ahead of it — since
+   * a full pipeline has three or four pending and names none of them.
+   */
+  protected readonly writingTab = computed<PlayTabId | null>(() => {
+    const lesson = this.lesson();
+    if (lesson === null || !this.running()) return null;
+    const rows = lesson.steps.filter((step) => STEP_TAB[step.step] !== undefined);
+    const running = rows.find((step) => step.status === LessonStepInfoStatusEnum.RUNNING);
+    const todo = rows.filter((step) => step.status !== LessonStepInfoStatusEnum.DONE);
+    const step = running ?? (todo.length === 1 ? todo[0] : undefined);
+    return step ? (STEP_TAB[step.step] ?? null) : this.asked();
+  });
+
+  /**
+   * The level this page has just asked for, until the ledger names it itself.
+   *
+   * `POST …/generate` answers a `JobRef` and nothing else, so for one poll interval the lesson in
+   * hand says `generating` with no step rows behind it. Without this the tab would fall straight
+   * back to "This level does not exist yet" and offer the button again — which the server would
+   * then refuse with `generating`, for the level it is at that moment writing.
+   */
+  private readonly asked = signal<PlayTabId | null>(null);
+
+  protected readonly writingHere = computed(() => this.writingTab() === this.playTab());
+
+  protected readonly writingLabel = computed(() => {
+    this.lang();
+    const tab = this.writingTab();
+    if (tab === null) return '';
+    return this.t('lessons.detail.addLevel.writing', { level: this.t(`lessons.detail.playTab.${tab}`) });
+  });
+
+  /** The failed step is this level's, so "Ask again" belongs on this tab and nowhere else. */
+  protected readonly failedHere = computed(() => {
+    const step = this.erroredStep();
+    return this.isErrorStatus() && step !== null && STEP_TAB[step.step] === this.playTab();
   });
 
   protected readonly generateText = signal('');
@@ -1184,6 +1351,7 @@ export class LessonPage {
     if (action.kind === 'regeneratePlay') return this.t('lessons.detail.regeneratePlayConfirm.title');
     if (action.kind === 'deleteStop') return this.t('lessons.detail.deleteStopConfirm.title');
     if (action.kind === 'leave') return this.t('lessons.detail.leaveConfirm.title');
+    if (action.kind === 'replaceLevel') return this.t('lessons.detail.replaceLevelConfirm.title');
     return this.t('lessons.detail.regenerateStopConfirm.title');
   });
 
@@ -1198,6 +1366,11 @@ export class LessonPage {
     if (action.kind === 'deleteStop')
       return this.t('lessons.detail.deleteStopConfirm.message', { title: action.title });
     if (action.kind === 'leave') return this.t('lessons.detail.leaveConfirm.message');
+    if (action.kind === 'replaceLevel') {
+      return this.t('lessons.detail.replaceLevelConfirm.message', {
+        level: this.t(`lessons.detail.playTab.${action.tab}`),
+      });
+    }
     return this.t('lessons.detail.regenerateStopConfirm.message', { title: action.title });
   });
 
@@ -1210,6 +1383,7 @@ export class LessonPage {
     if (action.kind === 'regeneratePlay') return this.t('lessons.detail.regeneratePlayConfirm.confirm');
     if (action.kind === 'deleteStop') return this.t('lessons.detail.deleteStopConfirm.confirm');
     if (action.kind === 'leave') return this.t('lessons.detail.leaveConfirm.confirm');
+    if (action.kind === 'replaceLevel') return this.t('lessons.detail.replaceLevelConfirm.confirm');
     return this.t('lessons.detail.regenerateStopConfirm.confirm');
   });
 
@@ -1276,6 +1450,7 @@ export class LessonPage {
     else if (action.kind === 'regeneratePlay') this.doRegeneratePlay(action.playId);
     else if (action.kind === 'deleteStop') this.doDeleteStop(action.stopId);
     else if (action.kind === 'leave') this.doLeave();
+    else if (action.kind === 'replaceLevel') this.askAssistant(action.ask, true);
     else this.doRegenerateStop(action.stopId);
   }
 
@@ -1543,8 +1718,7 @@ export class LessonPage {
     // lesson's own status has already settled, and `isStatusActive` folds both in.
     effect((onCleanup) => {
       const lesson = this.lesson();
-      const active =
-        lesson !== null && (isRunningStatus(lesson.status) || anyConverting(lesson.files ?? []));
+      const active = lesson !== null && (this.running() || anyConverting(lesson.files ?? []));
       if (!active) return;
 
       // The baseline is the lesson in hand, set once per page: a lesson that reaches a terminal

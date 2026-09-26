@@ -137,7 +137,9 @@ Editing an existing stop's prose behaves the same way: its row waits, the page d
 Levels are capped at three plus the Again variant. An empty level's tab is open rather than greyed out (except while the pipeline is running) and shows an **Add level** card with two choices:
 
 - **Write it myself** — creates the play and opens the Add question sheet on it.
-- **Let the assistant write it** — writes **that one level** from the Level 1 she wrote:
+- **Let the assistant write it** — offered on every lesson whose Level 1 has at least one question,
+  whatever its source (the server derives the analysis from Level 1 itself). Writes **that one level**
+  from the Level 1 she wrote:
   `POST /teacher/lessons/{id}/plays/{level}/generate`, where `level` is `2`, `3` or `again`. It answers the usual
   `JobRef` and runs in the background as a single pipeline step (`generate_L2`, `generate_L3` or `generate_again`), so
   the lesson goes `generating` → `review` and the editor's poll, the step strip and the bell's *Questions ready*
@@ -158,6 +160,30 @@ because there is nothing to write from. A colleague's lesson is 403 and an unkno
 **While it runs, the whole lesson is locked**, not just the level being written: every edit is refused with the
 wait-for-the-pipeline 400, as it is during any other job. The parent panel is not generated here — publish still
 fills in whatever is missing, a missing level repeating Level 1 and the panel derived from the stops.
+
+**What the editor shows.** The level's own tab says *The assistant is writing Level 2…* from the moment the job is
+queued — the `JobRef` carries no steps yet, so the tab does not wait for the ledger to name it — and the step strip
+appears above it with the one running step on it, for a hand-written lesson too. The other tabs stay open and the
+levels that exist stay readable; an empty one is shut while a job runs, and an edit to an existing stop gets the
+wait-for-the-pipeline sentence on the stop's own row rather than a band. When the poll sees the level land, the tab
+fills in where the card was, with nothing pressed and no reload.
+
+Each refusal has its own answer on the screen:
+
+- 409 `exists` → the red **Replace this level?** band, and confirming re-posts with `?replace=true`.
+- 409 `generating` → the *still writing — wait for the bell* strip; nothing is re-sent.
+- 400 (empty Level 1, or a published lesson) → the server's sentence under the two buttons. A Level 1 with no
+  questions in it does not get the assistant button at all — the card says *Write at least one question in Level 1
+  first* instead of offering an ask the server would refuse.
+- `error` → the ledger's message on that level's tab with **Ask again**, which re-posts with `?replace=true`. A
+  hand-written lesson has no *Retry this step only*: the step it failed at is the one question she asked, not a
+  pipeline she started.
+
+**Rewriting a level she already has.** A non-empty Level 2, Level 3 or Again tab carries **Rewrite this level with
+the assistant** next to *Regenerate this level*: the same endpoint with `?replace=true`, behind the same Replace
+band. Never on Level 1 — that is the level the other two are written from.
+
+The bell and the toast are unchanged: a finished level arrives as the usual *Questions ready* (§2's `lesson.ready`).
 
 ### Step 8 — Preview and publish
 **Preview as child** opens the web player on the lesson in preview mode (attempts are not recorded in the gradebook).
