@@ -295,8 +295,16 @@ export class DayPickerComponent {
     this.value.set(iso);
   }
 
+  /** The nearest declared direction — the language service puts `dir` on `<html>`. */
+  private rtl(): boolean {
+    return (this.host.nativeElement as HTMLElement).closest('[dir]')?.getAttribute('dir') === 'rtl';
+  }
+
   protected onKeydown(event: KeyboardEvent): void {
-    const step = KEY_STEPS[event.key];
+    // APG maps a date grid's arrows to the *visual* direction, and the grid is mirrored in
+    // Arabic: Left has to move to the day that is drawn on the left, which is the next one.
+    const key = this.rtl() ? (MIRRORED[event.key] ?? event.key) : event.key;
+    const step = KEY_STEPS[key];
     if (step === undefined) return;
     event.preventDefault();
     const iso = this.value();
@@ -327,6 +335,12 @@ export class DayPickerComponent {
     return isoOf(moved);
   }
 }
+
+/** The two keys whose meaning follows the writing direction rather than the calendar. */
+const MIRRORED: Readonly<Record<string, string>> = {
+  ArrowLeft: 'ArrowRight',
+  ArrowRight: 'ArrowLeft',
+};
 
 /** Every key the grid answers to, and what it moves by. */
 const KEY_STEPS: Readonly<Record<string, number | 'monthBack' | 'monthOn' | 'weekStart' | 'weekEnd'>> = {

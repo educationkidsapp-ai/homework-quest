@@ -65,6 +65,27 @@ describe('hq-day-picker', () => {
     expect(screen.getByText('August 2026')).toBeInTheDocument();
   });
 
+  /** APG: the arrows follow the *visual* direction, and the grid is mirrored in Arabic. */
+  it('mirrors the left and right arrows when the document is right to left', async () => {
+    document.documentElement.setAttribute('dir', 'rtl');
+    try {
+      const picker = await renderPicker();
+      day('17').focus();
+
+      await userEvent.keyboard('{ArrowLeft}');
+      expect(picker.value()).toBe('2026-09-18');
+
+      await userEvent.keyboard('{ArrowRight}');
+      expect(picker.value()).toBe('2026-09-17');
+
+      // Up and down are rows, not reading order, so they do not flip.
+      await userEvent.keyboard('{ArrowDown}');
+      expect(picker.value()).toBe('2026-09-24');
+    } finally {
+      document.documentElement.removeAttribute('dir');
+    }
+  });
+
   it('walks months without changing the chosen day', async () => {
     const picker = await renderPicker();
 
