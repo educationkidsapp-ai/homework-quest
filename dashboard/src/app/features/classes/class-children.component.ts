@@ -4,6 +4,7 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { type RosterChild, TeacherApi, TeacherRosterApi, apiErrorOf } from '../../api';
+import { AuthService } from '../../core/auth/auth.service';
 import { BandService } from '../../core/band/band.service';
 import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
@@ -68,6 +69,7 @@ import { PlaceChildComponent } from './place-child.component';
   styleUrl: './class-children.component.scss',
 })
 export class ClassChildrenComponent {
+  private readonly auth = inject(AuthService);
   private readonly teacherApi = inject(TeacherApi);
   private readonly rosterApi = inject(TeacherRosterApi);
   private readonly flags = inject(FlagService);
@@ -87,6 +89,20 @@ export class ClassChildrenComponent {
   protected readonly canEdit = computed(
     () => this.flags.isOn(FLAGS.teacherRosterEdit) && this.permissions.can('roster.teacher'),
   );
+
+  /**
+   * U1 item 6: **who the roster belongs to.**
+   *
+   * A teacher reads the class and writes what she teaches; she does not decide who is in the
+   * school. Adding a child, placing one from another section and taking one off the roster are
+   * the office's decisions — an Admin's or a manager's — so for a TEACHER the three controls are
+   * not rendered at all, rather than rendered and refused. Everything else on the tab (the
+   * inline rename, activate/deactivate, Message parent) is hers and is untouched.
+   *
+   * `roster.teacher` still gates the request and the columns: this is a narrower gate on top of
+   * it, not a replacement for it.
+   */
+  protected readonly canPlace = computed(() => this.canEdit() && this.auth.role() !== 'TEACHER');
 
   private readonly students = rxResource({
     params: () => this.classId(),

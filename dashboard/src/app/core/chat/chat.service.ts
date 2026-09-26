@@ -35,10 +35,24 @@ export class ChatService {
   readonly connectionStatus = signal<ChatConnectionStatus>('disconnected');
   readonly isParentTyping = signal<boolean>(false);
 
+  /**
+   * U1 item 6: the conversation she opened from a child who has never been written to.
+   *
+   * `GET /teacher/chat/threads` lists the threads that exist, and the row is created by the
+   * first message (`ChatThreads.getOrCreate`), so "Message parent" on a fresh child had nothing
+   * to select and the screen stayed on "pick a conversation". This is that conversation before
+   * it exists: an empty thread with the child's name on it, replaced by the server's own row as
+   * soon as the first message lands.
+   */
+  private readonly pending = signal<ChatThread | null>(null);
+
   readonly activeThread = computed(() => {
     const childId = this.activeChildId();
     if (!childId) return null;
-    return this.threads().find((t) => t.childId === childId) ?? null;
+    const existing = this.threads().find((t) => t.childId === childId);
+    if (existing) return existing;
+    const waiting = this.pending();
+    return waiting !== null && waiting.childId === childId ? waiting : null;
   });
 
   readonly totalUnread = computed(() => this.threads().reduce((acc, t) => acc + (t.unread ?? 0), 0));
@@ -80,6 +94,14 @@ export class ChatService {
         tap((threads) => {
           this.threads.set(threads);
           this.loadingThreads.set(false);
+          // The list is the answer to "does this child have a thread": drop a placeholder the
+          // server has since confirmed, and mark read what could not be marked without one.
+          const active = this.activeChildId();
+          const real = active === null ? undefined : threads.find((t) => t.childId === active);
+          if (real) {
+            if (this.pending()?.childId === active) this.pending.set(null);
+            if (real.unread > 0) this.markRead(real.childId);
+          }
         }),
         catchError(() => {
           this.loadingThreads.set(false);
@@ -94,7 +116,30 @@ export class ChatService {
     this.activeChildId.set(childId);
     this.isParentTyping.set(false);
     this.loadMessages(childId);
-    this.markRead(childId);
+    // Only a thread that exists can be marked read: `POST …/read` answers 404 without one, and
+    // the error interceptor would put that 404 in a red band over a conversation she just opened.
+    if (this.threads().some((t) => t.childId === childId)) this.markRead(childId);
+  }
+
+  /**
+   * Open the conversation with a child's parent, thread or no thread (U1 item 6).
+   *
+   * What "Message parent" on the Children tab and on the child's page mean: the screen shows the
+   * composer straight away, and the first message creates the thread server-side.
+   */
+  openWith(childId: string, childName: string, className?: string): void {
+    if (!this.threads().some((t) => t.childId === childId)) {
+      this.pending.set({
+        id: '',
+        childId,
+        childName,
+        className,
+        teacherId: this.auth.user()?.id ?? '',
+        teacherName: this.auth.user()?.displayName ?? '',
+        unread: 0,
+      });
+    }
+    this.selectThread(childId);
   }
 
   loadMessages(childId: string): void {
@@ -376,12 +421,21 @@ export class ChatService {
 
   private handleServerMessage(message: ChatMessage, clientId?: string): void {
     const activeChild = this.activeChildId();
+    // The first message of a new conversation *is* the thread: refetch the list so the sidebar
+    // has the row the server just created, and let it take the placeholder's place.
+    if (this.pending() !== null && message.threadId) {
+      this.loadThreads();
+    }
     const active = this.activeThread();
     const isCurrentThread =
       (active && active.id === message.threadId) ||
       (activeChild && this.threads().some((t) => t.childId === activeChild && t.id === message.threadId));
+    // The echo of a message this client sent, identified by its own `clientId`. It settles the
+    // optimistic bubble even when the thread it created is younger than the thread list.
+    const isOwnEcho =
+      clientId !== undefined && this.messages().some((m) => m.clientId === clientId);
 
-    if (isCurrentThread) {
+    if (isCurrentThread || isOwnEcho) {
       this.messages.update((list) => {
         // If message has clientId, replace the pending optimistic message
         if (clientId) {

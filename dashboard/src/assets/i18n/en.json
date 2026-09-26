@@ -237,7 +237,9 @@
       "type": {
         "homework": "Homework",
         "exam": "Exam"
-      }
+      },
+      "pastDay": "This day has passed — lessons are planned ahead.",
+      "pastDayOn": "{{day}} has passed, so nothing can be added to it."
     },
     "children": {
       "title": "Children",

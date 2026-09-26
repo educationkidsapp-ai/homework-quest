@@ -5,6 +5,7 @@ import { FLAGS } from '../../core/flags/flag.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
+import { PlatformService } from '../../core/platform/platform.service';
 import { SkeletonComponent } from '../../ui';
 import { StatusSquareComponent } from '../week/status-square.component';
 import type { CalendarCell } from './classes.models';
@@ -16,8 +17,9 @@ import type { CalendarCell } from './classes.models';
  * A dumb grid — the page owns the request and which month is showing. Two rules it does *not*
  * decide for itself, because the server already has:
  *
- * * **which days are school days** (an Admin setting, `schoolWeek`), so a Friday is dimmed here
- *   and offers no `+` without this screen knowing anything about the Gulf week; and
+ * * **which days are school days** (an Admin setting, `schoolWeek`), so a Friday is not drawn at
+ *   all here — U1 item 6 hides the school's non-teaching columns rather than dimming them —
+ *   without this screen knowing anything about the Gulf week; and
  * * **what counts as a gap** — a school day that has arrived with nothing on it. A future
  *   Tuesday is not a failure, and colouring it red would make every new month look like one.
  *
@@ -65,7 +67,12 @@ import type { CalendarCell } from './classes.models';
         <hq-skeleton [loading]="true" [lines]="6" [label]="'classes.calendar.loading' | transloco" />
       } @else {
         <div class="cal__scroll">
-          <div class="cal__grid" role="grid" [attr.aria-label]="monthLabel()">
+          <div
+            class="cal__grid"
+            role="grid"
+            [attr.aria-label]="monthLabel()"
+            [style.--hq-cal-columns]="weekdays().length"
+          >
             <div class="cal__row" role="row">
               @for (weekday of weekdays(); track weekday) {
                 <div class="cal__weekday" role="columnheader">{{ weekday }}</div>
@@ -116,7 +123,7 @@ import type { CalendarCell } from './classes.models';
                           {{ 'classes.calendar.played' | transloco: { count: cell.playedCount } }}
                         </span>
                       }
-                    } @else if (cell.schoolDay) {
+                    } @else if (cell.schoolDay && !isPast(cell.iso)) {
                       <a
                         class="cal__add"
                         [routerLink]="['/teacher/lessons/new']"
@@ -125,6 +132,25 @@ import type { CalendarCell } from './classes.models';
                       >
                         +
                       </a>
+                      @if (cell.gap) {
+                        <span class="cal__gap-label">{{ 'classes.calendar.gap' | transloco }}</span>
+                      }
+                    } @else if (cell.schoolDay) {
+                      <!--
+                        U1 item 6: a school day that has already gone takes nothing. No +, so
+                        there is nothing to click, and the cell says why rather than leaving a
+                        teacher wondering where the + went. The reason is a title *and* a
+                        screen-reader line, because a tooltip alone is not an explanation.
+                      -->
+                      <span
+                        class="cal__past"
+                        [attr.title]="'classes.calendar.pastDay' | transloco"
+                        [attr.aria-label]="
+                          'classes.calendar.pastDayOn' | transloco: { day: dayLabel(cell.iso) }
+                        "
+                      >
+                        <span aria-hidden="true">—</span>
+                      </span>
                       @if (cell.gap) {
                         <span class="cal__gap-label">{{ 'classes.calendar.gap' | transloco }}</span>
                       }
@@ -205,9 +231,11 @@ import type { CalendarCell } from './classes.models';
 
     .cal__grid {
       display: grid;
-      grid-template-columns: repeat(7, minmax(0, 1fr));
+      // U1 item 6: the school's own teaching days are the columns — five of them in a Gulf week,
+      // because Friday and Saturday are hidden rather than dimmed.
+      grid-template-columns: repeat(var(--hq-cal-columns, 7), minmax(0, 1fr));
       gap: var(--hq-size-rule-thin);
-      min-inline-size: calc(var(--hq-size-grade-card) * 7);
+      min-inline-size: calc(var(--hq-size-grade-card) * var(--hq-cal-columns, 7));
       background: var(--hq-color-divider);
       border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
       border-radius: var(--hq-radius-control);
@@ -321,6 +349,16 @@ import type { CalendarCell } from './classes.models';
       @include m.focus-ring;
     }
 
+    // A day that has gone: the same 44 px the + held, so the month keeps its rhythm.
+    .cal__past {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-block-size: var(--hq-size-touch-target);
+      color: var(--hq-color-ink-muted);
+      cursor: default;
+    }
+
     .cal__gap-label {
       font-size: var(--hq-text-theme-xs);
       color: var(--hq-color-error-ink);
@@ -329,6 +367,7 @@ import type { CalendarCell } from './classes.models';
 })
 export class ClassCalendarComponent {
   private readonly transloco = inject(TranslocoService);
+  private readonly platform = inject(PlatformService);
   private readonly lang = activeLang();
   /** N4.2: the Results link on a published day carries the same flag the route does. */
   protected readonly gradebookFlag = FLAGS.gradebook;
@@ -347,10 +386,30 @@ export class ClassCalendarComponent {
   /** `-1` or `+1` month. The page owns which month is showing; this only asks. */
   readonly monthShift = output<number>();
 
+  /**
+   * Which of the seven weekday slots the month draws (U1 item 6).
+   *
+   * The school's non-teaching days — Friday and Saturday in a Gulf week — are **hidden**, not
+   * dimmed: a column a teacher can put nothing in is a column she reads past forty times a
+   * month. Which days those are is still the server's answer and never a hard-coded Fri/Sat:
+   * `schoolDay` comes off `GET /teacher/classes/{id}/calendar`, so a school that teaches on a
+   * Saturday keeps its Saturday column. A month the server has not answered for yet has no
+   * school days at all, and then all seven are drawn rather than none.
+   */
+  protected readonly columns = computed<readonly number[]>(() => {
+    const cells = this.cells();
+    const teaching = new Set<number>();
+    cells.forEach((cell, index) => {
+      if (cell.inMonth && cell.schoolDay) teaching.add(index % 7);
+    });
+    const shown = [...teaching].sort((a, b) => a - b);
+    return shown.length > 0 ? shown : [0, 1, 2, 3, 4, 5, 6];
+  });
+
   protected readonly weekdays = computed(() => {
     // Sunday first, matching `calendarCells`' 42-cell layout.
     const formatter = new Intl.DateTimeFormat(this.lang(), { weekday: 'short', timeZone: 'UTC' });
-    return Array.from({ length: 7 }, (_, index) => formatter.format(new Date(Date.UTC(2023, 0, 1 + index))));
+    return this.columns().map((index) => formatter.format(new Date(Date.UTC(2023, 0, 1 + index))));
   });
 
   protected readonly monthLabel = computed(() =>
@@ -361,10 +420,32 @@ export class ClassCalendarComponent {
 
   protected readonly weeks = computed<readonly (readonly CalendarCell[])[]>(() => {
     const all = this.cells();
+    const shown = this.columns();
     const rows: (readonly CalendarCell[])[] = [];
-    for (let index = 0; index < all.length; index += 7) rows.push(all.slice(index, index + 7));
+    for (let index = 0; index < all.length; index += 7) {
+      const week = all.slice(index, index + 7);
+      const row = shown.map((column) => week[column]).filter((cell): cell is CalendarCell => cell !== undefined);
+      if (row.length > 0) rows.push(row);
+    }
     return rows;
   });
+
+  /**
+   * A day that has already gone, in the **school's** timezone (U1 item 6).
+   *
+   * Nothing may be planned onto it: `POST /teacher/lessons` for a past date is not what a
+   * teacher means, and the cell offers no `+` at all rather than a link that opens an editor
+   * she then has to back out of. Today itself is not past — a lesson for this afternoon is
+   * ordinary.
+   */
+  protected isPast(iso: string): boolean {
+    return iso < this.today();
+  }
+
+  /** Today where the children are, as `YYYY-MM-DD`; `en-CA` is the locale that formats that way. */
+  private readonly today = computed(() =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: this.platform.timezone() }).format(new Date()),
+  );
 
   /**
    * What the cell says next to the square: the lesson's title.
