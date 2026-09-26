@@ -300,11 +300,16 @@ describe('New lesson', () => {
     request.flush({ id: 'l-7' });
     await settle();
 
+    // E4a: a hand-written lesson opens with the Add question sheet up, which is what `compose`
+    // asks the lesson page for.
     expect(navigate).toHaveBeenCalledWith(
       ['/teacher/lessons', 'l-7'],
-      expect.objectContaining({ queryParams: { notice: 'lessons.new.createdManual' } }),
+      expect.objectContaining({
+        queryParams: { notice: 'lessons.new.createdManual', compose: '1' },
+      }),
     );
   });
+
   it('starts clean when a chain finished while she was not on this page', async () => {
     // Only a chain that finishes while this page is open navigates. The bug: the reset was
     // guarded on "Work in background", so leaving by any other route — the back button, the

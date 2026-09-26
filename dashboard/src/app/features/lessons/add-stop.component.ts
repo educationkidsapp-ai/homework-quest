@@ -1,20 +1,20 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   computed,
   inject,
   input,
   model,
   output,
+  type Signal,
   signal,
+  viewChild,
 } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { firstValueFrom } from 'rxjs';
-import { apiErrorOf } from '../../api';
-import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import {
+  ButtonComponent,
   DialogComponent,
   InputComponent,
   SelectComponent,
@@ -23,8 +23,8 @@ import {
   TextareaComponent,
 } from '../../ui';
 import type { StopType } from '../../ui/phone-preview';
-import { LessonApiService } from './lesson-api.service';
-import { type Subject, stopBody, stopFromTextBody } from './lessons.models';
+import { type Subject, stopBody } from './lessons.models';
+import { StopDraftService } from './stop-draft.service';
 import { type EditorImage } from './stop-editor.component';
 import { STOP_TEMPLATES, STOP_TEMPLATE_GROUPS, templatesByGroup } from './stop-templates';
 
@@ -54,16 +54,26 @@ type FieldName = 'title' | 'question' | 'type';
  * **Why saving is two calls.** `POST …/stops` takes a schema-valid document, and
  * `POST …/stops/{id}/from-text` needs a stop to already exist (`StopTextService.fromText` looks
  * it up by id). So there is no "convert first, create after" order available: this creates the
- * chosen type's template with her title, picture and parent tip on it, then converts. If the
- * conversion is refused the template stop is deleted again, so a refusal leaves nothing
- * half-made in her lesson, and the form stays open with her words in it.
+ * chosen type's template with her title, picture and parent tip on it, then converts.
+ *
+ * **E4a: neither call is awaited here.** Both belong to {@link StopDraftService}, so Save closes
+ * the sheet — or, for "Save and add another", empties it and puts the caret back in Title — while
+ * the assistant writes. The new stop is already in the level's list with a row that says so, and
+ * a refusal is reported on that row rather than in a form she has moved on from.
  *
  * No publish toggle: a stop has no published state of its own — it goes out with the lesson,
  * from the lesson page's own Publish button.
  */
 @Component({
   selector: 'hq-add-stop',
-  imports: [DialogComponent, InputComponent, TextareaComponent, SelectComponent, TranslocoPipe],
+  imports: [
+    ButtonComponent,
+    DialogComponent,
+    InputComponent,
+    TextareaComponent,
+    SelectComponent,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-dialog
@@ -73,10 +83,15 @@ type FieldName = 'title' | 'question' | 'type';
       [title]="'lessons.detail.addStop.title' | transloco"
       [confirmLabel]="'lessons.detail.addStop.save' | transloco"
       [cancelLabel]="'lessons.detail.addStop.cancel' | transloco"
-      [loading]="saving()"
       (closeRequested)="requestCancel()"
       (confirmed)="save()"
     >
+      <!-- The second way out of this sheet: ten questions in a row, without closing and
+           re-opening it nine times. Secondary, because a screen has one primary action. -->
+      <hq-button hqDialogAction variant="secondary" (pressed)="saveAndAddAnother()">
+        {{ 'lessons.detail.addStop.saveAnother' | transloco }}
+      </hq-button>
+
       <!-- Rendered only while open: a closed dialog's fields are still in the document, and a
            second "Title" in the page is a second thing a label, a shortcut and a screen reader
            can land on. -->
@@ -85,11 +100,11 @@ type FieldName = 'title' | 'question' | 'type';
           <p class="add-stop__lede">{{ 'lessons.detail.addStop.lede' | transloco }}</p>
 
           <hq-input
+            #titleField
             [label]="'lessons.detail.addStop.titleLabel' | transloco"
             [hint]="'lessons.detail.addStop.titleHint' | transloco"
             [required]="true"
             [maxLength]="MAX_TITLE"
-            [disabled]="saving()"
             [error]="errorFor('title')"
             [value]="titleValue()"
             (valueChange)="titleValue.set($event)"
@@ -102,7 +117,6 @@ type FieldName = 'title' | 'question' | 'type';
             [rows]="5"
             [required]="true"
             [maxLength]="MAX_QUESTION"
-            [disabled]="saving()"
             [error]="errorFor('question')"
             [value]="questionValue()"
             (valueChange)="onQuestionChange($event)"
@@ -115,7 +129,6 @@ type FieldName = 'title' | 'question' | 'type';
             [groups]="typeGroups()"
             [hint]="typeHint()"
             [required]="true"
-            [disabled]="saving()"
             [error]="errorFor('type')"
             [value]="typeValue()"
             (valueChange)="typeValue.set($event)"
@@ -129,7 +142,7 @@ type FieldName = 'title' | 'question' | 'type';
               [options]="imageOptions()"
               [hint]="'lessons.detail.addStop.pictureHint' | transloco"
               [markOptional]="true"
-              [disabled]="saving() || images().length === 0"
+              [disabled]="images().length === 0"
               [value]="imageValue()"
               (valueChange)="imageValue.set($event)"
             />
@@ -138,7 +151,6 @@ type FieldName = 'title' | 'question' | 'type';
                 class="add-stop__file"
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
-                [disabled]="saving()"
                 (change)="onAttachInput($event)"
               />
               <span class="add-stop__attach-label">{{ 'lessons.detail.editor.attach' | transloco }}</span>
@@ -154,7 +166,6 @@ type FieldName = 'title' | 'question' | 'type';
               <hq-textarea
                 [label]="'lessons.detail.editor.parentTipEn' | transloco"
                 [rows]="2"
-                [disabled]="saving()"
                 [value]="tipEn()"
                 (valueChange)="tipEn.set($event)"
               />
@@ -162,16 +173,11 @@ type FieldName = 'title' | 'question' | 'type';
                 [label]="'lessons.detail.editor.parentTipAr' | transloco"
                 [rows]="2"
                 dir="rtl"
-                [disabled]="saving()"
                 [value]="tipAr()"
                 (valueChange)="tipAr.set($event)"
               />
             </div>
           </fieldset>
-
-          @if (saving()) {
-            <p class="add-stop__busy" role="status">{{ 'lessons.detail.addStop.saving' | transloco }}</p>
-          }
         </div>
       }
     </hq-dialog>
@@ -277,30 +283,31 @@ type FieldName = 'title' | 'question' | 'type';
         align-items: stretch;
       }
     }
-
-    .add-stop__busy {
-      color: var(--hq-color-ink-soft);
-      font-size: var(--hq-font-label-size);
-    }
   `,
 })
 export class AddStopComponent {
-  private readonly api = inject(LessonApiService);
+  private readonly drafts = inject(StopDraftService);
   private readonly transloco = inject(TranslocoService);
-  private readonly band = inject(BandService);
   private readonly lang = activeLang();
+
+  /** `hq-input` is a component, so the element carrying the real `<input>` is read by hand. */
+  private readonly titleField: Signal<ElementRef<HTMLElement> | undefined> = viewChild('titleField', {
+    read: ElementRef,
+  });
 
   protected readonly MAX_TITLE = MAX_TITLE;
   protected readonly MAX_QUESTION = MAX_QUESTION;
 
   readonly open = model(false);
+  /** The lesson the play belongs to — what the draft's row state is keyed to. */
+  readonly lessonId = input.required<string>();
   /** The play the new stop joins; nothing can be saved without it. */
   readonly playId = input.required<string>();
   readonly subject = input.required<Subject>();
   readonly images = input<readonly EditorImage[]>([]);
 
-  /** The new stop's id — the lesson page selects it and reloads. */
-  readonly added = output<string>();
+  /** A question was handed to the assistant — the page says so and selects the new row. */
+  readonly added = output<void>();
   readonly imageAttached = output<File>();
 
   protected readonly titleValue = signal('');
@@ -310,12 +317,9 @@ export class AddStopComponent {
   protected readonly tipEn = signal('');
   protected readonly tipAr = signal('');
 
-  protected readonly saving = signal(false);
   protected readonly discardOpen = signal(false);
   private readonly touched = signal<ReadonlySet<FieldName>>(new Set());
   private readonly submitted = signal(false);
-  /** The server's 422, shown under the question because that is what it is about. */
-  private readonly rephrase = signal(false);
 
   protected readonly typeGroups = computed<readonly SelectOptionGroup<StopType>[]>(() => {
     this.lang();
@@ -368,7 +372,6 @@ export class AddStopComponent {
    * never while she is still typing the first letter of it.
    */
   protected errorFor(field: FieldName): string | null {
-    if (field === 'question' && this.rephrase()) return this.t('lessons.detail.editor.text.rephrase');
     if (!this.submitted() && !this.touched().has(field)) return null;
     return this.problems().get(field) ?? null;
   }
@@ -379,8 +382,6 @@ export class AddStopComponent {
 
   protected onQuestionChange(text: string): void {
     this.questionValue.set(text);
-    // Her rewrite answers the 422; leaving it up would say the new words were refused too.
-    if (this.rephrase()) this.rephrase.set(false);
   }
 
   protected onAttachInput(event: Event): void {
@@ -402,7 +403,6 @@ export class AddStopComponent {
   );
 
   protected requestCancel(): void {
-    if (this.saving()) return;
     if (this.dirty()) this.discardOpen.set(true);
     else this.close();
   }
@@ -426,22 +426,42 @@ export class AddStopComponent {
     this.tipAr.set('');
     this.touched.set(new Set());
     this.submitted.set(false);
-    this.rephrase.set(false);
   }
 
   /**
-   * Create the template, then convert it. `saving` is the double-submit guard as well as the
-   * busy state: the dialog's primary button is `loading` while it is set, and this returns early
-   * for the Enter key that arrives between the two.
+   * Hand the question over and get out of the way.
+   *
+   * Everything after the validation is {@link StopDraftService}'s: the template stop, the
+   * conversion, the 90 s timeout and whatever the server says about any of them. This sheet's
+   * whole job ends at a valid form, so it can close on the click — which is the point of E4a.
    */
-  protected async save(): Promise<void> {
-    if (this.saving()) return;
+  protected save(): void {
+    if (this.submit()) this.close();
+  }
+
+  /**
+   * The same save, with the sheet kept open for the next one.
+   *
+   * The type stays — a teacher adding five questions is usually adding five of a kind — and so
+   * does the picture and the parent tip; the title and the question are hers alone and are
+   * emptied. Focus goes back to Title, because that is where she would put it herself.
+   */
+  protected saveAndAddAnother(): void {
+    if (!this.submit()) return;
+    this.titleValue.set('');
+    this.questionValue.set('');
+    this.touched.set(new Set());
+    this.submitted.set(false);
+    this.titleField()?.nativeElement.querySelector('input')?.focus();
+  }
+
+  /** The shared half: validate, build the template document, start the draft. */
+  private submit(): boolean {
     this.submitted.set(true);
-    this.rephrase.set(false);
-    if (!this.valid()) return;
+    if (!this.valid()) return false;
 
     const template = STOP_TEMPLATES.find((entry) => entry.type === this.typeValue());
-    if (!template) return;
+    if (!template) return false;
 
     const title = this.titleValue().trim();
     const skeleton = template.make(this.subject()) as unknown as Record<string, unknown>;
@@ -452,43 +472,12 @@ export class AddStopComponent {
       draft['parentTip'] = { en: this.tipEn().trim() || tip.en, ar: this.tipAr().trim() || tip.ar };
     }
 
-    this.saving.set(true);
-    let created: { readonly id: string };
-    try {
-      created = await firstValueFrom(this.api.addStop(this.playId(), stopBody(draft)));
-    } catch (error: unknown) {
-      this.saving.set(false);
-      this.fail(error);
-      return;
-    }
-
-    try {
-      // The title leads the text because that is the shape `StopText.describe` gives a stop back
-      // in, so Prompt D is asked to keep the heading she typed rather than invent one.
-      await firstValueFrom(
-        this.api.stopFromText(created.id, stopFromTextBody(`${title}\n\n${this.questionValue().trim()}`)),
-      );
-    } catch (error: unknown) {
-      this.saving.set(false);
-      // Nothing half-made: the template stop only ever existed to give `from-text` something to
-      // rewrite, so a refused conversion takes it with it. Best-effort — if the delete itself
-      // fails there is nothing more this form can do about it, and the band already said so.
-      this.api.deleteStop(created.id).subscribe({ error: () => undefined });
-      const status = error instanceof HttpErrorResponse ? error.status : 0;
-      if (status === 422) this.rephrase.set(true);
-      else if (status === 400) this.band.fail(this.t('lessons.detail.editor.text.generating'));
-      else this.fail(error);
-      return;
-    }
-
-    this.saving.set(false);
-    const id = created.id;
-    this.close();
-    this.added.emit(id);
-  }
-
-  private fail(error: unknown): void {
-    this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
+    // The title leads the text because that is the shape `StopText.describe` gives a stop back
+    // in, so Prompt D is asked to keep the heading she typed rather than invent one.
+    const text = `${title}\n\n${this.questionValue().trim()}`;
+    this.drafts.add(this.lessonId(), this.playId(), stopBody(draft), text);
+    this.added.emit();
+    return true;
   }
 
   private t(key: string, params?: Record<string, unknown>): string {

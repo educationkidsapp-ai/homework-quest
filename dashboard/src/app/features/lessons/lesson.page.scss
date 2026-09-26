@@ -103,8 +103,59 @@
 
 .lesson__stop-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
   gap: var(--hq-space-8);
+}
+
+// The assistant's line under a row, and the two buttons a refusal puts beside it. They wrap onto
+// their own line rather than squeezing the title, which is what the row is for.
+.lesson__stop-note {
+  display: flex;
+  align-items: center;
+  font-size: var(--hq-font-label-size);
+  color: var(--hq-color-ink-soft);
+}
+
+.lesson__stop-note--error {
+  color: var(--hq-color-error-ink);
+}
+
+// Two ways to fill an empty level, offered instead of one unexplained "Create this level".
+.lesson__add-level {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-12);
+  padding: var(--hq-space-16);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-card);
+  background: var(--hq-color-surface);
+}
+
+.lesson__add-level-lede {
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-sm);
+}
+
+.lesson__add-level-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-8);
+}
+
+// Where the pipeline strip would be, for a lesson that never had one: three words, the last
+// of them the one she is on.
+.lesson__manual-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-16);
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-sm);
+}
+
+.lesson__manual-steps-now {
+  color: var(--hq-color-ink-strong);
+  font-weight: var(--hq-text-weight-medium);
 }
 
 .lesson__stop-row .lesson__stop-item {

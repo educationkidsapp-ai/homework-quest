@@ -31,6 +31,17 @@ async function loadValidators(): Promise<Readonly<Record<string, StopSchemaValid
 }
 
 /**
+ * Whether the 605 kB chunk has been asked for in this document yet.
+ *
+ * E4a made that a rule rather than an accident: the module is the Raw JSON panel's, so a teacher
+ * — who cannot open that panel — must never download it, and `stop-editor.spec.ts` asserts on this
+ * rather than on a network log a jsdom test does not have.
+ */
+export function validatorsRequested(): boolean {
+  return validatorsPromise !== null;
+}
+
+/**
  * Ajv's `additionalProperties` message names the object but not the offending key — "must NOT
  * have additional properties" over a 40-line stop is a puzzle, so the key is appended here.
  */

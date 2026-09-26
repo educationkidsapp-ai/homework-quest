@@ -56,6 +56,13 @@ import { ButtonComponent } from '../button/button.component';
           <hq-button variant="quiet" (pressed)="requestClose()">{{
             cancelLabel() ?? ('ui.cancel' | transloco)
           }}</hq-button>
+          <!--
+            A second, non-primary action beside the primary one — "Save and add another", and
+            nothing that commits anything different. It is projected rather than configured
+            because its label, its guard and its handler all belong to the form, and the footer
+            only owns where it sits.
+          -->
+          <ng-content select="[hqDialogAction]" />
           @if (confirmLabel(); as label) {
             <hq-button
               variant="primary"

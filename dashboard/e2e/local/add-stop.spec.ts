@@ -16,12 +16,16 @@ import {
 } from './env';
 
 /**
- * CR2's acceptance: "Add stop" is one simple form.
+ * CR2's acceptance: "Add stop" is one simple form. E4a's: it is also fast.
  *
  * Sara opens it, presses Save on an empty form and is told what is missing *under the fields*,
  * fills the three required ones, saves, and the question she wrote is the stop that is now
  * selected in the editor — in her own words, read back by CR5's prose view. The twenty-two
  * -template menu is gone, and nothing in this file can reach it.
+ *
+ * E4a adds the three things the owner asked for: the sheet is already open when a hand-written
+ * lesson opens, five questions go in one after another without anybody waiting on the model, and a
+ * question the assistant refuses stays on its row with Retry beside it.
  *
  * The server runs on H2 with `SEED_SCHOOL=true` and `LLM_PROVIDER=fake` (see `README.md`): the
  * fake turns the text back into the stop it was given, keeping the first line as the title and
@@ -99,6 +103,16 @@ test('Sara writes a lesson by hand to add questions to', async ({ page }) => {
   await expect(page).toHaveURL(/\/teacher\/lessons\/[0-9a-f-]+/, { timeout: 20_000 });
   lessonUrl = new URL(page.url()).pathname.replace(/^\/dashboard\//, '');
   await expect(page.getByRole('button', { name: '+ Add stop' })).toBeVisible();
+
+  // E4a: the lesson opens on the sheet. The next thing she is going to do is write a question,
+  // and the empty Level 1 behind it says nothing else.
+  await expect(form(page)).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Add a question' })).toBeVisible();
+  // Three plain steps where a hand-written lesson's empty pipeline strip used to be.
+  await expect(page.getByText('3. Questions')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(form(page)).toBeHidden();
 });
 
 test('the form is one card, one column, five fields — and no template menu', async ({ page }) => {
@@ -161,16 +175,94 @@ test('a saved question becomes the selected stop, in her own words', async ({ pa
   await fields.getByLabel('Type', { exact: true }).selectOption('choice');
   await page.getByRole('button', { name: 'Save the question' }).click();
 
-  // The one toast in this system: a success, politely announced, with no Undo on it.
-  await expect(page.getByText('Question added')).toBeVisible({ timeout: 30_000 });
+  // The sheet is shut and the toast is up before the model has been asked anything — E4a's whole
+  // point. The row is already in the list, saying who is working on it.
   await expect(fields).toBeHidden();
-  await expect(stopRows(page)).toHaveCount(before + 1, { timeout: 30_000 });
+  await expect(page.getByText('Question added')).toBeVisible();
+  await expect(stopRows(page)).toHaveCount(before + 1);
 
   const added = stopRows(page).filter({ hasText: title }).first();
   await expect(added).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('The assistant is writing…')).toHaveCount(0, { timeout: 120_000 });
   // CR5's prose view, carrying what she wrote rather than a JSON document.
   await expect(proseField(page)).toHaveValue(new RegExp(`^${title}`), { timeout: 20_000 });
   await expect(proseField(page)).toHaveValue(/three sides/);
+});
+
+test('five questions in a row, without waiting on the sheet once', async ({ page }) => {
+  test.setTimeout(240_000);
+  await openTheLesson(page);
+  const before = await stopRows(page).count();
+  const fields = await openTheForm(page);
+
+  // "Save and add another" keeps the sheet, keeps the type, empties her words and puts the caret
+  // back in Title — so this loop is exactly what a teacher's hands do.
+  for (let i = 1; i <= 5; i++) {
+    await fields.getByLabel('Title', { exact: true }).fill(`Count to ${i} ${RUN}`);
+    await fields
+      .getByLabel('Question / what the child does', { exact: true })
+      .fill(`Ask the child to count ${i} carrots out loud.`);
+    if (i === 1) await fields.getByLabel('Type', { exact: true }).selectOption('count');
+    await page.getByRole('button', { name: 'Save and add another' }).click();
+    // Nothing is awaited but the form emptying itself: no modal to wait on, no model either.
+    await expect(fields.getByLabel('Title', { exact: true })).toHaveValue('');
+    await expect(fields.getByLabel('Type', { exact: true })).toHaveValue('count');
+  }
+
+  await page.keyboard.press('Escape');
+  await expect(fields).toBeHidden();
+  await expect(stopRows(page)).toHaveCount(before + 5, { timeout: 30_000 });
+  // They finish in the background, in their own time.
+  await expect(page.getByText('The assistant is writing…')).toHaveCount(0, { timeout: 180_000 });
+  await expect(stopRows(page).filter({ hasText: `Count to 5 ${RUN}` })).toHaveCount(1);
+});
+
+/**
+ * A refusal keeps the question and offers Retry.
+ *
+ * `SampleLlmClient` has no "fail this one" hook — `quest.pipeline.fail-once-at` is a *pipeline*
+ * step hook and `from-text` is not a pipeline step — so the refusal is injected in the browser:
+ * the first `from-text` of this test is answered with the server's own 422 body, and the retry is
+ * let through to the real endpoint, which the fake then answers.
+ */
+test('a question the assistant refuses stays on its row, and Retry sends the same words', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await openTheLesson(page);
+
+  let refused = 0;
+  await page.route('**/stops/*/from-text', async (route) => {
+    if (refused++ === 0) {
+      await route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'rephrase', message: "Couldn't save, please rephrase." }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  const title = `Draw the shape ${RUN}`;
+  const fields = await openTheForm(page);
+  await fields.getByLabel('Title', { exact: true }).fill(title);
+  await fields
+    .getByLabel('Question / what the child does', { exact: true })
+    .fill('Pip says: draw a triangle and say how many sides it has.');
+  await fields.getByLabel('Type', { exact: true }).selectOption('choice');
+  await page.getByRole('button', { name: 'Save the question' }).click();
+  await expect(fields).toBeHidden();
+
+  // The stop is hers and it is still here — the old form deleted it behind a closing dialog.
+  const row = stopRows(page).filter({ hasText: title }).first();
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Couldn't save, please rephrase.").first()).toBeVisible();
+
+  await page.getByRole('button', { name: 'Retry' }).click();
+  await expect(page.getByText("Couldn't save, please rephrase.")).toHaveCount(0, { timeout: 120_000 });
+  await expect(page.getByText('The assistant is writing…')).toHaveCount(0, { timeout: 120_000 });
+  await expect(stopRows(page).filter({ hasText: title })).toHaveCount(1);
 });
 
 /**

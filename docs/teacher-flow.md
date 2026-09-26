@@ -82,7 +82,7 @@ From This week, the class calendar or **New lesson**. Class and subject are fixe
 | PDF | text extracted; picture-only pages sent as images |
 | Slides (PPTX) | converted to PDF on the server, then as above |
 | Images | each photo is one page |
-| Manual | opens Review plays on an empty lesson; the teacher adds stops herself and may press *Generate the other levels* |
+| Manual | opens the lesson on the **Add question sheet**, with an empty Level 1 behind it (see *Writing it yourself* below) |
 
 Optional notes to the analyzer ("the teacher used a number line").
 
@@ -110,6 +110,28 @@ The skills found in the source, with anything the analyzer was unsure about flag
 Three tabs — **Level 1 Same as the book · Level 2 Think · Level 3 Challenge** — each a list of stops in order. Per stop: title, ingredient, content, correct answers and parent tip (EN/AR), all editable inline; attach an image; reorder by drag; **Regenerate this stop**; **+ Add stop** of any type. A phone preview on the right renders the selected stop exactly as the child will see it.
 
 Then the **Parent panel** tab: objectives, Supported and Challenge ideas, one tip per stop, in English and Arabic.
+
+### Writing it yourself
+Choosing **Write it yourself** in Step 4 creates the lesson (status `review`, one empty Level 1) and opens it with the **Add a question** sheet already up — Class · Lesson · Questions stands where a pipeline strip would be, and Questions is the step she is on.
+
+The sheet has two saves:
+
+| Action | What happens |
+|---|---|
+| **Save the question** | the sheet closes |
+| **Save and add another** | the sheet stays, the type, the picture and the parent tip stay, the title and the question are emptied and the caret goes back to Title |
+
+Either way the save does **not** wait for the assistant. The stop is created from the chosen type's template with her title on it, appears in the level's list straight away with *The assistant is writing…* on its row, and `POST /stops/{id}/from-text` runs in the background (a client timeout of 90 s aborts it). When it answers, that one row is replaced — the lesson is not re-read, so her level, her scroll and any other question still being written are untouched. Several questions can be in flight at once, leaving the page does not cancel them, and coming back shows the rows as they stand.
+
+A refusal keeps the question. The row turns red with the reason on it — *Couldn't save, please rephrase.* for a 422, the wait-for-the-pipeline sentence for a 400 while the lesson is generating, or the timeout — and offers **Retry** (the same words again) and **Remove** (delete the stop). The page as a whole stays usable throughout; only that one row waits.
+
+Editing an existing stop's prose behaves the same way: its row waits, the page does not.
+
+### Adding Level 2, Level 3 and Again
+Levels are capped at three plus the Again variant. An empty level's tab is open rather than greyed out (except while the pipeline is running) and shows an **Add level** card with two choices:
+
+- **Write it myself** — creates the play and opens the Add question sheet on it.
+- **Let the assistant write it** — today, the *Generate the other levels* note at the bottom of the page (E5 replaces this with one level generated on request from Level 1).
 
 ### Step 8 — Preview and publish
 **Preview as child** opens the web player on the lesson in preview mode (attempts are not recorded in the gradebook).

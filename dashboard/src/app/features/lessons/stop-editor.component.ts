@@ -30,13 +30,21 @@ const VALIDATE_DEBOUNCE_MS = 250;
 /** `StopTextService.MAX_TEXT` — the server's 400 for a longer text, refused here instead. */
 const MAX_TEXT = 8000;
 
-/** The five quick fields, by the `instancePath` Ajv reports them under. */
+/**
+ * The five quick fields, by the `instancePath` Ajv reports them under, with the bound
+ * `Play.schema.json` puts on each — `max: null` for the picture, which is an id and not prose.
+ *
+ * E4a: the bounds are here because the generated Ajv module is 605 kB and now loads only for the
+ * Raw JSON panel (see the class comment), so the teacher path checks the five fields it can
+ * actually edit itself. Everything else about the document is the server's validator's, which
+ * these five cannot break — they are `minLength: 1` and a maximum on all twenty-two branches.
+ */
 const QUICK_FIELDS = [
-  { path: '/title', labelKey: 'lessons.detail.editor.title' },
-  { path: '/speak', labelKey: 'lessons.detail.editor.speak' },
-  { path: '/parentTip/en', labelKey: 'lessons.detail.editor.parentTipEn' },
-  { path: '/parentTip/ar', labelKey: 'lessons.detail.editor.parentTipAr' },
-  { path: '/imageId', labelKey: 'lessons.detail.editor.image' },
+  { path: '/title', labelKey: 'lessons.detail.editor.title', max: 40 },
+  { path: '/speak', labelKey: 'lessons.detail.editor.speak', max: 90 },
+  { path: '/parentTip/en', labelKey: 'lessons.detail.editor.parentTipEn', max: 200 },
+  { path: '/parentTip/ar', labelKey: 'lessons.detail.editor.parentTipAr', max: 200 },
+  { path: '/imageId', labelKey: 'lessons.detail.editor.image', max: null },
 ] as const;
 
 /**
@@ -56,6 +64,12 @@ const QUICK_FIELDS = [
  * exact rather than interpreted, and they still go through the raw-JSON `PUT` — no model call, no
  * wait. The cost is that the `PUT` clears the saved prose, so the description she reads
  * afterwards is the server's re-description of the new JSON; the hint under the fields says so.
+ *
+ * **The schema validator is the Raw panel's alone.** `stop-validators.generated.js` is 605 kB of
+ * precompiled Ajv, and it used to load the moment a stop was selected — which the lesson page does
+ * by itself — so every teacher downloaded it for a panel only an Admin in debug mode can see. It
+ * is now behind the same `viewMode.debug()` the panel is; the quick fields are bounded by
+ * {@link QUICK_FIELDS} instead, and the server validates every write regardless.
  *
  * **Only one half is live at a time.** Editing the prose disables the quick fields and editing a
  * quick field disables the prose, because the two saves are different requests with different
@@ -423,9 +437,34 @@ export class StopEditorComponent {
   });
 
   /** Valid JSON is what the `PUT` needs; the text path needs only something non-empty. */
-  private readonly jsonSavable = computed(
-    () => this.jsonDirty() && !this.idChanged() && this.declaredType() !== null && this.validation()?.valid === true,
-  );
+  private readonly jsonSavable = computed(() => {
+    if (!this.jsonDirty() || this.idChanged() || this.declaredType() === null) return false;
+    return this.viewMode.debug() ? this.validation()?.valid === true : this.quickProblem() === null;
+  });
+
+  /** `undefined` for a path the document does not carry — which for these five is a problem. */
+  private valueAt(path: string): unknown {
+    return path
+      .split('/')
+      .filter((key) => key !== '')
+      .reduce<unknown>(
+        (node, key) =>
+          typeof node === 'object' && node !== null ? (node as Record<string, unknown>)[key] : undefined,
+        this.parsed(),
+      );
+  }
+
+  /** The first quick field outside its bounds, without Ajv — see {@link QUICK_FIELDS}. */
+  private readonly quickProblem = computed<(typeof QUICK_FIELDS)[number] | null>(() => {
+    if (this.parsed() === null) return null;
+    return (
+      QUICK_FIELDS.find((field) => {
+        if (field.max === null) return false;
+        const value = this.valueAt(field.path);
+        return typeof value !== 'string' || value.trim() === '' || value.length > field.max;
+      }) ?? null
+    );
+  });
 
   private readonly proseSavable = computed(
     () => this.proseDirty() && this.prose().trim() !== '' && this.proseError() === null,
@@ -448,12 +487,9 @@ export class StopEditorComponent {
     this.lang();
     if (this.viewMode.debug() || !this.jsonDirty()) return null;
     if (this.idChanged()) return this.t('lessons.detail.editor.idImmutable');
-    const errors = this.validation()?.valid === false ? (this.validation()?.errors ?? []) : [];
-    if (errors.length === 0) return null;
-    const field = QUICK_FIELDS.find((entry) => errors.some((error) => error.startsWith(entry.path)));
-    return field
-      ? this.t('lessons.detail.editor.text.fieldProblem', { field: this.t(field.labelKey) })
-      : this.t('lessons.detail.editor.text.documentProblem');
+    const field = this.quickProblem();
+    if (field === null) return this.parsed() === null ? this.t('lessons.detail.editor.text.documentProblem') : null;
+    return this.t('lessons.detail.editor.text.fieldProblem', { field: this.t(field.labelKey) });
   });
 
   protected readonly saveReason = computed(() => {
@@ -485,7 +521,8 @@ export class StopEditorComponent {
 
     effect((onCleanup) => {
       const text = this.text();
-      const type = declaredStopType(text, STOP_TYPES);
+      // The 605 kB chunk is asked for here and nowhere else, so this is the one gate it needs.
+      const type = this.viewMode.debug() ? declaredStopType(text, STOP_TYPES) : null;
       if (type === null) {
         this.validation.set(null);
         return;

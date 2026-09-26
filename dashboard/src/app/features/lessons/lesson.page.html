@@ -63,13 +63,10 @@
         (undone)="undoUnpublish()"
         (expired)="undoExpired()"
       />
-      <!-- CR2's one success notice. There is nothing to undo — the new stop is selected and
-           editable right below — so it is a toast, and it is the only one on this page. -->
-      <hq-toast
-        [open]="stopAddedToast()"
-        [message]="'lessons.detail.addStop.added' | transloco"
-        (expired)="stopAddedToast.set(false)"
-      />
+      <!-- CR2's success notice, and E4a's report of a draft the assistant would not write. The
+           refusal is on the stop's own row as well — the strip is how she hears about it while
+           she is already typing the next question. -->
+      <hq-toast [open]="toastText() !== null" [message]="toastText() ?? ''" (expired)="toastText.set(null)" />
 
       @if (publishedCopies().length > 0) {
         <hq-band variant="notice" [open]="true" (dismissed)="dismissPublishedCopies()">
@@ -110,6 +107,16 @@
           </p>
         }
       </div>
+
+      <!-- A hand-written lesson never ran the pipeline, so the strip's place says what she did
+           instead: two steps behind her and the one she is on. -->
+      @if (isManual()) {
+        <p class="lesson__manual-steps">
+          <span>{{ 'lessons.detail.manualSteps.class' | transloco }}</span>
+          <span>{{ 'lessons.detail.manualSteps.lesson' | transloco }}</span>
+          <span class="lesson__manual-steps-now">{{ 'lessons.detail.manualSteps.questions' | transloco }}</span>
+        </p>
+      }
 
       @if (showSteps()) {
         <hq-step-strip
@@ -304,6 +311,27 @@
                     >
                       ⋮⋮
                     </button>
+
+                    <!-- E4a: the assistant's half of this row. It is a line of text and, on a
+                         refusal, the two things she can do about it — never a modal, because by
+                         now she is three questions further on. -->
+                    @if (draftOf(stop.id); as draft) {
+                      @if (draft.state === 'writing') {
+                        <!-- No live region per row: five questions in flight would be five of them
+                             talking at once. The toast is what announces, once. -->
+                        <span class="lesson__stop-note">{{ 'lessons.detail.draft.writing' | transloco }}</span>
+                      } @else {
+                        <span class="lesson__stop-note lesson__stop-note--error">{{ draft.reason }}</span>
+                        <hq-button variant="quiet" (pressed)="retryDraft(stop.id)">
+                          {{ 'lessons.detail.draft.retry' | transloco }}
+                        </hq-button>
+                        <hq-button variant="quiet" (pressed)="removeDraft(stop.id)">
+                          {{ 'lessons.detail.draft.remove' | transloco }}
+                        </hq-button>
+                      }
+                    } @else if (stopBusy(stop.id)) {
+                      <span class="lesson__stop-note">{{ 'lessons.detail.draft.writing' | transloco }}</span>
+                    }
                   </div>
                 }
                 @if (orderedStops().length === 0) {
@@ -331,10 +359,24 @@
               </div>
             } @else {
               <p class="lesson__empty">{{ 'lessons.detail.plays.noLevel' | transloco }}</p>
+              <!-- D27: the levels are capped at three, so what was missing was not another level
+                   but a visible way to fill this one. Two choices, her words or the assistant's. -->
               @if (missingPlay()) {
-                <hq-button *hqCan="'play.write'" [disabled]="busy() !== null" (pressed)="createLevel()">
-                  {{ 'lessons.detail.editor.createLevel' | transloco }}
-                </hq-button>
+                <div class="lesson__add-level" *hqCan="'play.write'">
+                  <p class="lesson__add-level-lede">{{ 'lessons.detail.addLevel.lede' | transloco }}</p>
+                  <div class="lesson__add-level-choices">
+                    <hq-button [disabled]="busy() !== null" (pressed)="addLevel('mine')">
+                      {{ 'lessons.detail.addLevel.mine' | transloco }}
+                    </hq-button>
+                    <hq-button
+                      variant="secondary"
+                      [disabled]="busy() !== null"
+                      (pressed)="addLevel('assistant')"
+                    >
+                      {{ 'lessons.detail.addLevel.assistant' | transloco }}
+                    </hq-button>
+                  </div>
+                </div>
               }
             }
           </div>
@@ -356,7 +398,7 @@
           <hq-stop-editor
             [stop]="stop"
             [images]="l.images"
-            [disabled]="busy() !== null"
+            [disabled]="busy() !== null || stopBusy(stop.id)"
             [saving]="savingStopText()"
             [failure]="stopSaveFailure()"
             [validatorErrors]="stopValidatorErrors()"
@@ -371,7 +413,7 @@
       </hq-card>
 
       @if (isManual()) {
-        <hq-card [title]="'lessons.detail.editor.generateTitle' | transloco">
+        <hq-card #generateCard [title]="'lessons.detail.editor.generateTitle' | transloco">
           <div class="lesson__generate" *hqCan="'lesson.write'">
             <hq-textarea
               [label]="'lessons.detail.editor.generateLabel' | transloco"
@@ -392,10 +434,11 @@
         <hq-add-stop
           *hqCan="'play.write'"
           [(open)]="addStopOpen"
+          [lessonId]="l.id"
           [playId]="addToPlay.id"
           [subject]="previewSubject()"
           [images]="l.images"
-          (added)="onStopAdded($event)"
+          (added)="onStopAdded()"
           (imageAttached)="attachImage($event)"
         />
       }
