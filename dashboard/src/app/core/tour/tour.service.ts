@@ -102,4 +102,10 @@ const TOURS: Readonly<Record<Role, readonly TourStep[]>> = {
     { target: 'needsYou', titleKey: 'tour.needsYou.title', bodyKey: 'tour.needsYou.body' },
     { target: 'profile', titleKey: 'tour.profile.title', bodyKey: 'tour.profile.body' },
   ],
+  COORDINATOR: [
+    { target: 'nav', titleKey: 'tour.coordinator.nav.title', bodyKey: 'tour.coordinator.nav.body' },
+    { target: 'cards', titleKey: 'tour.coordinator.cards.title', bodyKey: 'tour.coordinator.cards.body' },
+    { target: 'needsYou', titleKey: 'tour.needsYou.title', bodyKey: 'tour.needsYou.body' },
+    { target: 'profile', titleKey: 'tour.profile.title', bodyKey: 'tour.profile.body' },
+  ],
 };

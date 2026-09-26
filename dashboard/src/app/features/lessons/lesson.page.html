@@ -9,6 +9,20 @@
   </hq-page>
 } @else if (lesson(); as l) {
   <hq-page [title]="pageTitle()" [subtitle]="subtitleLine()" [breadcrumbs]="breadcrumbs()">
+    <!--
+      R5: a read-only page has no status poll (`GET /coordinator/lessons/{id}/status` does not
+      exist), so it has the one thing a poll would have saved her: Refresh. In the header, where
+      every screen's own action is, and a button rather than a reload — the tab and the selected
+      question survive it.
+    -->
+    @if (readOnly) {
+      <div page-actions>
+        <hq-button variant="secondary" [disabled]="loading()" (pressed)="refresh()">
+          {{ 'lessons.detail.refresh' | transloco }}
+        </hq-button>
+      </div>
+    }
+
     <ng-container *hqCan="'lesson.delete'">
       @if (canDelete()) {
         <div page-actions>
@@ -83,8 +97,16 @@
 
       <!-- N4.4: an exam is a lesson, so this whole editor is unchanged — the settings that
            make it an exam are the one card above the facts. -->
-      @if (isExam() && l.classId; as examClassId) {
+      @if (!readOnly && isExam() && l.classId; as examClassId) {
         <hq-exam-settings-card [examId]="l.id" [classId]="examClassId" />
+      }
+
+      @if (stillGenerating()) {
+        <!-- Politely, once, and not as an error: nothing is wrong, there is simply more to come.
+             `polite` because she did not press anything to make this appear. -->
+        <p class="lesson__generating-note" aria-live="polite">
+          {{ 'lessons.detail.stillGenerating' | transloco }}
+        </p>
       }
 
       <div class="lesson__facts">
@@ -114,7 +136,9 @@
         <p class="lesson__manual-steps">
           <span>{{ 'lessons.detail.manualSteps.class' | transloco }}</span>
           <span>{{ 'lessons.detail.manualSteps.lesson' | transloco }}</span>
-          <span class="lesson__manual-steps-now">{{ 'lessons.detail.manualSteps.questions' | transloco }}</span>
+          <span class="lesson__manual-steps-now">{{
+            'lessons.detail.manualSteps.questions' | transloco
+          }}</span>
         </p>
       }
 
@@ -211,12 +235,13 @@
         <hq-lesson-sources
           [lessonId]="lessonId"
           [files]="files()"
+          [readOnly]="readOnly"
           [checkNow]="convertDoneBeforeAnalyze()"
           (lessonChanged)="onLessonReconverted($event)"
         />
       </hq-card>
 
-      @if (isNeedsReview()) {
+      @if (isNeedsReview() && !readOnly) {
         <hq-card [title]="'lessons.detail.skills.title' | transloco">
           @if (skillsError(); as err) {
             <hq-band variant="error" [open]="true" (dismissed)="skillsError.set(null)">{{ err }}</hq-band>
@@ -312,7 +337,7 @@
                 (cdkDropListDropped)="dropStop($event)"
               >
                 @for (stop of orderedStops(); track stop.id; let i = $index) {
-                  <div class="lesson__stop-row" cdkDrag [cdkDragDisabled]="busy() !== null">
+                  <div class="lesson__stop-row" cdkDrag [cdkDragDisabled]="busy() !== null || readOnly">
                     <button
                       #stopBtn
                       type="button"
@@ -347,7 +372,9 @@
                       @if (draft.state === 'writing') {
                         <!-- No live region per row: five questions in flight would be five of them
                              talking at once. The toast is what announces, once. -->
-                        <span class="lesson__stop-note">{{ 'lessons.detail.draft.writing' | transloco }}</span>
+                        <span class="lesson__stop-note">{{
+                          'lessons.detail.draft.writing' | transloco
+                        }}</span>
                       } @else {
                         <span class="lesson__stop-note lesson__stop-note--error">{{ draft.reason }}</span>
                         <!-- Named by the stop they act on: five rows can carry a Retry, and
@@ -452,20 +479,22 @@
         </div>
 
         @if (selectedStop(); as stop) {
-          <hq-stop-editor
-            [stop]="stop"
-            [images]="l.images"
-            [disabled]="busy() !== null || stopBusy(stop.id)"
-            [saving]="savingStopText()"
-            [failure]="stopSaveFailure()"
-            [validatorErrors]="stopValidatorErrors()"
-            (saved)="saveStop($event)"
-            (textSaved)="saveStopText($event)"
-            (regenerated)="requestRegenerateStop()"
-            (deleted)="requestDeleteStop()"
-            (imageAttached)="attachImage($event)"
-            (dirtyChange)="onStopDirtyChange($event)"
-          />
+          @if (!readOnly) {
+            <hq-stop-editor
+              [stop]="stop"
+              [images]="l.images"
+              [disabled]="busy() !== null || stopBusy(stop.id)"
+              [saving]="savingStopText()"
+              [failure]="stopSaveFailure()"
+              [validatorErrors]="stopValidatorErrors()"
+              (saved)="saveStop($event)"
+              (textSaved)="saveStopText($event)"
+              (regenerated)="requestRegenerateStop()"
+              (deleted)="requestDeleteStop()"
+              (imageAttached)="attachImage($event)"
+              (dirtyChange)="onStopDirtyChange($event)"
+            />
+          }
         }
       </hq-card>
 
@@ -501,14 +530,16 @@
       }
 
       @if (l.parentPanel; as panel) {
-        <hq-card [title]="'lessons.detail.panel.title' | transloco">
-          <hq-parent-panel-editor
-            [panel]="panel"
-            [disabled]="busy() !== null"
-            (saved)="savePanel($event)"
-            (dirtyChange)="onPanelDirtyChange($event)"
-          />
-        </hq-card>
+        @if (!readOnly) {
+          <hq-card [title]="'lessons.detail.panel.title' | transloco">
+            <hq-parent-panel-editor
+              [panel]="panel"
+              [disabled]="busy() !== null"
+              (saved)="savePanel($event)"
+              (dirtyChange)="onPanelDirtyChange($event)"
+            />
+          </hq-card>
+        }
       }
     </div>
 

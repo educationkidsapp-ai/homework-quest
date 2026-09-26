@@ -70,7 +70,9 @@ export class ChatService {
     // manager; the chat half of it (threads, sends, the screen) stays TEACHER + `chat`.
     effect(() => {
       const role = this.auth.role();
-      const dashboardRole = role === 'ADMIN' || role === 'MANAGERIAL' || role === 'TEACHER';
+      // R5: a coordinator holds `chat.socket` too (`permissions.json`), so her bell is fed by
+      // the same frame every other dashboard role's is.
+      const dashboardRole = role !== null;
 
       if (this.auth.signedIn() && dashboardRole) {
         this.intentionalDisconnect = false;
@@ -432,8 +434,7 @@ export class ChatService {
       (activeChild && this.threads().some((t) => t.childId === activeChild && t.id === message.threadId));
     // The echo of a message this client sent, identified by its own `clientId`. It settles the
     // optimistic bubble even when the thread it created is younger than the thread list.
-    const isOwnEcho =
-      clientId !== undefined && this.messages().some((m) => m.clientId === clientId);
+    const isOwnEcho = clientId !== undefined && this.messages().some((m) => m.clientId === clientId);
 
     if (isCurrentThread || isOwnEcho) {
       this.messages.update((list) => {

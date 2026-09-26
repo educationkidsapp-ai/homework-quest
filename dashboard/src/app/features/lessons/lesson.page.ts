@@ -204,7 +204,26 @@ export class LessonPage {
   private readonly stopButtons = viewChildren<ElementRef<HTMLButtonElement>>('stopBtn');
 
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
-  protected readonly basePath = computed(() => (this.isAdmin() ? '/admin/lessons' : '/teacher/lessons'));
+
+  /**
+   * R5: this page, read and nothing else.
+   *
+   * `data.readOnly` comes off the row in `core/nav/screens.ts` — `/coordinator/lessons/:id` is
+   * the only one that sets it — so the flag is a property of the *route* rather than something
+   * this component infers from a role it would then have to keep in step with.
+   *
+   * Most of the write surface needs nothing from it: a coordinator holds none of `lesson.write`,
+   * `lesson.publish`, `lesson.delete`, `play.write` or `stop.write`, so `*hqCan` already renders
+   * none of those controls. This covers what is *not* behind a permission because for a teacher
+   * it never needed to be — the exam settings card, the skills confirmation, drag-and-drop, the
+   * stop editor and the parent-panel editor. Hidden rather than disabled: a disabled Save is
+   * still a promise that somewhere there is a way to press it.
+   */
+  protected readonly readOnly = this.route.snapshot.data['readOnly'] === true;
+
+  protected readonly basePath = computed(() =>
+    this.readOnly ? '/coordinator/lessons' : this.isAdmin() ? '/admin/lessons' : '/teacher/lessons',
+  );
   protected readonly lessonId = this.route.snapshot.paramMap.get('id') ?? '';
 
   // N4.2: the way in to §4 step 9. Only from a teacher's copy of this screen and only once the
@@ -277,7 +296,10 @@ export class LessonPage {
   protected readonly breadcrumbs = computed(() => {
     this.lang();
     return [
-      { label: this.t(this.isAdmin() ? 'nav.allLessons' : 'nav.myLessons'), link: this.basePath() },
+      {
+        label: this.t(this.isAdmin() || this.readOnly ? 'nav.allLessons' : 'nav.myLessons'),
+        link: this.basePath(),
+      },
       { label: this.pageTitle() },
     ];
   });
@@ -321,6 +343,9 @@ export class LessonPage {
 
   /** Preview as child opens the web player; N3 builds it, the route is a placeholder until then. */
   protected readonly canPreview = computed(() => {
+    // R5: the player reads the lesson through the teacher's own routes, which answer 404 for a
+    // coordinator — so the link is not offered rather than offered and broken.
+    if (this.readOnly) return false;
     const status = this.lesson()?.status;
     return status === AdminLessonStatusEnum.REVIEW || status === AdminLessonStatusEnum.PUBLISHED;
   });
@@ -832,7 +857,10 @@ export class LessonPage {
     const inner = toInnerStop(stop);
     this.updatePlays((play) =>
       play.play.stops.some((current) => current.id === stop.id)
-        ? { ...play, play: { ...play.play, stops: play.play.stops.map((c) => (c.id === stop.id ? inner : c)) } }
+        ? {
+            ...play,
+            play: { ...play.play, stops: play.play.stops.map((c) => (c.id === stop.id ? inner : c)) },
+          }
         : play,
     );
   }
@@ -1306,9 +1334,13 @@ export class LessonPage {
   /**
    * §8: a published lesson's day is fixed — children have already seen the island on it, and
    * `PATCH /teacher/lessons/{id}` refuses the move server-side too. Unpublish first.
+   *
+   * `readOnly` is asserted here as well as in `supportsMoveDate`, deliberately. This control is
+   * not behind a permission — there is no `lesson.moveDate` key — so for a read-only view of the
+   * page the route's own flag has to be what closes it, whatever role happens to be reading.
    */
   protected readonly canMoveDate = computed(
-    () => this.api.supportsMoveDate() && !this.isPublished() && this.lesson() !== null,
+    () => !this.readOnly && this.api.supportsMoveDate() && !this.isPublished() && this.lesson() !== null,
   );
 
   protected readonly dateValue = computed(() => this.lesson()?.date ?? '');
@@ -1752,7 +1784,15 @@ export class LessonPage {
     //
     // CR4's second reason to keep asking is still here: a file may be `converting` while the
     // lesson's own status has already settled, and `isStatusActive` folds both in.
+    //
+    // R5: **not** in read-only mode. `GET /coordinator/lessons/{id}/status` does not exist, so a
+    // coordinator's poll would be routed to the teacher's alias, which answers 404 for her — every
+    // 2.5 s, silently (`error: () => undefined`), for as long as she leaves the page open, and the
+    // lesson would sit there looking stuck. She gets {@link refresh} in the header instead, and
+    // {@link stillGenerating} to say why there is something to come back for. R3 is adding the
+    // route; the poll can be turned on here when it lands.
     effect((onCleanup) => {
+      if (this.readOnly) return;
       const lesson = this.lesson();
       const active = lesson !== null && (this.running() || anyConverting(lesson.files ?? []));
       if (!active) return;
@@ -1796,6 +1836,21 @@ export class LessonPage {
       if (this.notFound()) void this.router.navigate(['/not-found']);
     });
   }
+
+  /**
+   * R5: read `GET /coordinator/lessons/{id}` again, by hand.
+   *
+   * What a read-only page has instead of the status poll. `reload()` on the resource rather than a
+   * navigation, so the month, the tab and the selected question all stay where she left them.
+   */
+  protected refresh(): void {
+    this.lessonRes.reload();
+  }
+
+  /** Something is still being written, and a refresh in a minute will show more of it. */
+  protected readonly stillGenerating = computed(
+    () => this.readOnly && (this.running() || anyConverting(this.lesson()?.files ?? [])),
+  );
 
   protected t(key: string, params?: Record<string, unknown>): string {
     return this.transloco.translate<string>(key, params);

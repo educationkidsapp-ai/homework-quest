@@ -99,7 +99,14 @@ type OpenDialog =
                   · {{ 'lessons.detail.files.deleted' | transloco }}
                 }
               </span>
-              @if (row.view.canPreview && !row.file.deleted) {
+              <!--
+                R5: not on a read-only page. "Preview text" calls
+                GET /teacher/lessons/{id}/files/{fileId}/markdown, which has no coordinator alias
+                and no coordinator route to have one, and the call is wrapped in silentErrors() —
+                so her 403 was swallowed and the dialog said "the text isn't ready yet … or type
+                the text", wrong twice over: the text is ready, and she may type nothing.
+              -->
+              @if (!readOnly() && row.view.canPreview && !row.file.deleted) {
                 <hq-button data-hq-preview variant="quiet" (pressed)="openPreview(row.file)">
                   {{ 'lessons.detail.files.convert.preview' | transloco }}
                 </hq-button>
@@ -315,6 +322,15 @@ export class LessonSourcesComponent {
    * already shut, so the page — which knows the step states — decides and this only renders.
    */
   readonly checkNow = input(false);
+  /**
+   * R5: read-only, so nothing here is offered — not even a read.
+   *
+   * Every *write* in this component is already behind `*hqCan="'lesson.write'"`, which a
+   * coordinator does not hold. "Preview text" is the one control that is not, because for a
+   * teacher it is a read; for her it is a read of a route that does not exist. Hidden rather than
+   * disabled, like the rest of the read-only page.
+   */
+  readonly readOnly = input(false);
 
   /** A retry answered with the whole lesson; the page swaps it in. */
   readonly lessonChanged = output<AdminLesson>();
@@ -327,7 +343,9 @@ export class LessonSourcesComponent {
   /** The file a request is in flight for — one at a time, which is what refuses a double submit. */
   protected readonly busyFileId = signal<string | null>(null);
 
-  protected readonly showCheckNow = computed(() => this.checkNow() && this.rows().some((r) => r.view.canPreview));
+  protected readonly showCheckNow = computed(
+    () => this.checkNow() && this.rows().some((r) => r.view.canPreview),
+  );
 
   protected readonly rows = computed<readonly SourceRow[]>(() => {
     this.lang();
