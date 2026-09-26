@@ -139,7 +139,10 @@ class SchoolSessionImpl(
         if (flagsSchoolId == id) return
         flagsSchoolId = id
         settings.set(KEY_CURRENT_FLAGS, id)
-        if (id == null) _flags.value = DEFAULT_FLAGS else readFlagsCache(id)
+        // The reset is unconditional: a school this device has never cached must start from the platform defaults,
+        // not from whatever the previous school answered. Offline, nothing else would ever clear them.
+        _flags.value = DEFAULT_FLAGS
+        if (id != null) readFlagsCache(id)
     }
 
     override suspend fun sync() {

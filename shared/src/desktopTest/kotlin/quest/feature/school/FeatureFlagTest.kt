@@ -132,6 +132,23 @@ class FeatureFlagTest {
         assertEquals(null, session.theme.value, "and Al Noor's colours go with it")
     }
 
+    /**
+     * Offline, the network never corrects a stale store — so the switch itself has to. Al Noor's `chat` must not
+     * follow the child into a school this device has no cached answer for.
+     */
+    @Test fun switchingOfflineToAnUncachedSchoolDropsThePreviousSchoolsFlags() = runBlocking {
+        val api = Flagged(fake, mapOf(Flags.CHAT to true, Flags.CERTIFICATES to false))
+        SchoolSessionImpl(api, api, settings).use(FakeContentApi.AL_NOOR_ID)
+
+        val offline = SchoolSessionImpl(Offline, Offline, settings)
+        offline.restore()
+        assertTrue(offline.isEnabled(Flags.CHAT), "Al Noor's own answer, from the cache")
+
+        offline.use(SchoolSessionImpl.DEFAULT_SCHOOL)
+        assertFalse(offline.isEnabled(Flags.CHAT), "nothing is cached for the default school, so the platform default stands")
+        assertTrue(offline.isEnabled(Flags.CERTIFICATES), "and Al Noor's `off` does not follow either")
+    }
+
     @Test fun theSecondThemeFetchSendsTheEtagAndKeepsTheCachedTheme() = runBlocking {
         val api = Flagged(fake, DEFAULT_FLAGS)
         val session = SchoolSessionImpl(api, api, settings)
