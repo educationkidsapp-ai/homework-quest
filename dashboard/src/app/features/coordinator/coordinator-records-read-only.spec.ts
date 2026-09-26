@@ -2,8 +2,10 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { EnvironmentProviders, Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
+import userEvent from '@testing-library/user-event';
+import { of } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 import { COORDINATOR_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
@@ -14,6 +16,7 @@ import { FlagService } from '../../core/flags/flag.service';
 import { ClassAttendanceComponent } from '../classes/class-attendance.component';
 import { ExamsTabComponent } from '../exams/exams-tab.component';
 import { GradebookComponent } from '../results/gradebook.component';
+import { ResultsPage } from '../results/results.page';
 
 /** R2: the three read keys she holds for R6, and not one that writes. */
 const COORDINATOR_PERMISSIONS = {
@@ -82,6 +85,34 @@ const DAYS = [
   },
   { date: '2026-09-15', students: [{ childId: 'ch-1', childName: 'Omar', status: 'ABSENT' }] },
 ];
+
+/** One lesson's results, with one child who has a mark to look at. */
+const LESSON_RESULTS = {
+  lessonId: 'l-1',
+  classId: 'c-1a',
+  className: '1A British',
+  title: 'Counting to ten',
+  date: '2026-09-14',
+  released: true,
+  classAverage: 62,
+  played: 1,
+  needsMarking: 0,
+  stops: [{ stopId: 's1', title: 'How many carrots?', type: 'choice', level: 1, open: false }],
+  children: [
+    {
+      childId: 'ch-1',
+      name: 'Omar',
+      attempted: true,
+      levelReached: 1,
+      scoredLevel: 1,
+      autoScore: 62,
+      score: 62,
+      band: 'mid',
+      needsMarking: 0,
+      stops: [{ stopId: 's1', attempted: true, stars: 2, score: 62, needsMarking: false }],
+    },
+  ],
+};
 
 const providers: (Provider | EnvironmentProviders)[] = [
   provideHttpClient(),
@@ -233,6 +264,72 @@ describe('the coordinator’s record screens', () => {
       expect(screen.getByRole('link', { name: 'New exam' })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: '18 of 24' }).getAttribute('href')).toBe(
         '/teacher/exams/e-open/results',
+      );
+    });
+  });
+
+  /**
+   * The blocker the review found: `hq-mark-panel`'s "Open her page".
+   *
+   * The panel is not a teacher's. Every child name on the results table is an **ungated** toggle,
+   * so a coordinator opens the panel on two of her six screens — and the link inside it was
+   * hard-coded to `/teacher/children/{id}`, which `roleGuard` answers by throwing her back to
+   * `/coordinator`, off a screen she is allowed to read.
+   *
+   * Asserted by expanding the row rather than by rendering the panel alone, because "the panel is
+   * reachable for her" is half of what was wrong: a test that never expands anything is the test
+   * that let this through (the e2e asserted `hq-mark-panel` count 0 with no row open).
+   */
+  describe('the mark panel a child’s name opens', () => {
+    async function openPanel(mine: boolean) {
+      await renderHq(ResultsPage, {
+        providers: [
+          ...providers,
+          {
+            provide: ActivatedRoute,
+            useValue: {
+              paramMap: of(convertToParamMap({ id: 'l-1' })),
+              snapshot: {
+                paramMap: convertToParamMap({ id: 'l-1' }),
+                queryParamMap: convertToParamMap({}),
+                data: { readOnly: mine },
+              },
+            },
+          },
+        ],
+      });
+      const backend = await signIn(mine);
+      await answer(backend, {
+        [mine ? '/coordinator/lessons/l-1/results' : '/teacher/lessons/l-1/results']: LESSON_RESULTS,
+      });
+
+      // The toggle carries no permission at all, which is the point: she can open it.
+      await userEvent.click(screen.getByRole('button', { name: /Omar/ }));
+      await settle();
+      return backend;
+    }
+
+    it('is reachable for her, and its link stays inside her area', async () => {
+      await openPanel(true);
+
+      expect(document.querySelector('hq-mark-panel')).not.toBeNull();
+      expect(screen.getByRole('link', { name: 'Open her page' }).getAttribute('href')).toBe(
+        '/coordinator/children/ch-1',
+      );
+      // And no Save marks: the marking itself is still behind `results.write`.
+      expect(screen.queryByRole('button', { name: 'Save marks' })).toBeNull();
+      // The score and the parent comment ARE drawn, disabled — how a MANAGERIAL reader has always
+      // seen them. Pinned so `docs/coordinator-flow.md` and the screen agree about it.
+      const fields = [...document.querySelectorAll('hq-mark-panel input, hq-mark-panel textarea')];
+      expect(fields.length).toBeGreaterThan(0);
+      expect(fields.every((field) => field.hasAttribute('disabled'))).toBe(true);
+    });
+
+    it('sends the teacher to her own copy of the same report', async () => {
+      await openPanel(false);
+
+      expect(screen.getByRole('link', { name: 'Open her page' }).getAttribute('href')).toBe(
+        '/teacher/children/ch-1',
       );
     });
   });

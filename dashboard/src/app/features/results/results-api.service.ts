@@ -118,8 +118,9 @@ export class ResultsApiService {
    *
    * `GET /teacher/classes/{id}/attendance` takes one `date` and is a marking screen; the
    * coordinator's takes `from`/`to` and answers a day per element, which is the shape her table
-   * needs. The teacher keeps her own single-day read (`AttendanceService`), so this branches on
-   * the role only to refuse: a non-coordinator asking for a range is a bug in the screen.
+   * needs. The teacher keeps her own single-day read (`AttendanceService`), so — unlike every
+   * other method here — this does not branch at all: there is no teacher route to branch to. It
+   * lives here so her screen has one door to the API like the other five.
    */
   attendanceRange(classId: string, from: string, to: string): Observable<readonly ClassAttendanceResponse[]> {
     return this.coordinator.coordinatorAttendance(classId, from, to);

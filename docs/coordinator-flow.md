@@ -46,7 +46,9 @@ and they are different on purpose:
 - **Which namespace is read** — `ResultsApiService` (`features/results/results-api.service.ts`)
   picks `/coordinator/**` or `/teacher/**` off the role, the way `LessonApiService` already did
   for lessons. It also owns `base()`, so a link out of a shared screen lands in the reader's own
-  area, and `supportsExport()`, because every `.csv`, `.xlsx` and per-child `.pdf` is a
+  area — including the mark panel's "Open her page", which the review found was the one link still
+  hard-coded to `/teacher/**` — and `supportsExport()`, because every `.csv`, `.xlsx` and
+  per-child `.pdf` is a
   teacher-namespace route and a button that answers 403 is worse than no button. Its `ready()`
   makes each read wait for `/me`: fired a tick early, a coordinator's request goes to `/teacher/**`
   and comes back 403.
@@ -56,7 +58,9 @@ and they are different on purpose:
   `hq-gradebook`, `hq-exams-tab` and `hq-class-attendance` states the same thing from the caller's
   side — it is what the tests assert against, rather than the absence of a permission they had to
   stub away — and on `hq-class-attendance` it is what replaces the four status pills with the
-  mark as a word.
+  mark as a word. `data.readOnly` reaches the shared **pages** too, and today only `lesson.page.ts`
+  reads it: on the results, exam-results and child pages the read-only state rests entirely on the
+  permissions she does not hold, which is the same thing by a different route.
 
 `Screen.readOnly` on every R6 row (`core/nav/screens.ts`) becomes `data.readOnly` on the route,
 which is how the shared **pages** know. Gradebook, the lesson results and the child page carry the
@@ -78,10 +82,12 @@ alias would poll the teacher's and be answered 404 every 2.5 s, silently.
   and a table of six grades at once would be six requests saying less than any of them. The picker
   (`coordinator-class-picker.ts`) defaults to her first section, so none of the three ever draws an
   empty state that only means "choose something".
-- **Attendance defaults to this week, not a term.** Sixty columns is a sideways scroll nobody
-  reads, and the question she opens the screen with is whether her sections have been marked at
-  all this week. The server refuses more than 62 days; the screen says so rather than sending the
-  request.
+- **Attendance defaults to this week, not a term** — Monday to today, with "today" read in the
+  school's timezone (`PlatformService`), not the reader's. Sixty columns is a sideways scroll
+  nobody reads, and the question she opens the screen with is whether her sections have been marked
+  at all this week. The server refuses more than 62 days; the screen names that number and says so
+  rather than sending the request. A child with **nothing** marked has no rate — a dash, not a
+  flattering 100 %.
 - **No exports but the attendance CSV.** The gradebook's two, the lesson results' CSV and the
   per-child exam PDF are all `/teacher/**`. Her register is the one document she has a reason to
   carry to a teacher, so that one is built client-side from the rows already on screen — with a
@@ -99,7 +105,11 @@ alias would poll the teacher's and be answered 404 every 2.5 s, silently.
 
 - Mark a register, write a note on one, or press Save on the attendance screen; override a score,
   release results to parents, edit a parent comment, reopen an exam for a child, or create or
-  change an exam. None of those controls is rendered on her copies — hidden, not disabled.
+  change an exam. Every one of those *actions* is absent from her copies — hidden, not disabled.
+  The **one exception is the mark panel** a child's name opens on the results and exam-results
+  tables: its stars, score and parent-comment fields are drawn *disabled* to any reader without
+  `results.write`, which is how a `MANAGERIAL` account has always seen them, so she sees the marks
+  as fields she cannot type in rather than as text. Apply is still absent.
 - Create, edit, publish, unpublish, **move** or delete a lesson; add, reorder or remove a question;
   confirm skills; upload or re-convert a file; edit the parent panel or an exam's settings. None of
   those controls is rendered on her copy of the lesson page — hidden rather than disabled.

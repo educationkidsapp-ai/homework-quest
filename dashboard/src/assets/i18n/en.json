@@ -1892,7 +1892,7 @@
     },
     "attendance": {
       "subtitle": "A register for one of your classes. You can read it; only the teacher marks it.",
-      "tooWide": "Choose a range of nine weeks or less."
+      "tooWide": "Choose a range of {{days}} days or less."
     },
     "gradebook": {
       "subtitle": "The scores of one of your classes. You can read them; only the teacher marks and releases them."

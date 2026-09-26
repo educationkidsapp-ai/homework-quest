@@ -2,9 +2,10 @@
    `GET /coordinator/classes/{id}/attendance`. Attendance is not behind a toggle for anybody:
    the teacher's own marking screen is a tab of her class page with no flag either, and a school
    that has classes has registers. */
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe } from '@jsverse/transloco';
+import { PlatformService } from '../../core/platform/platform.service';
 import {
   EmptyStateComponent,
   InputComponent,
@@ -83,7 +84,7 @@ const MAX_DAYS = 62;
         </div>
 
         @if (tooWide()) {
-          <hq-empty-state [message]="'coordinator.attendance.tooWide' | transloco" />
+          <hq-empty-state [message]="'coordinator.attendance.tooWide' | transloco: { days: maxDays }" />
         } @else if (days.isLoading()) {
           <hq-skeleton [loading]="true" [lines]="6" [label]="'attendance.loading' | transloco" />
         } @else if (days.error()) {
@@ -114,13 +115,30 @@ const MAX_DAYS = 62;
 export class CoordinatorAttendancePage {
   protected readonly co = inject(CoordinatorService);
   private readonly reads = inject(ResultsApiService);
+  private readonly platform = inject(PlatformService);
   protected readonly picker = classPicker();
 
   protected readonly childBase = '/coordinator/children';
 
-  private readonly week = defaultAttendanceWeek();
-  protected readonly from = signal(this.week.from);
-  protected readonly to = signal(this.week.to);
+  /** Named in the sentence the screen refuses with, so the copy cannot drift from the limit. */
+  protected readonly maxDays = MAX_DAYS;
+
+  /**
+   * Today **where the children are**, not where the laptop is set (`PlatformService.timezone`).
+   *
+   * `linkedSignal` rather than `signal`: `/platform-settings` lands after the screen does, so a
+   * plain signal would be seeded from `UTC` and never corrected — and a coordinator in +04 opening
+   * the screen just after midnight would be shown last week. The dates she types are kept until
+   * the source changes, and the source changes exactly once, on that first settings response —
+   * before there is a range of hers to lose.
+   */
+  private readonly schoolToday = computed(() =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: this.platform.timezone() }).format(new Date()),
+  );
+
+  private readonly week = computed(() => defaultAttendanceWeek(this.schoolToday()));
+  protected readonly from = linkedSignal(() => this.week().from);
+  protected readonly to = linkedSignal(() => this.week().to);
 
   /** 63 days would be a 400 from the server; it is a sentence on the screen instead. */
   protected readonly tooWide = computed(() => {

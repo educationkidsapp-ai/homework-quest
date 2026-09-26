@@ -74,7 +74,7 @@
                   <td class="attendance__matrix-total">{{ row.absent }}</td>
                   <td class="attendance__matrix-total">{{ row.excused }}</td>
                   <td class="attendance__matrix-total">
-                    <strong>{{ row.rate }}%</strong>
+                    <strong>{{ rateText(row.rate) }}</strong>
                   </td>
                 </tr>
               } @empty {

@@ -97,10 +97,27 @@ test.describe('the coordinator’s records', () => {
     await expect(page).toHaveURL(/\/coordinator\/lessons\/[^/]+\/results$/);
     await expect(page.locator('main')).toContainText('Class average');
 
-    // Read-only: no release toggle, no marking, no export.
+    // Read-only: no release toggle and no export.
     await expect(page.locator('[data-hq-release]')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Export CSV' })).toHaveCount(0);
-    await expect(page.locator('hq-mark-panel')).toHaveCount(0);
+
+    // The mark panel IS hers to open — the child name is an ungated toggle — so the guard expands
+    // a row rather than counting a panel nobody opened, which is how the hard-coded
+    // `/teacher/children/{id}` link inside it got through review.
+    const firstChild = page.locator('.results__child').first();
+    await expect(firstChild).toBeVisible({ timeout: 30_000 });
+    await firstChild.click();
+    const panel = page.locator('hq-mark-panel');
+    await expect(panel).toHaveCount(1);
+    await expect(panel.getByRole('link', { name: 'Open her page' })).toHaveAttribute(
+      'href',
+      /^\/coordinator\/children\//,
+    );
+    // Marking is still not hers.
+    await expect(panel.getByRole('button', { name: 'Save marks' })).toHaveCount(0);
+
+    await panel.getByRole('link', { name: 'Open her page' }).click();
+    await expect(page).toHaveURL(/\/coordinator\/children\//);
   });
 
   test('lists the class’s exams, with no New exam and no settings', async ({ page }) => {

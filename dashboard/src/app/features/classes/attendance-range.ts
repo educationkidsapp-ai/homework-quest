@@ -13,8 +13,15 @@ export interface AttendanceRangeRow {
   readonly late: number;
   readonly absent: number;
   readonly excused: number;
-  /** Present + late over the days actually marked, to one decimal; 100 when nothing is marked. */
-  readonly rate: number;
+  /**
+   * Present + late over the days actually marked, to one decimal — and `null` when **nothing**
+   * was marked.
+   *
+   * Not 100. The review found the old default printing "100%" for a child whose register was never
+   * kept, on the screen whose whole question is whether the section has been marked at all this
+   * week; a dash is the truthful answer and the only one she can act on.
+   */
+  readonly rate: number | null;
 }
 
 export interface AttendanceRange {
@@ -29,13 +36,20 @@ export interface AttendanceRange {
  * table is a horizontal scroll nobody reads, and "has this section been marked at all this week"
  * is the question she is on the screen to answer. `to` is today rather than Sunday, because a
  * column for Thursday on Tuesday is a column of blanks that reads as absences.
+ *
+ * `today` is a `YYYY-MM-DD` the caller has already resolved **in the school's timezone**, the way
+ * the week page does it (`Intl.DateTimeFormat('en-CA', { timeZone })`). The review found the first
+ * version reading the weekday off `getUTCDay()` of the *local* clock, which at 01:30 on a Monday
+ * in +04 — QA runs in me-central1 — answered the whole of the week that had just ended. A string
+ * in and two strings out: every step below is UTC arithmetic on a UTC-anchored instant, so there
+ * is no second clock left to disagree with the first.
  */
-export function defaultAttendanceWeek(today = new Date()): Range {
-  const monday = new Date(today);
+export function defaultAttendanceWeek(today: string): Range {
+  const monday = new Date(`${today}T00:00:00Z`);
   // `getUTCDay()` is 0 on Sunday, which belongs to the week that has just ended.
   const offset = (monday.getUTCDay() + 6) % 7;
   monday.setUTCDate(monday.getUTCDate() - offset);
-  return { from: isoDate(monday), to: isoDate(today) };
+  return { from: isoDate(monday), to: today };
 }
 
 /**
@@ -80,7 +94,7 @@ export function attendanceRange(days: readonly ClassAttendanceResponse[]): Atten
         late,
         absent,
         excused,
-        rate: marked === 0 ? 100 : Math.round(((present + late) / marked) * 1000) / 10,
+        rate: marked === 0 ? null : Math.round(((present + late) / marked) * 1000) / 10,
       };
     })
     .sort((a, b) => a.childName.localeCompare(b.childName));
@@ -130,7 +144,7 @@ export function attendanceCsv(range: AttendanceRange, headers: AttendanceCsvHead
       String(row.late),
       String(row.absent),
       String(row.excused),
-      `${row.rate}%`,
+      row.rate === null ? '' : `${row.rate}%`,
     ]
       .map(quote)
       .join(','),

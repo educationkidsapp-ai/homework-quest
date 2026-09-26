@@ -108,6 +108,27 @@ export class ClassAttendanceComponent {
     return [this.childBase(), childId];
   }
 
+  /**
+   * "14 Sep" — a column heading in her own language.
+   *
+   * The review found a raw `MM-DD` slice here, which is neither Arabic nor English and reads as a
+   * fraction. The full date stays in each cell's `title`, where the day of the week is the thing
+   * a register is actually read by.
+   */
+  protected dayHeader(date: string): string {
+    this.lang();
+    return new Intl.DateTimeFormat(this.lang(), {
+      day: 'numeric',
+      month: 'short',
+      timeZone: 'UTC',
+    }).format(new Date(`${date}T00:00:00Z`));
+  }
+
+  /** "92%", or a dash for a child whose register was never kept — never a flattering 100%. */
+  protected rateText(rate: number | null): string {
+    return rate === null ? '—' : `${rate}%`;
+  }
+
   /** The short word in a cell — "P", "L", "A", "E" — with the full one in its title. */
   protected cellWord(status: AttendanceStatus): string {
     this.lang();

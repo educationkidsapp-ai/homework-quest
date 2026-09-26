@@ -52,7 +52,8 @@ describe('the coordinator attendance range', () => {
     // Monday had an unknown status, Tuesday did not list her at all: two blanks, no absences.
     expect(zaid.cells).toEqual(['NOT_MARKED', 'NOT_MARKED']);
     expect(zaid.absent).toBe(0);
-    expect(zaid.rate).toBe(100);
+    // Nothing marked is not 100 %: the screen prints a dash, and the CSV a blank.
+    expect(zaid.rate).toBeNull();
   });
 
   it('counts each child’s marks and reads the rate off the days that were marked', () => {
@@ -68,17 +69,17 @@ describe('the coordinator attendance range', () => {
     expect({ present: omar!.present, rate: omar!.rate }).toEqual({ present: 1, rate: 100 });
   });
 
-  it('opens on this week, Monday to today, and never past today', () => {
-    // A Wednesday.
-    expect(defaultAttendanceWeek(new Date('2026-09-16T09:00:00Z'))).toEqual({
-      from: '2026-09-14',
-      to: '2026-09-16',
-    });
+  /**
+   * The school's day comes in as a string, so this is pure arithmetic with no second clock: the
+   * review found the first version reading `getUTCDay()` off the *local* time, which at 01:30 on a
+   * Monday in +04 answered the whole of the week that had just ended.
+   */
+  it('opens on this week, Monday to the day it is given, and never past it', () => {
+    expect(defaultAttendanceWeek('2026-09-16')).toEqual({ from: '2026-09-14', to: '2026-09-16' });
     // A Sunday belongs to the week that has just ended, not to the one starting tomorrow.
-    expect(defaultAttendanceWeek(new Date('2026-09-20T09:00:00Z'))).toEqual({
-      from: '2026-09-14',
-      to: '2026-09-20',
-    });
+    expect(defaultAttendanceWeek('2026-09-20')).toEqual({ from: '2026-09-14', to: '2026-09-20' });
+    // A Monday is its own `from`, whatever the machine's zone: one day, not eight.
+    expect(defaultAttendanceWeek('2026-09-14')).toEqual({ from: '2026-09-14', to: '2026-09-14' });
   });
 
   describe('as a CSV', () => {
@@ -97,6 +98,8 @@ describe('the coordinator attendance range', () => {
 
     it('writes a blank for a day with no mark rather than the enum’s own word', () => {
       expect(lines[2]).toBe('"Omar","","PRESENT","1","0","0","0","100%"');
+      // Zaid was never marked: a blank rate, not a flattering 100 %.
+      expect(lines[3]).toBe('"Zaid","","","0","0","0","0",""');
     });
 
     /** A name beginning `-` is a formula to Excel, and a register is exactly where that matters. */
