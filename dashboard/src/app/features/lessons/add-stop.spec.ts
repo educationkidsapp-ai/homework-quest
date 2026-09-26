@@ -74,6 +74,28 @@ describe('hq-add-stop', () => {
     backend.verify();
   });
 
+  /**
+   * `Play.schema.json` caps a stop's `title` at 40 on every branch. This form said 80, so a
+   * 41-character title passed it and `POST …/plays/{id}/stops` answered 400 on the template
+   * document — before the assistant was asked anything. The field now stops at the 40th letter.
+   */
+  it('cannot produce a title the schema would refuse', async () => {
+    const { backend, rendered } = await renderForm();
+    const title = form().getByLabelText(/^Title/);
+
+    expect(title).toHaveAttribute('maxlength', '40');
+    await userEvent.type(title, 'x'.repeat(41));
+    expect((title as HTMLInputElement).value).toHaveLength(40);
+    expect(form().getByText(/Up to 40 characters/)).toBeInTheDocument();
+
+    await userEvent.type(form().getByLabelText(/^Question \/ what the child does/), 'Join them up.');
+    await userEvent.selectOptions(form().getByLabelText(/^Type/), 'match');
+    await pressSave(rendered);
+
+    const created = backend.expectOne('/admin/plays/p-1/stops');
+    expect((JSON.parse(created.request.body as string) as { title: string }).title).toHaveLength(40);
+  });
+
   it('says what is wrong on blur, not while the first letter is still being typed', async () => {
     const { rendered } = await renderForm();
 

@@ -120,6 +120,7 @@ const QUICK_FIELDS = [
         <hq-input
           [label]="'lessons.detail.editor.title' | transloco"
           [required]="true"
+          [maxLength]="40"
           [value]="field('title')"
           (valueChange)="patchString('title', $event)"
           [disabled]="fieldsDisabled()"

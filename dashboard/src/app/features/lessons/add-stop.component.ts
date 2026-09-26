@@ -28,8 +28,15 @@ import { StopDraftService } from './stop-draft.service';
 import { type EditorImage } from './stop-editor.component';
 import { STOP_TEMPLATES, STOP_TEMPLATE_GROUPS, templatesByGroup } from './stop-templates';
 
-/** `Play.schema.json`'s `maxLength` on `title`, refused here rather than by a 422. */
-const MAX_TITLE = 80;
+/**
+ * `Play.schema.json`'s `maxLength` on a stop's `title`, refused here rather than by the server.
+ *
+ * It said 80 until 2026-09-26, which no branch of the schema has ever allowed: a 41-character
+ * title passed this form and `POST …/plays/{id}/stops` answered 400 on the template document,
+ * before the assistant was ever asked. The quick-field title in `stop-editor.component.ts` holds
+ * the same 40 (`QUICK_FIELDS`).
+ */
+const MAX_TITLE = 40;
 /** Well under `StopTextService.MAX_TEXT` (8000): one stop's question, not a worksheet. */
 const MAX_QUESTION = 2000;
 
