@@ -400,7 +400,10 @@
                   }
                 </ng-container>
               </div>
-            } @else if (!writingHere() && !failedHere()) {
+            } @else if (!writingHere()) {
+              <!-- A failed level keeps this: the note above offers Ask again, and *Write it
+                   myself* is still the other way to fill a level the assistant could not. Only a
+                   level being written right now has nothing to offer here. -->
               <p class="lesson__empty">{{ 'lessons.detail.plays.noLevel' | transloco }}</p>
               <!-- D27: the levels are capped at three, so what was missing was not another level
                    but a visible way to fill this one. Two choices, her words or the assistant's. -->

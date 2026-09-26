@@ -769,6 +769,36 @@ describe('Lesson', () => {
   });
 
   /**
+   * The error note goes *above* the Add level card, never instead of it: a level the assistant
+   * could not write is still a level she can write herself, and for an uploaded lesson that card
+   * is the only thing on the tab that ever offered it.
+   */
+  it('keeps "Write it myself" on a level whose generate failed', async () => {
+    await renderLesson(
+      lessonWithStops({
+        source: 'pdf',
+        status: 'error',
+        steps: [
+          { step: 'analyze', status: 'done', attempt: 1, updatedAt: 0 },
+          {
+            step: 'generate_L3',
+            status: 'error',
+            attempt: 1,
+            errorMessage: 'The model timed out.',
+            updatedAt: 0,
+          },
+        ],
+      }),
+    );
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 3/ }));
+
+    expect(screen.getByRole('button', { name: 'Ask again' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Write it myself' })).toBeInTheDocument();
+    expect(screen.getByText(/This level does not exist yet/)).toBeInTheDocument();
+  });
+
+  /**
    * `generate_L1` is the common failure of an uploaded lesson, and Level 1 is the one level the
    * assistant is never asked for — there is no `POST …/plays/1/generate`. The tab must keep the
    * pipeline's own band and its two retries rather than grow an Ask again that does nothing.
