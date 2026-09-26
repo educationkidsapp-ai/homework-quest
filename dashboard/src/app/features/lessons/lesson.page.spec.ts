@@ -769,6 +769,35 @@ describe('Lesson', () => {
   });
 
   /**
+   * `generate_L1` is the common failure of an uploaded lesson, and Level 1 is the one level the
+   * assistant is never asked for — there is no `POST …/plays/1/generate`. The tab must keep the
+   * pipeline's own band and its two retries rather than grow an Ask again that does nothing.
+   */
+  it('never offers "Ask again" on Level 1, whatever the ledger failed at', async () => {
+    await renderLesson(
+      lessonWithStops({
+        source: 'pdf',
+        status: 'error',
+        steps: [
+          { step: 'analyze', status: 'done', attempt: 1, updatedAt: 0 },
+          {
+            step: 'generate_L1',
+            status: 'error',
+            attempt: 1,
+            errorMessage: 'The model timed out.',
+            updatedAt: 0,
+          },
+        ],
+      }),
+    );
+
+    // Level 1 is the tab the page opens on, and it is the tab `generate_L1` maps to.
+    expect(screen.queryByRole('button', { name: 'Ask again' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry this step only' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry and continue' })).toBeInTheDocument();
+  });
+
+  /**
    * A failed per-level generate belongs to the level it failed on, and its way out is asking
    * again — not "Retry this step only", which a hand-written lesson does not get at all.
    */

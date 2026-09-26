@@ -1189,10 +1189,24 @@ export class LessonPage {
     return this.t('lessons.detail.addLevel.writing', { level: this.t(`lessons.detail.playTab.${tab}`) });
   });
 
-  /** The failed step is this level's, so "Ask again" belongs on this tab and nowhere else. */
+  /**
+   * The failed step is this level's **and** this level is one the assistant can be asked for, so
+   * "Ask again" belongs on this tab and nowhere else.
+   *
+   * `askLevel() !== null` is the load-bearing half. `STEP_TAB` maps `generate_L1` too — the tab
+   * wants it for *The assistant is writing Level 1…* — and `generate_L1` is the common failure of
+   * an uploaded lesson, so without this the Level 1 tab grew an **Ask again** that
+   * `askAgain()` could only ignore: there is no `POST …/plays/1/generate`, and Level 1 is hers.
+   * A lesson that fails there keeps the pipeline's own band and its two retries, unchanged.
+   */
   protected readonly failedHere = computed(() => {
     const step = this.erroredStep();
-    return this.isErrorStatus() && step !== null && STEP_TAB[step.step] === this.playTab();
+    return (
+      this.isErrorStatus() &&
+      step !== null &&
+      this.askLevel() !== null &&
+      STEP_TAB[step.step] === this.playTab()
+    );
   });
 
   protected readonly generateText = signal('');
