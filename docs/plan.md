@@ -280,8 +280,10 @@ Order: E1 → E2 → E3 → E4a → E4b → E5 (owner: yes, 2026-09-25). Reviewe
 | M1 | #113 | merged | mobile: tolerant network JSON, join once per parent + Back fix, class join code on Add child (placed child), released score/band/comment for parents, §6 guard; all four slices device-verified on QA (`docs/reports/mobile-m1.md`) |
 | M2 | — | next, after the owner's device test | exam sitting in the app: window island, single resumable sitting, hints/numbers off, refused second attempt, parent's exam result |
 | C1–C4 | #121–#124 | merged, on QA | parent ↔ teacher chat: REST + `/ws/chat` + LISTEN/NOTIFY (C1), teacher Messages (C2), app chat (C3); #116–#120, #125–#132 and later direct commits on `develop` came from the owner's other sessions (EduManage redesign, six subjects, chat attachments) outside the review chain |
-| E1 | — | next | parallel generation, non-blocking `from-text`, `/status` poll body |
-| E2 | — | after E1 | server notifications + `notification` frame |
-| E3 | — | after E2 | background new-lesson flow, real bell |
-| E4a/E4b | — | after E3 | write-by-self: fewer steps, non-blocking then instant save |
+| E1 | #134 | merged, on QA | L1/L2/L3 concurrent then Again ∥ panel; atomic `addUsage`; `from-text` outside the transaction; `GET …/lessons/{id}/status`. QA: analyse 106 s, levels batch 132 s (was ≈300 s), Again+panel 94 s (was 141 s) |
+| E2 | #135 | merged, on QA | V17 `notifications`, `/me/notifications` (read/write keys), `notification` frame, socket admits all dashboard roles, `Peer.chat` gates chat; QA: `lesson.ready` written and read back |
+| E3 | #136 | merged, on QA | `LessonCreationService` + Work in background, `/status` polling with `lessonSignature`, real bell over E2, socket for every role; two review rounds (first-poll seeding, creation-service reset, `notifications.write` guards) |
+| E4a | #137 | merged, on QA | sheet-first (`?compose`), Save and add another, `StopDraftService` (assistant in the background, Retry/Remove, 90 s timeout), patch-not-reload, empty level tabs enabled + Add level card, validator chunk admin-only, `hq-day-picker`, no upload cards in Write-it-yourself, title cap 40 |
+| E4b | #139 | in review | structured fields for choice / trueFalse / writeSentence (fill the blank) / readPage / exitTicket → one `POST /stops`, no model call; assistant optional |
+| U1 `dashboard/teacher-ux-batch` | #138 | in review | owner's 2026-09-26 list: week search, profile (tour/language removed, Message to coordinator → `POST /teacher/messages/coordinator`, kind `teacher.message`), quick actions + New exam `classId`, attendance (pt 24, green 3 s toast, note), My Class (non-teaching days hidden, no past-day adds, teacher no Add/Place/Remove child — server control = `teacher.rosterEdit` flag, Message parent → chat) |
 | E5 | — | after E4b | add Level 2/3/Again in the hand-written flow: by hand or one level generated on request (cap stays 3, D27) |
