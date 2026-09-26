@@ -3,8 +3,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { COORDINATOR_USER } from '../../../testing/fixtures';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { COORDINATOR_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { BASE_PATH } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
@@ -17,6 +18,25 @@ const COORDINATOR_PERMISSIONS = {
   permissions: ['coordinator.read', 'coordinator.lesson.read'],
   readOnly: false,
 };
+
+/** The teacher who owns this lesson — the negative control's account. */
+const TEACHER_PERMISSIONS = {
+  role: 'TEACHER',
+  permissions: ['lesson.read', 'lesson.write', 'lesson.publish', 'play.write', 'stop.write'],
+  readOnly: false,
+};
+
+/**
+ * The controls this spec is about, by the label a person reads.
+ *
+ * Copied from `en.json` rather than paraphrased, because the review found the first version of
+ * this spec querying names that do not exist — `/Move to another day/i` for a control labelled
+ * "Lesson day", `/^Add a question/i` for one labelled "+ Add stop" — so it matched nothing
+ * whatever the page drew and passed with the date input on screen. `rendersForATeacher` below is
+ * the guard against that happening again: every name here is proved to match something.
+ */
+const WRITE_CONTROLS = ['+ Add stop', 'Publish', 'Regenerate this level'] as const;
+const DATE_LABEL = 'Lesson day';
 
 /**
  * A lesson in `review` with one level and one question on it — the state with the most write
@@ -42,7 +62,15 @@ const LESSON = {
   tokenUsage: 0,
   tokensSaved: 0,
   version: 1,
-  parentPanel: { summary: 'We added to ten.', tips: [] },
+  // The shape `ParentPanel` actually declares — `parent-panel-editor` reads `objectives.en`
+  // straight off it, so a plausible-looking stand-in crashes the teacher's copy of the page.
+  parentPanel: {
+    objectives: { en: ['Add to ten.'], ar: ['الجمع إلى عشرة.'] },
+    supported: [],
+    challenge: [],
+    stopTips: [],
+    modelAnswers: [],
+  },
   plays: [
     {
       id: 'p-1',
@@ -92,9 +120,28 @@ describe('the lesson page in read-only mode', () => {
   beforeEach(() => {
     sessionStorage.clear();
     localStorage.clear();
+    // Fake timers so the poll test can jump past four poll windows rather than wait them out.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
-  async function renderAsCoordinator() {
+  afterEach(() => vi.useRealTimers());
+
+  /** Her own namespace, never `/admin/lessons/{id}` (403) or `/teacher/lessons/{id}` (404). */
+  function renderAsCoordinator(lesson: object = LESSON) {
+    return renderPage(true, COORDINATOR_USER, COORDINATOR_PERMISSIONS, '/coordinator/lessons/l-1', lesson);
+  }
+
+  function renderAsTeacher(lesson: object = LESSON) {
+    return renderPage(false, TEACHER_USER, TEACHER_PERMISSIONS, '/teacher/lessons/l-1', lesson);
+  }
+
+  async function renderPage(
+    readOnly: boolean,
+    user: typeof COORDINATOR_USER,
+    permissions: typeof COORDINATOR_PERMISSIONS,
+    url: string,
+    lesson: object,
+  ) {
     const rendered = await renderHq(LessonPage, {
       providers: [
         provideHttpClient(),
@@ -107,7 +154,7 @@ describe('the lesson page in read-only mode', () => {
             snapshot: {
               paramMap: convertToParamMap({ id: 'l-1' }),
               queryParamMap: convertToParamMap({}),
-              data: { readOnly: true },
+              data: { readOnly },
             },
           },
         },
@@ -117,15 +164,14 @@ describe('the lesson page in read-only mode', () => {
 
     TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
     TestBed.inject(AuthService).loadMe().subscribe();
-    backend.expectOne('/me').flush(COORDINATOR_USER);
+    backend.expectOne('/me').flush(user);
     await Promise.resolve();
     TestBed.tick();
 
-    // Her own namespace, never `/admin/lessons/{id}` (403) or `/teacher/lessons/{id}` (404).
-    backend.expectOne('/coordinator/lessons/l-1').flush(LESSON);
+    backend.expectOne(url).flush(lesson);
     await Promise.resolve();
     TestBed.tick();
-    backend.expectOne('/me/permissions').flush(COORDINATOR_PERMISSIONS);
+    backend.expectOne('/me/permissions').flush(permissions);
     await Promise.resolve();
     TestBed.tick();
 
@@ -145,19 +191,14 @@ describe('the lesson page in read-only mode', () => {
   it('draws no control that would change the lesson', async () => {
     await renderAsCoordinator();
 
-    for (const name of [
-      /^Publish/i,
-      /^Unpublish/i,
-      /^Add a question/i,
-      /^Save/i,
-      /^Delete/i,
-      /^Remove/i,
-      /^Try again/i,
-      /^Write level/i,
-      /^Upload/i,
-      /^Regenerate/i,
-    ])
-      expect(screen.queryAllByRole('button', { name })).toEqual([]);
+    for (const name of WRITE_CONTROLS)
+      expect(`${name}:${screen.queryAllByRole('button', { name }).length}`).toBe(`${name}:0`);
+
+    // The one the review found: "Lesson day" is an `<input type="date">`, not a button, and
+    // changing it would have called `PATCH /teacher/lessons/{id}` — a 403 for her, after the page
+    // had already moved the date optimistically. Absent, and no date input of any kind is left.
+    expect(screen.queryByLabelText(DATE_LABEL)).toBeNull();
+    expect(document.querySelectorAll('input[type="date"]').length).toBe(0);
 
     // No editor, no parent-panel form, no exam settings, and no file input anywhere: hidden
     // rather than disabled, because a disabled Save still promises there is a way to press it.
@@ -166,7 +207,41 @@ describe('the lesson page in read-only mode', () => {
     expect(document.querySelector('hq-exam-settings-card')).toBeNull();
     expect(document.querySelector('hq-add-stop')).toBeNull();
     expect(document.querySelectorAll('input[type="file"]').length).toBe(0);
-    // The move-date control is an input, not a button, so it is named separately.
-    expect(screen.queryByLabelText(/Move to another day/i)).toBeNull();
+  });
+
+  /**
+   * The negative control: the same page, the same lesson, rendered for the teacher who owns it.
+   *
+   * Every name the test above asserts is *absent* is asserted **present** here. Without this, a
+   * label that drifts — or one that was wrong to begin with, which is what happened — turns the
+   * test above into a green assertion about nothing.
+   */
+  it('renders every one of those controls for the teacher who owns the lesson', async () => {
+    await renderAsTeacher();
+
+    for (const name of WRITE_CONTROLS)
+      expect(`${name}:${screen.queryAllByRole('button', { name }).length}`).not.toBe(
+        `${name}:0`,
+      );
+    expect(screen.queryByLabelText(DATE_LABEL)).not.toBeNull();
+    expect(document.querySelector('hq-stop-editor')).not.toBeNull();
+    expect(document.querySelector('hq-parent-panel-editor')).not.toBeNull();
+  });
+
+  /** R5: no `/status` poll in read-only mode — there is no coordinator route to poll. */
+  it('polls nothing, and refreshes the lesson when she asks', async () => {
+    const { backend } = await renderAsCoordinator({ ...LESSON, status: 'generating' });
+
+    expect(screen.getByText(/still being generated/i)).toBeTruthy();
+    // 2.5 s is the poll interval; a poll would have asked by now if one had been started.
+    vi.advanceTimersByTime(10_000);
+    backend.verify(); // no `/status` request of any kind — the teacher's alias 404s for her
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    backend.expectOne('/coordinator/lessons/l-1').flush(LESSON);
+    await Promise.resolve();
+    TestBed.tick();
+
+    expect(screen.queryByText(/still being generated/i)).toBeNull();
   });
 });
