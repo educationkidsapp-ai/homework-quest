@@ -13,17 +13,17 @@
     <span *hqFeature="rosterFlag">
       <span class="children__toolbar" *hqCan="'roster.teacher'">
         @if (canPlace()) {
-        <!--
-          Place comes first and is the quiet one: the child a parent has already registered is
-          the common case, but Add a child is the tab's one primary action (§3's rule), and two
-          filled buttons side by side would be two.
-        -->
-        <hq-button variant="secondary" (pressed)="openPlace()">
-          {{ 'classes.children.place.action' | transloco }}
-        </hq-button>
-        <hq-button variant="primary" (pressed)="openAdd()">
-          {{ 'classes.children.add.action' | transloco }}
-        </hq-button>
+          <!--
+            Place comes first and is the quiet one: the child a parent has already registered is
+            the common case, but Add a child is the tab's one primary action (§3's rule), and two
+            filled buttons side by side would be two.
+          -->
+          <hq-button variant="secondary" (pressed)="openPlace()">
+            {{ 'classes.children.place.action' | transloco }}
+          </hq-button>
+          <hq-button variant="primary" (pressed)="openAdd()">
+            {{ 'classes.children.add.action' | transloco }}
+          </hq-button>
         }
       </span>
     </span>
