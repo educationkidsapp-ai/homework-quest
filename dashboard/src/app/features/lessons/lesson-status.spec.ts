@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  type AdminLesson,
   type LessonStatusView,
   LessonFileStatusConvertStatusEnum,
   LessonStatusViewStatusEnum,
   LessonStepInfoStatusEnum,
   LessonStepInfoStepEnum,
 } from '../../api';
-import { statusSignature } from './lesson-status';
+import { lessonSignature, statusSignature } from './lesson-status';
 
 function view(over: Partial<LessonStatusView> = {}): LessonStatusView {
   return {
@@ -83,5 +84,62 @@ describe('statusSignature', () => {
         view({ files: [{ id: 'f-1', convertStatus: LessonFileStatusConvertStatusEnum.CONVERTING }] }),
       ),
     ).not.toBe(base);
+  });
+});
+
+/**
+ * The baseline. The page compares the first poll against the lesson it already holds, so the
+ * two readings of the same lesson have to come out identical — otherwise every load would pay
+ * for one heavy re-read it did not need.
+ */
+describe('lessonSignature', () => {
+  /** The lesson `view()` describes, as the heavy `GET …/lessons/{id}` carries it. */
+  function lesson(over: Partial<AdminLesson> = {}): AdminLesson {
+    return {
+      id: 'l-1',
+      analyzedBefore: false,
+      course: { curriculum: 'british', grade: 1 },
+      createdAt: 0,
+      date: '2026-09-10',
+      files: [{ id: 'f-1', convertStatus: 'ready', deleted: false, cacheHit: false, fileHash: 'h', fileName: 'a.pdf', pageCount: 1 }],
+      images: [],
+      plays: [
+        {
+          id: 'p-1',
+          level: 1,
+          variant: 0,
+          generatedAt: 0,
+          promptVersion: 'v1',
+          play: { id: 'p-1', kind: 'gallery', level: 1, variant: 0, stops: Array.from({ length: 7 }, (_, i) => ({ id: `st-${i}` })) },
+        },
+      ],
+      skills: [],
+      source: 'pdf',
+      status: 'generating',
+      steps: view().steps,
+      subject: 'math',
+      tokenUsage: 0,
+      tokensSaved: 0,
+      type: 'lesson',
+      version: 1,
+      ...over,
+    } as unknown as AdminLesson;
+  }
+
+  it('reads the heavy body to the same signature as the status body of the same lesson', () => {
+    expect(lessonSignature(lesson())).toBe(statusSignature(view()));
+  });
+
+  it('leaves out a deleted file, which the status body does not list either', () => {
+    const deleted = { ...lesson().files[0]!, id: 'f-2', deleted: true };
+    expect(lessonSignature(lesson({ files: [...lesson().files, deleted] }))).toBe(
+      statusSignature(view()),
+    );
+  });
+
+  it('moves with the lesson: a status that settled, a panel that arrived', () => {
+    const base = lessonSignature(lesson());
+    expect(lessonSignature(lesson({ status: 'review' as AdminLesson['status'] }))).not.toBe(base);
+    expect(lessonSignature(lesson({ parentPanel: {} as AdminLesson['parentPanel'] }))).not.toBe(base);
   });
 });

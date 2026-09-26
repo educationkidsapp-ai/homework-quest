@@ -64,7 +64,7 @@ import { type Play, type Stop, PhonePreviewComponent } from '../../ui/phone-prev
 import { AddStopComponent } from './add-stop.component';
 import { anyConverting, reasonKeyOf } from './file-conversion';
 import { LessonApiService } from './lesson-api.service';
-import { statusSignature } from './lesson-status';
+import { lessonSignature, statusSignature } from './lesson-status';
 import { toPreviewPlay } from './lesson-preview.mapper';
 import { LessonSourcesComponent } from './lesson-sources.component';
 import {
@@ -807,8 +807,9 @@ export class LessonPage {
   /** "Question added", for four seconds. The only toast on this page, and never for a failure. */
   protected readonly stopAddedToast = signal(false);
   /**
-   * The last light-poll body this page acted on. The first one after a load only sets the
-   * baseline: the lesson in hand already matches it.
+   * The last signature this page acted on. It starts as the *lesson's* — see
+   * `lesson-status.ts` — so the very first poll after a load is compared against something
+   * real rather than setting a baseline of its own.
    */
   private lastSignature: string | null = null;
 
@@ -1403,6 +1404,12 @@ export class LessonPage {
       const active =
         lesson !== null && (isRunningStatus(lesson.status) || anyConverting(lesson.files ?? []));
       if (!active) return;
+
+      // The baseline is the lesson in hand, set once per page: a lesson that reaches a terminal
+      // status inside this first 2.5 s window has to be read back, and a baseline taken from
+      // that first poll instead would record the terminal signature as "nothing changed" and
+      // poll a finished lesson for ever. After that the polls own it.
+      this.lastSignature ??= lessonSignature(lesson);
 
       let inFlight = false;
       const poll = () => {

@@ -976,6 +976,30 @@ describe('Lesson — the files being converted', () => {
     expect(await screen.findByText('Ready · 1,240 words')).toBeInTheDocument();
   });
 
+  it('reads the lesson back when the very first poll already shows it finished', async () => {
+    vi.useFakeTimers();
+    const { backend } = await renderLesson(CONVERTING);
+
+    // The stranding case: the file finishes inside the first 2.5 s window. The baseline is the
+    // lesson the page loaded, not this poll, so the change is seen \u2014 a baseline taken here
+    // would have recorded "ready" as the starting point, reloaded nothing, and left the page
+    // drawing a running pipeline and polling for ever.
+    vi.advanceTimersByTime(2_600);
+    await Promise.resolve();
+    backend.expectOne('/admin/lessons/l-1/status').flush(statusOf(READY));
+    await Promise.resolve();
+    TestBed.tick();
+    backend.expectOne('/admin/lessons/l-1').flush(READY);
+    await Promise.resolve();
+    TestBed.tick();
+
+    // And the timer is gone with it: nothing is converting any more.
+    vi.advanceTimersByTime(10_000);
+    await Promise.resolve();
+    backend.verify();
+    expect(await screen.findByText('Ready \u00b7 1,240 words')).toBeInTheDocument();
+  });
+
   it('says what went wrong at Convert in the teacher\u2019s words, not the converter\u2019s', async () => {
     await renderLesson({
       ...CONVERTING,
