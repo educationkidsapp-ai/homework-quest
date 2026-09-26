@@ -135,9 +135,11 @@
           [(checked)]="onlyUnmarked"
           data-hq-needs-marking
         />
-        <hq-button variant="secondary" [loading]="exporting()" (pressed)="exportCsv()">
-          {{ 'results.export.csv' | transloco }}
-        </hq-button>
+        @if (canExport()) {
+          <hq-button variant="secondary" [loading]="exporting()" (pressed)="exportCsv()">
+            {{ 'results.export.csv' | transloco }}
+          </hq-button>
+        }
       </div>
 
 

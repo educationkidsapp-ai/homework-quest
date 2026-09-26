@@ -25,6 +25,10 @@ export const NAV_ICONS: Readonly<Record<string, string>> = {
     'M12 9.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2ZM12 3v2.6M12 18.4V21M3 12h2.6M18.4 12H21M5.6 5.6l1.9 1.9M16.5 16.5l1.9 1.9M18.4 5.6l-1.9 1.9M7.5 16.5l-1.9 1.9',
   chat: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
   complaints: 'M4 5h16v11H9.5L4.5 20v-4H4z',
+  // R6: a ticked register, a grid of scores, a stamped paper.
+  attendance: 'M4 5h16v15H4zM4 9h16M8 13l2 2 4-4',
+  gradebook: 'M4 4.5h16v15H4zM9.5 4.5v15M15 4.5v15M4 9.5h16M4 14.5h16',
+  exams: 'M6 3.5h12v17H6zM9 8h6M9 12h6M9 16h3',
   profile: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20.5c0-3.3 3.1-5.8 7-5.8s7 2.5 7 5.8',
   'admin-classes': 'M4 5h7v6H4zM13 5h7v6h-7zM4 14h7v5H4zM13 14h7v5h-7z',
   'admin-teachers':

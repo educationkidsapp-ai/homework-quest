@@ -55,12 +55,16 @@ const ROUTES = {
   'exam results': ['hq-shell', 'hq-exam-results-page'],
   'accept-invite': ['hq-accept-invite-page'],
   chat: ['hq-shell', 'hq-chat-page'],
-  // R5: the coordinator's four screens. Her lesson is the `lesson` row above — it is the same
-  // component in read-only mode — so only the four of her own are added here.
+  // R5/R6: the coordinator's own screens. Her lesson and an exam's results are the `lesson` and
+  // `exam results` rows above — the same components in read-only mode — so only the three screens
+  // of her own are added here.
   'coordinator home': ['hq-shell', 'hq-coordinator-home-page'],
   'coordinator teachers': ['hq-shell', 'hq-coordinator-teachers-page'],
   'coordinator classes': ['hq-shell', 'hq-coordinator-classes-page'],
   'coordinator lessons': ['hq-shell', 'hq-coordinator-lessons-page'],
+  'coordinator attendance': ['hq-shell', 'hq-coordinator-attendance-page'],
+  'coordinator gradebook': ['hq-shell', 'hq-coordinator-gradebook-page'],
+  'coordinator exams': ['hq-shell', 'hq-coordinator-exams-page'],
 };
 
 if (!existsSync(DIST)) {

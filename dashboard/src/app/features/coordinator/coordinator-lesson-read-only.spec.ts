@@ -256,20 +256,46 @@ describe('the lesson page in read-only mode', () => {
     expect(document.querySelector('hq-parent-panel-editor')).not.toBeNull();
   });
 
-  /** R5: no `/status` poll in read-only mode — there is no coordinator route to poll. */
-  it('polls nothing, and refreshes the lesson when she asks', async () => {
+  /**
+   * R6: she polls **her own** `/status`, and never the teacher's.
+   *
+   * R5 turned the poll off in read-only mode because `GET /coordinator/lessons/{id}/status` did
+   * not exist and `LessonApiService.status` would have routed her to `/teacher/**`, which answers
+   * 404 for her every 2.5 s, silently. R3 shipped the route; what this pins is the *branch* —
+   * the exact URL, so a regression that drops it back to the teacher's alias fails here rather
+   * than in production, where the only symptom is a lesson that sits looking stuck.
+   */
+  it('polls her own /status while the lesson is generating', async () => {
     const { backend } = await renderAsCoordinator({ ...LESSON, status: 'generating' });
 
     expect(screen.getByText(/still being generated/i)).toBeTruthy();
-    // 2.5 s is the poll interval; a poll would have asked by now if one had been started.
-    vi.advanceTimersByTime(10_000);
-    backend.verify(); // no `/status` request of any kind — the teacher's alias 404s for her
+
+    vi.advanceTimersByTime(2600);
+    backend
+      .expectOne('/coordinator/lessons/l-1/status')
+      .flush({ id: 'l-1', status: 'review', steps: [], files: [], plays: [] });
+    await Promise.resolve();
+    TestBed.tick();
+
+    // The light body said the status moved, so the page reads the lesson back — through her
+    // namespace again, and it is the page's own resource rather than a second code path.
+    backend.expectOne('/coordinator/lessons/l-1').flush({ ...LESSON, status: 'review' });
+    await Promise.resolve();
+    TestBed.tick();
+
+    expect(screen.queryByText(/still being generated/i)).toBeNull();
+    backend.verify();
+  });
+
+  /** And Refresh is still hers — the poll runs only while something is active. */
+  it('refreshes the lesson when she asks', async () => {
+    const { backend } = await renderAsCoordinator();
 
     await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     backend.expectOne('/coordinator/lessons/l-1').flush(LESSON);
     await Promise.resolve();
     TestBed.tick();
 
-    expect(screen.queryByText(/still being generated/i)).toBeNull();
+    backend.verify();
   });
 });

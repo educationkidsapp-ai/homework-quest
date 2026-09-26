@@ -114,6 +114,12 @@ describe('the gradebook grid', () => {
       inputs: { classId: 'c-1a', className: '1A British' },
     });
     const backend = TestBed.inject(HttpTestingController);
+    // R6: the grid waits for `/me` before it reads — which namespace answers depends on the role
+    // (`ResultsApiService.ready`), and asking before it has landed sends a coordinator to
+    // `/teacher/**`.
+    TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+    TestBed.inject(AuthService).loadMe().subscribe();
+    backend.expectOne('/me').flush(TEACHER_USER);
     await settle();
 
     const asked = backend.expectOne((request) => request.url === '/teacher/classes/c-1a/gradebook');

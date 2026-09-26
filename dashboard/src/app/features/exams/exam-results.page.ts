@@ -4,7 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { type LessonResults, ExamsApi, ResultsAndGradebookApi, apiErrorOf } from '../../api';
+import { type LessonResults, ExamsApi, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
 import { exportName, saveFile } from '../../core/download/download';
 import { FLAGS } from '../../core/flags/flag.service';
@@ -26,6 +26,7 @@ import {
 } from '../../ui';
 import { LevelBandComponent } from '../results/level-band.component';
 import { MarkPanelComponent } from '../results/mark-panel.component';
+import { ResultsApiService, linkOrNothing } from '../results/results-api.service';
 import {
   formatAnswer,
   isFault,
@@ -99,7 +100,7 @@ const MOMENT: Intl.DateTimeFormatOptions = {
 })
 export class ExamResultsPage {
   private readonly api = inject(ExamsApi);
-  private readonly grading = inject(ResultsAndGradebookApi);
+  private readonly reads = inject(ResultsApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly transloco = inject(TranslocoService);
   private readonly platform = inject(PlatformService);
@@ -113,8 +114,8 @@ export class ExamResultsPage {
   protected readonly examId = computed(() => this.path().get('id') ?? '');
 
   protected readonly results = rxResource({
-    params: () => this.examId(),
-    stream: ({ params }) => this.api.examResults(params),
+    params: () => (this.reads.ready() ? this.examId() : undefined),
+    stream: ({ params }) => this.reads.examResults(params),
     defaultValue: {},
   });
 
@@ -140,8 +141,8 @@ export class ExamResultsPage {
     this.lang();
     const classId = this.results.value().classId ?? '';
     return [
-      { label: this.t('classes.title'), link: '/teacher/classes' },
-      ...(classId ? [{ label: this.className(), link: `/teacher/classes/${classId}` }] : []),
+      { label: this.t('classes.title'), link: this.reads.classesLink() },
+      ...(classId ? [{ label: this.className(), ...linkOrNothing(this.reads.classLink(classId)) }] : []),
       { label: this.t('exams.results.title') },
     ];
   });
@@ -212,9 +213,8 @@ export class ExamResultsPage {
    * The lesson-shaped results behind this exam, for marking and class answers inspection.
    */
   protected readonly lessonResults = rxResource({
-    params: () => this.examId(),
-    stream: ({ params }) =>
-      this.grading.lessonResults(params).pipe(catchError(() => of({} as LessonResults))),
+    params: () => (this.reads.ready() ? this.examId() : undefined),
+    stream: ({ params }) => this.reads.lessonResults(params).pipe(catchError(() => of({} as LessonResults))),
     defaultValue: {},
   });
 
@@ -263,7 +263,7 @@ export class ExamResultsPage {
   }
 
   protected childLink(row: ChildRow): readonly string[] {
-    return ['/teacher/children', row.childId];
+    return [`${this.reads.base()}/children`, row.childId];
   }
 
   protected score(value: number | null): string {
@@ -435,7 +435,8 @@ export class ExamResultsPage {
 
   // ---- odds and ends ---------------------------------------------------------------------------------
 
-  protected readonly examLink = computed(() => ['/teacher/lessons', this.examId()]);
+  /** R6: her copy opens the read-only lesson page in her own area. */
+  protected readonly examLink = computed(() => [`${this.reads.base()}/lessons`, this.examId()]);
 
   protected readonly empty = computed(() => !this.results.isLoading() && this.rows().length === 0);
 

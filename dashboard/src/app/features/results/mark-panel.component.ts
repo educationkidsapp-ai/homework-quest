@@ -19,6 +19,7 @@ import { PermissionService } from '../../core/permissions/permission.service';
 import { UndoService } from '../../core/undo/undo.service';
 import { ButtonComponent, InputComponent, TextareaComponent } from '../../ui';
 import { ChildWorkComponent } from './child-work.component';
+import { ResultsApiService } from './results-api.service';
 import {
   draftOf,
   formatAnswer,
@@ -76,6 +77,7 @@ import { StarsInputComponent } from './stars-input.component';
 })
 export class MarkPanelComponent {
   private readonly api = inject(ResultsAndGradebookApi);
+  private readonly reads = inject(ResultsApiService);
   private readonly transloco = inject(TranslocoService);
   private readonly flags = inject(FlagService);
   private readonly permissions = inject(PermissionService);
@@ -240,8 +242,17 @@ export class MarkPanelComponent {
     });
   }
 
+  /**
+   * "Open her page" — in the reader's **own** area.
+   *
+   * The review found this hard-coded to `/teacher/children/{id}`. The panel is not a teacher's:
+   * every child name on the results and exam-results tables is an ungated toggle that opens it, so
+   * a coordinator reaches it on two of her six screens — and `roleGuard` would have thrown her off
+   * `/teacher/**` and back to `/coordinator`, off a screen she is allowed to read. The one reason
+   * `ResultsApiService.base()` exists.
+   */
   protected childLink(): readonly string[] {
-    return ['/teacher/children', this.row().childId];
+    return [`${this.reads.base()}/children`, this.row().childId];
   }
 
   protected score(value: number | null): string {

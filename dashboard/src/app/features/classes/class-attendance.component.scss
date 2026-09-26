@@ -82,12 +82,24 @@
   border-radius: 12px;
   border: 1px solid var(--hq-color-rule, #e2e8f0);
 
-  &--present { border-inline-start: 4px solid #10b981; }
-  &--late { border-inline-start: 4px solid #f59e0b; }
-  &--absent { border-inline-start: 4px solid #ef4444; }
-  &--excused { border-inline-start: 4px solid #a855f7; }
-  &--rate { border-inline-start: 4px solid #06b6d4; }
-  &--total { border-inline-start: 4px solid #6366f1; }
+  &--present {
+    border-inline-start: 4px solid #10b981;
+  }
+  &--late {
+    border-inline-start: 4px solid #f59e0b;
+  }
+  &--absent {
+    border-inline-start: 4px solid #ef4444;
+  }
+  &--excused {
+    border-inline-start: 4px solid #a855f7;
+  }
+  &--rate {
+    border-inline-start: 4px solid #06b6d4;
+  }
+  &--total {
+    border-inline-start: 4px solid #6366f1;
+  }
 }
 
 .attendance__metric-label {
@@ -233,7 +245,9 @@
   color: var(--hq-color-ink, #0f172a);
   font-size: 13px;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 
   &:focus {
     border-color: var(--hq-color-accent, #6366f1);
@@ -249,4 +263,78 @@
   padding: var(--hq-space-32);
   text-align: center;
   color: var(--hq-color-ink-soft, #64748b);
+}
+
+// ---- R6: the read-only range ---------------------------------------------------------------
+// Children down the side, days across the top, the four totals on the end. Tokens only: the
+// squares have to survive dark mode, a projector and a photocopy, and every one of them carries
+// its letter as well as its colour.
+
+.attendance__range-count {
+  margin: 0;
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-font-label-size);
+}
+
+.attendance__notes-text {
+  margin: 0;
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-font-label-size);
+}
+
+.attendance__matrix-scroll {
+  overflow-x: auto;
+}
+
+.attendance__matrix {
+  border-collapse: collapse;
+  inline-size: 100%;
+
+  th,
+  td {
+    padding: var(--hq-space-8);
+    border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+    text-align: center;
+    white-space: nowrap;
+  }
+}
+
+.attendance__matrix-corner,
+.attendance__matrix-name {
+  // The name column stays put while the days scroll under it.
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  background: var(--hq-color-surface);
+  text-align: start;
+}
+
+.attendance__matrix-day,
+.attendance__matrix-total {
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-font-label-size);
+}
+
+.attendance__matrix-cell {
+  font-weight: 700;
+
+  &[data-status='PRESENT'] {
+    color: var(--hq-color-band-good);
+  }
+
+  &[data-status='LATE'] {
+    color: var(--hq-color-band-mid);
+  }
+
+  &[data-status='ABSENT'] {
+    color: var(--hq-color-accent-strong);
+  }
+
+  &[data-status='EXCUSED'] {
+    color: var(--hq-color-band-look);
+  }
+
+  &[data-status='NOT_MARKED'] {
+    color: var(--hq-color-ink-soft);
+  }
 }

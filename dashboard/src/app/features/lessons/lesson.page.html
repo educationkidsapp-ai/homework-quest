@@ -546,7 +546,7 @@
     <div page-footer>
       @if (hasResults()) {
         <span *hqFeature="gradebookFlag">
-          <a *hqCan="'results.read'" class="hq-linkbutton" [routerLink]="resultsLink()">
+          <a *hqCan="resultsKey()" class="hq-linkbutton" [routerLink]="resultsLink()">
             {{ 'results.title' | transloco }}
           </a>
         </span>

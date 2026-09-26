@@ -166,6 +166,11 @@ export class LessonApiService {
    * something changed (`lesson-status.ts`).
    */
   status(id: string): Observable<LessonStatusView> {
+    // R6: `GET /coordinator/lessons/{id}/status` landed with R3, so her read-only lesson page
+    // polls like everyone else's. Before it existed her poll was routed to the teacher's alias
+    // and answered 404 every 2.5 s, silently — which is why `lesson.page.ts` used to turn the
+    // poll off under `readOnly` altogether.
+    if (this.isCoordinator()) return this.coordinator.coordinatorLessonStatus(id);
     return this.isAdmin() ? this.admin.getLessonStatus(id) : this.teacher.teacherLessonStatus(id);
   }
 

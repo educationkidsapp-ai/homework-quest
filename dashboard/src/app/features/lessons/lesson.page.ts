@@ -226,12 +226,18 @@ export class LessonPage {
   );
   protected readonly lessonId = this.route.snapshot.paramMap.get('id') ?? '';
 
-  // N4.2: the way in to §4 step 9. Only from a teacher's copy of this screen and only once the
-  // lesson is published — `/teacher/lessons/{id}/results` is a teacher route, and an unpublished
-  // lesson has no attempts to show. `gradebook` + `results.read` gate the link itself, the same
-  // pair the route and the server check, so the three cannot disagree.
+  // N4.2: the way in to §4 step 9, and only once the lesson is published — an unpublished lesson
+  // has no attempts to show. `gradebook` + the read key gate the link itself, the same pair the
+  // route and the server check, so the three cannot disagree.
+  //
+  // R6: the coordinator has this link too, into her own read-only copy of the results page. The
+  // key is hers (`coordinator.results.read`) rather than the teacher's — she holds no
+  // `results.read` at all — and the path comes from {@link basePath} so it lands in her area.
   protected readonly gradebookFlag = FLAGS.gradebook;
-  protected readonly resultsLink = computed(() => ['/teacher/lessons', this.lessonId, 'results']);
+  protected readonly resultsKey = computed(() =>
+    this.readOnly ? 'coordinator.results.read' : 'results.read',
+  );
+  protected readonly resultsLink = computed(() => [this.basePath(), this.lessonId, 'results']);
   protected readonly hasResults = computed(() => !this.isAdmin() && this.isPublished());
 
   /**
@@ -1785,14 +1791,17 @@ export class LessonPage {
     // CR4's second reason to keep asking is still here: a file may be `converting` while the
     // lesson's own status has already settled, and `isStatusActive` folds both in.
     //
-    // R5: **not** in read-only mode. `GET /coordinator/lessons/{id}/status` does not exist, so a
-    // coordinator's poll would be routed to the teacher's alias, which answers 404 for her — every
-    // 2.5 s, silently (`error: () => undefined`), for as long as she leaves the page open, and the
-    // lesson would sit there looking stuck. She gets {@link refresh} in the header instead, and
-    // {@link stillGenerating} to say why there is something to come back for. R3 is adding the
-    // route; the poll can be turned on here when it lands.
+    // R6: read-only **and** a coordinator polls. R3 shipped `GET /coordinator/lessons/{id}/status`
+    // and `LessonApiService.status` now routes her to it, so a lesson still being written moves
+    // under her without a click, exactly as it does for the teacher who is writing it. She keeps
+    // {@link refresh} in the header regardless: the poll only runs while something is active, and
+    // a page she has had open since this morning is one she may still want to re-read by hand.
+    //
+    // The guard stays for any *other* read-only reader a later phase adds, because a role with no
+    // `/status` alias would poll the teacher's and be answered 404 every 2.5 s, silently
+    // (`error: () => undefined`), for as long as the page stayed open.
     effect((onCleanup) => {
-      if (this.readOnly) return;
+      if (this.readOnly && !this.api.isCoordinator()) return;
       const lesson = this.lesson();
       const active = lesson !== null && (this.running() || anyConverting(lesson.files ?? []));
       if (!active) return;
@@ -1840,8 +1849,9 @@ export class LessonPage {
   /**
    * R5: read `GET /coordinator/lessons/{id}` again, by hand.
    *
-   * What a read-only page has instead of the status poll. `reload()` on the resource rather than a
-   * navigation, so the month, the tab and the selected question all stay where she left them.
+   * What a read-only page has **besides** the status poll (R6 turned the poll on for her).
+   * `reload()` on the resource rather than a navigation, so the month, the tab and the selected
+   * question all stay where she left them.
    */
   protected refresh(): void {
     this.lessonRes.reload();
