@@ -1070,7 +1070,9 @@
         "writing": "The assistant is writing…",
         "retry": "Retry",
         "remove": "Remove",
-        "timedOut": "The assistant did not answer in time. Retry, or remove this question."
+        "timedOut": "The assistant did not answer in time. Retry, or remove this question.",
+        "retryFor": "Retry {{title}}",
+        "removeFor": "Remove {{title}}"
       },
       "addLevel": {
         "lede": "This level is empty. Write it yourself, or let the assistant write it from Level 1.",

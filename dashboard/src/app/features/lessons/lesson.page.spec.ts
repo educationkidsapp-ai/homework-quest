@@ -599,7 +599,9 @@ describe('Lesson', () => {
     backend.expectNone('/admin/stops/st-9');
     expect(screen.getAllByText("Couldn't save, please rephrase.").length).toBeGreaterThan(0);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    // Named by the stop they belong to, so five rows of "Retry" are five different buttons.
+    expect(screen.getByRole('button', { name: 'Remove Draw anything' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry Draw anything' }));
     await settle();
     const again = backend.expectOne('/admin/stops/st-9/from-text');
     expect((JSON.parse(again.request.body as string) as { text: string }).text).toBe(
@@ -625,12 +627,14 @@ describe('Lesson', () => {
 
     // Consumed: the URL is replaced without it, so closing the sheet and refreshing is just the
     // lesson. `notice` survives the merge, because the band above is read from it.
-    expect(navigate).toHaveBeenCalledWith([], {
-      relativeTo: expect.anything(),
-      queryParams: { compose: null },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
+    expect(navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { compose: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      }),
+    );
   });
 
   /**

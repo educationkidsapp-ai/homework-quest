@@ -322,10 +322,20 @@
                         <span class="lesson__stop-note">{{ 'lessons.detail.draft.writing' | transloco }}</span>
                       } @else {
                         <span class="lesson__stop-note lesson__stop-note--error">{{ draft.reason }}</span>
-                        <hq-button variant="quiet" (pressed)="retryDraft(stop.id)">
+                        <!-- Named by the stop they act on: five rows can carry a Retry, and
+                             "Retry" alone says nothing about which question it would re-send. -->
+                        <hq-button
+                          variant="quiet"
+                          [ariaLabel]="'lessons.detail.draft.retryFor' | transloco: { title: stop.title }"
+                          (pressed)="retryDraft(stop.id)"
+                        >
                           {{ 'lessons.detail.draft.retry' | transloco }}
                         </hq-button>
-                        <hq-button variant="quiet" (pressed)="removeDraft(stop.id)">
+                        <hq-button
+                          variant="quiet"
+                          [ariaLabel]="'lessons.detail.draft.removeFor' | transloco: { title: stop.title }"
+                          (pressed)="removeDraft(stop.id)"
+                        >
                           {{ 'lessons.detail.draft.remove' | transloco }}
                         </hq-button>
                       }

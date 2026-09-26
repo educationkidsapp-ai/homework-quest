@@ -1,6 +1,14 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, input, model, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  inject,
+  input,
+  model,
+  signal,
+} from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { inject } from '@angular/core';
 import { activeLang } from '../../core/i18n/active-lang';
 
 interface DayCell {
@@ -14,10 +22,22 @@ function isoOf(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * Today where the teacher is, not in UTC.
+ *
+ * The cells are UTC midnights — a calendar day has no time zone — but *which* day is today does:
+ * `toISOString()` in `+03` says yesterday until 03:00, so the ring sat on the wrong cell for the
+ * first three hours of every school morning.
+ */
+function todayIso(): string {
+  const now = new Date();
+  return isoOf(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())));
+}
+
 /** Midnight UTC for an ISO day, or today when the string is not one. */
 function dayOf(iso: string): Date {
   const parsed = new Date(`${iso}T00:00:00Z`);
-  return Number.isNaN(parsed.getTime()) ? new Date(`${isoOf(new Date())}T00:00:00Z`) : parsed;
+  return Number.isNaN(parsed.getTime()) ? new Date(`${todayIso()}T00:00:00Z`) : parsed;
 }
 
 function addDays(iso: string, days: number): string {
@@ -262,7 +282,7 @@ export class DayPickerComponent {
     const month = first.getUTCMonth();
     const start = new Date(first);
     start.setUTCDate(1 - first.getUTCDay());
-    const today = isoOf(new Date());
+    const today = todayIso();
 
     return [0, 1, 2, 3, 4, 5].map((week) =>
       [0, 1, 2, 3, 4, 5, 6].map((day) => {
