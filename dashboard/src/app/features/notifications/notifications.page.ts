@@ -6,6 +6,8 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { type NotificationView, NotificationViewKindEnum } from '../../api';
 import { activeLang } from '../../core/i18n/active-lang';
 import { NotificationsService, bodyKeyOf, titleKeyOf } from '../../core/notifications/notifications.service';
+import { CanDirective } from '../../core/permissions/can.directive';
+import { PermissionService } from '../../core/permissions/permission.service';
 import { EmptyStateComponent, PageComponent, TabsComponent, type Tab } from '../../ui';
 
 /** What the three kinds E2 writes can be narrowed by, and nothing that has no rows behind it. */
@@ -13,7 +15,7 @@ type CategoryFilter = 'all' | 'unread' | 'lessons';
 
 @Component({
   selector: 'hq-notifications-page',
-  imports: [NgClass, DatePipe, PageComponent, TabsComponent, EmptyStateComponent, TranslocoPipe],
+  imports: [NgClass, DatePipe, CanDirective, PageComponent, TabsComponent, EmptyStateComponent, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-page [title]="'notifications.title' | transloco" [subtitle]="'notifications.subtitle' | transloco">
@@ -31,6 +33,7 @@ type CategoryFilter = 'all' | 'unread' | 'lessons';
           <div class="notifications__actions">
             @if (notificationsService.unreadCount() > 0) {
               <button
+                *hqCan="'notifications.write'"
                 type="button"
                 class="em-btn-sm em-btn-sm--ghost"
                 (click)="notificationsService.markAllRead()"
@@ -240,6 +243,7 @@ type CategoryFilter = 'all' | 'unread' | 'lessons';
 export class NotificationsPage {
   protected readonly notificationsService = inject(NotificationsService);
   private readonly router = inject(Router);
+  private readonly permissions = inject(PermissionService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
 
@@ -306,8 +310,13 @@ export class NotificationsPage {
     }
   }
 
+  /**
+   * The row marks itself read and then follows its `link`. The write is skipped for a read-only
+   * "View as" session, which the server refuses every POST from: the navigation is the point of
+   * the row, and a 403 red band on the way there is not.
+   */
   protected onOpenItem(item: NotificationView): void {
-    this.notificationsService.markRead(item.id);
+    if (this.permissions.can('notifications.write')) this.notificationsService.markRead(item.id);
     if (item.link) void this.router.navigateByUrl(item.link);
   }
 }

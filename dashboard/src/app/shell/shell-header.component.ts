@@ -10,6 +10,8 @@ import { AuthService } from '../core/auth/auth.service';
 import { ChatService } from '../core/chat/chat.service';
 import { SchoolScopeStore } from '../core/auth/school-scope.store';
 import { FeatureDirective } from '../core/flags/feature.directive';
+import { CanDirective } from '../core/permissions/can.directive';
+import { PermissionService } from '../core/permissions/permission.service';
 import { FLAGS, FlagService } from '../core/flags/flag.service';
 import { activeLang } from '../core/i18n/active-lang';
 import { LANGUAGES, LanguageService } from '../core/i18n/language.service';
@@ -47,7 +49,7 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
  */
 @Component({
   selector: 'hq-shell-header',
-  imports: [CdkMenu, CdkMenuItem, CdkMenuTrigger, FeatureDirective, RouterLink, TranslocoPipe],
+  imports: [CanDirective, CdkMenu, CdkMenuItem, CdkMenuTrigger, FeatureDirective, RouterLink, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (auth.impersonatedBy(); as actor) {
@@ -189,6 +191,7 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
           <span class="notifications-popup__title">{{ 'notifications.title' | transloco }}</span>
           @if (unreadNotifications() > 0) {
             <button
+              *hqCan="'notifications.write'"
               type="button"
               class="notifications-popup__mark-read"
               (click)="notificationsService.markAllRead()"
@@ -204,7 +207,7 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
               class="notifications-popup__item"
               [class.is-unread]="item.readAt === undefined"
               [routerLink]="item.link ?? '/notifications'"
-              (click)="notificationsService.markRead(item.id)"
+              (click)="markRead(item.id)"
             >
               <div class="notifications-popup__dot" [class.is-active]="item.readAt === undefined"></div>
               <div class="notifications-popup__content">
@@ -724,6 +727,7 @@ export class ShellHeaderComponent {
   protected readonly unreadChatCount = computed(() => this.chatService.totalUnread());
   protected readonly notificationsService = inject(NotificationsService);
   private readonly transloco = inject(TranslocoService);
+  private readonly permissions = inject(PermissionService);
   private readonly lang = activeLang();
   protected readonly unreadNotifications = this.notificationsService.unreadCount;
   protected readonly recentNotifications = this.notificationsService.recent;
@@ -738,6 +742,15 @@ export class ShellHeaderComponent {
   protected openNotifications(): void {
     this.notificationsService.refresh();
     this.canAskNotify.set(this.notificationsService.canAskPermission());
+  }
+
+  /**
+   * Opening a row marks it read, unless this session may not write: an Admin's read-only "View
+   * as" session would take a 403 for it, and a red band over a row she only looked at is worse
+   * than a dot that stays. The link still follows — reading is a read.
+   */
+  protected markRead(id: string): void {
+    if (this.permissions.can('notifications.write')) this.notificationsService.markRead(id);
   }
 
   protected notificationTitle(item: NotificationView): string {
