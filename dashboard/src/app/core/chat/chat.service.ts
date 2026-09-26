@@ -1,6 +1,14 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { catchError, of, tap } from 'rxjs';
-import { ChatApi, ChatMessage, ChatMessageSenderEnum, ChatThread } from '../../api';
+import {
+  ChatApi,
+  ChatMessage,
+  ChatMessageSenderEnum,
+  ChatThread,
+  ChatThreadStaffRoleEnum,
+  ChatThreadStatusEnum,
+  ChatThreadTopicEnum,
+} from '../../api';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
@@ -137,6 +145,11 @@ export class ChatService {
         teacherId: this.auth.user()?.id ?? '',
         teacherName: this.auth.user()?.displayName ?? '',
         unread: 0,
+        // R4 made the staff peer, the topic and the status part of a thread row. A teacher's own
+        // conversation about one child is the C1 shape, which is what these three defaults say.
+        staffRole: ChatThreadStaffRoleEnum.TEACHER,
+        topic: ChatThreadTopicEnum.QUESTION,
+        status: ChatThreadStatusEnum.OPEN,
       });
     }
     this.selectThread(childId);
