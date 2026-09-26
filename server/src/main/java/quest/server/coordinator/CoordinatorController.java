@@ -122,4 +122,18 @@ public class CoordinatorController {
     public String coordinatorLesson(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
         return json.encodeShared(coordinators.lesson(CoordinatorScope.require(caller), id), AdminLesson.Companion.serializer());
     }
+
+    /**
+     * E1's poll, for her read-only lesson page: the same `LessonStatusView` the teacher's and the Admin's `/status`
+     * routes answer. It is here rather than beside R3's other reads because it carries no feature flag — the subject
+     * of the route is the lesson itself, which is this role's own area, and `SecurityConfig` keeps her out of
+     * `/teacher/**`, so without this route her page would have nothing to tick against.
+     */
+    @GetMapping(value = "/coordinator/lessons/{id}/status", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('coordinator.lesson.read')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = quest.api.LessonStatusView.class)))
+    public String coordinatorLessonStatus(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
+        return json.encodeShared(coordinators.lessonStatus(CoordinatorScope.require(caller), id),
+                quest.api.LessonStatusView.Companion.serializer());
+    }
 }

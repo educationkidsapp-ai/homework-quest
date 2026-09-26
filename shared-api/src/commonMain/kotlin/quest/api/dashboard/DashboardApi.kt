@@ -687,6 +687,14 @@ interface DashboardApi {
     /** `GET /coordinator/lessons/{id}` — the same lesson view the teacher gets, and no route that writes it. */
     suspend fun coordinatorLesson(lessonId: String): quest.api.AdminLesson
 
+    /**
+     * `GET /coordinator/lessons/{id}/status` — E1's poll ([AdminApi.lessonStatus]'s answer) for a lesson in her scope,
+     * so her read-only lesson page ticks against her own area: `SecurityConfig` refuses a COORDINATOR every route
+     * under `/teacher`.
+     * `coordinator.lesson.read`, and no feature flag — the subject of the route is the lesson itself.
+     */
+    suspend fun coordinatorLessonStatus(lessonId: String): quest.api.LessonStatusView
+
     // ---- R3: the teacher's numbers, read through her scope (DR2)
     //
     // Every return type below is the teacher's own: the server delegates to the grading and exam services rather

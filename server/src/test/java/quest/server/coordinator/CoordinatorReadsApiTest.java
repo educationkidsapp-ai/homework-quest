@@ -134,6 +134,8 @@ class CoordinatorReadsApiTest extends GradingTestSupport {
     @Test void a_lesson_and_an_exam_answer_the_teachers_own_bodies() throws Exception {
         assertSameBody("/teacher/lessons/" + LESSON + "/results", "/coordinator/lessons/" + LESSON + "/results");
         assertSameBody("/teacher/exams/" + EXAM + "/results", "/coordinator/exams/" + EXAM + "/results");
+        // E1's poll, so her read-only lesson page never ticks against a `/teacher/**` route her role is refused at.
+        assertSameBody("/teacher/lessons/" + LESSON + "/status", "/coordinator/lessons/" + LESSON + "/status");
     }
 
     /**
@@ -188,6 +190,7 @@ class CoordinatorReadsApiTest extends GradingTestSupport {
         // The tab lists exactly what she may open: the english exam is absent above and a 403 here.
         mvc.perform(as(get("/coordinator/exams/" + ENGLISH_EXAM + "/results"), coordinator)).andExpect(status().isForbidden());
         mvc.perform(as(get("/coordinator/lessons/" + ENGLISH_LESSON + "/results"), coordinator)).andExpect(status().isForbidden());
+        mvc.perform(as(get("/coordinator/lessons/" + ENGLISH_LESSON + "/status"), coordinator)).andExpect(status().isForbidden());
 
         var herChild = json(mvc.perform(as(get("/coordinator/children/" + kidMine), coordinator))
                 .andExpect(status().isOk()).andReturn());

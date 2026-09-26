@@ -198,7 +198,10 @@ curriculum track (`american` / `british`) or for both, across every grade and ev
   is a department (British / American). The seed writes those rows; the manager's own reads are RM1.
 - **Routes**: `GET /coordinator/me` (scope + counts), `/coordinator/teachers`, `/coordinator/classes`,
   `/coordinator/calendar?from&to` (every class in scope, day by day, ≤ 62 days), `/coordinator/lessons` and
-  `/coordinator/lessons/{id}` (the teacher's own lesson view, read-only; `status` is `draft`, `ready` or `published`).
+  `/coordinator/lessons/{id}` (the teacher's own lesson view, read-only; `status` is `draft`, `ready` or `published`)
+  and `/coordinator/lessons/{id}/status` (R3 — E1's poll, the same `LessonStatusView` the teacher's and the Admin's
+  `/status` routes answer, so her read-only lesson page never ticks against a `/teacher` route her role is refused at
+  the matcher; `coordinator.lesson.read`, no flag, because the subject of the route is the lesson itself).
 - **Keys**: `coordinator.read` and `coordinator.lesson.read` (ADMIN + COORDINATOR), `coordinator.manage` (ADMIN only —
   a coordinator cannot widen her own scope). She also holds `me.*`, `auth.changePassword`, `notifications.*`,
   `chat.socket` and the two `media.*` reads, and no `*.write` key of the teacher's at all.

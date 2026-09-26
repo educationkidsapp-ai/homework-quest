@@ -335,6 +335,7 @@
     { "method": "GET", "path": "/coordinator/calendar", "permission": "coordinator.read" },
     { "method": "GET", "path": "/coordinator/lessons", "permission": "coordinator.lesson.read" },
     { "method": "GET", "path": "/coordinator/lessons/{id}", "permission": "coordinator.lesson.read" },
+    { "method": "GET", "path": "/coordinator/lessons/{id}/status", "permission": "coordinator.lesson.read" },
     { "method": "GET", "path": "/coordinator/classes/{id}/attendance", "permission": "coordinator.attendance.read" },
     { "method": "GET", "path": "/coordinator/classes/{id}/results", "permission": "coordinator.results.read" },
     { "method": "GET", "path": "/coordinator/lessons/{id}/results", "permission": "coordinator.results.read" },

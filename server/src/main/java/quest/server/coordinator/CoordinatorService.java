@@ -181,6 +181,18 @@ public class CoordinatorService {
         return admin.toAdmin(scope.requireLesson(caller, lessonId), true);
     }
 
+    /**
+     * E1's poll answer for a lesson of hers — the same {@link quest.api.LessonStatusView} the teacher's and the
+     * Admin's `/status` routes give the progress strip, so a coordinator's read-only lesson page never has to tick
+     * against a `/teacher/**` route her role is refused at the matcher.
+     *
+     * <p>{@link AdminLessonService#status} rather than {@link AdminLessonService#toAdmin}, for that method's own
+     * reason: four small reads, no play decoding and no ledger backfill, which is what a 2.5 s tick may cost.
+     */
+    public quest.api.LessonStatusView lessonStatus(Principals.User caller, String lessonId) {
+        return admin.status(scope.requireLesson(caller, lessonId));
+    }
+
     // ---------------------------------------------------------------- the statements
 
     /** `[classId -> live children]` for every section in scope: one statement, never one per class. */

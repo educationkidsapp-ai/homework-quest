@@ -10214,6 +10214,32 @@
         "tags" : [ "Coordinator results" ]
       }
     },
+    "/coordinator/lessons/{id}/status" : {
+      "get" : {
+        "operationId" : "coordinatorLessonStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LessonStatusView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator" ]
+      }
+    },
     "/coordinator/me" : {
       "get" : {
         "operationId" : "coordinatorMe",

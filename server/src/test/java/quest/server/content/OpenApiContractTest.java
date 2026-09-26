@@ -142,7 +142,7 @@ class OpenApiContractTest extends ApiTestSupport {
      */
     static final List<String> COORDINATOR_API = List.of(
             "/coordinator/me", "/coordinator/teachers", "/coordinator/classes", "/coordinator/calendar",
-            "/coordinator/lessons", "/coordinator/lessons/{id}",
+            "/coordinator/lessons", "/coordinator/lessons/{id}", "/coordinator/lessons/{id}/status",
             "/coordinator/classes/{id}/attendance", "/coordinator/classes/{id}/results",
             "/coordinator/lessons/{id}/results", "/coordinator/children/{id}",
             "/coordinator/classes/{id}/exams", "/coordinator/exams/{id}/results",
