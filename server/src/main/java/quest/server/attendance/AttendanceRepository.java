@@ -11,6 +11,9 @@ public interface AttendanceRepository extends JpaRepository<AttendanceEntity, St
 
     List<AttendanceEntity> findBySectionIdAndDate(String sectionId, LocalDate date);
 
+    /** R3: a window of one section, for `/coordinator/classes/{id}/attendance` — one statement, not one per day. */
+    List<AttendanceEntity> findBySectionIdAndDateBetweenOrderByDateAsc(String sectionId, LocalDate from, LocalDate to);
+
     Optional<AttendanceEntity> findByChildIdAndDate(String childId, LocalDate date);
 
     List<AttendanceEntity> findByChildIdAndDateBetweenOrderByDateDesc(String childId, LocalDate from, LocalDate to);

@@ -131,14 +131,21 @@ class OpenApiContractTest extends ApiTestSupport {
             "/me/notifications", "/me/notifications/unread-count", "/me/notifications/{id}/read", "/me/notifications/read-all");
 
     /**
-     * R2: the coordinator's read-only area and the Admin routes that create one (`quest.api.dashboard.Coordinator.kt`,
-     * `docs/plan.md` phase R). Not behind a feature flag — see `FeatureFlagCoverageTest.INFRASTRUCTURE` — and every
-     * path here is a GET except the two that mint an account and set a scope, because DR2 makes the role read-only on
-     * teaching data.
+     * R2 and R3: the coordinator's read-only area and the Admin routes that create one
+     * (`quest.api.dashboard.Coordinator.kt`, `docs/plan.md` phase R). Every path here is a GET except the two that
+     * mint an account and set a scope, because DR2 makes the role read-only on teaching data.
+     *
+     * <p>R2's own routes are not behind a feature flag — see `FeatureFlagCoverageTest.INFRASTRUCTURE`. R3's are: the
+     * three `results` paths and the child page carry `gradebook` and the two exam paths carry `exams`, the same keys
+     * the teacher's `GradingController` and `ExamController` carry, so a school with the feature off answers 404 to
+     * both roles. The register carries none, as `/teacher/classes/{classId}/attendance` carries none.
      */
     static final List<String> COORDINATOR_API = List.of(
             "/coordinator/me", "/coordinator/teachers", "/coordinator/classes", "/coordinator/calendar",
             "/coordinator/lessons", "/coordinator/lessons/{id}",
+            "/coordinator/classes/{id}/attendance", "/coordinator/classes/{id}/results",
+            "/coordinator/lessons/{id}/results", "/coordinator/children/{id}",
+            "/coordinator/classes/{id}/exams", "/coordinator/exams/{id}/results",
             "/admin/coordinators", "/admin/coordinators/{id}/scopes");
 
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */

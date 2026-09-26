@@ -219,6 +219,21 @@ beside `TeacherController` and `TeacherAdminController`, because `/coordinator` 
 one feature of it, and the Admin half is how a coordinator comes to exist at all. Her *features* stay flagged where
 they live (R3's `gradebook` and `exams`, R4's `chat`, `complaints` and `announcements`).
 
+**R3 — the teacher's numbers, read through her scope.** `GET /coordinator/classes/{id}/attendance?from&to` (one
+per-day register per day of the window; the week ending today when both bounds are absent, ≤ 62 days),
+`/coordinator/classes/{id}/results` and `/coordinator/lessons/{id}/results` (§7's gradebook grid and per-lesson
+results), `/coordinator/children/{id}` (§7's child page) and `/coordinator/classes/{id}/exams` +
+`/coordinator/exams/{id}/results` (§8's Exams tab and results). Each one resolves the id it names through
+`CoordinatorScope` — `requireSection` for a class, `requireLesson` for a lesson **or an exam**, so an english exam
+parked in a section the maths coordinator supervises is still a 403, `requireChild` for a child — and then hands the
+resolved row to the very service the teacher's route uses, so there is no second gradebook to drift out of step with
+§7's and `CoordinatorReadsApiTest` asserts the two bodies are the same JSON. The keys continue R2's family:
+`coordinator.attendance.read`, `coordinator.results.read` and `coordinator.exams.read` (ADMIN + COORDINATOR, no
+`write` sibling), so an owner can close the gradebook to coordinators without closing the area. The five flagged reads
+carry `gradebook` and `exams` on the handler — the same keys the teacher's `GradingController` and `ExamController`
+carry, so a school with a feature off answers 404 to both roles — and the register carries none, because
+`AttendanceController` carries none and `FlagKeys` has no key for taking a register.
+
 ### The matrix
 
 Generated from `permissions.json` on `develop` (`152f2c8`), before `COORDINATOR` existed — the three keys above are

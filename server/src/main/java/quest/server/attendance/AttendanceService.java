@@ -51,7 +51,32 @@ public class AttendanceService {
         List<AttendanceEntity> recorded = attendance.findBySectionIdAndDate(classId, targetDate);
         Map<String, AttendanceEntity> byChild = recorded.stream()
                 .collect(Collectors.toMap(AttendanceEntity::getChildId, Function.identity(), (a, b) -> a));
+        return dayOf(section, targetDate, roster, byChild);
+    }
 
+    /**
+     * R3: the same per-day body, once per day of a window, for a section a caller has <em>already</em> been scoped
+     * to — `/coordinator/classes/{id}/attendance` resolves it through {@link quest.server.tenancy.CoordinatorScope}
+     * and hands it over, because {@link TeacherScope} would answer a coordinator a question about a teacher.
+     *
+     * <p>Two statements whatever the window: the roster once, and the window's rows once. Calling
+     * {@link #getClassAttendance} per day would be two per day, which is a hundred and twenty for a month.
+     */
+    @Transactional(readOnly = true)
+    public List<AttendanceDto.ClassAttendanceResponse> classAttendanceWindow(ClassEntity section, LocalDate from, LocalDate to) {
+        var roster = children.findByClassIdAndActiveTrueAndDeletedAtIsNullOrderByNameAsc(section.getId());
+        var byDate = new java.util.HashMap<LocalDate, Map<String, AttendanceEntity>>();
+        for (AttendanceEntity row : attendance.findBySectionIdAndDateBetweenOrderByDateAsc(section.getId(), from, to))
+            byDate.computeIfAbsent(row.getDate(), d -> new java.util.HashMap<>()).putIfAbsent(row.getChildId(), row);
+        var days = new ArrayList<AttendanceDto.ClassAttendanceResponse>();
+        for (LocalDate day = from; !day.isAfter(to); day = day.plusDays(1))
+            days.add(dayOf(section, day, roster, byDate.getOrDefault(day, Map.of())));
+        return List.copyOf(days);
+    }
+
+    /** One day of one section: the roster in name order, each child's row or `NOT_MARKED`, and the five counts. */
+    private AttendanceDto.ClassAttendanceResponse dayOf(ClassEntity section, LocalDate targetDate,
+                                                       List<ChildEntity> roster, Map<String, AttendanceEntity> byChild) {
         List<AttendanceDto.ClassAttendanceItem> items = new ArrayList<>();
         int present = 0, absent = 0, late = 0, excused = 0;
 

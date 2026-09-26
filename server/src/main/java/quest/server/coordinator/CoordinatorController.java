@@ -48,10 +48,10 @@ import quest.server.tenancy.CoordinatorScope;
 @RestController
 @Tag(name = "Coordinator", description = "A subject coordinator's read-only view of the school she supervises")
 public class CoordinatorController {
-    private final CoordinatorService coordinators; private final Json json;
+    private final CoordinatorService coordinators; private final CoordinatorReadsService reads; private final Json json;
 
-    public CoordinatorController(CoordinatorService coordinators, Json json) {
-        this.coordinators = coordinators; this.json = json;
+    public CoordinatorController(CoordinatorService coordinators, CoordinatorReadsService reads, Json json) {
+        this.coordinators = coordinators; this.reads = reads; this.json = json;
     }
 
     /** Her scope and its three numbers — what the Home screen leads with, in one request. */
@@ -82,6 +82,24 @@ public class CoordinatorController {
                                                                   @RequestParam(required = false) String from,
                                                                   @RequestParam(required = false) String to) {
         return coordinators.calendar(CoordinatorScope.require(caller), from, to);
+    }
+
+    /**
+     * `GET /coordinator/classes/{id}/attendance?from&to` — the teacher's own per-day, per-child register for a section
+     * she supervises, one body per day of the window. Both bounds absent is the week ending today, and the window is
+     * capped like the calendar's.
+     *
+     * <p>It sits on this class rather than on {@link CoordinatorReadsController} because it names no feature flag, for
+     * the reason {@code AttendanceController} names none: taking register is not an optional feature and
+     * {@link quest.server.flags.FlagKeys} has no key for it. R3's flagged reads are next door, where every handler
+     * does name one.
+     */
+    @GetMapping(value = "/coordinator/classes/{id}/attendance", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('coordinator.attendance.read')")
+    public List<quest.server.attendance.AttendanceDto.ClassAttendanceResponse> coordinatorAttendance(
+            @AuthenticationPrincipal Principals.User caller, @PathVariable String id,
+            @RequestParam(required = false) String from, @RequestParam(required = false) String to) {
+        return reads.attendance(CoordinatorScope.require(caller), id, from, to);
     }
 
     /** The teacher's lesson rows, reduced to her subject. `status` is `draft`, `ready` or `published`. */

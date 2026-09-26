@@ -92,6 +92,9 @@
     "child.attendance.read": ["PARENT"],
     "coordinator.read": ["ADMIN", "COORDINATOR"],
     "coordinator.lesson.read": ["ADMIN", "COORDINATOR"],
+    "coordinator.attendance.read": ["ADMIN", "COORDINATOR"],
+    "coordinator.results.read": ["ADMIN", "COORDINATOR"],
+    "coordinator.exams.read": ["ADMIN", "COORDINATOR"],
     "coordinator.manage": ["ADMIN"]
   },
   "endpoints": [
@@ -332,6 +335,12 @@
     { "method": "GET", "path": "/coordinator/calendar", "permission": "coordinator.read" },
     { "method": "GET", "path": "/coordinator/lessons", "permission": "coordinator.lesson.read" },
     { "method": "GET", "path": "/coordinator/lessons/{id}", "permission": "coordinator.lesson.read" },
+    { "method": "GET", "path": "/coordinator/classes/{id}/attendance", "permission": "coordinator.attendance.read" },
+    { "method": "GET", "path": "/coordinator/classes/{id}/results", "permission": "coordinator.results.read" },
+    { "method": "GET", "path": "/coordinator/lessons/{id}/results", "permission": "coordinator.results.read" },
+    { "method": "GET", "path": "/coordinator/children/{id}", "permission": "coordinator.results.read" },
+    { "method": "GET", "path": "/coordinator/classes/{id}/exams", "permission": "coordinator.exams.read" },
+    { "method": "GET", "path": "/coordinator/exams/{id}/results", "permission": "coordinator.exams.read" },
     { "method": "GET", "path": "/admin/coordinators", "permission": "coordinator.manage" },
     { "method": "POST", "path": "/admin/coordinators", "permission": "coordinator.manage" },
     { "method": "PUT", "path": "/admin/coordinators/{id}/scopes", "permission": "coordinator.manage" }
