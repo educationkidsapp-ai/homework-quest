@@ -228,9 +228,6 @@ export class LessonsPage {
     defaultValue: [],
   });
 
-  protected readonly hasRunning = computed(() =>
-    this.lessons.value().some((row) => isRunningStatus(row.status)),
-  );
   protected readonly hasFailed = computed(() =>
     this.lessons.value().some((row) => row.status === AdminLessonStatusEnum.ERROR),
   );
