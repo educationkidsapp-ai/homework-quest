@@ -1,6 +1,7 @@
 package quest.api.dashboard
 
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import quest.api.dto.Curriculum
 import quest.api.dto.Subject
@@ -126,3 +127,162 @@ data class ManagerCreated(val manager: ManagerAccount, val temporaryPassword: St
 /** `PUT /admin/managers/{id}/scopes`: the complete set of departments she should hold afterwards. */
 @Serializable
 data class ManagerDepartmentsRequest(val curricula: List<Curriculum> = emptyList())
+
+// ---------------------------------------------------------------------------------------------------------------
+// RM5 `backend/staff-attendance-people` — DR7: the staff register, and the department's people directory
+// ---------------------------------------------------------------------------------------------------------------
+
+/** The four things a day can say about a member of staff. V22's `CHECK` constraint holds exactly these. */
+@Serializable
+enum class StaffAttendanceStatus {
+    @SerialName("present") PRESENT,
+    @SerialName("absent") ABSENT,
+    @SerialName("late") LATE,
+    @SerialName("leave") LEAVE,
+}
+
+/** Which of the two roles of a department puts somebody on its register. */
+@Serializable
+enum class StaffRole { @SerialName("TEACHER") TEACHER, @SerialName("COORDINATOR") COORDINATOR }
+
+/**
+ * One person on the staff register. [status] is absent while nobody has marked her — never `present` by default, the
+ * rule [ManagementGradeStats.attendanceRate] follows: an unmarked day is no answer rather than a good one.
+ */
+@Serializable
+data class StaffAttendanceRow(
+    val userId: String,
+    val email: String,
+    val displayName: String,
+    val photoUrl: String? = null,
+    val role: StaffRole,
+    val status: StaffAttendanceStatus? = null,
+    val note: String? = null,
+    val markedBy: String? = null,
+    val markedAt: Long? = null,
+)
+
+/**
+ * `GET /management/staff-attendance?day=` and the body the `PUT` answers: the department's teachers and coordinators
+ * for one day. [editable] is false on a day nobody may mark — a non-teaching day, or one still to come — and is what
+ * a screen offers the marking on; the server refuses such a day with a 400 either way.
+ */
+@Serializable
+data class StaffAttendanceDay(
+    val day: LocalDate,
+    val schoolDay: Boolean = true,
+    val editable: Boolean = false,
+    val people: List<StaffAttendanceRow> = emptyList(),
+    val present: Int = 0,
+    val absent: Int = 0,
+    val late: Int = 0,
+    val leave: Int = 0,
+    val unmarked: Int = 0,
+)
+
+/** One line of the `PUT` body: whom, what, and an optional note of at most 500 characters. */
+@Serializable
+data class MarkStaffAttendance(val userId: String, val status: StaffAttendanceStatus, val note: String? = null)
+
+/**
+ * One person's month: the four counts, the teaching days nobody marked, and [rate] — `(present + late) / marked`,
+ * absent where nothing was marked at all, so an empty register is no answer rather than a perfect one.
+ */
+@Serializable
+data class StaffAttendanceSummaryRow(
+    val userId: String,
+    val email: String,
+    val displayName: String,
+    val role: StaffRole,
+    val present: Int = 0,
+    val absent: Int = 0,
+    val late: Int = 0,
+    val leave: Int = 0,
+    val unmarked: Int = 0,
+    val rate: Double? = null,
+)
+
+/**
+ * `GET /management/staff-attendance/summary?month=YYYY-MM`: a row per person over the teaching days of that month up
+ * to today, so a month still running is not scored as though its remaining days were missed.
+ */
+@Serializable
+data class StaffAttendanceSummary(
+    val month: String,
+    val from: LocalDate,
+    val to: LocalDate,
+    val schoolDays: Int = 0,
+    val people: List<StaffAttendanceSummaryRow> = emptyList(),
+)
+
+/** One marked day of one person's history. */
+@Serializable
+data class StaffAttendanceMark(
+    val day: LocalDate,
+    val status: StaffAttendanceStatus,
+    val note: String? = null,
+    val markedBy: String? = null,
+    val markedAt: Long = 0,
+)
+
+/** `GET /management/staff-attendance/{userId}?from&to`: one person's marked days, newest first. */
+@Serializable
+data class StaffAttendanceHistory(
+    val userId: String,
+    val displayName: String,
+    val role: StaffRole,
+    val from: LocalDate,
+    val to: LocalDate,
+    val marks: List<StaffAttendanceMark> = emptyList(),
+)
+
+/**
+ * `GET /management/people/children`: a child of the department with the contact the school actually holds.
+ *
+ * Two addresses, because the school has two: [parentEmail] is the account a parent signed up with (absent until she
+ * does) and [rosterEmail] is what the imported roster carries. **No telephone number is returned because no table
+ * holds one** — neither the roster nor a staff account has the column. [placedAt] is when the child joined the section,
+ * in epoch millis like every other timestamp here.
+ */
+@Serializable
+data class DirectoryChild(
+    val childId: String,
+    val name: String,
+    val classId: String? = null,
+    val className: String? = null,
+    val grade: Int = 0,
+    val curriculum: Curriculum,
+    val parentEmail: String? = null,
+    val rosterEmail: String? = null,
+    val placedAt: Long = 0,
+)
+
+/** One page of a directory list. [total] is every match, not the page; `size` 0 asks for the default of 25. */
+@Serializable
+data class ChildDirectory(
+    val page: Int = 0,
+    val size: Int = 25,
+    val total: Int = 0,
+    val rows: List<DirectoryChild> = emptyList(),
+)
+
+/**
+ * `GET /management/people/teachers`. The rows are [CoordinatorTeacher] — her subjects and her sections are exactly
+ * what `GET /management/teachers` already answers, so they are the same type rather than a copy that can drift.
+ */
+@Serializable
+data class TeacherDirectory(
+    val page: Int = 0,
+    val size: Int = 25,
+    val total: Int = 0,
+    val rows: List<CoordinatorTeacher> = emptyList(),
+)
+
+/** `GET /management/people/coordinators`, in [ManagerCoordinator]'s shape for the same reason. */
+@Serializable
+data class CoordinatorDirectory(
+    val page: Int = 0,
+    val size: Int = 25,
+    val total: Int = 0,
+    val rows: List<ManagerCoordinator> = emptyList(),
+)

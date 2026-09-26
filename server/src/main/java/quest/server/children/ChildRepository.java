@@ -49,6 +49,25 @@ public interface ChildRepository extends JpaRepository<Entities.ChildEntity, Str
     @Query("select c.curriculum, c.grade, count(c) from ChildEntity c where c.deletedAt is null group by c.curriculum, c.grade")
     List<Object[]> countByCourse();
 
+    // -------------------------------------------------------------- the department directory (RM5)
+
+    /**
+     * A page of the children on a set of sections, matched by name or by the roster's own parent address: what
+     * `GET /management/people/children` answers. `q` is always a `like` pattern (`%` when nothing was asked for), so
+     * the statement carries no `is null` test a driver would have to type, and the registered parent's address is
+     * resolved from `parents` afterwards rather than joined here — a page is at most a hundred rows and one `in` query
+     * is cheaper than a join across a table this one has no association to.
+     */
+    @Query("select c from ChildEntity c where c.classId in :classIds and c.deletedAt is null"
+            + " and (lower(c.name) like :q or lower(coalesce(c.parentEmail, '')) like :q)")
+    List<Entities.ChildEntity> findDirectory(@Param("classIds") java.util.Collection<String> classIds,
+                                            @Param("q") String q, org.springframework.data.domain.Pageable page);
+
+    /** How many children that same filter matches, for the directory's `total`. */
+    @Query("select count(c) from ChildEntity c where c.classId in :classIds and c.deletedAt is null"
+            + " and (lower(c.name) like :q or lower(coalesce(c.parentEmail, '')) like :q)")
+    long countDirectory(@Param("classIds") java.util.Collection<String> classIds, @Param("q") String q);
+
     /**
      * Look a child up through a query, not `em.find`: Hibernate filters do not apply to `find`, so a `findById` would
      * hand a scoped caller a child of another school — and with her every attempt, completion, sticker and recording,

@@ -279,7 +279,7 @@ class, every subject, every teacher and every coordinator of that track, and not
 and the area at `/management/**`. `ManagerScope` is `CoordinatorScope` one axis over — a coordinator is narrow in
 subject and wide in grade, a manager wide in subject and narrow in track — and RM1 is read-only, so
 `ManagerScopeArchitectureTest` fails the build on the first write added under `/management` that is not on its
-allow-list (RM2's broadcasts and chat and RM5's staff attendance go on that list with an argument each).
+allow-list (RM5's staff register is on that list with the argument for it; RM2's broadcasts and chat join it).
 
 - **Her scope** is the `staff_scopes` rows with **no subject**: `subject NULL, curriculum = <department>`, the same table
   a coordinator's `(subject, curriculum)` rows live in and the very rows `SchoolSeed` writes from `managers.csv`.
@@ -303,6 +303,25 @@ allow-list (RM2's broadcasts and chat and RM5's staff attendance go on that list
   could come into being.
 - **`GET /me`** carries `departments` for a MANAGERIAL caller — `assignments`' sibling for the third role, so the
   Management area can label itself without a second request. Her *numbers* stay on `/management/me`.
+- **Her people, and the one thing she writes (RM5).** `GET /management/staff-attendance?day=` is the staff register:
+  the teachers (`teachersOf`) and coordinators (`coordinatorsOf`) of her department for one day, each with that day's
+  status — `present`, `absent`, `late` or `leave`, and **absent from the row while nobody has marked her**, never
+  `present` by default. `PUT /management/staff-attendance?day=` upserts `[{userId, status, note?}]` into
+  `staff_attendance` (V22, unique on `(user_id, date)`) and answers the whole roster back. **The day rule:** a day may
+  be marked only when it is a teaching day of the school (`SchoolCalendar`, so a school that runs Monday–Friday is not
+  measured against the Gulf week) and is **not after today in the school's own zone** — today included, so the register
+  is taken on the morning it belongs to; both refusals are 400 and the roster's own `editable` flag is what a screen
+  offers the marking on. A `userId` of the other department is a 403 and writes nothing. `…/summary?month=YYYY-MM`
+  counts each person's four statuses, the teaching days nobody marked and a rate (`(present + late) / marked`, absent
+  where nothing was marked, and the window stops at today in the month still running); `…/{userId}?from&to` is one
+  person's marked days, capped at 62. The directory is `GET /management/people/children?classId&q`, `…/teachers` and
+  `…/coordinators`, all department-scoped and paged (`page`, `size` ≤ 100, with a `total`), `q` matching a name or an
+  address. A child's row carries **two** addresses — the account her parent signed up with and the roster's own
+  `children.parent_email` — and **no telephone number, because no table holds one**. Keys:
+  `management.staff.attendance` (the read and the write share one) and `management.people`, both ADMIN + MANAGERIAL.
+  `PUT /management/staff-attendance` is the only write in the whole namespace and is named in
+  `ManagerScopeArchitectureTest.ALLOWED_WRITES`; `ManagementPeopleController` joins the two INFRASTRUCTURE names below
+  for the register's reason — taking register is not an optional feature and `FlagKeys` has no key for it.
 - **The numbers are the teacher's numbers.** `ManagementService` resolves the id through `ManagerScope` and hands the
   resolved row to the service the teacher's own screen reads; `ManagementApiTest` asserts the bodies are the same JSON,
   register included. `ManagementController` and `ManagerAdminController` are in
