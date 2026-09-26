@@ -280,7 +280,11 @@
               [label]="'week.loading' | transloco"
             />
           } @else if (!hasFilteredRows()) {
-            <hq-empty-state [message]="'week.empty' | transloco" />
+            <!-- U1 item 1: an empty grid because of the search says so, rather than reading as a
+                 week with nothing in it. -->
+            <hq-empty-state
+              [message]="(search.term() ? 'week.searchEmpty' : 'week.empty') | transloco: { term: search.term() }"
+            />
           } @else {
             <div class="week__scroll">
               <div

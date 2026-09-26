@@ -157,6 +157,47 @@ export function groupByGrade(rows: readonly GridRow[]): readonly GradeGroup[] {
 }
 
 /**
+ * The header's search box over the week (U1 item 1): the rows and cards it visibly holds.
+ *
+ * Two kinds of match, because "1A" and "Fractions" are both things a teacher types:
+ *
+ * * the **row** matches — its class, subject, curriculum or grade — and the whole row stays, so
+ *   typing "1A" narrows the grid to that class with its week intact;
+ * * only some **cards** match, by lesson title, and the row stays with the cells that did not
+ *   match emptied — the same shape the status filter uses, so one code path draws both.
+ *
+ * A row with neither kind of match is dropped. The comparison is lower-cased and trimmed; the
+ * caller (the service) has already debounced.
+ */
+export function searchRows(rows: readonly GridRow[], query: string): readonly GridRow[] {
+  const term = query.trim().toLowerCase();
+  if (!term) return rows;
+  const out: GridRow[] = [];
+  for (const row of rows) {
+    if (rowMatches(row, term)) {
+      out.push(row);
+      continue;
+    }
+    const cells = row.cells.map((cell) =>
+      cellMatches(cell, term) ? cell : { ...cell, lesson: null, exam: null, status: 'none' as CellStatus },
+    );
+    if (cells.some((cell) => cell.lesson !== null || cell.exam !== null)) out.push({ ...row, cells });
+  }
+  return out;
+}
+
+function rowMatches(row: GridRow, term: string): boolean {
+  return [row.className, row.subject, row.curriculum, String(row.grade)].some((field) =>
+    field.toLowerCase().includes(term),
+  );
+}
+
+function cellMatches(cell: GridCell, term: string): boolean {
+  if (cell.lesson === null && cell.exam === null) return false;
+  return (cell.lesson?.title ?? '').toLowerCase().includes(term);
+}
+
+/**
  * A sibling is another class of the **same grade, curriculum and subject** — exactly what
  * `TeacherLessonService.requireSibling` lets a copy land in. Matching on grade and subject alone
  * would offer a British card a drop target in an American class and earn a 403 for it.

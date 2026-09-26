@@ -1337,7 +1337,8 @@
     "viewMode": {
       "teacher": "Show the raw JSON",
       "debug": "Hide the raw JSON"
-    }
+    },
+    "searchClear": "Clear the search"
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",
@@ -1719,7 +1720,11 @@
     "weekend": {
       "label": "Weekend",
       "cell": "No lessons on {{day}} — the school does not teach that day."
-    }
+    },
+    "search": {
+      "placeholder": "Search this week: class, subject or lesson"
+    },
+    "searchEmpty": "Nothing this week matches “{{term}}”."
   },
   "player": {
     "gallery": {

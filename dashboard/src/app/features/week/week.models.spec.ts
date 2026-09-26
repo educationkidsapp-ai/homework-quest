@@ -9,6 +9,7 @@ import {
   isPendingId,
   pendingCopyId,
   rowsOf,
+  searchRows,
   siblingsOf,
   statusOf,
   withCopiedLesson,
@@ -200,5 +201,36 @@ describe('a weekend column', () => {
       ],
     });
     expect(weekendCard[0]!.cells.at(-1)).toMatchObject({ weekend: true, movable: false });
+  });
+});
+
+// U1 item 1 — the header's search box, which filtered nothing before this slice.
+describe('searching the week', () => {
+  it('leaves the week alone when the box is empty or only spaces', () => {
+    expect(searchRows(rows, '')).toBe(rows);
+    expect(searchRows(rows, '   ')).toBe(rows);
+  });
+
+  it('keeps a whole row when the class, the subject or the grade matches', () => {
+    expect(searchRows(rows, '1a').map((row) => row.classId)).toEqual(['c-1a']);
+    expect(searchRows(rows, 'MATH').map((row) => row.classId)).toEqual(['c-1a', 'c-1b', 'c-3a']);
+    expect(searchRows(rows, '3').map((row) => row.classId)).toEqual(['c-3a']);
+    // The row keeps its week: narrowing to a class is not narrowing to one card.
+    expect(searchRows(rows, '1a')[0]!.cells).toEqual(oneA.cells);
+  });
+
+  it('keeps the cards whose lesson title matches, and empties the cells that do not', () => {
+    const found = searchRows(rows, 'decimals');
+    expect(found.map((row) => row.classId)).toEqual(['c-3a']);
+    const cells = found[0]!.cells;
+    expect(cells.filter((cell) => cell.lesson !== null).map((cell) => cell.lesson!.title)).toEqual([
+      'Decimals',
+    ]);
+    expect(cells.filter((cell) => cell.lesson === null).every((cell) => cell.status === 'none')).toBe(true);
+  });
+
+  it('drops a row that matches by neither its own words nor a card of its own', () => {
+    expect(searchRows(rows, 'geography')).toEqual([]);
+    expect(searchRows(rows, 'fractions').map((row) => row.classId)).toEqual(['c-1a']);
   });
 });

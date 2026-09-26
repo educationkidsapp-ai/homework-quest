@@ -7,6 +7,7 @@ import { NgClass } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   Injector,
   afterNextRender,
@@ -36,6 +37,7 @@ import { FeatureDirective } from '../../core/flags/feature.directive';
 import { CanDirective } from '../../core/permissions/can.directive';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PlatformService } from '../../core/platform/platform.service';
+import { ScreenSearchService } from '../../core/shell/screen-search.service';
 import { UndoService } from '../../core/undo/undo.service';
 import {
   BandComponent,
@@ -54,6 +56,7 @@ import {
   groupByGrade,
   pendingCopyId,
   rowsOf,
+  searchRows,
   siblingsOf,
   weekendDaysOf,
   withCopiedLesson,
@@ -121,6 +124,9 @@ export class WeekPage {
   private readonly route = inject(ActivatedRoute);
   private readonly transloco = inject(TranslocoService);
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
+  /** U1 item 1: the header's search box while This week is showing. */
+  protected readonly search = inject(ScreenSearchService);
   private readonly lang = activeLang();
 
   /** The confirm strip, so the keyboard path can put focus on the question it just asked. */
@@ -189,11 +195,23 @@ export class WeekPage {
   protected readonly hasRows = computed(() => this.rows().length > 0);
 
   // ---- Filters -------------------------------------------------------------------------------
+
+  /**
+   * U1 item 1: the header's search box, which used to be wired to nothing.
+   *
+   * This week claims it on arrival and hands it back on leave, so the box says what it searches
+   * ("class, subject or lesson") and disappears on a screen that cannot answer it.
+   */
+  constructor() {
+    this.search.claim('week.search.placeholder');
+    this.destroyRef.onDestroy(() => this.search.release());
+  }
+
   protected readonly selectedClass = signal<string>('all');
   protected readonly statusFilter = signal<string>('all');
 
   protected readonly filteredRows = computed(() => {
-    let rows = this.rows();
+    let rows = searchRows(this.rows(), this.search.term());
     const sel = this.selectedClass();
     if (sel !== 'all') {
       rows = rows.filter((r) => r.classId === sel);

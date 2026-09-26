@@ -15,6 +15,7 @@ import { PermissionService } from '../core/permissions/permission.service';
 import { FLAGS, FlagService } from '../core/flags/flag.service';
 import { activeLang } from '../core/i18n/active-lang';
 import { LANGUAGES, LanguageService } from '../core/i18n/language.service';
+import { ScreenSearchService } from '../core/shell/screen-search.service';
 import { SIDEBAR_ID, SidebarService } from '../core/shell/sidebar.service';
 import { DarkModeService } from '../core/theme/dark-mode.service';
 import { NotificationsService, bodyKeyOf, titleKeyOf } from '../core/notifications/notifications.service';
@@ -75,18 +76,37 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
           </svg>
         </button>
 
-        <div class="header__search" role="search">
-          <svg class="header__search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            type="search"
-            class="header__search-input"
-            [placeholder]="'shell.searchPlaceholder' | transloco"
-            [attr.aria-label]="'shell.searchLabel' | transloco"
-          />
-        </div>
+        <!--
+          U1: the box belongs to the screen that claimed it (ScreenSearchService), and a screen
+          that filters nothing gets no box at all — a search field that answers nothing is the
+          defect this replaces. data-hq-search is what the shell's slash shortcut focuses.
+        -->
+        @if (search.active()) {
+          <div class="header__search" role="search" data-hq-search>
+            <svg class="header__search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="search"
+              class="header__search-input"
+              [value]="search.query()"
+              [placeholder]="search.placeholderKey() | transloco"
+              [attr.aria-label]="'shell.searchLabel' | transloco"
+              (input)="search.set($any($event.target).value)"
+            />
+            @if (search.query().length > 0) {
+              <button
+                type="button"
+                class="header__search-clear"
+                [attr.aria-label]="'shell.searchClear' | transloco"
+                (click)="search.clear()"
+              >
+                ✕
+              </button>
+            }
+          </div>
+        }
 
         <div class="header__actions">
           @if (isAdmin()) {
@@ -593,6 +613,25 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
       }
     }
 
+    // Inside the pill, on the inline-end edge: emptying the box is one click, not eight
+    // backspaces. It is only drawn while there is something to clear.
+    .header__search-clear {
+      position: absolute;
+      inset-inline-end: var(--hq-space-4);
+      display: grid;
+      place-items: center;
+      inline-size: var(--hq-size-icon-nav);
+      block-size: var(--hq-size-icon-nav);
+      border: 0;
+      border-radius: var(--hq-radius-pill);
+      background: transparent;
+      color: var(--hq-color-ink-soft);
+      font-size: var(--hq-text-theme-xs);
+      cursor: pointer;
+      @include m.hover-tint(var(--hq-color-surface-sunken));
+      @include m.focus-ring;
+    }
+
     // The language switch says which language it is on rather than drawing a globe nobody can
     // read a language off. Upper-cased by CSS so 'ar'/'en' stay the codes the service uses.
     .header__icon-text {
@@ -716,6 +755,8 @@ export class ShellHeaderComponent {
   protected readonly auth = inject(AuthService);
   protected readonly language = inject(LanguageService);
   protected readonly viewMode = inject(ViewModeService);
+  /** U1 item 1: the box the showing screen claimed, or nothing. */
+  protected readonly search = inject(ScreenSearchService);
   protected readonly languages = LANGUAGES;
 
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
