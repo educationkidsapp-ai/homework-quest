@@ -52,20 +52,30 @@ public interface ChildRepository extends JpaRepository<Entities.ChildEntity, Str
     // -------------------------------------------------------------- the department directory (RM5)
 
     /**
-     * A page of the children on a set of sections, matched by name or by the roster's own parent address: what
-     * `GET /management/people/children` answers. `q` is always a `like` pattern (`%` when nothing was asked for), so
-     * the statement carries no `is null` test a driver would have to type, and the registered parent's address is
-     * resolved from `parents` afterwards rather than joined here — a page is at most a hundred rows and one `in` query
-     * is cheaper than a join across a table this one has no association to.
+     * A page of the children on a set of sections, matched by name or by either address the school holds — the
+     * roster's own `parent_email` and the account her parent signed up with, which is why `ParentEntity` appears in an
+     * `exists` rather than a join: `children` has no association to `parents`, and the page's addresses are still
+     * fetched by id afterwards because at most a hundred rows come back.
+     *
+     * <p>`q` is always a `like` pattern (`%` when nothing was asked for), so the statement carries no `is null` test
+     * a driver would have to type, and `escape` is what makes a search box literal: {@code 100%} is four characters to
+     * look for, not "anything at all". {@code PeopleDirectoryService.pattern} is the one place that escapes `%`, `_`
+     * and the escape character itself, and all three statements here name the same one.
+     *
+     * <p>The escape character is the backslash, declared on every one of the three `like`s rather than left to the
+     * dialect's default: `PostgresStaffAttendanceTest` runs this statement on PostgreSQL 16, because an escape clause
+     * that works on H2 and not on the database QA runs on would widen a search silently.
      */
-    @Query("select c from ChildEntity c where c.classId in :classIds and c.deletedAt is null"
-            + " and (lower(c.name) like :q or lower(coalesce(c.parentEmail, '')) like :q)")
+    @Query("select c from ChildEntity c where c.classId in :classIds and c.deletedAt is null and ("
+            + "lower(c.name) like :q escape '\\' or lower(coalesce(c.parentEmail, '')) like :q escape '\\'"
+            + " or exists (select 1 from ParentEntity p where p.id = c.parentId and lower(p.email) like :q escape '\\'))")
     List<Entities.ChildEntity> findDirectory(@Param("classIds") java.util.Collection<String> classIds,
                                             @Param("q") String q, org.springframework.data.domain.Pageable page);
 
-    /** How many children that same filter matches, for the directory's `total`. */
-    @Query("select count(c) from ChildEntity c where c.classId in :classIds and c.deletedAt is null"
-            + " and (lower(c.name) like :q or lower(coalesce(c.parentEmail, '')) like :q)")
+    /** How many children that same filter matches, for the directory's `total` — the same predicate, counted. */
+    @Query("select count(c) from ChildEntity c where c.classId in :classIds and c.deletedAt is null and ("
+            + "lower(c.name) like :q escape '\\' or lower(coalesce(c.parentEmail, '')) like :q escape '\\'"
+            + " or exists (select 1 from ParentEntity p where p.id = c.parentId and lower(p.email) like :q escape '\\'))")
     long countDirectory(@Param("classIds") java.util.Collection<String> classIds, @Param("q") String q);
 
     /**

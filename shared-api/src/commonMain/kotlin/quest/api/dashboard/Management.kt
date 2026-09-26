@@ -132,7 +132,7 @@ data class ManagerDepartmentsRequest(val curricula: List<Curriculum> = emptyList
 // RM5 `backend/staff-attendance-people` — DR7: the staff register, and the department's people directory
 // ---------------------------------------------------------------------------------------------------------------
 
-/** The four things a day can say about a member of staff. V22's `CHECK` constraint holds exactly these. */
+/** The four things a day can say about a member of staff. V21's `CHECK` constraint holds exactly these. */
 @Serializable
 enum class StaffAttendanceStatus {
     @SerialName("present") PRESENT,

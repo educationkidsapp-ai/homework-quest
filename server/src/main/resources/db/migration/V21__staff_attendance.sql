@@ -1,4 +1,4 @@
--- V22 (RM5, DR7): staff attendance — a department manager's daily register for the teachers and coordinators of her
+-- V21 (RM5, DR7): staff attendance — a department manager's daily register for the teachers and coordinators of her
 -- department. The sibling of V16's `attendance`, one row per (person, day), with the same column vocabulary: `date`
 -- rather than `day` because DAY is a reserved word in H2 2.x and the student register next door already says `date`.
 --

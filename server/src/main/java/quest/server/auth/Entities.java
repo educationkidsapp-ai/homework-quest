@@ -10,7 +10,9 @@ import org.hibernate.annotations.Filter;
 public final class Entities {
     private Entities() {}
 
-    @Entity @Table(name = "parents")
+    /** Named for JPQL like `ChildEntity`: a nested `@Entity` has no usable default name, and RM5's directory
+     * matches a child against the address her parent signed up with in an `exists` over this table. */
+    @Entity(name = "ParentEntity") @Table(name = "parents")
     public static class ParentEntity {
         @Id private String id;
         @Column(name = "firebase_uid", nullable = false, unique = true) private String firebaseUid;

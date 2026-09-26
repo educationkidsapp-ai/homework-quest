@@ -34,6 +34,8 @@ import quest.server.tenancy.ManagerScope;
 public class PeopleDirectoryService {
     /** A page nobody asked to size, and the largest one anybody may ask for. */
     static final int DEFAULT_SIZE = 25, MAX_SIZE = 100;
+    /** The `escape` character both `like` statements in {@link ChildRepository} declare. */
+    private static final char ESCAPE = '\\';
 
     private final ManagerScope scope; private final ManagementService management;
     private final ChildRepository children; private final ParentRepository parents;
@@ -113,9 +115,23 @@ public class PeopleDirectoryService {
         return page;
     }
 
-    /** `%maya%`, lower-cased, or `%` when nothing was asked for — the statement always carries a pattern. */
-    private static String pattern(String q) {
-        return q == null || q.isBlank() ? "%" : "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
+    /**
+     * `%maya%`, lower-cased, or `%` when nothing was asked for — the statement always carries a pattern, so neither
+     * `like` needs an `is null` test.
+     *
+     * <p><strong>A search box is literal text.</strong> `%`, `_` and the escape character itself are wildcards to
+     * SQL and three ordinary characters to the person typing them, so each is escaped here and both statements in
+     * {@link ChildRepository} declare {@code escape '\'}. Without this, `%` matches every child of the department
+     * and `_` matches any single character — a search that quietly widens rather than narrows.
+     */
+    static String pattern(String q) {
+        if (q == null || q.isBlank()) return "%";
+        var out = new StringBuilder("%");
+        for (char c : q.trim().toLowerCase(Locale.ROOT).toCharArray()) {
+            if (c == '%' || c == '_' || c == ESCAPE) out.append(ESCAPE);
+            out.append(c);
+        }
+        return out.append('%').toString();
     }
 
     /** The in-memory half of the same rule: a blank `q` matches everybody. */

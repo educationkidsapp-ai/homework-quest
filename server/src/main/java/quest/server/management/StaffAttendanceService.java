@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import quest.server.auth.Entities.UserEntity;
@@ -40,7 +41,7 @@ import quest.server.tenancy.TenantContext;
  */
 @Service
 public class StaffAttendanceService {
-    /** The four statuses V22's `CHECK` constraint allows, as the wire spells them. */
+    /** The four statuses V21's `CHECK` constraint allows, as the wire spells them. */
     static final List<String> STATUSES = List.of("present", "absent", "late", "leave");
     /** The longest note a manager may leave beside a status. */
     static final int MAX_NOTE = 500;
@@ -48,11 +49,11 @@ public class StaffAttendanceService {
     static final int MAX_WINDOW_DAYS = ManagementService.MAX_WINDOW_DAYS;
 
     private final ManagerScope scope; private final StaffAttendanceRepository rows;
-    private final SchoolCalendar calendar; private final TenantContext tenant;
+    private final StaffAttendanceRows writer; private final SchoolCalendar calendar; private final TenantContext tenant;
 
-    public StaffAttendanceService(ManagerScope scope, StaffAttendanceRepository rows, SchoolCalendar calendar,
-                                  TenantContext tenant) {
-        this.scope = scope; this.rows = rows; this.calendar = calendar; this.tenant = tenant;
+    public StaffAttendanceService(ManagerScope scope, StaffAttendanceRepository rows, StaffAttendanceRows writer,
+                                  SchoolCalendar calendar, TenantContext tenant) {
+        this.scope = scope; this.rows = rows; this.writer = writer; this.calendar = calendar; this.tenant = tenant;
     }
 
     /** A member of the department, and which of the two roles put her on the register. */
@@ -71,8 +72,15 @@ public class StaffAttendanceService {
 
     // ---------------------------------------------------------------- PUT /management/staff-attendance
 
-    /** Marks a day for some of her people and answers the whole roster back, so the screen needs no second read. */
-    @Transactional
+    /**
+     * Marks a day for some of her people and answers the whole roster back, so the screen needs no second read.
+     *
+     * <p><strong>Every line is checked before any line is written</strong> — the day, the roster, the statuses and
+     * the notes — so a body that starts writing is one that will finish. The writes go through
+     * {@link StaffAttendanceRows}, a row at a time and each in its own transaction, because the unique
+     * `(user_id, date)` is what two tabs race on: the insert is attempted, and a violation means somebody marked that
+     * day first, so this request overwrites their row. The last `PUT` decides, which is what a register is.
+     */
     public ManagementDto.StaffAttendanceDay mark(Principals.User caller, String day,
                                                  List<ManagementDto.MarkStaffAttendance> items) {
         var people = department(caller);
@@ -94,22 +102,28 @@ public class StaffAttendanceService {
                 throw ApiException.badRequest(SectionService.displayName(person.user()) + " is named twice in one register.");
         }
 
+        // A status the constraint would refuse, or a note too long, stops the body before the first row is written.
+        var statuses = new LinkedHashMap<String, String>();
+        var notes = new LinkedHashMap<String, String>();
+        wanted.forEach((userId, item) -> { statuses.put(userId, status(item.status())); notes.put(userId, note(item.note())); });
+
         var existing = marks(people, date);
-        var saved = new ArrayList<StaffAttendanceEntity>(wanted.size());
         var now = java.time.Instant.now();
-        wanted.forEach((userId, item) -> {
-            var row = existing.get(userId);
-            if (row == null) {
-                row = new StaffAttendanceEntity();
-                row.setId(java.util.UUID.randomUUID().toString());
-                row.setSchoolId(tenant.writeSchoolId()); row.setUserId(userId); row.setDate(date);
+        String schoolId = tenant.writeSchoolId();
+        statuses.forEach((userId, status) -> {
+            StaffAttendanceEntity saved;
+            if (existing.containsKey(userId)) {
+                saved = writer.overwrite(userId, date, status, notes.get(userId), caller.userId(), now);
+            } else {
+                try {
+                    saved = writer.insert(schoolId, userId, date, status, notes.get(userId), caller.userId(), now);
+                } catch (DataIntegrityViolationException raced) {
+                    saved = writer.overwrite(userId, date, status, notes.get(userId), caller.userId(), now);
+                    if (saved == null) throw raced;
+                }
             }
-            row.setStatus(status(item.status()));
-            row.setNote(note(item.note()));
-            row.setMarkedBy(caller.userId()); row.setMarkedAt(now);
-            saved.add(row);
+            if (saved != null) existing.put(userId, saved);
         });
-        for (var row : rows.saveAll(saved)) existing.put(row.getUserId(), row);
         return day(date, today, people, existing);
     }
 
@@ -118,7 +132,8 @@ public class StaffAttendanceService {
     /**
      * A month per person: the four counts, the teaching days nobody marked, and a rate. The window ends at today when
      * the month is the one running, so a month half over is not scored as though its remaining days were missed, and
-     * `rate` is null where nothing was marked at all — RM1's rule, so an empty register reads as "no answer".
+     * `rate` is null where nothing was marked at all — RM1's rule, so an empty register reads as "no answer". A month
+     * that has not started is a 400 rather than a page of zeroes, for the reason a future day cannot be marked.
      */
     @Transactional(readOnly = true)
     public ManagementDto.StaffAttendanceSummary summary(Principals.User caller, String month) {
@@ -126,6 +141,8 @@ public class StaffAttendanceService {
         LocalDate today = today();
         YearMonth ym = month(month, today);
         LocalDate from = ym.atDay(1), to = ym.atEndOfMonth();
+        if (from.isAfter(today))
+            throw ApiException.badRequest(ym + " has not started yet — a register is taken on the day or after it.");
         if (to.isAfter(today)) to = today;
         var week = calendar.of(tenant.writeSchoolId());
         int schoolDays = 0;

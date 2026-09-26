@@ -1,6 +1,7 @@
 package quest.server.management;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -49,6 +50,7 @@ class ManagementPeopleApiTest extends GradingTestSupport {
     @Autowired StaffScopeRepository staffScopes;
     @Autowired StaffAttendanceRepository register;
     @Autowired SchoolCalendar calendar;
+    @Autowired StaffAttendanceRows rowWriter;
 
     private String nour, sami;
     private ClassEntity british;
@@ -73,6 +75,8 @@ class ManagementPeopleApiTest extends GradingTestSupport {
         String hana = child("Hana", CODE, british);
         child("Sara", CODE, british);
         child("Yousef", CODE, american);
+        // A name holding the two characters SQL reads as wildcards, so `?q=` can be proved literal.
+        child("100%_off", CODE, british);
         // The roster's own contact column, which an import fills in and a parent account does not.
         childRows.findById(hana).ifPresent(c -> { c.setParentEmail("guardian@british.test"); childRows.save(c); });
 
@@ -200,12 +204,12 @@ class ManagementPeopleApiTest extends GradingTestSupport {
 
     @Test void the_directory_answers_her_children_with_their_contact_and_not_the_other_departments() throws Exception {
         var body = json(mvc.perform(as(get("/management/people/children"), nour)).andExpect(status().isOk()).andReturn());
-        assertThat(body.get("total").asInt()).isEqualTo(2);
+        assertThat(body.get("total").asInt()).isEqualTo(3);
         assertThat(body.get("page").asInt()).isZero();
         assertThat(body.get("size").asInt()).isEqualTo(25);
-        assertThat(ids(body.get("rows"), "name")).containsExactly("Hana", "Sara").doesNotContain("Yousef");
+        assertThat(ids(body.get("rows"), "name")).containsExactly("100%_off", "Hana", "Sara").doesNotContain("Yousef");
 
-        var hana = body.get("rows").get(0);
+        var hana = body.get("rows").get(1);
         assertThat(hana.get("className").asText()).isEqualTo("1A British");
         assertThat(hana.get("curriculum").asText()).isEqualTo("british");
         assertThat(hana.get("grade").asInt()).isOne();
@@ -214,16 +218,65 @@ class ManagementPeopleApiTest extends GradingTestSupport {
         assertThat(hana.get("placedAt").asLong()).isPositive();
 
         // One section of the department, and a section of the other one.
-        assertThat(field(get("/management/people/children?classId=" + BRITISH), nour, "name")).containsExactly("Hana", "Sara");
+        assertThat(field(get("/management/people/children?classId=" + BRITISH), nour, "name")).contains("Hana", "Sara");
         mvc.perform(as(get("/management/people/children?classId=" + AMERICAN), nour)).andExpect(status().isForbidden());
         assertThat(field(get("/management/people/children"), sami, "name")).containsExactly("Yousef");
 
         // A page past the end is empty and still says how many there are.
         var second = json(mvc.perform(as(get("/management/people/children?page=1&size=1"), nour)).andExpect(status().isOk()).andReturn());
-        assertThat(second.get("total").asInt()).isEqualTo(2);
-        assertThat(ids(second.get("rows"), "name")).containsExactly("Sara");
+        assertThat(second.get("total").asInt()).isEqualTo(3);
+        assertThat(ids(second.get("rows"), "name")).containsExactly("Hana");
         mvc.perform(as(get("/management/people/children?size=500"), nour)).andExpect(status().isBadRequest());
         mvc.perform(as(get("/management/people/children?page=-1"), nour)).andExpect(status().isBadRequest());
+    }
+
+    @Test void q_is_literal_text_and_reaches_the_account_a_parent_signed_up_with() throws Exception {
+        // `%` and `_` are characters, not wildcards: each matches only the child whose name holds it. Set through
+        // `param` rather than in the path, because `MockMvcRequestBuilders.get` re-encodes a query string.
+        assertThat(field(children("%"), nour, "name")).containsExactly("100%_off");
+        assertThat(field(children("_"), nour, "name")).containsExactly("100%_off");
+        assertThat(field(children("100%_o"), nour, "name")).containsExactly("100%_off");
+        assertThat(field(children("Han%"), nour, "name")).as("a wildcard cannot be smuggled in").isEmpty();
+        assertThat(field(children("_ana"), nour, "name")).as("nor can a single-character one").isEmpty();
+        // The escape character itself is escaped too, so it matches text rather than breaking the statement.
+        assertThat(field(children("\\"), nour, "name")).isEmpty();
+        // And with no `q` at all every child of the department is still there.
+        assertThat(field(children(null), nour, "name")).hasSize(3);
+
+        // The other address the school holds: the account her parent actually signed up with, matched in the same
+        // statement as the roster's own column.
+        var hana = json(mvc.perform(as(get("/management/people/children?q=han"), nour)).andExpect(status().isOk()).andReturn())
+                .get("rows").get(0);
+        String account = hana.get("parentEmail").asText();
+        assertThat(account).isNotBlank().isNotEqualTo("guardian@british.test");
+        assertThat(field(get("/management/people/children?q=" + account), nour, "name")).contains("Hana");
+    }
+
+    @Test void a_second_mark_of_the_same_day_overwrites_the_row_the_first_one_wrote() throws Exception {
+        // The race, from the losing side: the row exists, so the insert `mark` would attempt is refused by the unique
+        // `(user_id, date)` and the recovery overwrites it. Forced here rather than with two threads, as `ExamApiTest`
+        // forces its own.
+        var now = java.time.Instant.now();
+        rowWriter.insert(SCHOOL, MAYA, schoolDay, "absent", null, NOUR, now);
+        assertThatThrownBy(() -> rowWriter.insert(SCHOOL, MAYA, schoolDay, "present", null, NOUR, now))
+                .as("the unique index is what makes read-then-insert unsafe")
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        // The endpoint takes the same day anyway: the last PUT decides, and there is still one row.
+        var body = json(mvc.perform(mark(nour, schoolDay, "[{\"userId\":\"" + MAYA + "\",\"status\":\"late\"}]"))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(row(body.get("people"), MAYA).get("status").asText()).isEqualTo("late");
+        assertThat(register.findAll().stream().filter(r -> r.getUserId().equals(MAYA)).toList()).hasSize(1);
+        assertThat(rowWriter.overwrite(MAYA, schoolDay, "leave", "Hajj", NOUR, now).getStatus()).isEqualTo("leave");
+        assertThat(rowWriter.overwrite(RAMI, schoolDay, "leave", null, NOUR, now)).as("no row to overwrite").isNull();
+    }
+
+    @Test void a_month_that_has_not_started_is_refused() throws Exception {
+        mvc.perform(as(get("/management/staff-attendance/summary?month=" + java.time.YearMonth.from(today).plusMonths(1)), nour))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("has not started")));
+        mvc.perform(as(get("/management/staff-attendance/summary?month=" + java.time.YearMonth.from(today)), nour))
+                .andExpect(status().isOk());
     }
 
     @Test void the_staff_lists_are_the_department_and_q_narrows_every_one_of_them() throws Exception {
@@ -251,6 +304,12 @@ class ManagementPeopleApiTest extends GradingTestSupport {
     }
 
     // ---------------------------------------------------------------- fixture helpers
+
+    /** `GET /management/people/children` with `q` set as a parameter, so no URI encoding stands between the two. */
+    private MockHttpServletRequestBuilder children(String q) {
+        var request = get("/management/people/children");
+        return q == null ? request : request.param("q", q);
+    }
 
     private MockHttpServletRequestBuilder mark(String token, LocalDate day, String body) {
         return as(put("/management/staff-attendance?day=" + day).contentType(MediaType.APPLICATION_JSON).content(body), token);

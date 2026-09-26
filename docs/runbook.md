@@ -307,7 +307,7 @@ allow-list (RM5's staff register is on that list with the argument for it; RM2's
   the teachers (`teachersOf`) and coordinators (`coordinatorsOf`) of her department for one day, each with that day's
   status — `present`, `absent`, `late` or `leave`, and **absent from the row while nobody has marked her**, never
   `present` by default. `PUT /management/staff-attendance?day=` upserts `[{userId, status, note?}]` into
-  `staff_attendance` (V22, unique on `(user_id, date)`) and answers the whole roster back. **The day rule:** a day may
+  `staff_attendance` (V21, unique on `(user_id, date)`) and answers the whole roster back. **The day rule:** a day may
   be marked only when it is a teaching day of the school (`SchoolCalendar`, so a school that runs Monday–Friday is not
   measured against the Gulf week) and is **not after today in the school's own zone** — today included, so the register
   is taken on the morning it belongs to; both refusals are 400 and the roster's own `editable` flag is what a screen

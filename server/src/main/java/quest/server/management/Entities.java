@@ -12,7 +12,7 @@ public final class Entities {
     private Entities() {}
 
     /**
-     * V22 (RM5): one day of one staff member's attendance, as her department manager marked it. The sibling of
+     * V21 (RM5): one day of one staff member's attendance, as her department manager marked it. The sibling of
      * {@code AttendanceEntity}, with a user in place of a child and no section: a teacher of two grades is present
      * once, not once per class.
      *

@@ -19,6 +19,9 @@ public interface StaffAttendanceRepository extends JpaRepository<Entities.StaffA
     /** One day for the whole department — the roster read, and the rows the upsert overwrites. */
     List<Entities.StaffAttendanceEntity> findByDateAndUserIdIn(LocalDate date, Collection<String> userIds);
 
+    /** One person's day, by the pair the unique index is on — the recovery read of a raced insert. */
+    java.util.Optional<Entities.StaffAttendanceEntity> findByUserIdAndDate(String userId, LocalDate date);
+
     /** One person's marked days inside a window, newest first. */
     List<Entities.StaffAttendanceEntity> findByUserIdAndDateBetweenOrderByDateDesc(String userId, LocalDate from, LocalDate to);
 
