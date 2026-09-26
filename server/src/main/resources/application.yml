@@ -8,7 +8,17 @@ spring:
   jpa:
     open-in-view: false
     hibernate.ddl-auto: validate
-    properties.hibernate.jdbc.time_zone: UTC
+    properties:
+      # Every timestamp column is `TIMESTAMP` without a zone and every report buckets it by UTC day, so an `Instant`
+      # must be stored as UTC wall time whatever zone the JVM runs in. `jdbc.time_zone` alone does not achieve that:
+      # Hibernate 6 binds an `Instant` as an offset timestamp by default, and the driver converts that into a zoneless
+      # column through the *session's* zone, the JVM's own. On a UTC+3 laptop a lesson published at 23:59:59 UTC was
+      # stored as 02:59:59 the next day, read back correctly by the entity (the same zone both ways) and yet counted on
+      # the wrong day by `CAST(published_at AS DATE)` — the reason `SchoolDataTest` failed on Friday and Saturday
+      # evenings. Binding `Instant` as a plain TIMESTAMP puts it under `jdbc.time_zone`, and `UsageWindowBoundaryTest`
+      # holds under any JVM zone. The column types Flyway created are what `validate` sees either way.
+      hibernate.jdbc.time_zone: UTC
+      hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
   flyway:
     enabled: true
   servlet.multipart:
