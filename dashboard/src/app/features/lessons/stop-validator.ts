@@ -31,6 +31,28 @@ async function loadValidators(): Promise<Readonly<Record<string, StopSchemaValid
 }
 
 /**
+ * Whether the 605 kB chunk has been asked for yet.
+ *
+ * E4a made that a rule rather than an accident: the module is the Raw JSON panel's, so a teacher
+ * — who cannot open that panel — must never download it, and `stop-editor-chunk.spec.ts` asserts
+ * on this rather than on a network log a jsdom test does not have.
+ */
+export function validatorsRequested(): boolean {
+  return validatorsPromise !== null;
+}
+
+/**
+ * Forget the module, so the next validation fetches it again.
+ *
+ * The recovery path for a load that failed — a deploy mid-session replaces the hashed chunk, and
+ * the import 404s — and what lets the chunk spec start from a clean slate whatever ran before it
+ * in the same module registry.
+ */
+export function forgetValidators(): void {
+  validatorsPromise = null;
+}
+
+/**
  * Ajv's `additionalProperties` message names the object but not the offending key — "must NOT
  * have additional properties" over a 40-line stop is a puzzle, so the key is appended here.
  */
@@ -59,7 +81,7 @@ export async function validateStopValue(type: StopType, value: unknown): Promise
   } catch (error) {
     // Never fall through to "valid": Save stays off and the reason is on screen, because a
     // validator that quietly stopped working is worse than one that is plainly broken.
-    validatorsPromise = null;
+    forgetValidators();
     return { valid: false, errors: [error instanceof Error ? error.message : 'The validators could not load.'] };
   }
   if (!validate) return { valid: false, errors: [`No schema for stop type "${type}".`] };

@@ -769,7 +769,8 @@
       "noClasses": "You have no classes yet. The office assigns them.",
       "uploadFailed": "We could not read the file you uploaded, so nothing was generated from it.",
       "uploadRetry": "Send the file again",
-      "uploadDelete": "Delete this draft"
+      "uploadDelete": "Delete this draft",
+      "otherSource": "Pick another source"
     },
     "detail": {
       "stepState": {
@@ -800,8 +801,7 @@
         "creatingLevel": "Creating the level…",
         "generating": "Writing the other levels…",
         "savingPanel": "Saving the parent panel…",
-        "movingDate": "Moving the lesson…",
-        "savingStopText": "Saving the stop…"
+        "movingDate": "Moving the lesson…"
       },
       "files": {
         "title": "Files",
@@ -938,7 +938,6 @@
         "idImmutable": "The id cannot change — the server addresses this stop by it.",
         "unknownType": "\"type\" must be one of the twenty-two stop types.",
         "addStop": "+ Add stop",
-        "createLevel": "Create this level",
         "generateTitle": "Generate the other levels",
         "generateLabel": "What this lesson is about",
         "generateHint": "A few sentences is enough — the model writes Levels 2 and 3 and the Again variant from it.",
@@ -970,9 +969,9 @@
         "title": "Add a question",
         "lede": "Five things, and the assistant writes the rest.",
         "titleLabel": "Title",
-        "titleHint": "What the child sees at the top of this stop. Up to 80 characters.",
+        "titleHint": "What the child sees at the top of this stop. Up to 40 characters.",
         "titleRequired": "Give this question a title.",
-        "titleTooLong": "That title is longer than 80 characters — shorten it a little.",
+        "titleTooLong": "That title is longer than 40 characters — shorten it a little.",
         "questionLabel": "Question / what the child does",
         "questionHint": "Describe the question in plain words; the assistant turns it into the exact format.",
         "questionRequired": "Write what the child should do.",
@@ -987,11 +986,11 @@
         "tipHint": "One line for the parent, in both languages. Left empty, the standard tip is used.",
         "save": "Save the question",
         "cancel": "Cancel",
-        "saving": "Saving… the assistant is turning your words into a question.",
         "added": "Question added",
         "discardTitle": "Throw this question away?",
         "discardBody": "What you have written here has not been saved.",
-        "discardConfirm": "Throw it away"
+        "discardConfirm": "Throw it away",
+        "saveAnother": "Save and add another"
       },
       "deleteStopConfirm": {
         "title": "Delete this stop?",
@@ -1061,6 +1060,24 @@
         "noSiblings": "You have no other class in this grade and subject.",
         "confirm": "Publish",
         "done": "Published. Each class has its own copy:"
+      },
+      "manualSteps": {
+        "class": "1. Class",
+        "lesson": "2. Lesson",
+        "questions": "3. Questions"
+      },
+      "draft": {
+        "writing": "The assistant is writing…",
+        "retry": "Retry",
+        "remove": "Remove",
+        "timedOut": "The assistant did not answer in time. Retry, or remove this question.",
+        "retryFor": "Retry {{title}}",
+        "removeFor": "Remove {{title}}"
+      },
+      "addLevel": {
+        "lede": "This level is empty. Write it yourself, or let the assistant write it from Level 1.",
+        "mine": "Write it myself",
+        "assistant": "Let the assistant write it"
       }
     },
     "analyzedBefore": "Analyzed before · 0 tokens",
@@ -1382,7 +1399,8 @@
       "countUp": "Count up",
       "motion": "Motion",
       "foundations": "Foundations",
-      "badge": "Badge"
+      "badge": "Badge",
+      "dayPicker": "Day picker"
     },
     "button": {
       "primary": "Primary",
@@ -1564,6 +1582,9 @@
       "success": "Published",
       "warning": "Needs review",
       "error": "Failed"
+    },
+    "dayPicker": {
+      "label": "Lesson day"
     }
   },
   "subject": {
@@ -1643,7 +1664,11 @@
       "error": "failed"
     },
     "cancel": "Cancel",
-    "retry": "Try again"
+    "retry": "Try again",
+    "dayPicker": {
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month"
+    }
   },
   "week": {
     "title": "This week",

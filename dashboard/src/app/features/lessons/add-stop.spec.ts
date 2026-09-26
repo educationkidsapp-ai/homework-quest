@@ -19,9 +19,8 @@ function dialogs(): readonly HTMLDialogElement[] {
 }
 
 /**
- * The save path is two awaited requests, so a signal written after the first response lands in
- * a later microtask than the click. Zoneless change detection needs to be let run before the
- * DOM is asked about it.
+ * E4a's save is fire-and-forget, but the two requests it starts still land on later microtasks
+ * than the click. Zoneless change detection needs to be let run before the DOM is asked about it.
  */
 async function settle(rendered: { fixture: { detectChanges(): void; whenStable(): Promise<unknown> } }) {
   rendered.fixture.detectChanges();
@@ -33,7 +32,7 @@ async function renderForm() {
   const added = vi.fn();
   const rendered = await renderHq(AddStopComponent, {
     providers: [provideHttpClient(), provideHttpClientTesting(), { provide: BASE_PATH, useValue: '' }],
-    inputs: { open: true, playId: 'p-1', subject: 'math', images: [] },
+    inputs: { open: true, lessonId: 'l-1', playId: 'p-1', subject: 'math', images: [] },
     on: { added },
   });
   return { rendered, added, backend: TestBed.inject(HttpTestingController) };
@@ -75,6 +74,28 @@ describe('hq-add-stop', () => {
     backend.verify();
   });
 
+  /**
+   * `Play.schema.json` caps a stop's `title` at 40 on every branch. This form said 80, so a
+   * 41-character title passed it and `POST …/plays/{id}/stops` answered 400 on the template
+   * document — before the assistant was asked anything. The field now stops at the 40th letter.
+   */
+  it('cannot produce a title the schema would refuse', async () => {
+    const { backend, rendered } = await renderForm();
+    const title = form().getByLabelText(/^Title/);
+
+    expect(title).toHaveAttribute('maxlength', '40');
+    await userEvent.type(title, 'x'.repeat(41));
+    expect((title as HTMLInputElement).value).toHaveLength(40);
+    expect(form().getByText(/Up to 40 characters/)).toBeInTheDocument();
+
+    await userEvent.type(form().getByLabelText(/^Question \/ what the child does/), 'Join them up.');
+    await userEvent.selectOptions(form().getByLabelText(/^Type/), 'match');
+    await pressSave(rendered);
+
+    const created = backend.expectOne('/admin/plays/p-1/stops');
+    expect((JSON.parse(created.request.body as string) as { title: string }).title).toHaveLength(40);
+  });
+
   it('says what is wrong on blur, not while the first letter is still being typed', async () => {
     const { rendered } = await renderForm();
 
@@ -100,11 +121,15 @@ describe('hq-add-stop', () => {
     expect(title.getAttribute('aria-invalid')).toBe('true');
   });
 
-  it('creates the chosen type from its template, then converts the teacher’s words', async () => {
+  it('closes on the click and leaves both calls to the draft service', async () => {
     const { backend, added, rendered } = await renderForm();
 
     await fill();
     await pressSave(rendered);
+
+    // The sheet is gone before the model has been asked anything — the whole point of E4a.
+    expect(rendered.fixture.componentInstance.open()).toBe(false);
+    expect(added).toHaveBeenCalledOnce();
 
     const created = backend.expectOne('/admin/plays/p-1/stops');
     expect(created.request.method).toBe('POST');
@@ -121,52 +146,50 @@ describe('hq-add-stop', () => {
     expect((JSON.parse(converted.request.body as string) as { text: string }).text).toBe(
       'Match the pairs\n\nJoin each word to its picture.',
     );
-    converted.flush({ id: 'st-9', type: 'match', title: 'Match the pairs' });
-    await settle(rendered);
-
-    expect(added).toHaveBeenCalledWith('st-9');
-    expect(rendered.fixture.componentInstance.open()).toBe(false);
   });
 
-  it('deletes the template stop again when the conversion is refused, and keeps the words', async () => {
+  /** Ten questions of the same kind, without closing and re-opening the sheet nine times. */
+  it('keeps the sheet, the type and the tip on "Save and add another", and empties her words', async () => {
     const { backend, added, rendered } = await renderForm();
 
-    await fill();
-    await pressSave(rendered);
-    backend
-      .expectOne('/admin/plays/p-1/stops')
-      .flush({ id: 'st-9', type: 'match', title: 'Match the pairs' });
-    await settle(rendered);
-    backend
-      .expectOne('/admin/stops/st-9/from-text')
-      .flush(
-        { code: 'rephrase', message: 'Couldn’t save' },
-        { status: 422, statusText: 'Unprocessable Entity' },
-      );
+    await fill('Which shape has three sides', 'Show a triangle and a circle.', 'choice');
+    await userEvent.type(form().getByLabelText(/^Parent tip \(English\)/), 'Count the sides together.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save and add another' }));
     await settle(rendered);
 
-    // Nothing half-made: the stop that only existed to be rewritten goes with the refusal.
-    expect(backend.expectOne('/admin/stops/st-9').request.method).toBe('DELETE');
-    expect(form().getByText("Couldn't save, please rephrase.")).toBeInTheDocument();
     expect(rendered.fixture.componentInstance.open()).toBe(true);
-    expect(form().getByLabelText(/^Title/)).toHaveValue('Match the pairs');
-    expect(added).not.toHaveBeenCalled();
+    expect(form().getByLabelText(/^Title/)).toHaveValue('');
+    expect(form().getByLabelText(/^Question \/ what the child does/)).toHaveValue('');
+    // The type and the tip are the settings for a run of questions, so they stay.
+    expect(form().getByLabelText(/^Type/)).toHaveValue('choice');
+    expect(form().getByLabelText(/^Parent tip \(English\)/)).toHaveValue('Count the sides together.');
+    // And nothing is red: an emptied form she has not submitted again has nothing to complain of.
+    expect(form().queryByText('Give this question a title.')).not.toBeInTheDocument();
+
+    // `match` takes the requests off the queue, so each call below is "what arrived since".
+    expect(backend.match('/admin/plays/p-1/stops')).toHaveLength(1);
+    expect(added).toHaveBeenCalledOnce();
+
+    // The second question is a second draft, not a second attempt at the first.
+    await fill('Which shape is round', 'Show the same three shapes.', 'choice');
+    await userEvent.click(screen.getByRole('button', { name: 'Save and add another' }));
+    await settle(rendered);
+    expect(backend.match('/admin/plays/p-1/stops')).toHaveLength(1);
+    expect(added).toHaveBeenCalledTimes(2);
   });
 
-  it('cannot be submitted twice', async () => {
+  /** The emptied form is its own double-submit guard: there is nothing valid left to send. */
+  it('sends nothing on a second press with the words already saved', async () => {
     const { backend, rendered } = await renderForm();
 
     await fill();
-    await pressSave(rendered);
-    // In flight, the primary action is `aria-busy` and disabled — there is no second press to
-    // make. Pressing the form's submit again anyway is refused by the guard behind it.
-    const save = screen.getByRole('button', { name: /Save the question$/ });
-    expect(save).toBeDisabled();
-    expect(save).toHaveAttribute('aria-busy', 'true');
-    document.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save and add another' }));
+    await settle(rendered);
+    await userEvent.click(screen.getByRole('button', { name: 'Save and add another' }));
     await settle(rendered);
 
     expect(backend.match('/admin/plays/p-1/stops')).toHaveLength(1);
+    expect(form().getByText('Give this question a title.')).toBeInTheDocument();
   });
 
   it('asks before throwing away words, and does not ask when there are none', async () => {

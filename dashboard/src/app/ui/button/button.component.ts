@@ -31,6 +31,7 @@ let nextReasonId = 0;
       [class.btn--block]="block()"
       [class.is-loading]="loading()"
       [attr.type]="type()"
+      [attr.aria-label]="ariaLabel()"
       [disabled]="disabled() || loading()"
       [attr.aria-busy]="loading() ? 'true' : null"
       [attr.title]="reason()"
@@ -175,6 +176,12 @@ export class ButtonComponent {
   readonly loading = input(false);
   /** Fills the width of its container — used by the sticky footer on narrow screens. */
   readonly block = input(false);
+  /**
+   * A name for this button when its words are not enough on their own — "Retry" repeated down a
+   * list of questions, say. It lands on the `<button>`; an `aria-label` on the `hq-button` host
+   * would name a generic element and leave the control inside it unnamed.
+   */
+  readonly ariaLabel = input<string | null>(null);
   /**
    * Why the button is disabled — a native tooltip on hover, and read out on focus via
    * `aria-describedby` (a screen-reader user tabbing to a disabled button gets no `title`

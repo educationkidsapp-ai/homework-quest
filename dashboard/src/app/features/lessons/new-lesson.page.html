@@ -105,13 +105,14 @@
     @if (step1Valid()) {
       <hq-card [title]="'lessons.new.lesson' | transloco">
         <div class="lesson-fields">
-          <hq-input
-            type="date"
+          <!-- Owner, 2026-09-26: the browser's own date popup is 11 px numerals in 24 px cells and
+               no stylesheet reaches it. `hq-day-picker` is the same month laid out inline, in
+               56 px cells with 20 px numerals. -->
+          <hq-day-picker
+            class="lesson-fields__day"
             [label]="'lessons.new.date' | transloco"
-            [value]="date()"
-            [required]="true"
             [disabled]="busy() !== null"
-            (valueChange)="date.set($event)"
+            [(value)]="date"
           />
           <hq-input
             [label]="'lessons.new.titleField' | transloco"
@@ -131,8 +132,11 @@
       </hq-card>
 
       <hq-card [title]="'lessons.new.content' | transloco">
+        <!-- Owner, 2026-09-26: once "Write it yourself" is chosen, nothing about files is left on
+             this screen — not the drop zone, not the file input, and not the three Upload cards
+             either. "Pick another source" brings the choice back. -->
         <div class="sources">
-          @for (card of sourceCards(); track card.id) {
+          @for (card of visibleSourceCards(); track card.id) {
             <button
               *hqFeature="card.flag"
               type="button"
@@ -150,6 +154,9 @@
 
         @if (source() === 'manual') {
           <p class="source-note">{{ 'lessons.new.manualHint' | transloco }}</p>
+          <hq-button variant="quiet" [disabled]="busy() !== null" (pressed)="selectSource(null)">
+            {{ 'lessons.new.otherSource' | transloco }}
+          </hq-button>
         } @else if (source() === 'pdf' || source() === 'slides' || source() === 'images') {
           <div
             class="hq-dropzone dropzone"

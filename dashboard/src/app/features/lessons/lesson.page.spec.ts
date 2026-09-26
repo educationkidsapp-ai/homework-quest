@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { EnvironmentProviders, Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { fireEvent, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,6 +13,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ViewModeService } from '../../core/view-mode/view-mode.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { LessonPage } from './lesson.page';
+import { StopDraftService } from './stop-draft.service';
 
 const ADMIN_PERMISSIONS = {
   role: 'ADMIN',
@@ -52,22 +53,22 @@ const BASE_LESSON = {
   version: 1,
 };
 
-function routeFor(id: string, notice?: string): Partial<ActivatedRoute> {
+function routeFor(id: string, query: Record<string, string> = {}): Partial<ActivatedRoute> {
   return {
     snapshot: {
       paramMap: convertToParamMap({ id }),
-      queryParamMap: convertToParamMap(notice ? { notice } : {}),
+      queryParamMap: convertToParamMap(query),
     } as ActivatedRoute['snapshot'],
   };
 }
 
-function providersFor(id: string, notice?: string): (Provider | EnvironmentProviders)[] {
+function providersFor(id: string, query: Record<string, string> = {}): (Provider | EnvironmentProviders)[] {
   return [
     provideHttpClient(),
     provideHttpClientTesting(),
     provideRouter([{ path: '**', children: [] }]),
     { provide: BASE_PATH, useValue: '' },
-    { provide: ActivatedRoute, useValue: routeFor(id, notice) },
+    { provide: ActivatedRoute, useValue: routeFor(id, query) },
   ];
 }
 
@@ -78,8 +79,8 @@ function providersFor(id: string, notice?: string): (Provider | EnvironmentProvi
  * (`LessonApiService`), so `getLesson` waits for `/me` rather than guessing — an Admin's page
  * must not open by asking `/teacher/lessons/{id}` and getting someone else's 404.
  */
-async function renderLesson(lesson: object, notice?: string) {
-  return renderLessonAs(lesson, ADMIN_USER, ADMIN_PERMISSIONS, notice);
+async function renderLesson(lesson: object, notice?: string, query: Record<string, string> = {}) {
+  return renderLessonAs(lesson, ADMIN_USER, ADMIN_PERMISSIONS, notice, query);
 }
 
 /**
@@ -97,8 +98,10 @@ async function renderLessonAs(
   user: typeof ADMIN_USER,
   permissions: typeof ADMIN_PERMISSIONS,
   notice?: string,
+  query: Record<string, string> = {},
 ) {
-  const rendered = await renderHq(LessonPage, { providers: providersFor('l-1', notice) });
+  const providers = providersFor('l-1', { ...(notice ? { notice } : {}), ...query });
+  const rendered = await renderHq(LessonPage, { providers });
   const backend = TestBed.inject(HttpTestingController);
 
   TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
@@ -452,11 +455,13 @@ describe('Lesson', () => {
     expect(request.request.method).toBe('POST');
     expect(JSON.parse(request.request.body as string)).toEqual({ text: 'Which shape has three sides?' });
 
-    // The reread is what puts the saved prose back, so re-opening never re-converts.
+    // E4a: the answer *is* the saved stop, so it replaces that one row — the lesson is not
+    // re-read, and her level, her scroll and any other draft's row state survive the save.
     request.flush({ ...choiceStop('st-1', 'Which shape'), teacherText: 'Which shape has three sides?' });
-    await Promise.resolve();
-    TestBed.tick();
-    backend.expectOne(lessonUrlFor(ADMIN_USER)).flush(lessonWithStops());
+    await settle();
+    backend.expectNone(lessonUrlFor(ADMIN_USER));
+    expect(screen.getByRole('option', { name: /Which shape/ })).toBeInTheDocument();
+    expect(screen.getByLabelText(/This stop, in your words/)).toHaveValue('Which shape has three sides?');
   });
 
   it('answers a 422 with "please rephrase" and keeps the text she wrote', async () => {
@@ -529,8 +534,11 @@ describe('Lesson', () => {
     expect(screen.getByText('#/hint: required')).toBeInTheDocument();
   });
 
-  /** CR2: "+ Add stop" opens the form, and the form is the only way to add one. */
-  it('adds a stop from the form, and offers no template menu', async () => {
+  /**
+   * CR2's form, E4a's timing: the sheet is shut before the model is asked anything, the new stop
+   * is in the list with "The assistant is writing…" on it, and the answer replaces that one row.
+   */
+  it('adds a stop from the form without waiting for the assistant, and offers no template menu', async () => {
     const { backend } = await renderLesson(lessonWithStops());
 
     await userEvent.click(screen.getByRole('button', { name: '+ Add stop' }));
@@ -538,6 +546,11 @@ describe('Lesson', () => {
 
     await fillAddStopForm('Match the pairs', 'Join each word to its picture.', 'match');
     await userEvent.click(screen.getByRole('button', { name: /Save the question$/ }));
+    await settle();
+
+    // Shut, and the toast already said so — with the two calls still in flight.
+    expect(document.querySelector('[data-hq-add-stop]')).toBeNull();
+    expect(screen.getByText('Question added').getAttribute('role')).toBe('status');
 
     const created = backend.expectOne('/admin/plays/p-1/stops');
     expect(created.request.method).toBe('POST');
@@ -545,22 +558,138 @@ describe('Lesson', () => {
       type: 'match',
       title: 'Match the pairs',
     });
-    created.flush({ id: 'st-9', type: 'match', title: 'Match the pairs' });
+    created.flush(choiceStop('st-9', 'Match the pairs'));
     await settle();
+
+    // In the list straight away, selected, and saying what is happening to it.
+    const row = screen.getByRole('option', { name: /Match the pairs/ });
+    expect(row).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('The assistant is writing…')).toBeInTheDocument();
 
     backend
       .expectOne('/admin/stops/st-9/from-text')
-      .flush({ id: 'st-9', type: 'match', title: 'Match the pairs' });
+      .flush({ ...choiceStop('st-9', 'Match each word'), teacherText: 'Match each word to its picture.' });
     await settle();
 
-    // The one toast this page has: a success with nothing to undo, announced politely.
-    expect(screen.getByText('Question added').getAttribute('role')).toBe('status');
-    // The lesson is re-read and the new stop is the selected one.
-    const reloaded = lessonWithStops();
-    reloaded.plays[0]!.play.stops.push(choiceStop('st-9', 'Match the pairs'));
-    backend.expectOne('/admin/lessons/l-1').flush(reloaded);
+    // One stop patched, no lesson re-read.
+    expect(screen.queryByText('The assistant is writing…')).toBeNull();
+    expect(screen.getByRole('option', { name: /Match each word/ })).toBeInTheDocument();
+    backend.expectNone('/admin/lessons/l-1');
+  });
+
+  it('keeps a refused question on its row, with Retry and Remove, and says so once', async () => {
+    const { backend } = await renderLesson(lessonWithStops());
+
+    await userEvent.click(screen.getByRole('button', { name: '+ Add stop' }));
+    await fillAddStopForm('Draw anything', 'Let them draw whatever they like.', 'match');
+    await userEvent.click(screen.getByRole('button', { name: /Save the question$/ }));
     await settle();
-    expect(screen.getByRole('option', { name: /Match the pairs/ })).toHaveAttribute('aria-selected', 'true');
+    backend.expectOne('/admin/plays/p-1/stops').flush(choiceStop('st-9', 'Draw anything'));
+    await settle();
+    backend
+      .expectOne('/admin/stops/st-9/from-text')
+      .flush(
+        { code: 'rephrase', message: "Couldn't save, please rephrase. #/options: minItems 2" },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      );
+    await settle();
+
+    // The stop is still hers — title and all — and the row carries the refusal.
+    expect(screen.getByRole('option', { name: /Draw anything/ })).toBeInTheDocument();
+    backend.expectNone('/admin/stops/st-9');
+    expect(screen.getAllByText("Couldn't save, please rephrase.").length).toBeGreaterThan(0);
+
+    // Named by the stop they belong to, so five rows of "Retry" are five different buttons.
+    expect(screen.getByRole('button', { name: 'Remove Draw anything' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry Draw anything' }));
+    await settle();
+    const again = backend.expectOne('/admin/stops/st-9/from-text');
+    expect((JSON.parse(again.request.body as string) as { text: string }).text).toBe(
+      'Draw anything\n\nLet them draw whatever they like.',
+    );
+    again.flush(choiceStop('st-9', 'Draw a triangle'));
+    await settle();
+    expect(screen.getByRole('option', { name: /Draw a triangle/ })).toBeInTheDocument();
+  });
+
+  /** E4a deliverable 1: "Create and write the questions" lands on the sheet, not on an empty list. */
+  it('opens with the Add question sheet up when it was navigated to with ?compose=1', async () => {
+    // Spied on the prototype: the page navigates from its constructor, before the instance exists.
+    const navigate = vi.spyOn(Router.prototype, 'navigate').mockResolvedValue(true);
+    await renderLesson(lessonWithStops({ source: 'manual' }), 'lessons.new.createdManual', {
+      compose: '1',
+    });
+
+    expect(document.querySelector('[data-hq-add-stop]')).not.toBeNull();
+    // And the three plain steps stand where a manual lesson's empty pipeline strip used to.
+    expect(screen.getByText('3. Questions')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /pipeline/i })).not.toBeInTheDocument();
+
+    // Consumed: the URL is replaced without it, so closing the sheet and refreshing is just the
+    // lesson. `notice` survives the merge, because the band above is read from it.
+    expect(navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { compose: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      }),
+    );
+  });
+
+  /**
+   * The assistant's half of Add level is the manual lesson's note flow, and that card is not on a
+   * PDF lesson's page — so the button is not offered there either, rather than scrolling nowhere.
+   */
+  it('offers only "Write it myself" on a level a non-manual lesson is missing', async () => {
+    await renderLesson(lessonWithStops({ source: 'pdf' }));
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+
+    expect(screen.getByRole('button', { name: 'Write it myself' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Let the assistant write it' })).toBeNull();
+  });
+
+  /** D27: an empty Level 2 offers both ways to fill it, and "Write it myself" opens the sheet. */
+  it('offers Add level on an empty level, and opens the sheet on the play it just made', async () => {
+    const { backend } = await renderLesson(lessonWithStops({ source: 'manual' }));
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+    expect(screen.getByText(/This level is empty/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Let the assistant write it' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Write it myself' }));
+    const created = backend.expectOne('/admin/lessons/l-1/plays');
+    expect(created.request.body).toBe('{"level":2,"variant":0}');
+    created.flush({ id: 'p-2', level: 2, variant: 0, generatedAt: 0, promptVersion: '1', play: {} });
+    await settle();
+
+    // A new level changes the lesson's own publish readiness, so this one is re-read.
+    const withTwo = lessonWithStops({ source: 'manual' });
+    withTwo.plays.push({
+      id: 'p-2',
+      level: 2,
+      variant: 0,
+      generatedAt: 0,
+      promptVersion: '1',
+      play: { kind: 'math', level: 2, variant: 0, theme: withTwo.plays[0]!.play.theme, stops: [] },
+    });
+    backend.expectOne('/admin/lessons/l-1').flush(withTwo);
+    await settle();
+    expect(document.querySelector('[data-hq-add-stop]')).not.toBeNull();
+  });
+
+  /** A refusal belongs to its own lesson: this page is l-1, so l-2's is not its news. */
+  it('says nothing about a draft that belongs to another lesson', async () => {
+    await renderLesson(lessonWithStops());
+
+    TestBed.inject(StopDraftService).said$.next({ lessonId: 'l-2', message: 'Something went wrong.' });
+    await settle();
+    expect(screen.queryByText('Something went wrong.')).toBeNull();
+
+    TestBed.inject(StopDraftService).said$.next({ lessonId: 'l-1', message: 'Something went wrong.' });
+    await settle();
+    expect(screen.getByText('Something went wrong.')).toBeInTheDocument();
   });
 
   it('deletes a stop only behind the red confirm band, and offers no Undo', async () => {

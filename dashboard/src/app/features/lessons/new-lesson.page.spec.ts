@@ -238,6 +238,33 @@ describe('New lesson', () => {
     );
   });
 
+  /** Owner, 2026-09-26: "Write it yourself" leaves nothing about files on the screen. */
+  it('hides the Upload cards and the drop zone once she chooses to write it herself', async () => {
+    const { backend } = await renderTeacher();
+    await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
+
+    await userEvent.click(screen.getByRole('button', { name: /Write it yourself/ }));
+
+    expect(screen.queryByRole('button', { name: /Upload a PDF/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Upload slides/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Upload photos/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Drop a PDF here/)).not.toBeInTheDocument();
+    expect(document.querySelector('input[type="file"]')).toBeNull();
+
+    // And the choice is not a trap: this brings all four back.
+    await userEvent.click(screen.getByRole('button', { name: 'Pick another source' }));
+    expect(screen.getByRole('button', { name: /Upload a PDF/ })).toBeInTheDocument();
+  });
+
+  /** The Lesson day is a 56 px grid of days, not the browser's popup (owner, 2026-09-26). */
+  it('offers the day as a grid rather than a native date field', async () => {
+    const { backend } = await renderTeacher();
+    await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
+
+    expect(screen.getByRole('grid', { name: 'Lesson day' })).toBeInTheDocument();
+    expect(document.querySelector('input[type="date"]')).toBeNull();
+  });
+
   it('rolls the draft lesson back when the upload fails, leaving no orphan', async () => {
     const { backend } = await renderTeacher();
     await flushFlags(backend, TEACHER_USER.schoolId ?? '', ALL_FLAGS_ON);
@@ -300,11 +327,16 @@ describe('New lesson', () => {
     request.flush({ id: 'l-7' });
     await settle();
 
+    // E4a: a hand-written lesson opens with the Add question sheet up, which is what `compose`
+    // asks the lesson page for.
     expect(navigate).toHaveBeenCalledWith(
       ['/teacher/lessons', 'l-7'],
-      expect.objectContaining({ queryParams: { notice: 'lessons.new.createdManual' } }),
+      expect.objectContaining({
+        queryParams: { notice: 'lessons.new.createdManual', compose: '1' },
+      }),
     );
   });
+
   it('starts clean when a chain finished while she was not on this page', async () => {
     // Only a chain that finishes while this page is open navigates. The bug: the reset was
     // guarded on "Work in background", so leaving by any other route — the back button, the

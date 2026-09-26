@@ -12,10 +12,12 @@ import {
   computed,
   effect,
   inject,
+  type Signal,
   signal,
+  viewChild,
   viewChildren,
 } from '@angular/core';
-import { rxResource } from '@angular/core/rxjs-interop';
+import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { finalize } from 'rxjs';
@@ -25,6 +27,7 @@ import {
   type LessonStatusView,
   type ParentPanel,
   type PublishedCopy,
+  type Stop as ApiStop,
   AdminLessonSourceEnum,
   AdminLessonStatusEnum,
   AdminLessonTypeEnum,
@@ -65,7 +68,7 @@ import { AddStopComponent } from './add-stop.component';
 import { anyConverting, reasonKeyOf } from './file-conversion';
 import { LessonApiService } from './lesson-api.service';
 import { lessonSignature, statusSignature } from './lesson-status';
-import { toPreviewPlay } from './lesson-preview.mapper';
+import { toInnerStop, toPreviewPlay } from './lesson-preview.mapper';
 import { LessonSourcesComponent } from './lesson-sources.component';
 import {
   type ConfirmedSkillRequest,
@@ -86,6 +89,7 @@ import {
 import { ExamContextService } from '../exams/exam-context.service';
 import { ExamSettingsCardComponent } from '../exams/exam-settings-card.component';
 import { ParentPanelEditorComponent } from './parent-panel-editor.component';
+import { type StopDraft, StopDraftService } from './stop-draft.service';
 import { StopEditorComponent, type StopSaveFailure } from './stop-editor.component';
 
 const POLL_MS = 2500;
@@ -174,6 +178,7 @@ export class LessonPage {
   private readonly router = inject(Router);
   private readonly transloco = inject(TranslocoService);
   private readonly media = inject(MediaService);
+  private readonly drafts = inject(StopDraftService);
   private readonly lang = activeLang();
 
   private readonly stopButtons = viewChildren<ElementRef<HTMLButtonElement>>('stopBtn');
@@ -625,13 +630,23 @@ export class LessonPage {
   // ---- plays: L1 / L2 / L3 / Again, stop list + pinned preview -----------------------------
 
   protected readonly playTab = signal<PlayTabId>('L1');
+  /**
+   * An empty level is a tab you can open (D27), not a dead one.
+   *
+   * It used to be `disabled` whenever the play was missing, which made the "Create this level"
+   * button behind it unreachable — the owner's "I can not add more level" was that, exactly. The
+   * tab now opens on the Add level card instead. It stays disabled only while the pipeline is
+   * running, when the level being empty means "not written yet" rather than "yours to write".
+   */
   protected readonly playTabs = computed<readonly Tab<PlayTabId>[]>(() => {
     this.lang();
-    const plays = this.lesson()?.plays ?? [];
+    const lesson = this.lesson();
+    const plays = lesson?.plays ?? [];
+    const running = lesson === null || isRunningStatus(lesson.status);
     return PLAY_TAB_DEFS.map((def) => ({
       id: def.id,
       label: this.t(`lessons.detail.playTab.${def.id}`),
-      disabled: !plays.some((play) => play.level === def.level && play.variant === def.variant),
+      disabled: running && !plays.some((play) => play.level === def.level && play.variant === def.variant),
     }));
   });
 
@@ -660,22 +675,15 @@ export class LessonPage {
   }
 
   /**
-   * A stop that has just been created but whose lesson has not been re-read yet.
+   * The selection follows the level, and a stop that is on it keeps it.
    *
-   * Without it, `selectFirstStop` would snap the selection back to the first stop for the
-   * fraction of a second between "the form saved" and "the re-read landed" — and then leave it
-   * there, because by the time the new stop exists the selection no longer points at it.
+   * E4a dropped the "pending stop" window this used to hold open: a saved question is appended to
+   * the list from the create response, so by the time it is selected it is in `stops` — there is no
+   * gap between "the form saved" and "the re-read landed" to bridge any more.
    */
-  private readonly pendingStopId = signal<string | null>(null);
-
   private selectFirstStop(): void {
     const stops = this.currentPlay()?.stops ?? [];
-    const selected = this.selectedStopId();
-    if (stops.some((stop) => stop.id === selected)) {
-      if (this.pendingStopId() !== null) this.pendingStopId.set(null);
-      return;
-    }
-    if (selected !== null && selected === this.pendingStopId()) return;
+    if (stops.some((stop) => stop.id === this.selectedStopId())) return;
     this.selectedStopId.set(stops[0]?.id ?? null);
   }
 
@@ -744,17 +752,20 @@ export class LessonPage {
     this.savingStopText.set(true);
     this.stopSaveFailure.set(null);
     this.stopValidatorErrors.set([]);
-    this.busy.set(this.t('lessons.detail.busy.savingStopText'));
+    // E4a: not `busy`. A rewrite of one stop is up to four minutes of model time, and the page
+    // used to lock for all of it — every other level, the publish button and the parent panel
+    // included. Only this stop's row and its editor wait now.
+    this.markStopBusy(stop.id, true);
     this.api.stopFromText(stop.id, stopFromTextBody(text)).subscribe({
-      next: () => {
+      next: (written) => {
         this.savingStopText.set(false);
-        this.busy.set(null);
+        this.markStopBusy(stop.id, false);
         this.stopDirty.set(false);
-        this.lessonRes.reload();
+        this.patchStop(written);
       },
       error: (error: unknown) => {
         this.savingStopText.set(false);
-        this.busy.set(null);
+        this.markStopBusy(stop.id, false);
         const status = error instanceof HttpErrorResponse ? error.status : 0;
         if (status === 422) {
           this.stopSaveFailure.set('rephrase');
@@ -770,13 +781,51 @@ export class LessonPage {
     this.stopValidatorErrors.set([]);
     this.busy.set(this.t('lessons.detail.busy.savingStop'));
     this.api.updateStop(stop.id, stopBody(stop)).subscribe({
-      next: () => {
+      next: (saved) => {
         this.busy.set(null);
         this.stopDirty.set(false);
-        this.lessonRes.reload();
+        this.patchStop(saved);
       },
       error: () => this.busy.set(null),
     });
+  }
+
+  // ---- E4a: the lesson signal is patched from what the write answered ------------------------
+
+  /**
+   * One stop, replaced where it stands.
+   *
+   * Every stop write answers with the stop it wrote, so re-reading the whole lesson to find out
+   * what happened fetched every other stop of every other level to change one of them — and threw
+   * the teacher's scroll position, her open level and (mid-draft) her row states away with it. The
+   * reload survives only where the response genuinely does not carry the change: a new level, a
+   * generate job, an uploaded image (`LessonImage` is not a `PageImage`).
+   */
+  private patchStop(stop: ApiStop): void {
+    const inner = toInnerStop(stop);
+    this.updatePlays((play) =>
+      play.play.stops.some((current) => current.id === stop.id)
+        ? { ...play, play: { ...play.play, stops: play.play.stops.map((c) => (c.id === stop.id ? inner : c)) } }
+        : play,
+    );
+  }
+
+  private appendStop(playId: string, stop: ApiStop): void {
+    const inner = toInnerStop(stop);
+    this.updatePlays((play) =>
+      play.id === playId ? { ...play, play: { ...play.play, stops: [...play.play.stops, inner] } } : play,
+    );
+  }
+
+  private dropStopLocally(stopId: string): void {
+    this.updatePlays((play) => ({
+      ...play,
+      play: { ...play.play, stops: play.play.stops.filter((stop) => stop.id !== stopId) },
+    }));
+  }
+
+  private updatePlays(change: (play: AdminPlay) => AdminPlay): void {
+    this.lessonRes.update((lesson) => (lesson ? { ...lesson, plays: lesson.plays.map(change) } : lesson));
   }
 
   /**
@@ -802,10 +851,39 @@ export class LessonPage {
     });
   }
 
-  /** CR2: "+ Add stop" opens one form (`hq-add-stop`), which owns the two calls that save it. */
+  /** CR2: "+ Add stop" opens one form (`hq-add-stop`); E4a made its two calls the service's. */
   protected readonly addStopOpen = signal(false);
-  /** "Question added", for four seconds. The only toast on this page, and never for a failure. */
-  protected readonly stopAddedToast = signal(false);
+  /** One strip at a time: "Question added", or what a draft's refusal said. */
+  protected readonly toastText = signal<string | null>(null);
+  /** Stops whose own save is in flight — the row's wait, never the page's. */
+  private readonly savingStopIds = signal<ReadonlySet<string>>(new Set());
+
+  private markStopBusy(stopId: string, busy: boolean): void {
+    this.savingStopIds.update((current) => {
+      const next = new Set(current);
+      if (busy) next.add(stopId);
+      else next.delete(stopId);
+      return next;
+    });
+  }
+
+  /** A stop the assistant is writing right now — either a new draft or a rewritten prose save. */
+  protected stopBusy(stopId: string): boolean {
+    return this.savingStopIds().has(stopId) || this.drafts.writing(stopId);
+  }
+
+  /** The draft row's state, or `null` for a settled stop. Read once per row, per render. */
+  protected draftOf(stopId: string): StopDraft | null {
+    return this.drafts.draftOf(stopId);
+  }
+
+  protected retryDraft(stopId: string): void {
+    this.drafts.retry(stopId);
+  }
+
+  protected removeDraft(stopId: string): void {
+    this.drafts.remove(stopId);
+  }
   /**
    * The last signature this page acted on. It starts as the *lesson's* — see
    * `lesson-status.ts` — so the very first poll after a load is compared against something
@@ -825,11 +903,9 @@ export class LessonPage {
     this.lastSignature = signature;
   }
 
-  protected onStopAdded(stopId: string): void {
-    this.pendingStopId.set(stopId);
-    this.selectedStopId.set(stopId);
-    this.stopAddedToast.set(true);
-    this.lessonRes.reload();
+  /** The sheet handed the question over. The row appears from `created$`, not from here. */
+  protected onStopAdded(): void {
+    this.toastText.set(this.t('lessons.detail.addStop.added'));
   }
 
   protected requestDeleteStop(): void {
@@ -846,7 +922,7 @@ export class LessonPage {
         // deleted JSON would make a *different* stop, and the parent panel's `stopTips` and
         // `modelAnswers` still point at the old one. The red confirm band is the whole guard.
         if (this.selectedStopId() === stopId) this.selectedStopId.set(null);
-        this.lessonRes.reload();
+        this.dropStopLocally(stopId);
       },
       error: () => this.busy.set(null),
     });
@@ -866,10 +942,12 @@ export class LessonPage {
     this.reorderedIds.set(ids);
     this.busy.set(this.t('lessons.detail.busy.reordering'));
     this.api.reorder(play.id, reorderBody(ids)).subscribe({
-      next: () => {
+      next: (saved) => {
         this.busy.set(null);
         this.reorderedIds.set(null);
-        this.lessonRes.reload();
+        // `PUT …/order` answers with the reordered play, so the list settles on the server's
+        // order without re-reading the other three levels to learn it.
+        this.updatePlays((current) => (current.id === play.id ? { ...current, play: saved } : current));
       },
       error: () => {
         // The list snaps back where it was: an optimistic order that the server refused is a
@@ -907,7 +985,28 @@ export class LessonPage {
     return plays.some((play) => play.level === def.level && play.variant === def.variant) ? null : def;
   });
 
-  protected createLevel(): void {
+  /**
+   * "Add level" (D27): two ways to fill an empty Level 2, Level 3 or Again.
+   *
+   * *Write it myself* makes the play and opens the Add question sheet on it, so the level exists
+   * and has its first question in one gesture rather than in two screens. *Let the assistant write
+   * it* is, for now, the note flow that already exists — E5 replaces that one branch with `POST
+   * …/plays/{level}/generate`, and this method is where it plugs in.
+   *
+   * That note flow is a *manual* lesson's card and is not rendered for any other source, so the
+   * second choice is only offered where it leads somewhere ({@link canAssistLevel}). A PDF lesson
+   * missing a level has the step strip's "Retry this step only" until E5 gives every source the
+   * per-level endpoint; offering a button that scrolls to nothing was worse than not offering it.
+   */
+  protected readonly canAssistLevel = computed(() => this.isManual());
+
+  protected addLevel(choice: 'mine' | 'assistant'): void {
+    if (choice === 'assistant') {
+      if (!this.canAssistLevel()) return;
+      this.generateCard()?.nativeElement.scrollIntoView({ block: 'center' });
+      this.generateCard()?.nativeElement.querySelector('textarea')?.focus();
+      return;
+    }
     const lesson = this.lesson();
     const def = this.missingPlay();
     if (!lesson || !def) return;
@@ -915,11 +1014,19 @@ export class LessonPage {
     this.api.createPlay(lesson.id, createPlayBody(def.level, def.variant)).subscribe({
       next: () => {
         this.busy.set(null);
+        // The reload, not a patch: a new play brings the lesson's own `status` and publish
+        // readiness with it, which `AdminPlay` alone does not say anything about.
         this.lessonRes.reload();
+        this.addStopOpen.set(true);
       },
       error: () => this.busy.set(null),
     });
   }
+
+  /** `hq-card` is a component, so the element itself has to be asked for by name. */
+  private readonly generateCard: Signal<ElementRef<HTMLElement> | undefined> = viewChild('generateCard', {
+    read: ElementRef,
+  });
 
   protected readonly generateText = signal('');
 
@@ -1383,14 +1490,49 @@ export class LessonPage {
     // Page crops belong to this lesson and are never wanted again once it is closed — they are
     // lossless scans, so a tab that walked through a week of lessons would otherwise be holding
     // all of them. Opening another lesson drops these; so does leaving the editor.
+    const destroyRef = inject(DestroyRef);
     this.media.scopeTo(this.lessonId);
-    inject(DestroyRef).onDestroy(() => this.media.scopeTo(null));
+    destroyRef.onDestroy(() => this.media.scopeTo(null));
 
     const key = this.route.snapshot.queryParamMap.get('notice');
     if (key) {
       const text = this.t(key);
       if (text !== key) this.notice.set(text);
     }
+
+    // E4a: "Create and write the questions" lands here with the sheet already open, because the
+    // next thing she is going to do is write a question and an empty level says nothing else.
+    // Consumed once and then dropped from the URL, so closing the sheet and refreshing the page
+    // does not put it straight back up. `merge` keeps `notice`, which is read just above.
+    if (this.route.snapshot.queryParamMap.get('compose') === '1') {
+      this.addStopOpen.set(true);
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { compose: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
+
+    // The drafts outlive this page, so their answers arrive as events rather than as callbacks:
+    // one that lands while she is elsewhere is simply not heard, and the lesson she comes back to
+    // is re-read from the server with the finished stop in it.
+    this.drafts.created$.pipe(takeUntilDestroyed(destroyRef)).subscribe(({ lessonId, playId, stop }) => {
+      if (lessonId !== this.lessonId) return;
+      this.appendStop(playId, stop);
+      this.selectedStopId.set(stop.id);
+    });
+    this.drafts.written$.pipe(takeUntilDestroyed(destroyRef)).subscribe(({ lessonId, stop }) => {
+      if (lessonId === this.lessonId) this.patchStop(stop);
+    });
+    this.drafts.removed$.pipe(takeUntilDestroyed(destroyRef)).subscribe(({ lessonId, stopId }) => {
+      if (lessonId !== this.lessonId) return;
+      if (this.selectedStopId() === stopId) this.selectedStopId.set(null);
+      this.dropStopLocally(stopId);
+    });
+    this.drafts.said$.pipe(takeUntilDestroyed(destroyRef)).subscribe(({ lessonId, message }) => {
+      if (lessonId === this.lessonId) this.toastText.set(message);
+    });
 
     // E3: poll the **light** body (`GET …/lessons/{id}/status`, a few hundred bytes) and read
     // the whole lesson back only when that body says something the page shows has changed —

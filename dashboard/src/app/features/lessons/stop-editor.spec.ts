@@ -13,6 +13,14 @@ import { ViewModeService } from '../../core/view-mode/view-mode.service';
 import type { Stop } from '../../ui/phone-preview';
 import { StopEditorComponent } from './stop-editor.component';
 
+/** `VALIDATE_DEBOUNCE_MS` plus room: long enough that a load that was going to happen has. */
+const PAST_DEBOUNCE_MS = 400;
+
+async function pastTheDebounce(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, PAST_DEBOUNCE_MS));
+  TestBed.tick();
+}
+
 const STOP = {
   id: 'st-1',
   type: 'trueFalse',
@@ -118,6 +126,33 @@ describe('Stop editor', () => {
     expect(saved).not.toHaveBeenCalled();
   });
 
+  it('saves a quick field with no schema validator loaded', async () => {
+    const { saved } = await renderEditor();
+
+    await userEvent.type(screen.getByLabelText(/^Title/), '!');
+    await pastTheDebounce();
+
+    // No Ajv on this path (see `stop-editor-chunk.spec.ts`): the bounds on the five fields are
+    // checked in the component instead, so Save still works.
+    const save = screen.getByRole('button', { name: 'Save the stop' });
+    expect(save).toBeEnabled();
+    await userEvent.click(save);
+    expect(saved).toHaveBeenCalledOnce();
+  });
+
+  it('refuses a quick field the schema would reject, naming it, with no validator loaded', async () => {
+    await renderEditor();
+
+    await userEvent.clear(screen.getByLabelText(/^What the pot says/));
+    await pastTheDebounce();
+
+    const save = screen.getByRole('button', { name: 'Save the stop' });
+    expect(save).toBeDisabled();
+    // Twice over: the band under the fields, and the disabled button's own reason.
+    expect(save).toHaveAccessibleDescription(/What the pot says is empty or too long/);
+    expect(screen.getAllByText(/is empty or too long/).length).toBeGreaterThan(0);
+  });
+
   it('refuses an empty text, and says what to do instead of failing at the server', async () => {
     await renderEditor();
 
@@ -126,4 +161,5 @@ describe('Stop editor', () => {
     expect(save).toBeDisabled();
     expect(save).toHaveAccessibleDescription(/Write what this stop should do first/);
   });
+
 });

@@ -89,7 +89,11 @@ export function addStopForm(page: Page): Locator {
 }
 
 /**
- * Adds one stop through the form and waits for the list to grow — saving re-reads the lesson.
+ * Adds one stop through the form and waits for the assistant to finish writing it.
+ *
+ * E4a: the sheet closes on the click and the row appears at once, so the count grows immediately
+ * and the *content* lands a moment later — this helper waits for both, because the tests below
+ * read the prose of the stops it made.
  *
  * The labels are scoped to the form because the stop editor behind the dialog has a "Title" of
  * its own; `type` is the stop type's value, which is what the `<optgroup>`ed select carries.
@@ -105,6 +109,7 @@ async function addStop(page: Page, type: string, title: string, question: string
   await page.getByRole('button', { name: 'Save the question' }).click();
   await expect(stopRows(page)).toHaveCount(before + 1, { timeout: 30_000 });
   await expect(stopRows(page).filter({ hasText: title }).first()).toBeVisible();
+  await expect(page.getByText('The assistant is writing…')).toHaveCount(0, { timeout: 120_000 });
 }
 
 /** A row reads "3\nThree last questions\nExit ticket"; the middle line is the stop's title. */
