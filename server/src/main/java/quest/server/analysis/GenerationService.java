@@ -76,11 +76,14 @@ public class GenerationService {
         panel(lesson, hash, analysisJson(hash), plays);
     }
 
-    /** Regenerate one level with the next seed (a fresh cache slot). */
+    /** Regenerate one level with the next seed (a fresh cache slot); every level but Level 1 stays harder than it. */
     public Play regeneratePlay(LessonEntity lesson, PlayEntity existing) {
         String hash = requireHash(lesson);
         int seed = existing.getSeed() + 1;
-        Set<String> excluded = existing.getVariant() == 1 ? levelOneIds(lesson) : Set.of();
+        // Every play except Level 1 itself is a play the child meets after Level 1, so Regenerate keeps the same
+        // exclusion the level was written with — pressing it on an E5-written Level 2 used to drop the
+        // harder-than-Level-1 instruction and could hand back a copy of Level 1.
+        Set<String> excluded = existing.getLevel() == 1 && existing.getVariant() == 0 ? Set.of() : levelOneIds(lesson);
         String canonical = playJson(lesson, hash, analysisJson(hash), confirmedSkillsJson(lesson), existing.getLevel(), existing.getVariant(), seed, excluded);
         return attach(lesson, canonical, existing.getLevel(), existing.getVariant(), seed);
     }

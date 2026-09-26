@@ -91,7 +91,7 @@ public final class Prompts {
         String variantBrief = variant == 1
                 ? "\nThis is the AGAIN variant of Level 1 for a child who needs another look: same skills and same difficulty, but every question is different from the first pass. Do not reuse these stop ids: " + String.join(", ", excludedIds)
                 : excludedIds.isEmpty() ? ""
-                : "\nThe child has already played the Level 1 of this lesson, which is what the analysis above was written from: every question here must be harder than those and ask something they did not ask. Do not reuse these stop ids: " + String.join(", ", excludedIds);
+                : "\nThe child has already played this lesson's Level 1: every question here must be harder than those and ask something they did not ask. Do not reuse these stop ids: " + String.join(", ", excludedIds);
         return """
         %s%s
 

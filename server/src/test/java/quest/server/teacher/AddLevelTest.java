@@ -84,6 +84,16 @@ class AddLevelTest extends TeacherTestSupport {
         assertThat(generate(id, "2", true)).isEqualTo("generating");
         assertThat(stops(awaitReview(id), 2, 0)).isNotEmpty();
 
+        // Level 3 end to end on the same lesson, from the analysis Level 2 derived
+        assertThat(generate(id, "3", false)).isEqualTo("generating");
+        var three = awaitReview(id);
+        assertThat(stops(three, 3, 0)).isNotEmpty().doesNotContainAnyElementsOf(before);
+        assertThat(step(three, "generate_L3")).isEqualTo("done");
+        // and Regenerate on a level written this way keeps the harder-than-Level-1 exclusion (it is not variant 1)
+        String playId = plays.findByLessonIdAndLevelAndVariant(id, 3, 0).orElseThrow().getId();
+        var again3 = json(mvc.perform(as(post("/teacher/plays/" + playId + "/regenerate"), teacherToken)).andExpect(status().isOk()).andReturn());
+        assertThat(again3.get("stops")).isNotEmpty();
+
         // the Again variant: a second pass over Level 1, and none of Level 1's stops
         assertThat(generate(id, "again", false)).isEqualTo("generating");
         var withAgain = awaitReview(id);
@@ -191,6 +201,7 @@ class AddLevelTest extends TeacherTestSupport {
     @Test void a_level_written_from_level_one_is_asked_to_be_harder_and_different() {
         String derived = Prompts.userB(2, 0, "{}", "[]", null, 7, List.of("m1", "m2"));
         assertThat(derived).contains("must be harder").contains("Do not reuse these stop ids: m1, m2");
+        assertThat(derived).contains("already played this lesson's Level 1");
         assertThat(Prompts.userB(2, 0, "{}", "[]", null, 7, List.of())).doesNotContain("Do not reuse");
         assertThat(Prompts.userB(1, 1, "{}", "[]", null, 7, List.of("m1"))).contains("AGAIN variant");
     }
