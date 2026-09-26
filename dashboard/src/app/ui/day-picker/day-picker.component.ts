@@ -88,7 +88,7 @@ function addDays(iso: string, days: number): string {
                   [class.picker__day--today]="cell.today"
                   [class.picker__day--selected]="cell.iso === value()"
                   [disabled]="disabled()"
-                  [attr.tabindex]="cell.iso === value() ? 0 : -1"
+                  [attr.tabindex]="cell.iso === tabStop() ? 0 : -1"
                   [attr.aria-selected]="cell.iso === value()"
                   [attr.aria-label]="longLabel(cell.iso)"
                   [attr.data-hq-day]="cell.iso"
@@ -272,6 +272,20 @@ export class DayPickerComponent {
         return { iso, day: date.getUTCDate(), inMonth: date.getUTCMonth() === month, today: iso === today };
       }),
     );
+  });
+
+  /**
+   * The one cell Tab lands on.
+   *
+   * Usually the selected day — but ‹ / › can walk to a month that does not contain it, and when
+   * every cell was `-1` the whole picker dropped out of the tab order. Today stands in when it is
+   * on screen, and the 1st of the month shown otherwise; both are always in the grid.
+   */
+  protected readonly tabStop = computed(() => {
+    const shown = this.weeks().flat();
+    const selected = this.value();
+    if (shown.some((cell) => cell.iso === selected)) return selected;
+    return (shown.find((cell) => cell.today && cell.inMonth) ?? shown.find((cell) => cell.inMonth))?.iso ?? selected;
   });
 
   /** "Thursday 17 September 2026" — the cell's accessible name and the line under the grid. */

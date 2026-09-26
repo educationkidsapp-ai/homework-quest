@@ -39,6 +39,23 @@ describe('hq-day-picker', () => {
     expect(reachable[0]!.textContent?.trim()).toBe('17');
   });
 
+  /** ‹ / › can walk to a month the selected day is not in; the grid must keep its tab stop. */
+  it('keeps exactly one tab stop in a month that does not hold the selected day', async () => {
+    await renderPicker();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Next month' }));
+
+    const stops = screen
+      .getAllByRole('gridcell')
+      .map((cell) => cell.querySelector('button')!)
+      .filter((button) => button.getAttribute('tabindex') === '0');
+
+    expect(stops).toHaveLength(1);
+    // The stand-in is a day of the month on screen, not a leftover from the one before it.
+    expect(stops[0]!).not.toHaveClass('picker__day--outside');
+    expect(stops[0]!).not.toHaveAttribute('aria-selected', 'true');
+  });
+
   it('picks the day that was clicked', async () => {
     const picker = await renderPicker();
 
