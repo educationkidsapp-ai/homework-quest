@@ -12,7 +12,7 @@ import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
-import { type ExamResults, type ExamSettings, ExamsApi } from '../../api';
+import { type ExamResults, type ExamSettings } from '../../api';
 import { FLAGS } from '../../core/flags/flag.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
@@ -25,6 +25,7 @@ import {
   TableComponent,
   type TableColumn,
 } from '../../ui';
+import { ResultsApiService } from '../results/results-api.service';
 import { type ExamState, examStateOf, zonedText } from './exams.models';
 
 /** One row of the tab: an exam, where it is in its life, and how far through the marking. */
@@ -80,13 +81,22 @@ const RESULTS_FETCH_LIMIT = 6;
   styleUrl: './exams-tab.component.scss',
 })
 export class ExamsTabComponent {
-  private readonly api = inject(ExamsApi);
+  private readonly reads = inject(ResultsApiService);
   private readonly transloco = inject(TranslocoService);
   private readonly platform = inject(PlatformService);
   private readonly lang = activeLang();
 
   readonly classId = input.required<string>();
   readonly className = input('');
+
+  /**
+   * R6 (DR2): the list, and no way to add to it or change one.
+   *
+   * New exam already asks for `lesson.write` and the settings card is a screen of its own, so a
+   * coordinator's copy of this tab is the table alone. Taken as an input rather than read off the
+   * role, so the caller says what it wants and the test can say it too.
+   */
+  readonly readOnly = input(false);
 
   protected readonly examsFlag = FLAGS.exams;
 
@@ -100,21 +110,31 @@ export class ExamsTabComponent {
   private readonly now = signal(Date.now());
 
   protected readonly exams = rxResource({
-    params: () => this.classId(),
-    stream: ({ params }) => this.api.classExams(params),
+    params: () => (this.reads.ready() ? this.classId() : undefined),
+    stream: ({ params }) => this.reads.classExams(params),
     defaultValue: [],
   });
 
-  /** The results of the exams that have opened — the only ones with anybody to count. */
+  /**
+   * The results of the exams that have opened — the only ones with anybody to count.
+   *
+   * Empty for a coordinator: R3's `GET /coordinator/classes/{id}/exams` answers `ExamRow`, which
+   * already carries `sat`, `roster` and `needsMarking`, so her list costs **one** request where
+   * the teacher's costs one per open exam. The teacher's endpoint is the one that still needs a
+   * `sat` column; that is reported, not hidden.
+   */
   private readonly opened = computed(() =>
-    this.exams
-      .value()
-      .filter(
-        (exam) => examStateOf(exam, this.now()) !== 'draft' && examStateOf(exam, this.now()) !== 'scheduled',
-      )
-      .slice(0, RESULTS_FETCH_LIMIT)
-      .map((exam) => exam.examId ?? '')
-      .filter((id) => id !== ''),
+    this.reads.isCoordinator()
+      ? []
+      : this.exams
+          .value()
+          .filter(
+            (exam) =>
+              examStateOf(exam, this.now()) !== 'draft' && examStateOf(exam, this.now()) !== 'scheduled',
+          )
+          .slice(0, RESULTS_FETCH_LIMIT)
+          .map((exam) => exam.examId ?? '')
+          .filter((id) => id !== ''),
   );
 
   private readonly counts = rxResource({
@@ -126,7 +146,7 @@ export class ExamsTabComponent {
         ids.map((id) =>
           // One exam's results failing must not blank the other rows' numbers, so each is
           // caught on its own and that row simply keeps its dash.
-          this.api.examResults(id).pipe(catchError(() => of(null))),
+          this.reads.examResults(id).pipe(catchError(() => of(null))),
         ),
       ).pipe(
         map((all) => {
@@ -153,9 +173,10 @@ export class ExamsTabComponent {
         title: exam.title?.trim() || this.t('exams.untitled'),
         window: this.windowText(exam, zone),
         state: examStateOf(exam, this.now()),
-        sat: results?.sat ?? null,
-        roster: results?.roster ?? null,
-        needsMarking: results?.needsMarking ?? null,
+        // Her list already carries the three; a teacher's arrives from `counts`.
+        sat: exam.sat ?? results?.sat ?? null,
+        roster: exam.roster ?? results?.roster ?? null,
+        needsMarking: exam.needsMarking ?? results?.needsMarking ?? null,
       };
     });
   });
@@ -177,16 +198,19 @@ export class ExamsTabComponent {
 
   protected readonly newExamLink = ['/teacher/exams/new'];
 
+  /** `/coordinator/**` for her, `/teacher/**` for a teacher — both open the same two screens. */
+  private readonly base = computed(() => this.reads.base());
+
   protected readonly newExamParams = computed<Record<string, string>>(() => ({
     classId: this.classId(),
   }));
 
   protected resultsLink(row: ExamRow): readonly string[] {
-    return ['/teacher/exams', row.examId, 'results'];
+    return [`${this.base()}/exams`, row.examId, 'results'];
   }
 
   protected editorLink(row: ExamRow): readonly string[] {
-    return ['/teacher/lessons', row.examId];
+    return [`${this.base()}/lessons`, row.examId];
   }
 
   /** "18 of 24", or a dash where the tab has not paid for the number. */

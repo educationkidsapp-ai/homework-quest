@@ -2,7 +2,6 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { ResultsAndGradebookApi } from '../../api';
 import { FLAGS } from '../../core/flags/flag.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
@@ -17,6 +16,7 @@ import { ChildWorkComponent } from './child-work.component';
 import { commentsOf, levelsOf, workOf, type LevelRow } from './child.models';
 import { trendGlyph } from './gradebook.models';
 import { LevelBandComponent } from './level-band.component';
+import { ResultsApiService, linkOrNothing } from './results-api.service';
 import { ScoreChartComponent } from './score-chart.component';
 import { scoreLabel } from './results.models';
 
@@ -53,7 +53,7 @@ import { scoreLabel } from './results.models';
   styleUrl: './child.page.scss',
 })
 export class ChildPage {
-  private readonly api = inject(ResultsAndGradebookApi);
+  private readonly reads = inject(ResultsApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
@@ -65,8 +65,8 @@ export class ChildPage {
   protected readonly childId = computed(() => this.path().get('childId') ?? '');
 
   protected readonly report = rxResource({
-    params: () => this.childId(),
-    stream: ({ params }) => this.api.childReport(params),
+    params: () => (this.reads.ready() ? this.childId() : undefined),
+    stream: ({ params }) => this.reads.childReport(params),
     defaultValue: {},
   });
 
@@ -81,8 +81,10 @@ export class ChildPage {
     this.lang();
     const classId = this.report.value().classId ?? '';
     return [
-      { label: this.t('classes.title'), link: '/teacher/classes' },
-      ...(classId ? [{ label: this.className(), link: `/teacher/classes/${classId}?tab=gradebook` }] : []),
+      { label: this.t('classes.title'), link: this.reads.classesLink() },
+      ...(classId
+        ? [{ label: this.className(), ...linkOrNothing(this.reads.classLink(classId, 'gradebook')) }]
+        : []),
       { label: this.name() },
     ];
   });

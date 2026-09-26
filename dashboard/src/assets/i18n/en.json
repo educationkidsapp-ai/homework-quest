@@ -188,7 +188,16 @@
     "empty": "No students found in this class.",
     "noStudents": "No students found in this class.",
     "notesPlaceholder": "Optional note (e.g. excused doctor note)",
-    "noteFor": "Note for {{name}}"
+    "noteFor": "Note for {{name}}",
+    "short": {
+      "PRESENT": "P",
+      "LATE": "L",
+      "ABSENT": "A",
+      "EXCUSED": "E"
+    },
+    "notMarked": "Not marked",
+    "rangeCount": "{{children}} children over {{days}} days",
+    "noDays": "No register was kept in this range."
   },
   "band": {
     "failed": "That did not work",
@@ -1164,7 +1173,10 @@
     "myClasses": "My classes",
     "chat": "Messages",
     "profile": "Profile",
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "attendance": "Attendance",
+    "gradebook": "Gradebook",
+    "exams": "Exams"
   },
   "notifications": {
     "title": "Notifications",
@@ -1877,6 +1889,17 @@
       "from": "From",
       "to": "To",
       "empty": "No lessons match these filters."
-    }
+    },
+    "attendance": {
+      "subtitle": "A register for one of your classes. You can read it; only the teacher marks it.",
+      "tooWide": "Choose a range of nine weeks or less."
+    },
+    "gradebook": {
+      "subtitle": "The scores of one of your classes. You can read them; only the teacher marks and releases them."
+    },
+    "exams": {
+      "subtitle": "The exams of one of your classes. You can read them; only the teacher sets and reopens them."
+    },
+    "records": "Records"
   }
 }

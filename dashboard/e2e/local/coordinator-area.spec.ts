@@ -44,8 +44,17 @@ test.describe('the coordinator area', () => {
     await expect(page.getByText('Classes in scope')).toBeVisible();
     await expect(page.getByText('What needs you')).toBeVisible();
 
-    // Her rail is these four and nothing else: no This week, no My classes, no Attendance (R6).
-    await expect(rail(page).getByRole('link')).toHaveText(['Home', 'Teachers', 'Classes', 'All lessons']);
+    // Her rail is these seven and nothing else: no This week, no My classes, no New lesson. The
+    // last three arrived with R6 and are walked in `coordinator-area-2.spec.ts`.
+    await expect(rail(page).getByRole('link')).toHaveText([
+      'Home',
+      'Teachers',
+      'Classes',
+      'All lessons',
+      'Attendance',
+      'Gradebook',
+      'Exams',
+    ]);
   });
 
   test('lists the teachers of her subject, read-only, and searches them', async ({ page }) => {

@@ -4,6 +4,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { FLAGS } from '../../core/flags/flag.service';
+import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CardComponent, CountUpDirective, PageComponent, SkeletonComponent } from '../../ui';
 import { StatusSquareComponent } from '../week/status-square.component';
@@ -29,6 +31,7 @@ import { scopeLabel } from './coordinator.labels';
     CardComponent,
     CoordinatorReadFailedComponent,
     CountUpDirective,
+    FeatureDirective,
     PageComponent,
     RouterLink,
     SkeletonComponent,
@@ -114,6 +117,23 @@ import { scopeLabel } from './coordinator.labels';
               </a>
             }
           </hq-card>
+
+          <!-- R6: the three record screens, each one link. Gradebook and Exams are behind the
+               same two flags their routes carry, so a school without one does not learn about a
+               screen its rail has already hidden. -->
+          <hq-card [title]="'coordinator.records' | transloco">
+            <ul class="co-list">
+              <li class="co-list__row">
+                <a routerLink="/coordinator/attendance">{{ 'nav.attendance' | transloco }}</a>
+              </li>
+              <li class="co-list__row" *hqFeature="gradebookFlag">
+                <a routerLink="/coordinator/gradebook">{{ 'nav.gradebook' | transloco }}</a>
+              </li>
+              <li class="co-list__row" *hqFeature="examsFlag">
+                <a routerLink="/coordinator/exams">{{ 'nav.exams' | transloco }}</a>
+              </li>
+            </ul>
+          </hq-card>
         </div>
       }
     </hq-page>
@@ -139,6 +159,11 @@ import { scopeLabel } from './coordinator.labels';
 })
 export class CoordinatorHomePage {
   protected readonly co = inject(CoordinatorService);
+
+  /** R6's two flagged screens, named here as well as on their rows (`core/nav/screens.ts`). */
+  protected readonly gradebookFlag = FLAGS.gradebook;
+  protected readonly examsFlag = FLAGS.exams;
+
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
 

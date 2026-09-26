@@ -7,17 +7,19 @@
   <div card-actions class="exams__toolbar">
     <!-- Secondary, deliberately. The class page already has one primary action — New lesson, in
          its header — and a second red button a tab away would make the screen ask twice. -->
-    <span *hqFeature="examsFlag">
-      <a
-        *hqCan="'lesson.write'"
-        class="hq-linkbutton"
-        data-hq-new-exam
-        [routerLink]="newExamLink"
-        [queryParams]="newExamParams()"
-      >
-        {{ 'exams.new' | transloco }}
-      </a>
-    </span>
+    @if (!readOnly()) {
+      <span *hqFeature="examsFlag">
+        <a
+          *hqCan="'lesson.write'"
+          class="hq-linkbutton"
+          data-hq-new-exam
+          [routerLink]="newExamLink"
+          [queryParams]="newExamParams()"
+        >
+          {{ 'exams.new' | transloco }}
+        </a>
+      </span>
+    }
   </div>
 
   @if (loading()) {

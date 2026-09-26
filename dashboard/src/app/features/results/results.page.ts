@@ -25,6 +25,7 @@ import {
   type TableGroup,
 } from '../../ui';
 import { LevelBandComponent } from './level-band.component';
+import { ResultsApiService, linkOrNothing } from './results-api.service';
 import { MarkPanelComponent } from './mark-panel.component';
 import {
   levelGroups,
@@ -90,6 +91,7 @@ const SECURE_FLOOR = 60;
 })
 export class ResultsPage {
   private readonly api = inject(ResultsAndGradebookApi);
+  private readonly reads = inject(ResultsApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly transloco = inject(TranslocoService);
   private readonly band = inject(BandService);
@@ -100,8 +102,8 @@ export class ResultsPage {
   protected readonly lessonId = computed(() => this.path().get('id') ?? '');
 
   protected readonly results = rxResource({
-    params: () => this.lessonId(),
-    stream: ({ params }) => this.api.lessonResults(params),
+    params: () => (this.reads.ready() ? this.lessonId() : undefined),
+    stream: ({ params }) => this.reads.lessonResults(params),
     defaultValue: {},
   });
 
@@ -124,8 +126,8 @@ export class ResultsPage {
     this.lang();
     const classId = this.results.value().classId ?? '';
     return [
-      { label: this.t('classes.title'), link: '/teacher/classes' },
-      ...(classId ? [{ label: this.className(), link: `/teacher/classes/${classId}` }] : []),
+      { label: this.t('classes.title'), link: this.reads.classesLink() },
+      ...(classId ? [{ label: this.className(), ...linkOrNothing(this.reads.classLink(classId)) }] : []),
       { label: this.t('results.title') },
     ];
   });
@@ -272,8 +274,7 @@ export class ResultsPage {
 
   protected headerTitleOf(key: string): string {
     for (const group of this.levels())
-      for (const stop of group.stops)
-        if (`${STOP_PREFIX}${stop.stopId}` === key) return stop.title;
+      for (const stop of group.stops) if (`${STOP_PREFIX}${stop.stopId}` === key) return stop.title;
     return '';
   }
 
@@ -365,11 +366,15 @@ export class ResultsPage {
 
   // ---- odds and ends -----------------------------------------------------------------------------------
 
-  protected readonly lessonLink = computed(() => ['/teacher/lessons', this.lessonId()]);
+  /** R6: `/coordinator/lessons/{id}` for her, read-only; `/teacher/lessons/{id}` for a teacher. */
+  protected readonly lessonLink = computed(() => [`${this.reads.base()}/lessons`, this.lessonId()]);
+
+  /** CSV lives in the teacher's namespace only — see {@link ResultsApiService.supportsExport}. */
+  protected readonly canExport = computed(() => this.reads.supportsExport());
 
   /** Her own page — band, trend, chart, comments and work (N4.2's third screen). */
   protected childLink(row: ResultRow): readonly string[] {
-    return ['/teacher/children', row.childId];
+    return [`${this.reads.base()}/children`, row.childId];
   }
 
   protected score(value: number | null): string {

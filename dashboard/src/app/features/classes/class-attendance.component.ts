@@ -5,24 +5,23 @@ import {
   computed,
   effect,
   inject,
+  input,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import type { ClassAttendanceResponse as AttendanceDayDto } from '../../api';
 import { AttendanceService } from '../../core/attendance/attendance.service';
 import {
   AttendanceStatus,
   ClassAttendanceItem,
   ClassAttendanceResponse,
 } from '../../core/attendance/attendance.models';
+import { exportName, saveFile } from '../../core/download/download';
 import { activeLang } from '../../core/i18n/active-lang';
-import {
-  BandComponent,
-  ButtonComponent,
-  CardComponent,
-  SkeletonComponent,
-  ToastComponent,
-} from '../../ui';
+import { BandComponent, ButtonComponent, CardComponent, SkeletonComponent, ToastComponent } from '../../ui';
+import { attendanceCsv, attendanceRange } from './attendance-range';
 
 @Component({
   selector: 'hq-class-attendance',
@@ -33,6 +32,7 @@ import {
     SkeletonComponent,
     ToastComponent,
     FormsModule,
+    RouterLink,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,6 +46,29 @@ export class ClassAttendanceComponent {
 
   @Input({ required: true }) classId!: string;
   @Input() className = '';
+
+  /**
+   * R6 (DR2): draw the roster, and none of the controls that mark it.
+   *
+   * A coordinator reads attendance and may not touch it, so the status pills, the notes, "Mark
+   * all present" and Save are not rendered at all — hidden rather than disabled, like every other
+   * control she has no key for. The same input the shared calendar takes (`hq-class-calendar`).
+   */
+  readonly readOnly = input(false);
+
+  /**
+   * R6: a **range** of days, already read by the caller, instead of the one day this fetches.
+   *
+   * `GET /coordinator/classes/{id}/attendance?from&to` answers a day per element, which is the
+   * table she wants — children down the side, days across the top, her four totals on the end.
+   * Set, it takes the place of the internal single-day read: the teacher's screen is a marking
+   * screen for today and hers is a fortnight at a glance, and the roster, the avatars, the
+   * colours and the four words are the same table either way.
+   */
+  readonly days = input<readonly AttendanceDayDto[] | null>(null);
+
+  /** Where a child's name goes — her report lives under a different area for each role. */
+  readonly childBase = input('/teacher/children');
 
   /** U1 item 5: the green strip goes away on its own after three seconds. */
   protected readonly savedToastMs = 3000;
@@ -62,6 +85,9 @@ export class ClassAttendanceComponent {
 
   constructor() {
     effect(() => {
+      // A caller that supplies the days owns the read: fetching today's on top of them would
+      // paint one day's roster over a range she asked for.
+      if (this.days() !== null) return;
       const id = this.classId;
       const date = this.selectedDate();
       if (id && date) {
@@ -70,13 +96,59 @@ export class ClassAttendanceComponent {
     });
   }
 
+  // ---- R6: the range ------------------------------------------------------------------------
+
+  /** The matrix, or `null` when this is the teacher's single-day screen. */
+  protected readonly range = computed(() => {
+    const days = this.days();
+    return days === null ? null : attendanceRange(days);
+  });
+
+  protected childLink(childId: string): readonly string[] {
+    return [this.childBase(), childId];
+  }
+
+  /** The short word in a cell — "P", "L", "A", "E" — with the full one in its title. */
+  protected cellWord(status: AttendanceStatus): string {
+    this.lang();
+    return status === 'NOT_MARKED' ? '·' : this.transloco.translate<string>(`attendance.short.${status}`);
+  }
+
+  protected cellTitle(childName: string, date: string, status: AttendanceStatus): string {
+    this.lang();
+    const word = this.transloco.translate<string>(
+      status === 'NOT_MARKED' ? 'attendance.notMarked' : `attendance.${status.toLowerCase()}`,
+    );
+    return `${childName} · ${date} · ${word}`;
+  }
+
+  protected exportCsv(): void {
+    const range = this.range();
+    if (!range) return;
+    const csv = attendanceCsv(range, {
+      child: this.tr('results.table.child'),
+      present: this.tr('attendance.present'),
+      late: this.tr('attendance.late'),
+      absent: this.tr('attendance.absent'),
+      excused: this.tr('attendance.excused'),
+      rate: this.tr('attendance.rate'),
+    });
+    saveFile(
+      csv,
+      exportName([this.className, this.tr('attendance.attendance')], 'csv'),
+      'text/csv;charset=utf-8',
+    );
+  }
+
+  private tr(key: string): string {
+    return this.transloco.translate<string>(key);
+  }
+
   protected readonly totalCount = computed(() => this.students().length);
   protected readonly presentCount = computed(
     () => this.students().filter((s) => s.status === 'PRESENT').length,
   );
-  protected readonly lateCount = computed(
-    () => this.students().filter((s) => s.status === 'LATE').length,
-  );
+  protected readonly lateCount = computed(() => this.students().filter((s) => s.status === 'LATE').length);
   protected readonly absentCount = computed(
     () => this.students().filter((s) => s.status === 'ABSENT').length,
   );
@@ -159,16 +231,12 @@ export class ClassAttendanceComponent {
 
   protected setStatus(childId: string, status: AttendanceStatus): void {
     this.saveSuccess.set(false);
-    this.students.update((list) =>
-      list.map((s) => (s.childId === childId ? { ...s, status } : s)),
-    );
+    this.students.update((list) => list.map((s) => (s.childId === childId ? { ...s, status } : s)));
   }
 
   protected onNotesChange(childId: string, notes: string): void {
     this.saveSuccess.set(false);
-    this.students.update((list) =>
-      list.map((s) => (s.childId === childId ? { ...s, notes } : s)),
-    );
+    this.students.update((list) => list.map((s) => (s.childId === childId ? { ...s, notes } : s)));
   }
 
   protected markAll(status: AttendanceStatus): void {

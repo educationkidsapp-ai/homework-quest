@@ -30,6 +30,7 @@ import {
   type Row,
 } from './gradebook.models';
 import { LevelBandComponent } from './level-band.component';
+import { ResultsApiService } from './results-api.service';
 import { marks, parseScore, request, scoreLabel, type MarkDraft } from './results.models';
 
 /**
@@ -75,6 +76,7 @@ import { marks, parseScore, request, scoreLabel, type MarkDraft } from './result
 })
 export class GradebookComponent {
   private readonly api = inject(ResultsAndGradebookApi);
+  private readonly reads = inject(ResultsApiService);
   private readonly transloco = inject(TranslocoService);
   private readonly flags = inject(FlagService);
   private readonly permissions = inject(PermissionService);
@@ -85,10 +87,26 @@ export class GradebookComponent {
   readonly classId = input.required<string>();
   readonly className = input('');
 
+  /**
+   * R6 (DR2): the grid, and nothing that writes to it.
+   *
+   * `canOverride()` already asks for `results.write`, which a coordinator does not hold, so this
+   * input changes no behaviour for her — it states the intent on the *caller's* side, the way
+   * `hq-class-calendar` and `hq-class-attendance` take it, and it is what the read-only test
+   * asserts against rather than the absence of a permission it had to stub away.
+   */
+  readonly readOnly = input(false);
+
   protected readonly markingFlag = FLAGS.openStopMarking;
 
+  /** Where a row's name goes: `/coordinator/children/{id}` for her, `/teacher/…` for a teacher. */
+  protected readonly childBase = computed(() => `${this.reads.base()}/children`);
+
+  /** CSV and XLSX live in the teacher's namespace only — see {@link ResultsApiService}. */
+  protected readonly canExport = computed(() => this.reads.supportsExport() && !this.readOnly());
+
   protected readonly canOverride = computed(
-    () => this.flags.isOn(FLAGS.openStopMarking) && this.permissions.can('results.write'),
+    () => !this.readOnly() && this.flags.isOn(FLAGS.openStopMarking) && this.permissions.can('results.write'),
   );
 
   // ---- the range --------------------------------------------------------------------------
@@ -100,9 +118,10 @@ export class GradebookComponent {
   protected readonly book = rxResource({
     params: () => {
       const range = normalise({ from: this.from(), to: this.to() });
-      return range ? { classId: this.classId(), ...range } : undefined;
+      // `reads.ready()`: which namespace answers depends on the role, so the read waits for it.
+      return range && this.reads.ready() ? { classId: this.classId(), ...range } : undefined;
     },
-    stream: ({ params }) => this.api.gradebook(params.classId, params.from, params.to),
+    stream: ({ params }) => this.reads.gradebook(params.classId, params.from, params.to),
     defaultValue: {},
   });
 

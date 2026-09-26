@@ -59,9 +59,12 @@ export function areaRoutes(role: Role): Routes {
  * and the teacher's My classes (N2.3). Both are keyed by role as well as by id.
  */
 function componentFor(screen: Screen, role: Role) {
-  // R5: the coordinator's four screens are her own — `GET /home`, `/teacher/**` and `/admin/**`
-  // all answer 403 for her — except the lesson, which is the teacher's page in read-only mode.
-  if (role === 'COORDINATOR' && screen.id !== 'lesson') return coordinatorComponentFor(screen);
+  // R5/R6: the coordinator's list screens are her own — `GET /home`, `/teacher/**` and
+  // `/admin/**` all answer 403 for her — while the four detail screens are the teacher's pages
+  // in read-only mode, reading her namespace through `LessonApiService`/`ResultsApiService`.
+  if (role === 'COORDINATOR' && !SHARED_WITH_TEACHER.has(screen.id)) {
+    return coordinatorComponentFor(screen);
+  }
   if (screen.path === '') return import('../../features/home/home.page').then((m) => m.HomePage);
   if (screen.id === 'week') return import('../../features/week/week.page').then((m) => m.WeekPage);
   if (screen.id === 'lessons')
@@ -94,8 +97,28 @@ function componentFor(screen: Screen, role: Role) {
   return import('../../features/stub/stub.page').then((m) => m.StubPage);
 }
 
-/** R5's area, one lazy chunk per screen so her Home never carries the calendar or the filters. */
+/**
+ * The screen ids a coordinator opens the **teacher's** component for.
+ *
+ * Each of the four is the screen with the content in it — a lesson, a lesson's results, an exam's
+ * results, a child's report — and a second copy of any of them would drift from the first within
+ * a phase. They draw themselves read-only from `data.readOnly` and from the permissions she does
+ * not hold, and they read her namespace rather than the teacher's.
+ */
+const SHARED_WITH_TEACHER = new Set(['lesson', 'results', 'child', 'exam-results']);
+
+/** R5/R6's area, one lazy chunk per screen so her Home never carries the calendar or the grid. */
 function coordinatorComponentFor(screen: Screen) {
+  if (screen.id === 'attendance')
+    return import('../../features/coordinator/coordinator-attendance.page').then(
+      (m) => m.CoordinatorAttendancePage,
+    );
+  if (screen.id === 'gradebook')
+    return import('../../features/coordinator/coordinator-gradebook.page').then(
+      (m) => m.CoordinatorGradebookPage,
+    );
+  if (screen.id === 'exams')
+    return import('../../features/coordinator/coordinator-exams.page').then((m) => m.CoordinatorExamsPage);
   if (screen.id === 'teachers')
     return import('../../features/coordinator/coordinator-teachers.page').then(
       (m) => m.CoordinatorTeachersPage,

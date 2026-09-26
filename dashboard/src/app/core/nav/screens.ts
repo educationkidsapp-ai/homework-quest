@@ -193,8 +193,9 @@ export const AREAS: Readonly<Record<Role, Area>> = {
   // `calendar.read` or `results.read` at all (`permissions.json`), which is what makes the
   // shared lesson page draw itself with no write control rather than with disabled ones.
   //
-  // Attendance, results, exams and the child page are R6's rows; they are deliberately absent
-  // rather than stubbed, because the routes they would read do not exist yet.
+  // R6 adds Attendance, Gradebook and Exams to the rail, and the three detail screens they open:
+  // a lesson's results, an exam's results and a child's report. All six are the teacher's own
+  // components in read-only mode, keyed by `readOnly` on the row.
   COORDINATOR: {
     base: '/coordinator',
     screens: [
@@ -208,6 +209,57 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       // No `labelKey`: a lesson is opened from a row, a card or a calendar square, never from
       // the rail. `readOnly` is the whole of R5's "reuse the teacher lesson page in read mode".
       { id: 'lesson', path: 'lessons/:id', permission: 'coordinator.lesson.read', readOnly: true },
+      // R6. Attendance carries no flag — a school with classes has registers, and the teacher's
+      // own marking tab has none either. Gradebook and Exams carry the two flags their
+      // controllers carry, so a school without one meets the same `/not-found` in the router as
+      // the 404 the API would answer, rather than a screen of red bands.
+      {
+        id: 'attendance',
+        path: 'attendance',
+        labelKey: 'nav.attendance',
+        permission: 'coordinator.attendance.read',
+        readOnly: true,
+      },
+      {
+        id: 'gradebook',
+        path: 'gradebook',
+        labelKey: 'nav.gradebook',
+        flag: FLAGS.gradebook,
+        permission: 'coordinator.results.read',
+        readOnly: true,
+      },
+      {
+        id: 'exams',
+        path: 'exams',
+        labelKey: 'nav.exams',
+        flag: FLAGS.exams,
+        permission: 'coordinator.exams.read',
+        readOnly: true,
+      },
+      // No `labelKey` on the three below: each is opened from a row of the screen above it — a
+      // lesson column of the gradebook, an exam of the list, a child's name in either — never
+      // from the rail. All three are the teacher's page, read-only.
+      {
+        id: 'results',
+        path: 'lessons/:id/results',
+        flag: FLAGS.gradebook,
+        permission: 'coordinator.results.read',
+        readOnly: true,
+      },
+      {
+        id: 'child',
+        path: 'children/:childId',
+        flag: FLAGS.gradebook,
+        permission: 'coordinator.results.read',
+        readOnly: true,
+      },
+      {
+        id: 'exam-results',
+        path: 'exams/:id/results',
+        flag: FLAGS.exams,
+        permission: 'coordinator.exams.read',
+        readOnly: true,
+      },
     ],
   },
 };

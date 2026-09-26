@@ -105,26 +105,53 @@ describe('the screen table', () => {
    * the table: a row that lost `readOnly` would hand her a publish button, and the page would
    * never know.
    */
-  it('gives a coordinator four rail items and a read-only lesson route', () => {
+  it('gives a coordinator seven rail items and read-only detail routes', () => {
     expect(navScreens('COORDINATOR').map(({ screen }) => screen.id)).toEqual([
       'home',
       'teachers',
       'classes',
       'lessons',
+      // R6's three record screens.
+      'attendance',
+      'gradebook',
+      'exams',
     ]);
     expect(navScreens('COORDINATOR').map(({ link }) => link)).toEqual([
       '/coordinator',
       '/coordinator/teachers',
       '/coordinator/classes',
       '/coordinator/lessons',
+      '/coordinator/attendance',
+      '/coordinator/gradebook',
+      '/coordinator/exams',
     ]);
+
+    // R6: every one of her record screens is read-only too, and the two flagged ones carry the
+    // flags their controllers carry — a school without `gradebook` must meet `/not-found` in the
+    // router rather than a screen of 404s.
+    for (const id of ['attendance', 'gradebook', 'exams', 'results', 'child', 'exam-results']) {
+      const row = AREAS.COORDINATOR.screens.find((screen) => screen.id === id);
+      expect(`${id}:${row?.readOnly}`).toBe(`${id}:true`);
+      expect(row?.permission?.startsWith('coordinator.')).toBe(true);
+    }
+    const flagOf = (id: string) => AREAS.COORDINATOR.screens.find((s) => s.id === id)?.flag;
+    expect([flagOf('gradebook'), flagOf('child'), flagOf('results')]).toEqual([
+      'gradebook',
+      'gradebook',
+      'gradebook',
+    ]);
+    expect([flagOf('exams'), flagOf('exam-results')]).toEqual(['exams', 'exams']);
+    // Attendance is not behind a toggle: a school with classes has registers.
+    expect(flagOf('attendance')).toBeUndefined();
 
     const routes = childrenOf(areaRoutes('COORDINATOR'));
     const lesson = routes.find((route) => route.path === 'lessons/:id');
     expect(lesson?.data?.['readOnly']).toBe(true);
-    // Every other screen of hers is writable by nobody, so the flag is false rather than absent:
-    // the page reads `data.readOnly` and must never have to tell false from missing.
-    for (const route of routes.filter((candidate) => candidate.path !== 'lessons/:id'))
+    // The three list screens R5 built are the only rows without `readOnly`, and their flag is
+    // `false` rather than absent: a page reads `data.readOnly` and must never have to tell false
+    // from missing. Everything R6 added is `true` — asserted above, row by row.
+    const listOnly = ['', 'teachers', 'classes', 'lessons'];
+    for (const route of routes.filter((candidate) => listOnly.includes(candidate.path ?? '')))
       expect(`${route.path}:${route.data?.['readOnly']}`).toBe(`${route.path}:false`);
 
     // DR2: she writes nothing here, so not one row may carry a write permission.
