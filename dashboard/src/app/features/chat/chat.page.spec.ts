@@ -11,6 +11,7 @@ import {
   ChatThreadStatusEnum,
   ChatThreadTopicEnum,
 } from '../../api';
+import { AuthService } from '../../core/auth/auth.service';
 import { LocalMessage } from '../../core/chat/chat.models';
 import { ChatService } from '../../core/chat/chat.service';
 import { FlagService } from '../../core/flags/flag.service';
@@ -19,7 +20,7 @@ import { ChatPage } from './chat.page';
 describe('ChatPage', () => {
   let mockChatService: Partial<ChatService>;
   let mockFlags: Partial<FlagService>;
-  const activeChildIdSig = signal<string | null>(null);
+  const activeKeySig = signal<string | null>(null);
   const activeThreadSig = signal<ChatThread | null>(null);
   const messagesSig = signal<LocalMessage[]>([]);
 
@@ -46,14 +47,14 @@ describe('ChatPage', () => {
   };
 
   beforeEach(() => {
-    activeChildIdSig.set(null);
+    activeKeySig.set(null);
     activeThreadSig.set(null);
     messagesSig.set([]);
 
     mockChatService = {
       threads: signal([sampleThread]),
       loadingThreads: signal(false),
-      activeChildId: activeChildIdSig,
+      activeKey: activeKeySig,
       activeThread: activeThreadSig,
       messages: messagesSig,
       loadingMessages: signal(false),
@@ -62,10 +63,11 @@ describe('ChatPage', () => {
       totalUnread: signal(1),
       loadThreads: vi.fn(),
       selectThread: vi.fn((childId: string) => {
-        activeChildIdSig.set(childId);
+        activeKeySig.set(childId);
         activeThreadSig.set(sampleThread);
         messagesSig.set([sampleThread.lastMessage!]);
       }),
+      keyOf: (thread: ChatThread) => thread.childId,
       sendMessage: vi.fn(),
       sendTyping: vi.fn(),
       markRead: vi.fn(),
@@ -81,6 +83,10 @@ describe('ChatPage', () => {
       providers: [
         provideRouter([]),
         { provide: ChatService, useValue: mockChatService },
+        {
+          provide: AuthService,
+          useValue: { role: signal('TEACHER' as const), user: signal({ id: 'u-sara' }) },
+        },
         { provide: FlagService, useValue: mockFlags },
       ],
     });
@@ -123,7 +129,7 @@ describe('ChatPage', () => {
   });
 
   it('sends message via composer', async () => {
-    activeChildIdSig.set('ch-1');
+    activeKeySig.set('ch-1');
     activeThreadSig.set(sampleThread);
     const rendered = await renderPage();
 

@@ -1,15 +1,18 @@
 import { Injectable, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { forkJoin, map, of } from 'rxjs';
+import { catchError, forkJoin, map, of } from 'rxjs';
 import {
   type AdminLesson,
+  type ChatThread,
   type CoordinatorClass,
   type CoordinatorMe,
   type CoordinatorTeacher,
   AdminLessonStatusEnum,
   CoordinatorApi,
+  CoordinatorChatApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { type CellStatus, normaliseStatus } from '../week/week.models';
 
 /** One subject she supervises, with the track it is on — `null` means both (DR1). */
@@ -34,7 +37,7 @@ export interface CoordinatorClassView {
 
 /** One line of Home's "What needs you": a lesson to look at, or a class with nothing on today. */
 export interface CoordinatorNeed {
-  readonly kind: 'needs_review' | 'error' | 'no_lesson';
+  readonly kind: 'complaint' | 'needs_review' | 'error' | 'no_lesson';
   readonly title: string;
   readonly className: string;
   /** `/coordinator/lessons/{id}`, or the Classes screen when there is no lesson to open. */
@@ -56,9 +59,13 @@ export interface CoordinatorNeed {
 @Injectable({ providedIn: 'root' })
 export class CoordinatorService {
   private readonly api = inject(CoordinatorApi);
+  private readonly chatApi = inject(CoordinatorChatApi);
   private readonly auth = inject(AuthService);
+  private readonly flags = inject(FlagService);
 
   private readonly isCoordinator = computed(() => this.auth.role() === 'COORDINATOR');
+  /** R7: `GET /coordinator/complaints` carries the `chat` flag, so a school without it is not asked. */
+  private readonly readsComplaints = computed(() => this.isCoordinator() && this.flags.isOn(FLAGS.chat));
 
   private readonly meRes = rxResource<CoordinatorMe, boolean>({
     params: () => this.isCoordinator(),
@@ -96,6 +103,22 @@ export class CoordinatorService {
         : of([]),
     defaultValue: [],
   });
+
+  /**
+   * The complaints still open, for Home's "What needs you" (R7, DR3).
+   *
+   * Deliberately outside `failed`: a school with `chat` off answers 404 here, and a coordinator
+   * whose Home turned into an error band because of a feature she does not have would have been
+   * told her school is broken. A read that does not happen contributes no line, which is right.
+   */
+  private readonly complaintsRes = rxResource<readonly ChatThread[], boolean>({
+    params: () => this.readsComplaints(),
+    stream: ({ params: mine }) =>
+      mine ? this.chatApi.coordinatorComplaints('open').pipe(catchError(() => of([]))) : of([]),
+    defaultValue: [],
+  });
+
+  readonly openComplaints = computed(() => this.complaintsRes.value().length);
 
   readonly loading = computed(
     () => this.meRes.isLoading() || this.teachersRes.isLoading() || this.classesRes.isLoading(),
@@ -159,6 +182,14 @@ export class CoordinatorService {
    * say to the teacher, never an action of her own.
    */
   readonly needs = computed<readonly CoordinatorNeed[]>(() => {
+    // A parent's complaint is the one line here that is about a person rather than a lesson, so
+    // it leads: it is also the only one she can act on herself (answer it, then resolve it).
+    const complaints = this.complaintsRes.value().map((thread) => ({
+      kind: 'complaint' as const,
+      title: thread.childName,
+      className: thread.className ?? '',
+      link: ['/coordinator/complaints'],
+    }));
     const lessons = this.attentionRes.value().map((lesson) => ({
       kind: lesson.status === AdminLessonStatusEnum.ERROR ? ('error' as const) : ('needs_review' as const),
       title: (lesson.title ?? '').trim(),
@@ -173,8 +204,8 @@ export class CoordinatorService {
         className: row.className,
         link: ['/coordinator/classes'],
       }));
-    const rank = { error: 0, needs_review: 1, no_lesson: 2 };
-    return [...lessons, ...quiet].sort((a, b) => rank[a.kind] - rank[b.kind]);
+    const rank = { complaint: 0, error: 1, needs_review: 2, no_lesson: 3 };
+    return [...complaints, ...lessons, ...quiet].sort((a, b) => rank[a.kind] - rank[b.kind]);
   });
 
   reload(): void {
@@ -182,5 +213,6 @@ export class CoordinatorService {
     this.teachersRes.reload();
     this.classesRes.reload();
     this.attentionRes.reload();
+    this.complaintsRes.reload();
   }
 }

@@ -1176,7 +1176,8 @@
     "notifications": "Notifications",
     "attendance": "Attendance",
     "gradebook": "Gradebook",
-    "exams": "Exams"
+    "exams": "Exams",
+    "messages": "Messages"
   },
   "notifications": {
     "title": "Notifications",
@@ -1240,7 +1241,11 @@
     "viewImage": "View image",
     "downloadFile": "Download",
     "pdfDocument": "PDF Document",
-    "close": "Close"
+    "close": "Close",
+    "messagesTitle": "Messages",
+    "managementSubtitle": "Conversations with the coordinators of your department.",
+    "management": "Management",
+    "complaint": "Complaint"
   },
   "profile": {
     "title": "Your profile",
@@ -1858,7 +1863,8 @@
     "need": {
       "needs_review": "Needs review",
       "error": "Failed",
-      "no_lesson": "Nothing on today"
+      "no_lesson": "Nothing on today",
+      "complaint": "Complaint"
     },
     "teachers": {
       "subtitle": "The teachers of your subject, and whether today has happened in their classes.",
@@ -1900,6 +1906,53 @@
     "exams": {
       "subtitle": "The exams of one of your classes. You can read them; only the teacher sets and reopens them."
     },
-    "records": "Records"
+    "records": "Records",
+    "complaints": {
+      "subtitle": "What parents have raised with you, and what is still open.",
+      "filterLabel": "Filter complaints by status",
+      "open": "Open",
+      "resolved": "Resolved",
+      "resolve": "Mark resolved",
+      "reopen": "Reopen",
+      "resolveTitle": "Mark this complaint resolved?",
+      "resolveBody": "The parent is told it is resolved. You can reopen it afterwards.",
+      "reopenTitle": "Reopen this complaint?",
+      "reopenBody": "It goes back to your open list, and the parent sees it as open again.",
+      "writeFailed": "That did not change. Nothing was saved — try again.",
+      "emptyHint": "A parent raises a complaint from the app, naming you as the coordinator of the subject.",
+      "empty": {
+        "open": "No open complaints.",
+        "resolved": "No resolved complaints yet."
+      },
+      "columns": {
+        "child": "Child",
+        "parent": "From",
+        "className": "Class",
+        "last": "Last message",
+        "action": "Status"
+      },
+      "confirmResolve": "Yes, resolve it",
+      "confirmReopen": "Yes, reopen it"
+    },
+    "announcements": {
+      "subtitle": "Notes to the parents of the classes you coordinate.",
+      "compose": "Write an announcement",
+      "post": "Post",
+      "posted": "Posted to the parents.",
+      "postFailed": "That was not posted. Nothing was sent — try again.",
+      "bodyEn": "Announcement (English)",
+      "bodyAr": "Announcement (Arabic)",
+      "bodyArHint": "Optional. Parents reading in Arabic see this instead.",
+      "tooLong": "An announcement is at most 1000 characters.",
+      "classes": "Classes",
+      "classesHint": "None ticked means every class in your scope.",
+      "expires": "Hide after",
+      "expiresHint": "Optional. It stays until you remove it otherwise.",
+      "until": "Until {{date}}",
+      "empty": "You have not posted an announcement yet.",
+      "emptyHint": "Parents read it in the app; there is no notification, so keep it short.",
+      "notEnabled": "Announcements are not enabled for this school.",
+      "notEnabledHint": "An Admin can turn them on in the feature matrix."
+    }
   }
 }

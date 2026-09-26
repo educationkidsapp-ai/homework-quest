@@ -1,7 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { catchError, of, tap } from 'rxjs';
 import {
-  ChatApi,
   ChatMessage,
   ChatMessageSenderEnum,
   ChatThread,
@@ -14,6 +13,7 @@ import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ChatRoutes } from './chat-routes';
 import { ChatClientCommand, ChatConnectionStatus, ChatServerFrame, LocalMessage } from './chat.models';
 
 const MAX_RECONNECT_DELAY_MS = 30_000;
@@ -22,7 +22,7 @@ const TYPING_THROTTLE_MS = 2_000;
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {
-  private readonly api = inject(ChatApi);
+  private readonly routes = inject(ChatRoutes);
   private readonly auth = inject(AuthService);
   private readonly session = inject(SessionStore);
   private readonly flags = inject(FlagService);
@@ -37,7 +37,11 @@ export class ChatService {
 
   readonly threads = signal<ChatThread[]>([]);
   readonly loadingThreads = signal<boolean>(false);
-  readonly activeChildId = signal<string | null>(null);
+  /**
+   * The thread the screen is on, by the id **this role's** routes name it with (`ChatRoutes`):
+   * a child for a teacher, a thread for a coordinator.
+   */
+  readonly activeKey = signal<string | null>(null);
   readonly messages = signal<LocalMessage[]>([]);
   readonly loadingMessages = signal<boolean>(false);
   readonly connectionStatus = signal<ChatConnectionStatus>('disconnected');
@@ -55,13 +59,18 @@ export class ChatService {
   private readonly pending = signal<ChatThread | null>(null);
 
   readonly activeThread = computed(() => {
-    const childId = this.activeChildId();
-    if (!childId) return null;
-    const existing = this.threads().find((t) => t.childId === childId);
+    const key = this.activeKey();
+    if (!key) return null;
+    const existing = this.threads().find((t) => this.keyOf(t) === key);
     if (existing) return existing;
     const waiting = this.pending();
-    return waiting !== null && waiting.childId === childId ? waiting : null;
+    return waiting !== null && this.keyOf(waiting) === key ? waiting : null;
   });
+
+  /** The id a thread row is tracked and routed by for whoever is signed in. */
+  keyOf(thread: ChatThread): string {
+    return this.routes.transport()?.keyOf(thread) ?? thread.id ?? '';
+  }
 
   readonly totalUnread = computed(() => this.threads().reduce((acc, t) => acc + (t.unread ?? 0), 0));
 
@@ -85,7 +94,9 @@ export class ChatService {
       if (this.auth.signedIn() && dashboardRole) {
         this.intentionalDisconnect = false;
         this.connect();
-        if (role === 'TEACHER' && this.flags.isOn('chat')) this.loadThreads();
+        // R7: "the role that has a threads list" rather than "TEACHER" — a coordinator has one
+        // too, on her own routes, and a manager has none until RM2 adds it.
+        if (this.flags.isOn('chat')) this.loadThreads();
       } else {
         this.disconnect();
       }
@@ -93,24 +104,24 @@ export class ChatService {
   }
 
   loadThreads(): void {
-    // The socket now opens for three roles; the chat REST routes still answer only one of
-    // them, and only with the flag on. Asking anyway would be a 403 in the band on every
-    // reconnect for an Admin.
-    if (this.auth.role() !== 'TEACHER' || !this.flags.isOn('chat') || this.chatDenied()) return;
+    // The socket opens for every dashboard role; only two of them have a threads list, and only
+    // with the flag on. Asking anyway would be a 403 in the band on every reconnect for an Admin.
+    const transport = this.routes.transport();
+    if (transport === null || !this.flags.isOn('chat') || this.chatDenied()) return;
     this.loadingThreads.set(true);
-    this.api
-      .teacherChatThreads()
+    transport
+      .threads()
       .pipe(
         tap((threads) => {
           this.threads.set(threads);
           this.loadingThreads.set(false);
           // The list is the answer to "does this child have a thread": drop a placeholder the
           // server has since confirmed, and mark read what could not be marked without one.
-          const active = this.activeChildId();
-          const real = active === null ? undefined : threads.find((t) => t.childId === active);
+          const active = this.activeKey();
+          const real = active === null ? undefined : threads.find((t) => this.keyOf(t) === active);
           if (real) {
-            if (this.pending()?.childId === active) this.pending.set(null);
-            if (real.unread > 0) this.markRead(real.childId);
+            if (this.pending() !== null && this.keyOf(this.pending()!) === active) this.pending.set(null);
+            if (real.unread > 0) this.markRead(active!);
           }
         }),
         catchError(() => {
@@ -121,14 +132,14 @@ export class ChatService {
       .subscribe();
   }
 
-  selectThread(childId: string): void {
-    if (this.activeChildId() === childId) return;
-    this.activeChildId.set(childId);
+  selectThread(key: string): void {
+    if (this.activeKey() === key) return;
+    this.activeKey.set(key);
     this.isParentTyping.set(false);
-    this.loadMessages(childId);
+    this.loadMessages(key);
     // Only a thread that exists can be marked read: `POST …/read` answers 404 without one, and
     // the error interceptor would put that 404 in a red band over a conversation she just opened.
-    if (this.threads().some((t) => t.childId === childId)) this.markRead(childId);
+    if (this.threads().some((t) => this.keyOf(t) === key)) this.markRead(key);
   }
 
   /**
@@ -138,7 +149,7 @@ export class ChatService {
    * composer straight away, and the first message creates the thread server-side.
    */
   openWith(childId: string, childName: string, className?: string): void {
-    if (!this.threads().some((t) => t.childId === childId)) {
+    if (!this.threads().some((t) => this.keyOf(t) === childId)) {
       this.pending.set({
         id: '',
         childId,
@@ -157,10 +168,12 @@ export class ChatService {
     this.selectThread(childId);
   }
 
-  loadMessages(childId: string): void {
+  loadMessages(key: string): void {
+    const transport = this.routes.transport();
+    if (transport === null) return;
     this.loadingMessages.set(true);
-    this.api
-      .teacherChatMessages(childId)
+    transport
+      .messages(key)
       .pipe(
         tap((msgs) => {
           this.messages.set(msgs);
@@ -175,9 +188,10 @@ export class ChatService {
   }
 
   sendMessage(body: string): void {
-    const childId = this.activeChildId();
+    const key = this.activeKey();
+    const transport = this.routes.transport();
     const cleanBody = body.trim();
-    if (!childId || !cleanBody || cleanBody.length > 2000) return;
+    if (!key || transport === null || !cleanBody || cleanBody.length > 2000) return;
 
     const clientId =
       typeof crypto !== 'undefined' && crypto.randomUUID
@@ -201,15 +215,15 @@ export class ChatService {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       const command: ChatClientCommand = {
         type: 'message',
-        childId,
+        ...transport.commandKey(key),
         body: cleanBody,
         clientId,
       };
       this.socket.send(JSON.stringify(command));
     } else {
       // Fall back to REST
-      this.api
-        .teacherSendChatMessage(childId, { body: cleanBody })
+      transport
+        .send(key, cleanBody)
         .pipe(
           tap((msg) => {
             this.handleServerMessage(msg, clientId);
@@ -230,33 +244,36 @@ export class ChatService {
   }
 
   sendTyping(): void {
-    const childId = this.activeChildId();
-    if (!childId) return;
+    const key = this.activeKey();
+    const transport = this.routes.transport();
+    if (!key || transport === null) return;
 
     const now = Date.now();
     if (now - this.lastTypingSentAt < TYPING_THROTTLE_MS) return;
     this.lastTypingSentAt = now;
 
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      const command: ChatClientCommand = { type: 'typing', childId };
+      const command: ChatClientCommand = { type: 'typing', ...transport.commandKey(key) };
       this.socket.send(JSON.stringify(command));
     }
   }
 
-  markRead(childId: string): void {
+  markRead(key: string): void {
+    const transport = this.routes.transport();
+    if (transport === null) return;
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      const command: ChatClientCommand = { type: 'read', childId };
+      const command: ChatClientCommand = { type: 'read', ...transport.commandKey(key) };
       this.socket.send(JSON.stringify(command));
     }
 
     // Call REST markRead as well for durability
-    this.api
-      .teacherMarkChatRead(childId)
+    transport
+      .read(key)
       .pipe(catchError(() => of(null)))
       .subscribe();
 
     // Clear local unread counter for this thread
-    this.threads.update((list) => list.map((t) => (t.childId === childId ? { ...t, unread: 0 } : t)));
+    this.threads.update((list) => list.map((t) => (this.keyOf(t) === key ? { ...t, unread: 0 } : t)));
   }
 
   connect(): void {
@@ -321,13 +338,14 @@ export class ChatService {
         this.loadThreads();
 
         // Refetch recent messages for active thread on reconnect
-        const activeId = this.activeChildId();
-        if (activeId) {
+        const activeId = this.activeKey();
+        const transport = this.routes.transport();
+        if (activeId && transport !== null) {
           const msgs = this.messages();
           const lastMsg = msgs[msgs.length - 1];
           if (lastMsg && !lastMsg.pending) {
-            this.api
-              .teacherChatMessages(activeId, undefined, lastMsg.id)
+            transport
+              .messages(activeId, lastMsg.id)
               .pipe(
                 tap((newMsgs) => {
                   if (newMsgs.length > 0) {
@@ -346,7 +364,7 @@ export class ChatService {
       this.socket.onmessage = (event) => {
         try {
           const frame = JSON.parse(event.data as string) as ChatServerFrame;
-          this.handleFrame(frame);
+          this.receive(frame);
         } catch {
           // Ignore unparseable frame
         }
@@ -373,7 +391,12 @@ export class ChatService {
     }
   }
 
-  private handleFrame(frame: ChatServerFrame): void {
+  /**
+   * One frame off `/ws/chat`. Public because the socket is not the only thing that can hand the
+   * service a frame — a test does too, and so would a replay — and `NotificationsService.receive`
+   * already reads that way.
+   */
+  receive(frame: ChatServerFrame): void {
     switch (frame.type) {
       case 'ping':
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
@@ -414,6 +437,23 @@ export class ChatService {
         }
         break;
 
+      case 'status':
+        // R4's `status` frame. The row she is looking at moves under her without a refetch, so
+        // the complaints inbox and the thread header agree about "resolved" on every tab.
+        this.threads.update((list) =>
+          list.map((t) =>
+            t.id === frame.threadId
+              ? {
+                  ...t,
+                  status:
+                    frame.status === 'resolved' ? ChatThreadStatusEnum.RESOLVED : ChatThreadStatusEnum.OPEN,
+                  resolvedAt: frame.status === 'resolved' ? frame.at : undefined,
+                }
+              : t,
+          ),
+        );
+        break;
+
       case 'error':
         // "You are here for notifications" — an answer to a chat command this peer may not
         // send. The socket is fine; only the chat half of it is closed to us.
@@ -435,16 +475,14 @@ export class ChatService {
   }
 
   private handleServerMessage(message: ChatMessage, clientId?: string): void {
-    const activeChild = this.activeChildId();
+    const activeKey = this.activeKey();
     // The first message of a new conversation *is* the thread: refetch the list so the sidebar
     // has the row the server just created, and let it take the placeholder's place.
     if (this.pending() !== null && message.threadId) {
       this.loadThreads();
     }
     const active = this.activeThread();
-    const isCurrentThread =
-      (active && active.id === message.threadId) ||
-      (activeChild && this.threads().some((t) => t.childId === activeChild && t.id === message.threadId));
+    const isCurrentThread = active !== null && active.id === message.threadId;
     // The echo of a message this client sent, identified by its own `clientId`. It settles the
     // optimistic bubble even when the thread it created is younger than the thread list.
     const isOwnEcho = clientId !== undefined && this.messages().some((m) => m.clientId === clientId);
@@ -468,8 +506,8 @@ export class ChatService {
       });
 
       // If message is from parent in active view, mark read immediately
-      if (message.sender === ChatMessageSenderEnum.PARENT && activeChild) {
-        this.markRead(activeChild);
+      if (message.sender === ChatMessageSenderEnum.PARENT && activeKey) {
+        this.markRead(activeKey);
       }
     }
 
@@ -477,6 +515,10 @@ export class ChatService {
     this.threads.update((threadsList) => {
       const idx = threadsList.findIndex((t) => t.id === message.threadId);
       if (idx === -1) {
+        // R7: a manager has no `GET …/threads` of her own until RM2, so for her the frame *is*
+        // the row — an inbox that fills while the screen is open. Everyone else refetches, which
+        // is also how a thread created by this very message gets its real row.
+        if (this.routes.listensOnly()) return [this.rowFor(message), ...threadsList];
         this.loadThreads();
         return threadsList;
       }
@@ -491,6 +533,22 @@ export class ChatService {
       const nextList = threadsList.filter((_, i) => i !== idx);
       return [updated, ...nextList];
     });
+  }
+
+  /** The thread row a socket frame implies, for the role that cannot ask for one. */
+  private rowFor(message: ChatMessage): ChatThread {
+    return {
+      id: message.threadId,
+      childId: '',
+      childName: '',
+      teacherId: message.senderId,
+      teacherName: '',
+      unread: 1,
+      lastMessage: message,
+      staffRole: ChatThreadStaffRoleEnum.MANAGERIAL,
+      topic: ChatThreadTopicEnum.QUESTION,
+      status: ChatThreadStatusEnum.OPEN,
+    };
   }
 
   private mergeNewMessages(newMsgs: ChatMessage[]): void {

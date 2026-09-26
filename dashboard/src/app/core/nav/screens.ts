@@ -184,6 +184,10 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         phase: 5,
       },
       { id: 'complaint', path: 'complaints/:id', flag: FLAGS.complaints, phase: 5 },
+      // R7: the manager's side of the coordinator ↔ manager threads. R4 added no
+      // `GET /management/chat/threads`, so this screen is fed by the socket alone until RM2 does
+      // — see `docs/coordinator-flow.md`. Flagged with `chat` like every other chat screen.
+      { id: 'messages', path: 'messages', labelKey: 'nav.messages', flag: FLAGS.chat },
       { id: 'usage', path: 'usage', labelKey: 'nav.schoolUsage', permission: 'usage.school', phase: 5 },
       { id: 'teachers', path: 'teachers', labelKey: 'nav.teachers', permission: 'teacher.read', phase: 5 },
     ],
@@ -259,6 +263,30 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.exams,
         permission: 'coordinator.exams.read',
         readOnly: true,
+      },
+      // R7 (DR3, DR4). All three carry the `chat` flag the server routes carry — `/coordinator/
+      // complaints` is chat, not N5.2's complaints store (DR3 keeps a complaint in the thread it
+      // arrived in) — plus her own key, so a school without chat has none of the three.
+      {
+        id: 'messages',
+        path: 'messages',
+        labelKey: 'nav.messages',
+        flag: FLAGS.chat,
+        permission: 'coordinator.chat',
+      },
+      {
+        id: 'complaints',
+        path: 'complaints',
+        labelKey: 'nav.complaints',
+        flag: FLAGS.chat,
+        permission: 'coordinator.complaints',
+      },
+      {
+        id: 'announcements',
+        path: 'announcements',
+        labelKey: 'nav.announcements',
+        flag: FLAGS.announcements,
+        permission: 'coordinator.announce',
       },
     ],
   },
