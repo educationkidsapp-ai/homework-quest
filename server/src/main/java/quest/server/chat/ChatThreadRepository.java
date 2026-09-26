@@ -54,11 +54,6 @@ public interface ChatThreadRepository extends JpaRepository<Entities.ChatThreadE
     @Query("update ChatThreadEntity t set t.parentUnread = 0 where t.id = :id")
     int clearParentUnread(@Param("id") String id);
 
-    /** R4: `open` / `resolved` on a complaint, written as one row update like the two unread counters are. */
-    @Modifying @Transactional
-    @Query("update ChatThreadEntity t set t.status = :status, t.resolvedAt = :at, t.resolvedBy = :by where t.id = :id")
-    int setStatus(@Param("id") String id, @Param("status") String status, @Param("at") Instant at, @Param("by") String by);
-
     /** The child's hard delete (`RosterService.delete`): no foreign key cascades here, so her threads go by hand. */
     @Modifying @Transactional
     @Query("delete from ChatThreadEntity t where t.childId = :childId")

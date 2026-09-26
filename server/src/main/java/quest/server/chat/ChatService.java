@@ -161,8 +161,23 @@ public class ChatService {
     @Transactional
     public ChatMessage parentSend(Principals.Parent parent, String childId, String staffId, String body, String clientId, ChatTopic topic) {
         var child = placed(parent, childId);
-        var thread = threadRows.getOrCreate(child, staffId, requireStaffOf(child, staffId), topic == null ? QUESTION : key(topic));
+        String staffRole = requireStaffOf(child, staffId);
+        var thread = threadRows.getOrCreate(child, staffId, staffRole, requireTopic(topic, staffRole));
         return send(thread, child.getParentId(), PARENT, parent.parentId(), body, clientId);
+    }
+
+    /**
+     * A `complaint` is only a complaint if somebody's inbox lists it, and `/coordinator/complaints` lists the threads
+     * the coordinator is the staff peer of — so a complaint aimed at a teacher would be a label nobody ever sees.
+     * 400 `complaint_needs_coordinator` rather than a silent downgrade to `question`: the parent chose the word, and
+     * the app can send her to the coordinator list instead of quietly filing her complaint as a chat message.
+     */
+    private static String requireTopic(ChatTopic topic, String staffRole) {
+        if (topic == null) return QUESTION;
+        if (topic == ChatTopic.COMPLAINT && !COORDINATOR.equals(staffRole))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "complaint_needs_coordinator",
+                    "A complaint goes to the coordinator of the subject. Pick one from the coordinator list, or write to the teacher as a question.");
+        return key(topic);
     }
 
     @Transactional

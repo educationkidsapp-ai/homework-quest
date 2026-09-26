@@ -195,9 +195,29 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
         assertThat(threadRows.findAll()).noneSatisfy(t -> assertThat(t.getChildId()).isEqualTo(childAmerican));
     }
 
+    /**
+     * A complaint on a teacher's thread would be a label nobody's inbox lists, so it is refused at the edge rather
+     * than stored: `/coordinator/complaints` only lists the threads the coordinator is the staff peer of.
+     */
+    @Test @Order(5) void a_complaint_aimed_at_a_teacher_is_refused_and_writes_nothing() throws Exception {
+        String maya = idOf("maya@test.com");
+        var refused = json(mvc.perform(post("/children/" + childBritishA + "/chat/threads/" + maya + "/messages")
+                        .header("Authorization", bearer(BRITISH_A_PARENT)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"This is a complaint.\",\"topic\":\"complaint\"}"))
+                .andExpect(status().isBadRequest()).andReturn());
+        assertThat(refused.get("code").asText()).isEqualTo("complaint_needs_coordinator");
+        assertThat(threadRows.findByChildIdAndTeacherId(childBritishA, maya)).as("nothing was written").isEmpty();
+
+        // The same thread as a question is fine, and stays a question.
+        var asked = parentPostJson(BRITISH_A_PARENT, "/children/" + childBritishA + "/chat/threads/" + maya + "/messages",
+                "{\"body\":\"Could you explain the homework?\"}");
+        assertThat(rowWith(parentJson(BRITISH_A_PARENT, "/children/" + childBritishA + "/chat/threads"), "id",
+                asked.get("threadId").asText()).get("topic").asText()).isEqualTo("question");
+    }
+
     // ---------------------------------------------------------------- coordinator ↔ manager
 
-    @Test @Order(5) void lina_and_the_british_manager_share_one_thread_and_the_american_one_is_refused() throws Exception {
+    @Test @Order(6) void lina_and_the_british_manager_share_one_thread_and_the_american_one_is_refused() throws Exception {
         var managerSocket = listen("user:" + nour, SCHOOL);
         var otherSchoolSocket = listen("user:" + otherSchoolCoordinator(), OTHER_SCHOOL);
 
@@ -227,7 +247,7 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
         assertThat(event.parentId()).isNull();
     }
 
-    @Test @Order(6) void another_schools_coordinator_reaches_none_of_it() throws Exception {
+    @Test @Order(7) void another_schools_coordinator_reaches_none_of_it() throws Exception {
         String hers = otherSchoolCoordinator();
         assertThat(staffJson(hers, OTHER_SCHOOL, "/coordinator/complaints")).isEmpty();
         var mine = threadRows.findAll().stream().filter(t -> SCHOOL.equals(t.getSchoolId())).findFirst().orElseThrow();
@@ -239,7 +259,7 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
 
     // ---------------------------------------------------------------- announcements
 
-    @Test @Order(7) void her_announcement_reaches_the_british_parents_only() throws Exception {
+    @Test @Order(8) void her_announcement_reaches_the_british_parents_only() throws Exception {
         var written = staffPostJson(lina, "/coordinator/announcements", "{\"bodyEn\":\"Times tables week starts Sunday.\"}");
         assertThat(names(written, "classId")).containsExactlyInAnyOrder(britishA, britishB);
 
@@ -260,9 +280,17 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
         mvc.perform(as(post("/coordinator/announcements").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"bodyEn\":\"  \"}"), token(lina, "COORDINATOR", SCHOOL)))
                 .andExpect(status().isBadRequest());
+
+        // `expiresAt` is a date a note stops being shown, so the past and the far future are both refused.
+        long now = System.currentTimeMillis();
+        for (long at : new long[] {now - 60_000, now + java.time.Duration.ofDays(401).toMillis()})
+            mvc.perform(as(post("/coordinator/announcements").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"bodyEn\":\"Sports day\",\"expiresAt\":" + at + "}"), token(lina, "COORDINATOR", SCHOOL)))
+                    .andExpect(status().isBadRequest());
+        assertThat(names(staffJson(lina, "/coordinator/announcements"), "bodyEn")).doesNotContain("Sports day");
     }
 
-    @Test @Order(8) void a_teacher_holds_none_of_the_coordinators_communication_keys() throws Exception {
+    @Test @Order(9) void a_teacher_holds_none_of_the_coordinators_communication_keys() throws Exception {
         String teacher = jwt.issue("comms-who-teacher", "who@x.test", "TEACHER", SCHOOL).token();
         for (String path : List.of("/coordinator/chat/threads", "/coordinator/complaints", "/coordinator/announcements"))
             mvc.perform(as(get(path), teacher)).andExpect(status().isForbidden());

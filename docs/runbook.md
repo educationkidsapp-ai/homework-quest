@@ -965,7 +965,9 @@ parent on the message that opens it) and a `status` (`open` / `resolved`, moved 
   subject taught in the child's section, as `ChatThread` rows with `id: null` until she writes — the same shape the
   teacher rows have. She then posts to `/children/{id}/chat/threads/{staffUserId}/messages`, adding
   `{"topic":"complaint"}` on the **first** message to make it a complaint; a coordinator of another subject or the
-  other track is 404, exactly as a teacher who does not teach the section is.
+  other track is 404, exactly as a teacher who does not teach the section is. A complaint has to name a coordinator:
+  `complaint` on a **teacher's** thread is `400 complaint_needs_coordinator`, because `/coordinator/complaints` lists
+  only the threads a coordinator is the staff peer of and the label would otherwise sit in nobody's inbox.
 - **Coordinator ↔ manager.** `POST /coordinator/chat/threads {"managerUserId":"…"}` — one thread per pair, however
   many times either side asks for it, limited to a manager whose department (her `curriculum` scope) meets hers; any
   other manager is 404. `childId` is empty on those rows and the manager's own REST list arrives with RM2, but her
