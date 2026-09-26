@@ -59,7 +59,16 @@ class ChatConversationViewModelTest {
 
         override suspend fun threads(childId: String): List<ChatThread> = emptyList()
         override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
-        override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?) = history
+        /**
+         * `since` is honoured, because the view model uses it: every reconnect refetches from the last id it holds.
+         * A fake that answered the whole history there would have the conversation append its own messages a second
+         * time, which is a duplicate the real server never sends — and a flaky test rather than a real one.
+         */
+        override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> {
+            if (since == null) return history
+            val i = history.indexOfFirst { it.id == since }
+            return if (i < 0) emptyList() else history.drop(i + 1)
+        }
 
         override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?): ChatMessage {
             sends.add(body to topic)
