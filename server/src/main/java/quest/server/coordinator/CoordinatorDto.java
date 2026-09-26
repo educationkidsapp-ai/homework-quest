@@ -48,6 +48,22 @@ public final class CoordinatorDto {
     /** `GET /coordinator/calendar?from&to`: every class in scope, day by day, in one response. */
     public record CoordinatorCalendar(String from, String to, List<CalendarDay> days) {}
 
+    // ---------------------------------------------------------------- communication (R4, DR3/DR4)
+
+    /** `POST /coordinator/chat/threads`: the manager she wants to talk to, validated against her department. */
+    public record StaffThreadRequest(@NotBlank String managerUserId) {}
+
+    /** `PATCH /coordinator/chat/threads/{id}/status`: `open` or `resolved`, the two words the column holds. */
+    public record ThreadStatusRequest(@NotBlank String status) {}
+
+    /**
+     * `POST /coordinator/announcements`: the same note a teacher posts (`bodyEn` required, `bodyAr` optional), sent to
+     * the classes named — or, when `classIds` is absent, to every section in her scope. One `announcements` row per
+     * class, so the parent's existing read needs no change at all (DR4).
+     */
+    public record CreateAnnouncementRequest(List<String> classIds, @NotBlank @Size(max = 1000) String bodyEn,
+                                            @Size(max = 1000) String bodyAr, Long expiresAt) {}
+
     // ---------------------------------------------------------------- admin (`/admin/coordinators/**`)
 
     public record CoordinatorAccount(String userId, String email, String fullName, String status, List<Scope> scopes) {}

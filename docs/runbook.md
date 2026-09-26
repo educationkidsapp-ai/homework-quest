@@ -237,6 +237,15 @@ carry `gradebook` and `exams` on the handler — the same keys the teacher's `Gr
 carry, so a school with a feature off answers 404 to both roles — and the register carries none, because
 `AttendanceController` carries none and `FlagKeys` has no key for taking a register.
 
+**Her writes (R4, DR3/DR4).** `/coordinator` stopped being read-only with the communication half, and with exactly
+five writes: `POST /coordinator/chat/threads` (her thread with the manager of her department),
+`POST /coordinator/chat/threads/{id}/messages`, `POST …/read`, `PATCH …/status` (`open` / `resolved` on a complaint)
+and `POST /coordinator/announcements`. The keys are `coordinator.chat`, `coordinator.complaints` and
+`coordinator.announce` (ADMIN + COORDINATOR); the chat four carry the `chat` flag and the announcement two carry
+`announcements`, the very keys the parent's and the teacher's halves of those features carry.
+`CoordinatorScopeArchitectureTest` names those five routes in an allow-list, so a sixth write under `/coordinator`
+fails the build until somebody argues for it.
+
 **Scoped twice: a section is not a subject.** `requireSection` only proves that *somebody* teaches one of her subjects
 in a section, so in a section that teaches two the teacher's own body carries both — every published lesson of it, an
 exam of each, a `ChildLevel` per subject. The three reads that answer for a whole section (`classes/{id}/results`,
@@ -945,7 +954,24 @@ handshake 403 until an Admin turns it on for the school (`PUT /admin/schools/$SC
 A parent is refused only when *none* of her children's schools has it on; each command is then checked against the
 child's own school.
 
-**Who may talk to whom.** One thread per (child, teacher), and only between the child's parent and a teacher who
+**Who may talk to whom (R4 widened this).** A thread's staff side is a **teacher**, a **coordinator** or — with no
+child on it at all — a **manager**, in `chat_threads.staff_role` (V20; `TEACHER` for every row written before R4).
+`teacher_id` is that staff peer whatever the role, `peer_user_id` is the second staff member of a
+coordinator ↔ manager thread, and `teacher_unread` / `parent_unread` are the two badges: the staff peer's, and the
+counterpart's (the parent, or the manager). A thread also carries a `topic` (`question` / `complaint`, set by the
+parent on the message that opens it) and a `status` (`open` / `resolved`, moved only by the staff side).
+
+- **Parent ↔ coordinator.** `GET /children/{id}/coordinators` answers the coordinators whose `staff_scopes` cover a
+  subject taught in the child's section, as `ChatThread` rows with `id: null` until she writes — the same shape the
+  teacher rows have. She then posts to `/children/{id}/chat/threads/{staffUserId}/messages`, adding
+  `{"topic":"complaint"}` on the **first** message to make it a complaint; a coordinator of another subject or the
+  other track is 404, exactly as a teacher who does not teach the section is.
+- **Coordinator ↔ manager.** `POST /coordinator/chat/threads {"managerUserId":"…"}` — one thread per pair, however
+  many times either side asks for it, limited to a manager whose department (her `curriculum` scope) meets hers; any
+  other manager is 404. `childId` is empty on those rows and the manager's own REST list arrives with RM2, but her
+  `user:<id>` socket session already receives the message frames.
+
+One thread per (child, teacher), and only between the child's parent and a teacher who
 holds an assignment on the child's section — checked from both ends, the same way the rest of the teacher API is
 (`TeacherScope`). A parent asking about a child that is not hers gets 404; a teacher asking about a child on a
 section she does not teach gets 403, and about another school's child 404 (the tenant filter). A child on **no
@@ -963,6 +989,20 @@ teacher of the section beforehand with `id: null`, so she can start one; a teach
 | `POST …/messages {body, clientId?}` | `POST …/messages {body, clientId?}` | 201 `ChatMessage`. |
 | `POST …/read` | `POST …/read` | 200 `ChatReadReceipt`; 404 while no thread exists. |
 
+The coordinator's half is keyed by **thread**, not by child, because one of her threads has no child on it:
+`GET /coordinator/chat/threads?status=`, `GET|POST /coordinator/chat/threads/{id}/messages`,
+`POST /coordinator/chat/threads/{id}/read`, `POST /coordinator/chat/threads` and
+`PATCH /coordinator/chat/threads/{id}/status {"status":"resolved"}`. Her Complaints inbox is
+`GET /coordinator/complaints?status=open` — the `complaint` threads in scope, nothing more: DR3 keeps complaints in
+the chat rather than in a store of their own, so the `complaints` flag is still N5.2's and these routes carry `chat`.
+A parent thread leaves her list when the child leaves her scope, the way a teacher's does when the assignment goes.
+
+Her announcement is `POST /coordinator/announcements {bodyEn, bodyAr?, classIds?, expiresAt?}` — one `announcements`
+row per class (every section in scope when `classIds` is absent, each named one checked through `requireSection`
+otherwise), which the parent reads through the existing `GET /children/{id}/announcements`. Parents have no bell of
+their own, so there is no notification row for them: the app's announcements screen is the delivery.
+`GET /coordinator/announcements` lists hers.
+
 `limit` is 1–200 (default 50). `before=<messageId>` pages backwards from that message; `since=<messageId>` answers
 everything after it, oldest first — the reconnect refetch. Either cursor must be a message of that thread (400
 otherwise). `body` is 1–2000 characters of **plain text**: trimmed, control characters other than line breaks and
@@ -975,12 +1015,12 @@ rate_limited`. Support: `GET /admin/chat/threads` and `GET /admin/chat/threads/{
 
 **Auth.** `Authorization: Bearer <token>` when the client can send headers (the app), else `?token=<token>` (a
 browser `WebSocket` cannot send headers — the dashboard). Either carrier takes either kind: a dashboard JWT
-(`admin.…`, any of ADMIN / TEACHER / MANAGERIAL) or a Firebase ID token, verified by the same code as the request
+(`admin.…`, any of ADMIN / TEACHER / MANAGERIAL / COORDINATOR) or a Firebase ID token, verified by the same code as the request
 filters. 401 for a token nobody issued; 403 for a dashboard principal with no school (ADMIN excepted — she has
 none by design) and for a parent none of whose children's schools has the flag on. **Since E2 (D26) the flag no
 longer decides the handshake**: every dashboard role is admitted whether `chat` is on or off, because the socket
 also carries notifications. What the flag still decides is the *chat commands* — a `message`, `typing` or `read`
-from a peer who is not a TEACHER of a flag-on school, or a parent, comes back as an `error` frame with code
+from a peer who is not a TEACHER or COORDINATOR (R4) of a flag-on school, or a parent, comes back as an `error` frame with code
 `forbidden`, and chat REST 404s for her exactly as before. The API never logs the token
 (`RequestLogging` prints the path only), but Cloud Run's own request log records the full URL — so send the header
 wherever the client can (the app), and remember a dashboard access token in the query is worth 15 minutes at most.
@@ -988,10 +1028,12 @@ Allowed origins are `CORS_ORIGINS`; the app sends no `Origin`.
 
 **Frames** are JSON text, discriminated by `type`, at most **8 KB** (bigger → close 1009).
 
-Client → server (`ChatCommand`): a parent names the thread by `childId` + `teacherId`, a teacher by `childId`.
+Client → server (`ChatCommand`): a parent names the thread by `childId` + `teacherId`, a teacher by `childId`, and a
+**coordinator by `threadId`** (R4) — `childId` is optional for that reason.
 
 ```json
 {"type":"message","childId":"…","teacherId":"…","body":"Hello","clientId":"7f3a…"}
+{"type":"message","threadId":"…","body":"Hello","clientId":"7f3a…"}   // a coordinator
 {"type":"typing","childId":"…","teacherId":"…"}
 {"type":"read","childId":"…","teacherId":"…"}
 {"type":"ping"}        {"type":"pong"}
@@ -1004,6 +1046,7 @@ Server → client (`ChatFrame`, the DTOs REST uses):
 {"type":"read","threadId":"…","readBy":"teacher","readAt":1758450000000}
 {"type":"typing","threadId":"…","from":"parent"}
 {"type":"notification","notification":{NotificationView}}       // E2, dashboard only
+{"type":"status","threadId":"…","status":"resolved","at":1758450000000}   // R4, both parties
 {"type":"ping"}   {"type":"pong"}
 {"type":"error","code":"child_not_placed","message":"…","clientId":"7f3a…"}
 ```

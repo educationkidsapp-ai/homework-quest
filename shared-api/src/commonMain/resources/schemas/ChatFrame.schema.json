@@ -10,12 +10,14 @@
   { "$ref": "#/$defs/read" },
   { "$ref": "#/$defs/typing" },
   { "$ref": "#/$defs/notification" },
+  { "$ref": "#/$defs/status" },
   { "$ref": "#/$defs/ping" },
   { "$ref": "#/$defs/pong" },
   { "$ref": "#/$defs/error" }
  ],
  "$defs": {
   "sender": { "type": "string", "enum": ["parent", "teacher"] },
+  "threadStatus": { "type": "string", "enum": ["open", "resolved"] },
   "chatMessage": {
    "type": "object",
    "additionalProperties": false,
@@ -83,6 +85,17 @@
    "properties": {
     "type": { "const": "notification" },
     "notification": { "$ref": "#/$defs/notificationView" }
+   }
+  },
+  "status": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["type", "threadId", "status", "at"],
+   "properties": {
+    "type": { "const": "status" },
+    "threadId": { "type": "string", "minLength": 1 },
+    "status": { "$ref": "#/$defs/threadStatus" },
+    "at": { "type": "integer" }
    }
   },
   "ping": { "type": "object", "additionalProperties": false, "required": ["type"], "properties": { "type": { "const": "ping" } } },

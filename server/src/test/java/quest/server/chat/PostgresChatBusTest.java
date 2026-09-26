@@ -31,19 +31,19 @@ class PostgresChatBusTest extends PostgresContainerSupport {
             instanceB.subscribe(heardByB::add);
             Thread.sleep(500);                                                  // let B's LISTEN land before A publishes
 
-            var event = ChatEvent.message("s1", "t1", "c1", "te1", "p1", "parent:p1", "c-1", "m1", "{\"id\":\"m1\"}");
+            var event = ChatEvent.message("s1", "t1", "c1", "te1", "p1", null, "parent:p1", "c-1", "m1", "{\"id\":\"m1\"}");
             instanceA.publish(event);
             var onB = heardByB.poll(5, TimeUnit.SECONDS);
             assertThat(onB).as("B hears what A published").isEqualTo(event);
             assertThat(heardByA.poll(5, TimeUnit.SECONDS)).as("A hears its own publish through the same path").isEqualTo(event);
 
-            var reply = ChatEvent.read("s1", "t1", "c1", "te1", "p1", "teacher:te1", "teacher", 1_700_000_000_000L);
+            var reply = ChatEvent.read("s1", "t1", "c1", "te1", "p1", null, "teacher:te1", "teacher", 1_700_000_000_000L);
             instanceB.publish(reply);
             assertThat(heardByA.poll(5, TimeUnit.SECONDS)).isEqualTo(reply);
 
             // a message too big for a NOTIFY payload (2 000 four-byte characters = 8 000 bytes, over the 7 000-byte room
             // the envelope leaves) crosses without its body; the hub loads it by id
-            var big = ChatEvent.message("s1", "t1", "c1", "te1", "p1", "parent:p1", null, "m2", "{\"body\":\"" + "\uD83D\uDE00".repeat(2_000) + "\"}");
+            var big = ChatEvent.message("s1", "t1", "c1", "te1", "p1", null, "parent:p1", null, "m2", "{\"body\":\"" + "\uD83D\uDE00".repeat(2_000) + "\"}");
             instanceB.publish(big);
             var trimmed = heardByA.poll(5, TimeUnit.SECONDS);
             assertThat(trimmed).isNotNull();

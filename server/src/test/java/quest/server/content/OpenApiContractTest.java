@@ -114,12 +114,16 @@ class OpenApiContractTest extends ApiTestSupport {
             "/teacher/classes/{classId}/roster/attach", "/teacher/classes/{classId}/roster/{childId}");
 
     /**
-     * C1: chat (`quest.api.dto.Chat.kt`, `docs/runbook.md` "Chat"). Behind the `chat` flag at run time and still in
-     * the document, for the reason every flagged area is. The socket itself, `/ws/chat`, is not an OpenAPI path:
-     * its frames are `ChatFrame.schema.json`.
+     * C1: chat (`quest.api.dto.Chat.kt`, `docs/runbook.md` "Chat and notifications"). Behind the `chat` flag at run
+     * time and still in the document, for the reason every flagged area is. The socket itself, `/ws/chat`, is not an
+     * OpenAPI path: its frames are `ChatFrame.schema.json`.
+     *
+     * <p>R4 added the parent's `/children/{id}/coordinators` here — it is a chat route, behind the same flag and on the
+     * same rows. The coordinator's own half is in {@link #COORDINATOR_API}, with the rest of her namespace.
      */
     static final List<String> CHAT_API = List.of(
             "/children/{id}/chat/threads", "/children/{id}/chat/threads/{teacherId}/messages", "/children/{id}/chat/threads/{teacherId}/read",
+            "/children/{id}/coordinators",
             "/teacher/chat/threads", "/teacher/chat/threads/{childId}/messages", "/teacher/chat/threads/{childId}/read",
             "/admin/chat/threads", "/admin/chat/threads/{threadId}/messages");
 
@@ -135,6 +139,11 @@ class OpenApiContractTest extends ApiTestSupport {
      * (`quest.api.dashboard.Coordinator.kt`, `docs/plan.md` phase R). Every path here is a GET except the two that
      * mint an account and set a scope, because DR2 makes the role read-only on teaching data.
      *
+     * <p>R4 (DR3, DR4) adds the five writes: her chat threads with parents and with the manager of her department,
+     * the `open` / `resolved` patch that answers a complaint, and the announcement to the parents of her classes. The
+     * chat paths carry the `chat` flag and the announcement paths carry `announcements`, the very keys the parent's
+     * and the teacher's halves of those two features carry.
+     *
      * <p>R2's own routes are not behind a feature flag — see `FeatureFlagCoverageTest.INFRASTRUCTURE`. R3's are: the
      * three `results` paths and the child page carry `gradebook` and the two exam paths carry `exams`, the same keys
      * the teacher's `GradingController` and `ExamController` carry, so a school with the feature off answers 404 to
@@ -146,6 +155,8 @@ class OpenApiContractTest extends ApiTestSupport {
             "/coordinator/classes/{id}/attendance", "/coordinator/classes/{id}/results",
             "/coordinator/lessons/{id}/results", "/coordinator/children/{id}",
             "/coordinator/classes/{id}/exams", "/coordinator/exams/{id}/results",
+            "/coordinator/chat/threads", "/coordinator/chat/threads/{id}/messages", "/coordinator/chat/threads/{id}/read",
+            "/coordinator/chat/threads/{id}/status", "/coordinator/complaints", "/coordinator/announcements",
             "/admin/coordinators", "/admin/coordinators/{id}/scopes");
 
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */

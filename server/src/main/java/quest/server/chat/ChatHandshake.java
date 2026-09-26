@@ -26,7 +26,7 @@ import quest.server.flags.FlagKeys;
  * <p>D26 made this socket the dashboard's event channel rather than only its chat: ADMIN, MANAGERIAL and TEACHER
  * are all admitted, with the `chat` flag on or off, because notifications ride the same connection. What the flag
  * still decides is whether the peer may <em>send a chat command</em> on it ({@link ChatSessions.Peer#chat}) — a
- * teacher of a flag-off school gets her lesson notifications and an `error` frame if she tries to write, exactly
+ * teacher or coordinator (R4) of a flag-off school gets her lesson notifications and an `error` frame if she writes, exactly
  * as the REST half 404s for her. A dashboard principal with no school at all is refused, as it is on every route.
  * Parents are unchanged: a parent's schools are her children's, and she is refused only when none has the flag on.
  */
@@ -50,7 +50,8 @@ public class ChatHandshake implements HandshakeInterceptor {
             if (user == null) return refuse(response, HttpStatus.UNAUTHORIZED);
             if (!DASHBOARD_ROLES.contains(user.role())) return refuse(response, HttpStatus.FORBIDDEN);
             if (!"ADMIN".equals(user.role()) && user.schoolId() == null) return refuse(response, HttpStatus.FORBIDDEN);
-            boolean chat = "TEACHER".equals(user.role()) && flags.isOn(user.schoolId(), FlagKeys.CHAT);
+            // R4: a COORDINATOR writes on the socket as a teacher does; every other dashboard role still only listens.
+            boolean chat = ("TEACHER".equals(user.role()) || "COORDINATOR".equals(user.role())) && flags.isOn(user.schoolId(), FlagKeys.CHAT);
             attributes.put(PEER, new ChatSessions.Peer(ChatService.key(ChatService.USER, user.userId()), user.role().toLowerCase(Locale.ROOT),
                     user.userId(), user.schoolId(), user, chat));
             return true;

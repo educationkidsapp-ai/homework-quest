@@ -14,9 +14,29 @@ import kotlinx.serialization.Serializable
  * contract (auth, frames, ack, reconnect).
  */
 
-/** Who wrote a message or is typing: the child's parent, or the teacher. */
+/**
+ * Who wrote a message or is typing: the child's parent, or the staff member on the dashboard side. `teacher` is
+ * every staff sender, whatever [ChatThread.staffRole] says — a client tells two staff members of a staff-to-staff
+ * thread apart by [ChatMessage.senderId], which is the only thing that can distinguish two people of one role.
+ */
 @Serializable
 enum class ChatSender { @SerialName("parent") PARENT, @SerialName("teacher") TEACHER }
+
+/**
+ * R4 (DR3): which staff member holds the dashboard side of a thread. `TEACHER` is what every thread written before
+ * R4 carries, so a client that ignores this field reads the C1 contract unchanged. `MANAGERIAL` is the staff-to-staff
+ * shape — a coordinator and the manager of her department, with no child on it.
+ */
+@Serializable
+enum class ChatStaffRole { @SerialName("TEACHER") TEACHER, @SerialName("COORDINATOR") COORDINATOR, @SerialName("MANAGERIAL") MANAGERIAL }
+
+/** What the parent opened a thread about. A `complaint` is what the coordinator's Complaints inbox lists (DR3). */
+@Serializable
+enum class ChatTopic { @SerialName("question") QUESTION, @SerialName("complaint") COMPLAINT }
+
+/** Where a thread stands. Only the staff side moves it, and it is the complaint inbox's filter. */
+@Serializable
+enum class ChatThreadStatus { @SerialName("open") OPEN, @SerialName("resolved") RESOLVED }
 
 /** One message. [readAt] is set once the other party marked the thread read; times are epoch milliseconds. */
 @Serializable
@@ -33,6 +53,10 @@ data class ChatMessage(
 /**
  * One row of a thread list. [id] is null until the first message is sent — a parent's list names every teacher of
  * the child's section whether or not anyone has written yet. [unread] is the caller's own unread count.
+ *
+ * <p>[teacherId] and [teacherName] name the *other* person on a staff-to-staff thread ([staffRole] `MANAGERIAL`),
+ * and on that shape [childId] and [childName] are empty strings, because such a thread is about the department
+ * rather than about one child. R4 appended the last four fields with defaults, so a C1 client still reads this row.
  */
 @Serializable
 data class ChatThread(
@@ -45,11 +69,19 @@ data class ChatThread(
     val subject: String? = null,
     val unread: Int = 0,
     val lastMessage: ChatMessage? = null,
+    val staffRole: ChatStaffRole = ChatStaffRole.TEACHER,
+    val topic: ChatTopic = ChatTopic.QUESTION,
+    val status: ChatThreadStatus = ChatThreadStatus.OPEN,
+    val resolvedAt: Long? = null,
 )
 
-/** `POST …/messages`. [clientId] is the client's own id for the send; it comes back in the socket's echo. */
+/**
+ * `POST …/messages`. [clientId] is the client's own id for the send; it comes back in the socket's echo. [topic] is
+ * read only while the thread is being created by this very message (R4) — a parent marks a conversation a complaint
+ * when she opens it, and a later send cannot re-label a thread the coordinator has already worked on.
+ */
 @Serializable
-data class SendChatMessageRequest(val body: String, val clientId: String? = null)
+data class SendChatMessageRequest(val body: String, val clientId: String? = null, val topic: ChatTopic? = null)
 
 /** `POST …/read`: everything the other party wrote is now read, as of [readAt]. */
 @Serializable
@@ -66,6 +98,8 @@ data class ChatReadReceipt(val threadId: String, val readBy: ChatSender, val rea
  * - [Notification]: D26 — a dashboard notification for the signed-in user. The socket is the dashboard's event
  *   channel, not only its chat: this frame reaches ADMIN, MANAGERIAL and TEACHER whether or not the school has the
  *   `chat` flag on, and never a parent. The same row is readable over `/me/notifications`.
+ * - [Status]: R4 — the staff side moved a thread between `open` and `resolved`. Both parties receive it, so the
+ *   parent's app can show that her complaint was answered without refetching the list.
  * - [Ping]: sent every 30 s; answer with a `pong` command (any command counts) or the session is closed as idle
  *   after 10 minutes without one.
  * - [Pong]: the reply to a client `ping`.
@@ -77,6 +111,7 @@ sealed class ChatFrame {
     @Serializable @SerialName("read") data class Read(val threadId: String, val readBy: ChatSender, val readAt: Long) : ChatFrame()
     @Serializable @SerialName("typing") data class Typing(val threadId: String, val from: ChatSender) : ChatFrame()
     @Serializable @SerialName("notification") data class Notification(val notification: NotificationView) : ChatFrame()
+    @Serializable @SerialName("status") data class Status(val threadId: String, val status: ChatThreadStatus, val at: Long) : ChatFrame()
     @Serializable @SerialName("ping") data object Ping : ChatFrame()
     @Serializable @SerialName("pong") data object Pong : ChatFrame()
     @Serializable @SerialName("error") data class Error(val code: String, val message: String, val clientId: String? = null) : ChatFrame()
@@ -84,13 +119,14 @@ sealed class ChatFrame {
 
 /**
  * Client → server commands on `/ws/chat`, discriminated by `type`. A parent names the thread by [Send.teacherId]
- * (the child is [Send.childId]); a teacher names it by [Send.childId] alone.
+ * (the child is [Send.childId]); a teacher names it by [Send.childId] alone; a coordinator names it by
+ * [Send.threadId], because her threads are not all about a child (R4) and one of them has no child at all.
  */
 @Serializable
 sealed class ChatCommand {
-    @Serializable @SerialName("message") data class Send(val childId: String, val teacherId: String? = null, val body: String, val clientId: String? = null) : ChatCommand()
-    @Serializable @SerialName("typing") data class Typing(val childId: String, val teacherId: String? = null) : ChatCommand()
-    @Serializable @SerialName("read") data class Read(val childId: String, val teacherId: String? = null) : ChatCommand()
+    @Serializable @SerialName("message") data class Send(val childId: String? = null, val teacherId: String? = null, val body: String, val clientId: String? = null, val threadId: String? = null) : ChatCommand()
+    @Serializable @SerialName("typing") data class Typing(val childId: String? = null, val teacherId: String? = null, val threadId: String? = null) : ChatCommand()
+    @Serializable @SerialName("read") data class Read(val childId: String? = null, val teacherId: String? = null, val threadId: String? = null) : ChatCommand()
     @Serializable @SerialName("ping") data object Ping : ChatCommand()
     @Serializable @SerialName("pong") data object Pong : ChatCommand()
 }

@@ -572,6 +572,18 @@
           "lastMessage" : {
             "$ref" : "#/components/schemas/ChatMessage"
           },
+          "resolvedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "staffRole" : {
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL" ],
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "open", "resolved" ],
+            "type" : "string"
+          },
           "subject" : {
             "type" : "string"
           },
@@ -581,12 +593,16 @@
           "teacherName" : {
             "type" : "string"
           },
+          "topic" : {
+            "enum" : [ "question", "complaint" ],
+            "type" : "string"
+          },
           "unread" : {
             "format" : "int32",
             "type" : "integer"
           }
         },
-        "required" : [ "childId", "childName", "teacherId", "teacherName", "unread" ],
+        "required" : [ "childId", "childName", "staffRole", "status", "teacherId", "teacherName", "topic", "unread" ],
         "type" : "object"
       },
       "Child" : {
@@ -4586,6 +4602,10 @@
           },
           "clientId" : {
             "type" : "string"
+          },
+          "topic" : {
+            "enum" : [ "question", "complaint" ],
+            "type" : "string"
           }
         },
         "required" : [ "body" ],
@@ -4875,6 +4895,16 @@
           }
         },
         "required" : [ "cacheHit", "convertStatus", "deleted", "fileHash", "fileName", "id", "pageCount" ],
+        "type" : "object"
+      },
+      "StaffThreadRequest" : {
+        "properties" : {
+          "managerUserId" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "managerUserId" ],
         "type" : "object"
       },
       "Stop" : {
@@ -5790,6 +5820,16 @@
           }
         },
         "required" : [ "dishName", "potEmoji", "potName", "servedText" ],
+        "type" : "object"
+      },
+      "ThreadStatusRequest" : {
+        "properties" : {
+          "status" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "status" ],
         "type" : "object"
       },
       "Tile" : {
@@ -9661,6 +9701,35 @@
         "tags" : [ "Chat" ]
       }
     },
+    "/children/{id}/coordinators" : {
+      "get" : {
+        "operationId" : "parentCoordinators",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
     "/children/{id}/map" : {
       "get" : {
         "operationId" : "childMap",
@@ -9894,6 +9963,56 @@
         "tags" : [ "Schools" ]
       }
     },
+    "/coordinator/announcements" : {
+      "get" : {
+        "operationId" : "coordinatorAnnouncements",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/Announcement"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator announcements" ]
+      },
+      "post" : {
+        "operationId" : "createCoordinatorAnnouncement",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateAnnouncementRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/Announcement"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Coordinator announcements" ]
+      }
+    },
     "/coordinator/calendar" : {
       "get" : {
         "operationId" : "coordinatorCalendar",
@@ -9925,6 +10044,208 @@
           }
         },
         "tags" : [ "Coordinator" ]
+      }
+    },
+    "/coordinator/chat/threads" : {
+      "get" : {
+        "operationId" : "coordinatorChatThreads",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
+      },
+      "post" : {
+        "operationId" : "coordinatorStaffThread",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StaffThreadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatThread"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
+      }
+    },
+    "/coordinator/chat/threads/{id}/messages" : {
+      "get" : {
+        "operationId" : "coordinatorChatMessages",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatMessage"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
+      },
+      "post" : {
+        "operationId" : "coordinatorSendChatMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
+      }
+    },
+    "/coordinator/chat/threads/{id}/read" : {
+      "post" : {
+        "operationId" : "coordinatorMarkChatRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
+      }
+    },
+    "/coordinator/chat/threads/{id}/status" : {
+      "patch" : {
+        "operationId" : "coordinatorThreadStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ThreadStatusRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatThread"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
       }
     },
     "/coordinator/children/{id}" : {
@@ -10084,6 +10405,35 @@
           }
         },
         "tags" : [ "Coordinator results" ]
+      }
+    },
+    "/coordinator/complaints" : {
+      "get" : {
+        "operationId" : "coordinatorComplaints",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
       }
     },
     "/coordinator/exams/{id}/results" : {
@@ -13340,6 +13690,9 @@
     "description" : "Questions a teacher sends to her students, and the answers",
     "name" : "Teacher questions"
   }, {
+    "description" : "A coordinator's threads with parents and her manager, and her Complaints inbox",
+    "name" : "Coordinator chat"
+  }, {
     "description" : "Per-school white label (§3)",
     "name" : "Themes"
   }, {
@@ -13351,6 +13704,9 @@
   }, {
     "description" : "Parent and teacher chat: threads, message pages, sending and read receipts",
     "name" : "Chat"
+  }, {
+    "description" : "Notes a coordinator posts to the parents of the classes in her scope",
+    "name" : "Coordinator announcements"
   }, {
     "description" : "Liveness and version",
     "name" : "Health"

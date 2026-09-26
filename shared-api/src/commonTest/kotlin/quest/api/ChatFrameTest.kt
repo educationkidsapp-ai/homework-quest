@@ -4,6 +4,7 @@ import quest.api.dto.ChatCommand
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatSender
+import quest.api.dto.ChatThreadStatus
 import quest.api.validation.SchemaValidator
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,6 +22,7 @@ class ChatFrameTest {
             ChatFrame.Message(message),
             ChatFrame.Read("t1", ChatSender.TEACHER, 1_700_000_000_500),
             ChatFrame.Typing("t1", ChatSender.PARENT),
+            ChatFrame.Status("t1", ChatThreadStatus.RESOLVED, 1_700_000_000_900),
             ChatFrame.Ping, ChatFrame.Pong,
             ChatFrame.Error("rate_limited", "Slow down.", clientId = "c-2"),
         )
@@ -42,6 +44,7 @@ class ChatFrameTest {
         assertFalse(SchemaValidator.validateChatFrameJson("""{"type":"shout","body":"x"}""").isValid)
         assertFalse(SchemaValidator.validateChatFrameJson("""{"type":"message"}""").isValid)
         assertFalse(SchemaValidator.validateChatFrameJson("""{"type":"read","threadId":"t1","readBy":"admin","readAt":1}""").isValid)
+        assertFalse(SchemaValidator.validateChatFrameJson("""{"type":"status","threadId":"t1","status":"closed","at":1}""").isValid)
         assertFalse(SchemaValidator.validateChatFrameJson("not json").isValid)
     }
 
@@ -50,5 +53,7 @@ class ChatFrameTest {
         assertEquals(ChatCommand.Send("ch1", "te1", "hi", "c9"), send)
         assertEquals(ChatCommand.Pong, json.decodeFromString(ChatCommand.serializer(), """{"type":"pong"}"""))
         assertEquals(ChatCommand.Read("ch1"), json.decodeFromString(ChatCommand.serializer(), """{"type":"read","childId":"ch1"}"""))
+        // R4: a coordinator names the thread instead of the child, and the child may be absent altogether.
+        assertEquals(ChatCommand.Read(threadId = "th1"), json.decodeFromString(ChatCommand.serializer(), """{"type":"read","threadId":"th1"}"""))
     }
 }

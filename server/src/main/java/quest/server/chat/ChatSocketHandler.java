@@ -12,13 +12,15 @@ import quest.api.dto.ChatFrame;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
+import quest.server.tenancy.CoordinatorScope;
 import quest.server.tenancy.TenantContext;
 
 /**
  * `/ws/chat`: plain JSON text frames, no STOMP. A command is decoded with the shared codec, run through
  * {@link ChatService} exactly as the REST call would be — inside the teacher's tenant scope, because a socket
  * thread has no request and therefore no filter until one is set — and answered with an `error` frame when it is
- * refused. Nothing is answered directly otherwise: the message comes back through the bus like everyone else's,
+ * refused. A coordinator's commands name a thread rather than a child (R4), because one of her threads has no child
+ * on it; everything else about them is the teacher's path. Nothing is answered directly otherwise: the message comes back through the bus like everyone else's,
  * carrying the `clientId` it was sent with.
  */
 @Component
@@ -54,21 +56,25 @@ public class ChatSocketHandler extends TextWebSocketHandler {
 
     private void run(ChatSessions.Peer peer, ChatCommand command, ChatSessions.Live live) {
         boolean parent = ChatService.PARENT.equals(peer.role());
+        boolean coordinator = CoordinatorScope.ROLE.equalsIgnoreCase(peer.role());
         switch (command) {
             case ChatCommand.Send s -> {
                 chatOnly(peer);
-                if (parent) chat.parentSend((Principals.Parent) peer.principal(), s.getChildId(), required(s.getTeacherId()), s.getBody(), s.getClientId());
-                else chat.teacherSend((Principals.User) peer.principal(), s.getChildId(), s.getBody(), s.getClientId());
+                if (parent) chat.parentSend((Principals.Parent) peer.principal(), required(s.getChildId(), "childId"), required(s.getTeacherId(), "teacherId"), s.getBody(), s.getClientId(), null);
+                else if (coordinator) chat.coordinatorSend((Principals.User) peer.principal(), required(s.getThreadId(), "threadId"), s.getBody(), s.getClientId());
+                else chat.teacherSend((Principals.User) peer.principal(), required(s.getChildId(), "childId"), s.getBody(), s.getClientId());
             }
             case ChatCommand.Read r -> {
                 chatOnly(peer);
-                if (parent) chat.parentRead((Principals.Parent) peer.principal(), r.getChildId(), required(r.getTeacherId()));
-                else chat.teacherRead((Principals.User) peer.principal(), r.getChildId());
+                if (parent) chat.parentRead((Principals.Parent) peer.principal(), required(r.getChildId(), "childId"), required(r.getTeacherId(), "teacherId"));
+                else if (coordinator) chat.coordinatorRead((Principals.User) peer.principal(), required(r.getThreadId(), "threadId"));
+                else chat.teacherRead((Principals.User) peer.principal(), required(r.getChildId(), "childId"));
             }
             case ChatCommand.Typing t -> {
                 chatOnly(peer);
-                if (parent) chat.parentTyping((Principals.Parent) peer.principal(), t.getChildId(), required(t.getTeacherId()));
-                else chat.teacherTyping((Principals.User) peer.principal(), t.getChildId());
+                if (parent) chat.parentTyping((Principals.Parent) peer.principal(), required(t.getChildId(), "childId"), required(t.getTeacherId(), "teacherId"));
+                else if (coordinator) chat.coordinatorTyping((Principals.User) peer.principal(), required(t.getThreadId(), "threadId"));
+                else chat.teacherTyping((Principals.User) peer.principal(), required(t.getChildId(), "childId"));
             }
             case ChatCommand.Ping p -> live.offer(hub.encode(ChatFrame.Pong.INSTANCE), false);
             case ChatCommand.Pong p -> { }
@@ -89,9 +95,10 @@ public class ChatSocketHandler extends TextWebSocketHandler {
         try { work.run(); } finally { tenant.clear(); }
     }
 
-    private static String required(String teacherId) {
-        if (teacherId == null || teacherId.isBlank()) throw ApiException.badRequest("teacherId is required");
-        return teacherId;
+    /** A command names what its sender's half of the chat is keyed by: a child, a teacher, or — R4 — a thread. */
+    private static String required(String value, String field) {
+        if (value == null || value.isBlank()) throw ApiException.badRequest(field + " is required");
+        return value;
     }
 
     @Override public void afterConnectionClosed(WebSocketSession session, CloseStatus status) { sessions.remove(session); }
