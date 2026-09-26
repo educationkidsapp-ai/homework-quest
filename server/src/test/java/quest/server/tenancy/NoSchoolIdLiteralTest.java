@@ -34,7 +34,8 @@ import org.junit.jupiter.api.Test;
 class NoSchoolIdLiteralTest {
     /** The packages that read or write a tenant's data; a literal in any of them is the bug this catches. */
     private static final List<String> WATCHED = List.of(
-            "admin", "teacher", "schools", "users", "children", "content", "flags", "platform", "dashboard", "classes");
+            "admin", "teacher", "schools", "users", "children", "content", "flags", "platform", "dashboard", "classes",
+            "coordinator");
 
     /** Seeded school ids, and the names a school might be spelled out by. */
     private static final Pattern LITERAL = Pattern.compile("\"(default|al-noor|green-valley)\"");

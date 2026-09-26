@@ -12,7 +12,7 @@ import quest.server.ApiTestSupport;
 
 /** Every endpoint the server serves must be in `permissions.json`; a new route without an entry fails here. */
 class PermissionsTest extends ApiTestSupport {
-    private static final List<String> ROLES = List.of("ADMIN", "TEACHER", "MANAGERIAL", Permissions.PARENT, Permissions.PUBLIC);
+    private static final List<String> ROLES = List.of("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", Permissions.PARENT, Permissions.PUBLIC);
 
     @Autowired Permissions permissions;
 
@@ -33,6 +33,11 @@ class PermissionsTest extends ApiTestSupport {
         assertThat(permissions.matrix()).isNotEmpty();
         assertThat(permissions.forRole("ADMIN")).contains("lesson.read", "school.write", "me.permissions");
         assertThat(permissions.forRole("TEACHER")).doesNotContain("school.write", "user.impersonate");
+        // R2 (DR2): the coordinator reads, and holds no write key at all — not the teacher's, not the Admin's, and
+        // not `coordinator.manage`, which is how her own scope is changed.
+        assertThat(permissions.forRole("COORDINATOR")).contains("coordinator.read", "coordinator.lesson.read")
+                .doesNotContain("coordinator.manage", "lesson.write", "lesson.publish", "results.write",
+                        "attendance.write", "roster.write", "teacher.manage", "school.write", "user.impersonate");
     }
 
     @Test void the_planned_phase_one_endpoints_are_already_declared() {

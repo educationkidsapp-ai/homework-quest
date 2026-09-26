@@ -41,6 +41,7 @@ class SchoolSeedTest extends ClassesTestSupport {
 
     @Autowired SchoolSeed seed;
     @Autowired TeacherRepository profiles;
+    @Autowired quest.server.tenancy.StaffScopeRepository staffScopes;
 
     private SchoolSeed.Counts first;
 
@@ -57,20 +58,32 @@ class SchoolSeedTest extends ClassesTestSupport {
         profiles.deleteAll(profiles.findAllById(staff.stream().map(u -> u.getId()).toList()));
         users.deleteAll(staff);
         users.deleteAll(users.findBySchoolIdAndRole(SCHOOL, "MANAGERIAL"));
+        users.deleteAll(users.findBySchoolIdAndRole(SCHOOL, "COORDINATOR"));
+        staffScopes.deleteAll(staffScopes.findAll().stream().filter(r -> SCHOOL.equals(r.getSchoolId())).toList());
     }
 
     @Test void loads_thirty_classes_forty_teachers_and_six_hundred_children() {
-        assertThat(first).isEqualTo(new SchoolSeed.Counts(30, 40, 1, 60, 600));
+        assertThat(first).isEqualTo(new SchoolSeed.Counts(30, 40, 2, 6, 60, 600));
 
         var sections = classes.findAll().stream().filter(k -> SCHOOL.equals(k.getSchoolId())).toList();
         assertThat(sections).hasSize(30);
         assertThat(sections).allSatisfy(k -> assertThat(k.getJoinCode()).isNotBlank());
         assertThat(users.findBySchoolIdAndRole(SCHOOL, "TEACHER")).hasSize(40);
-        assertThat(users.findBySchoolIdAndRole(SCHOOL, "MANAGERIAL")).singleElement().satisfies(m -> {
+        // R2: one manager per department, and one coordinator per subject the school teaches, across both tracks.
+        assertThat(users.findBySchoolIdAndRole(SCHOOL, "MANAGERIAL")).hasSize(2).anySatisfy(m -> {
             assertThat(m.getEmail()).isEqualTo(SEEDED_MANAGER);
             assertThat(m.getDisplayName()).isEqualTo("Huda Salem");
             assertThat(m.getStatus()).isEqualTo("active");
         });
+        assertThat(scopesOf("MANAGERIAL")).containsExactlyInAnyOrder("null/british", "null/american");
+        // One per subject the platform has, each across both tracks: the two the school teaches see classes, the
+        // rest exist so the role can be signed in as and read on QA.
+        assertThat(users.findBySchoolIdAndRole(SCHOOL, "COORDINATOR")).hasSize(6)
+                .extracting(u -> u.getEmail()).containsExactlyInAnyOrder(
+                        "coordinator.math@school.test", "coordinator.english@school.test", "coordinator.science@school.test",
+                        "coordinator.french@school.test", "coordinator.religion@school.test", "coordinator.arabic@school.test");
+        assertThat(scopesOf("COORDINATOR")).containsExactlyInAnyOrder("math/null", "english/null", "science/null",
+                "french/null", "religion/null", "arabic/null");
 
         var roster = new LinkedHashMap<String, Integer>();
         var names = new LinkedHashMap<String, Integer>();
@@ -97,11 +110,13 @@ class SchoolSeedTest extends ClassesTestSupport {
     }
 
     @Test void a_second_run_writes_nothing() {
-        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0, 0));
+        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0, 0, 0));
 
         assertThat(classes.findAll().stream().filter(k -> SCHOOL.equals(k.getSchoolId()))).hasSize(30);
         assertThat(users.findBySchoolIdAndRole(SCHOOL, "TEACHER")).hasSize(40);
-        assertThat(users.findBySchoolIdAndRole(SCHOOL, "MANAGERIAL")).hasSize(1);
+        assertThat(users.findBySchoolIdAndRole(SCHOOL, "MANAGERIAL")).hasSize(2);
+        assertThat(users.findBySchoolIdAndRole(SCHOOL, "COORDINATOR")).hasSize(6);
+        assertThat(staffScopes.findAll().stream().filter(r -> SCHOOL.equals(r.getSchoolId()))).hasSize(8);
         assertThat(assignments.findAll().stream().filter(a -> SCHOOL.equals(a.getSchoolId()))).hasSize(60);
         assertThat(childRows.findAll().stream().filter(c -> SCHOOL.equals(c.getSchoolId()))).hasSize(600);
     }
@@ -111,11 +126,20 @@ class SchoolSeedTest extends ClassesTestSupport {
      * the teachers an earlier run created — a password that only ever lands on new rows is a password e2e cannot use.
      */
     @Test void a_later_run_gives_the_staff_password_to_teachers_already_seeded() throws Exception {
-        assertThat(seed.load(SCHOOL, STAFF_PASSWORD)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0, 0));
+        assertThat(seed.load(SCHOOL, STAFF_PASSWORD)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0, 0, 0));
 
         assertThat(signIn(SEEDED_TEACHER).get("role").asText()).isEqualTo("TEACHER");
         // The Management account is on the same password, and for the same reason: e2e has to be able to be her.
         assertThat(signIn(SEEDED_MANAGER).get("role").asText()).isEqualTo("MANAGERIAL");
+        // …and so is the coordinator, for the same reason (R2).
+        assertThat(signIn("coordinator.math@school.test").get("role").asText()).isEqualTo("COORDINATOR");
+    }
+
+    /** `subject/curriculum` for every `staff_scopes` row of one role of this school, nulls spelled out. */
+    private java.util.List<String> scopesOf(String role) {
+        var ids = users.findBySchoolIdAndRole(SCHOOL, role).stream().map(u -> u.getId()).toList();
+        return staffScopes.findAll().stream().filter(r -> ids.contains(r.getUserId()))
+                .map(r -> r.getSubject() + "/" + r.getCurriculum()).toList();
     }
 
     /** Signs in with the shared staff password and asserts what every seeded account has in common. */
@@ -137,7 +161,7 @@ class SchoolSeedTest extends ClassesTestSupport {
         String sara = teacherId(SARA), omar = teacherId(OMAR);
         move(classId(MOVED), "math", sara);                                     // the school as the previous deploy left it
 
-        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 1, 0));
+        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0, 1, 0));
 
         assertThat(slotsOf(omar)).containsExactly("3A British · math", "3B British · math");
         assertThat(slotsOf(sara)).containsExactly("1A British · math", "1B British · math");
@@ -160,7 +184,7 @@ class SchoolSeedTest extends ClassesTestSupport {
 
         assignments.deleteAll(assignments.findAll().stream().filter(a -> outsider.getId().equals(a.getTeacherId())).toList());
         users.delete(outsider);
-        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 1, 0));
+        assertThat(seed.load(SCHOOL)).isEqualTo(new SchoolSeed.Counts(0, 0, 0, 0, 1, 0));
         assertThat(slotsOf(omar)).containsExactly("3A British · math", "3B British · math");
     }
 

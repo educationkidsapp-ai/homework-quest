@@ -159,7 +159,8 @@ school A gets 404 on B's rows, and no repository query runs unfiltered for a pri
 
 ## Roles and permissions
 
-Three dashboard roles — `ADMIN`, `TEACHER`, `MANAGERIAL` — plus `PARENT` (Firebase) and `PUBLIC` (no token).
+Four dashboard roles — `ADMIN`, `TEACHER`, `MANAGERIAL`, `COORDINATOR` — plus `PARENT` (Firebase) and `PUBLIC`
+(no token).
 
 `server/src/main/resources/permissions.json` is the single definition. It has two halves:
 
@@ -181,10 +182,48 @@ Three dashboard roles — `ADMIN`, `TEACHER`, `MANAGERIAL` — plus `PARENT` (Fi
 Changing it is a **contract change**: `permissions.json` is owned by the `backend` worker and changes in its own
 package.
 
+### The coordinator (R2)
+
+A **coordinator** supervises one subject — `math`, `english`, `french`, `science`, `religion` or `arabic` — for one
+curriculum track (`american` / `british`) or for both, across every grade and every class of her school. She is
+**read-only on teaching data**: her area is `/coordinator/**` and it serves nothing but `GET`s
+(`CoordinatorScopeArchitectureTest` fails the build on the first write added under it). Her writes are communication
+— chat, complaint status, announcements — and arrive with R4.
+
+- **Her scope is rows, not a claim.** `staff_scopes (user_id, subject, curriculum)` — `curriculum` NULL meaning both
+  tracks — and a person may hold several. `CoordinatorScope` reads them by the caller's own user id and never from a
+  request, so a section is hers only when somebody teaches one of her subjects in it and the track matches. A section,
+  lesson or child outside that is **403**; another school's is **404**, as everywhere else.
+- **The same table carries the department managers.** A MANAGERIAL row has `subject` NULL and `curriculum` set, which
+  is a department (British / American). The seed writes those rows; the manager's own reads are RM1.
+- **Routes**: `GET /coordinator/me` (scope + counts), `/coordinator/teachers`, `/coordinator/classes`,
+  `/coordinator/calendar?from&to` (every class in scope, day by day, ≤ 62 days), `/coordinator/lessons` and
+  `/coordinator/lessons/{id}` (the teacher's own lesson view, read-only; `status` is `draft`, `ready` or `published`).
+- **Keys**: `coordinator.read` and `coordinator.lesson.read` (ADMIN + COORDINATOR), `coordinator.manage` (ADMIN only —
+  a coordinator cannot widen her own scope). She also holds `me.*`, `auth.changePassword`, `notifications.*`,
+  `chat.socket` and the two `media.*` reads, and no `*.write` key of the teacher's at all.
+- **Accounts**: `POST /admin/coordinators {email, fullName, scopes:[{subject, curriculum?}]}` answers the one-time
+  password in the body and nowhere else, `PUT /admin/coordinators/{id}/scopes` replaces her whole set, and
+  `GET /admin/coordinators` lists them. Both writes leave an `audit_log` row (`coordinator.create`,
+  `coordinator.scopes`).
+
+> The role was added to the `users.role` CHECK by `db/vendor/{postgresql,h2}/V19__coordinator_role.sql` — the one
+> migration outside `db/migration`, because the constraint `V4` created is anonymous and the two engines need
+> different dynamic SQL to find it. `spring.flyway.locations` carries Flyway's `{vendor}` placeholder for it; put
+> ordinary migrations in `db/migration`. `migration-check.yml` checks both directories alike — no edit to a merged
+> file, a copy for every engine, no version shared with `db/migration` — and applies the PostgreSQL copy on real
+> PostgreSQL 16; a vendor file may drop a *constraint* (rollback-safe) and still never a table, a column or a name.
+
+Neither coordinator controller carries a `@FeatureFlag`: both are listed in `FeatureFlagCoverageTest.INFRASTRUCTURE`
+beside `TeacherController` and `TeacherAdminController`, because `/coordinator` is the dashboard of a role rather than
+one feature of it, and the Admin half is how a coordinator comes to exist at all. Her *features* stay flagged where
+they live (R3's `gradebook` and `exams`, R4's `chat`, `complaints` and `announcements`).
+
 ### The matrix
 
-Generated from `permissions.json` on `develop` (`152f2c8`). `✓` = granted; the last column counts the endpoints the
-key guards.
+Generated from `permissions.json` on `develop` (`152f2c8`), before `COORDINATOR` existed — the three keys above are
+the role's whole grant and the column is added the next time this table is regenerated. `✓` = granted; the last
+column counts the endpoints the key guards.
 
 | Permission | ADMIN | TEACHER | MANAGERIAL | PARENT | PUBLIC | Endpoints |
 |---|---|---|---|---|---|---|
@@ -1091,18 +1130,27 @@ that gets from one to the other.
 **What the acceptance profile seeds** (`server/src/main/resources/seed/acceptance/*.csv`, into the **default**
 school): three sections — `1A British` and `1B British` (british, grade 1) and `1A American` (american, grade 1);
 two teachers — **Maya** (math, `maya@test.com`) and **Rami** (english, `rami@test.com`), both signing in with
-`SEED_STAFF_PASSWORD` and no first-login password change; one **Management (MANAGERIAL)** account — **Nour**
-(`manager@test.com`), password `SEED_STAFF_PASSWORD`, the same as the teachers; three assignments — Maya on 1A + 1B
-British math, Rami on 1A American english. **No children**: they arrive when the owner registers as a parent in the
+`SEED_STAFF_PASSWORD` and no first-login password change; **two Management (MANAGERIAL)** accounts, one per
+department — **Nour** (`manager@test.com`, British) and **Sami** (`manager2@test.com`, American); **two coordinators**
+— **Lina** (`coord.math@test.com`, math / British) and **Omar** (`coord.english@test.com`, english / American); three
+assignments — Maya on 1A + 1B British math, Rami on 1A American english. Every staff account signs in with
+`SEED_STAFF_PASSWORD` — the value lives in Secret Manager and is never printed here or in a log. **No children**: they arrive when the owner registers as a parent in the
 app. Re-running the seed changes nothing (sections are matched by curriculum + grade + name, teachers and managers by
 their lower-cased email).
 
 > **Why the Management account is seeded at all.** Nothing in the API creates a MANAGERIAL user — there is no
 > `POST /admin/managers` — so QA had the role in `permissions.json` and nobody holding it, and every teacher's
-> `POST /teacher/messages/coordinator` came back 409 `no_coordinator`. `managers.csv` (`fullName,email`, one row) is
-> read by the seed's own `managers` phase, which writes the row directly for that reason and skips an address that
-> already belongs to somebody, at WARN. The `full` profile has one too: **Huda Salem** (`manager.a@school.test`).
-> With `SEED_STAFF_PASSWORD` unset the account exists but nobody can sign in as it, exactly like a seeded teacher.
+> `POST /teacher/messages/coordinator` came back 409 `no_coordinator`. `managers.csv` (`fullName,email,curriculum`,
+> **two rows** since R2 — one Management account per department) is read by the seed's own `managers` phase, which
+> writes the row directly for that reason and skips an address that already belongs to somebody, at WARN. The `full`
+> profile has two as well: **Huda Salem** (`manager.a@school.test`, British) and **Faris Nabhan**
+> (`manager.b@school.test`, American). `coordinators.csv` (`fullName,email,subject,curriculum`) is loaded the same
+> way and for the same reason — `POST /admin/coordinators` exists, but it answers a one-time password a seed would
+> have to hold in order to throw away. The `full` profile seeds one coordinator per subject the platform has, each
+> across both tracks (blank curriculum): math, english, science, french, religion and arabic; the two of them whose
+> subject the school actually teaches see classes, and the rest exist so the role can be signed in as and read on QA.
+> Each staff row also gets its `staff_scopes` row — a manager's is her department, a coordinator's her subject.
+> With `SEED_STAFF_PASSWORD` unset the accounts exist but nobody can sign in as them, exactly like a seeded teacher.
 
 > The password the owner chose is nine characters, which is under the `MIN_PASSWORD` of 10. That minimum is a
 > validation rule on *changing* and *resetting* a password (`AuthService`, `DashboardDto`), and the seed never goes

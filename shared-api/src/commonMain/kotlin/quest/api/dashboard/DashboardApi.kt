@@ -25,6 +25,11 @@ enum class Role {
     @SerialName("ADMIN") ADMIN,
     @SerialName("TEACHER") TEACHER,
     @SerialName("MANAGERIAL") MANAGERIAL,
+    /**
+     * R2 (DR1): one subject across a track, or across both, in every grade and class of her school. Read-only on
+     * teaching data (DR2) — her scope is `staff_scopes` and her area is `/coordinator` ([CoordinatorMe]).
+     */
+    @SerialName("COORDINATOR") COORDINATOR,
 }
 
 @Serializable
@@ -650,6 +655,48 @@ interface DashboardApi {
 
     /** `POST /me/notifications/read-all` — marks every unread row of the caller read and answers the new count. */
     suspend fun markAllNotificationsRead(): UnreadCount
+
+    // ---------------------------------------------------------------- R2: the coordinator's area (DR1, DR2)
+
+    /**
+     * `GET /coordinator/me` — her scope and its three numbers ([CoordinatorMe]). Every route in this block is
+     * `coordinator.read` (the lessons are `coordinator.lesson.read`), granted to COORDINATOR and to the platform
+     * ADMIN, and every one of them is a read: DR2 puts her writes in R4.
+     */
+    suspend fun coordinatorMe(): CoordinatorMe
+
+    /** `GET /coordinator/teachers` — the teachers who hold an assignment inside her scope. */
+    suspend fun coordinatorTeachers(): List<CoordinatorTeacher>
+
+    /** `GET /coordinator/classes` — a card per (section, subject) in scope, with today's lesson resolved. */
+    suspend fun coordinatorClasses(): List<CoordinatorClass>
+
+    /**
+     * `GET /coordinator/calendar?from&to` — every class in scope, day by day. Both absent is the current school
+     * week; the window is capped at 62 days and a `to` before `from` is a 400.
+     */
+    suspend fun coordinatorCalendar(from: String? = null, to: String? = null): CoordinatorCalendar
+
+    /**
+     * `GET /coordinator/lessons?classId&status&from&to` — the teacher's own lesson rows, reduced to the lessons her
+     * scope covers. `status` is the coarse word the grid uses: `draft`, `ready` or `published`.
+     */
+    suspend fun coordinatorLessons(classId: String? = null, status: String? = null,
+                                   from: String? = null, to: String? = null): List<quest.api.AdminLesson>
+
+    /** `GET /coordinator/lessons/{id}` — the same lesson view the teacher gets, and no route that writes it. */
+    suspend fun coordinatorLesson(lessonId: String): quest.api.AdminLesson
+
+    // ---- Admin: coordinator accounts and their scopes (ADMIN only, `coordinator.manage`)
+
+    /** `GET /admin/coordinators` — every coordinator of the school with her whole scope. */
+    suspend fun coordinators(): List<CoordinatorAccount>
+
+    /** `POST /admin/coordinators` — 201 with the one and only sight of the password, as for a teacher. */
+    suspend fun createCoordinator(request: CreateCoordinatorRequest): CoordinatorCreated
+
+    /** `PUT /admin/coordinators/{id}/scopes` — the complete set she should hold afterwards. */
+    suspend fun setCoordinatorScopes(userId: String, request: CoordinatorScopesRequest): CoordinatorAccount
 }
 
 /** `PUT /admin/platform-settings` (§A): only the fields that are present are written. */

@@ -71,6 +71,14 @@ class FeatureFlagCoverageTest {
      *   <li>{@code TeacherAdminController} (N1.1) — this is how a teacher comes to exist, and how one locked out of
      *       her account gets back in. A flag that could switch it off is one nobody could switch back on without a
      *       database session, which is the same argument that exempts {@code FlagController} itself.</li>
+     *   <li>{@code CoordinatorController} and {@code CoordinatorAdminController} (R2) — {@code TeacherController}'s
+     *       and {@code TeacherAdminController}'s arguments, for the fourth role: `/coordinator` is not one feature of
+     *       a coordinator's dashboard, it <em>is</em> the dashboard of a role, and a flag over it leaves a COORDINATOR
+     *       signed in with nowhere to go; the Admin half is how a coordinator comes to exist at all and how one
+     *       locked out of her account is given a new password, so a flag over that is one nobody could turn back on
+     *       without a database session. What her area shows about a flagged feature stays behind that feature's own
+     *       flag, where the feature lives — R3's gradebook, exam and attendance reads carry `gradebook` and `exams`,
+     *       and R4's communication half carries `chat`, `complaints` and `announcements`.</li>
      *   <li>{@code TeacherLessonController} (N2.1) — {@code TeacherController}'s argument again, for the half of a
      *       teacher's job that writes rather than reads: a flag over "make a lesson" leaves a TEACHER signed in with
      *       nothing to do, and the routes are aliases over the pre-flag {@code AdminLessonController}, so gating them
@@ -86,7 +94,8 @@ class FeatureFlagCoverageTest {
             "FlagController", "ThemeController", "PlatformSettingsController",
             "HomeController", "DashboardDataController", "DashboardController", "TeacherController",
             "ClassAdminController", "TeacherAdminController", "TeacherLessonController",
-            "AttendanceController", "NotificationController");
+            "AttendanceController", "NotificationController",
+            "CoordinatorController", "CoordinatorAdminController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

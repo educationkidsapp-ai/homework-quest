@@ -20,6 +20,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'child.write',
   'class.lookup',
   'class.write',
+  'coordinator.manage',
   'flag.write',
   'invite.accept',
   'lesson.delete',

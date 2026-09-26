@@ -5,7 +5,13 @@ name: Migration check
 # columns or tables) so a rollback of the image keeps working against the migrated database.
 on:
   pull_request:
-    paths: ["server/src/main/resources/db/migration/**"]
+    paths:
+      - "server/src/main/resources/db/migration/**"
+      # R2: `db/vendor/{postgresql,h2}` holds the one kind of migration that cannot be written once for both engines —
+      # replacing an *anonymous* constraint, whose name and whose dynamic-SQL dialect differ (`DO $$ … $$` vs
+      # `EXECUTE IMMEDIATE`). Flyway's own `{vendor}` placeholder in `spring.flyway.locations` picks the right copy.
+      # Everything below checks the two directories alike, and the PostgreSQL copy is applied on real PostgreSQL 16.
+      - "server/src/main/resources/db/vendor/**"
 
 concurrency:
   # A new push to the PR cancels the previous check: the old one can only answer a question about old migrations.
@@ -31,16 +37,39 @@ jobs:
       - name: Existing migrations must not change
         run: |
           BASE=origin/${{ github.base_ref }}
-          CHANGED=$(git diff --name-only --diff-filter=MD "$BASE"...HEAD -- server/src/main/resources/db/migration/ || true)
+          CHANGED=$(git diff --name-only --diff-filter=MD "$BASE"...HEAD -- server/src/main/resources/db/migration/ server/src/main/resources/db/vendor/ || true)
           if [ -n "$CHANGED" ]; then echo "::error::edit or delete of an applied migration: $CHANGED — add a new V<n>__ file instead"; exit 1; fi
       - name: New migrations must be additive
         run: |
           BASE=origin/${{ github.base_ref }}
-          for f in $(git diff --name-only --diff-filter=A "$BASE"...HEAD -- server/src/main/resources/db/migration/); do
-            if grep -iE "^\s*(DROP\s+(TABLE|COLUMN)|ALTER\s+TABLE\s+\S+\s+(DROP|RENAME))" "$f"; then
+          for f in $(git diff --name-only --diff-filter=A "$BASE"...HEAD -- server/src/main/resources/db/migration/ server/src/main/resources/db/vendor/); do
+            # A vendor migration may drop a *constraint*, and that is the only reason the directory exists: replacing
+            # an anonymous CHECK is rollback-safe, because the rolled-back image simply never writes the value the
+            # wider constraint now allows. Dropping a table or a column, or renaming either, never is — so those stay
+            # refused in both directories, and in `db/migration` an `ALTER TABLE … DROP` of any kind still is.
+            case "$f" in
+              */db/vendor/*) FORBIDDEN='^\s*(DROP\s+(TABLE|COLUMN)|ALTER\s+TABLE\s+\S+\s+(DROP\s+(TABLE|COLUMN)|RENAME))' ;;
+              *)             FORBIDDEN='^\s*(DROP\s+(TABLE|COLUMN)|ALTER\s+TABLE\s+\S+\s+(DROP|RENAME))' ;;
+            esac
+            if grep -iE "$FORBIDDEN" "$f"; then
               echo "::error::$f removes or renames schema — write an additive migration and clean up in a later release"; exit 1
             fi
           done
+      - name: A vendor migration exists for every engine, and never shares a version with db/migration
+        run: |
+          cd server/src/main/resources/db
+          versions() { find "$1" -maxdepth 1 -name 'V*__*.sql' -exec basename {} \; 2>/dev/null | sed -n 's/^\(V[0-9][0-9]*\)__.*/\1/p' | sort -u; }
+          PG=$(versions vendor/postgresql)
+          H2=$(versions vendor/h2)
+          if [ "$PG" != "$H2" ]; then
+            echo "::error::db/vendor/postgresql and db/vendor/h2 must hold the same versions (postgresql: ${PG//$'\n'/ }, h2: ${H2//$'\n'/ }) — a database with no copy of a version silently skips it"
+            exit 1
+          fi
+          CLASH=$(comm -12 <(versions migration) <(echo "$PG" | grep -v '^$') || true)
+          if [ -n "$CLASH" ]; then
+            echo "::error::version(s) ${CLASH//$'\n'/ } exist in both db/migration and db/vendor — one version is one migration, and Flyway would see two"
+            exit 1
+          fi
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21", cache: maven }
       - uses: gradle/actions/setup-gradle@v4
@@ -50,11 +79,19 @@ jobs:
       - name: Apply base migrations (develop), then the PR's, on PostgreSQL 16
         run: |
           BASE=origin/${{ github.base_ref }}
-          mkdir -p /tmp/base && git archive "$BASE" server/src/main/resources/db/migration | tar -x -C /tmp/base
+          # The whole `db` tree, not just `db/migration`: `db/vendor` may not exist on the base yet, and `git archive`
+          # fails on a path that does not. `mkdir -p` then guarantees the location Flyway is pointed at.
+          mkdir -p /tmp/base && git archive "$BASE" server/src/main/resources/db | tar -x -C /tmp/base
+          mkdir -p /tmp/base/server/src/main/resources/db/vendor/postgresql
+          # The PostgreSQL copy of every vendor migration is applied here, beside the common ones, exactly as
+          # `spring.flyway.locations` resolves them at run time — so an engine-specific statement is proved against
+          # real PostgreSQL 16 rather than only against the H2 the test suite uses.
+          BASE_LOCATIONS=filesystem:/tmp/base/server/src/main/resources/db/migration,filesystem:/tmp/base/server/src/main/resources/db/vendor/postgresql
+          LOCATIONS=filesystem:src/main/resources/db/migration,filesystem:src/main/resources/db/vendor/postgresql
           cd server
-          ./mvnw -B -q org.flywaydb:flyway-maven-plugin:11.8.2:migrate -Dflyway.url=jdbc:postgresql://localhost:5432/quest -Dflyway.user=quest -Dflyway.password=quest -Dflyway.locations=filesystem:/tmp/base/server/src/main/resources/db/migration
-          ./mvnw -B -q org.flywaydb:flyway-maven-plugin:11.8.2:migrate -Dflyway.url=jdbc:postgresql://localhost:5432/quest -Dflyway.user=quest -Dflyway.password=quest -Dflyway.locations=filesystem:src/main/resources/db/migration
-          ./mvnw -B -q org.flywaydb:flyway-maven-plugin:11.8.2:validate -Dflyway.url=jdbc:postgresql://localhost:5432/quest -Dflyway.user=quest -Dflyway.password=quest -Dflyway.locations=filesystem:src/main/resources/db/migration
+          ./mvnw -B -q org.flywaydb:flyway-maven-plugin:11.8.2:migrate -Dflyway.url=jdbc:postgresql://localhost:5432/quest -Dflyway.user=quest -Dflyway.password=quest "-Dflyway.locations=$BASE_LOCATIONS"
+          ./mvnw -B -q org.flywaydb:flyway-maven-plugin:11.8.2:migrate -Dflyway.url=jdbc:postgresql://localhost:5432/quest -Dflyway.user=quest -Dflyway.password=quest "-Dflyway.locations=$LOCATIONS"
+          ./mvnw -B -q org.flywaydb:flyway-maven-plugin:11.8.2:validate -Dflyway.url=jdbc:postgresql://localhost:5432/quest -Dflyway.user=quest -Dflyway.password=quest "-Dflyway.locations=$LOCATIONS"
       - name: JPA entities must match the migrated schema (ddl-auto=validate at context start)
         working-directory: server
         env:

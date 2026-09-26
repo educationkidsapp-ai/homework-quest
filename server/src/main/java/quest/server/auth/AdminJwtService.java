@@ -25,7 +25,7 @@ import quest.server.config.QuestProperties;
  */
 @Service
 public class AdminJwtService {
-    public static final Set<String> ROLES = Set.of("ADMIN", "TEACHER", "MANAGERIAL");
+    public static final Set<String> ROLES = Set.of("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR");
     private static final String PREFIX = "admin.";
     private static final String RESET_PREFIX = "reset.";
 
