@@ -1334,9 +1334,13 @@ export class LessonPage {
   /**
    * §8: a published lesson's day is fixed — children have already seen the island on it, and
    * `PATCH /teacher/lessons/{id}` refuses the move server-side too. Unpublish first.
+   *
+   * `readOnly` is asserted here as well as in `supportsMoveDate`, deliberately. This control is
+   * not behind a permission — there is no `lesson.moveDate` key — so for a read-only view of the
+   * page the route's own flag has to be what closes it, whatever role happens to be reading.
    */
   protected readonly canMoveDate = computed(
-    () => this.api.supportsMoveDate() && !this.isPublished() && this.lesson() !== null,
+    () => !this.readOnly && this.api.supportsMoveDate() && !this.isPublished() && this.lesson() !== null,
   );
 
   protected readonly dateValue = computed(() => this.lesson()?.date ?? '');

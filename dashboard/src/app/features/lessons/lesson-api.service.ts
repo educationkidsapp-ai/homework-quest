@@ -174,8 +174,13 @@ export class LessonApiService {
    *
    * `PATCH /teacher/lessons/{id}` is a teacher route only: an Admin's lesson is keyed by course
    * and date together, so moving one is a different operation the Admin screens do not offer.
+   *
+   * Named as the one role that has it rather than as "not an Admin". The review found the reason:
+   * `!isAdmin()` made this true for a COORDINATOR the moment she stopped counting as admin-side,
+   * which put an editable date control on her lesson page behind neither `readOnly` nor a
+   * permission — and it moved the date optimistically before the 403 came back.
    */
-  readonly supportsMoveDate = computed(() => !this.isAdmin());
+  readonly supportsMoveDate = computed(() => this.auth.role() === 'TEACHER');
 
   moveDate(id: string, date: string): Observable<AdminLesson> {
     if (!this.supportsMoveDate()) return this.unsupported('moveDate');
