@@ -204,8 +204,8 @@ interface ParsedChatMessage {
               <div class="chat-sidebar__state">{{ 'common.loading' | transloco }}</div>
             } @else if (filteredThreads().length === 0) {
               <div class="chat-sidebar__state">
-                <p class="chat-sidebar__empty-title">{{ 'chat.noThreads' | transloco }}</p>
-                <p class="chat-sidebar__empty-hint">{{ 'chat.noThreadsHint' | transloco }}</p>
+                <p class="chat-sidebar__empty-title">{{ emptyTitle() | transloco }}</p>
+                <p class="chat-sidebar__empty-hint">{{ emptyHint() | transloco }}</p>
               </div>
             } @else {
               @for (thread of filteredThreads(); track keyOf(thread)) {
@@ -1936,11 +1936,38 @@ export class ChatPage implements AfterViewChecked {
    * `/coordinator/messages` is the same list over her own routes plus the staff threads;
    * `/management/messages` is the manager's read-only side of those (`ChatRoutes`).
    */
-  protected readonly title = computed(() =>
-    this.auth.role() === 'TEACHER' ? 'chat.title' : 'chat.messagesTitle',
+  protected readonly title = computed(() => {
+    switch (this.auth.role()) {
+      case 'TEACHER':
+        return 'chat.title';
+      // Not "Messages" for her: what she has is a live view of the frames arriving now, and a
+      // title that promised an inbox would be the screen's first untruth (R4 added no
+      // `GET /management/chat/threads`; RM2 does).
+      case 'MANAGERIAL':
+        return 'chat.liveTitle';
+      default:
+        return 'chat.messagesTitle';
+    }
+  });
+
+  protected readonly subtitle = computed(() => {
+    switch (this.auth.role()) {
+      case 'MANAGERIAL':
+        return 'chat.managementSubtitle';
+      // Her threads are not all "parents of your students" — one of them is a manager.
+      case 'COORDINATOR':
+        return 'chat.coordinatorSubtitle';
+      default:
+        return 'chat.subtitle';
+    }
+  });
+
+  /** What the empty threads list says, which is a different fact for the role that cannot ask. */
+  protected readonly emptyTitle = computed(() =>
+    this.auth.role() === 'MANAGERIAL' ? 'chat.liveEmpty' : 'chat.noThreads',
   );
-  protected readonly subtitle = computed(() =>
-    this.auth.role() === 'MANAGERIAL' ? 'chat.managementSubtitle' : 'chat.subtitle',
+  protected readonly emptyHint = computed(() =>
+    this.auth.role() === 'MANAGERIAL' ? 'chat.liveEmptyHint' : 'chat.noThreadsHint',
   );
 
   readonly emojiCategories = EMOJI_CATEGORIES;

@@ -1243,10 +1243,14 @@
     "pdfDocument": "PDF Document",
     "close": "Close",
     "messagesTitle": "Messages",
-    "managementSubtitle": "Conversations with the coordinators of your department.",
+    "managementSubtitle": "Messages from the coordinators of your department, as they arrive. This is a live view — it starts empty on every reload.",
     "management": "Management",
     "complaint": "Complaint",
-    "readOnlyPeer": "You can read this conversation here, but replies are not enabled for your role yet."
+    "readOnlyPeer": "You can read this conversation here, but replies are not enabled for your role yet.",
+    "liveTitle": "Live messages",
+    "liveEmpty": "Nothing has arrived yet.",
+    "liveEmptyHint": "A coordinator’s message appears here the moment she sends it, while this screen is open. Nothing is kept: reload and the list starts empty again.",
+    "coordinatorSubtitle": "Your conversations with parents, and with the managers of your department."
   },
   "profile": {
     "title": "Your profile",
