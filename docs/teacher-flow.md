@@ -86,6 +86,12 @@ From This week, the class calendar or **New lesson**. Class and subject are fixe
 
 Optional notes to the analyzer ("the teacher used a number line").
 
+**Creating does not tie her to the screen.** The three calls behind *Create* (create → upload →
+analyze) belong to a service, not to the page, so closing New lesson cancels nothing and pulls
+nobody back. While they run the button becomes **Work in background**: it takes her to the lesson
+list and the chain carries on without an audience — the bell then tells her how it went. Only a
+chain that finishes while she is still on New lesson takes her to the new lesson itself.
+
 ### Step 5 — Analysis (cached)
 The server hashes the file. If the same file was analyzed before, by anyone, the result returns instantly with a badge **Analyzed before · 0 tokens**. Otherwise the pipeline runs:
 
@@ -93,9 +99,9 @@ The server hashes the file. If the same file was analyzed before, by anyone, the
 
 The three levels are written **at the same time** — they read the same analysis and the same confirmed skills — and the Again variant and the parent panel then run together, once all three levels are stored (D25). Each is still its own step with its own deadline, so a failure in one leaves the others done.
 
-A step strip shows each step as pending, running, done or error. On error the teacher sees a plain message and three actions: **Retry and continue**, **Retry this step only**, **Replace file**. Steps that already succeeded are kept; retries never regenerate them. While the pipeline runs the editor polls `GET /teacher/lessons/{id}/status`, which carries just the strip and the counters.
+A step strip shows each step as pending, running, done or error. On error the teacher sees a plain message and three actions: **Retry and continue**, **Retry this step only**, **Replace file**. Steps that already succeeded are kept; retries never regenerate them. While the pipeline runs the editor polls `GET /teacher/lessons/{id}/status` every 2.5 s — a few hundred bytes: the strip, the counters, one line per file. It re-reads the whole lesson only when that body says something the screen would draw differently (a step, a level's stop count, the panel, a file's conversion, the status itself), so a generate now costs one small request per tick instead of the entire lesson with every stop in it.
 
-She does not have to watch it: whoever created the lesson gets a bell notification when the skills are waiting for her ("Skills to confirm"), when the questions are ready ("Questions ready") and when the job stops ("Generation stopped"), persisted server-side and pushed live on `/ws/chat` — `docs/runbook.md` "Chat and notifications" (E2, D26).
+She does not have to watch that either: whoever created the lesson gets a bell notification when the skills are waiting for her ("Skills to confirm"), when the questions are ready ("Questions ready") and when the job stops ("Generation stopped"), persisted server-side and pushed live on `/ws/chat` — `docs/runbook.md` "Chat and notifications" (E2, D26).
 
 ### Step 6 — Review skills
 The skills found in the source, with anything the analyzer was unsure about flagged for a choice. The teacher ticks, renames, removes or adds skills, then **Build the practice**.

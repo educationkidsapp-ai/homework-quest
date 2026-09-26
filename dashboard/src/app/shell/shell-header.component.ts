@@ -1,20 +1,23 @@
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
-import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import { TranslocoPipe } from '@jsverse/transloco';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { SchoolSummary, SchoolsApi } from '../api';
+import { type NotificationView, NotificationViewKindEnum, SchoolSummary, SchoolsApi } from '../api';
 import { AuthService } from '../core/auth/auth.service';
 import { ChatService } from '../core/chat/chat.service';
 import { SchoolScopeStore } from '../core/auth/school-scope.store';
 import { FeatureDirective } from '../core/flags/feature.directive';
+import { CanDirective } from '../core/permissions/can.directive';
+import { PermissionService } from '../core/permissions/permission.service';
 import { FLAGS, FlagService } from '../core/flags/flag.service';
+import { activeLang } from '../core/i18n/active-lang';
 import { LANGUAGES, LanguageService } from '../core/i18n/language.service';
 import { SIDEBAR_ID, SidebarService } from '../core/shell/sidebar.service';
 import { DarkModeService } from '../core/theme/dark-mode.service';
-import { NotificationsService } from '../core/notifications/notifications.service';
+import { NotificationsService, bodyKeyOf, titleKeyOf } from '../core/notifications/notifications.service';
 import { TourService } from '../core/tour/tour.service';
 import { ViewModeService } from '../core/view-mode/view-mode.service';
 
@@ -46,7 +49,7 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
  */
 @Component({
   selector: 'hq-shell-header',
-  imports: [CdkMenu, CdkMenuItem, CdkMenuTrigger, FeatureDirective, RouterLink, TranslocoPipe],
+  imports: [CanDirective, CdkMenu, CdkMenuItem, CdkMenuTrigger, FeatureDirective, RouterLink, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (auth.impersonatedBy(); as actor) {
@@ -102,6 +105,7 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
             type="button"
             class="header__icon header__bell-btn"
             [cdkMenuTriggerFor]="notificationsMenu"
+            (cdkMenuOpened)="openNotifications()"
             [attr.aria-label]="'shell.notifications' | transloco"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -167,7 +171,7 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
             <span class="header__avatar" aria-hidden="true">{{ monogram() }}</span>
             <span class="header__user-info">
               <span class="header__user-name">{{ auth.displayName() }}</span>
-              <span class="header__user-role">{{ ('nav.label.' + (auth.role() ?? '')) | transloco }}</span>
+              <span class="header__user-role">{{ 'nav.label.' + (auth.role() ?? '') | transloco }}</span>
             </span>
             <svg class="header__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="m7 10 5 5 5-5" />
@@ -178,14 +182,19 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
     </header>
 
     <ng-template #notificationsMenu>
-      <div cdkMenu class="hq-menu hq-menu--notifications" [attr.aria-label]="'shell.notifications' | transloco">
+      <div
+        cdkMenu
+        class="hq-menu hq-menu--notifications"
+        [attr.aria-label]="'shell.notifications' | transloco"
+      >
         <div class="notifications-popup__header">
           <span class="notifications-popup__title">{{ 'notifications.title' | transloco }}</span>
           @if (unreadNotifications() > 0) {
             <button
+              *hqCan="'notifications.write'"
               type="button"
               class="notifications-popup__mark-read"
-              (click)="notificationsService.markAllAsRead()"
+              (click)="notificationsService.markAllRead()"
             >
               {{ 'notifications.markAllRead' | transloco }}
             </button>
@@ -196,19 +205,27 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
             <a
               cdkMenuItem
               class="notifications-popup__item"
-              [class.is-unread]="!item.read"
+              [class.is-unread]="item.readAt === undefined"
               [routerLink]="item.link ?? '/notifications'"
-              (click)="notificationsService.markAsRead(item.id)"
+              (click)="markRead(item.id)"
             >
-              <div class="notifications-popup__dot" [class.is-active]="!item.read"></div>
+              <div class="notifications-popup__dot" [class.is-active]="item.readAt === undefined"></div>
               <div class="notifications-popup__content">
-                <p class="notifications-popup__item-title">{{ item.title }}</p>
-                <p class="notifications-popup__item-msg">{{ item.message }}</p>
+                <p class="notifications-popup__item-title">{{ notificationTitle(item) }}</p>
+                <p class="notifications-popup__item-msg">{{ notificationBody(item) }}</p>
               </div>
             </a>
+          } @empty {
+            <p class="notifications-popup__empty">{{ 'notifications.empty' | transloco }}</p>
           }
         </div>
         <div class="notifications-popup__footer">
+          <!-- E3: the browser's permission prompt, asked from a click and nowhere else. -->
+          @if (canAskNotify()) {
+            <button type="button" class="notifications-popup__mark-read" (click)="askNotify()">
+              {{ 'notifications.notifyMe' | transloco }}
+            </button>
+          }
           <a cdkMenuItem class="notifications-popup__view-all" routerLink="/notifications">
             {{ 'notifications.viewAll' | transloco }} &rarr;
           </a>
@@ -257,7 +274,9 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
             <p class="hq-menu__head-meta">{{ address }}</p>
           }
         </div>
-        <a cdkMenuItem class="hq-menu__item" routerLink="/profile" (cdkMenuItemTriggered)="openProfile()">{{ 'shell.profile.open' | transloco }}</a>
+        <a cdkMenuItem class="hq-menu__item" routerLink="/profile" (cdkMenuItemTriggered)="openProfile()">{{
+          'shell.profile.open' | transloco
+        }}</a>
         <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="showMeAround()">
           {{ 'shell.showMeAround' | transloco }}
         </button>
@@ -498,6 +517,14 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
       overflow: hidden;
     }
 
+    .notifications-popup__empty {
+      padding: 16px;
+      margin: 0;
+      font-size: 13px;
+      color: var(--hq-color-ink-soft);
+      text-align: center;
+    }
+
     .notifications-popup__footer {
       padding: 8px 14px;
       text-align: center;
@@ -695,8 +722,53 @@ export class ShellHeaderComponent {
   protected readonly isTeacher = computed(() => this.auth.role() === 'TEACHER');
   protected readonly unreadChatCount = computed(() => this.chatService.totalUnread());
   protected readonly notificationsService = inject(NotificationsService);
-  protected readonly unreadNotifications = computed(() => this.notificationsService.unreadCount());
-  protected readonly recentNotifications = computed(() => this.notificationsService.notifications().slice(0, 4));
+  private readonly transloco = inject(TranslocoService);
+  private readonly permissions = inject(PermissionService);
+  private readonly lang = activeLang();
+  protected readonly unreadNotifications = this.notificationsService.unreadCount;
+  protected readonly recentNotifications = this.notificationsService.recent;
+  protected readonly canAskNotify = signal(this.notificationsService.canAskPermission());
+
+  /** The rows are fetched when the bell is opened, not on every page the shell draws. */
+  protected openNotifications(): void {
+    this.notificationsService.refresh();
+    this.canAskNotify.set(this.notificationsService.canAskPermission());
+  }
+
+  /** "Notify me" goes as soon as she has answered the browser, not on the next open. */
+  protected askNotify(): void {
+    void this.notificationsService
+      .askPermission()
+      .then(() => this.canAskNotify.set(this.notificationsService.canAskPermission()));
+  }
+
+  /**
+   * Opening a row marks it read, unless this session may not write: an Admin's read-only "View
+   * as" session would take a 403 for it, and a red band over a row she only looked at is worse
+   * than a dot that stays. The link still follows — reading is a read.
+   */
+  protected markRead(id: string): void {
+    if (this.permissions.can('notifications.write')) this.notificationsService.markRead(id);
+  }
+
+  /**
+   * The copy is the *kind*'s, in her language; `title`/`body` off the wire are the English
+   * fallbacks the server wrote. `lesson.failed` is the exception — its body is the reason the
+   * pipeline gave, and no translation of ours could say it.
+   */
+  protected notificationTitle(item: NotificationView): string {
+    this.lang();
+    const translated = this.transloco.translate<string>(titleKeyOf(item.kind));
+    return translated === titleKeyOf(item.kind) ? item.title : translated;
+  }
+
+  protected notificationBody(item: NotificationView): string {
+    this.lang();
+    if (item.kind === NotificationViewKindEnum.LESSON_FAILED)
+      return item.body ?? this.transloco.translate<string>(bodyKeyOf(item.kind));
+    const translated = this.transloco.translate<string>(bodyKeyOf(item.kind));
+    return translated === bodyKeyOf(item.kind) ? (item.body ?? '') : translated;
+  }
   protected readonly email = computed(() => this.auth.user()?.email ?? '');
   /** `[...name]` rather than `name[0]`: an Arabic first character is not one UTF-16 unit. */
   protected readonly monogram = computed(() => [...this.auth.displayName().trim()][0] ?? '');

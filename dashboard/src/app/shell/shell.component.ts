@@ -11,6 +11,7 @@ import {
   inject,
 } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { type NotificationView, NotificationViewKindEnum } from '../api';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { filter, map } from 'rxjs/operators';
@@ -18,6 +19,7 @@ import {
   BandComponent,
   NavComponent,
   ShortcutsDialogComponent,
+  ToastComponent,
   UndoStripComponent,
   type NavItem,
   type Shortcut,
@@ -27,6 +29,7 @@ import { BandService } from '../core/band/band.service';
 import { FlagService } from '../core/flags/flag.service';
 import { activeLang } from '../core/i18n/active-lang';
 import { ClassContextService } from '../core/nav/class-context.service';
+import { NotificationsService, bodyKeyOf, titleKeyOf } from '../core/notifications/notifications.service';
 import { navScreens } from '../core/nav/screens';
 import { PermissionService } from '../core/permissions/permission.service';
 import { SchoolScopeStore } from '../core/auth/school-scope.store';
@@ -63,6 +66,7 @@ import { ShellHeaderComponent } from './shell-header.component';
     NavComponent,
     BandComponent,
     UndoStripComponent,
+    ToastComponent,
     ShortcutsDialogComponent,
     ShellHeaderComponent,
     TourComponent,
@@ -112,6 +116,17 @@ import { ShellHeaderComponent } from './shell-header.component';
         }
 
         <main class="shell__content" tabindex="-1"><router-outlet /></main>
+
+        <!--
+          E3: the one app-wide toast. A notification frame can land on any screen, and the
+          teacher who sent a lesson to the background is by then on the list, on her classes,
+          anywhere — so the notice belongs to the frame, not to the lesson page. It is a
+          success notice with nothing to undo, which is exactly what the toast strip is for;
+          a failed lesson still says so in a red band on the lesson itself.
+        -->
+        @if (notificationToast(); as message) {
+          <hq-toast [open]="true" [message]="message" (expired)="notifications.toast.set(null)" />
+        }
 
         @if (undo.offer(); as offer) {
           <hq-undo-strip
@@ -200,7 +215,35 @@ export class ShellComponent {
   protected readonly auth = inject(AuthService);
   protected readonly band = inject(BandService);
   protected readonly undo = inject(UndoService);
+  protected readonly notifications = inject(NotificationsService);
   protected readonly sidebar = inject(SidebarService);
+
+  /**
+   * What the frame that just arrived says, in her language and per kind — "Questions ready",
+   * "Skills to confirm", or the reason a lesson failed.
+   */
+  protected readonly notificationToast = computed(() => {
+    this.lang();
+    const item = this.notifications.toast();
+    if (!item) return null;
+    if (item.kind === NotificationViewKindEnum.LESSON_FAILED) {
+      return item.body ?? this.translate(titleKeyOf(item.kind), item.title);
+    }
+    return this.translate(titleKeyOf(item.kind), item.title);
+  });
+
+  private notificationBody(item: NotificationView): string {
+    const key = bodyKeyOf(item.kind);
+    if (item.kind === NotificationViewKindEnum.LESSON_FAILED) {
+      return item.body ?? this.translate(key, '');
+    }
+    return this.translate(key, item.body ?? '');
+  }
+
+  private translate(key: string, fallback: string): string {
+    const text = this.transloco.translate<string>(key);
+    return text === key ? fallback : text;
+  }
   protected readonly sidebarId = SIDEBAR_ID;
   /** The one condition the shell behind the rail is inert under. */
   protected readonly drawerOpen = computed(() => this.sidebar.drawer() && this.sidebar.open());
@@ -262,6 +305,17 @@ export class ShellComponent {
   });
 
   constructor() {
+    // The desktop banner, and only for a tab she is not looking at — the toast already has
+    // her attention when she is. Permission is asked from the bell's "Notify me", never here.
+    effect(() => {
+      const item = this.notifications.toast();
+      if (!item) return;
+      this.notifications.notifyIfHidden(
+        this.translate(titleKeyOf(item.kind), item.title),
+        this.notificationBody(item),
+      );
+    });
+
     effect(() => {
       this.url();
       this.band.dismiss();

@@ -1022,6 +1022,16 @@ sessions whose school matches the event's — an ADMIN's session carries no scho
 she reads across schools anyway. Nothing is replayed after a missed frame: on reconnect, refetch
 `/me/notifications/unread-count`.
 
+**The client** (E3, `dashboard/src/app/core/notifications/notifications.service.ts`). The dashboard
+opens `/ws/chat` for every role it signs in as — ADMIN, MANAGERIAL and TEACHER, `chat` flag or not —
+because the socket is also how the bell hears anything. A `notification` frame goes straight into the
+bell's list, the badge and one app-wide toast (plus a desktop notification, but only while the tab is
+hidden and only if she granted it from the "Notify me" click). `link` is followed as a router path.
+Because nothing is replayed, every (re)connect refetches `/me/notifications/unread-count` — and the
+list too, if the bell had it open — and while there is no socket at all the count alone is polled every
+30 s. The two POSTs are behind `notifications.write`, so a read-only "View as" session marks nothing
+read and never takes a 403 for opening a row.
+
 ```bash
 curl "$API/me/notifications?unread=true&limit=20" -H "Authorization: Bearer $TEACHER"
 curl -X POST "$API/me/notifications/read-all" -H "Authorization: Bearer $TEACHER"

@@ -5,6 +5,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { catchError, finalize, forkJoin, map, of } from 'rxjs';
 import {
   type AdminLesson,
   AdminLessonStatusEnum,
@@ -227,9 +228,6 @@ export class LessonsPage {
     defaultValue: [],
   });
 
-  protected readonly hasRunning = computed(() =>
-    this.lessons.value().some((row) => isRunningStatus(row.status)),
-  );
   protected readonly hasFailed = computed(() =>
     this.lessons.value().some((row) => row.status === AdminLessonStatusEnum.ERROR),
   );
@@ -473,10 +471,37 @@ export class LessonsPage {
       if (userId && curriculum && grade) writeStoredCourse(userId, { curriculum, grade });
     });
 
-    // Poll while anything is mid-pipeline.
+    // E3: poll the running rows, not the list.
+    //
+    // `GET …/lessons` is the whole course — every lesson, with its steps and its files — and
+    // reloading it every 2.5 s while one row generates was most of this screen's traffic. The
+    // alternative considered was the same list every 10 s; per-row `/status` wins on both
+    // counts: a status body is a few hundred bytes against a course's worth of lessons, and
+    // there is normally one running row (the one she just created), so it is *one* small
+    // request per tick instead of one large one. The list is read back only when a row's
+    // status actually moves, which is the thing the screen draws.
     effect((onCleanup) => {
-      if (!this.hasRunning()) return;
-      const timer = setInterval(() => this.lessons.reload(), POLL_MS);
+      const running = this.lessons.value().filter((row) => isRunningStatus(row.status));
+      if (running.length === 0) return;
+
+      let inFlight = false;
+      const timer = setInterval(() => {
+        if (inFlight) return;
+        inFlight = true;
+        forkJoin(
+          running.map((row) =>
+            this.lessonsApi.status(row.id).pipe(
+              map((view) => (view.status as string) !== (row.status as string)),
+              // A poll that fails is a poll: the next tick asks again, no band, no reload.
+              catchError(() => of(false)),
+            ),
+          ),
+        )
+          .pipe(finalize(() => (inFlight = false)))
+          .subscribe((moved) => {
+            if (moved.some(Boolean)) this.lessons.reload();
+          });
+      }, POLL_MS);
       onCleanup(() => clearInterval(timer));
     });
   }

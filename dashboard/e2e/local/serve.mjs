@@ -9,7 +9,10 @@
  *   - `/dashboard/**` → `dist/browser`, with the SPA fallback to `index.html` for any path that
  *     is not a file (so `/dashboard/sign-in` and `/dashboard/accept-invite?token=…` reload),
  *     hashed assets immutable and `index.html` no-cache;
- *   - everything else → the API, unchanged, headers and status included.
+ *   - everything else → the API, unchanged, headers and status included — including the
+ *     WebSocket upgrade on `/ws/chat`, which the container's own proxy passes through and
+ *     which E3 made every dashboard role open (D26). Without it Chrome logs a failed handshake
+ *     on every screen and T4's console gate fails the whole suite.
  *
  * It also sets the **same Content-Security-Policy the API will** (backend PR #50), so the suite
  * fails here rather than in QA if the bundle ever needs an inline script or an off-origin
@@ -24,6 +27,7 @@
 import { createGzip } from 'node:zlib';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { connect } from 'node:net';
 import { extname, join, normalize, resolve } from 'node:path';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -66,6 +70,38 @@ const server = createServer((request, response) => {
   }
   if (url.pathname.startsWith(BASE)) serveFile(url.pathname.slice(BASE.length), request, response);
   else void proxy(request, response, url);
+});
+
+/**
+ * The WebSocket upgrade, tunnelled rather than proxied.
+ *
+ * `fetch` cannot carry an upgrade, so the socket is spliced: the upgrade request is replayed on
+ * a raw connection to the API and the two sockets are piped together from the API's `101`
+ * onwards. That is what Cloud Run does in front of the container, and what `/ws/chat` needs to
+ * behave here the way it behaves in QA.
+ */
+server.on('upgrade', (request, socket, head) => {
+  const upstreamUrl = new URL(API);
+  const upstream = connect(
+    { host: upstreamUrl.hostname, port: Number(upstreamUrl.port || 80) },
+    () => {
+      const lines = [`${request.method} ${request.url} HTTP/1.1`];
+      for (const [name, value] of Object.entries(request.headers)) {
+        if (name === 'host') lines.push(`host: ${upstreamUrl.host}`);
+        else for (const one of Array.isArray(value) ? value : [value]) lines.push(`${name}: ${one}`);
+      }
+      upstream.write(`${lines.join('\r\n')}\r\n\r\n`);
+      if (head?.length) upstream.write(head);
+      upstream.pipe(socket);
+      socket.pipe(upstream);
+    },
+  );
+  const drop = () => {
+    upstream.destroy();
+    socket.destroy();
+  };
+  upstream.on('error', drop);
+  socket.on('error', drop);
 });
 
 server.listen(PORT, () =>

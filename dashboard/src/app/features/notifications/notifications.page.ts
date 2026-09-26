@@ -1,20 +1,24 @@
 /* hq-flag: none (shell) — notifications are part of the core dashboard shell across all roles. */
 import { DatePipe, NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { type NotificationView, NotificationViewKindEnum } from '../../api';
 import { activeLang } from '../../core/i18n/active-lang';
-import { AppNotification, NotificationsService } from '../../core/notifications/notifications.service';
+import { NotificationsService, bodyKeyOf, titleKeyOf } from '../../core/notifications/notifications.service';
+import { CanDirective } from '../../core/permissions/can.directive';
+import { PermissionService } from '../../core/permissions/permission.service';
 import { EmptyStateComponent, PageComponent, TabsComponent, type Tab } from '../../ui';
 
-type CategoryFilter = 'all' | 'unread' | 'classes' | 'lessons' | 'system';
+/** What the three kinds E2 writes can be narrowed by, and nothing that has no rows behind it. */
+type CategoryFilter = 'all' | 'unread' | 'lessons';
 
 @Component({
   selector: 'hq-notifications-page',
   imports: [
     NgClass,
     DatePipe,
-    RouterLink,
+    CanDirective,
     PageComponent,
     TabsComponent,
     EmptyStateComponent,
@@ -22,10 +26,7 @@ type CategoryFilter = 'all' | 'unread' | 'classes' | 'lessons' | 'system';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hq-page
-      [title]="'notifications.title' | transloco"
-      [subtitle]="'notifications.subtitle' | transloco"
-    >
+    <hq-page [title]="'notifications.title' | transloco" [subtitle]="'notifications.subtitle' | transloco">
       <div class="em-dashboard">
         <!-- Top Toolbar Card -->
         <div class="em-toolbar-card">
@@ -40,12 +41,17 @@ type CategoryFilter = 'all' | 'unread' | 'classes' | 'lessons' | 'system';
           <div class="notifications__actions">
             @if (notificationsService.unreadCount() > 0) {
               <button
+                *hqCan="'notifications.write'"
                 type="button"
                 class="em-btn-sm em-btn-sm--ghost"
-                (click)="notificationsService.markAllAsRead()"
+                (click)="notificationsService.markAllRead()"
               >
                 <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
-                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                  <path
+                    fill-rule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clip-rule="evenodd"
+                  />
                 </svg>
                 {{ 'notifications.markAllRead' | transloco }}
               </button>
@@ -64,36 +70,31 @@ type CategoryFilter = 'all' | 'unread' | 'classes' | 'lessons' | 'system';
             @for (item of filteredItems(); track item.id) {
               <div
                 class="em-card notification-card"
-                [class.is-unread]="!item.read"
+                [class.is-unread]="item.readAt === undefined"
                 role="button"
                 tabindex="0"
                 (click)="onOpenItem(item)"
                 (keydown.enter)="onOpenItem(item)"
               >
-                <div class="notification-card__icon" [ngClass]="iconGradient(item.category)">
-                  @switch (item.category) {
-                    @case ('classes') {
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                      </svg>
-                    }
-                    @case ('lessons') {
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                        <polyline points="22 4 12 14.01 9 11.01" />
-                      </svg>
-                    }
-                    @case ('chat') {
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                      </svg>
-                    }
-                    @default {
+                <div class="notification-card__icon" [ngClass]="iconGradient(item.kind)">
+                  @switch (item.kind) {
+                    @case (Kind.LESSON_FAILED) {
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10" />
                         <line x1="12" y1="8" x2="12" y2="12" />
                         <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                    }
+                    @case (Kind.LESSON_NEEDS_SKILLS) {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                      </svg>
+                    }
+                    @default {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
                       </svg>
                     }
                   }
@@ -101,28 +102,21 @@ type CategoryFilter = 'all' | 'unread' | 'classes' | 'lessons' | 'system';
 
                 <div class="notification-card__body">
                   <div class="notification-card__header">
-                    <h3 class="notification-card__title">{{ item.title }}</h3>
+                    <h3 class="notification-card__title">{{ titleOf(item) }}</h3>
                     <div class="notification-card__meta">
-                      @if (!item.read) {
-                        <span class="notification-card__unread-dot" title="Unread"></span>
+                      @if (item.readAt === undefined) {
+                        <span
+                          class="notification-card__unread-dot"
+                          [title]="'notifications.tabs.unread' | transloco"
+                        ></span>
                       }
-                      <span class="notification-card__time">{{ item.createdAt | date: 'mediumDate' }} · {{ item.createdAt | date: 'shortTime' }}</span>
+                      <span class="notification-card__time"
+                        >{{ item.createdAt | date: 'mediumDate' }} ·
+                        {{ item.createdAt | date: 'shortTime' }}</span
+                      >
                     </div>
                   </div>
-                  <p class="notification-card__message">{{ item.message }}</p>
-                </div>
-
-                <div class="notification-card__actions">
-                  <button
-                    type="button"
-                    class="notification-card__dismiss-btn"
-                    aria-label="Dismiss notification"
-                    (click)="onDismiss($event, item.id)"
-                  >
-                    <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                      <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                    </svg>
-                  </button>
+                  <p class="notification-card__message">{{ bodyOf(item) }}</p>
                 </div>
               </div>
             }
@@ -228,23 +222,6 @@ type CategoryFilter = 'all' | 'unread' | 'classes' | 'lessons' | 'system';
       line-height: 1.5;
     }
 
-    .notification-card__dismiss-btn {
-      background: transparent;
-      border: none;
-      padding: 6px;
-      border-radius: 8px;
-      color: var(--hq-color-ink-faint, #94a3b8);
-      cursor: pointer;
-      display: grid;
-      place-items: center;
-      transition: all 0.15s ease;
-
-      &:hover {
-        background: rgba(0, 0, 0, 0.06);
-        color: var(--hq-color-error-ink, #ef4444);
-      }
-    }
-
     :host-context(html.dark) {
       .notification-card {
         background: var(--hq-color-surface, #171f2e) !important;
@@ -268,20 +245,19 @@ type CategoryFilter = 'all' | 'unread' | 'classes' | 'lessons' | 'system';
       .notification-card__time {
         color: var(--hq-color-ink-soft, #94a3b8) !important;
       }
-
-      .notification-card__dismiss-btn:hover {
-        background: rgba(255, 255, 255, 0.08);
-      }
     }
   `,
 })
 export class NotificationsPage {
   protected readonly notificationsService = inject(NotificationsService);
   private readonly router = inject(Router);
+  private readonly permissions = inject(PermissionService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
 
   protected readonly selectedTab = signal<CategoryFilter>('all');
+  /** The template switches on the kind, and a generated enum does not compare to a literal. */
+  protected readonly Kind = NotificationViewKindEnum;
 
   protected readonly tabs = computed<readonly Tab<CategoryFilter>[]>(() => {
     this.lang();
@@ -293,53 +269,62 @@ export class NotificationsPage {
         label: this.transloco.translate('notifications.tabs.unread'),
         badge: unread > 0 ? unread : undefined,
       },
-      { id: 'classes', label: this.transloco.translate('notifications.tabs.classes') },
       { id: 'lessons', label: this.transloco.translate('notifications.tabs.lessons') },
-      { id: 'system', label: this.transloco.translate('notifications.tabs.system') },
     ];
   });
 
   protected readonly filteredItems = computed(() => {
     const list = this.notificationsService.notifications();
-    const tab = this.selectedTab();
-    switch (tab) {
+    switch (this.selectedTab()) {
       case 'unread':
-        return list.filter((item) => !item.read);
-      case 'classes':
-        return list.filter((item) => item.category === 'classes');
+        return list.filter((item) => item.readAt === undefined);
       case 'lessons':
-        return list.filter((item) => item.category === 'lessons');
-      case 'system':
-        return list.filter((item) => item.category === 'system');
+        return list.filter((item) => item.kind.startsWith('lesson.'));
       default:
         return list;
     }
   });
 
-  protected iconGradient(category: AppNotification['category']): string {
-    switch (category) {
-      case 'classes':
-        return 'em-gradient--blue';
-      case 'lessons':
+  constructor() {
+    this.notificationsService.refresh();
+  }
+
+  /** Her language, from the kind; `title`/`body` off the wire are the English fallbacks. */
+  protected titleOf(item: NotificationView): string {
+    this.lang();
+    const key = titleKeyOf(item.kind);
+    const translated = this.transloco.translate<string>(key);
+    return translated === key ? item.title : translated;
+  }
+
+  /** Except for a failure, whose body is the reason the pipeline gave. */
+  protected bodyOf(item: NotificationView): string {
+    this.lang();
+    const key = bodyKeyOf(item.kind);
+    if (item.kind === NotificationViewKindEnum.LESSON_FAILED)
+      return item.body ?? this.transloco.translate<string>(key);
+    const translated = this.transloco.translate<string>(key);
+    return translated === key ? (item.body ?? '') : translated;
+  }
+
+  protected iconGradient(kind: NotificationView['kind']): string {
+    switch (kind) {
+      case NotificationViewKindEnum.LESSON_READY:
         return 'em-gradient--green';
-      case 'chat':
-        return 'em-gradient--purple';
-      case 'system':
-        return 'em-gradient--orange';
+      case NotificationViewKindEnum.LESSON_NEEDS_SKILLS:
+        return 'em-gradient--blue';
       default:
-        return 'em-gradient--cyan';
+        return 'em-gradient--orange';
     }
   }
 
-  protected onOpenItem(item: AppNotification): void {
-    this.notificationsService.markAsRead(item.id);
-    if (item.link) {
-      void this.router.navigateByUrl(item.link);
-    }
-  }
-
-  protected onDismiss(event: MouseEvent, id: string): void {
-    event.stopPropagation();
-    this.notificationsService.remove(id);
+  /**
+   * The row marks itself read and then follows its `link`. The write is skipped for a read-only
+   * "View as" session, which the server refuses every POST from: the navigation is the point of
+   * the row, and a 403 red band on the way there is not.
+   */
+  protected onOpenItem(item: NotificationView): void {
+    if (this.permissions.can('notifications.write')) this.notificationsService.markRead(item.id);
+    if (item.link) void this.router.navigateByUrl(item.link);
   }
 }

@@ -6,6 +6,7 @@ import {
   type DeleteFailed200Response,
   type JobRef,
   type LessonImage,
+  type LessonStatusView,
   type ParentPanel,
   type Play,
   type PublishedCopy,
@@ -127,6 +128,16 @@ export class LessonApiService {
 
   deleteLesson(id: string): Observable<unknown> {
     return this.isAdmin() ? this.admin.deleteLesson(id) : this.teacher.deleteTeacherLesson(id);
+  }
+
+  /**
+   * E1's light poll body — status, steps, files, plays, panel — and nothing else.
+   *
+   * The screens poll this while a job runs and read the full lesson back only when it says
+   * something changed (`lesson-status.ts`).
+   */
+  status(id: string): Observable<LessonStatusView> {
+    return this.isAdmin() ? this.admin.getLessonStatus(id) : this.teacher.teacherLessonStatus(id);
   }
 
   /**

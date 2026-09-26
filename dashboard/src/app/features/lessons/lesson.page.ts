@@ -18,9 +18,11 @@ import {
 import { rxResource } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { finalize } from 'rxjs';
 import {
   type AdminLesson,
   type AdminPlay,
+  type LessonStatusView,
   type ParentPanel,
   type PublishedCopy,
   AdminLessonSourceEnum,
@@ -62,6 +64,7 @@ import { type Play, type Stop, PhonePreviewComponent } from '../../ui/phone-prev
 import { AddStopComponent } from './add-stop.component';
 import { anyConverting, reasonKeyOf } from './file-conversion';
 import { LessonApiService } from './lesson-api.service';
+import { lessonSignature, statusSignature } from './lesson-status';
 import { toPreviewPlay } from './lesson-preview.mapper';
 import { LessonSourcesComponent } from './lesson-sources.component';
 import {
@@ -803,8 +806,24 @@ export class LessonPage {
   protected readonly addStopOpen = signal(false);
   /** "Question added", for four seconds. The only toast on this page, and never for a failure. */
   protected readonly stopAddedToast = signal(false);
-  /** "AI questions ready", shown when background generation completes. */
-  protected readonly aiReadyToast = signal(false);
+  /**
+   * The last signature this page acted on. It starts as the *lesson's* — see
+   * `lesson-status.ts` — so the very first poll after a load is compared against something
+   * real rather than setting a baseline of its own.
+   */
+  private lastSignature: string | null = null;
+
+  /**
+   * One rule, and it is the whole of the light poll: reload the lesson when the status body's
+   * signature moves. Anything the heavy body would draw differently — a step, a play's stop
+   * count, the panel, a file's conversion, the status itself — is in that signature, and
+   * nothing else is.
+   */
+  private onStatus(view: LessonStatusView): void {
+    const signature = statusSignature(view);
+    if (this.lastSignature !== null && this.lastSignature !== signature) this.lessonRes.reload();
+    this.lastSignature = signature;
+  }
 
   protected onStopAdded(stopId: string): void {
     this.pendingStopId.set(stopId);
@@ -1373,43 +1392,39 @@ export class LessonPage {
       if (text !== key) this.notice.set(text);
     }
 
-    // Poll while a job is running; the interval clears itself on the next run, on a terminal
-    // status, and (the `onCleanup` the effect gets for free) when the page is destroyed.
+    // E3: poll the **light** body (`GET …/lessons/{id}/status`, a few hundred bytes) and read
+    // the whole lesson back only when that body says something the page shows has changed —
+    // see `lesson-status.ts` for the rule. The old poll fetched the entire lesson, every stop
+    // of it, every 2.5 s for the length of a generate.
     //
-    // CR4 adds the second reason to keep asking: a file may still be `converting` while the
-    // lesson's own status has already settled — a retry from a failed conversion puts one file
-    // back to work without moving the lesson out of `error`. Both conditions are terminal-only
-    // by construction: `converting` is the single non-terminal file state, so the last file to
-    // finish stops the timer.
-    let wasRunning = false;
+    // CR4's second reason to keep asking is still here: a file may be `converting` while the
+    // lesson's own status has already settled, and `isStatusActive` folds both in.
     effect((onCleanup) => {
       const lesson = this.lesson();
-      const running = lesson !== null && isRunningStatus(lesson.status);
-      const converting = anyConverting(lesson?.files ?? []);
-      const active = running || converting;
-
-      if (active) {
-        wasRunning = true;
-        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-          void Notification.requestPermission();
-        }
-      } else if (wasRunning && lesson && !isRunningStatus(lesson.status)) {
-        wasRunning = false;
-        this.aiReadyToast.set(true);
-        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-          try {
-            new Notification(this.t('lessons.new.notification.title'), {
-              body: this.t('lessons.new.notification.body'),
-              icon: '/favicon.ico',
-            });
-          } catch {
-            // Ignore notification error on unsupported clients
-          }
-        }
-      }
-
+      const active =
+        lesson !== null && (isRunningStatus(lesson.status) || anyConverting(lesson.files ?? []));
       if (!active) return;
-      const timer = setInterval(() => this.lessonRes.reload(), POLL_MS);
+
+      // The baseline is the lesson in hand, set once per page: a lesson that reaches a terminal
+      // status inside this first 2.5 s window has to be read back, and a baseline taken from
+      // that first poll instead would record the terminal signature as "nothing changed" and
+      // poll a finished lesson for ever. After that the polls own it.
+      this.lastSignature ??= lessonSignature(lesson);
+
+      let inFlight = false;
+      const poll = () => {
+        if (inFlight) return;
+        inFlight = true;
+        this.api
+          .status(this.lessonId)
+          .pipe(finalize(() => (inFlight = false)))
+          .subscribe({
+            next: (view) => this.onStatus(view),
+            // A poll that fails is a poll; the next one is in 2.5 s and the band stays clean.
+            error: () => undefined,
+          });
+      };
+      const timer = setInterval(poll, POLL_MS);
       onCleanup(() => clearInterval(timer));
     });
 

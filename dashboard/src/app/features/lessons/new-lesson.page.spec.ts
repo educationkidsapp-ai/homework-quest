@@ -12,6 +12,7 @@ import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SchoolScopeStore } from '../../core/auth/school-scope.store';
 import { SessionStore } from '../../core/auth/session.store';
+import { LessonCreationService } from './lesson-creation.service';
 import { NewLessonPage } from './new-lesson.page';
 
 const providers: (Provider | EnvironmentProviders)[] = [
@@ -303,5 +304,43 @@ describe('New lesson', () => {
       ['/teacher/lessons', 'l-7'],
       expect.objectContaining({ queryParams: { notice: 'lessons.new.createdManual' } }),
     );
+  });
+  it('starts clean when a chain finished while she was not on this page', async () => {
+    // Only a chain that finishes while this page is open navigates. The bug: the reset was
+    // guarded on "Work in background", so leaving by any other route — the back button, the
+    // sidebar, the bell's link — left `done` true, and the next visit to New lesson bounced
+    // her straight to that finished lesson instead of showing her the form.
+    const navigate = vi.spyOn(Router.prototype, 'navigate').mockResolvedValue(true);
+    try {
+      const rendered = await renderHq(NewLessonPage, {
+        providers: [
+          ...providers,
+          {
+            provide: LessonCreationService,
+            useFactory: () => {
+              const service = new LessonCreationService();
+              service.lessonId.set('l-old');
+              service.noticeKey.set('lessons.new.created');
+              service.done.set(true);
+              return service;
+            },
+          },
+        ],
+      });
+      const backend = TestBed.inject(HttpTestingController);
+      TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+      TestBed.inject(AuthService).loadMe().subscribe();
+      backend.expectOne('/me').flush(TEACHER_USER);
+      await settle();
+      backend.expectOne('/teacher/classes').flush([SARA_CLASSES[0]!]);
+      await settle();
+
+      expect(navigate).not.toHaveBeenCalled();
+      expect(TestBed.inject(LessonCreationService).done()).toBe(false);
+      expect(TestBed.inject(LessonCreationService).lessonId()).toBeNull();
+      expect(rendered.container.querySelector('hq-page')).not.toBeNull();
+    } finally {
+      navigate.mockRestore();
+    }
   });
 });
