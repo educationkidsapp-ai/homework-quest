@@ -65,8 +65,11 @@ export class NotificationsService {
         this.toast.set(null);
         return;
       }
-      this.refreshUnreadCount();
+      // The socket's own (re)connect refetches the count (`onSocketOpen`), so this effect asks
+      // only while there is no socket to ask for it — it re-runs when `socketOpen` flips, and
+      // fetching here too made every connect ask twice.
       if (this.socketOpen()) return;
+      this.refreshUnreadCount();
       const timer = setInterval(() => this.refreshUnreadCount(), FALLBACK_POLL_MS);
       onCleanup(() => clearInterval(timer));
     });
@@ -167,10 +170,10 @@ export class NotificationsService {
    * Asked from a click and never from an effect: a permission prompt that appears because a
    * page rendered is the reason browsers now bury the prompt for the whole origin.
    */
-  askPermission(): void {
+  async askPermission(): Promise<void> {
     const view = this.doc.defaultView;
     if (!view || !('Notification' in view)) return;
-    void view.Notification.requestPermission();
+    await view.Notification.requestPermission();
   }
 
   /**

@@ -1107,12 +1107,6 @@
       "unread": "غير مقروءة",
       "lessons": "الدروس"
     },
-    "filter": "تصفية الإشعارات...",
-    "clearAll": "مسح الكل",
-    "justNow": "الآن",
-    "minutesAgo": "منذ {{count}} دقيقة",
-    "hoursAgo": "منذ {{count}} ساعة",
-    "daysAgo": "منذ {{count}} يوم",
     "notifyMe": "نبّهني على هذا الجهاز",
     "kind": {
       "lesson": {

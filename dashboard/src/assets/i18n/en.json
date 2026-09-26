@@ -1107,12 +1107,6 @@
       "unread": "Unread",
       "lessons": "Lessons"
     },
-    "filter": "Filter notifications...",
-    "clearAll": "Clear all",
-    "justNow": "Just now",
-    "minutesAgo": "{{count}}m ago",
-    "hoursAgo": "{{count}}h ago",
-    "daysAgo": "{{count}}d ago",
     "notifyMe": "Notify me on this device",
     "kind": {
       "lesson": {

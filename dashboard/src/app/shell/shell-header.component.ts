@@ -225,7 +225,7 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
             <button
               type="button"
               class="notifications-popup__mark-read"
-              (click)="notificationsService.askPermission()"
+              (click)="askNotify()"
             >
               {{ 'notifications.notifyMe' | transloco }}
             </button>
@@ -733,15 +733,17 @@ export class ShellHeaderComponent {
   protected readonly recentNotifications = this.notificationsService.recent;
   protected readonly canAskNotify = signal(this.notificationsService.canAskPermission());
 
-  /**
-   * The copy is the *kind*'s, in her language; `title`/`body` off the wire are the English
-   * fallbacks the server wrote. `lesson.failed` is the exception — its body is the reason the
-   * pipeline gave, and no translation of ours could say it.
-   */
   /** The rows are fetched when the bell is opened, not on every page the shell draws. */
   protected openNotifications(): void {
     this.notificationsService.refresh();
     this.canAskNotify.set(this.notificationsService.canAskPermission());
+  }
+
+  /** "Notify me" goes as soon as she has answered the browser, not on the next open. */
+  protected askNotify(): void {
+    void this.notificationsService
+      .askPermission()
+      .then(() => this.canAskNotify.set(this.notificationsService.canAskPermission()));
   }
 
   /**
@@ -753,6 +755,11 @@ export class ShellHeaderComponent {
     if (this.permissions.can('notifications.write')) this.notificationsService.markRead(id);
   }
 
+  /**
+   * The copy is the *kind*'s, in her language; `title`/`body` off the wire are the English
+   * fallbacks the server wrote. `lesson.failed` is the exception — its body is the reason the
+   * pipeline gave, and no translation of ours could say it.
+   */
   protected notificationTitle(item: NotificationView): string {
     this.lang();
     const translated = this.transloco.translate<string>(titleKeyOf(item.kind));
