@@ -1502,9 +1502,17 @@ export class LessonPage {
 
     // E4a: "Create and write the questions" lands here with the sheet already open, because the
     // next thing she is going to do is write a question and an empty level says nothing else.
-    // Read from the snapshot, once per page — the same way `notice` above is: closing the sheet
-    // is hers to do, and nothing re-opens it until she navigates here with `compose` again.
-    if (this.route.snapshot.queryParamMap.get('compose') === '1') this.addStopOpen.set(true);
+    // Consumed once and then dropped from the URL, so closing the sheet and refreshing the page
+    // does not put it straight back up. `merge` keeps `notice`, which is read just above.
+    if (this.route.snapshot.queryParamMap.get('compose') === '1') {
+      this.addStopOpen.set(true);
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { compose: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
 
     // The drafts outlive this page, so their answers arrive as events rather than as callbacks:
     // one that lands while she is elsewhere is simply not heard, and the lesson she comes back to

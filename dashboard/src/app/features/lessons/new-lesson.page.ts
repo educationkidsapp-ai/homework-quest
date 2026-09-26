@@ -567,7 +567,8 @@ export class NewLessonPage {
       if (!id) return;
       this.creation.reset();
       // E4a: a hand-written lesson opens with the Add question sheet already up. The lesson page
-      // consumes `compose` once and drops it from the URL; every other source lands on the strip.
+      // consumes `compose` once and replaces the URL without it; every other source lands on the
+      // step strip as before.
       const compose = notice === 'lessons.new.createdManual' ? { compose: '1' } : {};
       void this.router.navigate([this.basePath(), id], {
         queryParams: notice ? { notice, ...compose } : {},

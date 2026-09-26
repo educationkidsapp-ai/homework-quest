@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { EnvironmentProviders, Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { fireEvent, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -612,6 +612,8 @@ describe('Lesson', () => {
 
   /** E4a deliverable 1: "Create and write the questions" lands on the sheet, not on an empty list. */
   it('opens with the Add question sheet up when it was navigated to with ?compose=1', async () => {
+    // Spied on the prototype: the page navigates from its constructor, before the instance exists.
+    const navigate = vi.spyOn(Router.prototype, 'navigate').mockResolvedValue(true);
     await renderLesson(lessonWithStops({ source: 'manual' }), 'lessons.new.createdManual', {
       compose: '1',
     });
@@ -620,6 +622,15 @@ describe('Lesson', () => {
     // And the three plain steps stand where a manual lesson's empty pipeline strip used to.
     expect(screen.getByText('3. Questions')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: /pipeline/i })).not.toBeInTheDocument();
+
+    // Consumed: the URL is replaced without it, so closing the sheet and refreshing is just the
+    // lesson. `notice` survives the merge, because the band above is read from it.
+    expect(navigate).toHaveBeenCalledWith([], {
+      relativeTo: expect.anything(),
+      queryParams: { compose: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   });
 
   /**
