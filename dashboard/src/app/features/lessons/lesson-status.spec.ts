@@ -144,6 +144,10 @@ describe('lessonSignature', () => {
 
   it('reads the heavy body to the same signature as the status body of the same lesson', () => {
     expect(lessonSignature(lesson())).toBe(statusSignature(view()));
+    // A lesson with no panel arrives as `"parentPanel": null`, not as a missing field, and
+    // `panel` in the status body is `false` — so the two readings still have to agree.
+    const noPanel = { parentPanel: null } as unknown as Partial<AdminLesson>;
+    expect(lessonSignature(lesson(noPanel))).toBe(statusSignature(view()));
   });
 
   it('leaves out a deleted file, which the status body does not list either', () => {

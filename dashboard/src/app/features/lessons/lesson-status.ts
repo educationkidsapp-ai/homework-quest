@@ -61,7 +61,10 @@ export function lessonSignature(lesson: AdminLesson): string {
       variant: play.variant,
       stops: play.play.stops.length,
     })),
-    panel: lesson.parentPanel !== undefined,
+    // `!= null`, not `!== undefined`: the server writes `"parentPanel": null` for a lesson
+    // without one (only `ChatEvent` omits nulls), and reading that as a panel would cost every
+    // running lesson one full re-read on its first tick.
+    panel: lesson.parentPanel != null,
     files: lesson.files.filter((file) => !file.deleted),
   });
 }
