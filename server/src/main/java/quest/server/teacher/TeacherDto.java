@@ -173,8 +173,15 @@ public final class TeacherDto {
 
     // ---------------------------------------------------------------- a word to the coordinator (U1 item 2)
 
-    /** What she typed into the Profile screen's sheet: plain text, one message, nothing else. */
-    public record CoordinatorMessageRequest(@NotBlank @Size(max = 2000) String body) {}
+    /**
+     * What she typed into the Profile screen's sheet: plain text, one message, nothing else.
+     *
+     * The limit is the notification body's own ({@link quest.server.notifications.NotificationService#BODY_MAX}),
+     * because that is what the message becomes: at 2000 the 501st character was clipped to an ellipsis and she was
+     * told "sent". A 400 that names the limit is the honest answer, and the sheet counts down to it.
+     */
+    public record CoordinatorMessageRequest(
+            @NotBlank @Size(max = quest.server.notifications.NotificationService.BODY_MAX) String body) {}
 
     /** How many of the school's coordinators it reached — the screen says "sent" on one or more. */
     public record CoordinatorMessageResult(int delivered) {}

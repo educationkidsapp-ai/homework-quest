@@ -99,15 +99,22 @@ import {
         [sheet]="true"
         [title]="'profile.coordinator.title' | transloco"
         [confirmLabel]="'profile.coordinator.send' | transloco"
-        [confirmDisabled]="message().trim().length === 0"
+        [confirmDisabled]="message().trim().length === 0 || messageLeft() < 0"
         [loading]="sending()"
         (confirmed)="send()"
       >
+        <!--
+          The limit is the server's, named once: NotificationService.BODY_MAX, which is what the
+          message becomes. The textarea stops at it and the hint counts down to it, so nobody
+          learns about it from a 400 — and nothing is clipped behind her back.
+        -->
         <hq-textarea
           [label]="'profile.coordinator.label' | transloco"
           [required]="true"
           [rows]="6"
+          [maxLength]="messageMax"
           [placeholder]="'profile.coordinator.placeholder' | transloco"
+          [hint]="'profile.coordinator.counter' | transloco: { left: messageLeft(), max: messageMax }"
           [value]="message()"
           (valueChange)="message.set($event)"
         />
@@ -158,6 +165,9 @@ export class ProfilePage {
 
   protected readonly messageOpen = signal(false);
   protected readonly message = signal('');
+  /** `NotificationService.BODY_MAX`: the message becomes a notification body, so that is the limit. */
+  protected readonly messageMax = 500;
+  protected readonly messageLeft = computed(() => this.messageMax - this.message().length);
   protected readonly sending = signal(false);
   /** "Sent to your coordinator", in green, for the four seconds the strip lives. */
   protected readonly sent = signal(false);

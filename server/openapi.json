@@ -1191,7 +1191,7 @@
       "CoordinatorMessageRequest" : {
         "properties" : {
           "body" : {
-            "maxLength" : 2000,
+            "maxLength" : 500,
             "minLength" : 0,
             "type" : "string"
           }

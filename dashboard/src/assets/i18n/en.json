@@ -1177,7 +1177,8 @@
       "label": "Your message",
       "placeholder": "What would you like the coordinator to know?",
       "send": "Send",
-      "sent": "Sent to your coordinator."
+      "sent": "Sent to your coordinator.",
+      "counter": "{{left}} of {{max}} characters left"
     }
   },
   "results": {

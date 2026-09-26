@@ -80,6 +80,26 @@ class TeacherCoordinatorMessageTest extends TeacherTestSupport {
                 .content("{\"body\":\"Anyone there?\"}"), teacherBToken)).andExpect(status().isConflict());
     }
 
+    /**
+     * The limit is the notification body's, and it is refused rather than clipped.
+     *
+     * At `@Size(max = 2000)` the 501st character reached `NotificationService.clip`, which shortened it to an
+     * ellipsis — she was told "sent" over a message the coordinator would read half of.
+     */
+    @Test void a_message_past_the_limit_is_refused_rather_than_silently_shortened() throws Exception {
+        String justFits = "x".repeat(quest.server.notifications.NotificationService.BODY_MAX);
+        mvc.perform(as(post("/teacher/messages/coordinator").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(new TeacherDto.CoordinatorMessageRequest(justFits))), teacherAToken))
+                .andExpect(status().isOk());
+        assertThat(notifications.findAll().stream().filter(n -> A.equals(n.getSchoolId())))
+                .allSatisfy(row -> assertThat(row.getBody()).isEqualTo(justFits));
+
+        String oneTooMany = "x".repeat(quest.server.notifications.NotificationService.BODY_MAX + 1);
+        mvc.perform(as(post("/teacher/messages/coordinator").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(new TeacherDto.CoordinatorMessageRequest(oneTooMany))), teacherAToken))
+                .andExpect(status().isBadRequest());
+    }
+
     /** `teacher.message.coordinator` is TEACHER-only in `permissions.json`: a coordinator does not write to herself. */
     @Test void a_coordinator_may_not_post_to_this_route() throws Exception {
         mvc.perform(as(post("/teacher/messages/coordinator").contentType(MediaType.APPLICATION_JSON)

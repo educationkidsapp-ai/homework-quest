@@ -42,8 +42,14 @@ import quest.server.notifications.Entities.NotificationEntity;
 @Service
 public class NotificationService {
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
-    /** Titles and bodies are English server strings; the dashboard localises from `kind` and falls back to these. */
-    static final int TITLE_MAX = 120, BODY_MAX = 500;
+    /**
+     * Titles and bodies are English server strings; the dashboard localises from `kind` and falls back to these.
+     *
+     * <p>`BODY_MAX` is public because it is a contract, not an implementation detail: a caller whose text *becomes*
+     * a notification body has to refuse a longer one at the edge rather than let {@link #clip} shorten it silently.
+     * `TeacherDto.CoordinatorMessageRequest` is validated against this very number.
+     */
+    public static final int TITLE_MAX = 120, BODY_MAX = 500;
     private static final int DEFAULT_LIMIT = 20, MAX_LIMIT = 100;
 
     private final NotificationRepository rows; private final UserRepository users; private final ChatBus bus; private final Json json; private final Clock clock;

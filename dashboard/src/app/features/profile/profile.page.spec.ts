@@ -50,6 +50,19 @@ describe('Profile', () => {
     expect(screen.queryByText('Language')).toBeNull();
   });
 
+  it('stops the message at the server’s own limit and counts down to it', async () => {
+    await renderProfile();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Message to coordinator' }));
+    await settle();
+
+    // NotificationService.BODY_MAX: the message becomes a notification body, so 501 characters
+    // would be clipped to an ellipsis server-side. The field refuses the 501st instead.
+    const note = screen.getByRole('textbox', { name: /your message/i });
+    expect(note.getAttribute('maxlength')).toBe('500');
+    expect(screen.getByText('500 of 500 characters left')).toBeTruthy();
+  });
+
   it('sends a teacher’s message to her school’s coordinators and says it went', async () => {
     const { backend } = await renderProfile();
 
