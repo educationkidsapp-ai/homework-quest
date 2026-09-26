@@ -210,7 +210,14 @@ curriculum track (`american` / `british`) or for both, across every grade and ev
 > The role was added to the `users.role` CHECK by `db/vendor/{postgresql,h2}/V19__coordinator_role.sql` — the one
 > migration outside `db/migration`, because the constraint `V4` created is anonymous and the two engines need
 > different dynamic SQL to find it. `spring.flyway.locations` carries Flyway's `{vendor}` placeholder for it; put
-> ordinary migrations in `db/migration`.
+> ordinary migrations in `db/migration`. `migration-check.yml` checks both directories alike — no edit to a merged
+> file, a copy for every engine, no version shared with `db/migration` — and applies the PostgreSQL copy on real
+> PostgreSQL 16; a vendor file may drop a *constraint* (rollback-safe) and still never a table, a column or a name.
+
+Neither coordinator controller carries a `@FeatureFlag`: both are listed in `FeatureFlagCoverageTest.INFRASTRUCTURE`
+beside `TeacherController` and `TeacherAdminController`, because `/coordinator` is the dashboard of a role rather than
+one feature of it, and the Admin half is how a coordinator comes to exist at all. Her *features* stay flagged where
+they live (R3's `gradebook` and `exams`, R4's `chat`, `complaints` and `announcements`).
 
 ### The matrix
 
