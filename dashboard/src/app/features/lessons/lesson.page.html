@@ -368,13 +368,15 @@
                     <hq-button [disabled]="busy() !== null" (pressed)="addLevel('mine')">
                       {{ 'lessons.detail.addLevel.mine' | transloco }}
                     </hq-button>
-                    <hq-button
-                      variant="secondary"
-                      [disabled]="busy() !== null"
-                      (pressed)="addLevel('assistant')"
-                    >
-                      {{ 'lessons.detail.addLevel.assistant' | transloco }}
-                    </hq-button>
+                    @if (canAssistLevel()) {
+                      <hq-button
+                        variant="secondary"
+                        [disabled]="busy() !== null"
+                        (pressed)="addLevel('assistant')"
+                      >
+                        {{ 'lessons.detail.addLevel.assistant' | transloco }}
+                      </hq-button>
+                    }
                   </div>
                 </div>
               }

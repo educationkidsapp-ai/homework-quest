@@ -992,9 +992,17 @@ export class LessonPage {
    * and has its first question in one gesture rather than in two screens. *Let the assistant write
    * it* is, for now, the note flow that already exists — E5 replaces that one branch with `POST
    * …/plays/{level}/generate`, and this method is where it plugs in.
+   *
+   * That note flow is a *manual* lesson's card and is not rendered for any other source, so the
+   * second choice is only offered where it leads somewhere ({@link canAssistLevel}). A PDF lesson
+   * missing a level has the step strip's "Retry this step only" until E5 gives every source the
+   * per-level endpoint; offering a button that scrolls to nothing was worse than not offering it.
    */
+  protected readonly canAssistLevel = computed(() => this.isManual());
+
   protected addLevel(choice: 'mine' | 'assistant'): void {
     if (choice === 'assistant') {
+      if (!this.canAssistLevel()) return;
       this.generateCard()?.nativeElement.scrollIntoView({ block: 'center' });
       this.generateCard()?.nativeElement.querySelector('textarea')?.focus();
       return;

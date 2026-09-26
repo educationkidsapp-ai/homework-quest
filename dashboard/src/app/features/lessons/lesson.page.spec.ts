@@ -622,6 +622,19 @@ describe('Lesson', () => {
     expect(screen.queryByRole('list', { name: /pipeline/i })).not.toBeInTheDocument();
   });
 
+  /**
+   * The assistant's half of Add level is the manual lesson's note flow, and that card is not on a
+   * PDF lesson's page — so the button is not offered there either, rather than scrolling nowhere.
+   */
+  it('offers only "Write it myself" on a level a non-manual lesson is missing', async () => {
+    await renderLesson(lessonWithStops({ source: 'pdf' }));
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+
+    expect(screen.getByRole('button', { name: 'Write it myself' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Let the assistant write it' })).toBeNull();
+  });
+
   /** D27: an empty Level 2 offers both ways to fill it, and "Write it myself" opens the sheet. */
   it('offers Add level on an empty level, and opens the sheet on the play it just made', async () => {
     const { backend } = await renderLesson(lessonWithStops({ source: 'manual' }));
