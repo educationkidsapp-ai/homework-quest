@@ -1,19 +1,13 @@
 package quest.feature.chat.presentation
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -23,31 +17,27 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.viewmodel.koinViewModel
 import quest.api.ApiException
 import quest.api.dto.ChatFrame
+import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
 import quest.feature.chat.domain.ChatRepository
+import quest.feature.chat.domain.applyStatus
 import quest.feature.children.domain.ChildrenRepository
-import quest.feature.parent.presentation.Chip
-import quest.feature.school.domain.Flags
-import quest.feature.school.presentation.FeatureGate
+import quest.feature.parent.presentation.ParentButton
 import quest.feature.parent.presentation.ParentCard
 import quest.feature.parent.presentation.ParentShell
+import quest.feature.parent.presentation.SectionTitle
 import quest.feature.parent.presentation.Strings
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.FeatureGate
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
 
@@ -57,7 +47,11 @@ object ChatThreadsContract {
         val childNotPlaced: Boolean = false,
         val errorMessage: String? = null,
         val threads: List<ChatThread> = emptyList(),
-    ) : MviState
+    ) : MviState {
+        /** The child's own teachers, and (R8) the coordinators she has a thread with — two lists, two headings. */
+        val teacherThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.TEACHER }
+        val coordinatorThreads: List<ChatThread> get() = threads.filter { it.staffRole != ChatStaffRole.TEACHER }
+    }
 
     sealed interface Intent : MviIntent {
         data object Load : Intent
@@ -101,15 +95,20 @@ class ChatThreadsViewModel(
     }
 
     init {
-        // Refresh thread list when new incoming messages or reads land
+        // Refresh thread list when new incoming messages or reads land; a `status` frame (R4) needs no request —
+        // it carries everything the row's chip shows, so the list moves even while the network is gone.
         launch {
             chat.incomingFrames.collect { frame ->
-                if (frame is ChatFrame.Message || frame is ChatFrame.Read) {
-                    val child = children.currentChild.value ?: return@collect
-                    runCatching {
-                        val fresh = chat.threads(child.id)
-                        reduce { copy(threads = fresh) }
+                when (frame) {
+                    is ChatFrame.Status -> reduce { copy(threads = applyStatus(threads, frame.threadId, frame.status, frame.at)) }
+                    is ChatFrame.Message, is ChatFrame.Read -> {
+                        val child = children.currentChild.value ?: return@collect
+                        runCatching {
+                            val fresh = chat.threads(child.id)
+                            reduce { copy(threads = fresh) }
+                        }
                     }
+                    else -> {}
                 }
             }
         }
@@ -119,7 +118,8 @@ class ChatThreadsViewModel(
 @Composable
 fun ChatThreadsRoute(
     onBack: () -> Unit,
-    onOpenConversation: (childId: String, teacherId: String, teacherName: String) -> Unit,
+    onOpenConversation: (ChatThread) -> Unit,
+    onMessageCoordinator: () -> Unit,
 ) {
     val vm: ChatThreadsViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -133,9 +133,8 @@ fun ChatThreadsRoute(
             ChatThreadsScreen(
                 state = state,
                 strings = strings,
-                onSelectTeacher = { thread ->
-                    onOpenConversation(thread.childId, thread.teacherId, thread.teacherName)
-                },
+                onSelectThread = onOpenConversation,
+                onMessageCoordinator = onMessageCoordinator,
             )
         }
     }
@@ -145,7 +144,8 @@ fun ChatThreadsRoute(
 fun ChatThreadsScreen(
     state: ChatThreadsContract.State,
     strings: Strings,
-    onSelectTeacher: (ChatThread) -> Unit,
+    onSelectThread: (ChatThread) -> Unit,
+    onMessageCoordinator: () -> Unit = {},
 ) {
     Column(
         Modifier.fillMaxSize()
@@ -161,110 +161,29 @@ fun ChatThreadsScreen(
 
         if (state.childNotPlaced) {
             ParentCard(Modifier.padding(vertical = Dimens.s8)) {
-                Text(
-                    strings.childNotPlaced,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Palette.parentInk,
-                )
+                Text(strings.childNotPlaced, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk)
             }
             return
         }
 
         if (state.threads.isEmpty()) {
             ParentCard(Modifier.padding(vertical = Dimens.s8)) {
-                Text(
-                    strings.noTeachers,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Palette.parentInkSoft,
-                )
-            }
-            return
-        }
-
-        state.threads.forEach { thread ->
-            ParentCard(
-                modifier = Modifier.padding(bottom = Dimens.s8),
-                onClick = { onSelectTeacher(thread) },
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier.size(48.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = thread.teacherName.take(1).uppercase(),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-
-                    Spacer(Modifier.width(Dimens.s12))
-
-                    Column(Modifier.weight(1f)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = thread.teacherName,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Palette.parentInk,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            val last = thread.lastMessage
-                            if (last != null) {
-                                Text(
-                                    text = formatTimestamp(last.createdAt),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Palette.parentInkSoft,
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.height(Dimens.s4))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            val preview = thread.lastMessage?.body
-                                ?: listOfNotNull(thread.className, thread.subject).joinToString(" · ")
-                            Text(
-                                text = preview,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Palette.parentInkSoft,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-
-                            if (thread.unread > 0) {
-                                Spacer(Modifier.width(Dimens.s8))
-                                Chip(
-                                    text = "${thread.unread}",
-                                    color = Palette.sun,
-                                    selected = true,
-                                )
-                            }
-                        }
-                    }
-                }
+                Text(strings.noTeachers, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInkSoft)
             }
         }
+
+        if (state.teacherThreads.isNotEmpty()) {
+            SectionTitle(strings.teachersGroup)
+            state.teacherThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }) }
+        }
+
+        if (state.coordinatorThreads.isNotEmpty()) {
+            SectionTitle(strings.coordinatorsGroup)
+            state.coordinatorThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }) }
+        }
+
+        Spacer(Modifier.height(Dimens.s16))
+        ParentButton(strings.messageCoordinator, onMessageCoordinator, primary = false, icon = "+")
+        Spacer(Modifier.height(Dimens.s16))
     }
-}
-
-private fun formatTimestamp(epochMillis: Long): String {
-    val dt = Instant.fromEpochMilliseconds(epochMillis).toLocalDateTime(TimeZone.currentSystemDefault())
-    val hour = dt.hour.toString().padStart(2, '0')
-    val minute = dt.minute.toString().padStart(2, '0')
-    return "$hour:$minute"
 }

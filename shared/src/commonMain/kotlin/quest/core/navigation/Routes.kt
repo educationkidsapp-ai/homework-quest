@@ -25,5 +25,22 @@ object Routes {
     @Serializable object ChangePin
     @Serializable data class LessonPanel(val lessonId: String)
     @Serializable object ChatThreads
-    @Serializable data class ChatConversation(val childId: String, val teacherId: String, val teacherName: String)
+
+    /** R8: the coordinators of the current child's section, where a parent starts a thread with one of them. */
+    @Serializable object ChatCoordinators
+
+    /**
+     * R8 widened this with what the list row already knew, so the conversation draws its header, its complaint
+     * toggle and its resolved banner without a second request. [staffRole] and [topic] are the contract's own
+     * spellings (`TEACHER`/`COORDINATOR`, `question`/`complaint`); the `status` frame moves [resolved] afterwards.
+     */
+    @Serializable data class ChatConversation(
+        val childId: String,
+        val teacherId: String,
+        val teacherName: String,
+        val staffRole: String = "TEACHER",
+        val subject: String? = null,
+        val topic: String = "question",
+        val resolved: Boolean = false,
+    )
 }

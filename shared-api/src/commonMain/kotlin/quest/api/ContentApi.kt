@@ -93,6 +93,17 @@ interface ContentApi {
     suspend fun chatThreads(childId: String): List<ChatThread> = throw NotImplementedError("chatThreads needs a backend")
 
     /**
+     * `GET /children/{id}/coordinators` (R4, DR3) — the coordinators whose scope covers the subjects taught in the
+     * child's section, as [ChatThread] rows: `id` is null until the parent writes the first message, exactly as an
+     * unwritten teacher row is, and `subject` names what each coordinator holds. A coordinator is not one of the
+     * child's teachers, so she is absent from [chatThreads] until a thread exists — this is where one is started.
+     *
+     * Behind the `chat` flag (404 while off) and defaulted to empty so `FakeContentApi` and every test double keep
+     * compiling: an app with no backend simply offers no coordinator to write to.
+     */
+    suspend fun parentCoordinators(childId: String): List<ChatThread> = emptyList()
+
+    /**
      * `GET /children/{id}/chat/threads/{teacherId}/messages?before=&since=&limit=` — a page, oldest first. `before` is
      * a message id and pages backwards from it (the default page is the newest); `since` is a message id and answers
      * everything after it, which is how a client fills the gap after a socket reconnect.

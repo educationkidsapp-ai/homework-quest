@@ -5,8 +5,14 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import quest.core.navigation.Routes
+import quest.api.dto.ChatStaffRole
+import quest.api.dto.ChatThread
+import quest.api.dto.ChatThreadStatus
+import quest.api.dto.ChatTopic
+import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.presentation.ChatConversationRoute
 import quest.feature.chat.presentation.ChatThreadsRoute
+import quest.feature.chat.presentation.CoordinatorPickerRoute
 import quest.feature.children.presentation.AddChildRoute
 
 /** Parent-mode graph (behind the PIN). Nothing here is reachable from child screens except the PIN entry. */
@@ -35,18 +41,43 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
     composable<Routes.ChatThreads> {
         ChatThreadsRoute(
             onBack = { nav.popBackStack() },
-            onOpenConversation = { childId, teacherId, teacherName ->
-                nav.navigate(Routes.ChatConversation(childId, teacherId, teacherName))
-            },
+            onOpenConversation = { nav.navigate(it.asConversation()) },
+            onMessageCoordinator = { nav.navigate(Routes.ChatCoordinators) },
+        )
+    }
+    composable<Routes.ChatCoordinators> {
+        CoordinatorPickerRoute(
+            onBack = { nav.popBackStack() },
+            onOpenConversation = { nav.navigate(it.asConversation()) },
         )
     }
     composable<Routes.ChatConversation> { entry ->
         val route = entry.toRoute<Routes.ChatConversation>()
         ChatConversationRoute(
-            childId = route.childId,
-            teacherId = route.teacherId,
-            teacherName = route.teacherName,
+            peer = ChatPeer(
+                childId = route.childId,
+                staffId = route.teacherId,
+                staffName = route.teacherName,
+                staffRole = if (route.staffRole == "COORDINATOR") ChatStaffRole.COORDINATOR else ChatStaffRole.TEACHER,
+                subject = route.subject,
+                topic = if (route.topic == "complaint") ChatTopic.COMPLAINT else ChatTopic.QUESTION,
+                resolved = route.resolved,
+            ),
             onBack = { nav.popBackStack() },
         )
     }
 }
+
+/**
+ * R8: the row the parent tapped already knows the role, the subject, the topic and the status, so the conversation
+ * opens with its header, its badge and its banner right rather than asking the server again for what it was just told.
+ */
+private fun ChatThread.asConversation() = Routes.ChatConversation(
+    childId = childId,
+    teacherId = teacherId,
+    teacherName = teacherName,
+    staffRole = if (staffRole == ChatStaffRole.TEACHER) "TEACHER" else "COORDINATOR",
+    subject = subject,
+    topic = if (topic == ChatTopic.COMPLAINT) "complaint" else "question",
+    resolved = status == ChatThreadStatus.RESOLVED,
+)
