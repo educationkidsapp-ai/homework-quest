@@ -37,6 +37,9 @@ class AddLevelTest extends TeacherTestSupport {
     private String teacherToken, otherToken;
 
     @org.springframework.beans.factory.annotation.Autowired quest.server.notifications.NotificationRepository bellRows;
+    @org.springframework.beans.factory.annotation.Autowired quest.server.content.SourceFileRepository sourceFiles;
+    @org.springframework.beans.factory.annotation.Autowired quest.server.analysis.AnalysisCacheRepository analysisCache;
+    @org.springframework.beans.factory.annotation.Autowired quest.server.content.LessonStepRepository stepRows;
 
     @BeforeEach void seed() {
         school(SCHOOL, "Add Level Academy", "ALSCH1");
@@ -51,6 +54,8 @@ class AddLevelTest extends TeacherTestSupport {
     @AfterEach void clean() {
         removeSeed();
         bellRows.deleteAll(bellRows.findAll().stream().filter(r -> r.getSchoolId() != null && r.getSchoolId().startsWith(prefix())).toList());
+        sourceFiles.deleteAll(sourceFiles.findAll().stream().filter(f -> f.getId().startsWith(prefix())).toList());
+        analysisCache.deleteAll(analysisCache.findAll().stream().filter(c -> c.getSourceHash().startsWith(prefix())).toList());
         assignments.deleteAll(assignments.findAll().stream().filter(a -> a.getClassId().startsWith(prefix())).toList());
         classes.deleteAll(classes.findAll().stream().filter(k -> k.getId().startsWith(prefix())).toList());
     }
@@ -117,6 +122,68 @@ class AddLevelTest extends TeacherTestSupport {
     }
 
     /**
+     * The ledger is not the whole answer for a lesson that predates it. A lesson uploaded before `lesson_steps`
+     * existed has no rows at all, and reading that as "never analysed" would re-analyse it from its Level 1 — which
+     * replaces the skills its teacher confirmed, overwrites the `source_hash` every one of its plays is keyed on and
+     * marks Upload and Convert done on a lesson that has files. Retry backfills first for exactly this reason, and so
+     * must this.
+     */
+    @Test void a_lesson_with_no_ledger_rows_keeps_its_own_analysis_and_confirmed_skills() throws Exception {
+        String id = handWritten(5);
+        String hash = uploaded(id);                       // files + an analysis in the cache + one confirmed skill
+        stepRows.deleteAll(stepRows.findByLessonIdOrderByPosition(id));   // …and no ledger, as before E1
+
+        assertThat(generate(id, "2", false)).isEqualTo("generating");
+        assertThat(stops(awaitReview(id), 2, 0)).isNotEmpty();
+
+        assertThat(lessons.findById(id).orElseThrow().getSourceHash()).as("the hash its plays are keyed on").isEqualTo(hash);
+        var kept = skills.findByLessonIdOrderByPosition(id);
+        assertThat(kept).hasSize(1);
+        assertThat(kept.getFirst().getName()).isEqualTo("Counting on");
+        assertThat(kept.getFirst().isConfirmed()).isTrue();
+    }
+
+    /**
+     * A derived analysis is an analysis of those stops, so it has to follow them. Three stops, a Level 2; three more
+     * stops, a Level 3 — and Level 3 must be written from an analysis of all six, not of the first three. An
+     * unchanged Level 1 is the other half of it: the analysis is not run again at all.
+     */
+    @Test void the_derived_analysis_follows_level_one() throws Exception {
+        String id = handWritten(6);
+
+        assertThat(generate(id, "2", false)).isEqualTo("generating");
+        var first = awaitReview(id);
+        String three = lessons.findById(id).orElseThrow().getSourceHash();
+        assertThat(three).isNotNull();
+        assertThat(attempts(first, "analyze")).isEqualTo(1);
+
+        // Level 3 with the same Level 1: the same analysis, and Prompt A is not run a second time
+        assertThat(generate(id, "3", false)).isEqualTo("generating");
+        var same = awaitReview(id);
+        assertThat(stops(same, 3, 0)).isNotEmpty();
+        assertThat(lessons.findById(id).orElseThrow().getSourceHash()).isEqualTo(three);
+        assertThat(attempts(same, "analyze")).as("an unchanged Level 1 costs nothing").isEqualTo(1);
+
+        // three more stops, then Again: a new analysis, and all six ids are what it excludes
+        addStops(id, "Pick the pot", "Pick the lid", "Pick the spoon");
+        assertThat(levelOne(id)).hasSize(6);
+        assertThat(generate(id, "again", false)).isEqualTo("generating");
+        var grown = awaitReview(id);
+        String six = lessons.findById(id).orElseThrow().getSourceHash();
+        assertThat(six).as("the analysis followed the stops").isNotEqualTo(three);
+        assertThat(attempts(grown, "analyze")).isEqualTo(2);
+        assertThat(stops(grown, 1, 1)).isNotEmpty().doesNotContainAnyElementsOf(levelOne(id));
+
+        // and `replace` after another edit is on the newest analysis too, not on the text of two edits ago
+        addStops(id, "Pick the bowl");
+        assertThat(generate(id, "2", true)).isEqualTo("generating");
+        var replaced = awaitReview(id);
+        assertThat(stops(replaced, 2, 0)).isNotEmpty();
+        assertThat(lessons.findById(id).orElseThrow().getSourceHash()).isNotEqualTo(six);
+        assertThat(attempts(replaced, "analyze")).isEqualTo(3);
+    }
+
+    /**
      * The one prompt change E5 needs: Levels 2 and 3 written from a hand-written Level 1 are told to be harder than
      * it and given its stop ids to avoid. The uploaded pipeline passes no ids for those levels, so its prompt — and
      * therefore its cache — is byte for byte what it was.
@@ -133,12 +200,54 @@ class AddLevelTest extends TeacherTestSupport {
     /** A lesson written by hand: created `manual` with an empty Level 1, then three stops in it. */
     private String handWritten(int day) throws Exception {
         String id = create(day, "Our class pet");
+        addStops(id, "Pick the pet", "Pick the food", "Pick the day");
+        return id;
+    }
+
+    /** Adds stops to the lesson's Level 1, the way the Add question sheet does. */
+    private void addStops(String id, String... titles) throws Exception {
         String playId = plays.findByLessonIdAndLevelAndVariant(id, 1, 0).orElseThrow().getId();
-        for (String title : List.of("Pick the pet", "Pick the food", "Pick the day"))
+        for (String title : titles)
             mvc.perform(as(post("/teacher/plays/" + playId + "/stops").contentType(MediaType.APPLICATION_JSON)
                     .content(json().encodeShared(choice("x", title), Stop.Companion.serializer())), teacherToken))
                     .andExpect(status().isOk());
-        return id;
+    }
+
+    /**
+     * Makes the lesson look uploaded and analysed the way a pre-E1 lesson does: one active file, an analysis in the
+     * permanent cache under the lesson's `source_hash`, and one skill its teacher confirmed. Answers the hash.
+     */
+    private String uploaded(String id) {
+        String hash = prefix() + "hash-" + id.substring(0, 8);
+        var file = new quest.server.content.Entities.SourceFileEntity();
+        file.setId(prefix() + "file-" + id.substring(0, 8)); file.setLessonId(id); file.setFileName("slides.pdf");
+        file.setFileHash(hash); file.setKind("pdf"); file.setMimeType("application/pdf"); file.setPageCount(2);
+        file.setStoragePath("lessons/" + id + "/slides.pdf"); file.setSizeBytes(1024); file.setCacheHit(false);
+        file.setConvertStatus("ready"); file.setCreatedAt(Instant.now());
+        sourceFiles.save(file);
+
+        var cached = new quest.server.analysis.CacheEntities.AnalysisCacheEntity();
+        cached.setCacheKey(quest.api.CacheKeys.INSTANCE.analysisKey(hash)); cached.setSourceHash(hash);
+        cached.setCurriculum("british"); cached.setGrade(1); cached.setSubject("english");
+        cached.setPromptVersion(quest.api.CacheKeys.PROMPT_A_VERSION);
+        cached.setAnalysisJson(quest.api.validation.SchemaValidator.INSTANCE.getJson()
+                .encodeToString(quest.api.dto.SourceAnalysis.Companion.serializer(), quest.api.samples.HotSoupSeed.INSTANCE.getAnalysis()));
+        cached.setTokenUsage(1000); cached.setHits(0); cached.setCreatedAt(Instant.now());
+        analysisCache.save(cached);
+
+        var lesson = lessons.findById(id).orElseThrow();
+        lesson.setSourceHash(hash); lessons.save(lesson);
+        var skill = new quest.server.content.Entities.SkillEntity();
+        skill.setId(quest.server.analysis.StopIds.prefix8(id) + ":sk1"); skill.setLessonId(id); skill.setName("Counting on");
+        skill.setSubject("english"); skill.setMethod("count on from the bigger number"); skill.setExamplesJson("[\"3 + 2\"]");
+        skill.setSlideNumbersJson("[1]"); skill.setConfidence(1.0); skill.setConfirmed(true); skill.setPosition(0);
+        skills.save(skill);
+        return hash;
+    }
+
+    private static int attempts(JsonNode lesson, String name) {
+        for (JsonNode row : lesson.get("steps")) if (name.equals(row.get("step").asText())) return row.path("attempt").asInt();
+        return -1;
     }
 
     private String create(int day, String title) throws Exception {

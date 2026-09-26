@@ -96,6 +96,10 @@ public class LessonPipeline {
     public void generateLevelAsync(String lessonId, PipelineStep step, int seed) {
         live.add(lessonId);
         try {
+            // backfill first, exactly as Retry does: a lesson from before the step ledger has no rows at all, and
+            // "no ANALYZE row" must not be read as "never analysed" — that would re-analyse an uploaded lesson from
+            // its Level 1, replacing the skills its teacher confirmed and the source hash its plays are keyed on.
+            backfill(lessonId);
             steps.ensure(lessonId);
             if (!analysed(lessonId)) return;
             // the levels she wrote by hand count as done, so the strip does not offer to write them again — and then
@@ -125,23 +129,32 @@ public class LessonPipeline {
     /**
      * The analysis a per-level generate reads, derived when there is none.
      *
-     * <p>A lesson that was analysed keeps its analysis, uploaded or typed. A lesson written by hand may have none at
+     * <p>An uploaded lesson keeps the analysis of its files. A lesson written by hand may have none at
      * all — the teacher wrote Level 1 stop by stop and never pressed "Generate the other levels" — and Prompt B
      * cannot be asked for a level without one. So Prompt A is run over what the lesson actually is: its title and
      * its Level 1 stops read out as English by {@link quest.server.content.StopText}, which is the same prose the
      * editor shows her, cached by the hash of that text exactly as typed text is and with its skills auto-confirmed
-     * ({@link AnalysisService#analyzeText}). Deriving it costs one Prompt A once: the second level she asks for
-     * reads the same cache row.
+     * ({@link AnalysisService#analyzeText}).
+     *
+     * <p><strong>And it tracks Level 1.</strong> A derived analysis is an analysis <em>of those stops</em>, so "already
+     * analysed" has to mean "analysed from the Level 1 as it is now": she writes three stops, asks for Level 2, adds
+     * three more and asks for Level 3, and the ledger row alone would write Level 3 from an analysis of half her
+     * lesson. The text's hash is what {@link AnalysisService#analyzeText} stores on the lesson, so comparing it
+     * against `source_hash` answers the question exactly, and an unchanged Level 1 costs nothing at all — not even a
+     * cache read. An <em>uploaded</em> lesson is never re-derived: its analysis is its files', and while it has files
+     * the ledger is the whole answer.
      */
     private boolean analysed(String lessonId) {
-        if (steps.isDone(lessonId, PipelineStep.ANALYZE) && steps.isDone(lessonId, PipelineStep.SKILLS)) return true;
+        var lesson = lessons.findById(lessonId).orElseThrow(() -> new LessonSteps.Stop("lesson deleted"));
+        boolean ledger = steps.isDone(lessonId, PipelineStep.ANALYZE) && steps.isDone(lessonId, PipelineStep.SKILLS);
+        boolean uploaded = files.findByLessonIdOrderByCreatedAt(lessonId).stream().anyMatch(f -> f.getDeletedAt() == null);
+        if (ledger && uploaded) return true;
+        String text = levelOneText(lesson);
+        if (ledger && analysis.textHash(lesson, text).equals(lesson.getSourceHash())) return true;   // written from these very stops
         state.set(lessonId, LessonStatus.ANALYZING);
         steps.done(lessonId, PipelineStep.UPLOAD); steps.done(lessonId, PipelineStep.CONVERT);   // she typed the stops; there is no file
         steps.mark(lessonId, PipelineStep.ANALYZE, "pending", null, null);
-        boolean ok = steps.run(lessonId, PipelineStep.ANALYZE, () -> {
-            var lesson = lessons.findById(lessonId).orElseThrow(() -> new LessonSteps.Stop("lesson deleted"));
-            analysis.analyzeText(lesson, levelOneText(lesson));
-        });
+        boolean ok = steps.run(lessonId, PipelineStep.ANALYZE, () -> analysis.analyzeText(lessons.findById(lessonId).orElseThrow(() -> new LessonSteps.Stop("lesson deleted")), text));
         if (!ok) { var row = steps.get(lessonId, PipelineStep.ANALYZE).orElseThrow(); state.fail(lessonId, row.getErrorCode(), row.getErrorMessage()); return false; }
         steps.done(lessonId, PipelineStep.SKILLS);      // she chose the content herself, so there is nothing to confirm
         return true;
