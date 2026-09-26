@@ -156,6 +156,36 @@ describe('ChatRoutes', () => {
     expect(chat.totalUnread()).toBe(1);
   });
 
+  /**
+   * Her two staff threads are both frame-built, and neither can be fetched. Switching between
+   * them therefore has to *empty* the stream, or the row she left is still on screen under the
+   * row she arrived at.
+   */
+  it('empties the message stream when a manager moves between frame-built threads', () => {
+    role.set('MANAGERIAL');
+    const { chat } = setup();
+    const frame = (threadId: string, id: string, body: string) => ({
+      type: 'message' as const,
+      message: {
+        id,
+        threadId,
+        sender: ChatMessageSenderEnum.TEACHER,
+        senderId: 'u-rasha',
+        body,
+        createdAt: 1700000000000,
+      },
+    });
+
+    chat.receive(frame('th-2', 'm-1', 'Could you look at 3B?'));
+    chat.selectThread('th-2');
+    chat.receive(frame('th-2', 'm-2', 'It is the marking again'));
+    expect(chat.messages().map((m) => m.id)).toEqual(['m-2']);
+
+    chat.receive(frame('th-3', 'm-3', 'And 4A'));
+    chat.selectThread('th-3');
+    expect(chat.messages()).toEqual([]);
+  });
+
   it('moves a thread to resolved on the status frame, without a refetch', () => {
     const { chat } = setup();
     chat.loadThreads();

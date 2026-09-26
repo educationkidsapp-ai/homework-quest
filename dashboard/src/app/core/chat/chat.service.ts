@@ -179,6 +179,11 @@ export class ChatService {
   }
 
   loadMessages(key: string): void {
+    // The new thread's stream starts empty whether or not there is anything to fetch it with.
+    // The review found the early return happening *first*: a manager moving between two
+    // frame-built rows kept the previous thread's messages under the new header, which reads as
+    // the wrong conversation rather than as an empty one.
+    this.messages.set([]);
     const transport = this.routes.transport();
     if (transport === null) return;
     this.loadingMessages.set(true);
