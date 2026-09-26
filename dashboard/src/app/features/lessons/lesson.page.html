@@ -284,7 +284,9 @@
             @if (writingHere()) {
               <p class="lesson__level-note" aria-live="polite">{{ writingLabel() }}</p>
             } @else if (failedHere()) {
-              <div class="lesson__level-note lesson__level-note--error">
+              <!-- `alert`, like the red band's: this appears in answer to something she pressed,
+                   and a sentence nobody is told about is a sentence she has to go looking for. -->
+              <div class="lesson__level-note lesson__level-note--error" role="alert">
                 <p>{{ stepErrorMessage() }}</p>
                 <hq-button
                   *hqCan="'lesson.write'"
@@ -297,7 +299,7 @@
                 <!-- The same sentence the Add level card carries, for the ask that lands here
                      instead: this branch is where "Ask again" would be refused. -->
                 @if (assistHintText(); as hint) {
-                  <p>{{ hint }}</p>
+                  <p aria-live="polite">{{ hint }}</p>
                 }
               </div>
             }
@@ -426,8 +428,10 @@
                   </div>
                   <!-- E5: the one thing the assistant needs and this lesson has not got, said
                        before she presses — and again if the server is the one that says it. -->
+                  <!-- `polite`, not `alert`: the same line is on screen from the first render
+                       whenever Level 1 is empty, and an alert would announce it on arrival. -->
                   @if (assistHintText(); as hint) {
-                    <p class="lesson__add-level-hint">{{ hint }}</p>
+                    <p class="lesson__add-level-hint" aria-live="polite">{{ hint }}</p>
                   }
                 </div>
               }
