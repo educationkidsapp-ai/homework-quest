@@ -349,8 +349,9 @@ describe('the coordinator’s record screens', () => {
       await settle();
 
       // Both days are columns, and the child's two marks are her totals.
-      expect(screen.getByText('09-14')).toBeInTheDocument();
-      expect(screen.getByText('09-15')).toBeInTheDocument();
+      // Localised, not a raw `MM-DD` slice; the ISO date is the heading's `title`.
+      expect(screen.getByText('Sep 14')).toBeInTheDocument();
+      expect(screen.getByText('Sep 15')).toBeInTheDocument();
       expect(screen.getByRole('link', { name: 'Omar' }).getAttribute('href')).toBe(
         '/coordinator/children/ch-1',
       );

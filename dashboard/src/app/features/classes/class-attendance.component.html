@@ -45,7 +45,11 @@
                   {{ 'results.table.child' | transloco }}
                 </th>
                 @for (day of matrix.days; track day) {
-                  <th scope="col" class="attendance__matrix-day">{{ day.slice(5) }}</th>
+                  <!-- "Sep 14" in her own language; the ISO date stays in the `title`, and each
+                       cell's own `title` carries the full child · date · mark. -->
+                  <th scope="col" class="attendance__matrix-day" [attr.title]="day">
+                    {{ dayHeader(day) }}
+                  </th>
                 }
                 <th scope="col" class="attendance__matrix-total">{{ 'attendance.present' | transloco }}</th>
                 <th scope="col" class="attendance__matrix-total">{{ 'attendance.late' | transloco }}</th>

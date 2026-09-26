@@ -109,7 +109,7 @@ export class ClassAttendanceComponent {
   }
 
   /**
-   * "14 Sep" — a column heading in her own language.
+   * "Sep 14" — a column heading in her own language, the same shape the gradebook's columns use.
    *
    * The review found a raw `MM-DD` slice here, which is neither Arabic nor English and reads as a
    * fraction. The full date stays in each cell's `title`, where the day of the week is the thing
