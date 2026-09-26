@@ -769,6 +769,46 @@ describe('Lesson', () => {
   });
 
   /**
+   * Ask again on a level that still holds its earlier questions is a rewrite, and a rewrite asks
+   * first — everywhere, not everywhere except here. The empty case re-posts on the one click.
+   */
+  it('asks before Ask again writes over a level that still has questions', async () => {
+    const failed = lessonWithStops({
+      source: 'manual',
+      status: 'error',
+      steps: [
+        { step: 'analyze', status: 'done', attempt: 1, updatedAt: 0 },
+        { step: 'generate_L2', status: 'error', attempt: 1, errorMessage: 'Half written.', updatedAt: 0 },
+      ],
+    });
+    failed.plays.push({
+      id: 'p-2',
+      level: 2,
+      variant: 0,
+      generatedAt: 0,
+      promptVersion: '1',
+      play: {
+        kind: 'math',
+        level: 2,
+        variant: 0,
+        theme: failed.plays[0]!.play.theme,
+        stops: [choiceStop('st-9', 'What is left of the old Level 2')],
+      },
+    });
+    const { backend } = await renderLesson(failed);
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ask again' }));
+
+    // Nothing is sent on the click: the band is the whole guard, exactly as Rewrite's is.
+    backend.expectNone('/admin/lessons/l-1/plays/2/generate?replace=true');
+    expect(screen.getByText('Replace this level?')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Replace' }));
+    expect(backend.expectOne('/admin/lessons/l-1/plays/2/generate?replace=true').request.method).toBe('POST');
+  });
+
+  /**
    * A full pipeline has three or four generate rows still to do, and naming one of them would be
    * a guess. Only the per-level case — one row left — is something the tab may claim.
    */

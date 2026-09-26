@@ -1147,11 +1147,23 @@ export class LessonPage {
   /**
    * The only way out of a failed per-level generate, and the reason a hand-written lesson has no
    * "Retry this step": the step it failed at is not one of a pipeline she started, it is the one
-   * question she asked. `replace` is true because a half-written level may already hold stops.
+   * question she asked.
+   *
+   * A level that **still holds questions** goes through the same Replace band that *Rewrite* does.
+   * The failure may have come before the old stops were written over or after, so one click on
+   * Ask again could quietly replace a level she can still see — and a rewrite that asks first
+   * everywhere except here would be the one path that does not. An empty level has nothing to
+   * lose, so it re-posts directly; `replace` is still true, because a generate that failed
+   * half-way may have left stops the empty check saw a moment too early.
    */
   protected askAgain(): void {
     const ask = this.askLevel();
-    if (ask) this.askAssistant(ask, true);
+    if (ask === null || !this.canAssistLevel()) return;
+    if ((this.currentAdminPlay()?.play.stops.length ?? 0) > 0) {
+      this.pendingAction.set({ kind: 'replaceLevel', ask, tab: this.playTab() });
+      return;
+    }
+    this.askAssistant(ask, true);
   }
 
   /**
