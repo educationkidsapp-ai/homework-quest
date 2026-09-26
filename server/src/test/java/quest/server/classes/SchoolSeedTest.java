@@ -63,7 +63,7 @@ class SchoolSeedTest extends ClassesTestSupport {
     }
 
     @Test void loads_thirty_classes_forty_teachers_and_six_hundred_children() {
-        assertThat(first).isEqualTo(new SchoolSeed.Counts(30, 40, 2, 2, 60, 600));
+        assertThat(first).isEqualTo(new SchoolSeed.Counts(30, 40, 2, 6, 60, 600));
 
         var sections = classes.findAll().stream().filter(k -> SCHOOL.equals(k.getSchoolId())).toList();
         assertThat(sections).hasSize(30);
@@ -76,9 +76,14 @@ class SchoolSeedTest extends ClassesTestSupport {
             assertThat(m.getStatus()).isEqualTo("active");
         });
         assertThat(scopesOf("MANAGERIAL")).containsExactlyInAnyOrder("null/british", "null/american");
-        assertThat(users.findBySchoolIdAndRole(SCHOOL, "COORDINATOR")).hasSize(2)
-                .extracting(u -> u.getEmail()).containsExactlyInAnyOrder("coordinator.math@school.test", "coordinator.english@school.test");
-        assertThat(scopesOf("COORDINATOR")).containsExactlyInAnyOrder("math/null", "english/null");
+        // One per subject the platform has, each across both tracks: the two the school teaches see classes, the
+        // rest exist so the role can be signed in as and read on QA.
+        assertThat(users.findBySchoolIdAndRole(SCHOOL, "COORDINATOR")).hasSize(6)
+                .extracting(u -> u.getEmail()).containsExactlyInAnyOrder(
+                        "coordinator.math@school.test", "coordinator.english@school.test", "coordinator.science@school.test",
+                        "coordinator.french@school.test", "coordinator.religion@school.test", "coordinator.arabic@school.test");
+        assertThat(scopesOf("COORDINATOR")).containsExactlyInAnyOrder("math/null", "english/null", "science/null",
+                "french/null", "religion/null", "arabic/null");
 
         var roster = new LinkedHashMap<String, Integer>();
         var names = new LinkedHashMap<String, Integer>();
@@ -110,8 +115,8 @@ class SchoolSeedTest extends ClassesTestSupport {
         assertThat(classes.findAll().stream().filter(k -> SCHOOL.equals(k.getSchoolId()))).hasSize(30);
         assertThat(users.findBySchoolIdAndRole(SCHOOL, "TEACHER")).hasSize(40);
         assertThat(users.findBySchoolIdAndRole(SCHOOL, "MANAGERIAL")).hasSize(2);
-        assertThat(users.findBySchoolIdAndRole(SCHOOL, "COORDINATOR")).hasSize(2);
-        assertThat(staffScopes.findAll().stream().filter(r -> SCHOOL.equals(r.getSchoolId()))).hasSize(4);
+        assertThat(users.findBySchoolIdAndRole(SCHOOL, "COORDINATOR")).hasSize(6);
+        assertThat(staffScopes.findAll().stream().filter(r -> SCHOOL.equals(r.getSchoolId()))).hasSize(8);
         assertThat(assignments.findAll().stream().filter(a -> SCHOOL.equals(a.getSchoolId()))).hasSize(60);
         assertThat(childRows.findAll().stream().filter(c -> SCHOOL.equals(c.getSchoolId()))).hasSize(600);
     }

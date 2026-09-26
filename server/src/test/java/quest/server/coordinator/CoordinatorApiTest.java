@@ -85,6 +85,9 @@ class CoordinatorApiTest extends ApiTestSupport {
         lesson("coord-l-math-a", britishA, "british", "math", LESSON_DAY, "published");
         lesson("coord-l-math-b", britishB, "british", "math", LESSON_DAY.plusDays(1), "review");
         lesson("coord-l-eng-a", americanA, "american", "english", LESSON_DAY, "published");
+        // An english lesson parked in a section Lina *does* supervise: her track matches and her subject does not, so
+        // this is the case where only `requireLesson`'s subject half can refuse it.
+        lesson("coord-l-eng-in-british", britishA, "british", "english", LESSON_DAY, "published");
     }
 
     @AfterAll void takeItBackOut() {
@@ -153,6 +156,8 @@ class CoordinatorApiTest extends ApiTestSupport {
 
     @Test void a_lesson_a_class_and_a_child_outside_her_scope_are_refused() throws Exception {
         mvc.perform(as(get("/coordinator/lessons/coord-l-eng-a"), token(lina))).andExpect(status().isForbidden());
+        // Her own section, another subject: refused on the subject alone, and absent from her list and her calendar.
+        mvc.perform(as(get("/coordinator/lessons/coord-l-eng-in-british"), token(lina))).andExpect(status().isForbidden());
         mvc.perform(as(get("/coordinator/lessons?classId=" + americanA), token(lina))).andExpect(status().isForbidden());
         // A lesson of no school at all is a 404: the refusal never doubles as confirmation that an id is real.
         mvc.perform(as(get("/coordinator/lessons/no-such-lesson"), token(lina))).andExpect(status().isNotFound());

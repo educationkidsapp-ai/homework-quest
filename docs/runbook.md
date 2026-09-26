@@ -1140,10 +1140,17 @@ their lower-cased email).
 
 > **Why the Management account is seeded at all.** Nothing in the API creates a MANAGERIAL user — there is no
 > `POST /admin/managers` — so QA had the role in `permissions.json` and nobody holding it, and every teacher's
-> `POST /teacher/messages/coordinator` came back 409 `no_coordinator`. `managers.csv` (`fullName,email`, one row) is
-> read by the seed's own `managers` phase, which writes the row directly for that reason and skips an address that
-> already belongs to somebody, at WARN. The `full` profile has one too: **Huda Salem** (`manager.a@school.test`).
-> With `SEED_STAFF_PASSWORD` unset the account exists but nobody can sign in as it, exactly like a seeded teacher.
+> `POST /teacher/messages/coordinator` came back 409 `no_coordinator`. `managers.csv` (`fullName,email,curriculum`,
+> **two rows** since R2 — one Management account per department) is read by the seed's own `managers` phase, which
+> writes the row directly for that reason and skips an address that already belongs to somebody, at WARN. The `full`
+> profile has two as well: **Huda Salem** (`manager.a@school.test`, British) and **Faris Nabhan**
+> (`manager.b@school.test`, American). `coordinators.csv` (`fullName,email,subject,curriculum`) is loaded the same
+> way and for the same reason — `POST /admin/coordinators` exists, but it answers a one-time password a seed would
+> have to hold in order to throw away. The `full` profile seeds one coordinator per subject the platform has, each
+> across both tracks (blank curriculum): math, english, science, french, religion and arabic; the two of them whose
+> subject the school actually teaches see classes, and the rest exist so the role can be signed in as and read on QA.
+> Each staff row also gets its `staff_scopes` row — a manager's is her department, a coordinator's her subject.
+> With `SEED_STAFF_PASSWORD` unset the accounts exist but nobody can sign in as them, exactly like a seeded teacher.
 
 > The password the owner chose is nine characters, which is under the `MIN_PASSWORD` of 10. That minimum is a
 > validation rule on *changing* and *resetting* a password (`AuthService`, `DashboardDto`), and the seed never goes
