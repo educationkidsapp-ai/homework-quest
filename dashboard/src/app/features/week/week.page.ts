@@ -266,23 +266,32 @@ export class WeekPage {
   });
 
   // ---- Teacher Workflows / Quick Actions -----------------------------------------------------
-  protected readonly quickActions = [
-    { label: 'This Week', subtitle: 'Weekly schedule', icon: 'calendar', link: '/teacher/week', queryParams: {}, color: 'em-gradient--blue', bgColor: 'em-bg--blue' },
+  /**
+   * U1 item 3: "This week" is gone — it was the card's own screen, so the tile did nothing but
+   * reload the page a teacher is already on. New exam carries a class (see
+   * {@link newExamParams}): `/teacher/exams/new` without one draws a screen whose only action is
+   * refused, which is how "Create Exam" came to look broken.
+   */
+  protected readonly quickActions = computed(() => [
     { label: 'My Classes', subtitle: 'Sections & rosters', icon: 'users', link: '/teacher/classes', queryParams: {}, color: 'em-gradient--purple', bgColor: 'em-bg--purple' },
     { label: 'New Lesson', subtitle: 'PDF / slides / manual', icon: 'file-text', link: '/teacher/lessons/new', queryParams: {}, color: 'em-gradient--pink', bgColor: 'em-bg--pink' },
-    { label: 'Create Exam', subtitle: 'Scheduled test', icon: 'download', link: '/teacher/exams/new', queryParams: {}, color: 'em-gradient--cyan', bgColor: 'em-bg--cyan' },
+    { label: 'Create Exam', subtitle: 'Scheduled test', icon: 'download', link: '/teacher/exams/new', queryParams: this.newExamParams(), color: 'em-gradient--cyan', bgColor: 'em-bg--cyan' },
     { label: 'Attendance', subtitle: 'Daily roll call', icon: 'bell', link: '/teacher/classes', queryParams: { tab: 'attendance' }, color: 'em-gradient--green', bgColor: 'em-bg--green' },
     { label: 'Parent Chat', subtitle: 'Direct message', icon: 'mail', link: '/teacher/chat', queryParams: {}, color: 'em-gradient--orange', bgColor: 'em-bg--orange' },
-  ];
+  ]);
 
-  // ---- Weekly Class Attendance Chart ---------------------------------------------------------
-  protected readonly attendanceChartDays = [
-    { day: 'Mon', g13: 95.8, g46: 98.2 },
-    { day: 'Tue', g13: 94.6, g46: 97.4 },
-    { day: 'Wed', g13: 96.8, g46: 97.9 },
-    { day: 'Thu', g13: 95.5, g46: 98.0 },
-    { day: 'Fri', g13: 97.2, g46: 99.1 },
-  ];
+  /**
+   * The class New exam opens on: the one the planner is filtered to, else the first she teaches.
+   *
+   * `POST /teacher/classes/{classId}/exams` is the only way to make an exam, so the screen needs
+   * a class before its primary action can do anything; arriving with none is the `exams.create.noClass`
+   * dead end. `{}` when she teaches nothing at all — then the screen's own message is the honest answer.
+   */
+  protected readonly newExamParams = computed<Record<string, string>>(() => {
+    const selected = this.selectedClass();
+    const classId = selected !== 'all' ? selected : (this.assignedClasses()[0]?.id ?? '');
+    return classId ? { classId } : ({} as Record<string, string>);
+  });
 
   // ---- Schedule Gaps & Alerts ----------------------------------------------------------------
   protected readonly scheduleAlerts = computed(() => {

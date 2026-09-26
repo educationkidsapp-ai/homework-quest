@@ -1673,8 +1673,6 @@
     "myClassesAssignments": "My Classes & Assignments",
     "myClassesSubtitle": "Section rosters, today's lesson status, student counts, and class calendars",
     "markTodayAttendance": "Mark Today's Attendance",
-    "attendanceTrends": "Weekly Class Attendance",
-    "attendanceTrendsSubtitle": "Daily student attendance percentage across your assigned classes",
     "scheduleTitle": "This Week: Lessons & Exams Schedule",
     "scheduleSubtitle": "Scheduled lessons, published plays, and active exams across Monday to Friday",
     "prev": "Previous week",
@@ -1724,7 +1722,8 @@
     "search": {
       "placeholder": "Search this week: class, subject or lesson"
     },
-    "searchEmpty": "Nothing this week matches “{{term}}”."
+    "searchEmpty": "Nothing this week matches “{{term}}”.",
+    "newExamBtn": "+ New Exam"
   },
   "player": {
     "gallery": {

@@ -84,6 +84,23 @@ describe('This week', () => {
     expect(href).toContain('curriculum=british');
   });
 
+  // U1 item 3 — the owner's three complaints about the cards on this screen.
+  it('drops the This week tile and sends both New exam buttons to a class of her own', async () => {
+    await renderWeek();
+
+    // The tile that reloaded the screen she is already on.
+    expect(screen.queryByText('This Week')).toBeNull();
+
+    // `/teacher/exams/new` with no class is a screen whose only action is refused.
+    const quick = screen.getByRole('link', { name: /Create Exam/ });
+    expect(quick.getAttribute('href')).toContain('/teacher/exams/new?classId=c-1a');
+    const hub = screen.getByRole('link', { name: '+ New Exam' });
+    expect(hub.getAttribute('href')).toContain('/teacher/exams/new?classId=c-1a');
+
+    // The fixture attendance chart is gone; the real roll call lives on the class page.
+    expect(screen.queryByText('Weekly Class Attendance')).toBeNull();
+  });
+
   it('tells a teacher with no assignments who can give her one', async () => {
     await renderWeek({ start: DAYS[0], days: [...DAYS], rows: [], summary: { gaps: [] } });
 
