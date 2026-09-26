@@ -48,6 +48,7 @@ export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 't
           [disabled]="disabled()"
           [required]="required()"
           [attr.maxlength]="maxLength()"
+          [attr.min]="min()"
           [attr.aria-invalid]="error() ? 'true' : null"
           [attr.aria-describedby]="describedBy()"
           (input)="onInput($event)"
@@ -177,6 +178,13 @@ export class InputComponent {
   readonly autocomplete = input<string | null>(null);
   /** Maximum characters, enforced by the field as well as counted by the form. */
   readonly maxLength = input<number | null>(null);
+  /**
+   * The earliest value a `date` (or `number`) field accepts, as the input's own `min`.
+   *
+   * The browser's picker greys out what it forbids, which is the cheap half of the answer; the
+   * screen still validates, because a typed value walks straight past a greyed-out cell.
+   */
+  readonly min = input<string | null>(null);
   /** Reserve the leading 48 px for a glyph projected into `[input-icon]` (§3 Input). */
   readonly icon = input(false);
   /** The trailing key hint, e.g. `/` on the shell's search field. */

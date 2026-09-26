@@ -159,4 +159,40 @@ describe('the coordinator comms screens', () => {
       classIds: ['c-1'],
     });
   });
+
+  it('refuses an expiry in the past, and puts a min on the day input', async () => {
+    const { backend } = await signedIn(CoordinatorAnnouncementsPage);
+    backend.expectOne('/coordinator/announcements').flush([]);
+    backend.expectOne('/coordinator/me').flush(ME);
+    backend.expectOne('/coordinator/teachers').flush([]);
+    backend.expectOne('/coordinator/classes').flush(CLASSES);
+    backend.match((r) => r.url.startsWith('/coordinator/lessons')).forEach((r) => r.flush([]));
+    backend.match('/coordinator/complaints?status=open').forEach((r) => r.flush([]));
+    await settle();
+
+    screen.getByRole('button', { name: 'Write an announcement' }).click();
+    await settle();
+
+    const bodyEn = document.querySelector('hq-textarea textarea') as HTMLTextAreaElement;
+    bodyEn.value = 'Reading week starts on Sunday.';
+    bodyEn.dispatchEvent(new Event('input'));
+    await settle();
+
+    const today = new Date().toISOString().slice(0, 10);
+    const day = document.querySelector('hq-input input[type="date"]') as HTMLInputElement;
+    // The picker greys the earlier days out; the screen still validates a typed one, because a
+    // past expiry posts a note `GET /children/{id}/announcements` then hides from every parent.
+    expect(day.getAttribute('min')).toBe(today);
+
+    day.value = '2020-01-01';
+    day.dispatchEvent(new Event('input'));
+    await settle();
+    expect(screen.getByRole('button', { name: 'Post' }).hasAttribute('disabled')).toBe(true);
+    expect(document.body.textContent).toContain('Pick today or a later day');
+
+    day.value = today;
+    day.dispatchEvent(new Event('input'));
+    await settle();
+    expect(screen.getByRole('button', { name: 'Post' }).hasAttribute('disabled')).toBe(false);
+  });
 });

@@ -1957,7 +1957,8 @@
       "empty": "You have not posted an announcement yet.",
       "emptyHint": "Parents read it in the app; there is no notification, so keep it short.",
       "notEnabled": "Announcements are not enabled for this school.",
-      "notEnabledHint": "An Admin can turn them on in the feature matrix."
+      "notEnabledHint": "An Admin can turn them on in the feature matrix.",
+      "expiredAlready": "Pick today or a later day — an earlier one hides the announcement from every parent."
     }
   }
 }

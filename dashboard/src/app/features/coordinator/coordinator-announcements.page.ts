@@ -171,6 +171,8 @@ interface CoordinatorAnnouncementBody {
             type="date"
             [label]="'coordinator.announcements.expires' | transloco"
             [hint]="'coordinator.announcements.expiresHint' | transloco"
+            [min]="today"
+            [error]="expiryError()"
             [(value)]="expires"
           />
         </hq-dialog>
@@ -221,10 +223,29 @@ export class CoordinatorAnnouncementsPage {
     defaultValue: [],
   });
 
-  /** The one rule the server also enforces: 1–1000 characters of English body (`@NotBlank`). */
+  /** Today as the date input writes it, which is also the earliest expiry that means anything. */
+  protected readonly today = new Date().toISOString().slice(0, 10);
+
+  /**
+   * An expiry in the past is an announcement nobody will ever read: `GET /children/{id}/
+   * announcements` filters on it, so the post would succeed and then show to no parent. The
+   * input carries `min` as well — the picker greys the days out, and this catches a typed one.
+   */
+  protected readonly expiryError = computed(() =>
+    this.expires() !== '' && this.expires() < this.today
+      ? this.transloco.translate<string>('coordinator.announcements.expiredAlready')
+      : null,
+  );
+
+  /** The rules the server also enforces: 1–1000 characters of English body (`@NotBlank`). */
   protected readonly canPost = computed(() => {
     const body = this.bodyEn().trim();
-    return body.length > 0 && body.length <= 1000 && this.bodyAr().trim().length <= 1000;
+    return (
+      body.length > 0 &&
+      body.length <= 1000 &&
+      this.bodyAr().trim().length <= 1000 &&
+      this.expiryError() === null
+    );
   });
 
   protected readonly bodyError = computed(() =>
