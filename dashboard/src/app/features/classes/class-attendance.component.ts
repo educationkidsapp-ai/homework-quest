@@ -114,12 +114,17 @@ export class ClassAttendanceComponent {
     return status === 'NOT_MARKED' ? '·' : this.transloco.translate<string>(`attendance.short.${status}`);
   }
 
-  protected cellTitle(childName: string, date: string, status: AttendanceStatus): string {
+  /** "Present" — the mark itself, for the screen that may read it and not change it. */
+  protected statusWord(status: AttendanceStatus): string {
     this.lang();
-    const word = this.transloco.translate<string>(
+    return this.transloco.translate<string>(
       status === 'NOT_MARKED' ? 'attendance.notMarked' : `attendance.${status.toLowerCase()}`,
     );
-    return `${childName} · ${date} · ${word}`;
+  }
+
+  /** "Omar · 2026-09-15 · Absent" — everything a one-letter square cannot fit. */
+  protected cellTitle(childName: string, date: string, status: AttendanceStatus): string {
+    return `${childName} · ${date} · ${this.statusWord(status)}`;
   }
 
   protected exportCsv(): void {

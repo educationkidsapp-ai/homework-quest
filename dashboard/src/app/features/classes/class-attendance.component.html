@@ -196,7 +196,7 @@
               <!-- Read-only (R6): the mark as a word, not four buttons one of which is pressed. -->
               @if (readOnly()) {
                 <span class="attendance__matrix-cell" [attr.data-status]="student.status">
-                  {{ cellTitle(student.childName, selectedDate(), student.status) }}
+                  {{ statusWord(student.status) }}
                 </span>
               } @else {
                 <!-- Segmented Status Pills -->
