@@ -68,6 +68,21 @@ above.
 Screenshots: `docs/screenshots/mobile-r8/` — `49*`/`51*`/`52`/`53` are the screenshot tests (EN and AR), `60`/`61`
 the emulator against the local server.
 
+### The same gate closes QA, so no emulator can reach Messages today
+
+Checked as Admin against QA (`homework-quest-qa`): the only school there is **`default`** (`HQ0001`, 8 children),
+`M1Placed` is indeed in `1A British`, and `GET /schools/default/flags` answers `chat = true`. The app still never
+asks: `SchoolSessionImpl.use` drops any school whose id is `default` (line 99), so `_schoolId` stays null, `sync()`
+returns before `refreshFlags`, and `Flags.CHAT` falls back to `DEFAULT_FLAGS`, where it is `false`.
+
+The consequence is bigger than R8: **the `chat`-gated Messages button is unreachable for every parent on QA**, and
+has been since C3 — this PR's screens inherit that, they do not cause it. The `use()` comment shows the exclusion was
+deliberate for the theme (F6); whether it should also cover *flags* is the open question, and changing it touches
+theming for every school, so it is not something to slip into this PR.
+
+Reaching these screens on a device therefore needs one of: a second school on QA with a parent and a coordinator
+scope, or `SchoolSessionImpl` fetching flags (not the theme) for the default school as well.
+
 ## Left for the planner
 
 1. **Announcements (deliverable 4) is not in this PR.** The app has **no announcements screen at all** — `feature/school`
