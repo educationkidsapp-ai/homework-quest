@@ -36,6 +36,17 @@ const TEACHER_PERMISSIONS = {
  * the guard against that happening again: every name here is proved to match something.
  */
 const WRITE_CONTROLS = ['+ Add stop', 'Publish', 'Regenerate this level'] as const;
+
+/**
+ * Not a write — and still not hers.
+ *
+ * "Preview text" reads `GET /teacher/lessons/{id}/files/{fileId}/markdown`, which has no
+ * coordinator alias and no coordinator route to have one. The call is wrapped in `silentErrors()`,
+ * so her 403 was swallowed and the dialog told her the text "isn't ready yet … or type the text" —
+ * wrong twice over. It is in its own constant because it is closed by `readOnly` rather than by a
+ * permission she lacks, which is the distinction the two tests below are about.
+ */
+const PREVIEW_TEXT = 'Preview text';
 const DATE_LABEL = 'Lesson day';
 
 /**
@@ -50,7 +61,21 @@ const LESSON = {
   course: { curriculum: 'british', grade: 1 },
   createdAt: 0,
   date: '2026-09-10',
-  files: [],
+  // One converted file, so "Preview text" has a row to render on. Without it the assertion below
+  // would be vacuous — the same trap the review caught the first time round.
+  files: [
+    {
+      id: 'f-1',
+      fileName: 'page-1.pdf',
+      fileHash: 'h1',
+      pageCount: 2,
+      cacheHit: false,
+      deleted: false,
+      convertStatus: 'ready',
+      convertMethod: 'text',
+      markdownChars: 420,
+    },
+  ],
   images: [],
   skills: [],
   source: 'pdf',
@@ -200,6 +225,10 @@ describe('the lesson page in read-only mode', () => {
     expect(screen.queryByLabelText(DATE_LABEL)).toBeNull();
     expect(document.querySelectorAll('input[type="date"]').length).toBe(0);
 
+    // And the one read that is not a write: see PREVIEW_TEXT.
+    expect(screen.queryAllByRole('button', { name: PREVIEW_TEXT })).toEqual([]);
+    expect(document.querySelectorAll('[data-hq-preview]').length).toBe(0);
+
     // No editor, no parent-panel form, no exam settings, and no file input anywhere: hidden
     // rather than disabled, because a disabled Save still promises there is a way to press it.
     expect(document.querySelector('hq-stop-editor')).toBeNull();
@@ -222,6 +251,7 @@ describe('the lesson page in read-only mode', () => {
     for (const name of WRITE_CONTROLS)
       expect(`${name}:${screen.queryAllByRole('button', { name }).length}`).not.toBe(`${name}:0`);
     expect(screen.queryByLabelText(DATE_LABEL)).not.toBeNull();
+    expect(screen.queryAllByRole('button', { name: PREVIEW_TEXT })).not.toEqual([]);
     expect(document.querySelector('hq-stop-editor')).not.toBeNull();
     expect(document.querySelector('hq-parent-panel-editor')).not.toBeNull();
   });

@@ -235,6 +235,7 @@
         <hq-lesson-sources
           [lessonId]="lessonId"
           [files]="files()"
+          [readOnly]="readOnly"
           [checkNow]="convertDoneBeforeAnalyze()"
           (lessonChanged)="onLessonReconverted($event)"
         />
