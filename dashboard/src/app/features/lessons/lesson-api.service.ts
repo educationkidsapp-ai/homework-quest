@@ -19,6 +19,9 @@ import { silentErrors } from '../../core/http/error.interceptor';
 import { type RetryMethod, retryConversionBody } from './file-conversion';
 import { type NewLessonRequest, createLessonBody } from './lessons.models';
 
+/** E5's `level` path segment. Level 1 is the teacher's own to write, so it is not one of them. */
+export type AskLevel = '2' | '3' | 'again';
+
 /** What both list endpoints narrow by. `schoolId` is Admin-only — a teacher has exactly one. */
 export interface LessonListFilters {
   readonly curriculum?: string;
@@ -210,6 +213,24 @@ export class LessonApiService {
       : this.teacher.teacherGenerateFromText(id, body);
   }
 
+  /**
+   * E5: write **one** level from the Level 1 already in hand (`POST …/plays/{level}/generate`).
+   *
+   * Answers the usual `JobRef` and runs as a single ledger step, so the caller has nothing to
+   * draw from it beyond the status: the lesson goes `generating` and the editor's `/status` poll
+   * owns everything after that.
+   *
+   * `silentErrors()` because all three refusals belong to the Add level card rather than to a
+   * band at the top of the page — 409 `exists` asks her whether to write over the level, 409
+   * `generating` is a strip, and the 400 for an empty Level 1 is a hint under the two buttons.
+   */
+  generateLevel(id: string, level: AskLevel, replace = false): Observable<JobRef> {
+    const options = { context: silentErrors() };
+    return this.isAdmin()
+      ? this.admin.generateLevel(id, level, replace, 'body', false, options)
+      : this.teacher.teacherGenerateLevel(id, level, replace, 'body', false, options);
+  }
+
   // ---- files and images ---------------------------------------------------------------------
 
   uploadFiles(id: string, files: readonly File[]): Observable<JobRef> {
@@ -278,8 +299,17 @@ export class LessonApiService {
     return this.isAdmin() ? this.admin.reorder(playId, body) : this.teacher.teacherReorder(playId, body);
   }
 
-  addStop(playId: string, body: string): Observable<Stop> {
-    return this.isAdmin() ? this.admin.addStop(playId, body) : this.teacher.teacherAddStop(playId, body);
+  /**
+   * `silent` is {@link StopDraftService.addNow}'s. That path keeps the Add question sheet open on
+   * the question the server refused and puts the sentence in it, so the interceptor's band would be
+   * the same sentence twice; {@link StopDraftService.add} leaves it loud, because its sheet has
+   * already closed and the band is the only place left to say anything.
+   */
+  addStop(playId: string, body: string, silent = false): Observable<Stop> {
+    const options = silent ? { context: silentErrors() } : undefined;
+    return this.isAdmin()
+      ? this.admin.addStop(playId, body, 'body', false, options)
+      : this.teacher.teacherAddStop(playId, body, 'body', false, options);
   }
 
   updateStop(stopId: string, body: string): Observable<Stop> {

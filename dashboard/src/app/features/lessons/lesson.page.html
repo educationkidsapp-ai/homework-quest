@@ -132,14 +132,18 @@
           <hq-button *hqCan="'lesson.write'" [disabled]="busy() !== null" (pressed)="retryContinue()">
             {{ 'lessons.detail.retryContinue' | transloco }}
           </hq-button>
-          <hq-button
-            *hqCan="'lesson.write'"
-            variant="secondary"
-            [disabled]="busy() !== null"
-            (pressed)="retryFailedStep()"
-          >
-            {{ 'lessons.detail.retryStepOnly' | transloco }}
-          </hq-button>
+          @if (!isManual()) {
+            <!-- E5: a hand-written lesson has no step to resume — it has one question she asked,
+                 and "Ask again" on the level's own tab is what re-asks it. -->
+            <hq-button
+              *hqCan="'lesson.write'"
+              variant="secondary"
+              [disabled]="busy() !== null"
+              (pressed)="retryFailedStep()"
+            >
+              {{ 'lessons.detail.retryStepOnly' | transloco }}
+            </hq-button>
+          }
           @if (canReplaceFile()) {
             <hq-button
               *hqCan="'lesson.write'"
@@ -275,6 +279,30 @@
         />
         <div class="lesson__play">
           <div class="lesson__stops">
+            <!-- E5: what the assistant is doing to *this* level, where she is looking for it. The
+                 strip above says which step is on; this says which level it is writing. -->
+            @if (writingHere()) {
+              <p class="lesson__level-note" aria-live="polite">{{ writingLabel() }}</p>
+            } @else if (failedHere()) {
+              <!-- `alert`, like the red band's: this appears in answer to something she pressed,
+                   and a sentence nobody is told about is a sentence she has to go looking for. -->
+              <div class="lesson__level-note lesson__level-note--error" role="alert">
+                <!-- Not `stepErrorMessage()` again: the red band at the top of this same screen
+                     carries the ledger's own sentence, and saying it twice makes neither copy
+                     louder. This says which level it was about, and offers the way back. -->
+                <p>{{ 'lessons.detail.addLevel.failedHere' | transloco }}</p>
+                @if (canAssistLevel()) {
+                  <hq-button
+                    *hqCan="'lesson.write'"
+                    variant="secondary"
+                    [disabled]="busy() !== null"
+                    (pressed)="askAgain()"
+                  >
+                    {{ 'lessons.detail.addLevel.askAgain' | transloco }}
+                  </hq-button>
+                }
+              </div>
+            }
             @if (currentPlay(); as play) {
               <div
                 class="lesson__stop-list"
@@ -365,9 +393,19 @@
                   <hq-button variant="quiet" [disabled]="busy() !== null" (pressed)="requestRegeneratePlay()">
                     {{ 'lessons.detail.plays.regeneratePlay' | transloco }}
                   </hq-button>
+                  <!-- E5: the same endpoint the empty tab's Add level uses, with `?replace=true`.
+                       Never on Level 1 — it is what the other two are written from. -->
+                  @if (canRewriteLevel()) {
+                    <hq-button variant="quiet" [disabled]="busy() !== null" (pressed)="requestRewriteLevel()">
+                      {{ 'lessons.detail.addLevel.rewrite' | transloco }}
+                    </hq-button>
+                  }
                 </ng-container>
               </div>
-            } @else {
+            } @else if (!writingHere()) {
+              <!-- A failed level keeps this: the note above offers Ask again, and *Write it
+                   myself* is still the other way to fill a level the assistant could not. Only a
+                   level being written right now has nothing to offer here. -->
               <p class="lesson__empty">{{ 'lessons.detail.plays.noLevel' | transloco }}</p>
               <!-- D27: the levels are capped at three, so what was missing was not another level
                    but a visible way to fill this one. Two choices, her words or the assistant's. -->
@@ -388,6 +426,13 @@
                       </hq-button>
                     }
                   </div>
+                  <!-- E5: the one thing the assistant needs and this lesson has not got, said
+                       before she presses — and again if the server is the one that says it. -->
+                  <!-- `polite`, not `alert`: the same line is on screen from the first render
+                       whenever Level 1 is empty, and an alert would announce it on arrival. -->
+                  @if (assistHintText(); as hint) {
+                    <p class="lesson__add-level-hint" aria-live="polite">{{ hint }}</p>
+                  }
                 </div>
               }
             }
@@ -425,7 +470,7 @@
       </hq-card>
 
       @if (isManual()) {
-        <hq-card #generateCard [title]="'lessons.detail.editor.generateTitle' | transloco">
+        <hq-card [title]="'lessons.detail.editor.generateTitle' | transloco">
           <div class="lesson__generate" *hqCan="'lesson.write'">
             <hq-textarea
               [label]="'lessons.detail.editor.generateLabel' | transloco"

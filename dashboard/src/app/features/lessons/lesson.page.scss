@@ -143,6 +143,27 @@
   gap: var(--hq-space-8);
 }
 
+// E5's 400, and the same rule said before she presses: one line, where she is looking.
+.lesson__add-level-hint {
+  color: var(--hq-color-error-ink);
+  font-size: var(--hq-text-theme-sm);
+}
+
+// What the assistant is doing to this level, above the list it will appear in — and, on a
+// failure, the sentence plus the one button that re-asks.
+.lesson__level-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hq-space-12);
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-theme-sm);
+}
+
+.lesson__level-note--error {
+  color: var(--hq-color-error-ink);
+}
+
 // Where the pipeline strip would be, for a lesson that never had one: three words, the last
 // of them the one she is on.
 .lesson__manual-steps {

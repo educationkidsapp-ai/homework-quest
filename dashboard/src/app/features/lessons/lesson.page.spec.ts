@@ -514,15 +514,13 @@ describe('Lesson', () => {
     await userEvent.clear(prose);
     await userEvent.type(prose, 'Draw anything');
     await userEvent.click(screen.getByRole('button', { name: 'Save the stop' }));
-    backend
-      .expectOne('/admin/stops/st-1/from-text')
-      .flush(
-        {
-          code: 'rephrase',
-          message: "Couldn't save, please rephrase. #/options: minItems 2; #/hint: required",
-        },
-        { status: 422, statusText: 'Unprocessable Entity' },
-      );
+    backend.expectOne('/admin/stops/st-1/from-text').flush(
+      {
+        code: 'rephrase',
+        message: "Couldn't save, please rephrase. #/options: minItems 2; #/hint: required",
+      },
+      { status: 422, statusText: 'Unprocessable Entity' },
+    );
     await Promise.resolve();
     TestBed.tick();
 
@@ -638,16 +636,330 @@ describe('Lesson', () => {
   });
 
   /**
-   * The assistant's half of Add level is the manual lesson's note flow, and that card is not on a
-   * PDF lesson's page — so the button is not offered there either, rather than scrolling nowhere.
+   * E5: the source stopped mattering — the server derives the analysis from Level 1 itself — so an
+   * uploaded lesson missing a level is offered the assistant on the same terms a hand-written one
+   * is. What is left is the one thing the endpoint refuses without: a Level 1 with questions in it.
    */
-  it('offers only "Write it myself" on a level a non-manual lesson is missing', async () => {
+  it('offers the assistant on a level an uploaded lesson is missing, and not without a Level 1', async () => {
     await renderLesson(lessonWithStops({ source: 'pdf' }));
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+    expect(screen.getByRole('button', { name: 'Write it myself' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Let the assistant write it' })).toBeInTheDocument();
+    expect(screen.queryByText(/at least one question in Level 1/)).toBeNull();
+  });
+
+  /** The 400 said before she can press it: nothing to write the level from, so no button. */
+  it('says what Level 1 is missing instead of offering a button the server would refuse', async () => {
+    const empty = lessonWithStops({ source: 'manual' });
+    empty.plays[0]!.play.stops = [];
+    await renderLesson(empty);
 
     await userEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
 
     expect(screen.getByRole('button', { name: 'Write it myself' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Let the assistant write it' })).toBeNull();
+    expect(screen.getByText('Write at least one question in Level 1 first.')).toBeInTheDocument();
+  });
+
+  /**
+   * E5's happy path: one POST, and from then on it is the `/status` poll's lesson.
+   *
+   * The tab says which level the assistant is on from the moment the job is queued — the answer
+   * carries no steps, so a page that waited for the ledger would spend a poll interval showing
+   * "This level does not exist yet" over a level being written.
+   */
+  it("asks the assistant for one level and then says so on that level's tab", async () => {
+    const { backend } = await renderLesson(lessonWithStops({ source: 'manual' }));
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Let the assistant write it' }));
+
+    const asked = backend.expectOne('/admin/lessons/l-1/plays/2/generate?replace=false');
+    expect(asked.request.method).toBe('POST');
+    asked.flush({ jobId: 'j-1', status: 'generating' });
+    await settle();
+
+    expect(screen.getByText('The assistant is writing Level 2…')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Let the assistant write it' })).toBeNull();
+    // The other levels stay reachable — only the empty ones are shut while a job runs.
+    expect(screen.getByRole('tab', { name: /Level 1/ })).toBeEnabled();
+    expect(screen.getByRole('tab', { name: /Level 3/ })).toBeDisabled();
+  });
+
+  /** 409 `exists` is a question, not a failure: the band asks, and the retry carries `replace`. */
+  it('asks before writing over a level that already has questions', async () => {
+    const withTwo = lessonWithStops({ source: 'manual' });
+    withTwo.plays.push({
+      id: 'p-2',
+      level: 2,
+      variant: 0,
+      generatedAt: 0,
+      promptVersion: '1',
+      play: { kind: 'math', level: 2, variant: 0, theme: withTwo.plays[0]!.play.theme, stops: [] },
+    });
+    const { backend } = await renderLesson(withTwo);
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Rewrite this level with the assistant' }));
+    expect(screen.getByText('Replace this level?')).toBeInTheDocument();
+    backend.expectNone('/admin/lessons/l-1/plays/2/generate?replace=true');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Replace' }));
+    const replaced = backend.expectOne('/admin/lessons/l-1/plays/2/generate?replace=true');
+    expect(replaced.request.method).toBe('POST');
+    replaced.flush({ jobId: 'j-2', status: 'generating' });
+    await settle();
+    expect(screen.getByText('The assistant is writing Level 2…')).toBeInTheDocument();
+  });
+
+  /** The same band, reached the other way: the empty tab's button, refused with `exists`. */
+  it('turns the server\'s "exists" into the Replace band and re-posts with replace', async () => {
+    const { backend } = await renderLesson(lessonWithStops({ source: 'manual' }));
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 3/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Let the assistant write it' }));
+    backend
+      .expectOne('/admin/lessons/l-1/plays/3/generate?replace=false')
+      .flush(
+        { code: 'exists', message: 'Level 3 already has questions.' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await settle();
+
+    expect(screen.getByText('Replace this level?')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Replace' }));
+    expect(backend.expectOne('/admin/lessons/l-1/plays/3/generate?replace=true').request.method).toBe('POST');
+  });
+
+  /** 409 `generating` is the lesson-wide lock — a strip, because the bell is the real answer. */
+  it('says the assistant is still writing rather than raising a band', async () => {
+    const { backend } = await renderLesson(lessonWithStops({ source: 'manual' }));
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Let the assistant write it' }));
+    backend
+      .expectOne('/admin/lessons/l-1/plays/2/generate?replace=false')
+      .flush(
+        { code: 'generating', message: 'This lesson is busy.' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await settle();
+
+    expect(screen.getByText('The assistant is still writing — wait for the bell.')).toBeInTheDocument();
+    expect(screen.queryByText('Replace this level?')).toBeNull();
+  });
+
+  /** The 400 the card owns: the server's own sentence, under the two buttons she pressed. */
+  it('puts a refused ask on the Add level card rather than in a red band', async () => {
+    const { backend } = await renderLesson(lessonWithStops({ source: 'manual' }));
+
+    await userEvent.click(screen.getByRole('tab', { name: /Again/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Let the assistant write it' }));
+    backend.expectOne('/admin/lessons/l-1/plays/again/generate?replace=false').flush(
+      {
+        code: 'bad_request',
+        message: 'Write Level 1 first: the assistant writes the other levels from it.',
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await settle();
+
+    expect(screen.getByText(/Write Level 1 first/)).toBeInTheDocument();
+  });
+
+  /**
+   * Ask again on a level that still holds its earlier questions is a rewrite, and a rewrite asks
+   * first — everywhere, not everywhere except here. The empty case re-posts on the one click.
+   */
+  it('asks before Ask again writes over a level that still has questions', async () => {
+    const failed = lessonWithStops({
+      source: 'manual',
+      status: 'error',
+      steps: [
+        { step: 'analyze', status: 'done', attempt: 1, updatedAt: 0 },
+        { step: 'generate_L2', status: 'error', attempt: 1, errorMessage: 'Half written.', updatedAt: 0 },
+      ],
+    });
+    failed.plays.push({
+      id: 'p-2',
+      level: 2,
+      variant: 0,
+      generatedAt: 0,
+      promptVersion: '1',
+      play: {
+        kind: 'math',
+        level: 2,
+        variant: 0,
+        theme: failed.plays[0]!.play.theme,
+        stops: [choiceStop('st-9', 'What is left of the old Level 2')],
+      },
+    });
+    const { backend } = await renderLesson(failed);
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ask again' }));
+
+    // Nothing is sent on the click: the band is the whole guard, exactly as Rewrite's is.
+    backend.expectNone('/admin/lessons/l-1/plays/2/generate?replace=true');
+    expect(screen.getByText('Replace this level?')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Replace' }));
+    expect(backend.expectOne('/admin/lessons/l-1/plays/2/generate?replace=true').request.method).toBe('POST');
+  });
+
+  /**
+   * A full pipeline has three or four generate rows still to do, and naming one of them would be
+   * a guess. Only the per-level case — one row left — is something the tab may claim.
+   */
+  it('claims no level while a whole pipeline is still generating', async () => {
+    await renderLesson(
+      lessonWithStops({
+        source: 'pdf',
+        status: 'generating',
+        steps: [
+          { step: 'analyze', status: 'done', attempt: 1, updatedAt: 0 },
+          { step: 'generate_L1', status: 'running', attempt: 1, updatedAt: 0 },
+          { step: 'generate_L2', status: 'pending', attempt: 1, updatedAt: 0 },
+          { step: 'generate_L3', status: 'pending', attempt: 1, updatedAt: 0 },
+        ],
+      }),
+    );
+
+    // `generate_L1` is the one that is *running*, so it alone may speak — and only for its own tab.
+    expect(screen.getByText('The assistant is writing Level 1…')).toBeInTheDocument();
+    expect(screen.queryByText('The assistant is writing Level 2…')).toBeNull();
+  });
+
+  /**
+   * The just-asked label stands in for the ledger for one poll interval and not a moment longer.
+   *
+   * Left to live, it was lent to the *next* running job — "Regenerate this stop" resets no
+   * generate row, so `writingTab()` fell back to it and labelled the tab asked for minutes ago.
+   */
+  it('drops the just-asked label on the first poll body, whatever that body says', async () => {
+    vi.useFakeTimers();
+    try {
+      const { backend } = await renderLesson(lessonWithStops({ source: 'manual' }));
+
+      fireEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+      await settle();
+      fireEvent.click(screen.getByRole('button', { name: 'Let the assistant write it' }));
+      await settle();
+      backend
+        .expectOne('/admin/lessons/l-1/plays/2/generate?replace=false')
+        .flush({ jobId: 'j-1', status: 'generating' });
+      await settle();
+      expect(screen.getByText('The assistant is writing Level 2…')).toBeInTheDocument();
+
+      // The ledger speaks, and it names no generate row at all — so neither does the tab.
+      vi.advanceTimersByTime(2_600);
+      await Promise.resolve();
+      backend.expectOne('/admin/lessons/l-1/status').flush({
+        status: 'generating',
+        steps: [],
+        files: [],
+        plays: [{ level: 1, variant: 0, stops: 2 }],
+        panel: false,
+        updatedAt: 0,
+      });
+      await settle();
+
+      // No heavy reload: the baseline was taken once the ask had set `generating`, and this body
+      // says the same thing — which is exactly the case in which `asked` used to survive for ever.
+      backend.verify();
+      expect(screen.queryByText('The assistant is writing Level 2…')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /**
+   * The error note goes *above* the Add level card, never instead of it: a level the assistant
+   * could not write is still a level she can write herself, and for an uploaded lesson that card
+   * is the only thing on the tab that ever offered it.
+   */
+  it('keeps "Write it myself" on a level whose generate failed', async () => {
+    await renderLesson(
+      lessonWithStops({
+        source: 'pdf',
+        status: 'error',
+        steps: [
+          { step: 'analyze', status: 'done', attempt: 1, updatedAt: 0 },
+          {
+            step: 'generate_L3',
+            status: 'error',
+            attempt: 1,
+            errorMessage: 'The model timed out.',
+            updatedAt: 0,
+          },
+        ],
+      }),
+    );
+
+    await userEvent.click(screen.getByRole('tab', { name: /Level 3/ }));
+
+    expect(screen.getByRole('button', { name: 'Ask again' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Write it myself' })).toBeInTheDocument();
+    expect(screen.getByText(/This level does not exist yet/)).toBeInTheDocument();
+  });
+
+  /**
+   * `generate_L1` is the common failure of an uploaded lesson, and Level 1 is the one level the
+   * assistant is never asked for — there is no `POST …/plays/1/generate`. The tab must keep the
+   * pipeline's own band and its two retries rather than grow an Ask again that does nothing.
+   */
+  it('never offers "Ask again" on Level 1, whatever the ledger failed at', async () => {
+    await renderLesson(
+      lessonWithStops({
+        source: 'pdf',
+        status: 'error',
+        steps: [
+          { step: 'analyze', status: 'done', attempt: 1, updatedAt: 0 },
+          {
+            step: 'generate_L1',
+            status: 'error',
+            attempt: 1,
+            errorMessage: 'The model timed out.',
+            updatedAt: 0,
+          },
+        ],
+      }),
+    );
+
+    // Level 1 is the tab the page opens on, and it is the tab `generate_L1` maps to.
+    expect(screen.queryByRole('button', { name: 'Ask again' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry this step only' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry and continue' })).toBeInTheDocument();
+  });
+
+  /**
+   * A failed per-level generate belongs to the level it failed on, and its way out is asking
+   * again — not "Retry this step only", which a hand-written lesson does not get at all.
+   */
+  it('offers "Ask again" on the level whose generate failed, and no step retry', async () => {
+    const failed = lessonWithStops({
+      source: 'manual',
+      status: 'error',
+      steps: [
+        { step: 'analyze', status: 'done', attempt: 1, updatedAt: 0 },
+        {
+          step: 'generate_L2',
+          status: 'error',
+          attempt: 1,
+          errorMessage: 'The model timed out.',
+          updatedAt: 0,
+        },
+      ],
+    });
+    const { backend } = await renderLesson(failed);
+
+    expect(screen.queryByRole('button', { name: 'Retry this step only' })).toBeNull();
+    await userEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+    expect(screen.getAllByText('The model timed out.').length).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ask again' }));
+    expect(backend.expectOne('/admin/lessons/l-1/plays/2/generate?replace=true').request.method).toBe('POST');
   });
 
   /** D27: an empty Level 2 offers both ways to fill it, and "Write it myself" opens the sheet. */
@@ -1035,7 +1347,15 @@ describe('Lesson — the files being converted', () => {
     ...BASE_LESSON,
     status: 'draft',
     files: [
-      { id: 'f-1', fileName: 'Shapes.pdf', fileHash: 'h', pageCount: 4, cacheHit: false, deleted: false, convertStatus: 'converting' },
+      {
+        id: 'f-1',
+        fileName: 'Shapes.pdf',
+        fileHash: 'h',
+        pageCount: 4,
+        cacheHit: false,
+        deleted: false,
+        convertStatus: 'converting',
+      },
     ],
     steps: [
       { step: 'upload', status: 'done', attempt: 1, updatedAt: 0 },
@@ -1067,7 +1387,11 @@ describe('Lesson — the files being converted', () => {
     await renderLesson(READY);
 
     const strip = await screen.findByRole('list', { name: 'Lesson pipeline' });
-    expect(within(strip).getAllByRole('listitem').map((step) => step.textContent?.trim())).toEqual([
+    expect(
+      within(strip)
+        .getAllByRole('listitem')
+        .map((step) => step.textContent?.trim()),
+    ).toEqual([
       expect.stringContaining('upload'),
       expect.stringContaining('Convert to text'),
       expect.stringContaining('analyze'),

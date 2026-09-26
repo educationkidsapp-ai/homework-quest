@@ -236,6 +236,37 @@ describe('hq-add-stop', () => {
     backend.verify();
   });
 
+  /**
+   * E4b review: the instant save used to be fire-and-forget like the assistant's, so a refusal
+   * closed the sheet, emptied the five fields and said nothing — her question was simply gone.
+   */
+  it('keeps the fields and says why when the server refuses an instant save', async () => {
+    const { backend, rendered } = await renderForm();
+
+    await userEvent.type(form().getByLabelText(/^Title/), 'Which shape has three sides');
+    await userEvent.selectOptions(form().getByLabelText(/^Type/), 'choice');
+    await settle(rendered);
+    await userEvent.type(form().getByLabelText(/^Question$/), 'Which shape has three sides?');
+    await userEvent.type(form().getByLabelText(/^Answer 1/), 'Triangle');
+    await userEvent.type(form().getByLabelText(/^Answer 2/), 'Circle');
+    await userEvent.selectOptions(form().getByLabelText(/^Which answer is right/), '0');
+    await pressSave(rendered);
+
+    backend
+      .expectOne('/admin/plays/p-1/stops')
+      .flush(
+        { code: 'bad_request', message: 'Wait for this lesson to finish generating.' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    await settle(rendered);
+
+    // The sheet is still open on the question the server refused, with every field in it.
+    expect(document.querySelector('[data-hq-add-stop]')).not.toBeNull();
+    expect(form().getByLabelText(/^Question$/)).toHaveValue('Which shape has three sides?');
+    expect(form().getByLabelText(/^Answer 1/)).toHaveValue('Triangle');
+    expect(screen.getByText('Wait for this lesson to finish generating.')).toBeInTheDocument();
+  });
+
   it('says what the fields are missing, under the fields, and sends nothing', async () => {
     const { backend, rendered } = await renderForm();
 

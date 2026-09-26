@@ -12,6 +12,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { apiErrorOf } from '../../api';
 import { activeLang } from '../../core/i18n/active-lang';
 import {
   ButtonComponent,
@@ -105,6 +106,7 @@ type FieldName = 'title' | 'question' | 'type';
       [(open)]="open"
       [sheet]="true"
       [guarded]="true"
+      [loading]="saving()"
       [title]="'lessons.detail.addStop.title' | transloco"
       [confirmLabel]="'lessons.detail.addStop.save' | transloco"
       [cancelLabel]="'lessons.detail.addStop.cancel' | transloco"
@@ -113,7 +115,7 @@ type FieldName = 'title' | 'question' | 'type';
     >
       <!-- The second way out of this sheet: ten questions in a row, without closing and
            re-opening it nine times. Secondary, because a screen has one primary action. -->
-      <hq-button hqDialogAction variant="secondary" (pressed)="saveAndAddAnother()">
+      <hq-button hqDialogAction variant="secondary" [disabled]="saving()" (pressed)="saveAndAddAnother()">
         {{ 'lessons.detail.addStop.saveAnother' | transloco }}
       </hq-button>
 
@@ -125,6 +127,12 @@ type FieldName = 'title' | 'question' | 'type';
           <p class="add-stop__lede">
             {{ (byHand() ? 'lessons.detail.addStop.ledeFields' : 'lessons.detail.addStop.lede') | transloco }}
           </p>
+
+          <!-- E4b review: a refused instant save used to close this sheet and take her five
+               fields with it. They are still here, and this is what the server said about them. -->
+          @if (saveError(); as problem) {
+            <p class="add-stop__refused" role="alert">{{ problem }}</p>
+          }
 
           <hq-input
             #titleField
@@ -244,6 +252,12 @@ type FieldName = 'title' | 'question' | 'type';
   `,
   styles: `
     @use 'mixins' as m;
+
+    // The server's refusal of an instant save, above the fields it is about.
+    .add-stop__refused {
+      color: var(--hq-color-error-ink);
+      font-size: var(--hq-text-theme-sm);
+    }
 
     // One column, always: the owner's brief names it, and it is also the only layout that
     // survives the 375 px sheet without a second set of rules.
@@ -372,6 +386,9 @@ export class AddStopComponent {
   private readonly writer = signal<'fields' | 'assistant'>('fields');
 
   protected readonly discardOpen = signal(false);
+  /** E4b review: the instant save's one round trip, and what the server said if it refused it. */
+  protected readonly saving = signal(false);
+  protected readonly saveError = signal<string | null>(null);
   private readonly touched = signal<ReadonlySet<FieldName>>(new Set());
   protected readonly submitted = signal(false);
 
@@ -509,6 +526,7 @@ export class AddStopComponent {
     this.tipAr.set('');
     this.touched.set(new Set());
     this.submitted.set(false);
+    this.saveError.set(null);
   }
 
   /**
@@ -519,7 +537,7 @@ export class AddStopComponent {
    * whole job ends at a valid form, so it can close on the click — which is the point of E4a.
    */
   protected save(): void {
-    if (this.submit()) this.close();
+    this.submit(false);
   }
 
   /**
@@ -530,7 +548,11 @@ export class AddStopComponent {
    * emptied. Focus goes back to Title, because that is where she would put it herself.
    */
   protected saveAndAddAnother(): void {
-    if (!this.submit()) return;
+    this.submit(true);
+  }
+
+  /** What "Save and add another" keeps and what it empties, once the save has actually landed. */
+  private nextQuestion(): void {
     this.titleValue.set('');
     this.questionValue.set('');
     this.fields.set(EMPTY_STRUCTURED);
@@ -540,12 +562,12 @@ export class AddStopComponent {
   }
 
   /** The shared half: validate, build the template document, start the draft. */
-  private submit(): boolean {
+  private submit(another: boolean): void {
     this.submitted.set(true);
-    if (!this.valid()) return false;
+    if (this.saving() || !this.valid()) return;
 
     const template = STOP_TEMPLATES.find((entry) => entry.type === this.typeValue());
-    if (!template) return false;
+    if (!template) return;
 
     const title = this.titleValue().trim();
     const skeleton = template.make(this.subject()) as unknown as Record<string, unknown>;
@@ -560,13 +582,25 @@ export class AddStopComponent {
     // the list complete rather than as a row waiting on a model.
     const byHand = this.byHand();
     if (byHand !== null) {
-      this.drafts.addNow(
-        this.lessonId(),
-        this.playId(),
-        stopBody(buildStructuredStop(byHand, this.fields(), draft)),
-      );
-      this.added.emit();
-      return true;
+      this.saving.set(true);
+      this.saveError.set(null);
+      this.drafts
+        .addNow(this.lessonId(), this.playId(), stopBody(buildStructuredStop(byHand, this.fields(), draft)))
+        .subscribe({
+          next: () => {
+            this.saving.set(false);
+            this.added.emit();
+            if (another) this.nextQuestion();
+            else this.close();
+          },
+          // Her five fields are exactly where she left them: this sheet is still open on the
+          // question the server refused, with the sentence saying which part of it to fix.
+          error: (cause: unknown) => {
+            this.saving.set(false);
+            this.saveError.set(apiErrorOf(cause)?.message ?? this.t('band.unreachable'));
+          },
+        });
+      return;
     }
 
     // The title leads the text because that is the shape `StopText.describe` gives a stop back
@@ -574,7 +608,8 @@ export class AddStopComponent {
     const text = `${title}\n\n${this.questionValue().trim()}`;
     this.drafts.add(this.lessonId(), this.playId(), stopBody(draft), text);
     this.added.emit();
-    return true;
+    if (another) this.nextQuestion();
+    else this.close();
   }
 
   private t(key: string, params?: Record<string, unknown>): string {

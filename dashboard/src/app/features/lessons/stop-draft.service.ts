@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { TranslocoService } from '@jsverse/transloco';
-import { Subject, TimeoutError, timeout } from 'rxjs';
+import { type Observable, Subject, TimeoutError, tap, timeout } from 'rxjs';
 import { type Stop, apiErrorOf } from '../../api';
 import { LessonApiService } from './lesson-api.service';
 import { stopFromTextBody } from './lessons.models';
@@ -106,16 +106,20 @@ export class StopDraftService {
    * E4b: a stop that is already finished — one request, and no draft row at all.
    *
    * The sheet built the whole document from its fields (`structured-stop.ts`), so there is nothing
-   * for the assistant to do and nothing to wait for: the create lands, `created$` puts the stop in
-   * the level's list selected, and a refusal is the error interceptor's red band as usual. It goes
-   * through this service rather than the page only so that the "a new stop appeared" path is one
-   * path, whichever way it was written.
+   * for the assistant to do: the create lands and `created$` puts the stop in the level's list,
+   * selected. It goes through this service rather than the page only so that the "a new stop
+   * appeared" path is one path, whichever way it was written.
+   *
+   * Unlike {@link add} it hands the request **back**, and the sheet awaits it (E4b review). There
+   * is no model in this path, so the wait is one fast round trip rather than minutes — and the
+   * refusal it can end in used to be swallowed here, under a sheet that had already closed and
+   * emptied her five fields. The sheet keeps them now and shows what the server said — which is
+   * why this one create is `silentErrors()`: the band would repeat the line the sheet already has.
    */
-  addNow(lessonId: string, playId: string, body: string): void {
-    this.api.addStop(playId, body).subscribe({
-      next: (stop) => this.created$.next({ lessonId, playId, stop }),
-      error: () => undefined,
-    });
+  addNow(lessonId: string, playId: string, body: string): Observable<Stop> {
+    return this.api
+      .addStop(playId, body, true)
+      .pipe(tap((stop) => this.created$.next({ lessonId, playId, stop })));
   }
 
   /** The same words again. Only from an errored row — a second run over a live one would race it. */

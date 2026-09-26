@@ -802,6 +802,7 @@
         "deletingStop": "Deleting the stop…",
         "reordering": "Saving the new order…",
         "creatingLevel": "Creating the level…",
+        "writingLevel": "Asking the assistant for this level…",
         "generating": "Writing the other levels…",
         "savingPanel": "Saving the parent panel…",
         "movingDate": "Moving the lesson…"
@@ -911,6 +912,11 @@
         "message": "{{title}} will be visible to every child on the course.",
         "confirm": "Publish"
       },
+      "replaceLevelConfirm": {
+        "title": "Replace this level?",
+        "message": "The assistant writes {{level}} again and every question in it is replaced. This cannot be undone.",
+        "confirm": "Replace"
+      },
       "regeneratePlayConfirm": {
         "title": "Regenerate this level?",
         "message": "This replaces every stop in the level with a new version and cannot be undone.",
@@ -1002,7 +1008,6 @@
           "questionHint": "What the child is asked. Up to 90 characters.",
           "questionRequired": "Write the question the child answers.",
           "answer": "Answer {{index}}",
-          "answers": "Answers",
           "optionsTooFew": "Write at least two answers to choose from.",
           "correct": "Which answer is right",
           "correctRequired": "Write that answer first, or mark one you have written.",
@@ -1117,7 +1122,13 @@
       "addLevel": {
         "lede": "This level is empty. Write it yourself, or let the assistant write it from Level 1.",
         "mine": "Write it myself",
-        "assistant": "Let the assistant write it"
+        "assistant": "Let the assistant write it",
+        "askAgain": "Ask again",
+        "failedHere": "The assistant could not write this level. Ask again, or write it yourself.",
+        "stillWriting": "The assistant is still writing — wait for the bell.",
+        "needLevel1": "Write at least one question in Level 1 first.",
+        "rewrite": "Rewrite this level with the assistant",
+        "writing": "The assistant is writing {{level}}…"
       }
     },
     "analyzedBefore": "Analyzed before · 0 tokens",
