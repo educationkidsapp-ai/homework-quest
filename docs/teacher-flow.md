@@ -175,9 +175,12 @@ Each refusal has its own answer on the screen:
 - 400 (empty Level 1, or a published lesson) → the server's sentence under the two buttons. A Level 1 with no
   questions in it does not get the assistant button at all — the card says *Write at least one question in Level 1
   first* instead of offering an ask the server would refuse.
-- `error` → the ledger's message on that level's tab with **Ask again**, which re-posts with `?replace=true`. A
-  hand-written lesson has no *Retry this step only*: the step it failed at is the one question she asked, not a
-  pipeline she started.
+- `error` → **Ask again** on that level's tab (the ledger's own sentence stays in the red band above, said once). On
+  a level that still holds its earlier questions it raises the same Replace band *Rewrite* does; on an empty one it
+  re-posts on the click. Never on **Level 1**, which is not a level the assistant is ever asked for — a lesson that
+  fails at `generate_L1` keeps the pipeline's band and both its retries. A hand-written lesson has no *Retry this step
+  only*: the step it failed at is the one question she asked, not a pipeline she started. The Add level card stays put
+  underneath either way, so *Write it myself* is still there.
 
 **Rewriting a level she already has.** A non-empty Level 2, Level 3 or Again tab carries **Rewrite this level with
 the assistant** next to *Regenerate this level*: the same endpoint with `?replace=true`, behind the same Replace
