@@ -84,6 +84,7 @@ class RemoteAdminApi(private val baseUrl: String, private val token: () -> Strin
         }
     }
     override suspend fun generateFromText(lessonId: String, text: String): JobRef = call { client.post("$baseUrl/admin/lessons/$lessonId/generate-from-text") { authed(); contentType(ContentType.Application.Json); setBody(quest.api.GenerateFromTextRequest(text)) } }
+    override suspend fun generateLevel(lessonId: String, level: String, replace: Boolean): JobRef = call { client.post("$baseUrl/admin/lessons/$lessonId/plays/$level/generate?replace=$replace") { authed() } }
     /** Bytes of a lesson picture for the phone preview (`/media/pages/{id}` is public; the origin may differ in dev). */
     suspend fun imageBytes(imageId: String): ByteArray? { val r = client.get("$baseUrl/media/pages/$imageId") { authed() }; return if (r.status.isSuccess()) r.readRawBytes() else null }
     override suspend fun regenerateStop(stopId: String): Stop = call { client.post("$baseUrl/admin/stops/$stopId/regenerate") { authed() } }

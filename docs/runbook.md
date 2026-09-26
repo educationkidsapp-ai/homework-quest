@@ -1194,6 +1194,15 @@ is kept rather than regenerated), which means the same deadlines and the same st
 no **Retry** — the way out is pressing *Generate from text* again, and the levels already written are not paid for
 twice.
 
+**One level on request is one step (E5).** *Add level → Let the assistant write it* in the hand-written flow posts to
+`/teacher|admin/lessons/{id}/plays/{level}/generate` (`level` = `2`, `3` or `again`, `?replace=true` to write over a
+level that has questions) and runs **only** that level's step: the row is reset, the rest of the strip is left where
+it is, and the lesson goes `generating` → `review` (or `error`). The analysis it reads is either already done or
+derived first — Prompt A over the lesson's title and its Level 1 stops rendered as text, cached by that text's hash,
+skills auto-confirmed — which is one extra `analyze` row in the strip and one Prompt A the first time only. Same
+deadlines, same watchdog, same *Retry this step* as any other step; 409 `generating` is the answer while a job for
+that lesson is live, so there is never a second one to strand. The parent panel is not part of it (publish fills it).
+
 **The generate steps run two at a time, not five in a row (D25).** Levels 1, 2 and 3 read the same analysis and the
 same confirmed skills and write three different plays, so they run **together**; Again needs the stored Level 1 (it
 excludes its stop ids) and the parent panel needs all three, so those two wait for the levels and then run together

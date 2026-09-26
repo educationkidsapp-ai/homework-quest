@@ -183,6 +183,15 @@ public class AdminLessonController {
         return job(id, service.generateFromText(id, req.getText()));
     }
 
+    /** E5 (D27): one level written from Level 1 — `level` is `2`, `3` or `again`. The Admin twin of the teacher route. */
+    @PreAuthorize("@permit.has('play.write')")
+    @PostMapping(value = "/admin/lessons/{id}/plays/{level}/generate", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = JobRef.class)))
+    public String generateLevel(@PathVariable String id, @PathVariable String level,
+                                @RequestParam(defaultValue = "false") boolean replace) {
+        return job(id, service.generateLevel(id, level, replace));
+    }
+
     @PreAuthorize("@permit.has('stop.write')")
     @PostMapping(value = "/admin/stops/{stopId}/regenerate", produces = MediaType.APPLICATION_JSON_VALUE)
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Stop.class)))

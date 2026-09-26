@@ -355,6 +355,50 @@ public class AdminLessonService {
         return LessonStatus.GENERATING;
     }
 
+    /**
+     * E5 (D27): one level written on request — the hand-written flow's "Add level → let the assistant write it". The
+     * cap stays at three levels, so {@code level} is {@code 2}, {@code 3} or {@code again} (Level 1, variant 1);
+     * Level 1 is always hers, because it is what the model is given to write from.
+     *
+     * <p>It is one ledger step ({@link LessonPipeline#generateLevelAsync}), so the editor's `/status` poll and E2's
+     * bell need to know nothing new: the lesson goes `generating` → `review`, and `lesson.ready` rings when the level
+     * lands. While it runs the ordinary lesson-wide lock holds — every edit is refused, not just the level being
+     * written — and the parent panel is not generated here: {@link #completeManual} still fills whatever publish
+     * finds missing.
+     *
+     * <p>The three refusals: 409 `generating` while a job is running, 409 `exists` when that level already has stops
+     * and {@code replace} is false (which then regenerates it with the next seed, a fresh cache slot), and 400 when
+     * Level 1 is empty.
+     */
+    public LessonStatus generateLevel(String id, String level, boolean replace) {
+        var lesson = getForWrite(id);
+        var step = levelStep(level);
+        int[] target = LessonPipeline.target(step);
+        if (LessonState.status(lesson) == LessonStatus.PUBLISHED) throw ApiException.badRequest("Unpublish the lesson before writing another level.");
+        if (!editable(lesson)) throw ApiException.conflict(quest.api.dto.ApiError.GENERATING, "This lesson is busy — wait for the current job to finish.");
+        var one = plays.findByLessonIdAndLevelAndVariant(id, 1, 0).orElse(null);
+        if (one == null || store.play(one).getStops().isEmpty()) throw ApiException.badRequest("Write Level 1 first: the assistant writes the other levels from it.");
+        var existing = plays.findByLessonIdAndLevelAndVariant(id, target[0], target[1]).orElse(null);
+        int seed = 0;
+        if (existing != null && !store.play(existing).getStops().isEmpty()) {
+            if (!replace) throw ApiException.conflict(quest.api.dto.ApiError.EXISTS, step.getLabel() + " already has questions. Ask again with replace=true to write over it.");
+            seed = existing.getSeed() + 1;
+        }
+        state.set(id, LessonStatus.GENERATING);
+        pipeline.generateLevelAsync(id, step, seed);
+        return LessonState.status(get(id));
+    }
+
+    /** The levels a teacher may ask for: Level 1 is hers to write, and D27 caps the rest at Level 2, Level 3 and Again. */
+    private static PipelineStep levelStep(String level) {
+        return switch (level == null ? "" : level.trim().toLowerCase()) {
+            case "2" -> PipelineStep.GENERATE_L2;
+            case "3" -> PipelineStep.GENERATE_L3;
+            case "again" -> PipelineStep.GENERATE_AGAIN;
+            default -> throw ApiException.badRequest("Ask for level 2, level 3 or again — Level 1 is yours to write.");
+        };
+    }
+
     /** Manual lessons publish with whatever the admin wrote: missing levels repeat Level 1, a missing panel is derived from the stops. */
     private void completeManual(LessonEntity lesson) {
         var all = store.plays(lesson.getId());

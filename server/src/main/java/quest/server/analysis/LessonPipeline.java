@@ -82,6 +82,82 @@ public class LessonPipeline {
     /** Retry this step only: the remaining steps wait for "Retry and continue". */
     @Async public void retryStepAsync(String lessonId, PipelineStep step) { runFrom(lessonId, step, false); }
 
+    /**
+     * E5 (D27): one level, written on its own. The hand-written flow's "Add level → let the assistant write it" is a
+     * single ledger step for that level and nothing else — the analysis it needs is either already done or derived
+     * here ({@link #analysed}), the other steps are left exactly where they are, and the lesson goes
+     * `generating` → `review` so the editor's `/status` poll and E2's `lesson.ready` need to know nothing new.
+     *
+     * <p>The panel is deliberately not part of it: a hand-written lesson's panel is filled at publish time by
+     * {@link quest.server.admin.AdminLessonService}'s `completeManual`, and paying for Prompt C every time she adds
+     * one level would be three panels for one lesson.
+     */
+    @Async
+    public void generateLevelAsync(String lessonId, PipelineStep step, int seed) {
+        live.add(lessonId);
+        try {
+            steps.ensure(lessonId);
+            if (!analysed(lessonId)) return;
+            // the levels she wrote by hand count as done, so the strip does not offer to write them again — and then
+            // the one step this job is about is reset, which is what makes `?replace=true` regenerate rather than skip
+            markExistingWork(lessonId);
+            steps.mark(lessonId, step, "pending", null, null);
+            state.set(lessonId, LessonStatus.GENERATING);
+            int[] target = target(step);
+            final LessonEntity lesson = lessons.findById(lessonId).orElseThrow(() -> new LessonSteps.Stop("lesson deleted"));
+            boolean ok = steps.run(lessonId, step, () -> { failOnce(lessonId, step); hang(step); generation.generateFromLevelOne(lesson, target[0], target[1], seed); });
+            if (!ok) { var row = steps.get(lessonId, step).orElseThrow(); state.fail(lessonId, row.getErrorCode(), row.getErrorMessage()); return; }
+            state.set(lessonId, LessonStatus.REVIEW); state.clearCurrentStep(lessonId);
+        } catch (LessonSteps.Stop e) { log.info("level job for {} stopped: {}", lessonId, e.getMessage()); }
+        catch (ApiException e) { log.warn("level job for {} failed: {}", lessonId, e.getMessage()); state.fail(lessonId, e.error().code(), LessonSteps.Messages.of(e.error().code(), e.error().message())); }
+        catch (RuntimeException e) { log.error("level job for {} crashed", lessonId, e); state.fail(lessonId, "model_failed", LessonSteps.Messages.of("model_failed", e.getMessage())); }
+        finally { live.remove(lessonId); }
+    }
+
+    /** E5: the (level, variant) one generate step writes. */
+    public static int[] target(PipelineStep step) {
+        return switch (step) {
+            case GENERATE_L1 -> new int[] {1, 0}; case GENERATE_L2 -> new int[] {2, 0}; case GENERATE_L3 -> new int[] {3, 0}; case GENERATE_AGAIN -> new int[] {1, 1};
+            default -> throw ApiException.badRequest("That step writes no level.");
+        };
+    }
+
+    /**
+     * The analysis a per-level generate reads, derived when there is none.
+     *
+     * <p>A lesson that was analysed keeps its analysis, uploaded or typed. A lesson written by hand may have none at
+     * all — the teacher wrote Level 1 stop by stop and never pressed "Generate the other levels" — and Prompt B
+     * cannot be asked for a level without one. So Prompt A is run over what the lesson actually is: its title and
+     * its Level 1 stops read out as English by {@link quest.server.content.StopText}, which is the same prose the
+     * editor shows her, cached by the hash of that text exactly as typed text is and with its skills auto-confirmed
+     * ({@link AnalysisService#analyzeText}). Deriving it costs one Prompt A once: the second level she asks for
+     * reads the same cache row.
+     */
+    private boolean analysed(String lessonId) {
+        if (steps.isDone(lessonId, PipelineStep.ANALYZE) && steps.isDone(lessonId, PipelineStep.SKILLS)) return true;
+        state.set(lessonId, LessonStatus.ANALYZING);
+        steps.done(lessonId, PipelineStep.UPLOAD); steps.done(lessonId, PipelineStep.CONVERT);   // she typed the stops; there is no file
+        steps.mark(lessonId, PipelineStep.ANALYZE, "pending", null, null);
+        boolean ok = steps.run(lessonId, PipelineStep.ANALYZE, () -> {
+            var lesson = lessons.findById(lessonId).orElseThrow(() -> new LessonSteps.Stop("lesson deleted"));
+            analysis.analyzeText(lesson, levelOneText(lesson));
+        });
+        if (!ok) { var row = steps.get(lessonId, PipelineStep.ANALYZE).orElseThrow(); state.fail(lessonId, row.getErrorCode(), row.getErrorMessage()); return false; }
+        steps.done(lessonId, PipelineStep.SKILLS);      // she chose the content herself, so there is nothing to confirm
+        return true;
+    }
+
+    /** The lesson as Prompt A can read it when there is no upload: the title, then every Level 1 stop in plain English. */
+    private String levelOneText(LessonEntity lesson) {
+        var l1 = store.plays(lesson.getId()).stream().filter(p -> p.getLevel() == 1 && p.getVariant() == 0).findFirst()
+                .orElseThrow(() -> ApiException.badRequest("Write Level 1 first."));
+        var play = store.play(l1);
+        if (play.getStops().isEmpty()) throw ApiException.badRequest("Write Level 1 first.");
+        var sb = new StringBuilder(lesson.getTitle() == null || lesson.getTitle().isBlank() ? "This lesson" : lesson.getTitle()).append("\n\n");
+        for (var stop : play.getStops()) sb.append(quest.server.content.StopText.describe(stop)).append("\n\n");
+        return sb.toString().strip();
+    }
+
     /** The step a retry starts from; throws when there is nothing to run. */
     public PipelineStep firstToRun(String lessonId) {
         backfill(lessonId);

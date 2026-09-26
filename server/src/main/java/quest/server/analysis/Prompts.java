@@ -84,7 +84,14 @@ public final class Prompts {
             case 2 -> "LEVEL 2 — \"Think\": the same skills one step deeper. Stories: the SAME story and characters, but questions the slides did not ask (why, how, feelings, what happened before/after, order of events) and new sentences using the story's words. Math: the same method with new numbers inside the slides' range. No page reading; one explain/wordCards stop at most.";
             default -> "LEVEL 3 — \"Challenge\": the same skills stretched one step (two-step problems, retelling the whole story in the child's own words, writing a sentence about it). Stories stay the SAME story. Include at least one open stop (retell / openAnswer / writeSentence free=true).";
         };
-        String variantBrief = variant == 1 ? "\nThis is the AGAIN variant of Level 1 for a child who needs another look: same skills and same difficulty, but every question is different from the first pass. Do not reuse these stop ids: " + String.join(", ", excludedIds) : "";
+        // E5: `excludedIds` on a variant-0 level means this level is being written from a Level 1 the teacher wrote by
+        // hand, so it is the Level 1 stops that must not be repeated — the same instruction the Again variant carries,
+        // pointed the other way ("harder and different" rather than "same difficulty, different questions"). The
+        // uploaded pipeline passes no ids for Levels 2 and 3, so its prompt text — and its cache — is unchanged.
+        String variantBrief = variant == 1
+                ? "\nThis is the AGAIN variant of Level 1 for a child who needs another look: same skills and same difficulty, but every question is different from the first pass. Do not reuse these stop ids: " + String.join(", ", excludedIds)
+                : excludedIds.isEmpty() ? ""
+                : "\nThe child has already played the Level 1 of this lesson, which is what the analysis above was written from: every question here must be harder than those and ask something they did not ask. Do not reuse these stop ids: " + String.join(", ", excludedIds);
         return """
         %s%s
 
