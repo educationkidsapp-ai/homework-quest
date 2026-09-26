@@ -53,6 +53,11 @@ public class SecurityConfig {
                 // `/teacher/**` and `/admin/**` by their matchers above. What she may read inside is the
                 // `@PreAuthorize` on each route, as everywhere else.
                 .requestMatchers("/coordinator/**").hasAnyRole("ADMIN", "COORDINATOR")
+                // RM1 (DR5): the department manager's own area, the same shape `/coordinator/**` has — no school and no
+                // track in the path, and read-only. Only the role itself and the platform ADMIN may knock; a TEACHER or
+                // a COORDINATOR is stopped here rather than by a permission. What she may read inside is the
+                // `@PreAuthorize` on each route, as everywhere else.
+                .requestMatchers("/management/**").hasAnyRole("ADMIN", "MANAGERIAL")
                 .requestMatchers("/children/**", "/lessons/**").hasRole("PARENT")
                 .requestMatchers("/media/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
                 .anyRequest().authenticated())

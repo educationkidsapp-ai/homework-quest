@@ -35,7 +35,8 @@ public final class DashboardDto {
     public record DashboardUser(String id, String email, String role, String schoolId, String status, String displayName,
                                 String photoUrl, String language, boolean mustChangePassword, Long lastLoginAt, long createdAt,
                                 String impersonatedBy, String platformName, String schoolName,
-                                List<quest.server.classes.ClassDto.TeachingAssignment> assignments) {}
+                                List<quest.server.classes.ClassDto.TeachingAssignment> assignments,
+                                List<String> departments) {}
 
     public record MePermissions(String role, List<String> permissions, boolean readOnly) {}
 
@@ -48,13 +49,18 @@ public final class DashboardDto {
 
     public static DashboardUser of(Entities.UserEntity u, String impersonatedBy) { return of(u, impersonatedBy, null, null); }
 
-    /** `GET /me` for a TEACHER: her account with what she teaches, so her navigation needs no second request. */
+    /**
+     * `GET /me` for a TEACHER: her account with what she teaches, so her navigation needs no second request — and, for a
+     * MANAGERIAL user, the departments she runs (RM1, DR5), which is the same argument for the same screen-building job.
+     * Both are null for every role they do not belong to.
+     */
     public static DashboardUser of(Entities.UserEntity u, String impersonatedBy, String platformName, String schoolName,
-                                   List<quest.server.classes.ClassDto.TeachingAssignment> assignments) {
+                                   List<quest.server.classes.ClassDto.TeachingAssignment> assignments,
+                                   List<String> departments) {
         var base = of(u, impersonatedBy, platformName, schoolName);
         return new DashboardUser(base.id(), base.email(), base.role(), base.schoolId(), base.status(), base.displayName(),
                 base.photoUrl(), base.language(), base.mustChangePassword(), base.lastLoginAt(), base.createdAt(),
-                base.impersonatedBy(), base.platformName(), base.schoolName(), assignments);
+                base.impersonatedBy(), base.platformName(), base.schoolName(), assignments, departments);
     }
 
     /** `schoolName` saves the Admin's cross-school Users list (§6 screen 6) a second request per row. */
@@ -62,6 +68,6 @@ public final class DashboardDto {
         return new DashboardUser(u.getId(), u.getEmail(), u.getRole(), u.getSchoolId(), u.getStatus(), u.getDisplayName(),
                 u.getPhotoUrl(), u.getLanguage(), u.isMustChangePassword(),
                 u.getLastLoginAt() == null ? null : u.getLastLoginAt().toEpochMilli(),
-                u.getCreatedAt() == null ? 0 : u.getCreatedAt().toEpochMilli(), impersonatedBy, platformName, schoolName, null);
+                u.getCreatedAt() == null ? 0 : u.getCreatedAt().toEpochMilli(), impersonatedBy, platformName, schoolName, null, null);
     }
 }

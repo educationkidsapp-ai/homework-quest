@@ -83,6 +83,18 @@ public class ChatPeers {
      * coordinator's own conversation, not a route the platform Admin writes on.
      */
     public List<UserEntity> managersFor(Principals.User caller) {
+        return managerOptionsFor(caller).stream().map(Manager::user).toList();
+    }
+
+    /** A manager she may write to, with the department that made her reachable — `GET /coordinator/managers`. */
+    public record Manager(UserEntity user, String curriculum) {}
+
+    /**
+     * The same people the chooser shows (RM1 addendum), each with her department, so the screen can say
+     * "Nour · British" without a second request. One pass over the same two statements {@link #managersFor} uses; a
+     * manager of two departments is named by the first of them her rows carry, in `curriculum` order.
+     */
+    public List<Manager> managerOptionsFor(Principals.User caller) {
         String schoolId = tenant.writeSchoolId();
         var mine = coordinators.scopesOf(caller);
         if (mine.isEmpty()) return List.of();
@@ -91,12 +103,18 @@ public class ChatPeers {
         var staff = users.findBySchoolIdAndRole(schoolId, "MANAGERIAL");
         if (staff.isEmpty()) return List.of();
         var rows = rowsOf(schoolId, staff);
-        var out = new ArrayList<UserEntity>();
-        for (var person : staff)
-            if (rows.getOrDefault(person.getId(), List.of()).stream().anyMatch(row -> row.getSubject() == null
-                    && !blank(row.getCurriculum()) && (bothTracks || tracks.contains(normalise(row.getCurriculum())))))
-                out.add(person);
-        out.sort(java.util.Comparator.comparing(ChatService::name));
+        var out = new ArrayList<Manager>();
+        for (var person : staff) {
+            String department = null;
+            for (var row : rows.getOrDefault(person.getId(), List.of()))
+                if (row.getSubject() == null && !blank(row.getCurriculum())
+                        && (bothTracks || tracks.contains(normalise(row.getCurriculum())))) {
+                    department = normalise(row.getCurriculum());
+                    break;
+                }
+            if (department != null) out.add(new Manager(person, department));
+        }
+        out.sort(java.util.Comparator.comparing(m -> ChatService.name(m.user())));
         return List.copyOf(out);
     }
 

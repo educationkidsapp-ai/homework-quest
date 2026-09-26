@@ -79,6 +79,10 @@ class FeatureFlagCoverageTest {
      *       without a database session. What her area shows about a flagged feature stays behind that feature's own
      *       flag, where the feature lives — R3's gradebook, exam and attendance reads carry `gradebook` and `exams`,
      *       and R4's communication half carries `chat`, `complaints` and `announcements`.</li>
+     *   <li>{@code ManagementController} and {@code ManagerAdminController} (RM1) — the same two arguments for the
+     *       department manager: `/management` is the dashboard of a role rather than one feature of it, and the Admin
+     *       half is how a manager comes to exist at all. Her flagged screens are next door on
+     *       {@code ManagementReadsController}, which names `gradebook` and `exams` on every handler.</li>
      *   <li>{@code TeacherLessonController} (N2.1) — {@code TeacherController}'s argument again, for the half of a
      *       teacher's job that writes rather than reads: a flag over "make a lesson" leaves a TEACHER signed in with
      *       nothing to do, and the routes are aliases over the pre-flag {@code AdminLessonController}, so gating them
@@ -95,7 +99,8 @@ class FeatureFlagCoverageTest {
             "HomeController", "DashboardDataController", "DashboardController", "TeacherController",
             "ClassAdminController", "TeacherAdminController", "TeacherLessonController",
             "AttendanceController", "NotificationController",
-            "CoordinatorController", "CoordinatorAdminController");
+            "CoordinatorController", "CoordinatorAdminController",
+            "ManagementController", "ManagerAdminController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

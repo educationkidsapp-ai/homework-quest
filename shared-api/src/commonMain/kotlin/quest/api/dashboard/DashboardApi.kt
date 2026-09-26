@@ -139,6 +139,13 @@ data class DashboardUser(
      * MANAGERIAL, who are not assignment-scoped.
      */
     val assignments: List<TeachingAssignment>? = null,
+    /**
+     * `GET /me` only, and [assignments]' sibling for the third role (RM1, DR5): the departments this manager runs, so
+     * the dashboard's Management area can label itself and pick a default track without a second request. Absent for
+     * every other role — a TEACHER is assignment-scoped and an ADMIN is not scoped at all — and the manager's own
+     * numbers stay on `GET /management/me`, which is where the counts and the coordinators are.
+     */
+    val departments: List<Curriculum>? = null,
 )
 
 /** The public half of a teacher account: what the teacher island and the school page show. */
@@ -695,6 +702,13 @@ interface DashboardApi {
      */
     suspend fun coordinatorLessonStatus(lessonId: String): quest.api.LessonStatusView
 
+    /**
+     * `GET /coordinator/managers` (RM1 addendum) — the managers whose department intersects her scope, each with that
+     * department: the list a `managerUserId` for her staff thread has to come from. `coordinator.chat`, behind the
+     * `chat` flag with the rest of her inbox.
+     */
+    suspend fun coordinatorManagers(): List<CoordinatorManager>
+
     // ---- R3: the teacher's numbers, read through her scope (DR2)
     //
     // Every return type below is the teacher's own: the server delegates to the grading and exam services rather
@@ -752,6 +766,73 @@ interface DashboardApi {
 
     /** `PUT /admin/coordinators/{id}/scopes` — the complete set she should hold afterwards. */
     suspend fun setCoordinatorScopes(userId: String, request: CoordinatorScopesRequest): CoordinatorAccount
+
+    // ---------------------------------------------------------------- RM1: the manager's area (DR5)
+    //
+    // The department manager's mirror of the block above, one axis over: wide in subject, narrow in track. Every
+    // route is `management.read` (the lessons are `management.lesson.read`, the gradebook and exam reads
+    // `management.results.read` and `management.exams.read`), granted to MANAGERIAL and to the platform ADMIN, and
+    // her `staff_scopes` rows are the ones with no subject. Read-only: her writes are RM2 and RM5.
+    //
+    // `GET /management/classes/{id}/attendance?from&to` is deliberately absent, exactly as the coordinator's and the
+    // teacher's are: the register's body is a server record the dashboard reads through the generated client.
+
+    /** `GET /management/me` — her departments and their five numbers ([ManagerMe]). */
+    suspend fun managementMe(): ManagerMe
+
+    /** `GET /management/coordinators` — the coordinators of her department, with their subjects and tracks. */
+    suspend fun managementCoordinators(): List<ManagerCoordinator>
+
+    /** `GET /management/teachers` — every teacher of the department; the coordinator's own rows, one scope wider. */
+    suspend fun managementTeachers(): List<CoordinatorTeacher>
+
+    /** `GET /management/classes` — the department's grades, each with its section cards. */
+    suspend fun managementClasses(): List<ManagementGradeGroup>
+
+    /** `GET /management/calendar?from&to` — every class of the department, day by day. Capped at 62 days. */
+    suspend fun managementCalendar(from: String? = null, to: String? = null): CoordinatorCalendar
+
+    /**
+     * `GET /management/stats?from&to` — DR5's statistics: a row per grade and the department's total. Both bounds
+     * absent is the month ending today, and the window is capped at a term (186 days).
+     */
+    suspend fun managementStats(from: String? = null, to: String? = null): ManagementStats
+
+    /** `GET /management/lessons?classId&status&from&to` — the teacher's lesson rows, reduced to the department. */
+    suspend fun managementLessons(classId: String? = null, status: String? = null,
+                                  from: String? = null, to: String? = null): List<quest.api.AdminLesson>
+
+    /** `GET /management/lessons/{id}` — the same lesson view the teacher gets, and no route that writes it. */
+    suspend fun managementLesson(lessonId: String): quest.api.AdminLesson
+
+    /** `GET /management/lessons/{id}/status` — E1's poll for her read-only lesson page. */
+    suspend fun managementLessonStatus(lessonId: String): quest.api.LessonStatusView
+
+    /** `GET /management/classes/{id}/results?from&to` — §7's gradebook grid, every subject of the section. */
+    suspend fun managementClassResults(classId: String, from: String? = null, to: String? = null): Gradebook
+
+    /** `GET /management/lessons/{id}/results` — §7's per-lesson results for a lesson of her department. */
+    suspend fun managementLessonResults(lessonId: String): LessonResults
+
+    /** `GET /management/children/{id}` — §7's child page, whole: every subject the child is taught. */
+    suspend fun managementChild(childId: String): ChildReport
+
+    /** `GET /management/classes/{id}/exams` — §8's Exams tab for a section of her department. */
+    suspend fun managementClassExams(classId: String): List<ExamRow>
+
+    /** `GET /management/exams/{id}/results` — §8's results and distribution, the exact figure the stats estimate. */
+    suspend fun managementExamResults(examId: String): ExamResults
+
+    // ---- Admin: manager accounts and their departments (ADMIN only, `manager.manage`)
+
+    /** `GET /admin/managers` — every department manager of the school with her departments. */
+    suspend fun managers(): List<ManagerAccount>
+
+    /** `POST /admin/managers` — 201 with the one and only sight of the password, as for a coordinator. */
+    suspend fun createManager(request: CreateManagerRequest): ManagerCreated
+
+    /** `PUT /admin/managers/{id}/scopes` — the complete set of departments she should hold afterwards. */
+    suspend fun setManagerDepartments(userId: String, request: ManagerDepartmentsRequest): ManagerAccount
 }
 
 /** `PUT /admin/platform-settings` (§A): only the fields that are present are written. */

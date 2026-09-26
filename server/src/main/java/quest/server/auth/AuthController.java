@@ -24,9 +24,12 @@ import quest.server.platform.ThemeService;
 public class AuthController {
     private final AuthService auth; private final Permissions permissions; private final ThemeService themes;
     private final quest.server.schools.SchoolService schools; private final quest.server.classes.SectionService sections;
+    private final quest.server.tenancy.ManagerScope managers;
     public AuthController(AuthService auth, Permissions permissions, ThemeService themes,
-                          quest.server.schools.SchoolService schools, quest.server.classes.SectionService sections) {
-        this.auth = auth; this.permissions = permissions; this.themes = themes; this.schools = schools; this.sections = sections;
+                          quest.server.schools.SchoolService schools, quest.server.classes.SectionService sections,
+                          quest.server.tenancy.ManagerScope managers) {
+        this.auth = auth; this.permissions = permissions; this.themes = themes; this.schools = schools;
+        this.sections = sections; this.managers = managers;
     }
 
     @PostMapping(value = "/auth/sign-in", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -75,7 +78,10 @@ public class AuthController {
         // V7: a teacher's navigation is her assignments (`docs/teacher-flow.md` §2), so they arrive with her account
         // rather than as a second request. Two statements, and none at all for ADMIN and MANAGERIAL.
         var assignments = "TEACHER".equals(user.getRole()) ? sections.assignmentsOfTeacher(user.getId()) : null;
-        return DashboardDto.of(user, principal.impersonatedBy(), themes.displayName(user.getSchoolId()), schoolName, assignments);
+        // RM1 (DR5): the same argument for the third role — a manager's department is what her area is scoped to, so it
+        // arrives with her account rather than as a second request. One statement, and none at all for anybody else.
+        var departments = quest.server.tenancy.ManagerScope.ROLE.equals(user.getRole()) ? managers.departments(principal) : null;
+        return DashboardDto.of(user, principal.impersonatedBy(), themes.displayName(user.getSchoolId()), schoolName, assignments, departments);
     }
 
     /**
