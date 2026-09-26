@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import org.hibernate.annotations.Filter;
 
-/** V21: the weekly plan, announcements and events a manager or a coordinator sends out, and who has read them (RM2, DR6). */
+/** V22: the weekly plan, announcements and events a manager or a coordinator sends out, and who has read them (RM2, DR6). */
 public final class Entities {
     private Entities() {}
 

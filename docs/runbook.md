@@ -1272,7 +1272,7 @@ banner without a refetch; a resolved thread still accepts the parent's reply, so
 
 ### Broadcasts (RM2, DR6)
 
-The weekly plan, announcements and events are **one feature with two composers**, in `broadcasts` (V21). A row carries
+The weekly plan, announcements and events are **one feature with two composers**, in `broadcasts` (V22). A row carries
 its own audience, so the manager and the coordinator write the same shape and every reader asks it the same question.
 Contract: `shared-api/src/commonMain/kotlin/quest/api/dto/Broadcasts.kt` (`BroadcastKind`, `BroadcastAudience`,
 `BroadcastView`, `BroadcastFeed`, `CreateBroadcastRequest`). Behind the **`announcements`** flag — the key the feature
