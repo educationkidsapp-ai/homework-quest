@@ -925,6 +925,8 @@ export class LessonPage {
    * nothing else is.
    */
   private onStatus(view: LessonStatusView): void {
+    // The ledger has spoken, so `asked` has nothing left to stand in for — see its own comment.
+    this.asked.set(null);
     const signature = statusSignature(view);
     if (this.lastSignature !== null && this.lastSignature !== signature) this.lessonRes.reload();
     this.lastSignature = signature;
@@ -1167,16 +1169,24 @@ export class LessonPage {
     const running = rows.find((step) => step.status === LessonStepInfoStatusEnum.RUNNING);
     const todo = rows.filter((step) => step.status !== LessonStepInfoStatusEnum.DONE);
     const step = running ?? (todo.length === 1 ? todo[0] : undefined);
-    return step ? (STEP_TAB[step.step] ?? null) : this.asked();
+    if (step) return STEP_TAB[step.step] ?? null;
+    // No generate row names a level, so the only thing that may speak for one is an ask this page
+    // made moments ago — and only under `generating`, the status such an ask produces. Every other
+    // running status is somebody else's job: "Regenerate this stop" resets no generate row at all,
+    // and without this it would have labelled the last-asked tab as being written.
+    return lesson.status === AdminLessonStatusEnum.GENERATING ? this.asked() : null;
   });
 
   /**
-   * The level this page has just asked for, until the ledger names it itself.
+   * The level this page has just asked for, for exactly as long as the ledger cannot say.
    *
-   * `POST …/generate` answers a `JobRef` and nothing else, so for one poll interval the lesson in
-   * hand says `generating` with no step rows behind it. Without this the tab would fall straight
-   * back to "This level does not exist yet" and offer the button again — which the server would
-   * then refuse with `generating`, for the level it is at that moment writing.
+   * `POST …/generate` answers a `JobRef` and nothing else, so until the first `/status` body lands
+   * the lesson in hand says `generating` with its old step rows behind it. Without this the tab
+   * would fall straight back to "This level does not exist yet" and offer the button again —
+   * which the server would then refuse with `generating`, for the level it is writing.
+   *
+   * {@link onStatus} drops it on that first body, whether or not the body changed anything, so the
+   * window really is the one poll interval it claims to be and a later job can never inherit it.
    */
   private readonly asked = signal<PlayTabId | null>(null);
 

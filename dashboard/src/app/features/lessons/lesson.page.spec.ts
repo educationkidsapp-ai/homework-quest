@@ -769,6 +769,72 @@ describe('Lesson', () => {
   });
 
   /**
+   * A full pipeline has three or four generate rows still to do, and naming one of them would be
+   * a guess. Only the per-level case — one row left — is something the tab may claim.
+   */
+  it('claims no level while a whole pipeline is still generating', async () => {
+    await renderLesson(
+      lessonWithStops({
+        source: 'pdf',
+        status: 'generating',
+        steps: [
+          { step: 'analyze', status: 'done', attempt: 1, updatedAt: 0 },
+          { step: 'generate_L1', status: 'running', attempt: 1, updatedAt: 0 },
+          { step: 'generate_L2', status: 'pending', attempt: 1, updatedAt: 0 },
+          { step: 'generate_L3', status: 'pending', attempt: 1, updatedAt: 0 },
+        ],
+      }),
+    );
+
+    // `generate_L1` is the one that is *running*, so it alone may speak — and only for its own tab.
+    expect(screen.getByText('The assistant is writing Level 1…')).toBeInTheDocument();
+    expect(screen.queryByText('The assistant is writing Level 2…')).toBeNull();
+  });
+
+  /**
+   * The just-asked label stands in for the ledger for one poll interval and not a moment longer.
+   *
+   * Left to live, it was lent to the *next* running job — "Regenerate this stop" resets no
+   * generate row, so `writingTab()` fell back to it and labelled the tab asked for minutes ago.
+   */
+  it('drops the just-asked label on the first poll body, whatever that body says', async () => {
+    vi.useFakeTimers();
+    try {
+      const { backend } = await renderLesson(lessonWithStops({ source: 'manual' }));
+
+      fireEvent.click(screen.getByRole('tab', { name: /Level 2/ }));
+      await settle();
+      fireEvent.click(screen.getByRole('button', { name: 'Let the assistant write it' }));
+      await settle();
+      backend
+        .expectOne('/admin/lessons/l-1/plays/2/generate?replace=false')
+        .flush({ jobId: 'j-1', status: 'generating' });
+      await settle();
+      expect(screen.getByText('The assistant is writing Level 2…')).toBeInTheDocument();
+
+      // The ledger speaks, and it names no generate row at all — so neither does the tab.
+      vi.advanceTimersByTime(2_600);
+      await Promise.resolve();
+      backend.expectOne('/admin/lessons/l-1/status').flush({
+        status: 'generating',
+        steps: [],
+        files: [],
+        plays: [{ level: 1, variant: 0, stops: 2 }],
+        panel: false,
+        updatedAt: 0,
+      });
+      await settle();
+
+      // No heavy reload: the baseline was taken once the ask had set `generating`, and this body
+      // says the same thing — which is exactly the case in which `asked` used to survive for ever.
+      backend.verify();
+      expect(screen.queryByText('The assistant is writing Level 2…')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /**
    * The error note goes *above* the Add level card, never instead of it: a level the assistant
    * could not write is still a level she can write herself, and for an uploaded lesson that card
    * is the only thing on the tab that ever offered it.
