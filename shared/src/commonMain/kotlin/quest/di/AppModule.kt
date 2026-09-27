@@ -11,6 +11,9 @@ import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.presentation.ChatConversationViewModel
 import quest.feature.chat.presentation.ChatThreadsViewModel
+import quest.feature.broadcasts.data.BroadcastsRepositoryImpl
+import quest.feature.broadcasts.domain.BroadcastsRepository
+import quest.feature.broadcasts.presentation.BroadcastsViewModel
 import quest.feature.chat.presentation.CoordinatorPickerViewModel
 import quest.api.AuthProvider
 import quest.api.ContentApi
@@ -169,4 +172,10 @@ val chatModule = module {
     viewModel { (peer: ChatPeer) -> ChatConversationViewModel(peer, get()) }
 }
 
-fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule)
+/** RM4: the parent's broadcasts feed. Its own module — the feed is not chat, and it is read behind its own flag. */
+val broadcastsModule = module {
+    single<BroadcastsRepository> { BroadcastsRepositoryImpl(get()) }
+    viewModel { BroadcastsViewModel(get(), get()) }
+}
+
+fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, broadcastsModule)

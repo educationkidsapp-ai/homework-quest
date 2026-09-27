@@ -46,6 +46,8 @@ object ParentHomeContract {
         /** Child id → the section the child was placed in, when the parent added her with a class join code (§2). */
         val sections: Map<String, String> = emptyMap(),
         val attendance: ChildAttendanceRecord? = null,
+        /** RM4: what the school has sent that this parent has not read yet — the badge on the School news button. */
+        val unreadBroadcasts: Int = 0,
     ) : MviState
     sealed interface Intent : MviIntent { data object Load : Intent; data class Select(val id: String) : Intent; data object SignOut : Intent }
     sealed interface Effect : MviEffect { data object NeedsChild : Effect; data object SignedOut : Effect }
@@ -67,7 +69,10 @@ class ParentHomeViewModel(
                 val today = Today.date()
                 val days = runCatching { calendar(current, today.year, today.monthNumber, today) }.getOrDefault(emptyList()).filter { it.date == today }
                 val att = runCatching { api.todayAttendance(current.id) }.getOrNull()
-                reduce { copy(loading = false, children = list, current = current, today = days, sections = sections, attendance = att) }
+                // A parent has no bell (runbook "Broadcasts"), so the count comes with the home load; a school without
+                // the `announcements` flag answers 404 and the badge stays at zero.
+                val unread = runCatching { api.childBroadcasts(current.id).unread }.getOrDefault(0)
+                reduce { copy(loading = false, children = list, current = current, today = days, sections = sections, attendance = att, unreadBroadcasts = unread) }
             }
             is ParentHomeContract.Intent.Select -> { children.select(intent.id); handle(ParentHomeContract.Intent.Load) }
             ParentHomeContract.Intent.SignOut -> { auth.signOut(); children.clear(); effect(ParentHomeContract.Effect.SignedOut) }
@@ -79,7 +84,7 @@ class ParentHomeViewModel(
 fun ParentHomeRoute(
     onAddChild: () -> Unit, onEditChild: (String) -> Unit, onCalendar: () -> Unit, onProgress: () -> Unit,
     onSettings: () -> Unit, onLessonPanel: (String) -> Unit, onSignedOut: () -> Unit, onExit: () -> Unit,
-    onMessages: () -> Unit = {},
+    onMessages: () -> Unit = {}, onBroadcasts: () -> Unit = {},
 ) {
     val vm: ParentHomeViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -87,14 +92,14 @@ fun ParentHomeRoute(
         vm.dispatch(ParentHomeContract.Intent.Load)
         vm.effects.collect { when (it) { ParentHomeContract.Effect.NeedsChild -> onAddChild(); ParentHomeContract.Effect.SignedOut -> onSignedOut() } }
     }
-    ParentShell(title = { it.parentHome }, onBack = onExit) { s -> ParentHomeScreen(state, s, vm::dispatch, onAddChild, onEditChild, onCalendar, onProgress, onSettings, onLessonPanel, onMessages) }
+    ParentShell(title = { it.parentHome }, onBack = onExit) { s -> ParentHomeScreen(state, s, vm::dispatch, onAddChild, onEditChild, onCalendar, onProgress, onSettings, onLessonPanel, onMessages, onBroadcasts) }
 }
 
 @Composable
 fun ParentHomeScreen(
     state: ParentHomeContract.State, s: Strings, dispatch: (ParentHomeContract.Intent) -> Unit, onAddChild: () -> Unit, onEditChild: (String) -> Unit,
     onCalendar: () -> Unit, onProgress: () -> Unit, onSettings: () -> Unit, onLessonPanel: (String) -> Unit,
-    onMessages: () -> Unit = {},
+    onMessages: () -> Unit = {}, onBroadcasts: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
         SectionTitle(s.children)
@@ -179,6 +184,13 @@ fun ParentHomeScreen(
             ParentButton(s.progress, onProgress, Modifier.weight(1f), primary = false, icon = "📈")
         }
         Spacer(Modifier.height(Dimens.s12))
+        FeatureGate(Flags.ANNOUNCEMENTS) {
+            // The count rides on the label: a parent-mode button has no badge slot, and "School news · 3" is what a
+            // screen reader says anyway.
+            val label = if (state.unreadBroadcasts > 0) "${s.broadcasts} · ${state.unreadBroadcasts}" else s.broadcasts
+            ParentButton(label, onBroadcasts, primary = false, icon = "📣")
+            Spacer(Modifier.height(Dimens.s12))
+        }
         FeatureGate(Flags.CHAT) {
             ParentButton(s.messages, onMessages, primary = false, icon = "💬")
             Spacer(Modifier.height(Dimens.s12))

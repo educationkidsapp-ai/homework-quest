@@ -59,6 +59,7 @@ class ChatConversationViewModelTest {
 
         override suspend fun threads(childId: String): List<ChatThread> = emptyList()
         override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
+        override suspend fun managers(childId: String): List<ChatThread> = emptyList()
         /**
          * `since` is honoured, because the view model uses it: every reconnect refetches from the last id it holds.
          * A fake that answered the whole history there would have the conversation append its own messages a second

@@ -105,6 +105,32 @@ data class Strings(
         "french" to "French", "religion" to "Religion", "arabic" to "Arabic",
     ),
     val emptyConversationCoordinator: String = "No messages yet. Write to the coordinator of this subject.",
+
+    // RM4 (DR5): the parent also writes to the manager of her child's department — about the school, the child or a
+    // coordinator — and a complaint is allowed there too.
+    val managerRole: String = "Department manager",
+    val managersGroup: String = "Department manager",
+    val messageStaff: String = "Start a conversation",
+    val noManagers: String = "No department manager for this class yet.",
+    val emptyConversationManager: String = "No messages yet. Write to the manager of the department.",
+
+    // RM4 (DR4, DR6): the broadcasts feed — the weekly plan, announcements and events.
+    val broadcasts: String = "School news",
+    val thisWeeksPlan: String = "This week's plan",
+    val earlierPlans: String = "Earlier plans",
+    /** `{date}` is replaced with the Sunday the plan's week starts on. */
+    val weekOf: String = "Week of {date}",
+    val announcementsGroup: String = "Announcements",
+    val eventsGroup: String = "Events",
+    val noBroadcasts: String = "Nothing from the school yet.",
+    val broadcastsDisabled: String = "School news is not enabled for your school.",
+    val newBadge: String = "New",
+    val openAttachment: String = "Open attachment",
+    val pullToRefresh: String = "Pull down to refresh",
+    /** `{subject}` and `{curriculum}` are replaced with the words the feed named. */
+    val fromCoordinator: String = "From your {subject} coordinator",
+    val fromManager: String = "From the {curriculum} department manager",
+    val fromAuthor: String = "From {name}",
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -225,6 +251,25 @@ data class Strings(
                 "french" to "فرنسي", "religion" to "تربية إسلامية", "arabic" to "عربي",
             ),
             emptyConversationCoordinator = "لا توجد رسائل بعد. اكتب إلى منسّق هذه المادة.",
+            managerRole = "مدير القسم",
+            managersGroup = "مدير القسم",
+            messageStaff = "ابدأ محادثة",
+            noManagers = "لا يوجد مدير قسم لهذا الفصل بعد.",
+            emptyConversationManager = "لا توجد رسائل بعد. اكتب إلى مدير القسم.",
+            broadcasts = "أخبار المدرسة",
+            thisWeeksPlan = "خطة هذا الأسبوع",
+            earlierPlans = "خطط سابقة",
+            weekOf = "أسبوع {date}",
+            announcementsGroup = "إعلانات",
+            eventsGroup = "فعاليات",
+            noBroadcasts = "لا يوجد جديد من المدرسة بعد.",
+            broadcastsDisabled = "أخبار المدرسة غير مفعّلة في مدرستك.",
+            newBadge = "جديد",
+            openAttachment = "فتح المرفق",
+            pullToRefresh = "اسحب للأسفل للتحديث",
+            fromCoordinator = "من منسّق {subject}",
+            fromManager = "من مدير قسم {curriculum}",
+            fromAuthor = "من {name}",
         )
 
         fun forLanguage(code: String) = if (code == "ar") ar else en

@@ -55,26 +55,41 @@ fun subjectLabel(subject: String, strings: Strings): String =
     subject.split(',').map { it.trim() }.filter { it.isNotEmpty() }
         .joinToString(", ") { strings.subjectNames[it.lowercase()] ?: it }
 
-/** The word under the name: her role, then the subject she holds and the section, when they are known. */
-fun staffLabel(role: ChatStaffRole, subject: String?, className: String?, strings: Strings): String {
-    val word = if (role == ChatStaffRole.COORDINATOR) strings.coordinatorRole else strings.teacherRole
-    val detail = listOfNotNull(
-        subject?.takeIf { it.isNotBlank() }?.let { subjectLabel(it, strings) },
-        className?.takeIf { it.isNotBlank() },
-    )
+/**
+ * The word under the name: her role, then what she holds and where, when they are known.
+ *
+ * RM4 adds the third role. A manager speaks for a **department**, not a class — `GET /children/{id}/managers` fills
+ * `className` with the child's section because that is the shape a thread row has, so [department] (the child's own
+ * curriculum, which the caller knows) is what the row says instead: "Department manager · British". Without it the
+ * section name is still better than nothing.
+ */
+fun staffLabel(role: ChatStaffRole, subject: String?, className: String?, strings: Strings, department: String? = null): String {
+    val word = when (role) {
+        ChatStaffRole.COORDINATOR -> strings.coordinatorRole
+        ChatStaffRole.MANAGERIAL -> strings.managerRole
+        ChatStaffRole.TEACHER -> strings.teacherRole
+    }
+    val detail = if (role == ChatStaffRole.MANAGERIAL) {
+        listOfNotNull(department?.takeIf { it.isNotBlank() } ?: className?.takeIf { it.isNotBlank() })
+    } else {
+        listOfNotNull(
+            subject?.takeIf { it.isNotBlank() }?.let { subjectLabel(it, strings) },
+            className?.takeIf { it.isNotBlank() },
+        )
+    }
     return (listOf(word) + detail).joinToString(" · ")
 }
 
 /** `400` from a send whose `topic` was `complaint` but whose peer is a teacher — the one code this screen explains. */
 const val COMPLAINT_NEEDS_COORDINATOR = "complaint_needs_coordinator"
 
-fun staffLabel(thread: ChatThread, strings: Strings): String =
-    staffLabel(thread.staffRole, thread.subject, thread.className, strings)
+fun staffLabel(thread: ChatThread, strings: Strings, department: String? = null): String =
+    staffLabel(thread.staffRole, thread.subject, thread.className, strings, department)
 
 /** Screen-reader copy for a row: who, what about, and where it stands — the chips say the same thing visually. */
-fun threadDescription(thread: ChatThread, strings: Strings): String = buildList {
+fun threadDescription(thread: ChatThread, strings: Strings, department: String? = null): String = buildList {
     add(thread.teacherName)
-    add(staffLabel(thread, strings))
+    add(staffLabel(thread, strings, department))
     if (thread.topic == ChatTopic.COMPLAINT) add(strings.complaintBadge)
     if (thread.status == ChatThreadStatus.RESOLVED) add(strings.statusResolved)
     if (thread.unread > 0) add("${thread.unread} ${strings.messages}")
@@ -90,18 +105,19 @@ fun ChatThreadRow(
     strings: Strings,
     onClick: () -> Unit,
     showStatus: Boolean = true,
+    department: String? = null,
     modifier: Modifier = Modifier,
 ) {
     ParentCard(
         modifier = modifier.fillMaxWidth().padding(bottom = Dimens.s8)
-            .clearAndSetSemantics { contentDescription = threadDescription(thread, strings) },
+            .clearAndSetSemantics { contentDescription = threadDescription(thread, strings, department) },
         onClick = onClick,
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(48.dp).clip(CircleShape)
                     .background(
-                        if (thread.staffRole == ChatStaffRole.COORDINATOR) MaterialTheme.colorScheme.secondaryContainer
+                        if (thread.staffRole != ChatStaffRole.TEACHER) MaterialTheme.colorScheme.secondaryContainer
                         else MaterialTheme.colorScheme.primaryContainer,
                     ),
                 contentAlignment = Alignment.Center,
@@ -130,7 +146,7 @@ fun ChatThreadRow(
                 }
 
                 Text(
-                    text = staffLabel(thread, strings),
+                    text = staffLabel(thread, strings, department),
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.parentInkSoft,
                     maxLines = 1,

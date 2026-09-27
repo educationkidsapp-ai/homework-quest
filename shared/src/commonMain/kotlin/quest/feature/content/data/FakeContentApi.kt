@@ -15,6 +15,10 @@ import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
+import quest.api.dto.BroadcastAttachment
+import quest.api.dto.BroadcastFeed
+import quest.api.dto.BroadcastKind
+import quest.api.dto.BroadcastView
 import quest.api.dto.Child
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatReadReceipt
@@ -39,6 +43,7 @@ import quest.api.dto.Stop
 import quest.api.dto.StopCategory
 import quest.api.dto.UpdateChildRequest
 import quest.api.dto.WorldPalette
+import quest.feature.broadcasts.domain.weekStartOf
 import quest.feature.content.domain.SchoolApi
 import quest.feature.content.domain.ThemeFetch
 import quest.api.map.MapAssembler
@@ -221,7 +226,10 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         Triple("co-omar", "Mr. Omar", "English, Science"),
     )
 
-    private fun fakeRow(childId: String, staffId: String, staffName: String, subject: String, role: ChatStaffRole): ChatThread {
+    /** RM2 (DR5): the manager of the department the child's section is in. She holds no subject — a department is not one. */
+    private val fakeManagers = listOf("mg-nour" to "Ms. Nour")
+
+    private fun fakeRow(childId: String, staffId: String, staffName: String, subject: String?, role: ChatStaffRole): ChatThread {
         val msgs = fakeMessages["$childId:$staffId"].orEmpty()
         return ChatThread(
             id = if (msgs.isEmpty()) null else "th-$childId-$staffId",
@@ -252,6 +260,55 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
     override suspend fun parentCoordinators(childId: String): List<ChatThread> {
         net()
         return fakeCoordinators.map { (id, name, subj) -> fakeRow(childId, id, name, subj, ChatStaffRole.COORDINATOR) }
+    }
+
+    override suspend fun childManagers(childId: String): List<ChatThread> {
+        net()
+        return fakeManagers.map { (id, name) -> fakeRow(childId, id, name, null, ChatStaffRole.MANAGERIAL) }
+    }
+
+    // ---- RM4: the parent's broadcasts feed, so the screen has something to draw without a server.
+    private val fakeReads = mutableSetOf<String>()
+
+    private fun fakeBroadcasts(): List<BroadcastView> {
+        val week = weekStartOf(today()).toString()
+        return listOf(
+            BroadcastView(
+                id = "bc-plan", kind = BroadcastKind.WEEKLY_PLAN, authorId = "mg-nour", authorName = "Ms. Nour",
+                authorRole = ChatStaffRole.MANAGERIAL, title = "Week of subtraction", weekStart = week,
+                bodyEn = "Subtraction all week; swimming on Thursday. Please send a towel.",
+                bodyAr = "الطرح طوال الأسبوع؛ السباحة يوم الخميس. يرجى إرسال منشفة.",
+                curriculum = Curriculum.BRITISH,
+                attachment = BroadcastAttachment("/media/pages/week-plan.pdf", "week-plan.pdf"),
+                createdAt = 1_758_500_000_000L, read = "bc-plan" in fakeReads,
+            ),
+            BroadcastView(
+                id = "bc-ann", kind = BroadcastKind.ANNOUNCEMENT, authorId = "co-lina", authorName = "Ms. Lina",
+                authorRole = ChatStaffRole.COORDINATOR, title = "New number lines",
+                bodyEn = "We have put number lines on every desk — practise counting back from 20 at home.",
+                bodyAr = "وضعنا خطوط الأعداد على كل مقعد — تدرّبوا على العدّ التنازلي من 20 في البيت.",
+                subject = "math", createdAt = 1_758_400_000_000L, read = "bc-ann" in fakeReads,
+            ),
+            BroadcastView(
+                id = "bc-event", kind = BroadcastKind.EVENT, authorId = "mg-nour", authorName = "Ms. Nour",
+                authorRole = ChatStaffRole.MANAGERIAL, title = "Sports day",
+                bodyEn = "Sports day is on the last Thursday of the month. Parents are welcome.",
+                curriculum = Curriculum.BRITISH, createdAt = 1_758_300_000_000L, read = "bc-event" in fakeReads,
+            ),
+        )
+    }
+
+    override suspend fun childBroadcasts(childId: String): BroadcastFeed {
+        net()
+        val items = fakeBroadcasts()
+        return BroadcastFeed(unread = items.count { !it.read }, items = items)
+    }
+
+    override suspend fun markBroadcastRead(childId: String, broadcastId: String): BroadcastView {
+        net()
+        fakeReads += broadcastId
+        return fakeBroadcasts().firstOrNull { it.id == broadcastId }
+            ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No such broadcast."))
     }
 
     override suspend fun chatMessages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> {
@@ -290,7 +347,8 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         // `topic` is read only while this very message creates the thread, and a complaint needs a coordinator peer.
         val topic = request.topic
         if (list.isEmpty() && topic != null) {
-            if (topic == ChatTopic.COMPLAINT && fakeCoordinators.none { it.first == teacherId }) {
+            val complaintPeer = fakeCoordinators.any { it.first == teacherId } || fakeManagers.any { it.first == teacherId }
+            if (topic == ChatTopic.COMPLAINT && !complaintPeer) {
                 throw ApiException(ApiError("complaint_needs_coordinator", "A complaint goes to the coordinator of the subject."))
             }
             fakeTopics[key] = topic

@@ -13,6 +13,7 @@ import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.presentation.ChatConversationRoute
 import quest.feature.chat.presentation.ChatThreadsRoute
 import quest.feature.chat.presentation.CoordinatorPickerRoute
+import quest.feature.broadcasts.presentation.BroadcastsRoute
 import quest.feature.children.presentation.AddChildRoute
 
 /** Parent-mode graph (behind the PIN). Nothing here is reachable from child screens except the PIN entry. */
@@ -31,6 +32,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) },
             onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } }, onExit = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } },
             onMessages = { nav.navigate(Routes.ChatThreads) },
+            onBroadcasts = { nav.navigate(Routes.Broadcasts) },
         )
     }
     composable<Routes.Calendar> { CalendarRoute(onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) }, onBack = { nav.popBackStack() }) }
@@ -45,6 +47,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onMessageCoordinator = { nav.navigate(Routes.ChatCoordinators) },
         )
     }
+    composable<Routes.Broadcasts> { BroadcastsRoute(onBack = { nav.popBackStack() }) }
     composable<Routes.ChatCoordinators> {
         CoordinatorPickerRoute(
             onBack = { nav.popBackStack() },
@@ -58,7 +61,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
                 childId = route.childId,
                 staffId = route.teacherId,
                 staffName = route.teacherName,
-                staffRole = if (route.staffRole == "COORDINATOR") ChatStaffRole.COORDINATOR else ChatStaffRole.TEACHER,
+                staffRole = ChatStaffRole.entries.firstOrNull { it.name == route.staffRole } ?: ChatStaffRole.TEACHER,
                 subject = route.subject,
                 topic = if (route.topic == "complaint") ChatTopic.COMPLAINT else ChatTopic.QUESTION,
                 resolved = route.resolved,
@@ -77,7 +80,7 @@ private fun ChatThread.asConversation() = Routes.ChatConversation(
     childId = childId,
     teacherId = teacherId,
     teacherName = teacherName,
-    staffRole = if (staffRole == ChatStaffRole.TEACHER) "TEACHER" else "COORDINATOR",
+    staffRole = staffRole.name,
     subject = subject,
     topic = if (topic == ChatTopic.COMPLAINT) "complaint" else "question",
     resolved = status == ChatThreadStatus.RESOLVED,
