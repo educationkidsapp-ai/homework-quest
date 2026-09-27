@@ -34,9 +34,7 @@ import quest.server.platform.SafeText;
 import quest.server.teacher.TeacherDto;
 import quest.server.tenancy.CoordinatorScope;
 import quest.server.tenancy.Entities.ClassEntity;
-import quest.server.tenancy.Entities.TeachingAssignmentEntity;
 import quest.server.tenancy.ManagerScope;
-import quest.server.tenancy.StaffScopeRepository;
 import quest.server.tenancy.TeacherScope;
 import quest.server.tenancy.TenantContext;
 
@@ -72,16 +70,16 @@ public class BroadcastService {
 
     private final BroadcastRepository rows; private final BroadcastReadRepository reads;
     private final ManagerScope managers; private final CoordinatorScope coordinators; private final TeacherScope teachers;
-    private final StaffScopeRepository scopes; private final UserRepository users; private final ChildService childService;
+    private final UserRepository users; private final ChildService childService;
     private final NotificationService notifications; private final CoordinatorAnnouncementService announcements;
     private final TenantContext tenant; private final Clock clock;
 
     public BroadcastService(BroadcastRepository rows, BroadcastReadRepository reads, ManagerScope managers,
-                           CoordinatorScope coordinators, TeacherScope teachers, StaffScopeRepository scopes,
+                           CoordinatorScope coordinators, TeacherScope teachers,
                            UserRepository users, ChildService childService, NotificationService notifications,
                            CoordinatorAnnouncementService announcements, TenantContext tenant, Clock clock) {
         this.rows = rows; this.reads = reads; this.managers = managers; this.coordinators = coordinators;
-        this.teachers = teachers; this.scopes = scopes; this.users = users; this.childService = childService;
+        this.teachers = teachers; this.users = users; this.childService = childService;
         this.notifications = notifications; this.announcements = announcements; this.tenant = tenant; this.clock = clock;
     }
 
@@ -103,7 +101,7 @@ public class BroadcastService {
         String curriculum = named ? oneTrack(targets) : one(departments);
         var audience = audience(request.audience());
         var row = write(schoolId, caller.userId(), ManagerScope.ROLE, request, curriculum, null, named ? targets : null, audience);
-        fanOut(row, schoolId, audience, targets, reach.assignments());
+        fanOut(row, schoolId, audience, reach);
         return view(row, displayName(caller.userId()), true);
     }
 
@@ -230,34 +228,35 @@ public class BroadcastService {
     }
 
     /**
-     * The dashboard recipients: the teachers assigned to the target sections and the coordinators whose scope meets
-     * the row's track, each with her own screen as the notification's link. Parents have no bell — they read the feed.
+     * The dashboard recipients — <strong>decided by the very predicate the feeds use</strong> ({@link #reach} and
+     * {@link Reach#sees}), never by a second rule beside it. The bell and `GET /me/broadcasts` have to agree: a
+     * notification carries the row's title and body, so a recipient the feed omits would be told what was said and
+     * then sent to a screen that does not have it. That is what a track-only test for coordinators did to a row
+     * naming sections of a department they coordinate nothing in.
+     *
+     * <p>It costs one reach per candidate — a handful of statements for a handful of staff, and only on a post,
+     * which is a person pressing a button. The candidates are the department's teachers and the school's
+     * coordinators; `sees` decides the rest, audience word included.
      */
-    private void fanOut(BroadcastEntity row, String schoolId, List<String> audience, List<ClassEntity> targets,
-                        List<TeachingAssignmentEntity> assignments) {
-        if (audience.contains(TEACHERS)) {
-            var ids = targets.stream().map(ClassEntity::getId).collect(Collectors.toSet());
-            notify(row, schoolId, assignments.stream().filter(a -> ids.contains(a.getClassId()))
-                    .map(TeachingAssignmentEntity::getTeacherId).collect(Collectors.toCollection(LinkedHashSet::new)), "/teacher/broadcasts");
-        }
-        if (audience.contains(COORDINATORS)) notify(row, schoolId, coordinatorIds(schoolId, tracks(row, targets)), "/coordinator/broadcasts");
+    private void fanOut(BroadcastEntity row, String schoolId, List<String> audience, CoordinatorScope.Reach reach) {
+        if (audience.contains(TEACHERS))
+            notify(row, schoolId, reached(row, ManagerScope.teacherIds(reach), "TEACHER", schoolId), "/teacher/broadcasts");
+        if (audience.contains(COORDINATORS))
+            notify(row, schoolId, reached(row, users.findBySchoolIdAndRole(schoolId, CoordinatorScope.ROLE).stream().map(UserEntity::getId).toList(),
+                    CoordinatorScope.ROLE, schoolId), "/coordinator/broadcasts");
+    }
+
+    /** Those of these people whose own feed would show this row; the author is never told about her own post. */
+    private Set<String> reached(BroadcastEntity row, List<String> userIds, String role, String schoolId) {
+        var out = new LinkedHashSet<String>();
+        for (String userId : userIds)
+            if (!userId.equals(row.getAuthorUserId()) && reach(new Principals.User(userId, "", role, schoolId)).sees(row)) out.add(userId);
+        return out;
     }
 
     private void notify(BroadcastEntity row, String schoolId, Set<String> recipients, String link) {
-        recipients.remove(row.getAuthorUserId());
         for (String userId : recipients)
-            notifications.notify(schoolId, userId, NotificationKind.BROADCAST_POSTED, headline(row), row.getBodyEn(), link, null);
-    }
-
-    /** The coordinators of this school whose scope names one of these tracks, or names none at all (DR5: both). */
-    private Set<String> coordinatorIds(String schoolId, Set<String> tracks) {
-        var staff = users.findBySchoolIdAndRole(schoolId, CoordinatorScope.ROLE);
-        if (staff.isEmpty()) return new LinkedHashSet<>();
-        var out = new LinkedHashSet<String>();
-        for (var scope : scopes.findBySchoolIdAndUserIdInOrderBySubjectAscCurriculumAsc(schoolId, staff.stream().map(UserEntity::getId).toList()))
-            if (scope.getSubject() != null && (blank(scope.getCurriculum()) || tracks.contains(ManagerScope.normalise(scope.getCurriculum()))))
-                out.add(scope.getUserId());
-        return out;
+            notifications.notify(schoolId, userId, NotificationKind.BROADCAST_POSTED, headline(row), row.getBodyEn(), link, row.getId());
     }
 
     // ---------------------------------------------------------------- who sees what
@@ -391,13 +390,8 @@ public class BroadcastService {
     // ---------------------------------------------------------------- small helpers
 
     private static boolean named(List<String> sectionIds) { return sectionIds != null && !sectionIds.isEmpty(); }
-    private static boolean blank(String v) { return v == null || v.isBlank(); }
     private static Set<String> ids(List<ClassEntity> sections) { return sections.stream().map(ClassEntity::getId).collect(Collectors.toSet()); }
     private static Set<String> tracksOf(List<ClassEntity> sections) { return sections.stream().map(k -> ManagerScope.normalise(k.getCurriculum())).collect(Collectors.toSet()); }
-    private static Set<String> tracks(BroadcastEntity row, List<ClassEntity> targets) {
-        return row.getCurriculum() == null ? tracksOf(targets) : Set.of(ManagerScope.normalise(row.getCurriculum()));
-    }
-
     /**
      * The subjects of the coordinator's own scope that reach these sections — what the app labels her card with ("from
      * your maths coordinator"). Her scope rows, not the sections' subjects: she coordinates maths in a section where

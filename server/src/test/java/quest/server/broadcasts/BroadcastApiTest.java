@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import quest.server.ApiTestSupport;
+import quest.server.ClassFixtures;
 import quest.server.auth.AdminJwtService;
 import quest.server.auth.Entities.UserEntity;
 import quest.server.auth.TeacherRepository;
@@ -81,6 +82,8 @@ class BroadcastApiTest extends ApiTestSupport {
     @Autowired AdminJwtService jwt;
 
     private String lina, omar, nour, sami, maya, rami, britishA, britishB, americanA;
+    /** A British science coordinator whose only section is 1B, so a row naming 1A is one she must not hear about. */
+    private static final String HUDA = "bc-huda";
     private String childBritishA, childBritishB, childAmerican, adminToken, adminUserId;
     private final List<ChatEvent> heard = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final LocalDate week = LocalDate.now().with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.SUNDAY));
@@ -94,6 +97,11 @@ class BroadcastApiTest extends ApiTestSupport {
         childBritishA = child("Lila", britishA, "british", BRITISH_PARENT, 1);
         childBritishB = child("Bilal", britishB, "british", BRITISH_B_PARENT, 1);
         childAmerican = child("Hana", americanA, "american", AMERICAN_PARENT, 1);
+        // Science in 1B British only, and a coordinator for it: the smallest fixture in which "same track, other
+        // section" exists at all, which is what the fan-out has to tell apart from "same track".
+        ClassFixtures.assign(assignments, classes.findById(britishB).orElseThrow(), "science", maya);
+        staff(HUDA, "Huda", "COORDINATOR");
+        scopeRow("bc-scope-science", HUDA, "science", "british");
         for (String key : List.of(FlagKeys.CHAT, FlagKeys.ANNOUNCEMENTS)) { flag(SCHOOL, key, true); flag(OTHER_SCHOOL, key, true); }
         adminToken = adminToken();
         adminUserId = users.findByEmailIgnoreCase("admin@test.local").orElseThrow().getId();
@@ -331,7 +339,49 @@ class BroadcastApiTest extends ApiTestSupport {
         mvc.perform(as(post("/me/broadcasts/" + id + "/read"), token(rami, "TEACHER"))).andExpect(status().isNotFound());
     }
 
+    /**
+     * The blocker the reviewer found: the bell and the feed have to be the same question. A row naming 1A British with
+     * `audience:["coordinators"]` reaches Lina, who coordinates maths there, and not Huda, whose only section is 1B —
+     * a track-only fan-out put the whole body in Huda's bell and linked her to a feed without the row in it.
+     */
+    @Test @Order(9) void a_section_named_row_reaches_only_the_coordinators_of_those_sections() throws Exception {
+        var row = created(nour, "/management/broadcasts", "{\"kind\":\"announcement\",\"title\":\"1A parents evening\","
+                + "\"bodyEn\":\"Tuesday, 1A British only.\",\"audience\":[\"coordinators\"],\"sectionIds\":[\"" + britishA + "\"]}");
+        assertThat(ids(row.get("sectionIds"))).containsExactly(britishA);
+
+        assertThat(names(staffGet(lina, "COORDINATOR", "/me/broadcasts").get("items"), "title")).contains("1A parents evening");
+        assertThat(names(staffGet(lina, "COORDINATOR", "/me/notifications"), "title")).contains("1A parents evening");
+
+        assertThat(names(staffGet(HUDA, "COORDINATOR", "/me/broadcasts").get("items"), "title")).doesNotContain("1A parents evening");
+        assertThat(names(staffGet(HUDA, "COORDINATOR", "/me/notifications"), "title"))
+                .as("the bell must never say what the feed will not show").doesNotContain("1A parents evening");
+        // And the same row addressed to the department does reach her, because then it is her track that decides.
+        created(nour, "/management/broadcasts", "{\"kind\":\"announcement\",\"title\":\"Whole department\","
+                + "\"bodyEn\":\"Everyone, please read.\",\"audience\":[\"coordinators\"]}");
+        assertThat(names(staffGet(HUDA, "COORDINATOR", "/me/broadcasts").get("items"), "title")).contains("Whole department");
+        assertThat(names(staffGet(HUDA, "COORDINATOR", "/me/notifications"), "title")).contains("Whole department");
+    }
+
     // ---------------------------------------------------------------- fixture helpers
+
+    /** A staff account with no teacher profile behind it — `ManagementApiTest`'s own helper. */
+    private void staff(String id, String displayName, String role) {
+        var u = users.findById(id).orElseGet(UserEntity::new);
+        u.setId(id); u.setSchoolId(SCHOOL); u.setEmail(id + "@seed.test"); u.setPasswordHash("x");
+        u.setRole(role); u.setStatus("active"); u.setDisplayName(displayName);
+        if (u.getCreatedAt() == null) u.setCreatedAt(Instant.now());
+        u.setUpdatedAt(Instant.now());
+        users.save(u);
+    }
+
+    /** One `staff_scopes` row: a coordinator's is a subject, and a null `curriculum` means both tracks (DR5). */
+    private void scopeRow(String id, String userId, String subject, String curriculum) {
+        var row = staffScopes.findById(id).orElseGet(quest.server.tenancy.Entities.StaffScopeEntity::new);
+        row.setId(id); row.setSchoolId(SCHOOL); row.setUserId(userId);
+        row.setSubject(subject); row.setCurriculum(curriculum);
+        if (row.getCreatedAt() == null) row.setCreatedAt(Instant.now());
+        staffScopes.save(row);
+    }
 
     private String token(String userId, String role) { return jwt.issue(userId, userId + "@seed.test", role, SCHOOL).token(); }
 
