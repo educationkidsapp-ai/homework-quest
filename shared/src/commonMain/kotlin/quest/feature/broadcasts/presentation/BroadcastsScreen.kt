@@ -54,6 +54,7 @@ import quest.feature.parent.presentation.SectionTitle
 import quest.feature.parent.presentation.Strings
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
+import quest.feature.school.presentation.GateFallback
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
 
@@ -168,9 +169,11 @@ fun BroadcastsRoute(onBack: () -> Unit) {
         runCatching { uriHandler.openUri(if (url.startsWith("http")) url else base + url) }
     }
 
-    LaunchedEffect(vm) { vm.dispatch(BroadcastsContract.Intent.Load) }
-
+    // Inside the gate, so a deep link into a school without the flag fires no request at all, and `GateFallback`
+    // sends it back where it came from rather than leaving the route composed over nothing.
+    GateFallback(Flags.ANNOUNCEMENTS, onBack)
     FeatureGate(Flags.ANNOUNCEMENTS) {
+        LaunchedEffect(vm) { vm.dispatch(BroadcastsContract.Intent.Load) }
         ParentShell(title = { it.broadcasts }, onBack = onBack) { strings ->
             BroadcastsScreen(
                 state = state,

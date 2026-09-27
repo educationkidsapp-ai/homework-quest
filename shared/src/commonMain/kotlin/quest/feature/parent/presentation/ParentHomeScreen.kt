@@ -33,6 +33,7 @@ import quest.core.platform.Today
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.domain.CalendarDay
 import quest.feature.parent.domain.CalendarUseCase
+import quest.feature.school.domain.FlagStore
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.ui.design.Dimens
@@ -58,6 +59,7 @@ class ParentHomeViewModel(
     private val calendar: CalendarUseCase,
     private val auth: AuthProvider,
     private val api: ContentApi,
+    private val flags: FlagStore,
 ) : MviViewModel<ParentHomeContract.State, ParentHomeContract.Intent, ParentHomeContract.Effect>(ParentHomeContract.State()) {
     override suspend fun handle(intent: ParentHomeContract.Intent) {
         when (intent) {
@@ -69,9 +71,12 @@ class ParentHomeViewModel(
                 val today = Today.date()
                 val days = runCatching { calendar(current, today.year, today.monthNumber, today) }.getOrDefault(emptyList()).filter { it.date == today }
                 val att = runCatching { api.todayAttendance(current.id) }.getOrNull()
-                // A parent has no bell (runbook "Broadcasts"), so the count comes with the home load; a school without
-                // the `announcements` flag answers 404 and the badge stays at zero.
-                val unread = runCatching { api.childBroadcasts(current.id).unread }.getOrDefault(0)
+                // A parent has no bell (runbook "Broadcasts"), so the count comes with the home load — but only when
+                // the school has the flag. `announcements` is off in `DEFAULT_FLAGS`, so asking first and swallowing
+                // the 404 would mean every school paid a refused request on every home load and every child switch.
+                val unread = if (flags.isEnabled(Flags.ANNOUNCEMENTS)) {
+                    runCatching { api.childBroadcasts(current.id).unread }.getOrDefault(0)
+                } else 0
                 reduce { copy(loading = false, children = list, current = current, today = days, sections = sections, attendance = att, unreadBroadcasts = unread) }
             }
             is ParentHomeContract.Intent.Select -> { children.select(intent.id); handle(ParentHomeContract.Intent.Load) }

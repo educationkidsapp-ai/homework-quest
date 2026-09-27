@@ -31,7 +31,18 @@ import quest.feature.chat.presentation.CoordinatorPickerViewModel
 import quest.feature.chat.presentation.departmentWord
 import quest.feature.chat.presentation.staffLabel
 import quest.feature.children.domain.ChildrenRepository
+import quest.api.AuthProvider
+import quest.api.AuthState
+import quest.api.ContentApi
+import quest.feature.content.data.FakeContentApi
+import quest.feature.content.domain.MapRepository
+import quest.feature.parent.domain.CalendarUseCase
+import quest.feature.parent.presentation.ParentHomeContract
+import quest.feature.parent.presentation.ParentHomeViewModel
+import quest.feature.school.domain.FlagStore
+import quest.feature.school.domain.Flags
 import quest.feature.parent.presentation.Strings
+import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -249,7 +260,62 @@ class BroadcastsViewModelTest {
         assertEquals(null, vm.state.value.errorMessage)
     }
 
-    // ---- 3. the manager's row reads for her department, not for the child's class
+    // ---- 4. the parent home only asks for the count when the school bought the feature
+
+    /** Counts the one call the badge makes; everything else is the ordinary fake. */
+    private class CountingApi(private val delegate: ContentApi) : ContentApi by delegate {
+        var feedCalls = 0
+        override suspend fun childBroadcasts(childId: String) = run { feedCalls++; delegate.childBroadcasts(childId) }
+    }
+
+    private class TestAuth : AuthProvider {
+        override val state: StateFlow<AuthState> = MutableStateFlow(AuthState.SignedIn("p1", "parent@example.com"))
+        override suspend fun signIn(email: String, password: String) {}
+        override suspend fun register(email: String, password: String) {}
+        override suspend fun signInWithGoogle() {}
+        override suspend fun signOut() {}
+        override suspend fun idToken(forceRefresh: Boolean): String = "mock-token"
+    }
+
+    private class Flagged(on: Boolean) : FlagStore {
+        override val flags: StateFlow<Map<String, Boolean>> = MutableStateFlow(mapOf(Flags.ANNOUNCEMENTS to on))
+    }
+
+    /** The home wraps the calendar in `runCatching`, so a map that is not there is simply no lessons today. */
+    private class NoMaps : MapRepository {
+        override suspend fun map(child: Child, from: LocalDate, to: LocalDate, today: LocalDate): Nothing =
+            error("no map in this test")
+    }
+
+    private fun countingApi() = CountingApi(FakeContentApi(TestAuth(), delayMillis = 0))
+
+    private fun home(api: CountingApi, flags: FlagStore) =
+        ParentHomeViewModel(FakeChildren(maya), CalendarUseCase(NoMaps()), TestAuth(), api, flags)
+            .also { built.add(it) }
+
+    /**
+     * `announcements` is **off** in `DEFAULT_FLAGS`, so an ungated count would mean every school paid a refused
+     * request on every home load and every child switch. The badge is zero either way; the request is the bug.
+     */
+    @Test fun theHomeDoesNotAskForTheCountWhileTheFlagIsOff() = runBlocking {
+        val api = countingApi()
+        val vm = home(api, Flagged(false))
+        vm.dispatch(ParentHomeContract.Intent.Load)
+        settle(vm.state) { !it.loading }
+        assertEquals(0, api.feedCalls)
+        assertEquals(0, vm.state.value.unreadBroadcasts)
+    }
+
+    @Test fun theHomeAsksOnceWhenTheFlagIsOn() = runBlocking {
+        val api = countingApi()
+        val vm = home(api, Flagged(true))
+        vm.dispatch(ParentHomeContract.Intent.Load)
+        settle(vm.state) { !it.loading }
+        assertEquals(1, api.feedCalls)
+        assertTrue(vm.state.value.unreadBroadcasts > 0)
+    }
+
+    // ---- 5. the manager's row reads for her department, not for the child's class
 
     @Test fun aManagerRowNamesTheDepartment() {
         val manager = row(null, "Ms. Nour", ChatStaffRole.MANAGERIAL)
