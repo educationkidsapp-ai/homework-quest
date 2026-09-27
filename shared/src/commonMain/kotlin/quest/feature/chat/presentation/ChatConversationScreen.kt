@@ -574,7 +574,8 @@ fun ChatConversationScreen(
                     Text(strings.markAsComplaint, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk)
                 }
                 Text(
-                    strings.markAsComplaintHint,
+                    if (state.staffRole == ChatStaffRole.MANAGERIAL) strings.markAsComplaintHintManager
+                    else strings.markAsComplaintHint,
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.parentInkSoft,
                 )

@@ -113,6 +113,7 @@ data class Strings(
     val messageStaff: String = "Start a conversation",
     val noManagers: String = "No department manager for this class yet.",
     val emptyConversationManager: String = "No messages yet. Write to the manager of the department.",
+    val markAsComplaintHintManager: String = "The manager sees it in her complaints list. You can only set this on the first message.",
 
     // RM4 (DR4, DR6): the broadcasts feed — the weekly plan, announcements and events.
     val broadcasts: String = "School news",
@@ -256,6 +257,7 @@ data class Strings(
             messageStaff = "ابدأ محادثة",
             noManagers = "لا يوجد مدير قسم لهذا الفصل بعد.",
             emptyConversationManager = "لا توجد رسائل بعد. اكتب إلى مدير القسم.",
+            markAsComplaintHintManager = "ستظهر في قائمة الشكاوى عند مدير القسم. يمكن تحديدها في الرسالة الأولى فقط.",
             broadcasts = "أخبار المدرسة",
             thisWeeksPlan = "خطة هذا الأسبوع",
             earlierPlans = "خطط سابقة",
