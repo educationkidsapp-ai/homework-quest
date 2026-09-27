@@ -176,7 +176,10 @@ class OpenApiContractTest extends ApiTestSupport {
             "/management/classes/{id}/attendance", "/management/classes/{id}/results",
             "/management/lessons/{id}/results", "/management/children/{id}",
             "/management/classes/{id}/exams", "/management/exams/{id}/results",
-            "/admin/managers", "/admin/managers/{id}/scopes");
+            "/admin/managers", "/admin/managers/{id}/scopes",
+            // RM5 (DR7): the staff register — the area's one write — and the department's people directory.
+            "/management/staff-attendance", "/management/staff-attendance/summary", "/management/staff-attendance/{userId}",
+            "/management/people/children", "/management/people/teachers", "/management/people/coordinators");
 
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",

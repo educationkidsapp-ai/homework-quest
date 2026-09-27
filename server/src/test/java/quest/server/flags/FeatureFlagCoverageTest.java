@@ -100,7 +100,7 @@ class FeatureFlagCoverageTest {
             "ClassAdminController", "TeacherAdminController", "TeacherLessonController",
             "AttendanceController", "NotificationController",
             "CoordinatorController", "CoordinatorAdminController",
-            "ManagementController", "ManagerAdminController");
+            "ManagementController", "ManagerAdminController", "ManagementPeopleController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

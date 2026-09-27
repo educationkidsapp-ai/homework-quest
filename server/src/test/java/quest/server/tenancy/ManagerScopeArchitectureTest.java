@@ -68,11 +68,16 @@ class ManagerScopeArchitectureTest {
 
     /**
      * DR5: RM1 is read-only. The manager's writes are the weekly plan, announcements and her chat threads (RM2) and
-     * the staff-attendance roster (RM5); each arrives in its own package, behind its own flag and its own key, and is
-     * added here with the argument for it. An unlisted write appearing under `/management` is the thing to stop: a
-     * read namespace that grows an editor.
+     * the staff-attendance roster (RM5); each arrives in its own package, behind its own key, and is added here with
+     * the argument for it. An unlisted write appearing under `/management` is the thing to stop: a read namespace that
+     * grows an editor.
+     *
+     * <p>RM5's one write is the staff register. It writes about the <em>staff</em> of her own department and never
+     * about a child, a lesson or a class: the roster it upserts is {@link ManagerScope#teachersOf} and
+     * {@link ManagerScope#coordinatorsOf}, so a `userId` the department does not hold is a 403 before a row is touched,
+     * and no other part of the area became writable with it.
      */
-    private static final Set<String> ALLOWED_WRITES = Set.of();
+    private static final Set<String> ALLOWED_WRITES = Set.of("PUT /management/staff-attendance");
 
     @Test void nothing_in_the_management_namespace_writes_yet() {
         var writes = new ArrayList<String>();
@@ -81,7 +86,7 @@ class ManagerScopeArchitectureTest {
                 for (String route : routes(controller, method))
                     if (!route.startsWith("GET ") && !ALLOWED_WRITES.contains(route))
                         writes.add(controller.getSimpleName() + "#" + method.getName() + " -> " + route);
-        assertThat(writes).as("DR5: RM1 reads; a write under `/management` belongs to RM2 or RM5 and is named in ALLOWED_WRITES (%s)", ALLOWED_WRITES).isEmpty();
+        assertThat(writes).as("DR5: the area reads; a write under `/management` is argued for in ALLOWED_WRITES (%s)", ALLOWED_WRITES).isEmpty();
         var declared = new ArrayList<String>();
         for (JavaClass controller : managementControllers())
             for (JavaMethod method : controller.getMethods()) declared.addAll(routes(controller, method));

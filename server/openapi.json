@@ -723,6 +723,29 @@
         },
         "type" : "object"
       },
+      "ChildDirectory" : {
+        "properties" : {
+          "page" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DirectoryChild"
+            },
+            "type" : "array"
+          },
+          "size" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "ChildLevel" : {
         "properties" : {
           "band" : {
@@ -1386,6 +1409,29 @@
         },
         "type" : "object"
       },
+      "CoordinatorDirectory" : {
+        "properties" : {
+          "page" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ManagerCoordinator"
+            },
+            "type" : "array"
+          },
+          "size" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "CoordinatorManager" : {
         "properties" : {
           "curriculum" : {
@@ -1960,6 +2006,40 @@
           }
         },
         "required" : [ "curricula" ],
+        "type" : "object"
+      },
+      "DirectoryChild" : {
+        "properties" : {
+          "childId" : {
+            "type" : "string"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "parentEmail" : {
+            "type" : "string"
+          },
+          "placedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "rosterEmail" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "ExamBand" : {
@@ -3446,6 +3526,22 @@
           }
         },
         "required" : [ "childId", "lessonId" ],
+        "type" : "object"
+      },
+      "MarkStaffAttendance" : {
+        "properties" : {
+          "note" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "Match" : {
@@ -5196,6 +5292,197 @@
         "required" : [ "cacheHit", "convertStatus", "deleted", "fileHash", "fileName", "id", "pageCount" ],
         "type" : "object"
       },
+      "StaffAttendanceDay" : {
+        "properties" : {
+          "absent" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "day" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "editable" : {
+            "type" : "boolean"
+          },
+          "late" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "leave" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "people" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StaffAttendanceRow"
+            },
+            "type" : "array"
+          },
+          "present" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "schoolDay" : {
+            "type" : "boolean"
+          },
+          "unmarked" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "StaffAttendanceHistory" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "from" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "marks" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StaffAttendanceMark"
+            },
+            "type" : "array"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "to" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StaffAttendanceMark" : {
+        "properties" : {
+          "day" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "markedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "markedBy" : {
+            "type" : "string"
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StaffAttendanceRow" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "markedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "markedBy" : {
+            "type" : "string"
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StaffAttendanceSummary" : {
+        "properties" : {
+          "from" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "month" : {
+            "type" : "string"
+          },
+          "people" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StaffAttendanceSummaryRow"
+            },
+            "type" : "array"
+          },
+          "schoolDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "to" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StaffAttendanceSummaryRow" : {
+        "properties" : {
+          "absent" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "late" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "leave" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "present" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "rate" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "unmarked" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "StaffThreadRequest" : {
         "properties" : {
           "managerUserId" : {
@@ -5577,6 +5864,29 @@
           },
           "temporaryPassword" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "TeacherDirectory" : {
+        "properties" : {
+          "page" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CoordinatorTeacher"
+            },
+            "type" : "array"
+          },
+          "size" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total" : {
+            "format" : "int32",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -11541,6 +11851,274 @@
         "tags" : [ "Management" ]
       }
     },
+    "/management/people/children" : {
+      "get" : {
+        "operationId" : "directoryChildren",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "classId",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildDirectory"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management people" ]
+      }
+    },
+    "/management/people/coordinators" : {
+      "get" : {
+        "operationId" : "directoryCoordinators",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoordinatorDirectory"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management people" ]
+      }
+    },
+    "/management/people/teachers" : {
+      "get" : {
+        "operationId" : "directoryTeachers",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherDirectory"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management people" ]
+      }
+    },
+    "/management/staff-attendance" : {
+      "get" : {
+        "operationId" : "staffAttendance",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "day",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StaffAttendanceDay"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management people" ]
+      },
+      "put" : {
+        "operationId" : "markStaffAttendance",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "day",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "items" : {
+                  "$ref" : "#/components/schemas/MarkStaffAttendance"
+                },
+                "type" : "array"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StaffAttendanceDay"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management people" ]
+      }
+    },
+    "/management/staff-attendance/summary" : {
+      "get" : {
+        "operationId" : "staffAttendanceSummary",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StaffAttendanceSummary"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management people" ]
+      }
+    },
+    "/management/staff-attendance/{userId}" : {
+      "get" : {
+        "operationId" : "staffAttendanceHistory",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StaffAttendanceHistory"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management people" ]
+      }
+    },
     "/management/stats" : {
       "get" : {
         "operationId" : "managementStats",
@@ -14546,6 +15124,9 @@
   }, {
     "description" : "Dashboard accounts, invites and View as…",
     "name" : "Dashboard users"
+  }, {
+    "description" : "A department manager's staff register and her people directory",
+    "name" : "Management people"
   }, {
     "description" : "Department manager accounts and the departments they manage",
     "name" : "Managers"

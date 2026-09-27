@@ -823,6 +823,38 @@ interface DashboardApi {
     /** `GET /management/exams/{id}/results` — §8's results and distribution, the exact figure the stats estimate. */
     suspend fun managementExamResults(examId: String): ExamResults
 
+    // ---------------------------------------------------------------- RM5: her people (DR7)
+    //
+    // The staff register is `management.staff.attendance` (the read and the write share one key: a register nobody
+    // may mark is an empty screen) and the directory is `management.people`. Both are MANAGERIAL and the platform
+    // ADMIN, and `PUT /management/staff-attendance` is the one write in the whole `/management` namespace.
+
+    /** `GET /management/staff-attendance?day=` — her teachers and coordinators for one day. Absent `day` is today. */
+    suspend fun staffAttendance(day: String? = null): StaffAttendanceDay
+
+    /**
+     * `PUT /management/staff-attendance?day=` — upserts some of her people for one day and answers the whole roster.
+     * The day must be a teaching day of the school and must not be after today in the school's own zone (both 400);
+     * a `userId` outside her department is a 403.
+     */
+    suspend fun markStaffAttendance(day: String? = null, marks: List<MarkStaffAttendance>): StaffAttendanceDay
+
+    /** `GET /management/staff-attendance/summary?month=YYYY-MM` — a row per person. Absent `month` is this one. */
+    suspend fun staffAttendanceSummary(month: String? = null): StaffAttendanceSummary
+
+    /** `GET /management/staff-attendance/{userId}?from&to` — one person's marked days, newest first. Capped at 62. */
+    suspend fun staffAttendanceHistory(userId: String, from: String? = null, to: String? = null): StaffAttendanceHistory
+
+    /** `GET /management/people/children?classId&q&page&size` — the children of the department, with their contacts. */
+    suspend fun directoryChildren(classId: String? = null, q: String? = null,
+                                  page: Int = 0, size: Int = 0): ChildDirectory
+
+    /** `GET /management/people/teachers?q&page&size` — her teachers, with subjects and sections. */
+    suspend fun directoryTeachers(q: String? = null, page: Int = 0, size: Int = 0): TeacherDirectory
+
+    /** `GET /management/people/coordinators?q&page&size` — her coordinators, with subjects and tracks. */
+    suspend fun directoryCoordinators(q: String? = null, page: Int = 0, size: Int = 0): CoordinatorDirectory
+
     // ---- Admin: manager accounts and their departments (ADMIN only, `manager.manage`)
 
     /** `GET /admin/managers` — every department manager of the school with her departments. */

@@ -105,6 +105,8 @@
     "management.attendance.read": ["ADMIN", "MANAGERIAL"],
     "management.results.read": ["ADMIN", "MANAGERIAL"],
     "management.exams.read": ["ADMIN", "MANAGERIAL"],
+    "management.staff.attendance": ["ADMIN", "MANAGERIAL"],
+    "management.people": ["ADMIN", "MANAGERIAL"],
     "manager.manage": ["ADMIN"]
   },
   "endpoints": [
@@ -381,6 +383,13 @@
     { "method": "GET", "path": "/management/children/{id}", "permission": "management.results.read" },
     { "method": "GET", "path": "/management/classes/{id}/exams", "permission": "management.exams.read" },
     { "method": "GET", "path": "/management/exams/{id}/results", "permission": "management.exams.read" },
+    { "method": "GET", "path": "/management/staff-attendance", "permission": "management.staff.attendance" },
+    { "method": "PUT", "path": "/management/staff-attendance", "permission": "management.staff.attendance" },
+    { "method": "GET", "path": "/management/staff-attendance/summary", "permission": "management.staff.attendance" },
+    { "method": "GET", "path": "/management/staff-attendance/{userId}", "permission": "management.staff.attendance" },
+    { "method": "GET", "path": "/management/people/children", "permission": "management.people" },
+    { "method": "GET", "path": "/management/people/teachers", "permission": "management.people" },
+    { "method": "GET", "path": "/management/people/coordinators", "permission": "management.people" },
     { "method": "GET", "path": "/admin/managers", "permission": "manager.manage" },
     { "method": "POST", "path": "/admin/managers", "permission": "manager.manage" },
     { "method": "PUT", "path": "/admin/managers/{id}/scopes", "permission": "manager.manage" }

@@ -56,6 +56,76 @@ public final class ManagementDto {
     /** `GET /management/stats?from&to`: a row per grade and the department's own total, in one response. */
     public record ManagementStats(String from, String to, List<GradeStats> grades, GradeStats total) {}
 
+    // ---------------------------------------------------------------- RM5: staff attendance
+
+    /**
+     * One person on the staff register. `status` is absent while nobody has marked her — never "present" by default,
+     * which is the same rule {@link GradeStats#attendanceRate} follows: an unmarked day is no answer, not a good one.
+     */
+    public record StaffAttendanceRow(String userId, String email, String displayName, String photoUrl, String role,
+                                     String status, String note, String markedBy, Long markedAt) {}
+
+    /**
+     * `GET /management/staff-attendance?day=` and the body `PUT` answers: the department's teachers and coordinators
+     * for one day. `editable` is false on a day nobody may mark — a non-teaching day, or one still to come.
+     */
+    public record StaffAttendanceDay(java.time.LocalDate day, boolean schoolDay, boolean editable,
+                                     List<StaffAttendanceRow> people, int present, int absent, int late, int leave,
+                                     int unmarked) {}
+
+    /**
+     * One line of the `PUT` body. `status` is `present`, `absent`, `late` or `leave`; `note` is optional and capped.
+     * Checked in {@link StaffAttendanceService} rather than by bean validation, which does not reach inside a list
+     * request body without turning a refusal into a 500.
+     */
+    public record MarkStaffAttendance(String userId, String status, @Size(max = StaffAttendanceService.MAX_NOTE) String note) {}
+
+    /** One person's month: the four counts, the school days nobody marked, and her rate. */
+    public record StaffAttendanceSummaryRow(String userId, String email, String displayName, String role,
+                                            int present, int absent, int late, int leave, int unmarked, Double rate) {}
+
+    /**
+     * `GET /management/staff-attendance/summary?month=YYYY-MM`: a row per person over the school days of that month
+     * up to today, so a month still running is not scored as though its remaining days were missed.
+     */
+    public record StaffAttendanceSummary(String month, java.time.LocalDate from, java.time.LocalDate to,
+                                         int schoolDays, List<StaffAttendanceSummaryRow> people) {}
+
+    /** One marked day of one person's history. */
+    public record StaffAttendanceMark(java.time.LocalDate day, String status, String note, String markedBy,
+                                      long markedAt) {}
+
+    /** `GET /management/staff-attendance/{userId}?from&to`: one person's marked days, newest first. */
+    public record StaffAttendanceHistory(String userId, String displayName, String role, java.time.LocalDate from,
+                                         java.time.LocalDate to, List<StaffAttendanceMark> marks) {}
+
+    // ---------------------------------------------------------------- RM5: the people directory
+
+    /**
+     * `GET /management/people/children`: a child of the department with the contact the school has for her.
+     *
+     * <p>Two addresses, because the school has two: `parentEmail` is the account a parent actually signed up with
+     * (null until she does) and `rosterEmail` is what `children.parent_email` carries from the imported roster. No
+     * telephone number is returned because no table holds one — neither `children` nor `users` has the column.
+     * `placedAt` is the roster row's own creation, which is when the child joined the section — epoch millis, the
+     * form every other timestamp in the dashboard contract takes.
+     */
+    public record DirectoryChild(String childId, String name, String classId, String className, int grade,
+                                 String curriculum, String parentEmail, String rosterEmail, long placedAt) {}
+
+    /** `GET /management/people/children?classId&q&page&size`. `total` is every match, not the page. */
+    public record ChildDirectory(int page, int size, int total, List<DirectoryChild> rows) {}
+
+    /**
+     * `GET /management/people/teachers?q&page&size`. The rows are {@link CoordinatorDto.CoordinatorTeacher} — her
+     * subjects and her sections are exactly what `/management/teachers` already answers, and a second record with the
+     * same fields could only drift away from the first.
+     */
+    public record TeacherDirectory(int page, int size, int total, List<CoordinatorDto.CoordinatorTeacher> rows) {}
+
+    /** `GET /management/people/coordinators?q&page&size`, in {@link ManagerCoordinator}'s shape for the same reason. */
+    public record CoordinatorDirectory(int page, int size, int total, List<ManagerCoordinator> rows) {}
+
     // ---------------------------------------------------------------- admin (`/admin/managers/**`)
 
     /** A manager as the Admin's screen sees her, with every department she holds. */
