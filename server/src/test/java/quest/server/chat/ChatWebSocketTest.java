@@ -73,7 +73,7 @@ class ChatWebSocketTest extends ChatTestSupport {
     @Test void a_ping_is_answered_with_a_pong() throws Exception {
         var frames = new Frames();
         var session = connect(sara, true, frames);
-        session.sendMessage(new TextMessage("{\"type\":\"ping\"}"));
+        session.sendMessage(new TextMessage(PING));
         assertThat(frames.next().get("type").asText()).isEqualTo("pong");
     }
 
@@ -244,15 +244,27 @@ class ChatWebSocketTest extends ChatTestSupport {
     /** Sent-at stamps the timing run shares with its handler; keyed by body, which the run makes unique. */
     static final Map<String, Long> SENT = new ConcurrentHashMap<>();
 
+    /**
+     * Connects and does not return until the server holds the socket. The client's handshake future completes as
+     * soon as the upgrade is answered, which is before the container has run `afterConnectionEstablished` and the
+     * session is in {@link ChatSessions} — so {@code sessions.count()}, or a broadcast aimed at this peer, read
+     * straight after it is a race, and that is what made this class flake. A `ping` answered with a `pong` is the
+     * proof: the container delivers a frame to a session only once that session's `afterConnectionEstablished`
+     * has returned, so the `pong` cannot arrive before the registration it depends on.
+     */
     private WebSocketSession connect(String token, boolean viaHeader, Frames frames) throws Exception {
         var headers = new WebSocketHttpHeaders();
         String url = "ws://localhost:" + port + "/ws/chat";
         if (viaHeader) headers.add("Authorization", "Bearer " + token);
         else url += "?token=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
-        try {
-            var session = new StandardWebSocketClient().execute(frames, headers, URI.create(url)).get(5, TimeUnit.SECONDS);
-            open.add(session);
-            return session;
-        } catch (ExecutionException e) { throw new IllegalStateException(e.getCause().getMessage(), e.getCause()); }
+        WebSocketSession session;
+        try { session = new StandardWebSocketClient().execute(frames, headers, URI.create(url)).get(5, TimeUnit.SECONDS); }
+        catch (ExecutionException e) { throw new IllegalStateException(e.getCause().getMessage(), e.getCause()); }
+        open.add(session);
+        session.sendMessage(new TextMessage(PING));
+        assertThat(frames.next().get("type").asText()).as("the server has registered the socket").isEqualTo("pong");
+        return session;
     }
+
+    private static final String PING = "{\"type\":\"ping\"}";
 }
