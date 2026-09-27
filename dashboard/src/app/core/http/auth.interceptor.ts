@@ -30,7 +30,7 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
 
   if (isAsset(request.url)) return next(request);
 
-  const authorized = withSession(request, session.accessToken(), adminScope(auth, scope));
+  const authorized = withSession(request, session.accessToken(), adminScope(auth, scope, request.url));
   if (NO_RETRY.some((path) => request.url.includes(path))) return next(authorized);
 
   return next(authorized).pipe(
@@ -38,14 +38,24 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
       if (!(error instanceof HttpErrorResponse) || error.status !== 401) return throwError(() => error);
       return auth
         .refresh()
-        .pipe(switchMap((token) => next(withSession(request, token, adminScope(auth, scope)))));
+        .pipe(switchMap((token) => next(withSession(request, token, adminScope(auth, scope, request.url)))));
     }),
   );
 };
 
-/** An Admin's chosen school, or null — a TEACHER/MANAGERIAL token carries its own claim. */
-function adminScope(auth: AuthService, scope: SchoolScopeStore): string | null {
-  return auth.role() === 'ADMIN' ? scope.schoolId() : null;
+/**
+ * An Admin's chosen school, or null — a TEACHER/MANAGERIAL token carries its own claim.
+ *
+ * RM3b: `/admin/chat/**` is the one family of routes that is read **one school at a time** and
+ * answers `400 Send X-School-Id` without the header, so with `multiSchool` off — where D13 masks
+ * her stored scope and hides the switcher — it falls back to the single school
+ * ({@link SchoolScopeStore.soleSchoolId}), resolved from the server rather than from storage.
+ * Only these routes: every other Admin read is deliberately cross-school with the flag off, and
+ * scoping them all to the one school would be D13 undone by the back door.
+ */
+function adminScope(auth: AuthService, scope: SchoolScopeStore, url: string): string | null {
+  if (auth.role() !== 'ADMIN') return null;
+  return scope.schoolId() ?? (url.includes('/admin/chat/') ? scope.soleSchoolId() : null);
 }
 
 function withSession<T>(

@@ -137,7 +137,7 @@ describe('the broadcasts screen', () => {
     await settle();
   });
 
-  it("pins the week's plan, opens it, and names who wrote it", async () => {
+  it("pins the week's plan, opens it, marks it read, and still lets her collapse it", async () => {
     const backend = await signedInAs(TEACHER_USER);
     // Newest first off the wire puts the event on top; the plan still has to be the first row.
     backend.expectOne('/me/broadcasts').flush({ items: [EVENT, PLAN], unread: 2 });
@@ -145,10 +145,21 @@ describe('the broadcasts screen', () => {
 
     const titles = [...document.querySelectorAll('.bc__title')].map((node) => node.textContent?.trim());
     expect(titles[0]).toBe('Week of subtraction');
-    // Drawn open, because opening the screen *is* opening the one row she came for.
+    // Drawn open, because opening the screen *is* opening the one row she came for — and read for
+    // exactly the same reason, so the badge does not go on counting what she is looking at.
     expect(document.body.textContent).toContain('Subtraction all week');
     expect(document.body.textContent).toContain('Huda Salem');
     expect(document.body.textContent).toContain('Management');
+    backend.expectOne('/me/broadcasts/b-plan/read').flush({ ...PLAN, read: true });
+    await settle();
+    backend.expectOne('/me/broadcasts').flush({ items: [EVENT, { ...PLAN, read: true }], unread: 1 });
+    await settle();
+
+    // Open by default is not pinned open: the header still collapses it, once, and asks nothing.
+    screen.getByRole('button', { name: /Week of subtraction/ }).click();
+    await settle();
+    expect(document.body.textContent).not.toContain('Subtraction all week');
+    expect(backend.match('/me/broadcasts/b-plan/read')).toEqual([]);
   });
 
   it('gives a teacher no composer at all', async () => {

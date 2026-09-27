@@ -2,7 +2,15 @@
    `announcements` feature it supersedes already carried (RM2). `screens.ts` puts the flag on
    every `broadcasts` row; `*hqFeature` and `notEnabled` below are the answer to a bookmark. */
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { catchError, of, tap } from 'rxjs';
@@ -24,6 +32,7 @@ import {
 } from '../../core/broadcasts/broadcast.rules';
 import { StaffAreaService } from '../../core/auth/staff-area';
 import { FeatureDirective } from '../../core/flags/feature.directive';
+import { activeLang } from '../../core/i18n/active-lang';
 import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { CanDirective } from '../../core/permissions/can.directive';
 import { PlatformService } from '../../core/platform/platform.service';
@@ -133,9 +142,10 @@ type Panel = 'received' | 'posted';
                 }
               </button>
               @if (isOpen(row)) {
-                <p class="bc__body">{{ row.bodyEn }}</p>
-                @if (row.bodyAr) {
-                  <p class="bc__body" dir="rtl">{{ row.bodyAr }}</p>
+                <!-- The reader's own language first: an Arabic reader who has to scroll past the
+                     English to find hers is reading somebody else's copy of the same note. -->
+                @for (body of bodiesOf(row); track body.dir) {
+                  <p class="bc__body" [dir]="body.dir">{{ body.text }}</p>
                 }
                 <p class="hq-muted">{{ authorOf(row) }}</p>
                 @if (row.attachment; as file) {
@@ -341,6 +351,7 @@ export class BroadcastsPage {
   private readonly transloco = inject(TranslocoService);
   private readonly platform = inject(PlatformService);
   private readonly area = inject(StaffAreaService);
+  private readonly lang = activeLang();
   protected readonly scope = inject(StaffScopeService);
 
   protected readonly MAX_TITLE = MAX_TITLE;
@@ -367,6 +378,8 @@ export class BroadcastsPage {
   protected readonly failed = signal(false);
   protected readonly draft = signal<BroadcastDraft>(EMPTY_DRAFT);
   private readonly opened = signal<readonly string[]>([]);
+  /** The plans this visit has already drawn open — deliberately not a signal (see the effect). */
+  private readonly autoOpened = new Set<string>();
 
   /** Today in the **school's** timezone: `en-CA` is the one locale that formats as `YYYY-MM-DD`. */
   protected readonly today = computed(() =>
@@ -437,6 +450,7 @@ export class BroadcastsPage {
     departments: this.departments(),
     sections: this.scope.classes(),
     today: this.today(),
+    zone: this.platform.timezone(),
   }));
 
   protected readonly valid = computed(() => canPost(this.draft(), this.ctx()));
@@ -487,16 +501,49 @@ export class BroadcastsPage {
     });
   }
 
+  constructor() {
+    /*
+     * The week's plan is drawn **open**, so arriving on the screen *is* opening it: the first time
+     * it comes back it joins `opened` and is marked read like any row she had clicked.
+     *
+     * The review found the two halves of that out of step — the row was pinned open by its kind,
+     * so it could never be collapsed either, and the unread badge went on counting a plan she was
+     * already looking at behind a header that appeared to do nothing.
+     */
+    effect(() => {
+      const plan = (this.feed.value().items ?? []).find((row) => row.kind === 'weekly_plan');
+      untracked(() => {
+        const id = plan?.id ?? '';
+        // `autoOpened` and not `opened()`: once, per plan. Reading the open rows here would have
+        // made collapsing the plan re-open it, since the effect would run again on its own write.
+        if (id === '' || this.autoOpened.has(id)) return;
+        this.autoOpened.add(id);
+        this.opened.update((ids) => [...ids, id]);
+        if (plan?.read === false) this.markRead(id);
+      });
+    });
+  }
+
   protected isOpen(row: BroadcastView): boolean {
-    return this.opened().includes(row.id ?? '') || row.kind === 'weekly_plan';
+    return this.opened().includes(row.id ?? '');
+  }
+
+  /** The two bodies a row may carry, the reader's language first, empty ones dropped. */
+  protected bodiesOf(row: BroadcastView): readonly { text: string; dir: 'ltr' | 'rtl' }[] {
+    const bodies = [
+      { text: row.bodyEn ?? '', dir: 'ltr' as const },
+      { text: row.bodyAr ?? '', dir: 'rtl' as const },
+    ];
+    if (this.lang() === 'ar') bodies.reverse();
+    return bodies.filter((body) => body.text !== '');
   }
 
   /**
    * Opening a row is what marks it read — not arriving on the screen.
    *
    * A feed of twelve rows that all go read because she glanced at the page is a bell that stops
-   * ringing for things nobody looked at. The week's plan is the one exception: it is drawn open,
-   * so opening the screen *is* opening it.
+   * ringing for things nobody looked at. The week's plan is the one exception, and the constructor
+   * above is where it is made one.
    */
   protected toggle(row: BroadcastView): void {
     const id = row.id ?? '';

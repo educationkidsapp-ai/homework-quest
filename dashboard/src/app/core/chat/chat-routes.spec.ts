@@ -11,6 +11,7 @@ import {
   ChatThreadTopicEnum,
   CoordinatorChatApi,
   ManagementChatApi,
+  SchoolsApi,
 } from '../../api';
 import { TEACHER_USER } from '../../../testing/fixtures';
 import { AuthService, type Role } from '../auth/auth.service';
@@ -56,7 +57,11 @@ describe('ChatRoutes', () => {
   let teacherApi: Partial<ChatApi>;
   let coordinatorApi: Partial<CoordinatorChatApi>;
   let managementApi: Partial<ManagementChatApi>;
+  let schoolsApi: Partial<SchoolsApi>;
   const role = signal<Role | null>('COORDINATOR');
+  /** D13: with `multiSchool` off there is one school and no switcher to pick it with. */
+  const multiSchool = signal(false);
+  const schools = signal<{ id: string; name: string }[]>([{ id: 's-1', name: 'Al Noor' }]);
 
   function setup(): { routes: ChatRoutes; chat: ChatService } {
     teacherApi = {
@@ -83,12 +88,14 @@ describe('ChatRoutes', () => {
       managementSendChatMessage: vi.fn().mockReturnValue(of({})),
       managementMarkChatRead: vi.fn().mockReturnValue(of({})),
     };
+    schoolsApi = { listSchools: vi.fn().mockImplementation(() => of(schools())) };
 
     TestBed.configureTestingModule({
       providers: [
         { provide: ChatApi, useValue: teacherApi },
         { provide: CoordinatorChatApi, useValue: coordinatorApi },
         { provide: ManagementChatApi, useValue: managementApi },
+        { provide: SchoolsApi, useValue: schoolsApi },
         {
           provide: AuthService,
           useValue: {
@@ -99,14 +106,25 @@ describe('ChatRoutes', () => {
           },
         },
         { provide: SessionStore, useValue: { accessToken: signal('jwt') } },
-        { provide: FlagService, useValue: { isOn: vi.fn().mockReturnValue(true) } },
+        {
+          provide: FlagService,
+          useValue: {
+            isOn: (key: string) => (key === 'multiSchool' ? multiSchool() : true),
+            ready: () => true,
+          },
+        },
       ],
     });
+    // What `FlagService` does once the flag map has settled (D13), and what the store's mask —
+    // and therefore `soleSchoolId` — depends on.
+    TestBed.inject(SchoolScopeStore).setMultiSchool(multiSchool());
     return { routes: TestBed.inject(ChatRoutes), chat: TestBed.inject(ChatService) };
   }
 
   beforeEach(() => {
     role.set('COORDINATOR');
+    multiSchool.set(false);
+    schools.set([{ id: 's-1', name: 'Al Noor' }]);
     localStorage.clear();
     sessionStorage.clear();
     TestBed.resetTestingModule();
@@ -175,10 +193,14 @@ describe('ChatRoutes', () => {
   it('keys an admin by thread and reads /admin/chat/**', () => {
     role.set('ADMIN');
     const { routes, chat } = setup();
-    // `/admin/chat/**` is read one school at a time; without the scope the interceptor sends no
-    // `X-School-Id` and the server answers 400, so the transport waits for one.
-    expect(routes.transport()).toBeNull();
-    TestBed.inject(SchoolScopeStore).select({ id: 's-1', name: 'Al Noor' });
+    // `multiSchool` off: the one school comes from `GET /admin/schools`, not from a switcher that
+    // is not rendered and not from the `localStorage` id D13's mask exists to distrust.
+    TestBed.tick();
+    expect(schoolsApi.listSchools).toHaveBeenCalled();
+    expect(routes.adminSchoolId()).toBe('s-1');
+    // And the interceptor is told, because the store holds no HTTP of its own.
+    TestBed.tick();
+    expect(TestBed.inject(SchoolScopeStore).soleSchoolId()).toBe('s-1');
 
     expect(routes.transport()?.keyOf(staffThread)).toBe('th-2');
     expect(routes.transport()?.commandKey('th-2')).toEqual({ threadId: 'th-2' });
@@ -220,9 +242,38 @@ describe('ChatRoutes', () => {
     expect(managementApi.managementChatThreads).toHaveBeenCalledTimes(2);
   });
 
-  it('gives an admin no transport until she has narrowed to one school', () => {
+  /**
+   * The other branch: several schools, so which one is hers to choose — and until she has, there is
+   * no id to put on the header and the screen says so rather than showing an inbox that would 400.
+   */
+  it('waits for an admin to pick a school only when there is more than one', () => {
     role.set('ADMIN');
+    multiSchool.set(true);
     const { routes } = setup();
+    TestBed.tick();
+
+    expect(routes.transport()).toBeNull();
+    expect(routes.adminSchoolId()).toBeNull();
+    // With the flag on the switcher is rendered and the list is the switcher's own business.
+    expect(schoolsApi.listSchools).not.toHaveBeenCalled();
+
+    TestBed.inject(SchoolScopeStore).select({ id: 's-2', name: 'Green Valley' });
+    expect(routes.adminSchoolId()).toBe('s-2');
+    expect(routes.transport()).not.toBeNull();
+    // The mask still holds: nothing was resolved, so there is no sole school to fall back on.
+    expect(TestBed.inject(SchoolScopeStore).soleSchoolId()).toBeNull();
+  });
+
+  /** A single-school deployment that answers two rows is disagreeing with itself: pick, don't guess. */
+  it('resolves no school when the one-school deployment answers more than one', () => {
+    role.set('ADMIN');
+    schools.set([
+      { id: 's-1', name: 'Al Noor' },
+      { id: 's-2', name: 'Green Valley' },
+    ]);
+    const { routes } = setup();
+    TestBed.tick();
+    expect(routes.adminSchoolId()).toBeNull();
     expect(routes.transport()).toBeNull();
   });
 

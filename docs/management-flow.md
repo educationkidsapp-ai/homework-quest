@@ -31,7 +31,7 @@ department-scoped.
 
 | Screen                                  | Reads                                                                                             | What she sees                                                                                                                                                |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Broadcasts** `/management/broadcasts` | `GET /me/broadcasts`, `POST /me/broadcasts/{id}/read`, `GET\|POST /management/broadcasts`         | Two tabs. **For you** is the feed every staff role reads, with the week's plan pinned and opened; **You posted** is her own list, expired rows included       |
+| **Broadcasts** `/management/broadcasts` | `GET /me/broadcasts`, `POST /me/broadcasts/{id}/read`, `GET\|POST /management/broadcasts`         | Two tabs. **For you** is the feed every staff role reads, with the week's plan pinned, drawn open and marked read on arrival (opening the screen *is* opening it) and still collapsible; every other row is read when it is opened and not before. **You posted** is her own list, expired rows included |
 | **Messages** `/management/messages`     | `GET /management/chat/threads`, `…/{id}/messages`, `…/{id}/read`, `POST /management/chat/threads` | Her real inbox: the parents of her department, her coordinators and the admin, filtered by a chip strip, with **New message** to open a staff thread from her side |
 
 Both rows carry the flag the server carries — `announcements` and `chat` — plus a key of her own
@@ -51,6 +51,17 @@ department when it names none. A manager of two departments who names neither is
 more than one department`, so the sheet shows her a Department select and sends every section of
 the track she picks. `core/broadcasts/broadcast.rules.ts` is the one place that turns a draft into
 a body, and the one place the Post button asks whether it may be enabled.
+
+One consequence worth knowing: a row that names sections reaches *those* sections, so a section
+created after the post does not get it, where a curriculum-only row would (`BroadcastService`
+resolves the audience at read time from the track). It still replaces the right plan — the server
+reads the track back off the sections (`oneTrack`) and `replacePlan` keys on (school, week, track) —
+so the only cost is a class opened mid-week. A manager of one department is unaffected: her rows
+name no section at all.
+
+An expiry is stored as the last second of that day **in the school's timezone**, not in Greenwich:
+`today` on the sheet is read in that zone too, and one date that meant somewhere else's day would be
+the sheet's only lie.
 
 **Her inbox has three kinds of correspondent and the row cannot say which.** `staff_role` is the
 *staff side's* role, so a parent writing to her about a child, a coordinator's staff thread and the

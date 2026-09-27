@@ -5,6 +5,7 @@ import {
   EMPTY_DRAFT,
   canPost,
   composeErrors,
+  endOfDayIn,
   isSunday,
   kindsFor,
   requestOf,
@@ -23,11 +24,15 @@ describe('the broadcast composer rules', () => {
     { classId: 'c-3', curriculum: 'american' },
   ];
 
+  /** Muscat, GMT+4 all year: the school's zone is what "the end of that day" is measured in. */
+  const ZONE = 'Asia/Muscat';
+
   const manager = (departments: readonly string[]): ComposeContext => ({
     role: 'manager',
     departments,
     sections: SECTIONS,
     today: '2026-09-30',
+    zone: ZONE,
   });
 
   const coordinator: ComposeContext = {
@@ -35,6 +40,7 @@ describe('the broadcast composer rules', () => {
     departments: [],
     sections: SECTIONS,
     today: '2026-09-30',
+    zone: ZONE,
   };
 
   const plan = (over: Partial<BroadcastDraft> = {}): BroadcastDraft => ({
@@ -120,9 +126,14 @@ describe('the broadcast composer rules', () => {
       'broadcasts.errors.expiredAlready',
     );
     expect(composeErrors(plan({ expires: '2026-09-30' }), ctx).expires).toBeNull();
+    // The end of that day **in the school's zone**, not in Greenwich: 23:59:59 in Muscat is
+    // 19:59:59 UTC, and a row that expired at the wrong hour is a plan that vanishes mid-morning.
     expect(requestOf(plan({ expires: '2026-10-05' }), ctx).expiresAt).toBe(
-      Date.parse('2026-10-05T23:59:59Z'),
+      Date.parse('2026-10-05T19:59:59Z'),
     );
+    expect(endOfDayIn('2026-10-05', 'UTC')).toBe(Date.parse('2026-10-05T23:59:59Z'));
+    // A zone with DST, on a date inside it: New York is GMT-4 in October.
+    expect(endOfDayIn('2026-10-05', 'America/New_York')).toBe(Date.parse('2026-10-06T03:59:59Z'));
     expect(requestOf(plan(), ctx).expiresAt).toBeUndefined();
   });
 

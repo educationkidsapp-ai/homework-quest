@@ -2113,7 +2113,7 @@
     },
     "department": "Department",
     "departmentPick": "Pick a department",
-    "departmentHint": "You manage two, and one broadcast belongs to one of them.",
+    "departmentHint": "You manage more than one, and a broadcast belongs to a single department.",
     "classes": "Classes",
     "classesHint": "Leave every box empty and this goes to all of them.",
     "expires": "Stop showing it after",

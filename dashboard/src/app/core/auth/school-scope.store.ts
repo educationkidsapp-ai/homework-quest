@@ -37,8 +37,30 @@ export class SchoolScopeStore {
   private readonly current = signal<SchoolScope | null>(this.read());
   private readonly multiSchool = signal(true);
 
+  private readonly sole = signal<string | null>(null);
+
   readonly scope = computed(() => (this.multiSchool() ? this.current() : null));
   readonly schoolId = computed(() => this.scope()?.id ?? null);
+
+  /**
+   * The id of the **one** school this deployment has, while `multiSchool` is off.
+   *
+   * D13 masks `schoolId` with the flag off, for a good reason — a selection kept from a database
+   * that has since been reseeded must not scope anything — and with the flag off there is no
+   * switcher either, so nobody can pick. That leaves the handful of routes that are read *one
+   * school at a time* (`/admin/chat/**`: `400 Send X-School-Id`) with no id at all.
+   *
+   * So this is the answer to "which school", not to "which school did she choose": it is written
+   * by whoever **resolved** it from `GET /admin/schools` and never read from storage, so the stale
+   * id the mask exists to stop still cannot come back. Null again the moment `multiSchool` is on,
+   * because then there are several and choosing is hers.
+   */
+  readonly soleSchoolId = computed(() => (this.multiSchool() ? null : this.sole()));
+
+  /** Written by the resolver, never by a screen: no HTTP lives in this store (see the class note). */
+  setSoleSchool(id: string | null): void {
+    this.sole.set(id);
+  }
 
   /** Whether this deployment has more than one school; false collapses the scope to "mine". */
   setMultiSchool(on: boolean): void {

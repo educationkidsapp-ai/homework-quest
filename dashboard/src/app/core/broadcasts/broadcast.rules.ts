@@ -54,6 +54,8 @@ export interface ComposeContext {
   readonly sections: readonly ComposableSection[];
   /** Today in the **school's** timezone, `YYYY-MM-DD`. */
   readonly today: string;
+  /** The school's IANA timezone: what "the end of that day" means to the people reading this. */
+  readonly zone: string;
 }
 
 /** One translation key per field, or `null` while that field is fine. */
@@ -81,6 +83,31 @@ export const EMPTY_DRAFT: BroadcastDraft = {
 
 export function kindsFor(role: ComposerRole): readonly BroadcastKind[] {
   return role === 'manager' ? MANAGER_KINDS : COORDINATOR_KINDS;
+}
+
+/**
+ * The last second of `day` **in the school's zone**, as epoch millis.
+ *
+ * `T23:59:59Z` would be the end of the day in Greenwich, which in Muscat is 03:59 the next
+ * morning and in Los Angeles is four in the afternoon of the same one. `today` is already read in
+ * the school's zone (`broadcasts.page.ts`), so an expiry that was not would be the one date on the
+ * sheet that meant somewhere else's day.
+ */
+export function endOfDayIn(day: string, zone: string): number {
+  const asUtc = Date.parse(`${day}T23:59:59Z`);
+  if (Number.isNaN(asUtc)) return NaN;
+  return asUtc - zoneOffset(asUtc, zone);
+}
+
+/** The zone's offset from UTC at that instant, in millis — DST included, because `Intl` knows. */
+function zoneOffset(at: number, zone: string): number {
+  const named = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longOffset' })
+    .formatToParts(new Date(at))
+    .find((part) => part.type === 'timeZoneName')?.value;
+  const parsed = /GMT([+-])(\d{2}):(\d{2})/.exec(named ?? '');
+  if (parsed === null) return 0;
+  const minutes = Number(parsed[2]) * 60 + Number(parsed[3]);
+  return (parsed[1] === '-' ? -minutes : minutes) * 60_000;
 }
 
 /** `YYYY-MM-DD` parsed as a calendar day, never as a local instant — `Date.parse` of a bare date is UTC. */
@@ -181,7 +208,7 @@ export function canPost(draft: BroadcastDraft, ctx: ComposeContext): boolean {
 export function requestOf(draft: BroadcastDraft, ctx: ComposeContext): CreateBroadcastRequest {
   const plan = draft.kind === 'weekly_plan';
   const bodyAr = draft.bodyAr.trim();
-  const expiresAt = draft.expires === '' ? NaN : Date.parse(`${draft.expires}T23:59:59Z`);
+  const expiresAt = draft.expires === '' ? NaN : endOfDayIn(draft.expires, ctx.zone);
   const sectionIds = sectionsOf(draft, ctx);
   return {
     kind: draft.kind,

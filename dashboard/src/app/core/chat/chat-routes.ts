@@ -1,5 +1,6 @@
-import { Injectable, computed, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Injectable, computed, effect, inject } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
+import { Observable, catchError, map, of } from 'rxjs';
 import {
   ChatApi,
   ChatMessage,
@@ -7,9 +8,11 @@ import {
   ChatThread,
   CoordinatorChatApi,
   ManagementChatApi,
+  SchoolsApi,
 } from '../../api';
 import { AuthService } from '../auth/auth.service';
 import { SchoolScopeStore } from '../auth/school-scope.store';
+import { FLAGS, FlagService } from '../flags/flag.service';
 import { ChatCommandKey } from './chat.models';
 
 /**
@@ -48,6 +51,38 @@ export class ChatRoutes {
   private readonly management = inject(ManagementChatApi);
   private readonly auth = inject(AuthService);
   private readonly scope = inject(SchoolScopeStore);
+  private readonly schools = inject(SchoolsApi);
+  private readonly flags = inject(FlagService);
+
+  /**
+   * **Which school an Admin's chat is read in.**
+   *
+   * `/admin/chat/**` is read one school at a time (`400 Send X-School-Id`). With `multiSchool` on
+   * that is whichever school she picked in the header. With it **off** there is exactly one school
+   * and no switcher to pick it with, so asking her to choose was a screen that could never load —
+   * this resolves the one row of `GET /admin/schools` instead, which is the call the switcher
+   * itself makes, and is deliberately the server's answer rather than the id in `localStorage`
+   * that D13's mask exists to distrust. More than one row with the flag off is a deployment
+   * disagreeing with itself: null, and the screen asks her to pick.
+   */
+  private readonly sole = rxResource<string | null, boolean>({
+    params: () => this.auth.role() === 'ADMIN' && this.flags.ready() && !this.flags.isOn(FLAGS.multiSchool),
+    stream: ({ params }) =>
+      params
+        ? this.schools.listSchools().pipe(
+            map((rows) => (rows.length === 1 ? (rows[0]?.id ?? null) : null)),
+            catchError(() => of(null)),
+          )
+        : of(null),
+    defaultValue: null,
+  });
+
+  /** The id the interceptor puts on `/admin/chat/**`; the store is HTTP-free, so it is told. */
+  readonly adminSchoolId = computed(() => this.scope.schoolId() ?? this.sole.value());
+
+  constructor() {
+    effect(() => this.scope.setSoleSchool(this.sole.value()));
+  }
 
   /** `null` while nobody is signed in, and for an Admin who has not narrowed to one school. */
   readonly transport = computed<ChatTransport | null>(() => {
@@ -83,11 +118,11 @@ export class ChatRoutes {
       // it is the school's whole chat, for support — and `/admin/messages` says so rather than
       // pretending the list is hers; the three writes below are only ever accepted on a row she
       // is actually on, which is the server's rule and not one this class could enforce.
-      // `/admin/chat/**` is read **one school at a time** (`Send X-School-Id: …`), and the
-      // interceptor only sends the header while `multiSchool` is on and she has picked a school.
-      // No transport rather than a 400 in a red band on every reconnect; the screen says why.
+      // No transport until the school is settled — the one she picked, or the only one there is:
+      // a GET without the header is a 400 in a red band on every reconnect. Left null only when a
+      // multi-school deployment is waiting for her to choose, which the screen then says.
       case 'ADMIN':
-        if (this.scope.schoolId() === null) return null;
+        if (this.adminSchoolId() === null) return null;
         return {
           keyOf: (thread) => thread.id ?? '',
           commandKey: (key) => ({ threadId: key }),
