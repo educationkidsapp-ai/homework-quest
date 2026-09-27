@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 import quest.api.ApiException
+import quest.api.dto.ApiError
 import quest.api.dto.ChatThread
 import quest.api.dto.Curriculum
 import quest.core.mvi.MviEffect
@@ -87,8 +88,10 @@ class CoordinatorPickerViewModel(
         }
         val coordinators = runCatching { chat.coordinators(child.id) }
         val managers = runCatching { chat.managers(child.id) }
-        val failure = (coordinators.exceptionOrNull() ?: managers.exceptionOrNull())
-            ?.takeIf { coordinators.isFailure && managers.isFailure }
+        // "This school has none" is a 404, and only a 404: a 500 from one endpoint while the other answers must not
+        // render as an empty section, because "no coordinator" and "we could not ask" are different answers.
+        val failure = listOfNotNull(coordinators.exceptionOrNull(), managers.exceptionOrNull()).firstOrNull { !it.isAbsence() }
+            ?: (coordinators.exceptionOrNull() ?: managers.exceptionOrNull())?.takeIf { coordinators.isFailure && managers.isFailure }
         val notPlaced = (failure as? ApiException)?.error?.code == "child_not_placed"
         reduce {
             copy(
@@ -171,6 +174,13 @@ fun CoordinatorPickerScreen(
         }
     }
 }
+
+/**
+ * The two answers that mean "there is nobody of this kind here", as opposed to "we could not ask": the route is off
+ * or empty (404) and the child has no class yet. Anything else is a failure the parent is told about.
+ */
+private fun Throwable.isAbsence(): Boolean =
+    (this as? ApiException)?.error?.code in setOf(ApiError.NOT_FOUND, "child_not_placed")
 
 /** The department a manager speaks for, in the parent's language — the child's own track. */
 fun departmentWord(curriculum: Curriculum?, strings: Strings): String? = when (curriculum) {

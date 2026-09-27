@@ -21,7 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -279,8 +279,10 @@ fun BroadcastCard(
     onOpen: () -> Unit = {},
 ) {
     ParentCard(
+        // `mergeDescendants`, not `clearAndSetSemantics`: clearing the subtree would also clear any descendant that
+        // carries an action, so a control inside the card would become unreachable to a screen reader.
         modifier = Modifier.fillMaxWidth().padding(bottom = Dimens.s8)
-            .clearAndSetSemantics { contentDescription = broadcastDescription(view, strings) },
+            .semantics(mergeDescendants = true) { contentDescription = broadcastDescription(view, strings) },
         onClick = onOpen,
     ) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {

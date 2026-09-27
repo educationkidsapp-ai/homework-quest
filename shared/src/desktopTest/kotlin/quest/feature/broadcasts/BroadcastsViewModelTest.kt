@@ -240,6 +240,19 @@ class BroadcastsViewModelTest {
         assertEquals(null, vm.state.value.errorMessage)
     }
 
+    /** A 500 from one endpoint is not "this school has no coordinator" — the parent is told, not shown an empty list. */
+    @Test fun aOneSidedServerErrorIsSurfaced() = runBlocking {
+        val chat = FakePeers(
+            coordinators = Result.failure(ApiException(ApiError("internal", "boom"))),
+            managers = Result.success(listOf(row(null, "Ms. Nour", ChatStaffRole.MANAGERIAL))),
+        )
+        val vm = pickerViewModel(FakeChildren(maya), chat)
+        vm.dispatch(CoordinatorPickerContract.Intent.Load)
+        settle(vm.state) { !it.loading }
+        assertTrue(vm.state.value.errorMessage != null)
+        assertFalse(vm.state.value.childNotPlaced)
+    }
+
     @Test fun bothFailingIsAnError() = runBlocking {
         val boom = ApiException(ApiError(ApiError.NETWORK, "offline"))
         val chat = FakePeers(coordinators = Result.failure(boom), managers = Result.failure(boom))

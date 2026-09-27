@@ -85,7 +85,6 @@ data class Strings(
     val coordinatorRole: String = "Subject coordinator",
     val teachersGroup: String = "Your child's teachers",
     val coordinatorsGroup: String = "Subject coordinators",
-    val messageCoordinator: String = "Message a coordinator",
     val pickCoordinator: String = "Who would you like to write to?",
     val noCoordinators: String = "No subject coordinator for this class yet.",
     val complaintBadge: String = "Complaint",
@@ -111,7 +110,6 @@ data class Strings(
     val managerRole: String = "Department manager",
     val managersGroup: String = "Department manager",
     val messageStaff: String = "Start a conversation",
-    val noManagers: String = "No department manager for this class yet.",
     val emptyConversationManager: String = "No messages yet. Write to the manager of the department.",
     val markAsComplaintHintManager: String = "The manager sees it in her complaints list. You can only set this on the first message.",
 
@@ -129,7 +127,6 @@ data class Strings(
     val attachment: String = "Attachment",
     /** RM2 stores a reference, and nothing serves it to the app yet — so the card says where the file is. */
     val attachmentOnDashboard: String = "Available on the dashboard",
-    val pullToRefresh: String = "Pull down to refresh",
     /** `{subject}` and `{curriculum}` are replaced with the words the feed named. */
     val fromCoordinator: String = "From your {subject} coordinator",
     val fromManager: String = "From the {curriculum} department manager",
@@ -239,7 +236,6 @@ data class Strings(
             coordinatorRole = "منسّق المادة",
             teachersGroup = "معلّمو طفلك",
             coordinatorsGroup = "منسّقو المواد",
-            messageCoordinator = "مراسلة منسّق مادة",
             pickCoordinator = "إلى مَن تريد أن تكتب؟",
             noCoordinators = "لا يوجد منسّق مادة لهذا الفصل بعد.",
             complaintBadge = "شكوى",
@@ -257,7 +253,6 @@ data class Strings(
             managerRole = "مدير القسم",
             managersGroup = "مدير القسم",
             messageStaff = "ابدأ محادثة",
-            noManagers = "لا يوجد مدير قسم لهذا الفصل بعد.",
             emptyConversationManager = "لا توجد رسائل بعد. اكتب إلى مدير القسم.",
             markAsComplaintHintManager = "ستظهر في قائمة الشكاوى عند مدير القسم. يمكن تحديدها في الرسالة الأولى فقط.",
             broadcasts = "أخبار المدرسة",
@@ -271,7 +266,6 @@ data class Strings(
             newBadge = "جديد",
             attachment = "مرفق",
             attachmentOnDashboard = "متاح في لوحة التحكم",
-            pullToRefresh = "اسحب للأسفل للتحديث",
             fromCoordinator = "من منسّق {subject}",
             fromManager = "من مدير قسم {curriculum}",
             fromAuthor = "من {name}",

@@ -15,8 +15,15 @@ import quest.api.dto.BroadcastView
  */
 
 /**
- * The Sunday that starts [date]'s week — the same snap the server applies to a plan's `weekStart`, so "this week"
- * means the same thing on both sides. `isoDayNumber` is Monday 1 … Sunday 7, and `% 7` turns Sunday back into 0.
+ * The Sunday that starts [date]'s week. `isoDayNumber` is Monday 1 … Sunday 7, and `% 7` turns Sunday back into 0 —
+ * the same `previousOrSame(SUNDAY)` rule the server applies to a plan's `weekStart`.
+ *
+ * **The rule is the same; the input is not.** The server snaps a date the composer typed, with no zone in it at all,
+ * while the caller here passes `Today.date()`, which is the *device's* zone (`TimeZone.currentSystemDefault()`).
+ * `shared/` has no notion of the school's zone, so a parent whose device sits west of the school can be on Saturday
+ * while the school is on Sunday, and this week's plan then falls into [BroadcastGroups.earlierPlans] instead of the
+ * pinned card. It is a limitation to record, not something this function can fix: fixing it needs the school's zone
+ * on the wire. Expiry is unaffected — that comparison is in epoch millis and carries no zone.
  */
 fun weekStartOf(date: LocalDate): LocalDate = date.minus(date.dayOfWeek.isoDayNumber % 7, DateTimeUnit.DAY)
 
