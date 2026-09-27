@@ -1,11 +1,15 @@
+/* hq-flag: none (shell) — the manager's area is a role, not a feature. RM1 gates every
+   `/management/**` route on her own `management.*` permissions (`permissions.json`), which
+   `areaRoutes` puts on each row; the rows that *are* behind a flag — Gradebook, Exams, Messages,
+   Complaints — declare it there, in the one table the rail is built from. */
 import { Routes } from '@angular/router';
 import { areaRoutes } from '../../core/nav/area.routes';
 
 /**
- * `/management/**` (§6 screens 17–20).
+ * `/management/**` (RM3a, `docs/management-flow.md`).
  *
- * Declared in `core/nav/screens.ts` and gated by `areaRoutes`. Complaints is the role's main
- * screen and is flagged: a school that has not turned `complaints` on has no inbox, the
- * endpoint 404s, the rail does not offer it, and `featureGuard` closes the URL as well.
+ * Declared in `core/nav/screens.ts` and gated by `areaRoutes`, like every other area. Most of
+ * her screens are the coordinator's, reading her department through `StaffScopeService`; the
+ * four that are hers alone live beside this file.
  */
 export const MANAGEMENT_ROUTES: Routes = areaRoutes('MANAGERIAL');

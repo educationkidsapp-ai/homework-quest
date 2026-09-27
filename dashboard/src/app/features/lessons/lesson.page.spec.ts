@@ -127,13 +127,18 @@ async function renderLessonAs(
 }
 
 /**
- * A teacher reads the `/teacher/**` aliases; everyone else reads `/admin/**`.
+ * Which namespace this reader's lesson comes from — `LessonApiService`'s branch, said once here.
  *
- * MANAGERIAL is on the Admin side, not the teacher one: a manager holds no teaching
- * assignment, so every `/teacher/**` read of hers would 404 — see `LessonApiService.isAdmin`.
+ * Neither supervisor is on the Admin side any more: a coordinator (R5) and a manager (RM3a) each
+ * have an alias scoped to what she supervises, and `/teacher/**` would 404 for both because
+ * neither holds a teaching assignment. An Admin is the only tenant-wide reader left.
  */
 function lessonUrlFor(user: typeof ADMIN_USER): string {
-  return user.role === 'TEACHER' ? '/teacher/lessons/l-1' : '/admin/lessons/l-1';
+  if (user.role === 'TEACHER') return '/teacher/lessons/l-1';
+  if (user.role === 'COORDINATOR') return '/coordinator/lessons/l-1';
+  // RM3a: a manager reads her department's own alias, not the tenant-wide Admin route.
+  if (user.role === 'MANAGERIAL') return '/management/lessons/l-1';
+  return '/admin/lessons/l-1';
 }
 
 /** A schema-valid `choice` stop, so the editor's live validation has something real to chew on. */

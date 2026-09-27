@@ -172,10 +172,99 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       },
     ],
   },
+  // RM3a (DR5, DR7, `docs/management-flow.md`): the department manager's area. RM1 gave her
+  // `/management/**` — one curriculum across every grade, every subject, read-only — so her rows
+  // are the coordinator's rows with a wider scope, plus the two screens only she has: the people
+  // directory and the staff register, the one thing in the whole namespace she writes.
+  //
+  // Every row carries one of RM1's own keys (`management.*`) rather than the tenant-wide
+  // `teacher.read` / `section.read` the stubs used to: those two are the Admin's keys, which a
+  // MANAGERIAL account happens to hold, and gating her area on them would have opened her screens
+  // to an Admin's data the moment one of them stopped being department-scoped.
   MANAGERIAL: {
     base: '/management',
     screens: [
       { id: 'home', path: '', labelKey: 'nav.home' },
+      {
+        id: 'coordinators',
+        path: 'coordinators',
+        labelKey: 'nav.coordinators',
+        permission: 'management.read',
+      },
+      { id: 'teachers', path: 'teachers', labelKey: 'nav.teachers', permission: 'management.read' },
+      { id: 'classes', path: 'classes', labelKey: 'nav.classes', permission: 'management.read' },
+      {
+        id: 'lessons',
+        path: 'lessons',
+        labelKey: 'nav.allLessons',
+        permission: 'management.lesson.read',
+        readOnly: true,
+      },
+      { id: 'lesson', path: 'lessons/:id', permission: 'management.lesson.read', readOnly: true },
+      // Her records are the coordinator's records one axis over, with the same two flags on the
+      // same two rows: `gradebook` and `exams` are what `ManagementReadsController` carries, so a
+      // school without one meets `/not-found` rather than a screen of 404s. Attendance carries
+      // none — a school with classes has registers.
+      {
+        id: 'attendance',
+        path: 'attendance',
+        labelKey: 'nav.attendance',
+        permission: 'management.attendance.read',
+        readOnly: true,
+      },
+      {
+        id: 'gradebook',
+        path: 'gradebook',
+        labelKey: 'nav.gradebook',
+        flag: FLAGS.gradebook,
+        permission: 'management.results.read',
+        readOnly: true,
+      },
+      {
+        id: 'exams',
+        path: 'exams',
+        labelKey: 'nav.exams',
+        flag: FLAGS.exams,
+        permission: 'management.exams.read',
+        readOnly: true,
+      },
+      {
+        id: 'results',
+        path: 'lessons/:id/results',
+        flag: FLAGS.gradebook,
+        permission: 'management.results.read',
+        readOnly: true,
+      },
+      {
+        id: 'child',
+        path: 'children/:childId',
+        flag: FLAGS.gradebook,
+        permission: 'management.results.read',
+        readOnly: true,
+      },
+      {
+        id: 'exam-results',
+        path: 'exams/:id/results',
+        flag: FLAGS.exams,
+        permission: 'management.exams.read',
+        readOnly: true,
+      },
+      // RM5's two, and neither carries a flag: `ManagementPeopleController` is in the server's
+      // own `FeatureFlagCoverageTest.INFRASTRUCTURE` list, because taking the staff register is
+      // not an optional feature of a school and `FlagKeys` has no key for it.
+      { id: 'people', path: 'people', labelKey: 'nav.people', permission: 'management.people' },
+      {
+        id: 'staff-attendance',
+        path: 'staff-attendance',
+        labelKey: 'nav.staffAttendance',
+        permission: 'management.staff.attendance',
+      },
+      // R7: the manager's side of the coordinator ↔ manager threads. R4 added no
+      // `GET /management/chat/threads`, so this screen is fed by the socket alone until RM2 does
+      // — see `docs/coordinator-flow.md`. Flagged with `chat` like every other chat screen.
+      { id: 'messages', path: 'messages', labelKey: 'nav.messages', flag: FLAGS.chat },
+      // RM3b: the department's complaints, on RM2's thread list. Still the stub, and still the
+      // `complaints` flag, so nothing offers her an inbox a school has switched off.
       {
         id: 'complaints',
         path: 'complaints',
@@ -184,12 +273,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         phase: 5,
       },
       { id: 'complaint', path: 'complaints/:id', flag: FLAGS.complaints, phase: 5 },
-      // R7: the manager's side of the coordinator ↔ manager threads. R4 added no
-      // `GET /management/chat/threads`, so this screen is fed by the socket alone until RM2 does
-      // — see `docs/coordinator-flow.md`. Flagged with `chat` like every other chat screen.
-      { id: 'messages', path: 'messages', labelKey: 'nav.messages', flag: FLAGS.chat },
       { id: 'usage', path: 'usage', labelKey: 'nav.schoolUsage', permission: 'usage.school', phase: 5 },
-      { id: 'teachers', path: 'teachers', labelKey: 'nav.teachers', permission: 'teacher.read', phase: 5 },
     ],
   },
   // R5 (DR2, `docs/coordinator-flow.md`): the subject coordinator's area. Every row carries one

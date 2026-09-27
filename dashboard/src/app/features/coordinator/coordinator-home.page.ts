@@ -10,7 +10,7 @@ import { activeLang } from '../../core/i18n/active-lang';
 import { CardComponent, CountUpDirective, PageComponent, SkeletonComponent } from '../../ui';
 import { StatusSquareComponent } from '../week/status-square.component';
 import { CoordinatorReadFailedComponent } from './read-failed.component';
-import { CoordinatorService } from './coordinator.service';
+import { StaffScopeService } from './staff-scope.service';
 import { scopeLabel } from './coordinator.labels';
 
 /**
@@ -158,7 +158,7 @@ import { scopeLabel } from './coordinator.labels';
   `,
 })
 export class CoordinatorHomePage {
-  protected readonly co = inject(CoordinatorService);
+  protected readonly co = inject(StaffScopeService);
 
   /** R6's two flagged screens, named here as well as on their rows (`core/nav/screens.ts`). */
   protected readonly gradebookFlag = FLAGS.gradebook;

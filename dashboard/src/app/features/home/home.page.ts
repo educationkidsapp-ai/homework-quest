@@ -26,20 +26,20 @@ interface QuickActionItem {
   readonly bgColor: string;
 }
 
-interface TeacherStaffItem {
-  readonly name: string;
-  readonly subject: string;
-  readonly email: string;
-  readonly phone: string;
-  readonly status: 'Present' | 'On Leave';
-  readonly avatar: string;
-  readonly gradient: string;
-}
-
 
 /**
- * Home, for all three roles — matching EduManage School Management System Dashboard
- * from https://cork-flap-52975231.figma.site/
+ * Home, for an Admin and a teacher.
+ *
+ * The layout came from a comp, and so — until RM3a — did a good deal of its content: a weekly
+ * attendance chart, a staff directory with telephone numbers no table in this system holds,
+ * three named "schedule gaps", two exam counters and a "+12.5 % vs last month" on every stat
+ * card. None of it was read from anywhere. All of it is gone rather than translated: a Home is
+ * the screen people trust most, and a number invented on it is worse than a number absent from
+ * it. What is left is `GET /me/home` — the counts, the teacher's classes, her weakest skills,
+ * and what needs somebody.
+ *
+ * The manager's Home is no longer this screen at all: DR5's department statistics are
+ * `features/management/management-home.page.ts`.
  */
 @Component({
   selector: 'hq-home-page',
@@ -92,11 +92,6 @@ interface TeacherStaffItem {
                 <div class="em-stat-info">
                   <p class="em-stat-label">{{ cardLabel(card.key) }}</p>
                   <h3 class="em-stat-value"><span [hqCountUp]="card.value"></span></h3>
-                  <div class="em-stat-trend em-stat-trend--up">
-                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
-                    <span>+12.5%</span>
-                    <span class="em-stat-trend-sub">vs last month</span>
-                  </div>
                 </div>
                 <div class="em-stat-icon-tile" [ngClass]="statIconGradient(card.key)">
                   @switch (card.key) {
@@ -134,25 +129,6 @@ interface TeacherStaffItem {
                       </svg>
                     }
                   }
-                </div>
-              </div>
-            }
-            @if (isTeacher()) {
-              <div class="em-stat-card">
-                <div class="em-stat-info">
-                  <p class="em-stat-label">{{ 'home.attendance.weeklyTitle' | transloco }}</p>
-                  <h3 class="em-stat-value">94.2%</h3>
-                  <div class="em-stat-trend em-stat-trend--up">
-                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
-                    <span>+2.4%</span>
-                    <span class="em-stat-trend-sub">vs last month</span>
-                  </div>
-                </div>
-                <div class="em-stat-icon-tile em-gradient--green">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                    <polyline points="22 4 12 14.01 9 11.01" />
-                  </svg>
                 </div>
               </div>
             }
@@ -216,53 +192,20 @@ interface TeacherStaffItem {
             </div>
           </section>
 
-          <!-- ================= 3. Main Split Grid (2fr Left : 1fr Right) ================= -->
-          <div class="em-main-split">
-            <!-- Left Column -->
-            <div class="em-split-col em-split-col--left">
-              <!-- Weekly Attendance Chart Card -->
-              <section class="em-card">
-                <div class="em-card-header">
-                  <div>
-                    <h2 class="em-card-title">{{ 'home.attendance.weeklyTitle' | transloco }}</h2>
-                    <p class="em-card-subtitle">Student and teacher attendance overview</p>
-                  </div>
-                  <div class="em-legend-group">
-                    <div class="em-legend-item">
-                      <span class="em-legend-dot em-legend-dot--blue"></span>
-                      <span class="em-legend-label">Students</span>
-                    </div>
-                    <div class="em-legend-item">
-                      <span class="em-legend-dot em-legend-dot--purple"></span>
-                      <span class="em-legend-label">Teachers</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="em-chart-container">
-                  <div class="em-chart-bars">
-                    @for (item of attendanceDays; track item.day) {
-                      <div class="em-chart-col">
-                        <div class="em-chart-tracks">
-                          <div class="em-chart-track em-chart-track--students" [style.height.%]="item.studentPct"></div>
-                          <div class="em-chart-track em-chart-track--teachers" [style.height.%]="item.teacherPct"></div>
-                        </div>
-                        <span class="em-chart-day">{{ item.day }}</span>
-                      </div>
-                    }
-                  </div>
-                </div>
-              </section>
-
-              <!-- Classes / Teachers Directory Card -->
-              <section class="em-card">
-                <div class="em-card-header">
-                  <div>
-                    <h2 class="em-card-title">{{ isTeacher() ? ('home.myClasses' | transloco) : 'Teachers' }}</h2>
-                    <p class="em-card-subtitle">{{ isTeacher() ? ('home.activeClasses' | transloco) : 'Current staff members' }}</p>
-                  </div>
-                  <a class="em-link-action" routerLink="/teacher/classes">View All</a>
-                </div>
+          <!-- The teacher's own classes, from GET /me/home. Everything that used to sit
+               around them — a weekly attendance chart, a staff directory with telephone
+               numbers no table in this system holds, three named "schedule gaps" and two exam
+               counters — was the comp's sample data: hard-coded, identical for every school and
+               every role. RM3a took it out rather than translate it. The real versions live on
+               the screens that read them: the register, This week, the exams tab, and DR5's
+               department statistics on the manager's own Home. -->
+          <section class="em-card">
+            <div class="em-card-header">
+              <div>
+                <h2 class="em-card-title">{{ 'home.myClasses' | transloco }}</h2>
+                <p class="em-card-subtitle">{{ 'home.activeClasses' | transloco }}</p>
+              </div>
+            </div>
 
                 @if (classes(); as teacherClasses) {
                   @if (teacherClasses.length > 0) {
@@ -303,43 +246,15 @@ interface TeacherStaffItem {
                   }
                 }
 
-                <!-- Staff members list from Figma -->
-                <div class="em-list-group em-list-group--staff">
-                  @for (teacher of staffList; track teacher.email) {
-                    <div class="em-list-item">
-                      <div class="em-item-avatar" [ngClass]="teacher.gradient">
-                        {{ teacher.avatar }}
-                      </div>
-                      <div class="em-item-details">
-                        <h3 class="em-item-title">{{ teacher.name }}</h3>
-                        <p class="em-item-subtitle">{{ teacher.subject }}</p>
-                      </div>
-                      <div class="em-item-meta">
-                        <span class="em-meta-text">{{ teacher.email }}</span>
-                        <span class="em-meta-text">{{ teacher.phone }}</span>
-                      </div>
-                      <div class="em-item-status">
-                        <span
-                          class="em-pill"
-                          [class.em-pill--present]="teacher.status === 'Present'"
-                          [class.em-pill--leave]="teacher.status === 'On Leave'"
-                        >
-                          {{ teacher.status }}
-                        </span>
-                      </div>
-                    </div>
-                  }
-                </div>
-              </section>
+          </section>
 
-              <!-- Weak Skills section (preserved for curriculum diagnostics) -->
+          <!-- Weak Skills section (preserved for curriculum diagnostics) -->
               @if (weakSkills(); as skills) {
                 @if (skills.length > 0) {
                   <section class="em-card">
                     <div class="em-card-header">
                       <div>
                         <h2 class="em-card-title">{{ 'home.weakSkills' | transloco }}</h2>
-                        <p class="em-card-subtitle">Identified focus areas</p>
                       </div>
                       <span class="em-badge-count">{{ skills.length }}</span>
                     </div>
@@ -362,7 +277,7 @@ interface TeacherStaffItem {
                 }
               }
 
-              <!-- Needs Attention for Admin / Managerial -->
+          <!-- Needs Attention for Admin / Managerial -->
               @if (needsYou().length > 0) {
                 <section class="em-card">
                   <div class="em-card-header">
@@ -377,85 +292,6 @@ interface TeacherStaffItem {
                   </div>
                 </section>
               }
-            </div>
-
-            <!-- Right Column -->
-            <div class="em-split-col em-split-col--right">
-              <!-- Schedule Gaps & Action Items Card -->
-              <section class="em-card">
-                <div class="em-card-header">
-                  <div>
-                    <h2 class="em-card-title">{{ 'nav.thisWeek' | transloco }}</h2>
-                    <p class="em-card-subtitle">Schedule gaps & action items</p>
-                  </div>
-                  <svg class="em-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </div>
-
-                <div class="em-events-list">
-                  <div class="em-event-item em-event--orange">
-                    <h3 class="em-event-title">Class 1B · Math: Missing Lesson</h3>
-                    <div class="em-event-details">
-                      <div class="em-event-line">
-                        <span>No lesson scheduled for Tuesday</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="em-event-item em-event--purple">
-                    <h3 class="em-event-title">Grade 2C · Math Exam: Closing Soon</h3>
-                    <div class="em-event-details">
-                      <div class="em-event-line">
-                        <span>4 submissions received • Closes in 2 days</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="em-event-item em-event--pink">
-                    <h3 class="em-event-title">Grade 1A · Fractions: 3 Open Stops</h3>
-                    <div class="em-event-details">
-                      <div class="em-event-line">
-                        <span>Waiting for teacher oral retell marks</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Exams & Homework Tests Card -->
-              <section class="em-card">
-                <div class="em-card-header">
-                  <div>
-                    <h2 class="em-card-title">{{ 'exams.tab.title' | transloco }}</h2>
-                    <p class="em-card-subtitle">{{ 'home.activeClasses' | transloco }}</p>
-                  </div>
-                  <svg class="em-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                  </svg>
-                </div>
-
-                <div class="em-fees-overview">
-                  <div class="em-fee-block">
-                    <div class="em-fee-top">
-                      <span class="em-fee-label">Active Exams</span>
-                      <span class="em-fee-change em-fee-change--success">Scheduled</span>
-                    </div>
-                    <h3 class="em-fee-value">3</h3>
-                  </div>
-                  <div class="em-fee-block">
-                    <div class="em-fee-top">
-                      <span class="em-fee-label">Needs Grading</span>
-                      <span class="em-fee-change em-fee-change--warning">Pending</span>
-                    </div>
-                    <h3 class="em-fee-value">12</h3>
-                  </div>
-                </div>
-
-                <a routerLink="/teacher/exams/new" class="em-btn-gradient">
-                  {{ 'exams.new' | transloco }}
-                </a>
-              </section>
-            </div>
-          </div>
         </div>
       }
     </hq-page>
@@ -539,28 +375,6 @@ interface TeacherStaffItem {
       line-height: 1.2;
     }
 
-    .em-stat-trend {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      font-weight: 600;
-
-      svg {
-        inline-size: 12px;
-        block-size: 12px;
-      }
-
-      &--up {
-        color: #10b981;
-      }
-    }
-
-    .em-stat-trend-sub {
-      color: #94a3b8;
-      font-weight: 400;
-    }
-
     .em-stat-icon-tile {
       inline-size: 46px;
       block-size: 46px;
@@ -626,20 +440,6 @@ interface TeacherStaffItem {
       font-size: 13px;
       color: #64748b;
       margin: 0;
-    }
-
-    .em-header-icon {
-      inline-size: 20px;
-      block-size: 20px;
-      color: #94a3b8;
-    }
-
-    .em-link-action {
-      font-size: 13px;
-      font-weight: 600;
-      color: #2563eb;
-      text-decoration: none;
-      &:hover { text-decoration: underline; }
     }
 
     .em-badge-count {
@@ -715,100 +515,6 @@ interface TeacherStaffItem {
       max-inline-size: 100%;
     }
 
-    // --- 3. Split Grid ---
-    .em-main-split {
-      display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 24px;
-      align-items: start;
-
-      @include m.below(1024px) {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .em-split-col {
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-
-    // Chart
-    .em-legend-group {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .em-legend-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .em-legend-dot {
-      inline-size: 10px;
-      block-size: 10px;
-      border-radius: 50%;
-      &--blue { background: #3b82f6; }
-      &--purple { background: #a855f7; }
-    }
-
-    .em-legend-label {
-      font-size: 12px;
-      color: #64748b;
-    }
-
-    .em-chart-container {
-      padding-block-start: 12px;
-    }
-
-    .em-chart-bars {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      block-size: 160px;
-      padding-inline: 12px;
-      border-bottom: 1px solid #f1f5f9;
-      gap: 12px;
-    }
-
-    .em-chart-col {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      flex: 1;
-    }
-
-    .em-chart-tracks {
-      display: flex;
-      align-items: flex-end;
-      gap: 4px;
-      block-size: 130px;
-      inline-size: 100%;
-      max-inline-size: 32px;
-    }
-
-    .em-chart-track {
-      flex: 1;
-      border-radius: 6px 6px 0 0;
-      transition: height 0.3s ease;
-
-      &--students {
-        background: linear-gradient(180deg, #3b82f6 0%, #93c5fd 100%);
-      }
-      &--teachers {
-        background: linear-gradient(180deg, #a855f7 0%, #d8b4fe 100%);
-      }
-    }
-
-    .em-chart-day {
-      font-size: 11px;
-      font-weight: 500;
-      color: #94a3b8;
-    }
-
     // List Group (Staff / Classes)
     .em-list-group {
       display: flex;
@@ -863,22 +569,6 @@ interface TeacherStaffItem {
       margin: 0;
     }
 
-    .em-item-meta {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      text-align: end;
-
-      @include m.below(768px) {
-        display: none;
-      }
-    }
-
-    .em-meta-text {
-      font-size: 11px;
-      color: #94a3b8;
-    }
-
     .em-item-actions {
       display: flex;
       align-items: center;
@@ -931,170 +621,6 @@ interface TeacherStaffItem {
         color: #b91c1c;
       }
     }
-
-    // Events List
-    .em-events-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .em-event-item {
-      padding: 14px 16px;
-      border-radius: 16px;
-      border-inline-start: 4px solid;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-
-      &:hover {
-        transform: translateX(3px);
-        box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06);
-      }
-    }
-
-    .em-event--blue { border-color: #3b82f6; background: #eff6ff; }
-    .em-event--purple { border-color: #a855f7; background: #faf5ff; }
-    .em-event--pink { border-color: #ec4899; background: #fdf2f8; }
-    .em-event--green { border-color: #22c55e; background: #f0fdf4; }
-    .em-event--orange { border-color: #f97316; background: #fff7ed; }
-
-    .em-event-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: #1e293b;
-      margin: 0;
-    }
-
-    .em-event-details {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .em-event-line {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: #64748b;
-
-      svg {
-        inline-size: 12px;
-        block-size: 12px;
-        color: #94a3b8;
-      }
-    }
-
-    // Fees Card
-    .em-fees-overview {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .em-fee-block {
-      padding: 12px 14px;
-      background: #f8fafc;
-      border-radius: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .em-fee-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .em-fee-label {
-      font-size: 12px;
-      color: #64748b;
-    }
-
-    .em-fee-change {
-      font-size: 11px;
-      font-weight: 600;
-      &--success { color: #16a34a; }
-      &--warning { color: #d97706; }
-      &--danger { color: #dc2626; }
-    }
-
-    .em-fee-value {
-      font-size: 18px;
-      font-weight: 700;
-      color: #1e293b;
-      margin: 0;
-    }
-
-    .em-section-micro-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: #64748b;
-      margin: 12px 0 8px 0;
-    }
-
-    .em-payments-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .em-payment-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      background: #f8fafc;
-      border-radius: 12px;
-    }
-
-    .em-payment-student {
-      font-size: 13px;
-      font-weight: 600;
-      color: #1e293b;
-      margin: 0;
-    }
-
-    .em-payment-class {
-      font-size: 11px;
-      color: #94a3b8;
-      margin: 0;
-    }
-
-    .em-payment-meta {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .em-payment-amount {
-      font-size: 13px;
-      font-weight: 700;
-      color: #1e293b;
-      margin: 0;
-    }
-
-    .em-btn-gradient {
-      inline-size: 100%;
-      padding-block: 12px;
-      border: 0;
-      border-radius: 16px;
-      background: linear-gradient(to right, #3b82f6, #9333ea);
-      color: #ffffff;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 4px 14px -2px rgba(59, 130, 246, 0.4);
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-
-      &:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 20px -2px rgba(59, 130, 246, 0.5);
-      }
-    }
   `,
 })
 export class HomePage {
@@ -1132,25 +658,6 @@ export class HomePage {
     { label: 'Create Exam', icon: 'download', link: '/teacher/exams/new', color: 'em-gradient--cyan', bgColor: 'em-bg--cyan' },
     { label: 'Attendance', icon: 'bell', link: '/teacher/classes', queryParams: { tab: 'attendance' }, color: 'em-gradient--green', bgColor: 'em-bg--green' },
     { label: 'Parent Chat', icon: 'mail', link: '/teacher/chat', color: 'em-gradient--orange', bgColor: 'em-bg--orange' },
-  ];
-
-  // EduManage Weekly Attendance Data
-  protected readonly attendanceDays = [
-    { day: 'Mon', studentPct: 93, teacherPct: 95 },
-    { day: 'Tue', studentPct: 95, teacherPct: 97 },
-    { day: 'Wed', studentPct: 94, teacherPct: 96 },
-    { day: 'Thu', studentPct: 96, teacherPct: 99 },
-    { day: 'Fri', studentPct: 95, teacherPct: 96 },
-    { day: 'Sat', studentPct: 84, teacherPct: 85 },
-  ];
-
-  // EduManage Staff Directory Data
-  protected readonly staffList: readonly TeacherStaffItem[] = [
-    { name: 'Sarah Johnson', subject: 'Mathematics', email: 'sarah.j@school.edu', phone: '+1 234-567-8901', status: 'Present', avatar: 'SJ', gradient: 'em-gradient--blue' },
-    { name: 'Michael Chen', subject: 'Science', email: 'michael.c@school.edu', phone: '+1 234-567-8902', status: 'Present', avatar: 'MC', gradient: 'em-gradient--purple' },
-    { name: 'Emily Davis', subject: 'English', email: 'emily.d@school.edu', phone: '+1 234-567-8903', status: 'On Leave', avatar: 'ED', gradient: 'em-gradient--pink' },
-    { name: 'David Wilson', subject: 'History', email: 'david.w@school.edu', phone: '+1 234-567-8904', status: 'Present', avatar: 'DW', gradient: 'em-gradient--green' },
-    { name: 'Lisa Anderson', subject: 'Arts', email: 'lisa.a@school.edu', phone: '+1 234-567-8905', status: 'Present', avatar: 'LA', gradient: 'em-gradient--orange' },
   ];
 
   protected readonly greeting = computed(() => {

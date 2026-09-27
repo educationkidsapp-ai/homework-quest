@@ -19,7 +19,7 @@ import {
 } from '../../ui';
 import { LessonApiService } from '../lessons/lesson-api.service';
 import { CoordinatorReadFailedComponent } from './read-failed.component';
-import { CoordinatorService } from './coordinator.service';
+import { StaffScopeService } from './staff-scope.service';
 
 interface LessonRow {
   readonly id: string;
@@ -66,7 +66,7 @@ const STATUSES: readonly AdminLessonStatusEnum[] = [
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hq-page [title]="'nav.allLessons' | transloco" [subtitle]="'coordinator.lessons.subtitle' | transloco">
+    <hq-page [title]="'nav.allLessons' | transloco" [subtitle]="co.scoped('lessons.subtitle') | transloco">
       <div class="co-filters">
         <hq-select
           [label]="'coordinator.lessons.byClass' | transloco"
@@ -117,7 +117,7 @@ const STATUSES: readonly AdminLessonStatusEnum[] = [
       <ng-template #cell let-row let-column="column">
         @switch (column.key) {
           @case ('title') {
-            <a [routerLink]="['/coordinator/lessons', row.id]">{{ row.title }}</a>
+            <a [routerLink]="[co.base() + '/lessons', row.id]">{{ row.title }}</a>
           }
           @case ('className') {
             {{ row.className }}
@@ -153,7 +153,7 @@ const STATUSES: readonly AdminLessonStatusEnum[] = [
 })
 export class CoordinatorLessonsPage {
   private readonly api = inject(LessonApiService);
-  private readonly co = inject(CoordinatorService);
+  protected readonly co = inject(StaffScopeService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
 

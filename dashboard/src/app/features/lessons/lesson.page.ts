@@ -1801,7 +1801,7 @@ export class LessonPage {
     // `/status` alias would poll the teacher's and be answered 404 every 2.5 s, silently
     // (`error: () => undefined`), for as long as the page stayed open.
     effect((onCleanup) => {
-      if (this.readOnly && !this.api.isCoordinator()) return;
+      if (this.readOnly && !this.api.supportsStatusPoll()) return;
       const lesson = this.lesson();
       const active = lesson !== null && (this.running() || anyConverting(lesson.files ?? []));
       if (!active) return;

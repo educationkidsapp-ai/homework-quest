@@ -59,11 +59,11 @@ export function areaRoutes(role: Role): Routes {
  * and the teacher's My classes (N2.3). Both are keyed by role as well as by id.
  */
 function componentFor(screen: Screen, role: Role) {
-  // R5/R6: the coordinator's list screens are her own — `GET /home`, `/teacher/**` and
+  // R5/R6, RM3a: a supervisor's list screens are her own — `GET /home`, `/teacher/**` and
   // `/admin/**` all answer 403 for her — while the four detail screens are the teacher's pages
   // in read-only mode, reading her namespace through `LessonApiService`/`ResultsApiService`.
-  if (role === 'COORDINATOR' && !SHARED_WITH_TEACHER.has(screen.id)) {
-    return coordinatorComponentFor(screen);
+  if ((role === 'COORDINATOR' || role === 'MANAGERIAL') && !SHARED_WITH_TEACHER.has(screen.id)) {
+    return supervisorComponentFor(screen, role);
   }
   if (screen.path === '') return import('../../features/home/home.page').then((m) => m.HomePage);
   if (screen.id === 'week') return import('../../features/week/week.page').then((m) => m.WeekPage);
@@ -110,8 +110,33 @@ function componentFor(screen: Screen, role: Role) {
  */
 const SHARED_WITH_TEACHER = new Set(['lesson', 'results', 'child', 'exam-results']);
 
-/** R5/R6's area, one lazy chunk per screen so her Home never carries the calendar or the grid. */
-function coordinatorComponentFor(screen: Screen) {
+/**
+ * The two read-only areas, one lazy chunk per screen so a Home never carries the calendar or the
+ * grid.
+ *
+ * Most of the rows are **the same component twice**: `StaffScopeService` reads
+ * `/coordinator/**` or `/management/**` off the role, so Teachers, Classes, All lessons and the
+ * three record screens serve a manager unchanged (RM3a's whole point — her screens are the
+ * coordinator's with a wider scope). Four rows are hers alone: the department Home, which is
+ * DR5's statistics rather than a preview of two lists, the coordinators she manages, the people
+ * directory and the staff register.
+ */
+function supervisorComponentFor(screen: Screen, role: Role) {
+  // A row a later package fills: the stub names the phase, and routing it at a coordinator's
+  // component would send a manager's request to `/coordinator/**` and a 403.
+  if (screen.phase !== undefined) return import('../../features/stub/stub.page').then((m) => m.StubPage);
+  if (role === 'MANAGERIAL') {
+    if (screen.path === '')
+      return import('../../features/management/management-home.page').then((m) => m.ManagementHomePage);
+    if (screen.id === 'coordinators')
+      return import('../../features/management/management-coordinators.page').then(
+        (m) => m.ManagementCoordinatorsPage,
+      );
+    if (screen.id === 'people')
+      return import('../../features/management/management-people.page').then((m) => m.ManagementPeoplePage);
+    if (screen.id === 'staff-attendance')
+      return import('../../features/management/staff-attendance.page').then((m) => m.StaffAttendancePage);
+  }
   if (screen.id === 'attendance')
     return import('../../features/coordinator/coordinator-attendance.page').then(
       (m) => m.CoordinatorAttendancePage,

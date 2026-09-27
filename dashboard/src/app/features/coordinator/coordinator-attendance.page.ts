@@ -19,7 +19,7 @@ import { normalise } from '../results/gradebook.models';
 import { ResultsApiService } from '../results/results-api.service';
 import { classPicker } from './coordinator-class-picker';
 import { CoordinatorReadFailedComponent } from './read-failed.component';
-import { CoordinatorService } from './coordinator.service';
+import { StaffScopeService } from './staff-scope.service';
 
 /** The server refuses more than 62 days (R3), so the screen refuses to ask for them. */
 const MAX_DAYS = 62;
@@ -51,16 +51,13 @@ const MAX_DAYS = 62;
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hq-page
-      [title]="'nav.attendance' | transloco"
-      [subtitle]="'coordinator.attendance.subtitle' | transloco"
-    >
+    <hq-page [title]="'nav.attendance' | transloco" [subtitle]="co.scoped('attendance.subtitle') | transloco">
       @if (co.loading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'ui.loading' | transloco" />
       } @else if (co.failed()) {
         <hq-coordinator-read-failed (retry)="co.reload()" />
       } @else if (picker.options().length === 0) {
-        <hq-empty-state [message]="'coordinator.classes.empty' | transloco" />
+        <hq-empty-state [message]="co.scoped('classes.empty') | transloco" />
       } @else {
         <div class="co-filters">
           <hq-select
@@ -113,12 +110,12 @@ const MAX_DAYS = 62;
   `,
 })
 export class CoordinatorAttendancePage {
-  protected readonly co = inject(CoordinatorService);
+  protected readonly co = inject(StaffScopeService);
   private readonly reads = inject(ResultsApiService);
   private readonly platform = inject(PlatformService);
   protected readonly picker = classPicker();
 
-  protected readonly childBase = '/coordinator/children';
+  protected readonly childBase = `${this.co.base()}/children`;
 
   /** Named in the sentence the screen refuses with, so the copy cannot drift from the limit. */
   protected readonly maxDays = MAX_DAYS;

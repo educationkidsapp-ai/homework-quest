@@ -4,7 +4,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { type ClassCalendarDay, CoordinatorApi } from '../../api';
+import { type ClassCalendarDay } from '../../api';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PlatformService } from '../../core/platform/platform.service';
 import {
@@ -18,7 +18,7 @@ import { ClassCalendarComponent } from '../classes/class-calendar.component';
 import { calendarCells } from '../classes/classes.models';
 import { StatusSquareComponent } from '../week/status-square.component';
 import { CoordinatorReadFailedComponent } from './read-failed.component';
-import { CoordinatorService } from './coordinator.service';
+import { StaffScopeService } from './staff-scope.service';
 import { scopeLabel } from './coordinator.labels';
 
 /**
@@ -60,23 +60,30 @@ import { scopeLabel } from './coordinator.labels';
       } @else if (co.failed()) {
         <hq-coordinator-read-failed (retry)="co.reload()" />
       } @else {
-        <hq-card [title]="'coordinator.classes.sections' | transloco">
+        <hq-card [title]="co.scoped('classes.sections') | transloco">
           @if (co.classes().length === 0) {
-            <p class="hq-muted">{{ 'coordinator.classes.empty' | transloco }}</p>
+            <p class="hq-muted">{{ co.scoped('classes.empty') | transloco }}</p>
           } @else {
-            <ul class="co-sections">
-              @for (row of co.classes(); track row.classId) {
-                <li class="co-sections__row">
-                  <hq-status-square [status]="row.todayStatus" />
-                  <span class="co-sections__name">{{ row.className }}</span>
-                  <span class="hq-muted">{{ courseOf(row.subject, row.curriculum, row.grade) }}</span>
-                  <span class="hq-muted">{{ row.teacherName }}</span>
-                  <span class="hq-muted">
-                    {{ 'coordinator.classes.children' | transloco: { count: row.childrenCount } }}
-                  </span>
-                </li>
-              }
-            </ul>
+            <!-- A heading per grade: a manager's department is six grades of every subject, and
+                 one flat list of thirty sections is a list nobody reads to the end. -->
+            @for (group of co.grades(); track group.grade) {
+              <h3 class="co-sections__grade">
+                {{ 'coordinator.classes.grade' | transloco: { grade: group.grade } }}
+              </h3>
+              <ul class="co-sections">
+                @for (row of group.rows; track row.classId) {
+                  <li class="co-sections__row">
+                    <hq-status-square [status]="row.todayStatus" />
+                    <span class="co-sections__name">{{ row.className }}</span>
+                    <span class="hq-muted">{{ courseOf(row.subject, row.curriculum, row.grade) }}</span>
+                    <span class="hq-muted">{{ row.teacherName }}</span>
+                    <span class="hq-muted">
+                      {{ 'coordinator.classes.children' | transloco: { count: row.childrenCount } }}
+                    </span>
+                  </li>
+                }
+              </ul>
+            }
           }
         </hq-card>
 
@@ -96,7 +103,7 @@ import { scopeLabel } from './coordinator.labels';
           <hq-class-calendar
             [classId]="selectedClassId()"
             [readOnly]="true"
-            lessonBase="/coordinator/lessons"
+            [lessonBase]="co.base() + '/lessons'"
             [year]="year()"
             [month]="month()"
             [cells]="cells()"
@@ -126,14 +133,20 @@ import { scopeLabel } from './coordinator.labels';
       border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
     }
 
+    .co-sections__grade {
+      margin-block: var(--hq-space-16) var(--hq-space-8);
+      font-size: var(--hq-text-size-body);
+      font-weight: var(--hq-text-weight-medium);
+      color: var(--hq-color-ink-soft);
+    }
+
     .co-sections__name {
       font-weight: var(--hq-text-weight-medium);
     }
   `,
 })
 export class CoordinatorClassesPage {
-  protected readonly co = inject(CoordinatorService);
-  private readonly api = inject(CoordinatorApi);
+  protected readonly co = inject(StaffScopeService);
   private readonly platform = inject(PlatformService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
@@ -166,7 +179,7 @@ export class CoordinatorClassesPage {
 
   protected readonly calendar = rxResource({
     params: () => this.range(),
-    stream: ({ params }) => this.api.coordinatorCalendar(params.from, params.to),
+    stream: ({ params }) => this.co.calendar(params.from, params.to),
   });
 
   /**

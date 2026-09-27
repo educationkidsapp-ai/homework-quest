@@ -13,7 +13,7 @@ import {
   TableComponent,
 } from '../../ui';
 import { CoordinatorReadFailedComponent } from './read-failed.component';
-import { CoordinatorService } from './coordinator.service';
+import { StaffScopeService } from './staff-scope.service';
 import { translateOr } from './coordinator.labels';
 
 interface TeacherRow {
@@ -52,7 +52,7 @@ interface TeacherRow {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hq-page [title]="'nav.teachers' | transloco" [subtitle]="'coordinator.teachers.subtitle' | transloco">
+    <hq-page [title]="'nav.teachers' | transloco" [subtitle]="co.scoped('teachers.subtitle') | transloco">
       @if (co.loading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'ui.loading' | transloco" />
       } @else if (co.failed()) {
@@ -78,7 +78,7 @@ interface TeacherRow {
           [trackBy]="trackRow"
           [label]="'nav.teachers' | transloco"
         >
-          <hq-empty-state table-empty [message]="'coordinator.teachers.empty' | transloco" />
+          <hq-empty-state table-empty [message]="co.scoped('teachers.empty') | transloco" />
         </hq-table>
       }
 
@@ -111,7 +111,7 @@ interface TeacherRow {
   `,
 })
 export class CoordinatorTeachersPage {
-  protected readonly co = inject(CoordinatorService);
+  protected readonly co = inject(StaffScopeService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
 

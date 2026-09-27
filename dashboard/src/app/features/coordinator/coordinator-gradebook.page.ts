@@ -8,7 +8,7 @@ import { EmptyStateComponent, PageComponent, SelectComponent, SkeletonComponent 
 import { GradebookComponent } from '../results/gradebook.component';
 import { classPicker } from './coordinator-class-picker';
 import { CoordinatorReadFailedComponent } from './read-failed.component';
-import { CoordinatorService } from './coordinator.service';
+import { StaffScopeService } from './staff-scope.service';
 
 /**
  * Gradebook (R6): one of her sections, the teacher's own grid, read only.
@@ -36,13 +36,13 @@ import { CoordinatorService } from './coordinator.service';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hq-page [title]="'nav.gradebook' | transloco" [subtitle]="'coordinator.gradebook.subtitle' | transloco">
+    <hq-page [title]="'nav.gradebook' | transloco" [subtitle]="co.scoped('gradebook.subtitle') | transloco">
       @if (co.loading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'ui.loading' | transloco" />
       } @else if (co.failed()) {
         <hq-coordinator-read-failed (retry)="co.reload()" />
       } @else if (picker.options().length === 0) {
-        <hq-empty-state [message]="'coordinator.classes.empty' | transloco" />
+        <hq-empty-state [message]="co.scoped('classes.empty') | transloco" />
       } @else {
         <hq-select
           [label]="'coordinator.lessons.byClass' | transloco"
@@ -56,6 +56,6 @@ import { CoordinatorService } from './coordinator.service';
   `,
 })
 export class CoordinatorGradebookPage {
-  protected readonly co = inject(CoordinatorService);
+  protected readonly co = inject(StaffScopeService);
   protected readonly picker = classPicker();
 }

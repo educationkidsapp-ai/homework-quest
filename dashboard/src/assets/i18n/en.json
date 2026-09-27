@@ -567,7 +567,6 @@
     },
     "attendance": {
       "attendance": "Attendance",
-      "weeklyTitle": "Weekly Attendance",
       "weeklySubtitle": "Class attendance trends over the week",
       "thisWeek": "This Week",
       "presentRate": "Present",
@@ -1177,7 +1176,10 @@
     "attendance": "Attendance",
     "gradebook": "Gradebook",
     "exams": "Exams",
-    "messages": "Messages"
+    "messages": "Messages",
+    "coordinators": "Coordinators",
+    "people": "People",
+    "staffAttendance": "Staff attendance"
   },
   "notifications": {
     "title": "Notifications",
@@ -1768,7 +1770,10 @@
     "dayPicker": {
       "prevMonth": "Previous month",
       "nextMonth": "Next month"
-    }
+    },
+    "previous": "Previous",
+    "next": "Next",
+    "save": "Save"
   },
   "week": {
     "title": "This week",
@@ -1959,6 +1964,112 @@
       "notEnabled": "Announcements are not enabled for this school.",
       "notEnabledHint": "An Admin can turn them on in the feature matrix.",
       "expiredAlready": "Pick today or a later day — an earlier one hides the announcement from every parent."
+    }
+  },
+  "management": {
+    "count": {
+      "sections": "Classes in the department",
+      "teachers": "Teachers",
+      "coordinators": "Coordinators",
+      "children": "Children"
+    },
+    "stats": {
+      "title": "How the department is doing",
+      "loading": "Reading the department's numbers…",
+      "total": "Whole department",
+      "columns": {
+        "grade": "Grade",
+        "children": "Children",
+        "sections": "Classes",
+        "attendance": "Attendance",
+        "published": "Lessons published",
+        "played": "Lessons played",
+        "exams": "Exams",
+        "examAverage": "Exam average",
+        "examPassRate": "Pass rate"
+      },
+      "tooWide": "Choose a window of {{days}} days or less."
+    },
+    "quiet": {
+      "title": "Teachers with nothing published",
+      "subtitle": "Nobody in this window. A word from you is usually enough.",
+      "empty": "Every teacher published something in this window."
+    },
+    "coordinators": {
+      "subtitle": "The subject coordinators of your department, and how much each of them supervises.",
+      "search": "Search by name, email or subject",
+      "empty": "No coordinator carries your department yet.",
+      "columns": {
+        "tracks": "Tracks"
+      }
+    },
+    "people": {
+      "subtitle": "Everyone in your department: the children and their parents' addresses, the teachers and the coordinators.",
+      "tabsLabel": "Who to list",
+      "search": "Search by name or email",
+      "export": "Export CSV",
+      "empty": "Nobody matches that search.",
+      "page": "{{first}}–{{last}} of {{total}}",
+      "pagerLabel": "Pages",
+      "children": "Children",
+      "columns": {
+        "name": "Name",
+        "parentEmail": "Parent's email",
+        "class": "Class",
+        "grade": "Grade",
+        "sectionCount": "Classes"
+      },
+      "tooMany": "This file stops at {{rows}} rows",
+      "tooManyBody": "Your department has more people than one file can carry. Narrow it with a search first, and export that."
+    },
+    "staff": {
+      "subtitle": "The register for the teachers and coordinators of your department.",
+      "viewLabel": "Day or month",
+      "dayTab": "One day",
+      "monthTab": "This month",
+      "day": "Day",
+      "month": "Month",
+      "note": "Note",
+      "noteFor": "Note for {{name}}",
+      "statusFor": "Attendance for {{name}}",
+      "status": {
+        "present": "Present",
+        "absent": "Absent",
+        "late": "Late",
+        "leave": "On leave"
+      },
+      "closed": {
+        "future": "That day has not happened yet",
+        "closed": "The school does not teach on that day"
+      },
+      "closedBody": "The register can be taken on a teaching day, up to and including today.",
+      "empty": "Nobody teaches in your department yet.",
+      "summaryTitle": "Each person's month",
+      "counts": "{{present}} present · {{late}} late · {{absent}} absent · {{leave}} on leave",
+      "history": "Marked days",
+      "noMarks": "No day of this person's has been marked.",
+      "nothingToSave": "Nothing changed yet.",
+      "pending": "{{count}} to save"
+    },
+    "teachers": {
+      "subtitle": "The teachers of your department, and whether today has happened in their classes.",
+      "empty": "No teacher teaches in your department yet."
+    },
+    "classes": {
+      "sections": "Classes in your department",
+      "empty": "No class carries your department yet."
+    },
+    "lessons": {
+      "subtitle": "Every lesson of every class in your department. You can read them; only the teacher changes them."
+    },
+    "attendance": {
+      "subtitle": "A register for one of your classes. You can read it; only the teacher marks it."
+    },
+    "gradebook": {
+      "subtitle": "The scores of one of your classes. You can read them; only the teacher marks and releases them."
+    },
+    "exams": {
+      "subtitle": "The exams of one of your classes. You can read them; only the teacher sets and marks them."
     }
   }
 }

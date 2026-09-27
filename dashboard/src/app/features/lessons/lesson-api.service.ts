@@ -13,9 +13,11 @@ import {
   type Stop,
   AdminLessonsApi,
   CoordinatorApi,
+  ManagementApi,
   TeacherLessonsApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { StaffAreaService } from '../../core/auth/staff-area';
 import { silentErrors } from '../../core/http/error.interceptor';
 import { type RetryMethod, retryConversionBody } from './file-conversion';
 import { type NewLessonRequest, createLessonBody } from './lessons.models';
@@ -67,19 +69,22 @@ export class LessonApiService {
   private readonly admin = inject(AdminLessonsApi);
   private readonly teacher = inject(TeacherLessonsApi);
   private readonly coordinator = inject(CoordinatorApi);
+  private readonly management = inject(ManagementApi);
   private readonly auth = inject(AuthService);
+  private readonly staff = inject(StaffAreaService);
 
   /**
-   * MANAGERIAL reads lessons through the Admin routes too: `/teacher/**` is scoped to the
-   * caller's own assignments, and a manager has none — every one of her reads would 404.
+   * The Admin's own routes, and nobody else's.
    *
-   * Written as two exclusions rather than as a list of the roles that *are* admin-side, so the
-   * answer before `/me` has landed stays what it has always been — the Admin routes — and a fifth
-   * dashboard role added later does not silently start reading `/teacher/**`.
+   * Written as three exclusions rather than as a list of the roles that *are* admin-side, so a
+   * fifth dashboard role added later does not silently start reading somebody's namespace. Until
+   * RM3a a MANAGERIAL account was admin-side here, because `/teacher/**` is scoped to the
+   * caller's own assignments and she has none; RM1 gave her `/management/lessons`, which is
+   * scoped to her department instead of to the whole tenant.
    */
   readonly isAdmin = computed(() => {
     const role = this.auth.role();
-    return role !== 'TEACHER' && role !== 'COORDINATOR';
+    return role !== 'TEACHER' && role !== 'COORDINATOR' && role !== 'MANAGERIAL';
   });
 
   /**
@@ -93,7 +98,16 @@ export class LessonApiService {
    * `lesson.publish`, `play.write` or `stop.write`, so the controls that would call them are
    * never rendered (`lesson.page.html`, `*hqCan`).
    */
-  readonly isCoordinator = computed(() => this.auth.role() === 'COORDINATOR');
+  readonly isCoordinator = computed(() => this.staff.area() === 'coordinator');
+  /** RM1: the same three reads again, scoped to her department rather than to her subject. */
+  readonly isManager = computed(() => this.staff.area() === 'management');
+  /**
+   * This reader has a `/status` alias of her own, so the read-only lesson page may poll.
+   *
+   * A read-only role *without* one would poll the teacher's and be answered 404 every 2.5 s,
+   * silently, for as long as the page stayed open — which is what `lesson.page.ts` guards.
+   */
+  readonly supportsStatusPoll = computed(() => this.isCoordinator() || this.isManager());
   /** `DELETE /admin/lessons/failed` has no teacher alias — it is a tenant-wide sweep. */
   readonly supportsDeleteFailed = computed(() => this.isAdmin());
 
@@ -102,6 +116,7 @@ export class LessonApiService {
   list(filters: LessonListFilters): Observable<readonly AdminLesson[]> {
     const { curriculum, grade, subject, from, to, classId, schoolId, status } = filters;
     if (this.isCoordinator()) return this.coordinator.coordinatorLessons(classId, status, from, to);
+    if (this.isManager()) return this.management.managementLessons(classId, status, from, to);
     return this.isAdmin()
       ? this.admin.listLessons(curriculum, grade, subject, from, to, schoolId, classId)
       : this.teacher.listTeacherLessons(curriculum, grade, subject, from, to, classId);
@@ -152,6 +167,7 @@ export class LessonApiService {
 
   getLesson(id: string): Observable<AdminLesson> {
     if (this.isCoordinator()) return this.coordinator.coordinatorLesson(id);
+    if (this.isManager()) return this.management.managementLesson(id);
     return this.isAdmin() ? this.admin.getLesson(id) : this.teacher.teacherLesson(id);
   }
 
@@ -171,6 +187,7 @@ export class LessonApiService {
     // and answered 404 every 2.5 s, silently — which is why `lesson.page.ts` used to turn the
     // poll off under `readOnly` altogether.
     if (this.isCoordinator()) return this.coordinator.coordinatorLessonStatus(id);
+    if (this.isManager()) return this.management.managementLessonStatus(id);
     return this.isAdmin() ? this.admin.getLessonStatus(id) : this.teacher.teacherLessonStatus(id);
   }
 
