@@ -34,4 +34,13 @@ public interface NotificationRepository extends JpaRepository<Entities.Notificat
     @Modifying @Transactional
     @Query("update NotificationEntity n set n.readAt = :at where n.userId = :userId and n.readAt is null")
     int markAllRead(@Param("userId") String userId, @Param("at") Instant at);
+
+    /**
+     * Every row about one entity, whoever it belongs to — RM2's weekly plan, replaced by a re-post. It is the one
+     * query here that does not start from a `userId`, because the thing being withdrawn is the *subject* of the
+     * notification rather than anyone's bell; the `school` filter still applies, as it does to every read above.
+     */
+    @Modifying @Transactional
+    @Query("delete from NotificationEntity n where n.lessonId = :entityId")
+    int deleteByEntity(@Param("entityId") String entityId);
 }

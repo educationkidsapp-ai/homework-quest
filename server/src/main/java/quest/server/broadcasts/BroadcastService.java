@@ -219,9 +219,15 @@ public class BroadcastService {
         return rows.save(row);
     }
 
-    /** One plan per week per department: the previous one and its read marks go, so the new one arrives unread. */
+    /**
+     * One plan per week per department: the previous row, its read marks <em>and its bell entries</em> go, so the
+     * week has one plan wherever it is read. The notifications are found by the broadcast id every `broadcast.posted`
+     * row carries as its entity id — without it a superseded plan would go on offering its title and body from the
+     * bell, linked to a feed that has only the new one.
+     */
     private void replacePlan(String schoolId, BroadcastEntity row) {
         for (var previous : rows.weeklyPlans(schoolId, row.getWeekStart(), row.getCurriculum())) {
+            notifications.forget(previous.getId());
             reads.deleteByBroadcast(previous.getId());
             rows.delete(previous);
         }

@@ -172,7 +172,15 @@ class BroadcastApiTest extends ApiTestSupport {
         assertThat(parentGet(BRITISH_PARENT, "/children/" + childBritishA + "/broadcasts").get("unread").asInt()).isZero();
 
         var again = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\","
-                + "\"title\":\"Week of subtraction (v2)\",\"bodyEn\":\"Swimming moved to Wednesday.\",\"audience\":[\"parents\"]}");
+                + "\"title\":\"Week of subtraction (v2)\",\"bodyEn\":\"Swimming moved to Wednesday.\","
+                + "\"audience\":[\"parents\",\"teachers\"]}");
+        // One week, one bell entry: the superseded plan's notification goes with its row, or Maya is left with two
+        // titles for one week and one of them opens a feed that no longer has it.
+        var bells = names(staffGet(maya, "TEACHER", "/me/notifications"), "title");
+        assertThat(bells).contains("Week of subtraction (v2)").doesNotContain("Week of subtraction");
+        assertThat(bells.stream().filter(t -> t != null && t.startsWith("Week of subtraction")).count()).isOne();
+        assertThat(names(staffGet(maya, "TEACHER", "/me/broadcasts").get("items"), "title"))
+                .containsExactly("Week of subtraction (v2)");
         assertThat(names(staffGet(nour, "MANAGERIAL", "/management/broadcasts"), "id"))
                 .as("one plan per week per department").containsExactly(again.get("id").asText());
         var feed = parentGet(BRITISH_PARENT, "/children/" + childBritishA + "/broadcasts");
@@ -332,9 +340,11 @@ class BroadcastApiTest extends ApiTestSupport {
         mvc.perform(as(post("/coordinator/broadcasts").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"kind\":\"event\",\"bodyEn\":\"Mine\"}"), token(maya, "TEACHER"))).andExpect(status().isForbidden());
         // A teacher reads the feed and marks it read; she composes nothing.
-        String id = names(staffGet(maya, "TEACHER", "/me/broadcasts").get("items"), "id").get(0);
-        json(mvc.perform(as(post("/me/broadcasts/" + id + "/read"), token(maya, "TEACHER"))).andExpect(status().isOk()).andReturn());
+        var hers = names(staffGet(maya, "TEACHER", "/me/broadcasts").get("items"), "id");
+        for (String each : hers)
+            mvc.perform(as(post("/me/broadcasts/" + each + "/read"), token(maya, "TEACHER"))).andExpect(status().isOk());
         assertThat(staffGet(maya, "TEACHER", "/me/broadcasts").get("unread").asInt()).isZero();
+        String id = hers.get(0);
         // Rami is in the other department: the same row is not his to mark.
         mvc.perform(as(post("/me/broadcasts/" + id + "/read"), token(rami, "TEACHER"))).andExpect(status().isNotFound());
     }

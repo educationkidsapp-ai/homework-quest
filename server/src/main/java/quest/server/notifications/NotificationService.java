@@ -113,6 +113,15 @@ public class NotificationService {
         }
     }
 
+    /**
+     * Withdraws every notification about one entity — what a broadcast's replacement needs (RM2): a weekly plan
+     * re-posted for the same week replaces the row, and the bell must not go on offering the superseded title and
+     * body, linked to a screen that no longer has it. Nothing is pushed to say so: a bell that lost a row simply has
+     * one fewer the next time it is read, and the socket carries the new one.
+     */
+    @Transactional
+    public int forget(String entityId) { return entityId == null ? 0 : rows.deleteByEntity(entityId); }
+
     // ---------------------------------------------------------------- reading
 
     @Transactional(readOnly = true)
