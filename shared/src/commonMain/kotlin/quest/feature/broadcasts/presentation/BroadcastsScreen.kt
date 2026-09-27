@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -22,14 +21,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.datetime.LocalDate
-import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import quest.api.ApiException
 import quest.api.dto.ApiError
@@ -41,7 +38,6 @@ import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
 import quest.core.platform.Today
-import quest.di.ApiConfig
 import quest.feature.broadcasts.domain.BroadcastGroups
 import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.broadcasts.domain.broadcastBody
@@ -160,15 +156,6 @@ class BroadcastsViewModel(
 fun BroadcastsRoute(onBack: () -> Unit) {
     val vm: BroadcastsViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
-    // An attachment is a reference to bytes that already exist (RM2 adds no upload route), so `/media/…` is resolved
-    // against the API host and handed to the platform's own viewer — the same PDF/image handling the phone already has.
-    val config: ApiConfig = koinInject()
-    val uriHandler = LocalUriHandler.current
-    val openAttachment: (String) -> Unit = { url ->
-        val base = (config as? ApiConfig.Server)?.baseUrl?.trimEnd('/').orEmpty()
-        runCatching { uriHandler.openUri(if (url.startsWith("http")) url else base + url) }
-    }
-
     // Inside the gate, so a deep link into a school without the flag fires no request at all, and `GateFallback`
     // sends it back where it came from rather than leaving the route composed over nothing.
     GateFallback(Flags.ANNOUNCEMENTS, onBack)
@@ -180,7 +167,6 @@ fun BroadcastsRoute(onBack: () -> Unit) {
                 strings = strings,
                 onRefresh = { vm.dispatch(BroadcastsContract.Intent.Refresh) },
                 onOpen = { vm.dispatch(BroadcastsContract.Intent.Open(it.id)) },
-                onAttachment = openAttachment,
             )
         }
     }
@@ -193,7 +179,6 @@ fun BroadcastsScreen(
     strings: Strings,
     onRefresh: () -> Unit = {},
     onOpen: (BroadcastView) -> Unit = {},
-    onAttachment: (String) -> Unit = {},
 ) {
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         Column(
@@ -223,11 +208,11 @@ fun BroadcastsScreen(
 
             state.groups.weeklyPlan?.let { plan ->
                 SectionTitle(strings.thisWeeksPlan)
-                BroadcastCard(plan, strings, pinned = true, onOpen = { onOpen(plan) }, onAttachment = onAttachment)
+                BroadcastCard(plan, strings, pinned = true, onOpen = { onOpen(plan) })
             }
-            BroadcastGroupSection(strings.announcementsGroup, state.groups.announcements, strings, onOpen, onAttachment)
-            BroadcastGroupSection(strings.eventsGroup, state.groups.events, strings, onOpen, onAttachment)
-            BroadcastGroupSection(strings.earlierPlans, state.groups.earlierPlans, strings, onOpen, onAttachment)
+            BroadcastGroupSection(strings.announcementsGroup, state.groups.announcements, strings, onOpen)
+            BroadcastGroupSection(strings.eventsGroup, state.groups.events, strings, onOpen)
+            BroadcastGroupSection(strings.earlierPlans, state.groups.earlierPlans, strings, onOpen)
             Spacer(Modifier.height(Dimens.s24))
         }
     }
@@ -239,11 +224,10 @@ private fun BroadcastGroupSection(
     rows: List<BroadcastView>,
     strings: Strings,
     onOpen: (BroadcastView) -> Unit,
-    onAttachment: (String) -> Unit,
 ) {
     if (rows.isEmpty()) return
     SectionTitle(title)
-    rows.forEach { row -> BroadcastCard(row, strings, false, { onOpen(row) }, onAttachment) }
+    rows.forEach { row -> BroadcastCard(row, strings, false, { onOpen(row) }) }
 }
 
 /**
@@ -284,7 +268,7 @@ fun broadcastDescription(view: BroadcastView, strings: Strings): String = buildL
     view.title?.takeIf { it.isNotBlank() }?.let { add(it) }
     add(authorLine(view, strings))
     add(broadcastBody(view, strings.isRtl))
-    view.attachment?.let { add(strings.openAttachment) }
+    view.attachment?.let { add("${it.name ?: strings.attachment}, ${strings.attachmentOnDashboard}") }
 }.joinToString(", ")
 
 @Composable
@@ -293,7 +277,6 @@ fun BroadcastCard(
     strings: Strings,
     pinned: Boolean = false,
     onOpen: () -> Unit = {},
-    onAttachment: (String) -> Unit = {},
 ) {
     ParentCard(
         modifier = Modifier.fillMaxWidth().padding(bottom = Dimens.s8)
@@ -324,16 +307,16 @@ fun BroadcastCard(
         Spacer(Modifier.height(Dimens.s8))
         Text(broadcastBody(view, strings.isRtl), style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk)
 
+        // The attachment is named but not opened. RM2 stores a reference to bytes that already exist, and nothing
+        // serves them to the app: there is no `/media/**` handler on the server, and the API is stateless bearer-only,
+        // so handing the URL to the system browser would open a 401. Saying where the file is beats a tap that fails.
         view.attachment?.let { attachment ->
-            Spacer(Modifier.height(Dimens.s12))
-            // 64 dp of tappable height, so a parent holding a phone in one hand hits it (§7's target rule).
-            Box(
-                Modifier.fillMaxWidth().heightIn(min = 64.dp)
-                    .clearAndSetSemantics { contentDescription = "${strings.openAttachment}: ${attachment.name ?: attachment.url}" },
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                Chip("📎 ${attachment.name ?: strings.openAttachment}", onClick = { onAttachment(attachment.url) })
-            }
+            Spacer(Modifier.height(Dimens.s8))
+            Text(
+                text = "📎 ${attachment.name ?: strings.attachment} · ${strings.attachmentOnDashboard}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Palette.parentInkSoft,
+            )
         }
     }
 }

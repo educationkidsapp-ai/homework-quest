@@ -172,13 +172,14 @@ class BroadcastsFeedTest {
 
     // ---- 7. a11y: the row reads as words, including the unread badge and the attachment
 
-    @Test fun theScreenReaderHearsTheBadgeAndTheAttachment() {
+    @Test fun theScreenReaderHearsTheBadgeAndWhereTheAttachmentIs() {
         val unread = row("a", BroadcastKind.WEEKLY_PLAN, curriculum = Curriculum.BRITISH)
             .copy(attachment = BroadcastAttachment("/media/pages/plan.pdf", "plan.pdf"))
         val said = broadcastDescription(unread, Strings.en)
         assertTrue(said.startsWith("New"), said)
         assertTrue(said.contains("From the British department manager"), said)
-        assertTrue(said.contains("Open attachment"), said)
+        assertTrue(said.contains("plan.pdf"), said)
+        assertTrue(said.contains("Available on the dashboard"), said)
 
         // Once read, the badge is gone from what is spoken as well as from what is drawn.
         assertTrue(!broadcastDescription(unread.copy(read = true), Strings.en).startsWith("New"))

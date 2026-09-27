@@ -126,7 +126,9 @@ data class Strings(
     val noBroadcasts: String = "Nothing from the school yet.",
     val broadcastsDisabled: String = "School news is not enabled for your school.",
     val newBadge: String = "New",
-    val openAttachment: String = "Open attachment",
+    val attachment: String = "Attachment",
+    /** RM2 stores a reference, and nothing serves it to the app yet — so the card says where the file is. */
+    val attachmentOnDashboard: String = "Available on the dashboard",
     val pullToRefresh: String = "Pull down to refresh",
     /** `{subject}` and `{curriculum}` are replaced with the words the feed named. */
     val fromCoordinator: String = "From your {subject} coordinator",
@@ -267,7 +269,8 @@ data class Strings(
             noBroadcasts = "لا يوجد جديد من المدرسة بعد.",
             broadcastsDisabled = "أخبار المدرسة غير مفعّلة في مدرستك.",
             newBadge = "جديد",
-            openAttachment = "فتح المرفق",
+            attachment = "مرفق",
+            attachmentOnDashboard = "متاح في لوحة التحكم",
             pullToRefresh = "اسحب للأسفل للتحديث",
             fromCoordinator = "من منسّق {subject}",
             fromManager = "من مدير قسم {curriculum}",
