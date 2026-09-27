@@ -20,14 +20,26 @@ with no server.
 ## Per screen
 
 * **School news** (`feature/broadcasts`, `Routes.Broadcasts`) — *This week's plan* pinned, then *Announcements*,
-  *Events* and any earlier plan that has not expired. The week is snapped to **Sunday** exactly as the server snaps
-  `weekStart`, so "this week" means the same on both sides, and an expired row is dropped again against the device
-  clock (a screen left open must not keep showing an event that finished at noon). The author line comes from
+  *Events* and any earlier plan that has not expired. The week is snapped to **Sunday** by the same
+  `previousOrSame(SUNDAY)` rule the server applies — but see the zone limitation below — and an expired row is
+  dropped again against the device clock (a screen left open must not keep showing an event that finished at
+  noon). The author line comes from
   `authorRole` with `subject`/`curriculum`: *From your Math coordinator*, *From the British department manager*,
   and the author's own name when the row claims neither. EN/AR body by app language with Arabic falling back to
   English; a tap marks read and patches the row in place; unread is **weight plus a New chip, never colour** (§7);
-  pull to refresh; the attachment opens in the platform viewer through `LocalUriHandler`, resolved against the API
-  host because RM2's attachment is a reference (`/media/…`), not an upload.
+  pull to refresh. An attachment is **named, not opened**: `📎 week-plan.pdf · Available on the dashboard`. RM2
+  stores a reference to bytes that already exist and nothing serves them to the app — the server has no `/media/**`
+  handler and the API is stateless bearer-only, so the system browser would send no token and land on a 401. A media
+  route the app can read is a separate package.
+
+### The week snap is the server's rule on the device's clock
+
+The rule matches (`previousOrSame(SUNDAY)`); the **input** does not. The server snaps a zone-less date the composer
+typed; `weekStartOf` snaps `Today.date()`, which is `TimeZone.currentSystemDefault()`, and `shared/` has no notion
+of the school's zone. A parent whose device sits west of the school can be on Saturday while the school is on
+Sunday, and this week's plan then falls into *Earlier plans* instead of the pinned card. Recorded in
+`BroadcastGroups.kt`, not fixed here: fixing it needs the school's zone on the wire. Expiry is unaffected — that
+comparison is in epoch millis and carries no zone.
 * **Parent home** — a `📣 School news · 3` button inside `FeatureGate(Flags.ANNOUNCEMENTS)`. A parent has no bell
   (runbook "Broadcasts"), so the count rides on the home load; a school without the flag 404s and the badge is zero.
 * **The picker** (R8's `CoordinatorPickerScreen`, now titled *Start a conversation*) — a second headed section,
@@ -76,9 +88,14 @@ Two things the emulator showed that are **not** RM4's and were left alone:
 
 ## Left for the planner
 
-1. **Add a child has no school-code or class-code field on this build**, so a child created in the app is unplaced
-   and had to be attached to a section through `POST /admin/classes/{id}/roster/attach`. That is D16 slice 3
-   territory, not RM4's, but it means a parent on a real phone cannot place her own child today.
+1. ~~Add a child has no class-code field~~ — **this was wrong, and it is withdrawn.** The field is there:
+   `AddChildScreen.kt:364-372` inside `ClassCodeSection`, whose only gate is `AddChildScreen.kt:246-249`,
+   `if (state.editingId == null)` — visible on *Add a child*, hidden on *Edit child*. No flag, no joined-school
+   requirement, and the lookup is wired end to end to `POST /classes/lookup`, which is `permitAll`. The screen the
+   emulator run reached was therefore **Edit child**, not Add a child; that is the only way it renders without the
+   section. Parents can place their own children today, and nothing here is a reason to send D16 slice 3 anywhere.
+   The child in this run was attached with `POST /admin/classes/{id}/roster/attach` because of that mistake, not
+   because the app could not do it.
 2. **`~700` non-test lines against the brief's `~450`.** The screen is new from scratch (336 lines, about a third
    of it KDoc in house style) and the `FakeContentApi` mirror is another 60. Nothing was cut that the brief asked
    for; if the number matters more than the coverage, the earlier-plans group and the AR seed rows are what would go.
