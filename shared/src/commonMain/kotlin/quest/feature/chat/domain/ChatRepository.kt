@@ -31,6 +31,13 @@ interface ChatRepository {
      * writes). A coordinator is not one of the child's teachers, so she is not in [threads] until a thread exists.
      */
     suspend fun coordinators(childId: String): List<ChatThread>
+
+    /**
+     * RM4 (DR5): the manager(s) of the department her child's section belongs to, as the same unwritten thread rows
+     * [coordinators] answers. A `complaint` is allowed here too — a complaint *about* a coordinator has nowhere else
+     * to go.
+     */
+    suspend fun managers(childId: String): List<ChatThread>
     suspend fun messages(childId: String, teacherId: String, before: String? = null, since: String? = null, limit: Int? = null): List<ChatMessage>
     /** [topic] is read by the server only when this message creates the thread; `complaint` needs a coordinator peer. */
     suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic? = null): ChatMessage

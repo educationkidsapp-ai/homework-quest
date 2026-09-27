@@ -28,6 +28,10 @@ class ChatRepositoryImpl(
         return contentApi.parentCoordinators(childId)
     }
 
+    override suspend fun managers(childId: String): List<ChatThread> {
+        return contentApi.childManagers(childId)
+    }
+
     override suspend fun messages(
         childId: String,
         teacherId: String,

@@ -26,6 +26,9 @@ object Routes {
     @Serializable data class LessonPanel(val lessonId: String)
     @Serializable object ChatThreads
 
+    /** RM4: the broadcasts feed — this week's plan, announcements and events for the current child. */
+    @Serializable object Broadcasts
+
     /** R8: the coordinators of the current child's section, where a parent starts a thread with one of them. */
     @Serializable object ChatCoordinators
 

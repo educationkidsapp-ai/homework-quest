@@ -597,7 +597,9 @@ name falls back to `DEFAULT_FLAGS` — so a slow network never hides a feature t
 `FeatureGate("stickers.treasureChest") { … }` composes its content only when the flag is on; off means the content is
 **never composed** — no placeholder, no message. `GateFallback` sends a route that was gated off while it was open back
 where it came from, and `LevelGate` is the single door for `levels.three`. Gated today: the treasure chest, retell
-recording, open-answer drawing, the Arabic parent panel, certificates and level 3.
+recording, open-answer drawing, the Arabic parent panel, certificates, level 3, chat and — since RM4 — `announcements`,
+which gates the parent's **School news** screen (`Routes.Broadcasts`: this week's plan pinned, then announcements and
+events, tap to mark read, pull to refresh) and its unread badge on the parent home.
 
 **Two gates keep a new screen or controller from shipping without a flag:**
 

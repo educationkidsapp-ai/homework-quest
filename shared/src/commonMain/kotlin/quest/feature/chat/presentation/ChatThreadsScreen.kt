@@ -24,6 +24,7 @@ import quest.api.ApiException
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
+import quest.api.dto.Curriculum
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
@@ -47,10 +48,13 @@ object ChatThreadsContract {
         val childNotPlaced: Boolean = false,
         val errorMessage: String? = null,
         val threads: List<ChatThread> = emptyList(),
+        /** The child's track, so a manager row names her department rather than the child's class (RM4). */
+        val curriculum: Curriculum? = null,
     ) : MviState {
-        /** The child's own teachers, and (R8) the coordinators she has a thread with — two lists, two headings. */
+        /** Her teachers, the coordinators (R8) and the department manager (RM4) she has a thread with — three headings. */
         val teacherThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.TEACHER }
-        val coordinatorThreads: List<ChatThread> get() = threads.filter { it.staffRole != ChatStaffRole.TEACHER }
+        val coordinatorThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.COORDINATOR }
+        val managerThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.MANAGERIAL }
     }
 
     sealed interface Intent : MviIntent {
@@ -82,7 +86,7 @@ class ChatThreadsViewModel(
 
         try {
             val list = chat.threads(child.id)
-            reduce { copy(loading = false, childNotPlaced = false, errorMessage = null, threads = list) }
+            reduce { copy(loading = false, childNotPlaced = false, errorMessage = null, threads = list, curriculum = child.curriculum) }
         } catch (e: ApiException) {
             if (e.error.code == "child_not_placed") {
                 reduce { copy(loading = false, childNotPlaced = true, errorMessage = null, threads = emptyList()) }
@@ -182,8 +186,14 @@ fun ChatThreadsScreen(
             state.coordinatorThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }) }
         }
 
+        if (state.managerThreads.isNotEmpty()) {
+            SectionTitle(strings.managersGroup)
+            val department = departmentWord(state.curriculum, strings)
+            state.managerThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }, department = department) }
+        }
+
         Spacer(Modifier.height(Dimens.s16))
-        ParentButton(strings.messageCoordinator, onMessageCoordinator, primary = false, icon = "+")
+        ParentButton(strings.messageStaff, onMessageCoordinator, primary = false, icon = "+")
         Spacer(Modifier.height(Dimens.s16))
     }
 }

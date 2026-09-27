@@ -34,6 +34,8 @@ import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
+import quest.api.dto.BroadcastFeed
+import quest.api.dto.BroadcastView
 import quest.api.dto.Child
 import quest.api.dto.ChildAttendanceRecord
 import quest.api.dto.ChildAttendanceResponse
@@ -116,6 +118,16 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
 
     override suspend fun parentCoordinators(childId: String): List<ChatThread> =
         call { client.get("$baseUrl/children/$childId/coordinators") { authed() } }
+
+    override suspend fun childManagers(childId: String): List<ChatThread> =
+        call { client.get("$baseUrl/children/$childId/managers") { authed() } }
+
+    // ---- RM4: the parent's broadcasts feed (`docs/runbook.md` "Broadcasts"). Behind the `announcements` flag.
+    override suspend fun childBroadcasts(childId: String): BroadcastFeed =
+        call { client.get("$baseUrl/children/$childId/broadcasts") { authed() } }
+
+    override suspend fun markBroadcastRead(childId: String, broadcastId: String): BroadcastView =
+        call { client.post("$baseUrl/children/$childId/broadcasts/$broadcastId/read") { authed() } }
 
     override suspend fun chatMessages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> =
         call {

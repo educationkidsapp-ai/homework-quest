@@ -129,13 +129,14 @@ object ChatConversationContract {
         val threadId: String? = null,
     ) : MviState {
         /**
-         * The toggle is offered only while the thread does not exist yet, and only for a coordinator: the server reads
-         * `topic` on the message that *creates* a thread, so a later send cannot re-label one she has already worked on.
+         * The toggle is offered only while the thread does not exist yet, and never to a teacher: the server reads
+         * `topic` on the message that *creates* a thread, so a later send cannot re-label one she has already worked on,
+         * and `requireTopic` accepts `complaint` for a coordinator **or** a manager (RM4) and 400s for a teacher.
          *
          * `!loading` keeps it from flashing over an existing coordinator thread in the moment before its history lands.
          */
         val canMarkComplaint: Boolean
-            get() = !loading && staffRole == ChatStaffRole.COORDINATOR && topic == ChatTopic.QUESTION && messages.isEmpty()
+            get() = !loading && staffRole != ChatStaffRole.TEACHER && topic == ChatTopic.QUESTION && messages.isEmpty()
     }
 
     sealed interface Intent : MviIntent {
@@ -535,8 +536,11 @@ fun ChatConversationScreen(
             } else if (state.messages.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(Dimens.s24), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (state.staffRole == ChatStaffRole.COORDINATOR) strings.emptyConversationCoordinator
-                               else strings.emptyConversation,
+                        text = when (state.staffRole) {
+                            ChatStaffRole.COORDINATOR -> strings.emptyConversationCoordinator
+                            ChatStaffRole.MANAGERIAL -> strings.emptyConversationManager
+                            ChatStaffRole.TEACHER -> strings.emptyConversation
+                        },
                         style = MaterialTheme.typography.bodyLarge,
                         color = Palette.parentInkSoft,
                     )
@@ -570,7 +574,8 @@ fun ChatConversationScreen(
                     Text(strings.markAsComplaint, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk)
                 }
                 Text(
-                    strings.markAsComplaintHint,
+                    if (state.staffRole == ChatStaffRole.MANAGERIAL) strings.markAsComplaintHintManager
+                    else strings.markAsComplaintHint,
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.parentInkSoft,
                 )

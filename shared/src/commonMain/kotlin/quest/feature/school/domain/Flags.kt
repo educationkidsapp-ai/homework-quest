@@ -6,8 +6,8 @@ import quest.api.DEFAULT_FLAGS
  * The §4 flag keys the app gates something on, spelled once. `FlagKeysTest` asserts every constant here is a key the
  * platform actually defines, so a typo is a failing test rather than a screen that silently never appears.
  *
- * The other seeded keys (`lessons.*`, `complaints`, `announcements`, `teacherQuestions`, `progress.weeklyEmail`) gate
- * dashboard or server features the app does not draw yet; they are deliberately absent.
+ * The other seeded keys (`lessons.*`, `complaints`, `teacherQuestions`, `progress.weeklyEmail`) gate dashboard or
+ * server features the app does not draw yet; they are deliberately absent.
  */
 object Flags {
     const val TREASURE_CHEST = "stickers.treasureChest"
@@ -18,8 +18,15 @@ object Flags {
     const val LEVEL_THREE = "levels.three"
     const val CHAT = "chat"
 
+    /**
+     * RM4 (DR6): the broadcasts feed — the weekly plan, announcements and events. The key the feature it supersedes
+     * already carried, so a school that bought announcements gets the plan and the events with them; the server
+     * answers 404 to the feed while it is off.
+     */
+    const val ANNOUNCEMENTS = "announcements"
+
     /** Every key this app gates on. */
-    val used = listOf(TREASURE_CHEST, RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT)
+    val used = listOf(TREASURE_CHEST, RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS)
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */
     fun isKnown(key: String): Boolean = key in DEFAULT_FLAGS

@@ -48,6 +48,12 @@ import quest.feature.chat.presentation.ChatThreadsContract
 import quest.feature.chat.presentation.ChatThreadsScreen
 import quest.feature.chat.presentation.CoordinatorPickerContract
 import quest.feature.chat.presentation.CoordinatorPickerScreen
+import quest.api.dto.BroadcastAttachment
+import quest.api.dto.BroadcastKind
+import quest.api.dto.BroadcastView
+import quest.feature.broadcasts.domain.BroadcastGroups
+import quest.feature.broadcasts.presentation.BroadcastsContract
+import quest.feature.broadcasts.presentation.BroadcastsScreen
 import quest.ui.design.schoolThemeOverrides
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -266,6 +272,83 @@ class ParentScreensScreenshotTest {
             ),
             strings = s,
             onBack = {}, onInputChange = {}, onSend = {}, onRetry = {}, onToggleComplaint = {},
+        )
+    }
+
+    // RM4: the broadcasts feed, and the picker once it also offers the department manager.
+    private fun plan(read: Boolean = false) = BroadcastView(
+        id = "bc-plan", kind = BroadcastKind.WEEKLY_PLAN, authorId = "mg", authorName = "Ms. Nour",
+        authorRole = ChatStaffRole.MANAGERIAL, title = "Week of subtraction", weekStart = "2026-09-27",
+        bodyEn = "Subtraction all week; swimming on Thursday. Please send a towel.",
+        bodyAr = "الطرح طوال الأسبوع؛ السباحة يوم الخميس. يرجى إرسال منشفة.",
+        curriculum = Curriculum.BRITISH,
+        attachment = BroadcastAttachment("/media/pages/week-plan.pdf", "week-plan.pdf"),
+        createdAt = 1_758_500_000_000L, read = read,
+    )
+
+    private fun announcement() = BroadcastView(
+        id = "bc-ann", kind = BroadcastKind.ANNOUNCEMENT, authorId = "co", authorName = "Ms. Lina",
+        authorRole = ChatStaffRole.COORDINATOR, title = "New number lines",
+        bodyEn = "We have put number lines on every desk — practise counting back from 20 at home.",
+        bodyAr = "وضعنا خطوط الأعداد على كل مقعد — تدرّبوا على العدّ التنازلي من 20 في البيت.",
+        subject = "math", createdAt = 1_758_400_000_000L, read = true,
+    )
+
+    private fun event() = BroadcastView(
+        id = "bc-event", kind = BroadcastKind.EVENT, authorId = "mg", authorName = "Ms. Nour",
+        authorRole = ChatStaffRole.MANAGERIAL, title = "Sports day",
+        bodyEn = "Sports day is on the last Thursday of the month. Parents are welcome.",
+        bodyAr = "يوم الرياضة في آخر خميس من الشهر. الأهل مرحّب بهم.",
+        curriculum = Curriculum.BRITISH, createdAt = 1_758_300_000_000L,
+    )
+
+    private fun feedState() = BroadcastsContract.State(
+        loading = false, unread = 2,
+        groups = BroadcastGroups(weeklyPlan = plan(), announcements = listOf(announcement()), events = listOf(event())),
+    )
+
+    @Test fun broadcasts() = shot("54-broadcasts") { s -> BroadcastsScreen(state = feedState(), strings = s) }
+
+    @Test fun broadcastsArabic() = shot("54b-broadcasts-ar", Strings.ar) { s ->
+        BroadcastsScreen(state = feedState(), strings = s)
+    }
+
+    /** A school without the `announcements` flag: the server 404s and the screen says so rather than showing an error. */
+    @Test fun broadcastsNotEnabled() = shot("54c-broadcasts-off") { s ->
+        BroadcastsScreen(state = BroadcastsContract.State(loading = false, notEnabled = true), strings = s)
+    }
+
+    @Test fun peerPickerWithManager() = shot("55-peer-picker") { s ->
+        CoordinatorPickerScreen(
+            state = CoordinatorPickerContract.State(
+                loading = false,
+                coordinators = listOf(
+                    ChatThread(null, "c1", "Maya", "co1", "Ms. Lina", "1A British", "Math", 0, null, ChatStaffRole.COORDINATOR),
+                ),
+                managers = listOf(
+                    ChatThread(null, "c1", "Maya", "mg1", "Ms. Nour", "1A British", null, 0, null, ChatStaffRole.MANAGERIAL),
+                ),
+                curriculum = Curriculum.BRITISH,
+            ),
+            strings = s,
+            onSelect = {},
+        )
+    }
+
+    @Test fun peerPickerWithManagerArabic() = shot("55b-peer-picker-ar", Strings.ar) { s ->
+        CoordinatorPickerScreen(
+            state = CoordinatorPickerContract.State(
+                loading = false,
+                coordinators = listOf(
+                    ChatThread(null, "c1", "مايا", "co1", "أ. لينا", "1A البريطاني", "رياضيات", 0, null, ChatStaffRole.COORDINATOR),
+                ),
+                managers = listOf(
+                    ChatThread(null, "c1", "مايا", "mg1", "أ. نور", "1A البريطاني", null, 0, null, ChatStaffRole.MANAGERIAL),
+                ),
+                curriculum = Curriculum.BRITISH,
+            ),
+            strings = s,
+            onSelect = {},
         )
     }
 }
