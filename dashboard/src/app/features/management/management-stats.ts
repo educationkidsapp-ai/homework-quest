@@ -38,11 +38,19 @@ export function statsRows(stats: ManagementStats | undefined): readonly StatsRow
  * `GET /management/stats` names them per grade, and a teacher who takes 1A and 2B appears under
  * both — which on a list whose whole point is "these people have gone quiet" reads as two
  * people. Deduplicated by user id, never by name: two teachers of forty may share one.
+ *
+ * A row that arrives with **no** id is kept rather than folded away. `userId ?? ''` made every
+ * such row the same row, so two nameless teachers collapsed into one and the list under-reported
+ * the thing it exists to report; a row with nothing to key on is its own row.
  */
 export function quietTeachers(stats: ManagementStats | undefined): readonly QuietTeacher[] {
   const seen = new Map<string, QuietTeacher>();
+  let unkeyed = 0;
   for (const grade of stats?.grades ?? [])
-    for (const teacher of grade.quietTeachers ?? []) seen.set(teacher.userId ?? '', teacher);
+    for (const teacher of grade.quietTeachers ?? []) {
+      const id = teacher.userId ?? '';
+      seen.set(id === '' ? `unkeyed-${(unkeyed += 1)}` : id, teacher);
+    }
   return [...seen.values()].sort((a, b) => (a.displayName ?? '').localeCompare(b.displayName ?? ''));
 }
 
@@ -61,9 +69,31 @@ function rowOf(stats: GradeStats, key: string, grade: number | null): StatsRow {
   };
 }
 
-/** The month ending today, in the school's own timezone — the server's own default, said aloud. */
+/**
+ * `GET /management/stats` refuses a window longer than a term (`ManagementStatsService`), so the
+ * screen refuses to ask for one: a 400 in the red band is a worse answer than a control that
+ * cannot make the mistake.
+ */
+export const MAX_WINDOW_DAYS = 186;
+
+/**
+ * The month ending today, in the school's own timezone — the server's own default, said aloud.
+ *
+ * **Thirty days back, not `setUTCMonth(-1)`.** Opened on the 31st of March that call lands on
+ * the 3rd of March (February has no 31st), so the default window was ~28 days on some days of
+ * the year and 31 on others — on a screen whose numbers are compared month to month. `today` is
+ * already resolved in the school's zone by the caller, and every step here is UTC arithmetic on
+ * a UTC-anchored instant, so there is no second clock to disagree with the first.
+ */
 export function defaultStatsRange(today: string): { readonly from: string; readonly to: string } {
   const from = new Date(`${today}T00:00:00Z`);
-  from.setUTCMonth(from.getUTCMonth() - 1);
+  from.setUTCDate(from.getUTCDate() - 30);
   return { from: from.toISOString().slice(0, 10), to: today };
+}
+
+/** How many days the chosen window covers, both bounds counted; 0 when it is not a window. */
+export function windowDays(from: string, to: string): number {
+  if (from === '' || to === '' || from > to) return 0;
+  const span = Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`);
+  return Number.isNaN(span) ? 0 : span / 86_400_000 + 1;
 }

@@ -12,6 +12,7 @@ import {
   type TableColumn,
   CardComponent,
   CountUpDirective,
+  EmptyStateComponent,
   InputComponent,
   PageComponent,
   SkeletonComponent,
@@ -20,7 +21,14 @@ import {
 import { CoordinatorReadFailedComponent } from '../coordinator/read-failed.component';
 import { StaffScopeService } from '../coordinator/staff-scope.service';
 import { scopeLabel } from '../coordinator/coordinator.labels';
-import { type StatsRow, defaultStatsRange, quietTeachers, statsRows } from './management-stats';
+import {
+  type StatsRow,
+  MAX_WINDOW_DAYS,
+  defaultStatsRange,
+  quietTeachers,
+  statsRows,
+  windowDays,
+} from './management-stats';
 
 /**
  * The department manager's Home (RM3a, DR5 — `docs/management-flow.md`).
@@ -41,6 +49,7 @@ import { type StatsRow, defaultStatsRange, quietTeachers, statsRows } from './ma
     CardComponent,
     CoordinatorReadFailedComponent,
     CountUpDirective,
+    EmptyStateComponent,
     InputComponent,
     PageComponent,
     RouterLink,
@@ -88,7 +97,11 @@ import { type StatsRow, defaultStatsRange, quietTeachers, statsRows } from './ma
               />
             </div>
 
-            @if (stats.isLoading()) {
+            @if (tooWide()) {
+              <!-- The server refuses more than a term (186 days) with a 400; the screen names
+                   that number and does not send the request. -->
+              <hq-empty-state [message]="'management.stats.tooWide' | transloco: { days: maxDays }" />
+            } @else if (stats.isLoading()) {
               <hq-skeleton [loading]="true" [lines]="6" [label]="'management.stats.loading' | transloco" />
             } @else if (stats.error()) {
               <!-- Its own request, its own band: the counts above it are perfectly readable, and
@@ -239,10 +252,15 @@ export class ManagementHomePage {
       // Both bounds or neither: `GET /management/stats` defaults to the month ending today, and
       // a half-typed date would otherwise ask for a window the person has not finished choosing.
       if (!this.staff.isManager() || from === '' || to === '' || from > to) return undefined;
+      if (this.tooWide()) return undefined;
       return { from, to };
     },
     stream: ({ params }) => this.api.managementStats(params.from, params.to),
   });
+
+  /** 187 days would be a 400 from the server; it is a sentence on the screen instead. */
+  protected readonly maxDays = MAX_WINDOW_DAYS;
+  protected readonly tooWide = computed(() => windowDays(this.from(), this.to()) > MAX_WINDOW_DAYS);
 
   protected readonly rows = computed<readonly StatsRow[]>(() => statsRows(this.stats.value()));
   protected readonly quiet = computed(() => quietTeachers(this.stats.value()));

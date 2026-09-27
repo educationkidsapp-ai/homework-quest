@@ -13,7 +13,12 @@ import { LessonApiService } from '../lessons/lesson-api.service';
 import { ResultsApiService } from '../results/results-api.service';
 import { csvOf } from '../../core/download/csv';
 import { ManagementHomePage } from './management-home.page';
-import { ManagementPeoplePage } from './management-people.page';
+import {
+  EXPORT_CONCURRENCY,
+  EXPORT_MAX_PAGES,
+  ManagementPeoplePage,
+  exportPlan,
+} from './management-people.page';
 import { statsRows, quietTeachers } from './management-stats';
 import { changedMarks, notEditableReason, rosterOf } from './staff-attendance.models';
 
@@ -286,6 +291,53 @@ describe('RM3a — the management area', () => {
       return { rendered, backend };
     }
 
+    /** One keystroke at a time, the way the box receives them. */
+    async function type(value: string): Promise<void> {
+      const search = screen.getByLabelText<HTMLInputElement>(/Search by name or email/);
+      search.value = value;
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+      await Promise.resolve();
+      TestBed.tick();
+    }
+
+    /** Waits the debounce out with real timers, then lets the resource fire. */
+    async function settle(): Promise<void> {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await Promise.resolve();
+      TestBed.tick();
+    }
+
+    it('asks once for a typed word, not once per keystroke', async () => {
+      const { rendered, backend } = await renderPeople();
+
+      // Eight keystrokes. Before the debounce every one of them was a server-side search across
+      // the whole department; "Mohammed" is now one request, for the word she finished typing.
+      for (const upto of ['M', 'Mo', 'Moh', 'Moha', 'Moham', 'Mohamm', 'Mohamme', 'Mohammed']) {
+        await type(upto);
+      }
+      backend.expectNone((request) => request.url.startsWith('/management/people/'));
+
+      await settle();
+      backend.expectOne('/management/people/children?q=Mohammed&page=0&size=25').flush(CHILDREN);
+      backend.expectNone((request) => request.url.startsWith('/management/people/'));
+      rendered.fixture.destroy();
+    });
+
+    it('puts the department back at once when the box is emptied — clearing is not debounced', async () => {
+      const { rendered, backend } = await renderPeople();
+
+      await type('ali');
+      await settle();
+      backend.expectOne('/management/people/children?q=ali&page=0&size=25').flush(CHILDREN);
+      await Promise.resolve();
+      TestBed.tick();
+
+      await type('');
+      // No timer to wait out: there is nothing left to type ahead of.
+      backend.expectOne('/management/people/children?page=0&size=25').flush(CHILDREN);
+      rendered.fixture.destroy();
+    });
+
     it("pages on the server's own count and says where in it she is", async () => {
       const { rendered } = await renderPeople();
 
@@ -297,7 +349,7 @@ describe('RM3a — the management area', () => {
       rendered.fixture.destroy();
     });
 
-    it('takes a new search back to the first page — page 2 of a list that no longer exists', async () => {
+    it('takes a new tab back to the first page with no needle', async () => {
       const { rendered, backend } = await renderPeople();
 
       screen.getByRole('button', { name: 'Next' }).click();
@@ -307,13 +359,18 @@ describe('RM3a — the management area', () => {
       await Promise.resolve();
       TestBed.tick();
 
-      const search = screen.getByLabelText<HTMLInputElement>(/Search by name or email/);
-      search.value = 'ali';
-      search.dispatchEvent(new Event('input', { bubbles: true }));
+      await type('ali');
+      await settle();
+      backend.expectOne('/management/people/children?q=ali&page=0&size=25').flush(CHILDREN);
       await Promise.resolve();
       TestBed.tick();
 
-      backend.expectOne('/management/people/children?q=ali&page=0&size=25').flush(CHILDREN);
+      // A name typed to find a child means nothing among the coordinators, so the tab clears it:
+      // a tab that opened on "nobody matches that search" would read as an empty department.
+      screen.getByRole('tab', { name: 'Coordinators' }).click();
+      await Promise.resolve();
+      TestBed.tick();
+      backend.expectOne('/management/people/coordinators?page=0&size=25').flush({ ...CHILDREN, rows: [] });
       rendered.fixture.destroy();
     });
 
@@ -326,12 +383,23 @@ describe('RM3a — the management area', () => {
         ],
       );
 
-      expect(csv.startsWith('﻿')).toBe(true);
+      expect(csv.startsWith('\ufeff')).toBe(true);
       expect(csv).toContain('\r\n');
       // A child called "-Ali" is a formula to Excel, and so is a class called "=2+2".
       expect(csv).toContain('"\t-Ali"');
       expect(csv).toContain('"\t=2+2"');
       expect(csv).toContain('"Say ""hi"""');
+    });
+
+    it('caps the export, and only then says the file is short of the department', () => {
+      // Sixty children is one page of a hundred and the whole department; four thousand is forty
+      // pages, which the cap takes to thirty — read four at a time, never forty at once.
+      expect(exportPlan(60)).toEqual({ pages: 1, truncated: false });
+      expect(exportPlan(3000)).toEqual({ pages: 30, truncated: false });
+      expect(exportPlan(4000)).toEqual({ pages: 30, truncated: true });
+      // An empty tab still reads one page: the export answers with headers, not with nothing.
+      expect(exportPlan(0)).toEqual({ pages: 1, truncated: false });
+      expect(EXPORT_CONCURRENCY).toBeLessThan(EXPORT_MAX_PAGES);
     });
   });
 

@@ -3,10 +3,10 @@
    `FeatureFlagCoverageTest.INFRASTRUCTURE` for the same reason this screen carries no flag:
    knowing who is in your department is not an optional feature of a school, and `FlagKeys` has
    no key that could turn it off. */
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { type OnDestroy, ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { type Observable, forkJoin, map } from 'rxjs';
+import { type Observable, from, map, mergeMap, toArray } from 'rxjs';
 import { ManagementPeopleApi } from '../../api';
 import { csvOf } from '../../core/download/csv';
 import { saveFile } from '../../core/download/download';
@@ -15,6 +15,7 @@ import { activeLang } from '../../core/i18n/active-lang';
 import {
   type Tab,
   type TableColumn,
+  BandComponent,
   ButtonComponent,
   EmptyStateComponent,
   InputComponent,
@@ -47,6 +48,45 @@ interface PersonRow {
 /** The server caps `size` at 100; 25 is a page a person reads rather than scrolls past. */
 const PAGE_SIZE = 25;
 
+/**
+ * How long the needle waits behind the keyboard, and how wide the export's pages are.
+ *
+ * 250 ms is `ScreenSearchService`'s own number, and for its own reason: long enough that a word
+ * is typed before anything is asked for, short enough to feel live. It matters more here than it
+ * does there — the header's box filters rows already in the browser, while every character typed
+ * into this one is a server-side search across the whole department.
+ */
+const DEBOUNCE_MS = 250;
+
+/**
+ * The export reads the tab in pages of the server's own maximum, four at a time, and stops.
+ *
+ * `mergeMap` with a ceiling rather than a `forkJoin` over every page: a six-hundred-child
+ * department is six requests and a five-thousand-child one was fifty, all in flight at once,
+ * against an endpoint that searches. Four keeps a big department quick without being the reason
+ * the API is slow for everyone else, and {@link EXPORT_MAX_PAGES} is where it gives up and says
+ * so rather than issuing two hundred reads nobody asked to wait for.
+ */
+export const EXPORT_PAGE_SIZE = 100;
+export const EXPORT_CONCURRENCY = 4;
+export const EXPORT_MAX_PAGES = 30;
+
+/** How many rows one file may carry, named once so the copy cannot drift from the cap. */
+export const EXPORT_MAX_ROWS = EXPORT_PAGE_SIZE * EXPORT_MAX_PAGES;
+
+/**
+ * How many pages this export will read, and whether that is short of the department.
+ *
+ * Its own function because it is the decision, not the plumbing: the cap is the difference
+ * between a file somebody files as "the roster" and one that quietly stops three thousand rows
+ * in, and `truncated` is what puts that on the screen.
+ */
+export function exportPlan(total: number): { readonly pages: number; readonly truncated: boolean } {
+  const wanted = Math.max(1, Math.ceil(total / EXPORT_PAGE_SIZE));
+  const pages = Math.min(wanted, EXPORT_MAX_PAGES);
+  return { pages, truncated: pages < wanted };
+}
+
 const EMPTY_PAGE: PeoplePage = { total: 0, rows: [] };
 
 /**
@@ -71,6 +111,7 @@ const EMPTY_PAGE: PeoplePage = { total: 0, rows: [] };
 @Component({
   selector: 'hq-management-people-page',
   imports: [
+    BandComponent,
     ButtonComponent,
     CoordinatorReadFailedComponent,
     EmptyStateComponent,
@@ -106,6 +147,19 @@ const EMPTY_PAGE: PeoplePage = { total: 0, rows: [] };
           {{ 'management.people.export' | transloco }}
         </hq-button>
       </div>
+
+      @if (exportTruncated()) {
+        <!-- A file that is short of the department says so on the screen that made it: a CSV
+             somebody files as "the roster" must not quietly stop at three thousand rows. -->
+        <hq-band
+          variant="notice"
+          [open]="true"
+          [dismissible]="false"
+          [title]="'management.people.tooMany' | transloco"
+        >
+          {{ 'management.people.tooManyBody' | transloco: { rows: maxExportRows } }}
+        </hq-band>
+      }
 
       @if (directory.isLoading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'ui.loading' | transloco" />
@@ -172,21 +226,26 @@ const EMPTY_PAGE: PeoplePage = { total: 0, rows: [] };
     }
   `,
 })
-export class ManagementPeoplePage {
+export class ManagementPeoplePage implements OnDestroy {
   private readonly api = inject(ManagementPeopleApi);
   private readonly staff = inject(StaffAreaService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
 
   protected readonly tab = signal<PeopleTab>('children');
+  /** What the box shows, on every keystroke, so typing is never laggy. */
   protected readonly search = signal('');
+  /** What is actually asked for: trimmed, and 250 ms behind the keyboard. */
+  private readonly needle = signal('');
+  private debounce: ReturnType<typeof setTimeout> | null = null;
   protected readonly page = signal(0);
   protected readonly exporting = signal(false);
+  protected readonly exportTruncated = signal(false);
 
   protected readonly directory = rxResource({
     params: () => {
       if (this.staff.area() !== 'management') return undefined;
-      return { tab: this.tab(), q: this.search().trim(), page: this.page() };
+      return { tab: this.tab(), q: this.needle(), page: this.page() };
     },
     stream: ({ params }) => this.read(params.tab, params.q, params.page, PAGE_SIZE),
     defaultValue: EMPTY_PAGE,
@@ -251,6 +310,9 @@ export class ManagementPeoplePage {
 
   protected readonly trackRow = (row: PersonRow): string => row.id;
 
+  /** Named in the sentence the band says, so the copy cannot drift from the cap. */
+  protected readonly maxExportRows = EXPORT_MAX_ROWS;
+
   /**
    * A new tab is a new list, from the first page and with no needle.
    *
@@ -260,24 +322,56 @@ export class ManagementPeoplePage {
    */
   protected onTab(tab: PeopleTab): void {
     this.tab.set(tab);
-    this.search.set('');
-    this.page.set(0);
+    this.onSearch('');
   }
 
-  /** A new needle is a new list, so page 1 of it — not page 12 of a list that no longer exists. */
+  /**
+   * A new needle is a new list, so page 1 of it — not page 12 of a list that no longer exists.
+   *
+   * The request waits {@link DEBOUNCE_MS} behind the keystroke, so "Mohammed" is one server-side
+   * search and not eight. **Clearing is not debounced**, the way the header's box is not:
+   * emptying the field puts the whole department back at once, and there is nothing to type
+   * ahead of.
+   */
   protected onSearch(value: string): void {
     this.search.set(value);
     this.page.set(0);
+    this.stopDebounce();
+    if (value.trim() === '') {
+      this.needle.set('');
+      return;
+    }
+    this.debounce = setTimeout(() => {
+      this.debounce = null;
+      this.needle.set(value.trim());
+    }, DEBOUNCE_MS);
   }
 
+  ngOnDestroy(): void {
+    this.stopDebounce();
+  }
+
+  private stopDebounce(): void {
+    if (this.debounce !== null) clearTimeout(this.debounce);
+    this.debounce = null;
+  }
+
+  /**
+   * The whole tab as a file, not the page on screen: twenty-five rows out of six hundred is a
+   * file somebody will mistake for the roster.
+   */
   protected exportCsv(): void {
     this.exporting.set(true);
     const tab = this.tab();
-    const q = this.search().trim();
-    const total = this.directory.value().total;
-    const pages = Math.max(1, Math.ceil(total / 100));
-    forkJoin(Array.from({ length: pages }, (_unused, index) => this.read(tab, q, index, 100)))
-      .pipe(map((parts) => parts.flatMap((part) => part.rows)))
+    const q = this.needle();
+    const { pages, truncated } = exportPlan(this.directory.value().total);
+    this.exportTruncated.set(truncated);
+    from(Array.from({ length: pages }, (_unused, index) => index))
+      .pipe(
+        mergeMap((page) => this.read(tab, q, page, EXPORT_PAGE_SIZE), EXPORT_CONCURRENCY),
+        toArray(),
+        map((parts) => parts.flatMap((part) => part.rows)),
+      )
       .subscribe({
         next: (rows) => {
           const headers = this.columns().map((column) => column.header);

@@ -1,5 +1,15 @@
 import type { StaffAttendanceDay, StaffAttendanceRow } from '../../api';
 
+/**
+ * How long a note may be: `StaffAttendanceService.MAX_NOTE`, which refuses a longer one with a 400
+ * rather than silently cutting it.
+ *
+ * On the field as well as on the server, because the server's answer arrives too late to be
+ * useful: a manager who has typed a paragraph and learns on Save that it is too long has lost the
+ * paragraph, and the refusal would come back for the whole register rather than for her row.
+ */
+export const NOTE_MAX_LENGTH = 500;
+
 /** The four words the register knows. Anything else on the wire reads as unmarked. */
 export const STAFF_STATUSES = ['present', 'absent', 'late', 'leave'] as const;
 export type StaffStatus = (typeof STAFF_STATUSES)[number];

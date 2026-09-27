@@ -567,7 +567,6 @@
     },
     "attendance": {
       "attendance": "Attendance",
-      "weeklyTitle": "Weekly Attendance",
       "weeklySubtitle": "Class attendance trends over the week",
       "thisWeek": "This Week",
       "presentRate": "Present",
@@ -1988,7 +1987,8 @@
         "exams": "Exams",
         "examAverage": "Exam average",
         "examPassRate": "Pass rate"
-      }
+      },
+      "tooWide": "Choose a window of {{days}} days or less."
     },
     "quiet": {
       "title": "Teachers with nothing published",
@@ -2018,7 +2018,9 @@
         "class": "Class",
         "grade": "Grade",
         "sectionCount": "Classes"
-      }
+      },
+      "tooMany": "This file stops at {{rows}} rows",
+      "tooManyBody": "Your department has more people than one file can carry. Narrow it with a search first, and export that."
     },
     "staff": {
       "subtitle": "The register for the teachers and coordinators of your department.",

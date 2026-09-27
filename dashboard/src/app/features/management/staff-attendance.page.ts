@@ -24,6 +24,7 @@ import { CoordinatorReadFailedComponent } from '../coordinator/read-failed.compo
 import {
   type RosterRow,
   type StaffStatus,
+  NOTE_MAX_LENGTH,
   STAFF_STATUSES,
   changedMarks,
   notEditableReason,
@@ -121,6 +122,7 @@ import {
                   class="st-roster__note"
                   [label]="'management.staff.noteFor' | transloco: { name: row.name }"
                   [hideLabel]="true"
+                  [maxLength]="noteMaxLength"
                   [placeholder]="'management.staff.note' | transloco"
                   [disabled]="!editable()"
                   [value]="row.note"
@@ -289,6 +291,8 @@ export class StaffAttendancePage {
   private readonly lang = activeLang();
 
   protected readonly statuses = STAFF_STATUSES;
+  /** `staff_attendance.note` is a 500-character column; the field refuses rather than the server. */
+  protected readonly noteMaxLength = NOTE_MAX_LENGTH;
 
   protected readonly view = signal<'day' | 'month'>('day');
   protected readonly saving = signal(false);
