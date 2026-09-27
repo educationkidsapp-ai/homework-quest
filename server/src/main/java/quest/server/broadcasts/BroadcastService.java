@@ -159,11 +159,18 @@ public class BroadcastService {
         return feed(visible, caller.userId());
     }
 
-    /** One row marked read by a dashboard user; a row she is not an audience of is 404, not 403. */
+    /**
+     * One row marked read by a dashboard user; a row she is not an audience of is 404, not 403. The school is named as
+     * well as filtered — `findOneById` is a query and so is reduced by the `school` filter, but an ADMIN runs with no
+     * filter at all when she sends no `X-School-Id`, and a read mark is a write.
+     */
     @Transactional
     public BroadcastDto.View staffRead(Principals.User caller, String broadcastId) {
+        String schoolId = tenant.writeSchoolId();
         var mine = reach(caller);
-        var row = rows.findOneById(broadcastId).filter(b -> caller.userId().equals(b.getAuthorUserId()) || mine.sees(b))
+        var row = rows.findOneById(broadcastId)
+                .filter(b -> b.getSchoolId().equals(schoolId))
+                .filter(b -> caller.userId().equals(b.getAuthorUserId()) || mine.sees(b))
                 .orElseThrow(() -> ApiException.notFound("broadcast"));
         mark(row, caller.userId());
         return view(row, displayName(row.getAuthorUserId()), true);

@@ -1293,6 +1293,13 @@ Each feed has **two keys**, as the bell does: the GET is `broadcast.read` / `chi
 `broadcast.write` / `child.broadcast.write`, so a read-only "View as" session still sees the feed instead of losing it
 to a single key that counted as a write.
 
+**When it is evaluated: at read time, every time.** A row stores *who it was addressed to*, not the list of people it
+reached, and each feed answers it against the caller's scope as it is now. So a child placed into a British section
+after the British plan was posted sees that plan, and a teacher who leaves the section loses it from her feed while her
+read mark survives — nothing is back-filled and nothing is frozen. The bell is the one exception in kind: a
+notification is written once, at post time, from the same predicate the feed uses, so it records who the row reached
+when it was sent.
+
 **Who receives one.** The audience is resolved from `staff_scopes` and never from the request: a manager's row names her
 department (`curriculum`) or the sections she named (each checked through `ManagerScope.requireSection` — the other
 department is 403, another school 404), and a coordinator's always names the classes she coordinates. A reader is in the

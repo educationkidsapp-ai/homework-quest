@@ -84,6 +84,8 @@ class BroadcastApiTest extends ApiTestSupport {
     private String lina, omar, nour, sami, maya, rami, britishA, britishB, americanA;
     /** A British science coordinator whose only section is 1B, so a row naming 1A is one she must not hear about. */
     private static final String HUDA = "bc-huda";
+    /** A coordinator of maths and english in *both* tracks (`curriculum` NULL), which the seed has none of. */
+    private static final String DANA = "bc-dana";
     private String childBritishA, childBritishB, childAmerican, adminToken, adminUserId;
     private final List<ChatEvent> heard = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final LocalDate week = LocalDate.now().with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.SUNDAY));
@@ -102,6 +104,11 @@ class BroadcastApiTest extends ApiTestSupport {
         ClassFixtures.assign(assignments, classes.findById(britishB).orElseThrow(), "science", maya);
         staff(HUDA, "Huda", "COORDINATOR");
         scopeRow("bc-scope-science", HUDA, "science", "british");
+        // DR5's both-tracks coordinator: `curriculum` NULL on every row, so she belongs to both departments and
+        // reports to both managers. The acceptance seed has none, and this path is only reachable with one.
+        staff(DANA, "Dana", "COORDINATOR");
+        scopeRow("bc-scope-dana-math", DANA, "math", null);
+        scopeRow("bc-scope-dana-english", DANA, "english", null);
         for (String key : List.of(FlagKeys.CHAT, FlagKeys.ANNOUNCEMENTS)) { flag(SCHOOL, key, true); flag(OTHER_SCHOOL, key, true); }
         adminToken = adminToken();
         adminUserId = users.findByEmailIgnoreCase("admin@test.local").orElseThrow().getId();
@@ -384,6 +391,26 @@ class BroadcastApiTest extends ApiTestSupport {
                 + "\"bodyEn\":\"Everyone, please read.\",\"audience\":[\"coordinators\"]}");
         assertThat(names(staffGet(HUDA, "COORDINATOR", "/me/broadcasts").get("items"), "title")).contains("Whole department");
         assertThat(names(staffGet(HUDA, "COORDINATOR", "/me/notifications"), "title")).contains("Whole department");
+    }
+
+    /**
+     * DR5 reads a `curriculum NULL` scope row as both tracks, so a coordinator holding only such rows belongs to both
+     * departments: each manager's department-wide row reaches her exactly once, and her feed shows both.
+     */
+    @Test @Order(10) void a_both_tracks_coordinator_hears_from_both_departments_once() throws Exception {
+        created(nour, "/management/broadcasts", "{\"kind\":\"announcement\",\"title\":\"British notice\","
+                + "\"bodyEn\":\"British department.\",\"audience\":[\"coordinators\"]}");
+        created(sami, "/management/broadcasts", "{\"kind\":\"announcement\",\"title\":\"American notice\","
+                + "\"bodyEn\":\"American department.\",\"audience\":[\"coordinators\"]}");
+
+        assertThat(names(staffGet(DANA, "COORDINATOR", "/me/broadcasts").get("items"), "title"))
+                .contains("British notice", "American notice");
+        var bells = names(staffGet(DANA, "COORDINATOR", "/me/notifications"), "title");
+        assertThat(bells.stream().filter("British notice"::equals).count()).as("one bell entry, not one per track").isOne();
+        assertThat(bells.stream().filter("American notice"::equals).count()).isOne();
+        // Lina coordinates British only: the American department's notice is not hers, on either half.
+        assertThat(names(staffGet(lina, "COORDINATOR", "/me/broadcasts").get("items"), "title")).doesNotContain("American notice");
+        assertThat(names(staffGet(lina, "COORDINATOR", "/me/notifications"), "title")).doesNotContain("American notice");
     }
 
     // ---------------------------------------------------------------- fixture helpers
