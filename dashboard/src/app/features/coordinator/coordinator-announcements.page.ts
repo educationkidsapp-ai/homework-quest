@@ -19,7 +19,7 @@ import {
   TextareaComponent,
   ToastComponent,
 } from '../../ui';
-import { CoordinatorService } from './coordinator.service';
+import { StaffScopeService } from './staff-scope.service';
 
 /**
  * The body `POST /coordinator/announcements` actually takes.
@@ -203,7 +203,7 @@ export class CoordinatorAnnouncementsPage {
   private readonly api = inject(CoordinatorAnnouncementsApi);
   private readonly flags = inject(FlagService);
   private readonly transloco = inject(TranslocoService);
-  protected readonly co = inject(CoordinatorService);
+  protected readonly co = inject(StaffScopeService);
 
   protected readonly enabled = computed(() => this.flags.isOn(FLAGS.announcements));
 

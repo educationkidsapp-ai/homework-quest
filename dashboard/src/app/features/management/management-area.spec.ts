@@ -1,0 +1,374 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { screen } from '@testing-library/angular';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
+import { renderHq } from '../../../testing/render';
+import { type ManagementStats, BASE_PATH } from '../../api';
+import { AuthService } from '../../core/auth/auth.service';
+import { SessionStore } from '../../core/auth/session.store';
+import { LessonApiService } from '../lessons/lesson-api.service';
+import { ResultsApiService } from '../results/results-api.service';
+import { csvOf } from '../../core/download/csv';
+import { ManagementHomePage } from './management-home.page';
+import { ManagementPeoplePage } from './management-people.page';
+import { statsRows, quietTeachers } from './management-stats';
+import { changedMarks, notEditableReason, rosterOf } from './staff-attendance.models';
+
+/** `GET /management/me` — her department, and the four counts her Home's cards are (RM1). */
+const ME = {
+  userId: 'u-huda',
+  displayName: 'Huda Salem',
+  email: 'manager.a@school.test',
+  departments: ['british'],
+  sections: 15,
+  teachers: 20,
+  coordinators: 6,
+  children: 300,
+  grades: 6,
+};
+
+/**
+ * `GET /management/stats` — DR5's shape, with the three nulls that matter: a grade nobody marked
+ * a register in has no attendance rate, and a grade with no exams has neither average nor pass
+ * rate.
+ *
+ * Cast, because the generated model says `attendanceRate?: number` and the server sends an
+ * explicit `null` there. OpenAPI's `nullable` is not on the contract for these fields, so the
+ * *type* cannot say what the server does; `statsRows` is what makes both shapes safe, and this
+ * fixture is the wire, not the type.
+ */
+const STATS = {
+  from: '2026-08-27',
+  to: '2026-09-27',
+  grades: [
+    {
+      grade: 2,
+      curriculum: 'british',
+      children: 40,
+      sections: 2,
+      attendanceRate: 92,
+      lessonsPublished: 8,
+      lessonsPlayed: 30,
+      exams: 1,
+      examAverage: 71,
+      examPassRate: 80,
+      quietTeachers: [{ userId: 't-9', displayName: 'Mr Omar', email: 'omar@school.test' }],
+    },
+    {
+      grade: 1,
+      curriculum: 'british',
+      children: 24,
+      sections: 1,
+      attendanceRate: null,
+      lessonsPublished: 3,
+      lessonsPlayed: 12,
+      exams: 0,
+      examAverage: null,
+      examPassRate: null,
+      // The same teacher again: one line on the screen, not two.
+      quietTeachers: [{ userId: 't-9', displayName: 'Mr Omar', email: 'omar@school.test' }],
+    },
+  ],
+  total: {
+    grade: 0,
+    children: 64,
+    sections: 3,
+    attendanceRate: 92,
+    lessonsPublished: 11,
+    lessonsPlayed: 42,
+    exams: 1,
+    examAverage: 71,
+    examPassRate: 80,
+    quietTeachers: [],
+  },
+} as unknown as ManagementStats;
+
+/** RM5's roster: one person marked late with a note, one nobody has touched. */
+const ROSTER = {
+  day: '2026-09-27',
+  editable: true,
+  schoolDay: true,
+  people: [
+    {
+      userId: 't-1',
+      displayName: 'Sara Al Harbi',
+      email: 'sara@school.test',
+      role: 'TEACHER',
+      status: 'late',
+      note: 'traffic',
+    },
+    { userId: 'c-1', displayName: 'Rasha Kamal', email: 'rasha@school.test', role: 'COORDINATOR' },
+  ],
+};
+
+/** One page of `GET /management/people/children`: two of sixty, with both parent addresses. */
+const CHILDREN = {
+  page: 0,
+  size: 25,
+  total: 60,
+  rows: [
+    {
+      childId: 'ch-1',
+      name: 'Ali Hassan',
+      className: '1A',
+      grade: 1,
+      curriculum: 'british',
+      parentEmail: 'parent@home.test',
+      rosterEmail: 'roster@school.test',
+    },
+    { childId: 'ch-2', name: 'Noor Saleh', className: '1B', grade: 1, curriculum: 'british' },
+  ],
+};
+
+describe('RM3a — the management area', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  describe('role routing', () => {
+    /** Signs the given user in so the two API services can answer "which namespace". */
+    async function signedInAs(user: typeof MANAGERIAL_USER) {
+      TestBed.configureTestingModule({
+        providers: [provideHttpClient(), provideHttpClientTesting(), { provide: BASE_PATH, useValue: '' }],
+      });
+      const backend = TestBed.inject(HttpTestingController);
+      TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+      TestBed.inject(AuthService).loadMe().subscribe();
+      backend.expectOne('/me').flush(user);
+      await Promise.resolve();
+      TestBed.tick();
+      return backend;
+    }
+
+    it("sends a manager's lesson reads to /management, not to /admin", async () => {
+      const backend = await signedInAs(MANAGERIAL_USER);
+      const lessons = TestBed.inject(LessonApiService);
+
+      expect(lessons.isAdmin()).toBe(false);
+      expect(lessons.isManager()).toBe(true);
+      // A `/status` alias of her own is what lets the read-only lesson page poll (RM1).
+      expect(lessons.supportsStatusPoll()).toBe(true);
+
+      lessons.list({ classId: 'c-1', status: 'published' }).subscribe();
+      backend.expectOne('/management/lessons?classId=c-1&status=published').flush([]);
+      lessons.getLesson('l-1').subscribe();
+      backend.expectOne('/management/lessons/l-1').flush({});
+      lessons.status('l-1').subscribe();
+      backend.expectOne('/management/lessons/l-1/status').flush({});
+      backend.verify();
+    });
+
+    it("sends a manager's records to /management and offers her no export", async () => {
+      const backend = await signedInAs(MANAGERIAL_USER);
+      const reads = TestBed.inject(ResultsApiService);
+
+      expect(reads.base()).toBe('/management');
+      // Every `.csv`, `.xlsx` and per-child `.pdf` is a teacher-namespace route: a button that
+      // answers 403 is worse than no button.
+      expect(reads.supportsExport()).toBe(false);
+      // Her Classes screen opens no section, so the middle breadcrumb is a name, not a link.
+      expect(reads.classLink('c-1')).toBeNull();
+
+      reads.gradebook('c-1', '2026-09-01', '2026-09-30').subscribe();
+      backend.expectOne('/management/classes/c-1/results?from=2026-09-01&to=2026-09-30').flush({});
+      reads.lessonResults('l-1').subscribe();
+      backend.expectOne('/management/lessons/l-1/results').flush({});
+      reads.childReport('ch-1').subscribe();
+      backend.expectOne('/management/children/ch-1').flush({});
+      reads.classExams('c-1').subscribe();
+      backend.expectOne('/management/classes/c-1/exams').flush([]);
+      reads.examResults('e-1').subscribe();
+      backend.expectOne('/management/exams/e-1/results').flush({});
+      reads.attendanceRange('c-1', '2026-09-21', '2026-09-27').subscribe();
+      backend.expectOne('/management/classes/c-1/attendance?from=2026-09-21&to=2026-09-27').flush([]);
+      backend.verify();
+    });
+
+    it('leaves the teacher on her own namespace — the branch is one role, not "not an admin"', async () => {
+      const backend = await signedInAs(TEACHER_USER);
+      const reads = TestBed.inject(ResultsApiService);
+
+      expect(reads.base()).toBe('/teacher');
+      expect(reads.supportsExport()).toBe(true);
+      expect(TestBed.inject(LessonApiService).isManager()).toBe(false);
+
+      reads.lessonResults('l-1').subscribe();
+      backend.expectOne('/teacher/lessons/l-1/results').flush({});
+      backend.verify();
+    });
+  });
+
+  describe('the statistics table', () => {
+    it('draws a row per grade and the department total, with a dash for every null', async () => {
+      const rendered = await renderHq(ManagementHomePage, {
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([{ path: '**', children: [] }]),
+          { provide: BASE_PATH, useValue: '' },
+        ],
+      });
+      const backend = TestBed.inject(HttpTestingController);
+      TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+      TestBed.inject(AuthService).loadMe().subscribe();
+      backend.expectOne('/me').flush(MANAGERIAL_USER);
+      await Promise.resolve();
+      TestBed.tick();
+
+      backend.expectOne('/management/me').flush(ME);
+      backend.expectOne('/management/teachers').flush([]);
+      backend.expectOne('/management/classes').flush([]);
+      backend.expectOne('/management/lessons?status=needs_review').flush([]);
+      backend.expectOne('/management/lessons?status=error').flush([]);
+      backend.expectOne((request) => request.url === '/management/stats').flush(STATS);
+      await Promise.resolve();
+      TestBed.tick();
+      await Promise.resolve();
+      TestBed.tick();
+
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Huda Salem');
+      // Her department, from `/management/me` — one curriculum, no subject beside it (DR5).
+      expect(document.body.textContent).toContain('British');
+
+      const rows = [...document.querySelectorAll('tbody tr')].map((row) => row.textContent ?? '');
+      expect(rows.length).toBe(3);
+      expect(rows[0]).toContain('Grade 1');
+      // Grade 1 marked no register and sat no exam: three dashes, not three zeros and not 100 %.
+      expect(rows[0]?.match(/—/g)?.length).toBe(3);
+      expect(rows[1]).toContain('Grade 2');
+      expect(rows[1]).toContain('92%');
+      expect(rows[2]).toContain('Whole department');
+
+      // One quiet teacher, although `/management/stats` named him under two grades.
+      expect(screen.getAllByText('Mr Omar').length).toBe(1);
+      rendered.fixture.destroy();
+    });
+
+    it('sorts grades, puts the total last, and keeps a missing count apart from a missing rate', () => {
+      const rows = statsRows(STATS);
+
+      expect(rows.map((row) => row.grade)).toEqual([1, 2, null]);
+      expect(rows[0]?.exams).toBe(0);
+      expect(rows[0]?.attendanceRate).toBeNull();
+      expect(rows[0]?.examAverage).toBeNull();
+      expect(quietTeachers(STATS).map((teacher) => teacher.userId)).toEqual(['t-9']);
+    });
+
+    it('draws nothing at all rather than an empty total row when the window answered nothing', () => {
+      expect(statsRows(undefined)).toEqual([]);
+      expect(quietTeachers(undefined)).toEqual([]);
+    });
+  });
+
+  describe('the people directory', () => {
+    async function renderPeople() {
+      const rendered = await renderHq(ManagementPeoplePage, {
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([{ path: '**', children: [] }]),
+          { provide: BASE_PATH, useValue: '' },
+        ],
+      });
+      const backend = TestBed.inject(HttpTestingController);
+      TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+      TestBed.inject(AuthService).loadMe().subscribe();
+      backend.expectOne('/me').flush(MANAGERIAL_USER);
+      await Promise.resolve();
+      TestBed.tick();
+      backend.expectOne('/management/people/children?page=0&size=25').flush(CHILDREN);
+      await Promise.resolve();
+      TestBed.tick();
+      return { rendered, backend };
+    }
+
+    it("pages on the server's own count and says where in it she is", async () => {
+      const { rendered } = await renderPeople();
+
+      expect(screen.getByText('Ali Hassan')).toBeTruthy();
+      // The parent's own address, with the roster's as the fallback: two columns would be two
+      // mostly identical ones, and the roster's exists before a parent has opened the app.
+      expect(document.body.textContent).toContain('parent@home.test');
+      expect(document.body.textContent).toContain('1–2 of 60');
+      rendered.fixture.destroy();
+    });
+
+    it('takes a new search back to the first page — page 2 of a list that no longer exists', async () => {
+      const { rendered, backend } = await renderPeople();
+
+      screen.getByRole('button', { name: 'Next' }).click();
+      await Promise.resolve();
+      TestBed.tick();
+      backend.expectOne('/management/people/children?page=1&size=25').flush({ ...CHILDREN, page: 1 });
+      await Promise.resolve();
+      TestBed.tick();
+
+      const search = screen.getByLabelText<HTMLInputElement>(/Search by name or email/);
+      search.value = 'ali';
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+      await Promise.resolve();
+      TestBed.tick();
+
+      backend.expectOne('/management/people/children?q=ali&page=0&size=25').flush(CHILDREN);
+      rendered.fixture.destroy();
+    });
+
+    it('writes a CSV Excel opens: a byte-order mark, CRLF, and a tab before a leading dash', () => {
+      const csv = csvOf(
+        ['Name', 'Class'],
+        [
+          ['-Ali', '1A'],
+          ['Say "hi"', '=2+2'],
+        ],
+      );
+
+      expect(csv.startsWith('﻿')).toBe(true);
+      expect(csv).toContain('\r\n');
+      // A child called "-Ali" is a formula to Excel, and so is a class called "=2+2".
+      expect(csv).toContain('"\t-Ali"');
+      expect(csv).toContain('"\t=2+2"');
+      expect(csv).toContain('"Say ""hi"""');
+    });
+  });
+
+  describe('the staff register', () => {
+    it('reads a mark as what it is and an unmarked person as nothing — never as present', () => {
+      const roster = rosterOf(ROSTER);
+
+      expect(roster.map((row) => row.name)).toEqual(['Rasha Kamal', 'Sara Al Harbi']);
+      expect(roster[0]?.status).toBeNull();
+      expect(roster[1]?.status).toBe('late');
+      expect(roster[1]?.note).toBe('traffic');
+    });
+
+    it('sends only the people she changed, and drops an empty note rather than saving one', () => {
+      const before = rosterOf(ROSTER);
+      const after = before.map((row) =>
+        row.userId === 'c-1' ? { ...row, status: 'present' as const } : row,
+      );
+
+      expect(changedMarks(before, after)).toEqual([{ userId: 'c-1', status: 'present', note: undefined }]);
+      // Nothing touched is nothing sent: an unchanged roster must not re-stamp `markedBy`.
+      expect(changedMarks(before, before)).toEqual([]);
+    });
+
+    it('never sends a person nobody marked, even when her note was typed first', () => {
+      const before = rosterOf(ROSTER);
+      const after = before.map((row) => (row.userId === 'c-1' ? { ...row, note: 'called in' } : row));
+
+      expect(changedMarks(before, after)).toEqual([]);
+    });
+
+    it('tells a day that has not happened from a day the school does not teach on', () => {
+      expect(notEditableReason(ROSTER)).toBeNull();
+      expect(notEditableReason({ ...ROSTER, editable: false, schoolDay: false })).toBe('closed');
+      expect(notEditableReason({ ...ROSTER, editable: false, schoolDay: true })).toBe('future');
+      // No answer yet is not a refusal: the chips stay as they are until the roster lands.
+      expect(notEditableReason(undefined)).toBeNull();
+    });
+  });
+});

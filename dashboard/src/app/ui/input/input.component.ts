@@ -6,7 +6,8 @@ let nextId = 0;
 
 // `time` joined the list with N4.4: an exam window is a date *and* a wall-clock time, and the
 // native control is the only one that gets a phone keyboard, a 24-hour locale and AM/PM right.
-export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 'tel' | 'url' | 'date' | 'time';
+export type InputType =
+  'text' | 'email' | 'password' | 'number' | 'search' | 'tel' | 'url' | 'date' | 'month' | 'time';
 
 /**
  * §3's input: 44 px, radius 8, a 1 px rule, `--hq-shadow-xs`, 14 px text and a muted
@@ -24,7 +25,7 @@ export type InputType = 'text' | 'email' | 'password' | 'number' | 'search' | 't
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="field" [hqShake]="error() ?? null">
-      <label class="field__label" [attr.for]="id">
+      <label class="field__label" [class.hq-sr-only]="hideLabel()" [attr.for]="id">
         {{ label() }}
         @if (!required()) {
           <span class="field__optional">{{ 'ui.optional' | transloco }}</span>
@@ -171,6 +172,15 @@ export class InputComponent {
   readonly type = input<InputType>('text');
   readonly name = input<string | null>(null);
   readonly placeholder = input('');
+  /**
+   * Keep the label for a screen reader and take it off the screen.
+   *
+   * For a field that repeats down a list — a note beside every person on the staff register —
+   * where thirty visible copies of the same word are noise and a field with no label at all is
+   * an accessibility failure. The label still has to be *different* per row, because "Note" said
+   * thirty times is as useless to a screen reader as it is on screen.
+   */
+  readonly hideLabel = input(false);
   readonly hint = input<string | null>(null);
   readonly error = input<string | null>(null);
   readonly disabled = input(false);

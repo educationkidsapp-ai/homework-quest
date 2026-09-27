@@ -162,15 +162,23 @@ describe('LessonApiService', () => {
   });
 
   /**
-   * A manager holds no teaching assignment, so `/teacher/**` would 404 on every read of hers;
-   * she reads through the tenant-wide Admin routes and writes nothing (`*hqCan`).
+   * A manager holds no teaching assignment, so `/teacher/**` would 404 on every read of hers.
+   *
+   * She used to read the tenant-wide Admin routes for that reason; RM1 gave her
+   * `/management/lessons`, which answers the same shapes scoped to her **department** — so she
+   * no longer counts as admin-side here, and an American section's lesson is now refused for her
+   * rather than served. She still writes nothing (`*hqCan`).
    */
-  it('reads through /admin/** for a MANAGERIAL account', () => {
+  it('reads through /management/** for a MANAGERIAL account', () => {
     const { api, backend } = signIn(MANAGERIAL_USER);
 
     api.getLesson('l-1').subscribe();
-    backend.expectOne('/admin/lessons/l-1');
-    expect(api.isAdmin()).toBe(true);
+    backend.expectOne('/management/lessons/l-1');
+    expect(api.isManager()).toBe(true);
+    expect(api.isAdmin()).toBe(false);
+    // RM1 published `/management/lessons/{id}/status`, so her read-only page may poll like
+    // everybody else's rather than being answered 404 every 2.5 s.
+    expect(api.supportsStatusPoll()).toBe(true);
   });
 
   /** The two the teacher route now serves — N2.4b's `plays` and `files` aliases. */

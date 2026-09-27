@@ -40,7 +40,12 @@ const ROUTES = {
   'admin home': ['hq-shell', 'hq-home-page'],
   'teacher home': ['hq-shell', 'hq-home-page'],
   'this week': ['hq-shell', 'hq-week-page'],
-  'management home': ['hq-shell', 'hq-home-page'],
+  // RM3a: the manager's own Home is DR5's statistics, not the shared one. Her other screens are
+  // the coordinator's components, so they weigh what the rows below weigh.
+  'management home': ['hq-shell', 'hq-management-home-page'],
+  'management coordinators': ['hq-shell', 'hq-management-coordinators-page'],
+  'management people': ['hq-shell', 'hq-management-people-page'],
+  'staff attendance': ['hq-shell', 'hq-staff-attendance-page'],
   profile: ['hq-shell', 'hq-profile-page'],
   lessons: ['hq-shell', 'hq-lessons-page'],
   classes: ['hq-shell', 'hq-classes-page'],

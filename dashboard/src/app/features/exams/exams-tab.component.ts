@@ -118,13 +118,13 @@ export class ExamsTabComponent {
   /**
    * The results of the exams that have opened — the only ones with anybody to count.
    *
-   * Empty for a coordinator: R3's `GET /coordinator/classes/{id}/exams` answers `ExamRow`, which
-   * already carries `sat`, `roster` and `needsMarking`, so her list costs **one** request where
-   * the teacher's costs one per open exam. The teacher's endpoint is the one that still needs a
-   * `sat` column; that is reported, not hidden.
+   * Empty for a supervisor: `GET /coordinator/classes/{id}/exams` (R3) and its `/management`
+   * twin (RM1) answer `ExamRow`, which already carries `sat`, `roster` and `needsMarking`, so
+   * her list costs **one** request where the teacher's costs one per open exam. The teacher's
+   * endpoint is the one that still needs a `sat` column; that is reported, not hidden.
    */
   private readonly opened = computed(() =>
-    this.reads.isCoordinator()
+    this.reads.examRowsComplete()
       ? []
       : this.exams
           .value()

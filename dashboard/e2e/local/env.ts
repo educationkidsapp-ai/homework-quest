@@ -177,6 +177,19 @@ export const COORDINATOR: Account = {
   },
 };
 
+/**
+ * RM3a: the full seed's manager of the **British** department (`seed/managers.csv`, Huda Salem).
+ *
+ * `manager.b@school.test` runs the American one. Every assertion in
+ * `management-area.spec.ts` is about the first of those two seeing only her own track.
+ */
+export const MANAGER: Account = {
+  email: 'manager.a@school.test',
+  get password() {
+    return env('E2E_STAFF_PASSWORD');
+  },
+};
+
 export const ADMIN: Account = {
   email: process.env['E2E_ADMIN_EMAIL'] ?? 'admin@quest.local',
   get password() {

@@ -1,5 +1,6 @@
 import type { ClassAttendanceResponse } from '../../api';
 import type { AttendanceStatus } from '../../core/attendance/attendance.models';
+import { csvOf } from '../../core/download/csv';
 import { type Range, isoDate } from '../results/gradebook.models';
 
 /** One child's line of the matrix: a mark per day, then the four totals. */
@@ -119,12 +120,11 @@ export interface AttendanceCsvHeaders {
 }
 
 /**
- * The matrix as a spreadsheet, built in the browser.
+ * The matrix as a spreadsheet.
  *
- * `/coordinator/**` publishes no `.csv`, and asking for the teacher's would be a 403 — so this is
- * the one export of hers, and it is the rows already on her screen rather than a second read that
- * could disagree with them. `\r\n` and a byte-order mark because Excel on Windows reads
- * a bare `\n` UTF-8 CSV as one column of mojibake, and an Arabic roster is exactly that case.
+ * A register is the one document a supervisor has a reason to carry to a teacher, and neither
+ * read-only namespace publishes a `.csv` — so it is built from the rows already on the screen
+ * (`csvOf`, which owns the byte-order mark and the formula guard).
  */
 export function attendanceCsv(range: AttendanceRange, headers: AttendanceCsvHeaders): string {
   const head = [
@@ -136,29 +136,14 @@ export function attendanceCsv(range: AttendanceRange, headers: AttendanceCsvHead
     headers.excused,
     headers.rate,
   ];
-  const lines = range.rows.map((row) =>
-    [
-      row.childName,
-      ...row.cells.map((cell) => (cell === 'NOT_MARKED' ? '' : cell)),
-      String(row.present),
-      String(row.late),
-      String(row.absent),
-      String(row.excused),
-      row.rate === null ? '' : `${row.rate}%`,
-    ]
-      .map(quote)
-      .join(','),
-  );
-  return `\uFEFF${[head.map(quote).join(','), ...lines].join('\r\n')}\r\n`;
-}
-
-/**
- * One field, quoted.
- *
- * A leading `=`, `+`, `-` or `@` is prefixed with a tab: a child called "-Ali" is a formula to
- * Excel, and a CSV a coordinator opens is exactly where that matters.
- */
-function quote(field: string): string {
-  const safe = /^[=+\-@]/.test(field) ? `\t${field}` : field;
-  return `"${safe.replace(/"/g, '""')}"`;
+  const rows = range.rows.map((row) => [
+    row.childName,
+    ...row.cells.map((cell) => (cell === 'NOT_MARKED' ? '' : cell)),
+    String(row.present),
+    String(row.late),
+    String(row.absent),
+    String(row.excused),
+    row.rate === null ? '' : `${row.rate}%`,
+  ]);
+  return csvOf(head, rows);
 }

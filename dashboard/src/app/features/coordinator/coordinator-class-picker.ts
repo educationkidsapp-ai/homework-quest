@@ -1,6 +1,6 @@
 import { type Signal, computed, inject, signal } from '@angular/core';
 import { type SelectOption } from '../../ui';
-import { CoordinatorService } from './coordinator.service';
+import { StaffScopeService } from './staff-scope.service';
 
 /**
  * "Which of her sections?" — the one control all three of R6's screens open with.
@@ -22,7 +22,7 @@ export interface ClassPicker {
 }
 
 export function classPicker(): ClassPicker {
-  const co = inject(CoordinatorService);
+  const co = inject(StaffScopeService);
   const chosen = signal('');
 
   const options = computed<readonly SelectOption[]>(() =>
