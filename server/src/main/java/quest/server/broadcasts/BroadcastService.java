@@ -99,6 +99,10 @@ public class BroadcastService {
         var targets = named ? request.sectionIds().stream().distinct().map(id -> managers.requireSection(caller, id)).toList() : reach.sections();
         if (targets.isEmpty()) throw ApiException.badRequest("You manage no class yet, so there is nobody to tell.");
         String curriculum = named ? oneTrack(targets) : one(departments);
+        // A weekly plan is a department's week and replaces the one before it, so it has to say which department:
+        // a row with none would match — and delete — every department's plan for that week.
+        if (WEEKLY_PLAN.equals(kind(request.kind())) && curriculum == null)
+            throw ApiException.badRequest("A weekly plan belongs to one department: name the sections of a single track.");
         var audience = audience(request.audience());
         var row = write(schoolId, caller.userId(), ManagerScope.ROLE, request, curriculum, null, named ? targets : null, audience);
         fanOut(row, schoolId, audience, reach);
@@ -411,7 +415,10 @@ public class BroadcastService {
         return subjects.isEmpty() ? null : String.join(", ", subjects);
     }
 
-    /** The one track a named list of sections is in, or null when it spans both — the row then names its sections. */
+    /**
+     * The one track a named list of sections is in, or null when it spans both — the row then names its sections, and
+     * a `weekly_plan` that lands here is refused rather than stored without a department.
+     */
     private static String oneTrack(List<ClassEntity> targets) {
         var found = tracksOf(targets);
         return found.size() == 1 ? found.iterator().next() : null;

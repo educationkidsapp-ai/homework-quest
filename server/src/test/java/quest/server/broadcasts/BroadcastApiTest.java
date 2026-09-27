@@ -200,6 +200,20 @@ class BroadcastApiTest extends ApiTestSupport {
         mvc.perform(as(post("/management/broadcasts").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"kind\":\"event\",\"bodyEn\":\"Hello\",\"audience\":[\"parents\"],\"sectionIds\":[\"" + britishA + "\"]}"),
                 token(sami, "MANAGERIAL"))).andExpect(status().isForbidden());
+        // A weekly plan whose sections span both tracks names no department, and a plan with no department would
+        // match — and delete — every department's plan for that week. Refused, so the delete is always one track's.
+        mvc.perform(as(post("/management/broadcasts").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"bodyEn\":\"Both tracks\","
+                                + "\"audience\":[\"parents\"],\"sectionIds\":[\"" + britishA + "\",\"" + americanA + "\"]}"),
+                adminToken).header(TenantContext.HEADER, SCHOOL)).andExpect(status().isBadRequest());
+        // The American manager's own plan leaves the British one where it is.
+        created(sami, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\","
+                + "\"title\":\"American week\",\"bodyEn\":\"Spelling bee.\",\"audience\":[\"parents\"]}");
+        assertThat(names(staffGet(nour, "MANAGERIAL", "/management/broadcasts"), "title"))
+                .as("the other department's replacement is not hers").contains("Week of subtraction (v2)");
+        assertThat(names(parentGet(AMERICAN_PARENT, "/children/" + childAmerican + "/broadcasts").get("items"), "title"))
+                .contains("American week");
+
         for (String body : List.of("{\"kind\":\"newsletter\",\"bodyEn\":\"Hi\",\"audience\":[\"parents\"]}",
                 "{\"kind\":\"event\",\"bodyEn\":\"Hi\",\"audience\":[]}",
                 "{\"kind\":\"weekly_plan\",\"bodyEn\":\"Hi\",\"audience\":[\"parents\"]}",

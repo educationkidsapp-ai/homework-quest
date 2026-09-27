@@ -40,7 +40,11 @@ class PostgresBroadcastTest extends PostgresContainerSupport {
         assertThat(live).extracting(Entities.BroadcastEntity::getId).contains(plan.getId(), event.getId()).doesNotContain(expired.getId());
         assertThat(rows.byAuthor(SCHOOL, AUTHOR, PageRequest.of(0, 50))).hasSizeGreaterThanOrEqualTo(3);
         assertThat(rows.weeklyPlans(SCHOOL, week, "british")).extracting(Entities.BroadcastEntity::getId).contains(plan.getId());
-        assertThat(rows.weeklyPlans(SCHOOL, week, null)).as("a null curriculum matches every department").isNotEmpty();
+        assertThat(rows.weeklyPlans(SCHOOL, week, "american")).extracting(Entities.BroadcastEntity::getId)
+                .as("one department's replacement must never reach another's plan").doesNotContain(plan.getId());
+        assertThat(rows.weeklyPlans(SCHOOL, week, null)).extracting(Entities.BroadcastEntity::getId)
+                .as("a null curriculum matches a null one only — on PostgreSQL, where `= NULL` is never true")
+                .doesNotContain(plan.getId());
         assertThat(rows.findOneById(plan.getId())).isPresent();
 
         // The grouped read the feed makes: one statement for a whole page of rows, `readerId` plus `IN (…)`.

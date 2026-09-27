@@ -25,9 +25,16 @@ public interface BroadcastRepository extends JpaRepository<Entities.BroadcastEnt
     @Query("select b from BroadcastEntity b where b.schoolId = :schoolId and b.authorUserId = :authorId order by b.createdAt desc")
     List<Entities.BroadcastEntity> byAuthor(@Param("schoolId") String schoolId, @Param("authorId") String authorId, Pageable page);
 
-    /** The weekly plan of one department and week, which a re-post replaces (there is at most one). */
+    /**
+     * The weekly plan of <strong>one</strong> department and week, which a re-post replaces (there is at most one).
+     * The curriculum is matched exactly, and a null one matches only a null one: `(:curriculum is null or …)` read as
+     * "every department" and would have let one manager's replacement delete the other department's plan and its read
+     * marks. A plan with no department cannot be posted at all ({@code BroadcastService.managerPost}), so the null
+     * branch is there to be closed rather than to be used.
+     */
     @Query("select b from BroadcastEntity b where b.schoolId = :schoolId and b.kind = 'weekly_plan'"
-            + " and b.weekStart = :week and (:curriculum is null or b.curriculum = :curriculum) order by b.createdAt desc")
+            + " and b.weekStart = :week and ((:curriculum is null and b.curriculum is null) or b.curriculum = :curriculum)"
+            + " order by b.createdAt desc")
     List<Entities.BroadcastEntity> weeklyPlans(@Param("schoolId") String schoolId, @Param("week") LocalDate week,
                                                @Param("curriculum") String curriculum);
 
