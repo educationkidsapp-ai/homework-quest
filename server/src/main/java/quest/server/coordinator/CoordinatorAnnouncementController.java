@@ -30,9 +30,12 @@ import quest.server.tenancy.CoordinatorScope;
 @FeatureFlag(FlagKeys.ANNOUNCEMENTS)
 @Tag(name = "Coordinator announcements", description = "Notes a coordinator posts to the parents of the classes in her scope")
 public class CoordinatorAnnouncementController {
-    private final CoordinatorAnnouncementService announcements;
+    private final CoordinatorAnnouncementService announcements; private final quest.server.broadcasts.BroadcastService broadcasts;
 
-    public CoordinatorAnnouncementController(CoordinatorAnnouncementService announcements) { this.announcements = announcements; }
+    public CoordinatorAnnouncementController(CoordinatorAnnouncementService announcements,
+                                             quest.server.broadcasts.BroadcastService broadcasts) {
+        this.announcements = announcements; this.broadcasts = broadcasts;
+    }
 
     @GetMapping(value = "/coordinator/announcements", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('coordinator.announce')")
@@ -40,12 +43,19 @@ public class CoordinatorAnnouncementController {
         return announcements.mine(CoordinatorScope.require(caller));
     }
 
-    /** One row per class, so the answer names exactly who was told; 201 with them all. */
+    /**
+     * One row per class, so the answer names exactly who was told; 201 with them all. RM2 (DR6): the write goes through
+     * {@link quest.server.broadcasts.BroadcastService} and also writes the broadcast row, so a note posted here appears
+     * in `GET /coordinator/broadcasts` and in the parent's feed beside the announcements screen it always reached.
+     */
     @PostMapping(value = "/coordinator/announcements", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("@permit.has('coordinator.announce')")
     public List<TeacherDto.Announcement> createCoordinatorAnnouncement(@AuthenticationPrincipal Principals.User caller,
                                                                       @RequestBody @Valid CoordinatorDto.CreateAnnouncementRequest body) {
-        return announcements.create(CoordinatorScope.require(caller), body);
+        var request = new quest.server.broadcasts.BroadcastDto.CreateRequest(quest.server.broadcasts.BroadcastService.ANNOUNCEMENT,
+                body.bodyEn(), null, body.bodyAr(), null, java.util.List.of(quest.server.broadcasts.BroadcastService.PARENTS),
+                body.classIds(), null, body.expiresAt());
+        return broadcasts.coordinatorPost(CoordinatorScope.require(caller), request).announcements();
     }
 }

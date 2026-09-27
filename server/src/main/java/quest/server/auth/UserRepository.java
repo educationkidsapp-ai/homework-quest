@@ -31,4 +31,12 @@ public interface UserRepository extends JpaRepository<Entities.UserEntity, Strin
      */
     @Query(value = "SELECT id FROM users WHERE lower(email) = lower(:email)", nativeQuery = true)
     Optional<String> findIdByEmailAcrossSchools(@Param("email") String email);
+
+    /**
+     * RM2 (DR5): the platform admins a manager may open a chat thread with. Native for the reason above and answering
+     * ids rather than rows — the ADMIN row carries no `school_id`, so a scoped query cannot see it at all, and the
+     * caller resolves each id with `findById`, the lookup Hibernate filters never touch.
+     */
+    @Query(value = "SELECT id FROM users WHERE role = 'ADMIN' AND status = 'active' ORDER BY lower(coalesce(display_name, email))", nativeQuery = true)
+    List<String> findActiveAdminIds();
 }

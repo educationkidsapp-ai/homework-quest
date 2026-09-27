@@ -76,12 +76,15 @@ class CoordinatorScopeArchitectureTest {
      *       is the staff peer of and nothing about the child, the class or the teacher.</li>
      *   <li>{@code POST /coordinator/announcements} — DR4. It writes `announcements` rows for classes in her scope and
      *       is the one write that reaches parents, which is why it carries the `announcements` flag as well.</li>
+     *   <li>{@code POST /coordinator/broadcasts} — RM2 (DR6), the same write under its own name: an announcement or an
+     *       event for the parents of the classes she coordinates, on the `announcements` flag and through the same
+     *       `BroadcastService` the route above now delegates to. It writes nothing about a class, a lesson or a child.</li>
      * </ul>
      */
     private static final Set<String> COMMUNICATION_WRITES = Set.of(
             "POST /coordinator/chat/threads", "POST /coordinator/chat/threads/{id}/messages",
             "POST /coordinator/chat/threads/{id}/read", "PATCH /coordinator/chat/threads/{id}/status",
-            "POST /coordinator/announcements");
+            "POST /coordinator/announcements", "POST /coordinator/broadcasts");
 
     @Test void the_only_writes_in_the_coordinator_namespace_are_r4s_communication() {
         var writes = new ArrayList<String>();

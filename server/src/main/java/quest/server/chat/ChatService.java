@@ -42,6 +42,7 @@ import quest.server.tenancy.ClassRepository;
 import quest.server.tenancy.CoordinatorScope;
 import quest.server.tenancy.Entities.ClassEntity;
 import quest.server.tenancy.Entities.TeachingAssignmentEntity;
+import quest.server.tenancy.ManagerScope;
 import quest.server.tenancy.TeacherScope;
 import quest.server.tenancy.TenantContext;
 
@@ -80,17 +81,17 @@ public class ChatService {
     private final ChatThreadRepository threads; private final ChatMessageRepository messages; private final ChatThreads threadRows;
     private final ChatRateLimiter limiter; private final ChatBus bus; private final ChildService childService; private final ChildRepository children;
     private final ClassRepository classes; private final UserRepository users; private final TeacherScope scope; private final TenantContext tenant;
-    private final CoordinatorScope coordinatorScope; private final ChatPeers peers;
+    private final CoordinatorScope coordinatorScope; private final ManagerScope managerScope; private final ChatPeers peers;
     private final FeatureFlags flags; private final Clock clock; private final Json json;
     private final quest.server.auth.ParentRepository parents;
 
     public ChatService(ChatThreadRepository threads, ChatMessageRepository messages, ChatThreads threadRows, ChatRateLimiter limiter, ChatBus bus,
                        ChildService childService, ChildRepository children, ClassRepository classes, UserRepository users, TeacherScope scope,
-                       TenantContext tenant, CoordinatorScope coordinatorScope, ChatPeers peers, FeatureFlags flags, Clock clock, Json json,
-                       quest.server.auth.ParentRepository parents) {
+                       TenantContext tenant, CoordinatorScope coordinatorScope, ManagerScope managerScope,
+                       ChatPeers peers, FeatureFlags flags, Clock clock, Json json, quest.server.auth.ParentRepository parents) {
         this.threads = threads; this.messages = messages; this.threadRows = threadRows; this.limiter = limiter; this.bus = bus;
         this.childService = childService; this.children = children; this.classes = classes; this.users = users; this.scope = scope;
-        this.tenant = tenant; this.coordinatorScope = coordinatorScope; this.peers = peers; this.flags = flags; this.clock = clock;
+        this.tenant = tenant; this.coordinatorScope = coordinatorScope; this.managerScope = managerScope; this.peers = peers; this.flags = flags; this.clock = clock;
         this.json = json; this.parents = parents;
     }
 
@@ -118,7 +119,13 @@ public class ChatService {
         var lookup = new ArrayList<>(teacherIds);
         staffThreads.forEach(t -> lookup.add(t.getTeacherId()));
         var staff = byId(users.findAllById(lookup.stream().distinct().toList()), UserEntity::getId);
-        var section = classes.findOneById(child.getClassId()).map(ClassEntity::getName).orElse(null);
+        var sectionRow = classes.findOneById(child.getClassId()).orElse(null);
+        var section = sectionRow == null ? null : sectionRow.getName();
+        // RM2: a coordinator row here carries her subjects too, as `GET /children/{id}/coordinators` already does —
+        // the app labels the thread "Lina · maths" whether the parent reached it from the chooser or from this list.
+        var coordinatorSubjects = new HashMap<String, String>();
+        if (sectionRow != null && staffThreads.stream().anyMatch(t -> COORDINATOR.equals(t.getStaffRole())))
+            for (var c : peers.coordinatorsOn(child.getSchoolId(), sectionRow)) coordinatorSubjects.put(c.user().getId(), c.subjects());
         var last = lastMessages(byStaff.values());
         var subjects = assignments.stream().collect(Collectors.groupingBy(TeachingAssignmentEntity::getTeacherId, LinkedHashMap::new,
                 Collectors.mapping(TeachingAssignmentEntity::getSubject, Collectors.joining(", "))));
@@ -131,7 +138,7 @@ public class ChatService {
         }
         for (var t : staffThreads)
             rows.add(row(t, child.getId(), child.getName(), t.getTeacherId(), name(staff.get(t.getTeacherId())), section,
-                    null, t.getParentUnread(), last.get(t.getId()), t.getStaffRole(), parentName));
+                    coordinatorSubjects.get(t.getTeacherId()), t.getParentUnread(), last.get(t.getId()), t.getStaffRole(), parentName));
         rows.sort(order());
         return rows;
     }
@@ -158,6 +165,29 @@ public class ChatService {
         return rows;
     }
 
+    /**
+     * `GET /children/{id}/managers` (RM2, DR5): the manager of the department her child's section is in, as thread rows
+     * — whom she may write to about the school, the child or a coordinator. The same shape
+     * {@link #parentCoordinators} answers, `id` null until she writes, and a `complaint` is allowed here too: a manager
+     * is the person a complaint about a coordinator has to go to.
+     */
+    public List<ChatThread> parentManagers(Principals.Parent parent, String childId) {
+        var child = placed(parent, childId);
+        var section = classes.findOneById(child.getClassId()).orElse(null);
+        if (section == null) return List.of();
+        var byStaff = byId(threads.findByChildIdOrderByLastMessageAtDesc(childId), ChatThreadEntity::getTeacherId);
+        var last = lastMessages(byStaff.values());
+        String parentName = parentNames(List.of(child)).get(child.getId());
+        var rows = new ArrayList<ChatThread>();
+        for (var manager : peers.managersOn(child.getSchoolId(), section)) {
+            var t = byStaff.get(manager.getId());
+            rows.add(row(t, child.getId(), child.getName(), manager.getId(), name(manager), section.getName(),
+                    null, t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), MANAGERIAL, parentName));
+        }
+        rows.sort(order());
+        return rows;
+    }
+
     public List<ChatMessage> parentMessages(Principals.Parent parent, String childId, String staffId, String before, String since, Integer limit) {
         var child = placed(parent, childId); requireStaffOf(child, staffId);
         return threads.findByChildIdAndTeacherId(childId, staffId).map(t -> page(t.getId(), before, since, limit)).orElse(List.of());
@@ -179,9 +209,9 @@ public class ChatService {
      */
     private static String requireTopic(ChatTopic topic, String staffRole) {
         if (topic == null) return QUESTION;
-        if (topic == ChatTopic.COMPLAINT && !COORDINATOR.equals(staffRole))
+        if (topic == ChatTopic.COMPLAINT && !COORDINATOR.equals(staffRole) && !MANAGERIAL.equals(staffRole))
             throw new ApiException(HttpStatus.BAD_REQUEST, "complaint_needs_coordinator",
-                    "A complaint goes to the coordinator of the subject. Pick one from the coordinator list, or write to the teacher as a question.");
+                    "A complaint goes to the coordinator of the subject or to the manager of the department. Pick one from those lists, or write to the teacher as a question.");
         return key(topic);
     }
 
@@ -276,22 +306,30 @@ public class ChatService {
     public List<ChatThread> coordinatorThreads(Principals.User caller, String topic, String status) {
         var me = CoordinatorScope.require(caller);
         requireOn(tenant.writeSchoolId());
-        var reach = coordinatorScope.reach(me);
-        var mine = threads.findForStaff(me.userId()).stream()
+        return staffThreads(me.userId(), coordinatorScope.reach(me), topic, status);
+    }
+
+    /**
+     * The list both supervising roles read, named by thread id: the parent threads whose child is inside {@code reach}
+     * and every staff thread this person is on. One body for the two, because a manager's inbox is a coordinator's with
+     * a wider reach — the only difference is which scope built it and which `require` proved she may hold one.
+     */
+    private List<ChatThread> staffThreads(String meId, CoordinatorScope.Reach reach, String topic, String status) {
+        var mine = threads.findForStaff(meId).stream()
                 .filter(t -> topic == null || topic.equals(t.getTopic()))
                 .filter(t -> status == null || status.equals(t.getStatus())).toList();
         var kids = byId(children.findAllById(mine.stream().map(ChatThreadEntity::getChildId).filter(Objects::nonNull).distinct().toList()), ChildEntity::getId);
         var live = mine.stream().filter(t -> mayAnswer(t, kids, reach)).toList();
         var last = lastMessages(live);
-        var people = byId(users.findAllById(live.stream().map(t -> named(t, me.userId())).distinct().toList()), UserEntity::getId);
+        var people = byId(users.findAllById(live.stream().map(t -> named(t, meId)).distinct().toList()), UserEntity::getId);
         var parentNames = parentNames(kids.values());
         var rows = new ArrayList<ChatThread>(live.size());
         for (var t : live) {
             var child = t.getChildId() == null ? null : kids.get(t.getChildId());
             var section = child == null || child.getClassId() == null ? null : reach.byId().get(child.getClassId());
-            String person = named(t, me.userId());
+            String person = named(t, meId);
             rows.add(row(t, child == null ? "" : child.getId(), child == null ? "" : child.getName(), person, name(people.get(person)),
-                    section == null ? null : section.getName(), null, unreadFor(t, me.userId()), last.get(t.getId()), t.getStaffRole(),
+                    section == null ? null : section.getName(), null, unreadFor(t, meId), last.get(t.getId()), t.getStaffRole(),
                     child == null ? null : parentNames.get(child.getId())));
         }
         return List.copyOf(rows);
@@ -355,6 +393,154 @@ public class ChatService {
         var manager = peers.managersFor(me).stream().filter(u -> u.getId().equals(managerUserId)).findFirst()
                 .orElseThrow(() -> ApiException.notFound("manager"));
         return one(threadRows.getOrCreateStaff(schoolId, me.userId(), manager.getId()), me.userId());
+    }
+
+    // ---------------------------------------------------------------- the manager (dashboard, RM2, DR5)
+
+    /**
+     * Her conversations: the parents who wrote to her about a child of her department, the coordinators she manages,
+     * and the admin she reports to. {@link #coordinatorThreads}' own list one scope wider — same body, same order,
+     * `?status=` the same filter — because the difference between the two roles is which scope built the reach.
+     */
+    public List<ChatThread> managerThreads(Principals.User caller, String status) {
+        var me = ManagerScope.require(caller);
+        requireOn(tenant.writeSchoolId());
+        return staffThreads(me.userId(), managerScope.reach(me), null, status);
+    }
+
+    public List<ChatMessage> managerMessages(Principals.User caller, String threadId, String before, String since, Integer limit) {
+        var t = ownManagerThread(ManagerScope.require(caller), threadId);
+        return page(t.getId(), before, since, limit);
+    }
+
+    @Transactional
+    public ChatMessage managerSend(Principals.User caller, String threadId, String body, String clientId) {
+        var me = ManagerScope.require(caller); var t = ownManagerThread(me, threadId);
+        return send(t, parentOf(t), roleOn(t, me.userId()), me.userId(), body, clientId);
+    }
+
+    @Transactional
+    public ChatReadReceipt managerRead(Principals.User caller, String threadId) {
+        var me = ManagerScope.require(caller); var t = ownManagerThread(me, threadId);
+        return read(t, parentOf(t), roleOn(t, me.userId()), me.userId());
+    }
+
+    public void managerTyping(Principals.User caller, String threadId) {
+        var me = ManagerScope.require(caller); var t = ownManagerThread(me, threadId);
+        String role = roleOn(t, me.userId());
+        publish(ChatEvent.typing(t.getSchoolId(), t.getId(), t.getChildId(), t.getTeacherId(), parentOf(t), t.getPeerUserId(), key(role, me.userId()), role));
+    }
+
+    /**
+     * `POST /management/chat/threads`: her thread with one coordinator of her department, or with a platform admin
+     * (DR5: "the manager reports to and chats with the admin"). The coordinator is resolved through
+     * {@link ManagerScope#coordinatorsOf} — one of the other department's is 404 — and the admin
+     * through {@code findById}, which Hibernate filters never touch, because the ADMIN row carries no school at all.
+     *
+     * <p>The coordinator holds the `teacher_id` side of her thread and the manager holds it on the admin's, so a
+     * person's threads are always found by {@code findForStaff} whichever pair she is in.
+     */
+    @Transactional
+    public ChatThread managerStaffThread(Principals.User caller, String coordinatorUserId, String adminUserId) {
+        var me = ManagerScope.require(caller);
+        String schoolId = tenant.writeSchoolId();
+        requireOn(schoolId);
+        if (coordinatorUserId != null && !coordinatorUserId.isBlank()) {
+            var coordinator = managerScope.coordinatorsOf(me).keySet().stream().filter(u -> u.getId().equals(coordinatorUserId))
+                    .findFirst().orElseThrow(() -> ApiException.notFound("coordinator"));
+            return one(threadRows.getOrCreateStaff(schoolId, coordinator.getId(), me.userId()), me.userId());
+        }
+        if (adminUserId == null || adminUserId.isBlank()) throw ApiException.badRequest("Send coordinatorUserId or adminUserId.");
+        var admin = admin(adminUserId);
+        return one(threadRows.getOrCreateStaff(schoolId, me.userId(), admin.getId()), me.userId());
+    }
+
+    /**
+     * `GET /management/admins`: whom `adminUserId` above may name — the active platform admins, in name order. Her own
+     * departments are resolved first, so the route is a manager's and `ManagerScopeArchitectureTest` sees the check.
+     */
+    public List<UserEntity> admins(Principals.User caller) {
+        managerScope.departments(ManagerScope.require(caller));
+        return users.findActiveAdminIds().stream().map(id -> users.findById(id).orElse(null)).filter(Objects::nonNull).toList();
+    }
+
+    /** One thread with the manager on it; a parent thread also has to be about a child of her department (403 otherwise). */
+    private ChatThreadEntity ownManagerThread(Principals.User me, String threadId) {
+        requireOn(tenant.writeSchoolId());
+        var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
+        if (!me.userId().equals(t.getTeacherId()) && !me.userId().equals(t.getPeerUserId())) throw ApiException.notFound("thread");
+        if (t.getChildId() != null) managerScope.requireChild(me, t.getChildId());
+        return t;
+    }
+
+    // ---------------------------------------------------------------- the Admin's own threads with managers (RM2)
+
+    /**
+     * `POST /admin/chat/threads`: the admin's thread with one manager of the school named by `X-School-Id`. The same
+     * row `POST /management/chat/threads` creates from the other side, so whichever of the two writes first gets it.
+     */
+    @Transactional
+    public ChatThread adminManagerThread(Principals.User caller, String managerUserId) {
+        String schoolId = requireSchool(); requireOn(schoolId);
+        if (managerUserId == null || managerUserId.isBlank()) throw ApiException.badRequest("managerUserId is required");
+        var manager = users.findById(managerUserId).filter(u -> MANAGERIAL.equals(u.getRole()) && schoolId.equals(u.getSchoolId()))
+                .orElseThrow(() -> ApiException.notFound("manager"));
+        return one(threadRows.getOrCreateStaff(schoolId, manager.getId(), caller.userId()), caller.userId());
+    }
+
+    @Transactional
+    public ChatMessage adminSend(Principals.User caller, String threadId, String body, String clientId) {
+        var t = ownAdminThread(caller, threadId);
+        return send(t, parentOf(t), roleOn(t, caller.userId()), caller.userId(), body, clientId);
+    }
+
+    @Transactional
+    public ChatReadReceipt adminRead(Principals.User caller, String threadId) {
+        var t = ownAdminThread(caller, threadId);
+        return read(t, parentOf(t), roleOn(t, caller.userId()), caller.userId());
+    }
+
+    /**
+     * A thread the admin is herself on, inside the school she named. Support still <em>reads</em> every thread of a
+     * school ({@link #supportThreads}); writing is only ever into her own conversation, so a `POST` cannot put words
+     * into a parent's or a teacher's thread.
+     */
+    private ChatThreadEntity ownAdminThread(Principals.User caller, String threadId) {
+        String schoolId = requireSchool(); requireOn(schoolId);
+        var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
+        if (!caller.userId().equals(t.getTeacherId()) && !caller.userId().equals(t.getPeerUserId())) throw ApiException.notFound("thread");
+        return t;
+    }
+
+    /** An active platform ADMIN by id. `findById` is the unfiltered lookup: the ADMIN row carries no `school_id`. */
+    private UserEntity admin(String userId) {
+        return users.findById(userId).filter(u -> "ADMIN".equals(u.getRole())).orElseThrow(() -> ApiException.notFound("admin"));
+    }
+
+    // ---------------------------------------------------------------- the socket's staff half
+
+    /**
+     * A COORDINATOR (R4), a MANAGERIAL or an ADMIN (RM2) names her thread by id rather than by child, because not all
+     * of her threads are about one. Which scope proves the thread is hers is her role's, so {@link ChatSocketHandler}
+     * holds no rule of its own; a role that reaches neither branch cannot send at all.
+     */
+    @Transactional
+    public ChatMessage staffSend(Principals.User caller, String threadId, String body, String clientId) {
+        if (CoordinatorScope.ROLE.equals(caller.role())) return coordinatorSend(caller, threadId, body, clientId);
+        if (MANAGERIAL.equals(caller.role())) return managerSend(caller, threadId, body, clientId);
+        return adminSend(caller, threadId, body, clientId);
+    }
+
+    @Transactional
+    public ChatReadReceipt staffRead(Principals.User caller, String threadId) {
+        if (CoordinatorScope.ROLE.equals(caller.role())) return coordinatorRead(caller, threadId);
+        if (MANAGERIAL.equals(caller.role())) return managerRead(caller, threadId);
+        return adminRead(caller, threadId);
+    }
+
+    public void staffTyping(Principals.User caller, String threadId) {
+        if (CoordinatorScope.ROLE.equals(caller.role())) coordinatorTyping(caller, threadId);
+        else if (MANAGERIAL.equals(caller.role())) managerTyping(caller, threadId);
     }
 
     // ---------------------------------------------------------------- who reaches a coordinator's thread
@@ -486,6 +672,9 @@ public class ChatService {
         if (scope.assignmentsOn(child.getClassId()).stream().anyMatch(a -> a.getTeacherId().equals(staffId))) return ROLE_TEACHER;
         var section = classes.findOneById(child.getClassId()).orElseThrow(() -> ApiException.notFound("teacher"));
         if (peers.coordinatorsOn(child.getSchoolId(), section).stream().anyMatch(c -> c.user().getId().equals(staffId))) return COORDINATOR;
+        // RM2 (DR5): the manager of the department the section is in — "parents message the manager about the school, a
+        // child or a coordinator". Anyone else is 404, because a parent is told of no staff beyond her own child's.
+        if (peers.managersOn(child.getSchoolId(), section).stream().anyMatch(u -> u.getId().equals(staffId))) return MANAGERIAL;
         throw ApiException.notFound("teacher");
     }
 
@@ -579,7 +768,8 @@ public class ChatService {
         return out;
     }
 
-    static ChatStaffRole staffRole(String role) {
+    /** The wire word for a staff role; public because `AnnouncementService` labels a parent's card with it (RM2). */
+    public static ChatStaffRole staffRole(String role) {
         return switch (role == null ? ROLE_TEACHER : role) { case COORDINATOR -> ChatStaffRole.COORDINATOR; case MANAGERIAL -> ChatStaffRole.MANAGERIAL; default -> ChatStaffRole.TEACHER; };
     }
     static ChatTopic topic(String topic) { return COMPLAINT.equals(topic) ? ChatTopic.COMPLAINT : ChatTopic.QUESTION; }

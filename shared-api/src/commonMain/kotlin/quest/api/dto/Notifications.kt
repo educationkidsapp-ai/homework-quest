@@ -27,6 +27,15 @@ enum class NotificationKind {
      * rather than a translated sentence.
      */
     @SerialName("teacher.message") TEACHER_MESSAGE,
+    /**
+     * RM2 (DR6): a manager or a coordinator posted a broadcast this user is an audience of. [NotificationView.title]
+     * is the broadcast's own title (or its kind, when it has none) and [NotificationView.body] its English body, so
+     * the bell shows what was said rather than that something was said; [NotificationView.link] is the recipient's
+     * own broadcasts screen. [NotificationView.lessonId] carries the **broadcast's** id on these rows — the field is
+     * "the row this is about", and it is what lets a re-posted weekly plan withdraw the bell entries of the plan it
+     * replaces. Parents have no bell and read `GET /children/{id}/broadcasts` instead.
+     */
+    @SerialName("broadcast.posted") BROADCAST_POSTED,
 }
 
 /**

@@ -102,6 +102,13 @@ data class ManagementStats(
     val total: ManagementGradeStats,
 )
 
+/**
+ * `GET /management/admins` (RM2, DR5): a platform admin she may open a chat thread with — "the manager reports to and
+ * chats with the admin". Two fields, because an admin has no department and no school to name.
+ */
+@Serializable
+data class ManagerAdmin(val userId: String, val displayName: String)
+
 // ---------------------------------------------------------------------------------------------------------------
 // Admin: creating a manager and changing her department (`/admin/managers/` routes, ADMIN only)
 // ---------------------------------------------------------------------------------------------------------------

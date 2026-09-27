@@ -320,6 +320,21 @@
         "required" : [ "childId" ],
         "type" : "object"
       },
+      "Attachment" : {
+        "properties" : {
+          "name" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "url" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AttemptAck" : {
         "properties" : {
           "accepted" : {
@@ -358,6 +373,85 @@
           }
         },
         "required" : [ "ar", "en" ],
+        "type" : "object"
+      },
+      "BroadcastFeed" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BroadcastView"
+            },
+            "type" : "array"
+          },
+          "unread" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "BroadcastView" : {
+        "properties" : {
+          "attachment" : {
+            "$ref" : "#/components/schemas/Attachment"
+          },
+          "audience" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "authorId" : {
+            "type" : "string"
+          },
+          "authorName" : {
+            "type" : "string"
+          },
+          "authorRole" : {
+            "type" : "string"
+          },
+          "bodyAr" : {
+            "type" : "string"
+          },
+          "bodyEn" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "read" : {
+            "type" : "boolean"
+          },
+          "sectionIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "weekStart" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "CacheEntry" : {
@@ -1618,6 +1712,53 @@
           }
         },
         "required" : [ "bodyEn", "classId" ],
+        "type" : "object"
+      },
+      "CreateBroadcastRequest" : {
+        "properties" : {
+          "attachment" : {
+            "$ref" : "#/components/schemas/Attachment"
+          },
+          "audience" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "bodyAr" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "bodyEn" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "kind" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "sectionIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "title" : {
+            "maxLength" : 120,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "weekStart" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "bodyEn", "kind" ],
         "type" : "object"
       },
       "CreateClassRequest" : {
@@ -3455,6 +3596,14 @@
         },
         "type" : "object"
       },
+      "ManagerThreadRequest" : {
+        "properties" : {
+          "managerUserId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "MapResponse" : {
         "properties" : {
           "childId" : {
@@ -3743,7 +3892,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -3884,10 +4033,18 @@
       },
       "ParentAnnouncement" : {
         "properties" : {
+          "authorRole" : {
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL" ],
+            "type" : "string"
+          },
           "bodyAr" : {
             "type" : "string"
           },
           "bodyEn" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "enum" : [ "american", "british" ],
             "type" : "string"
           },
           "expiresAt" : {
@@ -3900,6 +4057,9 @@
           "publishedAt" : {
             "format" : "int64",
             "type" : "integer"
+          },
+          "subject" : {
+            "type" : "string"
           },
           "teacherName" : {
             "type" : "string"
@@ -5483,14 +5643,26 @@
         },
         "type" : "object"
       },
-      "StaffThreadRequest" : {
+      "StaffPerson" : {
         "properties" : {
-          "managerUserId" : {
-            "minLength" : 1,
+          "displayName" : {
+            "type" : "string"
+          },
+          "userId" : {
             "type" : "string"
           }
         },
-        "required" : [ "managerUserId" ],
+        "type" : "object"
+      },
+      "StaffThreadRequest" : {
+        "properties" : {
+          "adminUserId" : {
+            "type" : "string"
+          },
+          "coordinatorUserId" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "Stop" : {
@@ -7248,6 +7420,32 @@
           }
         },
         "tags" : [ "Chat" ]
+      },
+      "post" : {
+        "operationId" : "supportManagerThread",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ManagerThreadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatThread"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
       }
     },
     "/admin/chat/threads/{threadId}/messages" : {
@@ -7292,6 +7490,66 @@
                     "$ref" : "#/components/schemas/ChatMessage"
                   },
                   "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      },
+      "post" : {
+        "operationId" : "supportSendChatMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "threadId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/admin/chat/threads/{threadId}/read" : {
+      "post" : {
+        "operationId" : "supportMarkChatRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "threadId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
                 }
               }
             },
@@ -10232,6 +10490,65 @@
         "tags" : [ "Attendance" ]
       }
     },
+    "/children/{id}/broadcasts" : {
+      "get" : {
+        "operationId" : "childBroadcasts",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BroadcastFeed"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Broadcasts" ]
+      }
+    },
+    "/children/{id}/broadcasts/{broadcastId}/read" : {
+      "post" : {
+        "operationId" : "markChildBroadcastRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "broadcastId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BroadcastView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Broadcasts" ]
+      }
+    },
     "/children/{id}/chat/threads" : {
       "get" : {
         "operationId" : "parentChatThreads",
@@ -10396,6 +10713,35 @@
     "/children/{id}/coordinators" : {
       "get" : {
         "operationId" : "parentCoordinators",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/children/{id}/managers" : {
+      "get" : {
+        "operationId" : "parentManagers",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -10703,6 +11049,53 @@
           }
         },
         "tags" : [ "Coordinator announcements" ]
+      }
+    },
+    "/coordinator/broadcasts" : {
+      "get" : {
+        "operationId" : "coordinatorBroadcasts",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/BroadcastView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Broadcasts" ]
+      },
+      "post" : {
+        "operationId" : "createCoordinatorBroadcast",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateBroadcastRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BroadcastView"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Broadcasts" ]
       }
     },
     "/coordinator/calendar" : {
@@ -11466,6 +11859,74 @@
         "tags" : [ "Lessons" ]
       }
     },
+    "/management/admins" : {
+      "get" : {
+        "operationId" : "managementAdmins",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/StaffPerson"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management chat" ]
+      }
+    },
+    "/management/broadcasts" : {
+      "get" : {
+        "operationId" : "managementBroadcasts",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/BroadcastView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Broadcasts" ]
+      },
+      "post" : {
+        "operationId" : "createManagementBroadcast",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateBroadcastRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BroadcastView"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Broadcasts" ]
+      }
+    },
     "/management/calendar" : {
       "get" : {
         "operationId" : "managementCalendar",
@@ -11497,6 +11958,172 @@
           }
         },
         "tags" : [ "Management" ]
+      }
+    },
+    "/management/chat/threads" : {
+      "get" : {
+        "operationId" : "managementChatThreads",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management chat" ]
+      },
+      "post" : {
+        "operationId" : "managementStaffThread",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StaffThreadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatThread"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Management chat" ]
+      }
+    },
+    "/management/chat/threads/{id}/messages" : {
+      "get" : {
+        "operationId" : "managementChatMessages",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatMessage"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management chat" ]
+      },
+      "post" : {
+        "operationId" : "managementSendChatMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Management chat" ]
+      }
+    },
+    "/management/chat/threads/{id}/read" : {
+      "post" : {
+        "operationId" : "managementMarkChatRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management chat" ]
       }
     },
     "/management/children/{id}" : {
@@ -12215,6 +12842,50 @@
           }
         },
         "tags" : [ "Auth" ]
+      }
+    },
+    "/me/broadcasts" : {
+      "get" : {
+        "operationId" : "myBroadcasts",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BroadcastFeed"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Broadcasts" ]
+      }
+    },
+    "/me/broadcasts/{id}/read" : {
+      "post" : {
+        "operationId" : "markMyBroadcastRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BroadcastView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Broadcasts" ]
       }
     },
     "/me/home" : {
@@ -15125,6 +15796,9 @@
     "description" : "Dashboard accounts, invites and View as…",
     "name" : "Dashboard users"
   }, {
+    "description" : "The weekly plan, announcements and events: composing them and the feeds that receive them",
+    "name" : "Broadcasts"
+  }, {
     "description" : "A department manager's staff register and her people directory",
     "name" : "Management people"
   }, {
@@ -15145,6 +15819,9 @@
   }, {
     "description" : "Teacher profile, lesson chooser options, calendar and students",
     "name" : "Teacher"
+  }, {
+    "description" : "A manager's threads with the parents of her department, her coordinators and the admin",
+    "name" : "Management chat"
   }, {
     "description" : "Parent-owned children, map, attempts and progress",
     "name" : "Children"
