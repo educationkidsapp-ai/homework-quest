@@ -533,10 +533,9 @@ export class ChatService {
     this.threads.update((threadsList) => {
       const idx = threadsList.findIndex((t) => t.id === message.threadId);
       if (idx === -1) {
-        // R7: a manager has no `GET …/threads` of her own until RM2, so for her the frame *is*
-        // the row — an inbox that fills while the screen is open. Everyone else refetches, which
-        // is also how a thread created by this very message gets its real row.
-        if (this.routes.listensOnly()) return [this.rowFor(message), ...threadsList];
+        // RM3b: every role has a `GET …/threads` now, so a frame for a thread this list has never
+        // seen is a refetch for everyone — which is also how a thread created by this very
+        // message gets its real row, with the peer's name and the child on it.
         this.loadThreads();
         return threadsList;
       }
@@ -551,22 +550,6 @@ export class ChatService {
       const nextList = threadsList.filter((_, i) => i !== idx);
       return [updated, ...nextList];
     });
-  }
-
-  /** The thread row a socket frame implies, for the role that cannot ask for one. */
-  private rowFor(message: ChatMessage): ChatThread {
-    return {
-      id: message.threadId,
-      childId: '',
-      childName: '',
-      teacherId: message.senderId,
-      teacherName: '',
-      unread: 1,
-      lastMessage: message,
-      staffRole: ChatThreadStaffRoleEnum.MANAGERIAL,
-      topic: ChatThreadTopicEnum.QUESTION,
-      status: ChatThreadStatusEnum.OPEN,
-    };
   }
 
   private mergeNewMessages(newMsgs: ChatMessage[]): void {

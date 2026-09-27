@@ -10,9 +10,12 @@ import {
   ChatThreadStatusEnum,
   ChatThreadTopicEnum,
   CoordinatorChatApi,
+  ManagementChatApi,
+  SchoolsApi,
 } from '../../api';
 import { TEACHER_USER } from '../../../testing/fixtures';
 import { AuthService, type Role } from '../auth/auth.service';
+import { SchoolScopeStore } from '../auth/school-scope.store';
 import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
 import { ChatRoutes } from './chat-routes';
@@ -53,7 +56,12 @@ describe('ChatRoutes', () => {
 
   let teacherApi: Partial<ChatApi>;
   let coordinatorApi: Partial<CoordinatorChatApi>;
+  let managementApi: Partial<ManagementChatApi>;
+  let schoolsApi: Partial<SchoolsApi>;
   const role = signal<Role | null>('COORDINATOR');
+  /** D13: with `multiSchool` off there is one school and no switcher to pick it with. */
+  const multiSchool = signal(false);
+  const schools = signal<{ id: string; name: string }[]>([{ id: 's-1', name: 'Al Noor' }]);
 
   function setup(): { routes: ChatRoutes; chat: ChatService } {
     teacherApi = {
@@ -61,6 +69,12 @@ describe('ChatRoutes', () => {
       teacherChatMessages: vi.fn().mockReturnValue(of([])),
       teacherSendChatMessage: vi.fn().mockReturnValue(of({})),
       teacherMarkChatRead: vi.fn().mockReturnValue(of({})),
+      // RM3b: the Admin's own half of `/admin/chat/**`, which lives on `ChatApi` because
+      // springdoc tags it `Chat` alongside the parent's and the teacher's.
+      supportChatThreads: vi.fn().mockReturnValue(of([staffThread])),
+      supportChatMessages: vi.fn().mockReturnValue(of([])),
+      supportSendChatMessage: vi.fn().mockReturnValue(of({})),
+      supportMarkChatRead: vi.fn().mockReturnValue(of({})),
     };
     coordinatorApi = {
       coordinatorChatThreads: vi.fn().mockReturnValue(of([parentThread, staffThread])),
@@ -68,11 +82,20 @@ describe('ChatRoutes', () => {
       coordinatorSendChatMessage: vi.fn().mockReturnValue(of({})),
       coordinatorMarkChatRead: vi.fn().mockReturnValue(of({})),
     };
+    managementApi = {
+      managementChatThreads: vi.fn().mockReturnValue(of([parentThread, staffThread])),
+      managementChatMessages: vi.fn().mockReturnValue(of([])),
+      managementSendChatMessage: vi.fn().mockReturnValue(of({})),
+      managementMarkChatRead: vi.fn().mockReturnValue(of({})),
+    };
+    schoolsApi = { listSchools: vi.fn().mockImplementation(() => of(schools())) };
 
     TestBed.configureTestingModule({
       providers: [
         { provide: ChatApi, useValue: teacherApi },
         { provide: CoordinatorChatApi, useValue: coordinatorApi },
+        { provide: ManagementChatApi, useValue: managementApi },
+        { provide: SchoolsApi, useValue: schoolsApi },
         {
           provide: AuthService,
           useValue: {
@@ -83,14 +106,27 @@ describe('ChatRoutes', () => {
           },
         },
         { provide: SessionStore, useValue: { accessToken: signal('jwt') } },
-        { provide: FlagService, useValue: { isOn: vi.fn().mockReturnValue(true) } },
+        {
+          provide: FlagService,
+          useValue: {
+            isOn: (key: string) => (key === 'multiSchool' ? multiSchool() : true),
+            ready: () => true,
+          },
+        },
       ],
     });
+    // What `FlagService` does once the flag map has settled (D13), and what the store's mask —
+    // and therefore `soleSchoolId` — depends on.
+    TestBed.inject(SchoolScopeStore).setMultiSchool(multiSchool());
     return { routes: TestBed.inject(ChatRoutes), chat: TestBed.inject(ChatService) };
   }
 
   beforeEach(() => {
     role.set('COORDINATOR');
+    multiSchool.set(false);
+    schools.set([{ id: 's-1', name: 'Al Noor' }]);
+    localStorage.clear();
+    sessionStorage.clear();
     TestBed.resetTestingModule();
   });
 
@@ -126,64 +162,119 @@ describe('ChatRoutes', () => {
   });
 
   /**
-   * A manager holds the socket (the frames of her staff threads arrive on it) and no chat REST at
-   * all until RM2. Asking anyway would be a 403 in a red band on every reconnect, so the transport
-   * is `null` and her inbox is built from the frames themselves.
+   * RM2 gave her the list R7 had to do without, so RM3b gives her a transport: keyed by thread
+   * like the coordinator's, because a parent thread of hers has a child and her two staff threads
+   * do not.
    */
-  it('gives a manager no transport, and builds her thread rows from the frames', () => {
+  it('keys a manager by thread and reads /management/chat/**', () => {
     role.set('MANAGERIAL');
     const { routes, chat } = setup();
 
-    expect(routes.transport()).toBeNull();
-    expect(routes.listensOnly()).toBe(true);
+    expect(routes.transport()?.keyOf(staffThread)).toBe('th-2');
+    expect(routes.transport()?.commandKey('th-2')).toEqual({ threadId: 'th-2' });
+
     chat.loadThreads();
+    expect(managementApi.managementChatThreads).toHaveBeenCalled();
     expect(coordinatorApi.coordinatorChatThreads).not.toHaveBeenCalled();
     expect(teacherApi.teacherChatThreads).not.toHaveBeenCalled();
+    // Both kinds of row are hers: the parents of her department and her staff threads.
+    expect(chat.threads().map((t) => t.id)).toEqual(['th-1', 'th-2']);
+
+    chat.selectThread('th-2');
+    expect(managementApi.managementChatMessages).toHaveBeenCalledWith('th-2', undefined, undefined);
+    chat.sendMessage('I will look at it');
+    expect(managementApi.managementSendChatMessage).toHaveBeenCalledWith('th-2', {
+      body: 'I will look at it',
+    });
+    expect(managementApi.managementMarkChatRead).toHaveBeenCalledWith('th-2');
+  });
+
+  /** The Admin's inbox of manager threads: `GET` is the school's whole chat, the writes are hers. */
+  it('keys an admin by thread and reads /admin/chat/**', () => {
+    role.set('ADMIN');
+    const { routes, chat } = setup();
+    // `multiSchool` off: the one school comes from `GET /admin/schools`, not from a switcher that
+    // is not rendered and not from the `localStorage` id D13's mask exists to distrust.
+    TestBed.tick();
+    expect(schoolsApi.listSchools).toHaveBeenCalled();
+    expect(routes.adminSchoolId()).toBe('s-1');
+    // And the interceptor is told, because the store holds no HTTP of its own.
+    TestBed.tick();
+    expect(TestBed.inject(SchoolScopeStore).soleSchoolId()).toBe('s-1');
+
+    expect(routes.transport()?.keyOf(staffThread)).toBe('th-2');
+    expect(routes.transport()?.commandKey('th-2')).toEqual({ threadId: 'th-2' });
+
+    chat.loadThreads();
+    expect(teacherApi.supportChatThreads).toHaveBeenCalled();
+    expect(teacherApi.teacherChatThreads).not.toHaveBeenCalled();
+    expect(managementApi.managementChatThreads).not.toHaveBeenCalled();
+
+    chat.selectThread('th-2');
+    expect(teacherApi.supportChatMessages).toHaveBeenCalledWith('th-2', undefined, undefined);
+    chat.sendMessage('Noted');
+    expect(teacherApi.supportSendChatMessage).toHaveBeenCalledWith('th-2', { body: 'Noted' });
+    expect(teacherApi.supportMarkChatRead).toHaveBeenCalledWith('th-2');
+  });
+
+  /**
+   * A frame for a thread the list has never seen is a refetch now, for every role — RM3b took the
+   * frame-built row away, because a row invented from a message has no peer name and no child on
+   * it and the real one is one GET away.
+   */
+  it('refetches the list when a frame names a thread it does not hold', () => {
+    role.set('MANAGERIAL');
+    const { chat } = setup();
+    chat.loadThreads();
 
     chat.receive({
       type: 'message',
       message: {
-        id: 'm-1',
-        threadId: 'th-2',
+        id: 'm-9',
+        threadId: 'th-new',
         sender: ChatMessageSenderEnum.TEACHER,
-        senderId: 'u-rasha',
+        senderId: 'u-lina',
         body: 'Could you look at 3B?',
         createdAt: 1700000000000,
       },
     });
-    expect(chat.threads()).toHaveLength(1);
-    expect(chat.threads()[0]?.id).toBe('th-2');
-    expect(chat.totalUnread()).toBe(1);
+
+    expect(managementApi.managementChatThreads).toHaveBeenCalledTimes(2);
   });
 
   /**
-   * Her two staff threads are both frame-built, and neither can be fetched. Switching between
-   * them therefore has to *empty* the stream, or the row she left is still on screen under the
-   * row she arrived at.
+   * The other branch: several schools, so which one is hers to choose — and until she has, there is
+   * no id to put on the header and the screen says so rather than showing an inbox that would 400.
    */
-  it('empties the message stream when a manager moves between frame-built threads', () => {
-    role.set('MANAGERIAL');
-    const { chat } = setup();
-    const frame = (threadId: string, id: string, body: string) => ({
-      type: 'message' as const,
-      message: {
-        id,
-        threadId,
-        sender: ChatMessageSenderEnum.TEACHER,
-        senderId: 'u-rasha',
-        body,
-        createdAt: 1700000000000,
-      },
-    });
+  it('waits for an admin to pick a school only when there is more than one', () => {
+    role.set('ADMIN');
+    multiSchool.set(true);
+    const { routes } = setup();
+    TestBed.tick();
 
-    chat.receive(frame('th-2', 'm-1', 'Could you look at 3B?'));
-    chat.selectThread('th-2');
-    chat.receive(frame('th-2', 'm-2', 'It is the marking again'));
-    expect(chat.messages().map((m) => m.id)).toEqual(['m-2']);
+    expect(routes.transport()).toBeNull();
+    expect(routes.adminSchoolId()).toBeNull();
+    // With the flag on the switcher is rendered and the list is the switcher's own business.
+    expect(schoolsApi.listSchools).not.toHaveBeenCalled();
 
-    chat.receive(frame('th-3', 'm-3', 'And 4A'));
-    chat.selectThread('th-3');
-    expect(chat.messages()).toEqual([]);
+    TestBed.inject(SchoolScopeStore).select({ id: 's-2', name: 'Green Valley' });
+    expect(routes.adminSchoolId()).toBe('s-2');
+    expect(routes.transport()).not.toBeNull();
+    // The mask still holds: nothing was resolved, so there is no sole school to fall back on.
+    expect(TestBed.inject(SchoolScopeStore).soleSchoolId()).toBeNull();
+  });
+
+  /** A single-school deployment that answers two rows is disagreeing with itself: pick, don't guess. */
+  it('resolves no school when the one-school deployment answers more than one', () => {
+    role.set('ADMIN');
+    schools.set([
+      { id: 's-1', name: 'Al Noor' },
+      { id: 's-2', name: 'Green Valley' },
+    ]);
+    const { routes } = setup();
+    TestBed.tick();
+    expect(routes.adminSchoolId()).toBeNull();
+    expect(routes.transport()).toBeNull();
   });
 
   it('moves a thread to resolved on the status frame, without a refetch', () => {

@@ -1,7 +1,18 @@
-import { Injectable, computed, inject } from '@angular/core';
-import { Observable } from 'rxjs';
-import { ChatApi, ChatMessage, ChatReadReceipt, ChatThread, CoordinatorChatApi } from '../../api';
+import { Injectable, computed, effect, inject } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
+import { Observable, catchError, map, of } from 'rxjs';
+import {
+  ChatApi,
+  ChatMessage,
+  ChatReadReceipt,
+  ChatThread,
+  CoordinatorChatApi,
+  ManagementChatApi,
+  SchoolsApi,
+} from '../../api';
 import { AuthService } from '../auth/auth.service';
+import { SchoolScopeStore } from '../auth/school-scope.store';
+import { FLAGS, FlagService } from '../flags/flag.service';
 import { ChatCommandKey } from './chat.models';
 
 /**
@@ -17,9 +28,10 @@ import { ChatCommandKey } from './chat.models';
  * routes carry it. Two copies of the threads list, the conversation and the composer — one per
  * role — would have been two screens to keep in step, and the second would have drifted.
  *
- * A role with no chat REST at all (`null`) is not a bug: an ADMIN holds the socket for her
- * notifications, and a manager holds it for the coordinator ↔ manager threads whose REST list
- * R4 did not add (RM2). Asking anyway would put a 403 in a red band on every reconnect.
+ * RM3b filled the last two in. A manager's threads are keyed by thread as well (one of hers has
+ * no child either), and so are an ADMIN's: `GET /admin/chat/threads` is the support view of the
+ * school and `POST /admin/chat/threads/{id}/messages` is the half she may write. So all four
+ * roles now have a transport, and `null` means nobody is signed in.
  */
 export interface ChatTransport {
   /** The id `{id}`/`{childId}` in this role's routes, and the id a thread row is tracked by. */
@@ -36,9 +48,43 @@ export interface ChatTransport {
 export class ChatRoutes {
   private readonly teacher = inject(ChatApi);
   private readonly coordinator = inject(CoordinatorChatApi);
+  private readonly management = inject(ManagementChatApi);
   private readonly auth = inject(AuthService);
+  private readonly scope = inject(SchoolScopeStore);
+  private readonly schools = inject(SchoolsApi);
+  private readonly flags = inject(FlagService);
 
-  /** `null` while nobody is signed in, and for the roles that only listen (ADMIN, MANAGERIAL). */
+  /**
+   * **Which school an Admin's chat is read in.**
+   *
+   * `/admin/chat/**` is read one school at a time (`400 Send X-School-Id`). With `multiSchool` on
+   * that is whichever school she picked in the header. With it **off** there is exactly one school
+   * and no switcher to pick it with, so asking her to choose was a screen that could never load —
+   * this resolves the one row of `GET /admin/schools` instead, which is the call the switcher
+   * itself makes, and is deliberately the server's answer rather than the id in `localStorage`
+   * that D13's mask exists to distrust. More than one row with the flag off is a deployment
+   * disagreeing with itself: null, and the screen asks her to pick.
+   */
+  private readonly sole = rxResource<string | null, boolean>({
+    params: () => this.auth.role() === 'ADMIN' && this.flags.ready() && !this.flags.isOn(FLAGS.multiSchool),
+    stream: ({ params }) =>
+      params
+        ? this.schools.listSchools().pipe(
+            map((rows) => (rows.length === 1 ? (rows[0]?.id ?? null) : null)),
+            catchError(() => of(null)),
+          )
+        : of(null),
+    defaultValue: null,
+  });
+
+  /** The id the interceptor puts on `/admin/chat/**`; the store is HTTP-free, so it is told. */
+  readonly adminSchoolId = computed(() => this.scope.schoolId() ?? this.sole.value());
+
+  constructor() {
+    effect(() => this.scope.setSoleSchool(this.sole.value()));
+  }
+
+  /** `null` while nobody is signed in, and for an Admin who has not narrowed to one school. */
   readonly transport = computed<ChatTransport | null>(() => {
     switch (this.auth.role()) {
       case 'TEACHER':
@@ -59,18 +105,34 @@ export class ChatRoutes {
           send: (key, body) => this.coordinator.coordinatorSendChatMessage(key, { body }),
           read: (key) => this.coordinator.coordinatorMarkChatRead(key),
         };
+      case 'MANAGERIAL':
+        return {
+          keyOf: (thread) => thread.id ?? '',
+          commandKey: (key) => ({ threadId: key }),
+          threads: () => this.management.managementChatThreads(),
+          messages: (key, since) => this.management.managementChatMessages(key, undefined, since),
+          send: (key, body) => this.management.managementSendChatMessage(key, { body }),
+          read: (key) => this.management.managementMarkChatRead(key),
+        };
+      // The Admin's own threads with the managers. `GET /admin/chat/threads` is wider than that —
+      // it is the school's whole chat, for support — and `/admin/messages` says so rather than
+      // pretending the list is hers; the three writes below are only ever accepted on a row she
+      // is actually on, which is the server's rule and not one this class could enforce.
+      // No transport until the school is settled — the one she picked, or the only one there is:
+      // a GET without the header is a 400 in a red band on every reconnect. Left null only when a
+      // multi-school deployment is waiting for her to choose, which the screen then says.
+      case 'ADMIN':
+        if (this.adminSchoolId() === null) return null;
+        return {
+          keyOf: (thread) => thread.id ?? '',
+          commandKey: (key) => ({ threadId: key }),
+          threads: () => this.teacher.supportChatThreads(),
+          messages: (key, since) => this.teacher.supportChatMessages(key, undefined, since),
+          send: (key, body) => this.teacher.supportSendChatMessage(key, { body }),
+          read: (key) => this.teacher.supportMarkChatRead(key),
+        };
       default:
         return null;
     }
   });
-
-  /**
-   * The manager's side of a staff thread: frames arrive, and the thread row is the frame itself.
-   *
-   * **MANAGERIAL by name, not "anybody without a transport".** An ADMIN has no transport either,
-   * and letting her fall in here would have prepended a manager-shaped row on any `message` frame
-   * she happened to receive — harmless today, because no Admin screen reads this list, and exactly
-   * the kind of harmless that stops being harmless when one does.
-   */
-  readonly listensOnly = computed(() => this.auth.role() === 'MANAGERIAL');
 }

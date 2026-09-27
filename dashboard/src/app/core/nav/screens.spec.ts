@@ -77,10 +77,21 @@ describe('the screen table', () => {
    * N2.2 (`docs/teacher-flow.md` §4): "No other menu items render." A rail that grows a seventh
    * item a teacher cannot open is the thing this package removed, so it is asserted rather than
    * left to the next person to re-add by habit.
+   *
+   * RM3b adds the third, and it is the exception the rule was written for: Broadcasts is a screen
+   * she *can* open, behind the `announcements` flag, and the week's plan is the reason she comes
+   * to the dashboard on a Sunday. A school without the flag has the two-item rail back.
    */
-  it('gives a teacher exactly This week and My classes in the rail', () => {
-    expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual(['week', 'classes']);
-    expect(navScreens('TEACHER').map(({ link }) => link)).toEqual(['/teacher/week', '/teacher/classes']);
+  it('gives a teacher This week, My classes and Broadcasts in the rail', () => {
+    expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual(['week', 'classes', 'broadcasts']);
+    expect(navScreens('TEACHER').map(({ link }) => link)).toEqual([
+      '/teacher/week',
+      '/teacher/classes',
+      '/teacher/broadcasts',
+    ]);
+    const broadcasts = AREAS.TEACHER.screens.find((screen) => screen.id === 'broadcasts');
+    expect(broadcasts?.flag).toBe('announcements');
+    expect(broadcasts?.permission).toBe('broadcast.read');
     // The screens later phases fill keep their routes — a bookmark still resolves to the stub.
     expect(AREAS.TEACHER.screens.map((screen) => screen.path)).toContain('students');
     // N2.3: the class page and the lessons list are routes, not rail items. §5 puts the class
@@ -117,7 +128,7 @@ describe('the screen table', () => {
       'exams',
       'messages',
       'complaints',
-      'announcements',
+      'broadcasts',
     ]);
     expect(navScreens('COORDINATOR').map(({ link }) => link)).toEqual([
       '/coordinator',
@@ -129,14 +140,18 @@ describe('the screen table', () => {
       '/coordinator/exams',
       '/coordinator/messages',
       '/coordinator/complaints',
-      '/coordinator/announcements',
+      '/coordinator/broadcasts',
     ]);
     // R7: all three carry the flag their server routes carry, so a school without chat has none
     // of them — in the rail or at the URL.
     for (const id of ['messages', 'complaints'])
       expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === id)?.flag).toBe('chat');
-    expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === 'announcements')?.flag).toBe(
+    expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === 'broadcasts')?.flag).toBe(
       'announcements',
+    );
+    // RM3b: the rail item she learned in R7 still resolves, onto the screen that took its job.
+    expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === 'announcements')?.redirectTo).toBe(
+      'broadcasts',
     );
 
     // R6: every one of her record screens is read-only too, and the two flagged ones carry the
@@ -163,15 +178,19 @@ describe('the screen table', () => {
     // R5's list screens and R7's three are the rows without `readOnly`, and their flag is `false`
     // rather than absent: a page reads `data.readOnly` and must never have to tell false from
     // missing. Everything R6 added is `true` — asserted above, row by row.
-    const listOnly = ['', 'teachers', 'classes', 'lessons', 'messages', 'complaints', 'announcements'];
+    const listOnly = ['', 'teachers', 'classes', 'lessons', 'messages', 'complaints', 'broadcasts'];
     for (const route of routes.filter((candidate) => listOnly.includes(candidate.path ?? '')))
       expect(`${route.path}:${route.data?.['readOnly']}`).toBe(`${route.path}:false`);
 
-    // DR2: nothing she reads is hers to change, and the two things R7 lets her write — a
-    // complaint's status, an announcement — are her own keys too, so not one row of hers may
-    // carry a permission from somebody else's namespace.
+    // DR2: nothing she reads is hers to change, and the things she does write — a complaint's
+    // status, a broadcast — are her own keys too, so not one row of hers may carry a permission
+    // from somebody else's namespace. `broadcast.read` is the one exception, and it is not one:
+    // the *feed* is `GET /me/broadcasts`, which every dashboard role reads with the same key, and
+    // her composer is gated on `coordinator.broadcast` inside the screen.
     const keys = AREAS.COORDINATOR.screens.map((screen) => screen.permission ?? '');
-    expect(keys.every((key) => key === '' || key.startsWith('coordinator.'))).toBe(true);
+    expect(
+      keys.every((key) => key === '' || key.startsWith('coordinator.') || key === 'broadcast.read'),
+    ).toBe(true);
   });
 
   it('names the phase of a stub, including on a detail route', () => {

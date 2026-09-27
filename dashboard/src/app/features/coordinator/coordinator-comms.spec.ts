@@ -12,7 +12,6 @@ import { ChatService } from '../../core/chat/chat.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { FlagService } from '../../core/flags/flag.service';
-import { CoordinatorAnnouncementsPage } from './coordinator-announcements.page';
 import { CoordinatorComplaintsPage } from './coordinator-complaints.page';
 
 const COMPLAINT = {
@@ -36,32 +35,10 @@ const COMPLAINT = {
   },
 };
 
-const ME = {
-  userId: 'u-rasha',
-  displayName: 'Rasha Kamal',
-  scopes: [{ subject: 'math', curriculum: null }],
-  sections: 2,
-  teachers: 1,
-  children: 40,
-};
-const CLASSES = [
-  {
-    classId: 'c-1',
-    className: '1A British',
-    grade: 1,
-    curriculum: 'british',
-    subject: 'math',
-    teacherId: 't-1',
-    teacherName: 'Sara Al Harbi',
-    childrenCount: 24,
-    todayLessonId: 'l-1',
-    todayStatus: 'published',
-  },
-];
-
 /**
- * R7 (DR3, DR4). The two screens where the read-only coordinator finally writes something: the
- * status of a complaint, and an announcement to the parents of her classes.
+ * R7 (DR3, DR4), narrowed by RM3b: the one screen in `/coordinator/**` where the read-only
+ * coordinator writes something is Complaints. Her announcements became broadcasts and moved to
+ * `features/broadcasts/broadcasts.page.spec.ts` with the composer they belong to.
  */
 describe('the coordinator comms screens', () => {
   beforeEach(() => {
@@ -123,78 +100,6 @@ describe('the coordinator comms screens', () => {
     backend.expectOne('/coordinator/complaints?status=open').flush([]);
     await settle();
     expect(screen.getByText('No open complaints.')).toBeTruthy();
-  });
-
-  it('will not post an announcement without an English body, and sends classIds when she picks classes', async () => {
-    const { backend } = await signedIn(CoordinatorAnnouncementsPage);
-    backend.expectOne('/coordinator/announcements').flush([]);
-    backend.expectOne('/coordinator/me').flush(ME);
-    backend.expectOne('/coordinator/teachers').flush([]);
-    backend.expectOne('/coordinator/classes').flush(CLASSES);
-    backend.match((r) => r.url.startsWith('/coordinator/lessons')).forEach((r) => r.flush([]));
-    backend.match('/coordinator/complaints?status=open').forEach((r) => r.flush([]));
-    await settle();
-
-    screen.getByRole('button', { name: 'Write an announcement' }).click();
-    await settle();
-
-    const post = screen.getByRole('button', { name: 'Post' });
-    expect(post.hasAttribute('disabled')).toBe(true);
-
-    const bodyEn = document.querySelector('hq-textarea textarea') as HTMLTextAreaElement;
-    bodyEn.value = 'Reading week starts on Sunday.';
-    bodyEn.dispatchEvent(new Event('input'));
-    await settle();
-    expect(screen.getByRole('button', { name: 'Post' }).hasAttribute('disabled')).toBe(false);
-
-    (document.querySelector('hq-checkbox input') as HTMLInputElement).click();
-    await settle();
-    screen.getByRole('button', { name: 'Post' }).click();
-    await settle();
-
-    const request = backend.expectOne('/coordinator/announcements');
-    expect(request.request.method).toBe('POST');
-    // `classIds`, plural: the coordinator's own request shape (one row per class server-side).
-    expect(request.request.body).toEqual({
-      bodyEn: 'Reading week starts on Sunday.',
-      classIds: ['c-1'],
-    });
-  });
-
-  it('refuses an expiry in the past, and puts a min on the day input', async () => {
-    const { backend } = await signedIn(CoordinatorAnnouncementsPage);
-    backend.expectOne('/coordinator/announcements').flush([]);
-    backend.expectOne('/coordinator/me').flush(ME);
-    backend.expectOne('/coordinator/teachers').flush([]);
-    backend.expectOne('/coordinator/classes').flush(CLASSES);
-    backend.match((r) => r.url.startsWith('/coordinator/lessons')).forEach((r) => r.flush([]));
-    backend.match('/coordinator/complaints?status=open').forEach((r) => r.flush([]));
-    await settle();
-
-    screen.getByRole('button', { name: 'Write an announcement' }).click();
-    await settle();
-
-    const bodyEn = document.querySelector('hq-textarea textarea') as HTMLTextAreaElement;
-    bodyEn.value = 'Reading week starts on Sunday.';
-    bodyEn.dispatchEvent(new Event('input'));
-    await settle();
-
-    const today = new Date().toISOString().slice(0, 10);
-    const day = document.querySelector('hq-input input[type="date"]') as HTMLInputElement;
-    // The picker greys the earlier days out; the screen still validates a typed one, because a
-    // past expiry posts a note `GET /children/{id}/announcements` then hides from every parent.
-    expect(day.getAttribute('min')).toBe(today);
-
-    day.value = '2020-01-01';
-    day.dispatchEvent(new Event('input'));
-    await settle();
-    expect(screen.getByRole('button', { name: 'Post' }).hasAttribute('disabled')).toBe(true);
-    expect(document.body.textContent).toContain('Pick today or a later day');
-
-    day.value = today;
-    day.dispatchEvent(new Event('input'));
-    await settle();
-    expect(screen.getByRole('button', { name: 'Post' }).hasAttribute('disabled')).toBe(false);
   });
 
   /**

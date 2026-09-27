@@ -97,6 +97,12 @@ function componentFor(screen: Screen, role: Role) {
   // one fed by the socket alone, because R4 added no thread list a manager may read.
   if (screen.id === 'chat' || screen.id === 'messages')
     return import('../../features/chat/chat.page').then((m) => m.ChatPage);
+  // RM3b: one feed for all three staff roles (`GET /me/broadcasts`), with the composer shown to
+  // the two that hold a `*.broadcast` key. A fifth entry in `SHARED_WITH_TEACHER` rather than a
+  // second copy under `supervisorComponentFor`, because the screen reads the same route for
+  // everyone — the namespace it does *not* vary by is the whole reason it is one component.
+  if (screen.id === 'broadcasts')
+    return import('../../features/broadcasts/broadcasts.page').then((m) => m.BroadcastsPage);
   return import('../../features/stub/stub.page').then((m) => m.StubPage);
 }
 
@@ -108,7 +114,7 @@ function componentFor(screen: Screen, role: Role) {
  * a phase. They draw themselves read-only from `data.readOnly` and from the permissions she does
  * not hold, and they read her namespace rather than the teacher's.
  */
-const SHARED_WITH_TEACHER = new Set(['lesson', 'results', 'child', 'exam-results']);
+const SHARED_WITH_TEACHER = new Set(['lesson', 'results', 'child', 'exam-results', 'broadcasts']);
 
 /**
  * The two read-only areas, one lazy chunk per screen so a Home never carries the calendar or the
@@ -153,10 +159,6 @@ function supervisorComponentFor(screen: Screen, role: Role) {
   if (screen.id === 'complaints')
     return import('../../features/coordinator/coordinator-complaints.page').then(
       (m) => m.CoordinatorComplaintsPage,
-    );
-  if (screen.id === 'announcements')
-    return import('../../features/coordinator/coordinator-announcements.page').then(
-      (m) => m.CoordinatorAnnouncementsPage,
     );
   if (screen.id === 'teachers')
     return import('../../features/coordinator/coordinator-teachers.page').then(

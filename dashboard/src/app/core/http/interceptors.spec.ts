@@ -78,6 +78,29 @@ describe('interceptors', () => {
     expect(backend.expectOne('/me/home').request.headers.has('X-School-Id')).toBe(false);
   });
 
+  /**
+   * RM3b: `/admin/chat/**` is read one school at a time and 400s without the header, and with
+   * `multiSchool` off there is no switcher for her to pick with — so those routes, and only those,
+   * fall back to the school somebody resolved from `GET /admin/schools`.
+   */
+  it('falls back to the one school for /admin/chat/** and for nothing else', () => {
+    signedInAs(ADMIN_USER);
+    scope.setMultiSchool(false);
+    scope.setSoleSchool('school-a');
+
+    http.get('/admin/chat/threads').subscribe();
+    expect(backend.expectOne('/admin/chat/threads').request.headers.get('X-School-Id')).toBe('school-a');
+
+    // Every other Admin read is deliberately cross-school with the flag off: D13 stands.
+    http.get('/admin/classes').subscribe();
+    expect(backend.expectOne('/admin/classes').request.headers.has('X-School-Id')).toBe(false);
+
+    // And with the flag on, the mask lifts and only her own choice counts.
+    scope.setMultiSchool(true);
+    http.get('/admin/chat/threads').subscribe();
+    expect(backend.expectOne('/admin/chat/threads').request.headers.has('X-School-Id')).toBe(false);
+  });
+
   it('never sends X-School-Id for a teacher — her token already carries the claim', () => {
     signedInAs(TEACHER_USER);
     scope.select({ id: 'school-b', name: 'Someone else' });
