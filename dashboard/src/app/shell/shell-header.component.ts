@@ -761,11 +761,13 @@ export class ShellHeaderComponent {
 
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
   /**
-   * Where the header's chat icon goes, or `null` for the roles that hold no conversations.
+   * Where the header's chat icon goes.
    *
    * R7 gave a coordinator the same badge: her unread count is real (`GET /coordinator/chat/threads`
    * feeds `totalUnread` through `ChatRoutes`), and a badge with nowhere to go would have been the
-   * one thing on the header that does not answer a click.
+   * one thing on the header that does not answer a click. RM3b gave the last two roles theirs —
+   * a manager's inbox and the Admin's own threads with the managers — so the icon is now the
+   * same promise for everybody, and `null` is left for a role that has no chat at all.
    */
   protected readonly chatLink = computed<string | null>(() => {
     switch (this.auth.role()) {
@@ -773,6 +775,10 @@ export class ShellHeaderComponent {
         return '/teacher/chat';
       case 'COORDINATOR':
         return '/coordinator/messages';
+      case 'MANAGERIAL':
+        return '/management/messages';
+      case 'ADMIN':
+        return '/admin/messages';
       default:
         return null;
     }

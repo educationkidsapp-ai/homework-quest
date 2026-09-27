@@ -89,6 +89,17 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       },
       { id: 'users', path: 'users', labelKey: 'nav.users', permission: 'user.read', phase: 3 },
       { id: 'flags', path: 'flags', labelKey: 'nav.flags', permission: 'flag.read', phase: 3 },
+      // RM3b: her side of the manager ↔ admin threads. `chat.support` and not `admin.chat`,
+      // because the key that opens the screen has to be the one the GET carries — `admin.chat`
+      // is a write (it covers the send), and gating the route on it would take the inbox away
+      // from a read-only "View as" session rather than only the composer.
+      {
+        id: 'messages',
+        path: 'messages',
+        labelKey: 'nav.messages',
+        flag: FLAGS.chat,
+        permission: 'chat.support',
+      },
       // lessons (P3.2b/c/d): the list, the new-lesson wizard and the review page are all
       // built. `new-lesson` and `lesson` have no `labelKey` — they are links the list's rows,
       // primary action and empty state open, not rail items of their own.
@@ -163,7 +174,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       // parent's key would hide the item from every teacher.
       { id: 'students', path: 'students', phase: 4 },
       { id: 'questions', path: 'questions', flag: FLAGS.teacherQuestions, phase: 4 },
-      { id: 'announcements', path: 'announcements', flag: FLAGS.announcements, phase: 4 },
+      // RM3b: the department's weekly plan, announcements and events, which is what the
+      // `announcements` stub was standing in for. A rail item of her own: the plan is the one
+      // thing she reads here every Sunday, and the bell's `broadcast.posted` links straight at it.
+      {
+        id: 'broadcasts',
+        path: 'broadcasts',
+        labelKey: 'nav.broadcasts',
+        flag: FLAGS.announcements,
+        permission: 'broadcast.read',
+      },
       {
         id: 'chat',
         path: 'chat',
@@ -259,10 +279,25 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.staffAttendance',
         permission: 'management.staff.attendance',
       },
-      // R7: the manager's side of the coordinator ↔ manager threads. R4 added no
-      // `GET /management/chat/threads`, so this screen is fed by the socket alone until RM2 does
-      // — see `docs/coordinator-flow.md`. Flagged with `chat` like every other chat screen.
-      { id: 'messages', path: 'messages', labelKey: 'nav.messages', flag: FLAGS.chat },
+      // RM3b: the feed she reads and the composer only she has — the weekly plan is the
+      // department's (DR6), so `weekly_plan` is 400 on every other route.
+      {
+        id: 'broadcasts',
+        path: 'broadcasts',
+        labelKey: 'nav.broadcasts',
+        flag: FLAGS.announcements,
+        permission: 'broadcast.read',
+      },
+      // RM3b: her real inbox, on RM2's `GET /management/chat/threads` — parents of her
+      // department, her coordinators and the admin. Her own `management.chat` key now that
+      // there is a route to gate, rather than the flag alone R7 had to settle for.
+      {
+        id: 'messages',
+        path: 'messages',
+        labelKey: 'nav.messages',
+        flag: FLAGS.chat,
+        permission: 'management.chat',
+      },
       // RM3b: the department's complaints, on RM2's thread list. Still the stub, and still the
       // `complaints` flag, so nothing offers her an inbox a school has switched off.
       {
@@ -365,13 +400,20 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.chat,
         permission: 'coordinator.complaints',
       },
+      // RM3b: her announcements *are* broadcasts now — `POST /coordinator/broadcasts` writes the
+      // `announcements` rows the app's shipped screen reads as a side effect, so one screen with
+      // a kind and a title replaces two that would have posted the same note to two tables.
       {
-        id: 'announcements',
-        path: 'announcements',
-        labelKey: 'nav.announcements',
+        id: 'broadcasts',
+        path: 'broadcasts',
+        labelKey: 'nav.broadcasts',
         flag: FLAGS.announcements,
-        permission: 'coordinator.announce',
+        permission: 'broadcast.read',
       },
+      // The rail item she learned in R7. A redirect rather than a deleted row: a bookmark and
+      // the runbook's own URL both still have to land somewhere, and where they land is the
+      // screen that took the job over.
+      { id: 'announcements', path: 'announcements', redirectTo: 'broadcasts' },
     ],
   },
 };

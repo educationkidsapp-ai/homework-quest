@@ -1179,7 +1179,8 @@
     "messages": "Messages",
     "coordinators": "Coordinators",
     "people": "People",
-    "staffAttendance": "Staff attendance"
+    "staffAttendance": "Staff attendance",
+    "broadcasts": "Broadcasts"
   },
   "notifications": {
     "title": "Notifications",
@@ -1213,6 +1214,12 @@
         "message": {
           "title": "Message from a teacher"
         }
+      },
+      "broadcast": {
+        "posted": {
+          "title": "New broadcast",
+          "body": "The weekly plan, an announcement or an event was posted for you."
+        }
       }
     }
   },
@@ -1245,14 +1252,26 @@
     "pdfDocument": "PDF Document",
     "close": "Close",
     "messagesTitle": "Messages",
-    "managementSubtitle": "Messages from the coordinators of your department, as they arrive. This is a live view — it starts empty on every reload.",
+    "managementSubtitle": "Parents of your department, your coordinators, and the admin.",
     "management": "Management",
     "complaint": "Complaint",
     "readOnlyPeer": "You can read this conversation here, but replies are not enabled for your role yet.",
-    "liveTitle": "Live messages",
-    "liveEmpty": "Nothing has arrived yet.",
-    "liveEmptyHint": "A coordinator’s message appears here the moment she sends it, while this screen is open. Nothing is kept: reload and the list starts empty again.",
-    "coordinatorSubtitle": "Your conversations with parents, and with the managers of your department."
+    "coordinatorSubtitle": "Your conversations with parents, and with the managers of your department.",
+    "newMessage": "New message",
+    "openConversation": "Open the conversation",
+    "pickPerson": "Who do you want to write to",
+    "pickPersonHint": "Pick a person",
+    "peers": "Filter the inbox by who wrote",
+    "peer": {
+      "all": "All",
+      "parents": "Parents",
+      "coordinators": "Coordinators",
+      "admin": "Admin",
+      "managers": "Management"
+    },
+    "supportSubtitle": "Your conversations with the management of this school, and every thread in it for support.",
+    "supportEmptyHint": "Pick a manager under New message to start one.",
+    "supportNoSchool": "Pick a school from the header first — chat is read one school at a time."
   },
   "profile": {
     "title": "Your profile",
@@ -1943,27 +1962,6 @@
       },
       "confirmResolve": "Yes, resolve it",
       "confirmReopen": "Yes, reopen it"
-    },
-    "announcements": {
-      "subtitle": "Notes to the parents of the classes you coordinate.",
-      "compose": "Write an announcement",
-      "post": "Post",
-      "posted": "Posted to the parents.",
-      "postFailed": "That was not posted. Nothing was sent — try again.",
-      "bodyEn": "Announcement (English)",
-      "bodyAr": "Announcement (Arabic)",
-      "bodyArHint": "Optional. Parents reading in Arabic see this instead.",
-      "tooLong": "An announcement is at most 1000 characters.",
-      "classes": "Classes",
-      "classesHint": "None ticked means every class in your scope.",
-      "expires": "Hide after",
-      "expiresHint": "Optional. It stays until you remove it otherwise.",
-      "until": "Until {{date}}",
-      "empty": "You have not posted an announcement yet.",
-      "emptyHint": "Parents read it in the app; there is no notification, so keep it short.",
-      "notEnabled": "Announcements are not enabled for this school.",
-      "notEnabledHint": "An Admin can turn them on in the feature matrix.",
-      "expiredAlready": "Pick today or a later day — an earlier one hides the announcement from every parent."
     }
   },
   "management": {
@@ -2070,6 +2068,66 @@
     },
     "exams": {
       "subtitle": "The exams of one of your classes. You can read them; only the teacher sets and marks them."
+    }
+  },
+  "broadcasts": {
+    "subtitle": "The weekly plan, the announcements and the events of your school.",
+    "notEnabled": "Broadcasts are not enabled for this school yet",
+    "notEnabledHint": "An admin can switch them on, and the plan and the announcements appear here.",
+    "empty": "Nothing has been posted to you yet",
+    "emptyHint": "The week’s plan, an announcement or an event will show up here.",
+    "noPosts": "You have not posted anything yet",
+    "noPostsHint": "What you post shows here, including the rows that have expired.",
+    "received": "For you",
+    "posted_": "You posted",
+    "panels": "Broadcasts you read, and broadcasts you wrote",
+    "new": "New",
+    "untitled": "Untitled",
+    "attachment": "Attachment",
+    "by": "From {{who}} {{scope}}",
+    "until": "Until {{date}}",
+    "weekOf": "Week of {{date}}",
+    "compose": "Write a broadcast",
+    "post": "Post",
+    "posted": "Posted.",
+    "postFailed": "That could not be posted. Nothing was sent.",
+    "kind": "What is this",
+    "kinds": {
+      "weekly_plan": "Weekly plan",
+      "announcement": "Announcement",
+      "event": "Event"
+    },
+    "week": "Week",
+    "weekPick": "Pick a week",
+    "weekReplaces": "Posting this replaces the current plan for that week, and it arrives unread.",
+    "titleLabel": "Title",
+    "bodyEn": "Message (English)",
+    "bodyAr": "Message (Arabic)",
+    "bodyArHint": "Optional. Parents who read Arabic see this instead.",
+    "audience": "Who should read this",
+    "audienceFixed": "The parents of the classes you coordinate will read this.",
+    "audienceRole": {
+      "parents": "Parents",
+      "teachers": "Teachers",
+      "coordinators": "Coordinators"
+    },
+    "department": "Department",
+    "departmentPick": "Pick a department",
+    "departmentHint": "You manage two, and one broadcast belongs to one of them.",
+    "classes": "Classes",
+    "classesHint": "Leave every box empty and this goes to all of them.",
+    "expires": "Stop showing it after",
+    "expiresHint": "Optional. Leave it empty and it stays until you replace it.",
+    "errors": {
+      "weekRequired": "Pick the week this plan is for.",
+      "weekNotSunday": "A school week starts on a Sunday.",
+      "titleRequired": "Give it a title.",
+      "titleTooLong": "Keep the title under 120 characters.",
+      "bodyRequired": "Write the message.",
+      "bodyTooLong": "Keep the message under 1000 characters.",
+      "audienceRequired": "Choose at least one group to read this.",
+      "departmentRequired": "Choose which of your departments this is for.",
+      "expiredAlready": "Pick today or a later day."
     }
   }
 }

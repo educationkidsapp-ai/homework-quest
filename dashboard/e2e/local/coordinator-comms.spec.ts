@@ -85,7 +85,7 @@ async function openCoordinator(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/coordinator$/);
 }
 
-test.describe('the coordinator’s messages, complaints and announcements', () => {
+test.describe('the coordinator’s messages, complaints and broadcasts', () => {
   test('her rail gains the three screens, and the header badge links to Messages', async ({ page }) => {
     await openCoordinator(page);
 
@@ -96,7 +96,8 @@ test.describe('the coordinator’s messages, complaints and announcements', () =
       'All lessons',
       'Messages',
       'Complaints',
-      'Announcements',
+      // RM3b: her Announcements item became Broadcasts, the screen that now writes them.
+      'Broadcasts',
     ]);
 
     // The complaint is the first line of "What needs you": the only one she can act on herself.
@@ -143,22 +144,16 @@ test.describe('the coordinator’s messages, complaints and announcements', () =
     await expect(page.getByText('No resolved complaints yet.')).toBeVisible();
   });
 
-  test('posts an announcement to one of her classes', async ({ page }) => {
+  /**
+   * RM3b: her announcement is a broadcast now — `POST /coordinator/broadcasts` writes the
+   * `announcements` rows the app's shipped screen reads as a side effect, so the parent's end is
+   * unchanged and this test moved to `broadcasts.spec.ts` with the composer. What is asserted
+   * here is only that the item she learned in R7 still lands somewhere.
+   */
+  test('sends her old Announcements URL to Broadcasts', async ({ page }) => {
     await openCoordinator(page);
-    await rail(page).getByRole('link', { name: 'Announcements' }).click();
-    await expect(page.getByRole('heading', { level: 1, name: 'Announcements' })).toBeVisible();
-
-    await page.getByRole('button', { name: 'Write an announcement' }).click();
-    const sheet = page.getByRole('dialog');
-    // Nothing typed yet: the one primary action of the sheet is refused, not hidden.
-    await expect(sheet.getByRole('button', { name: 'Post' })).toBeDisabled();
-
-    const body = `R7 reading week — ${Date.now()}`;
-    await sheet.getByLabel('Announcement (English)').fill(body);
-    await sheet.getByRole('checkbox').first().check();
-    await sheet.getByRole('button', { name: 'Post' }).click();
-
-    await expect(page.getByText('Posted to the parents.')).toBeVisible();
-    await expect(page.locator('main')).toContainText(body);
+    await page.goto('coordinator/announcements');
+    await expect(page).toHaveURL(/\/coordinator\/broadcasts$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Broadcasts' })).toBeVisible();
   });
 });

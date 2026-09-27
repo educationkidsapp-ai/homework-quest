@@ -11,16 +11,37 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { ChatMessageSenderEnum, ChatThread, ChatThreadStaffRoleEnum, ChatThreadTopicEnum } from '../../api';
+import { catchError, of, tap } from 'rxjs';
+import {
+  ChatApi,
+  ChatMessageSenderEnum,
+  ChatThread,
+  ChatThreadTopicEnum,
+  ManagementApi,
+  ManagementChatApi,
+  ManagersApi,
+} from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { ChatAttachment, ChatAttachmentStore } from '../../core/chat/chat-attachment.store';
 import { ChatService } from '../../core/chat/chat.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { FLAGS } from '../../core/flags/flag.service';
-import { PageComponent } from '../../ui';
+import {
+  ButtonComponent,
+  DialogComponent,
+  PageComponent,
+  type SelectOptionGroup,
+  SelectComponent,
+  type Tab,
+  TabsComponent,
+} from '../../ui';
+
+/** Which of the manager's three kinds of correspondent a thread is with (RM3b). */
+type Peer = 'parents' | 'coordinators' | 'admin';
 
 interface EmojiCategory {
   id: 'smileys' | 'education' | 'fun';
@@ -162,7 +183,17 @@ interface ParsedChatMessage {
 
 @Component({
   selector: 'hq-chat-page',
-  imports: [PageComponent, FormsModule, TranslocoPipe, DatePipe, FeatureDirective],
+  imports: [
+    ButtonComponent,
+    DatePipe,
+    DialogComponent,
+    FeatureDirective,
+    FormsModule,
+    PageComponent,
+    SelectComponent,
+    TabsComponent,
+    TranslocoPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-page [title]="title() | transloco" [subtitle]="subtitle() | transloco">
@@ -197,18 +228,37 @@ interface ParsedChatMessage {
                 </button>
               }
             </div>
+            <!-- RM3b: the two roles whose inbox they can start a thread in. A teacher and a
+                 coordinator reach theirs from a roster row and from Complaints instead, so the
+                 button is not "hidden" for them — there is nothing here for it to open. -->
+            @if (canStartThread()) {
+              <hq-button variant="secondary" (pressed)="startingThread.set(true)">
+                {{ 'chat.newMessage' | transloco }}
+              </hq-button>
+            }
           </div>
+
+          @if (showsPeerTabs()) {
+            <div class="chat-sidebar__tabs">
+              <hq-tabs
+                variant="chips"
+                [tabs]="peerTabs()"
+                [(selected)]="peer"
+                [label]="'chat.peers' | transloco"
+              />
+            </div>
+          }
 
           <div class="chat-sidebar__threads">
             @if (chatService.loadingThreads()) {
               <div class="chat-sidebar__state">{{ 'common.loading' | transloco }}</div>
-            } @else if (filteredThreads().length === 0) {
+            } @else if (visibleThreads().length === 0) {
               <div class="chat-sidebar__state">
-                <p class="chat-sidebar__empty-title">{{ emptyTitle() | transloco }}</p>
+                <p class="chat-sidebar__empty-title">{{ emptyTitle | transloco }}</p>
                 <p class="chat-sidebar__empty-hint">{{ emptyHint() | transloco }}</p>
               </div>
             } @else {
-              @for (thread of filteredThreads(); track keyOf(thread)) {
+              @for (thread of visibleThreads(); track keyOf(thread)) {
                 <button
                   type="button"
                   class="thread-card"
@@ -230,7 +280,7 @@ interface ParsedChatMessage {
                         <!-- R7: a coordinator ↔ manager thread has no child on it at all, so the
                              row says who the other end is instead of pretending to a class. -->
                         <span class="thread-card__badge thread-card__badge--staff">
-                          {{ 'chat.management' | transloco }}
+                          {{ 'chat.peer.' + peerOf(thread) | transloco }}
                         </span>
                       }
                       @if (thread.topic === topicComplaint) {
@@ -298,7 +348,7 @@ interface ParsedChatMessage {
                 <h2 class="convo-header__title">{{ nameOf(active) }}</h2>
                 <span class="convo-header__parent">
                   @if (isStaff(active)) {
-                    {{ 'chat.management' | transloco }}
+                    {{ 'chat.peer.' + peerOf(active) | transloco }}
                   } @else {
                     {{ 'chat.parent' | transloco: { child: active.childName } }}
                     @if (active.className) {
@@ -682,6 +732,31 @@ interface ParsedChatMessage {
           </div>
         </div>
       }
+
+      @if (canStartThread()) {
+        <!-- RM3b: one thread per pair however many times either side asks for it, so this is
+             "open the conversation", not "create" — and picking somebody she is already talking
+             to lands on the row she already has. -->
+        <hq-dialog
+          [sheet]="true"
+          [(open)]="startingThread"
+          [title]="'chat.newMessage' | transloco"
+          [confirmLabel]="'chat.openConversation' | transloco"
+          [cancelLabel]="'ui.cancel' | transloco"
+          [confirmDisabled]="chosenPerson() === ''"
+          [loading]="startingThreadBusy()"
+          (confirmed)="openThreadWith()"
+        >
+          <hq-select
+            [label]="'chat.pickPerson' | transloco"
+            [placeholder]="'chat.pickPersonHint' | transloco"
+            [required]="true"
+            [groups]="peopleGroups()"
+            [value]="chosenPerson()"
+            (valueChange)="chosenPerson.set($event)"
+          />
+        </hq-dialog>
+      }
     </hq-page>
   `,
   styles: `
@@ -712,8 +787,14 @@ interface ParsedChatMessage {
     }
 
     .chat-sidebar__search {
+      display: grid;
+      gap: var(--hq-space-2);
       padding: 12px 16px;
       border-bottom: 1px solid var(--hq-color-rule, #e2e8f0);
+    }
+
+    .chat-sidebar__tabs {
+      padding: 12px 16px 0;
     }
 
     .search-box {
@@ -1926,6 +2007,10 @@ export class ChatPage implements AfterViewChecked {
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
   private readonly transloco = inject(TranslocoService);
+  private readonly chatApi = inject(ChatApi);
+  private readonly managementChat = inject(ManagementChatApi);
+  private readonly management = inject(ManagementApi);
+  private readonly managers = inject(ManagersApi);
 
   readonly flag = FLAGS.chat;
   readonly senderTeacher = ChatMessageSenderEnum.TEACHER;
@@ -1936,24 +2021,19 @@ export class ChatPage implements AfterViewChecked {
    * `/coordinator/messages` is the same list over her own routes plus the staff threads;
    * `/management/messages` is the manager's read-only side of those (`ChatRoutes`).
    */
-  protected readonly title = computed(() => {
-    switch (this.auth.role()) {
-      case 'TEACHER':
-        return 'chat.title';
-      // Not "Messages" for her: what she has is a live view of the frames arriving now, and a
-      // title that promised an inbox would be the screen's first untruth (R4 added no
-      // `GET /management/chat/threads`; RM2 does).
-      case 'MANAGERIAL':
-        return 'chat.liveTitle';
-      default:
-        return 'chat.messagesTitle';
-    }
-  });
+  protected readonly title = computed(() =>
+    this.auth.role() === 'TEACHER' ? 'chat.title' : 'chat.messagesTitle',
+  );
 
   protected readonly subtitle = computed(() => {
     switch (this.auth.role()) {
+      // RM3b: a real inbox at last — parents of her department, her coordinators and the admin,
+      // on `GET /management/chat/threads`. R7's "live view that starts empty on every reload" is
+      // gone, and so is the title that had to admit it.
       case 'MANAGERIAL':
         return 'chat.managementSubtitle';
+      case 'ADMIN':
+        return 'chat.supportSubtitle';
       // Her threads are not all "parents of your students" — one of them is a manager.
       case 'COORDINATOR':
         return 'chat.coordinatorSubtitle';
@@ -1962,13 +2042,13 @@ export class ChatPage implements AfterViewChecked {
     }
   });
 
-  /** What the empty threads list says, which is a different fact for the role that cannot ask. */
-  protected readonly emptyTitle = computed(() =>
-    this.auth.role() === 'MANAGERIAL' ? 'chat.liveEmpty' : 'chat.noThreads',
-  );
-  protected readonly emptyHint = computed(() =>
-    this.auth.role() === 'MANAGERIAL' ? 'chat.liveEmptyHint' : 'chat.noThreadsHint',
-  );
+  protected readonly emptyTitle = 'chat.noThreads';
+  protected readonly emptyHint = computed(() => {
+    if (this.auth.role() !== 'ADMIN') return 'chat.noThreadsHint';
+    // `/admin/chat/**` needs `X-School-Id`, so an Admin who has not narrowed to one school is
+    // told that rather than shown an inbox that would have been a 400.
+    return this.chatService.canWrite() ? 'chat.supportEmptyHint' : 'chat.supportNoSchool';
+  });
 
   readonly emojiCategories = EMOJI_CATEGORIES;
 
@@ -2002,14 +2082,168 @@ export class ChatPage implements AfterViewChecked {
     return this.chatService.keyOf(thread);
   }
 
+  /**
+   * A staff-to-staff thread — no child on it at all.
+   *
+   * **`childId`, not `staffRole`.** RM3b found the old test wrong: `staff_role` is the *staff
+   * side's* role, so a parent writing to a manager about her child produces `MANAGERIAL` with a
+   * child on the row, and a coordinator ↔ manager thread produces `MANAGERIAL` without one. The
+   * empty child is the only thing that separates them, and it is what the contract promises
+   * ("`childId` is empty on those rows").
+   */
   protected isStaff(thread: ChatThread): boolean {
-    return thread.staffRole === ChatThreadStaffRoleEnum.MANAGERIAL;
+    return thread.childId === '';
   }
 
   /** The child a parent thread is about, or the staff member on the other end of a staff one. */
   protected nameOf(thread: ChatThread): string {
     if (!this.isStaff(thread)) return thread.childName;
     return thread.teacherName || this.transloco.translate<string>('chat.management');
+  }
+
+  // ---------------------------------------------------------------- RM3b: the manager's three inboxes
+
+  protected readonly peer = signal<Peer | 'all'>('all');
+  protected readonly startingThread = signal(false);
+  protected readonly startingThreadBusy = signal(false);
+  protected readonly chosenPerson = signal<string>('');
+
+  /** Only the two roles that hold a `POST …/chat/threads` naming a person rather than a child. */
+  protected readonly canStartThread = computed(
+    () =>
+      this.auth.role() === 'MANAGERIAL' ||
+      // Same header, same reason: there is no school for a new thread to belong to.
+      (this.auth.role() === 'ADMIN' && this.chatService.canWrite()),
+  );
+
+  private readonly coordinators = rxResource({
+    params: () => this.auth.role() === 'MANAGERIAL',
+    stream: ({ params }) => (params ? this.management.managementCoordinators() : of([])),
+    defaultValue: [],
+  });
+
+  private readonly admins = rxResource({
+    params: () => this.auth.role() === 'MANAGERIAL',
+    stream: ({ params }) => (params ? this.managementChat.managementAdmins() : of([])),
+    defaultValue: [],
+  });
+
+  private readonly schoolManagers = rxResource({
+    params: () => this.auth.role() === 'ADMIN',
+    stream: ({ params }) => (params ? this.managers.managers() : of([])),
+    defaultValue: [],
+  });
+
+  /**
+   * Which of her three correspondents a thread is with.
+   *
+   * The row cannot say on its own: a parent thread and both staff threads all carry
+   * `staffRole: MANAGERIAL`, because she is the staff side of one and the named peer of the other
+   * two. So the child settles "parent", and the peer's id is looked up in the two lists the
+   * "New message" picker already needs — no extra call for the sake of a badge.
+   */
+  protected peerOf(thread: ChatThread): Peer {
+    if (thread.childId !== '') return 'parents';
+    return this.admins.value().some((person) => person.userId === thread.teacherId)
+      ? 'admin'
+      : 'coordinators';
+  }
+
+  protected readonly showsPeerTabs = computed(
+    () => this.auth.role() === 'MANAGERIAL' && this.chatService.threads().length > 0,
+  );
+
+  protected readonly peerTabs = computed<readonly Tab<Peer | 'all'>[]>(() => {
+    const counted = (which: Peer) =>
+      this.filteredThreads().filter((thread) => this.peerOf(thread) === which).length;
+    return [
+      { id: 'all', label: this.transloco.translate<string>('chat.peer.all') },
+      {
+        id: 'parents',
+        label: this.transloco.translate<string>('chat.peer.parents'),
+        badge: counted('parents'),
+      },
+      {
+        id: 'coordinators',
+        label: this.transloco.translate<string>('chat.peer.coordinators'),
+        badge: counted('coordinators'),
+      },
+      { id: 'admin', label: this.transloco.translate<string>('chat.peer.admin'), badge: counted('admin') },
+    ];
+  });
+
+  /** The search, then the tab. Both are filters over one list, so neither refetches anything. */
+  protected readonly visibleThreads = computed(() => {
+    const which = this.peer();
+    const rows = this.filteredThreads();
+    if (which === 'all' || !this.showsPeerTabs()) return rows;
+    return rows.filter((thread) => this.peerOf(thread) === which);
+  });
+
+  /** `userId` is prefixed so one select can hold three kinds of person and still say which. */
+  protected readonly peopleGroups = computed<readonly SelectOptionGroup[]>(() => {
+    if (this.auth.role() === 'ADMIN') {
+      return [
+        {
+          label: this.transloco.translate<string>('chat.peer.managers'),
+          options: this.schoolManagers
+            .value()
+            .filter((person) => person.userId !== undefined)
+            .map((person) => ({ value: `manager:${person.userId}`, label: person.fullName ?? '' })),
+        },
+      ];
+    }
+    return [
+      {
+        label: this.transloco.translate<string>('chat.peer.coordinators'),
+        options: this.coordinators
+          .value()
+          .filter((person) => person.userId !== undefined)
+          .map((person) => ({
+            value: `coordinator:${person.userId}`,
+            label: [person.displayName, (person.subjects ?? []).join(', ')]
+              .filter((part) => part !== '' && part !== undefined)
+              .join(' · '),
+          })),
+      },
+      {
+        label: this.transloco.translate<string>('chat.peer.admin'),
+        options: this.admins
+          .value()
+          .filter((person) => person.userId !== undefined)
+          .map((person) => ({ value: `admin:${person.userId}`, label: person.displayName ?? '' })),
+      },
+    ];
+  });
+
+  protected openThreadWith(): void {
+    const chosen = this.chosenPerson();
+    const [kind, userId] = [chosen.slice(0, chosen.indexOf(':')), chosen.slice(chosen.indexOf(':') + 1)];
+    if (userId === '') return;
+    this.startingThreadBusy.set(true);
+    const request =
+      kind === 'manager'
+        ? this.chatApi.supportManagerThread({ managerUserId: userId })
+        : this.managementChat.managementStaffThread(
+            kind === 'admin' ? { adminUserId: userId } : { coordinatorUserId: userId },
+          );
+    request
+      .pipe(
+        tap((thread) => {
+          this.startingThreadBusy.set(false);
+          this.startingThread.set(false);
+          this.chosenPerson.set('');
+          // The list, then the row: the thread may be brand new, and `selectThread` only marks
+          // read a key the list already holds (a `POST …/read` on nothing is a 404 in a band).
+          this.chatService.loadThreads();
+          this.onSelectThread(thread.id ?? '');
+        }),
+        catchError(() => {
+          this.startingThreadBusy.set(false);
+          return of(null);
+        }),
+      )
+      .subscribe();
   }
 
   /**
