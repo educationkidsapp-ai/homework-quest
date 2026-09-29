@@ -1,7 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, type ParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
 import { screen } from '@testing-library/angular';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { COORDINATOR_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
@@ -87,7 +88,11 @@ describe('the broadcasts screen', () => {
     TestBed.tick();
   }
 
-  async function signedInAs(user: typeof MANAGERIAL_USER, query: Record<string, string> = {}) {
+  /** The query the page reads, pushable so a test can navigate without leaving the component. */
+  let query: BehaviorSubject<ParamMap>;
+
+  async function signedInAs(user: typeof MANAGERIAL_USER, params: Record<string, string> = {}) {
+    query = new BehaviorSubject<ParamMap>(convertToParamMap(params));
     await renderHq(BroadcastsPage, {
       providers: [
         provideHttpClient(),
@@ -95,9 +100,10 @@ describe('the broadcasts screen', () => {
         provideRouter([{ path: '**', children: [] }]),
         { provide: BASE_PATH, useValue: '' },
         { provide: FlagService, useValue: { isOn: () => true, refresh: () => undefined } },
-        // MG2a: the screen reads `?open=` off the snapshot, which a bare `provideRouter` leaves
-        // empty — the deep link is the thing under test, so it is supplied rather than navigated.
-        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
+        // MG2a: the deep link is the thing under test, and a bare `provideRouter` leaves the
+        // query empty — so it is supplied as the observable the page subscribes to, which is
+        // also what lets a test change it *after* the component is on screen.
+        { provide: ActivatedRoute, useValue: { queryParamMap: query.asObservable() } },
       ],
     });
     const backend = TestBed.inject(HttpTestingController);
@@ -161,6 +167,29 @@ describe('the broadcasts screen', () => {
     screen.getByRole('button', { name: /Sports day/ }).click();
     await settle();
     expect(document.body.textContent).not.toContain('Thursday, on the big field.');
+  });
+
+  /**
+   * The bell is on every screen, so the common case is clicking a `broadcast.posted` row while
+   * already *on* Broadcasts — a query-param-only navigation that reuses the component. Reading
+   * `route.snapshot` once in the constructor missed exactly that, which is why the query is a
+   * signal and why this test changes it after the first render rather than before it.
+   */
+  it('opens the row when ?open= changes while she is already on the screen', async () => {
+    const backend = await signedInAs(TEACHER_USER);
+    backend.expectOne('/me/broadcasts').flush({ items: [PLAN, EVENT], unread: 2 });
+    await settle();
+
+    expect(document.body.textContent).not.toContain('Thursday, on the big field.');
+
+    query.next(convertToParamMap({ open: 'b-event' }));
+    await settle();
+
+    expect(document.body.textContent).toContain('Thursday, on the big field.');
+    backend.expectOne('/me/broadcasts/b-event/read').flush({ ...EVENT, read: true });
+    await settle();
+    backend.expectOne('/me/broadcasts').flush({ items: [PLAN, { ...EVENT, read: true }], unread: 1 });
+    await settle();
   });
 
   it("pins the week's plan, opens it, marks it read, and still lets her collapse it", async () => {

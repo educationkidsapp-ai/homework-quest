@@ -12,7 +12,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { rxResource } from '@angular/core/rxjs-interop';
+import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { catchError, of, tap } from 'rxjs';
@@ -383,8 +383,16 @@ export class BroadcastsPage {
   private readonly opened = signal<readonly string[]>([]);
   /** The plans this visit has already drawn open — deliberately not a signal (see the effect). */
   private readonly autoOpened = new Set<string>();
-  private readonly route = inject(ActivatedRoute);
   private readonly doc = inject(DOCUMENT);
+  /**
+   * The query **as a signal**, not `route.snapshot`.
+   *
+   * The bell is on every screen, so clicking a `broadcast.posted` row *while already on
+   * Broadcasts* is a query-param-only navigation: Angular reuses the component, the snapshot the
+   * constructor read is never re-read, and the row the notification named would not open, scroll
+   * or go read. `requireSync` because `queryParamMap` emits the current query on subscribe.
+   */
+  private readonly query = toSignal(inject(ActivatedRoute).queryParamMap, { requireSync: true });
 
   /** Today in the **school's** timezone: `en-CA` is the one locale that formats as `YYYY-MM-DD`. */
   protected readonly today = computed(() =>
@@ -538,7 +546,7 @@ export class BroadcastsPage {
      * while the bell sat unread is exactly that case, and the feed above it is still the answer.
      */
     effect(() => {
-      const wanted = this.route.snapshot.queryParamMap.get('open') ?? '';
+      const wanted = this.query().get('open') ?? '';
       const rows = this.feed.value().items ?? [];
       untracked(() => {
         if (wanted === '' || this.autoOpened.has(wanted)) return;
