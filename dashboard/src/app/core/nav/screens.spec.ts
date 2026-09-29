@@ -201,7 +201,7 @@ describe('the screen table', () => {
    * an old notification's `link` and the runbook's own URL all still resolve. The `/management/**`
    * API routes are untouched, which is why nothing here asserts anything about them.
    */
-  it('gives a manager her ten rail items, and redirects the four screens MG2a removed', () => {
+  it('gives a manager her rail items, and redirects the four screens MG2a removed', () => {
     expect(navScreens('MANAGERIAL').map(({ screen }) => screen.id)).toEqual([
       'home',
       'coordinators',
@@ -209,6 +209,9 @@ describe('the screen table', () => {
       'attendance',
       'people',
       'staff-attendance',
+      // MG2b: the weekly plan per grade and the archive of every one of them, beside Broadcasts
+      // because she writes the week from it.
+      'weekly-plans',
       'broadcasts',
       'messages',
       'usage',
