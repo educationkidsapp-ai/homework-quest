@@ -115,7 +115,12 @@ export class CoordinatorAttendancePage {
   private readonly platform = inject(PlatformService);
   protected readonly picker = classPicker();
 
-  protected readonly childBase = `${this.co.base()}/children`;
+  /**
+   * MG2a: `null` for a manager — `children/:childId` is one of her retired rows
+   * (`core/nav/screens.ts`), so a linked name here would be a click that lands on her Home.
+   * The coordinator keeps hers: her child report never left her area.
+   */
+  protected readonly childBase = this.co.isManager() ? null : `${this.co.base()}/children`;
 
   /** Named in the sentence the screen refuses with, so the copy cannot drift from the limit. */
   protected readonly maxDays = MAX_DAYS;
