@@ -16,22 +16,14 @@ import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { catchError, of, tap } from 'rxjs';
-import { type BroadcastFeed, type BroadcastView, BroadcastsApi } from '../../api';
 import {
-  AUDIENCE_ROLES,
-  type AudienceRole,
-  type BroadcastDraft,
-  type BroadcastKind,
-  type ComposeContext,
-  EMPTY_DRAFT,
-  MAX_BODY,
-  MAX_TITLE,
-  canPost,
-  composeErrors,
-  kindsFor,
-  requestOf,
-  weekOptions,
-} from '../../core/broadcasts/broadcast.rules';
+  type BroadcastFeed,
+  type BroadcastView,
+  type CreateBroadcastRequest,
+  BroadcastsApi,
+} from '../../api';
+import { type BroadcastDraft, type ComposeContext, EMPTY_DRAFT } from '../../core/broadcasts/broadcast.rules';
+import { planWeeks as weeksOf, readerBodies } from '../../core/broadcasts/plan-archive';
 import { StaffAreaService } from '../../core/auth/staff-area';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
@@ -42,22 +34,18 @@ import {
   BandComponent,
   ButtonComponent,
   CardComponent,
-  CheckboxComponent,
-  DialogComponent,
   EmptyStateComponent,
-  InputComponent,
   PageComponent,
-  type SelectOption,
-  SelectComponent,
   SkeletonComponent,
   type Tab,
   TabsComponent,
-  TextareaComponent,
   ToastComponent,
 } from '../../ui';
+import { BroadcastComposeComponent } from './compose-sheet.component';
+import { PlanWeeksComponent } from './plan-weeks.component';
 import { StaffScopeService } from '../coordinator/staff-scope.service';
 
-type Panel = 'received' | 'posted';
+type Panel = 'received' | 'posted' | 'plans';
 
 /**
  * Broadcasts (RM3b, DR6): the weekly plan, the announcements and the events of a school, on one
@@ -78,20 +66,17 @@ type Panel = 'received' | 'posted';
   selector: 'hq-broadcasts-page',
   imports: [
     BandComponent,
+    BroadcastComposeComponent,
     ButtonComponent,
     CanDirective,
     CardComponent,
-    CheckboxComponent,
     DatePipe,
-    DialogComponent,
     EmptyStateComponent,
     FeatureDirective,
-    InputComponent,
     PageComponent,
-    SelectComponent,
+    PlanWeeksComponent,
     SkeletonComponent,
     TabsComponent,
-    TextareaComponent,
     ToastComponent,
     TranslocoPipe,
   ],
@@ -117,11 +102,24 @@ type Panel = 'received' | 'posted';
           </hq-band>
         }
 
-        @if (composer()) {
+        @if (tabs().length > 1) {
           <hq-tabs [tabs]="tabs()" [(selected)]="panel" [label]="'broadcasts.panels' | transloco" />
         }
 
-        @if (loading()) {
+        @if (panel() === 'plans') {
+          <!-- MG2b item 2: the read-only archive, from GET /me/weekly-plans — past weeks and
+               expired plans included, which the feed above deliberately drops. -->
+          @if (plans.isLoading()) {
+            <hq-skeleton [loading]="true" [lines]="4" [label]="'ui.loading' | transloco" />
+          } @else if (planWeeks().length === 0) {
+            <hq-empty-state
+              [message]="'plans.empty' | transloco"
+              [detail]="'plans.emptyReaderHint' | transloco"
+            />
+          } @else {
+            <hq-plan-weeks [weeks]="planWeeks()" />
+          }
+        } @else if (loading()) {
           <hq-skeleton [loading]="true" [lines]="4" [label]="'ui.loading' | transloco" />
         } @else if (rows().length === 0) {
           <hq-empty-state
@@ -166,123 +164,21 @@ type Panel = 'received' | 'posted';
           }
         }
 
-        @if (composer(); as role) {
+        @if (composer() !== null) {
           <div page-footer>
             <hq-button *hqCan="postKey()" (pressed)="composing.set(true)">
               {{ 'broadcasts.compose' | transloco }}
             </hq-button>
           </div>
 
-          <hq-dialog
-            [sheet]="true"
+          <hq-broadcast-compose
             [(open)]="composing"
-            [title]="'broadcasts.compose' | transloco"
-            [confirmLabel]="'broadcasts.post' | transloco"
-            [cancelLabel]="'ui.cancel' | transloco"
-            [confirmDisabled]="!valid()"
-            [loading]="posting()"
-            (confirmed)="post()"
-          >
-            <hq-select
-              [label]="'broadcasts.kind' | transloco"
-              [options]="kindOptions()"
-              [value]="draft().kind"
-              (valueChange)="setKind($event)"
-            />
-
-            @if (draft().kind === 'weekly_plan') {
-              <hq-select
-                [label]="'broadcasts.week' | transloco"
-                [hint]="'broadcasts.weekReplaces' | transloco"
-                [placeholder]="'broadcasts.weekPick' | transloco"
-                [options]="weekChoices()"
-                [value]="draft().weekStart"
-                [error]="errorFor('weekStart')"
-                (valueChange)="patch({ weekStart: $event })"
-              />
-            }
-
-            <hq-input
-              [label]="'broadcasts.titleLabel' | transloco"
-              [required]="true"
-              [maxLength]="MAX_TITLE"
-              [value]="draft().title"
-              [error]="errorFor('title')"
-              (valueChange)="patch({ title: $event })"
-            />
-            <hq-textarea
-              [label]="'broadcasts.bodyEn' | transloco"
-              [required]="true"
-              [rows]="4"
-              [maxLength]="MAX_BODY"
-              [value]="draft().bodyEn"
-              [error]="errorFor('bodyEn')"
-              (valueChange)="patch({ bodyEn: $event })"
-            />
-            <hq-textarea
-              dir="rtl"
-              [label]="'broadcasts.bodyAr' | transloco"
-              [rows]="4"
-              [maxLength]="MAX_BODY"
-              [hint]="'broadcasts.bodyArHint' | transloco"
-              [value]="draft().bodyAr"
-              [error]="errorFor('bodyAr')"
-              (valueChange)="patch({ bodyAr: $event })"
-            />
-
-            @if (role === 'manager') {
-              <fieldset class="bc__set">
-                <legend>{{ 'broadcasts.audience' | transloco }}</legend>
-                @if (errorFor('audience'); as message) {
-                  <p class="bc__error">{{ message }}</p>
-                }
-                @for (who of audienceRoles; track who) {
-                  <hq-checkbox
-                    [label]="'broadcasts.audienceRole.' + who | transloco"
-                    [checked]="draft().audience.includes(who)"
-                    (checkedChange)="toggleAudience(who, $event)"
-                  />
-                }
-              </fieldset>
-
-              @if (departments().length > 1) {
-                <hq-select
-                  [label]="'broadcasts.department' | transloco"
-                  [hint]="'broadcasts.departmentHint' | transloco"
-                  [placeholder]="'broadcasts.departmentPick' | transloco"
-                  [required]="true"
-                  [options]="departmentOptions()"
-                  [value]="draft().department"
-                  [error]="errorFor('department')"
-                  (valueChange)="patch({ department: $event, sectionIds: [] })"
-                />
-              }
-            } @else {
-              <p class="hq-muted">{{ 'broadcasts.audienceFixed' | transloco }}</p>
-            }
-
-            <fieldset class="bc__set">
-              <legend>{{ 'broadcasts.classes' | transloco }}</legend>
-              <p class="hq-muted">{{ 'broadcasts.classesHint' | transloco }}</p>
-              @for (row of composableSections(); track row.classId) {
-                <hq-checkbox
-                  [label]="row.className"
-                  [checked]="draft().sectionIds.includes(row.classId)"
-                  (checkedChange)="toggleSection(row.classId, $event)"
-                />
-              }
-            </fieldset>
-
-            <hq-input
-              type="date"
-              [label]="'broadcasts.expires' | transloco"
-              [hint]="'broadcasts.expiresHint' | transloco"
-              [min]="today()"
-              [value]="draft().expires"
-              [error]="errorFor('expires')"
-              (valueChange)="patch({ expires: $event })"
-            />
-          </hq-dialog>
+            [ctx]="ctx()"
+            [sections]="composableSections()"
+            [initial]="blank()"
+            [posting]="posting()"
+            (submitted)="post($event)"
+          />
         }
 
         <hq-toast
@@ -357,10 +253,6 @@ export class BroadcastsPage {
   private readonly lang = activeLang();
   protected readonly scope = inject(StaffScopeService);
 
-  protected readonly MAX_TITLE = MAX_TITLE;
-  protected readonly MAX_BODY = MAX_BODY;
-  protected readonly audienceRoles = AUDIENCE_ROLES;
-
   protected readonly enabled = computed(() => this.flags.isOn(FLAGS.announcements));
 
   /** `null` for a teacher: she reads the feed and writes nothing (DR6). */
@@ -379,7 +271,11 @@ export class BroadcastsPage {
   protected readonly posting = signal(false);
   protected readonly posted = signal(false);
   protected readonly failed = signal(false);
-  protected readonly draft = signal<BroadcastDraft>(EMPTY_DRAFT);
+  /**
+   * The draft the sheet opens on. A constant for this screen — she starts from blank here, while
+   * the Weekly plans screen prefills the week and the grade of the card she pressed.
+   */
+  protected readonly blank = computed<BroadcastDraft>(() => EMPTY_DRAFT);
   private readonly opened = signal<readonly string[]>([]);
   /** The plans this visit has already drawn open — deliberately not a signal (see the effect). */
   private readonly autoOpened = new Set<string>();
@@ -417,17 +313,40 @@ export class BroadcastsPage {
     defaultValue: [],
   });
 
+  /**
+   * MG2b: `GET /me/weekly-plans` — the plans whose audience includes her, newest week first, the
+   * server's default twelve-week window. Read once the tab is opened, not on arrival: a teacher
+   * comes here for this week's plan, and the twelve weeks behind it are a second question.
+   */
+  protected readonly plans = rxResource({
+    params: () => (this.enabled() && this.panel() === 'plans' ? true : undefined),
+    stream: () => this.api.myWeeklyPlans(),
+  });
+
+  protected readonly planWeeks = computed(() => weeksOf(this.plans.value()));
+
   protected readonly loading = computed(() =>
     this.panel() === 'posted' ? this.posts.isLoading() : this.feed.isLoading(),
   );
 
+  /**
+   * Received, Weekly plans, and — for the two roles that write — what she posted.
+   *
+   * MG2b item 2 put the plan archive here rather than on a rail row of its own: a teacher opens
+   * Broadcasts for the week's plan already (it is the pinned row), and "the weeks before this one"
+   * is the same screen one tab over. A manager has her own screen, which also composes, so hers
+   * is the only rail row the feature adds.
+   */
   protected readonly tabs = computed<readonly Tab<Panel>[]>(() => [
     {
       id: 'received',
       label: this.transloco.translate<string>('broadcasts.received'),
       badge: this.feed.value().unread ?? 0,
     },
-    { id: 'posted', label: this.transloco.translate<string>('broadcasts.posted_') },
+    { id: 'plans', label: this.transloco.translate<string>('plans.tab') },
+    ...(this.composer() === null
+      ? []
+      : [{ id: 'posted' as const, label: this.transloco.translate<string>('broadcasts.posted_') }]),
   ]);
 
   /**
@@ -451,68 +370,16 @@ export class BroadcastsPage {
       .filter((curriculum): curriculum is string => curriculum !== null),
   );
 
-  protected readonly composableSections = computed(() =>
-    this.scope.classes().filter((row) => {
-      const chosen = this.draft().department;
-      return chosen === '' || row.curriculum === chosen;
-    }),
-  );
+  /** Every class of her scope; the sheet narrows them to the department she picks inside it. */
+  protected readonly composableSections = computed(() => this.scope.classes());
 
-  private readonly ctx = computed<ComposeContext>(() => ({
+  protected readonly ctx = computed<ComposeContext>(() => ({
     role: this.composer() ?? 'coordinator',
     departments: this.departments(),
     sections: this.scope.classes(),
     today: this.today(),
     zone: this.platform.timezone(),
   }));
-
-  protected readonly valid = computed(() => canPost(this.draft(), this.ctx()));
-
-  protected readonly kindOptions = computed<readonly SelectOption[]>(() =>
-    kindsFor(this.composer() ?? 'coordinator').map((kind) => ({
-      value: kind,
-      label: this.transloco.translate<string>(`broadcasts.kinds.${kind}`),
-    })),
-  );
-
-  protected readonly weekChoices = computed<readonly SelectOption[]>(() =>
-    weekOptions(this.today()).map((week) => ({ value: week, label: this.weekLabel(week) })),
-  );
-
-  protected readonly departmentOptions = computed<readonly SelectOption[]>(() =>
-    this.departments().map((curriculum) => ({
-      value: curriculum,
-      label: this.transloco.translate<string>(`curriculum.${curriculum}`),
-    })),
-  );
-
-  protected errorFor(field: keyof ReturnType<typeof composeErrors>): string | null {
-    const key = composeErrors(this.draft(), this.ctx())[field];
-    return key === null ? null : this.transloco.translate<string>(key);
-  }
-
-  /** A `<select>` answers a string; the kinds it was built from are the only ones it can answer. */
-  protected setKind(kind: string): void {
-    this.patch({ kind: kind as BroadcastKind, ...(kind === 'weekly_plan' ? {} : { weekStart: '' }) });
-  }
-
-  protected patch(part: Partial<BroadcastDraft>): void {
-    this.draft.update((draft) => ({ ...draft, ...part }));
-  }
-
-  protected toggleAudience(who: AudienceRole, on: boolean): void {
-    this.patch({
-      audience: on ? [...this.draft().audience, who] : this.draft().audience.filter((role) => role !== who),
-    });
-  }
-
-  protected toggleSection(classId: string, on: boolean): void {
-    this.patch({
-      sectionIds: on
-        ? [...this.draft().sectionIds, classId]
-        : this.draft().sectionIds.filter((id) => id !== classId),
-    });
-  }
 
   constructor() {
     /*
@@ -571,14 +438,9 @@ export class BroadcastsPage {
     return this.opened().includes(row.id ?? '');
   }
 
-  /** The two bodies a row may carry, the reader's language first, empty ones dropped. */
-  protected bodiesOf(row: BroadcastView): readonly { text: string; dir: 'ltr' | 'rtl' }[] {
-    const bodies = [
-      { text: row.bodyEn ?? '', dir: 'ltr' as const },
-      { text: row.bodyAr ?? '', dir: 'rtl' as const },
-    ];
-    if (this.lang() === 'ar') bodies.reverse();
-    return bodies.filter((body) => body.text !== '');
+  /** The two bodies a row may carry, the reader's language first (`core/broadcasts/plan-archive.ts`). */
+  protected bodiesOf(row: BroadcastView) {
+    return readerBodies(row, this.lang());
   }
 
   /**
@@ -636,10 +498,9 @@ export class BroadcastsPage {
     });
   }
 
-  protected post(): void {
+  protected post(body: CreateBroadcastRequest): void {
     const role = this.composer();
-    if (role === null || !this.valid()) return;
-    const body = requestOf(this.draft(), this.ctx());
+    if (role === null) return;
     this.posting.set(true);
     this.failed.set(false);
     (role === 'manager'
@@ -651,7 +512,6 @@ export class BroadcastsPage {
           this.posting.set(false);
           this.composing.set(false);
           this.posted.set(true);
-          this.draft.set(EMPTY_DRAFT);
           this.posts.reload();
           this.feed.reload();
         }),

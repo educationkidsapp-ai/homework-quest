@@ -33,6 +33,16 @@ export interface BroadcastDraft {
   readonly bodyAr: string;
   /** The manager's choice; a coordinator's audience is always the parents of her classes. */
   readonly audience: readonly AudienceRole[];
+  /**
+   * MG2b: one grade of her department, or `null` for every grade of it.
+   *
+   * The server's rule, not a preference: `grade` is refused beside `sectionIds`, and a request
+   * with no `sectionIds` is refused for a manager who holds two departments (`BroadcastService.one`
+   * — "name the sections this is for"). The two together mean a **two-department manager cannot
+   * send `grade` at all**, which {@link composeErrors} says in words rather than letting the sheet
+   * post a 400.
+   */
+  readonly grade: number | null;
   /** The department a two-department manager is writing for; `''` when she holds only one. */
   readonly department: string;
   /** An optional narrowing to some of her sections. Empty is "all of them". */
@@ -45,6 +55,7 @@ export interface BroadcastDraft {
 export interface ComposableSection {
   readonly classId: string;
   readonly curriculum: string;
+  readonly grade: number;
 }
 
 export interface ComposeContext {
@@ -66,6 +77,7 @@ export interface ComposeErrors {
   readonly bodyAr: string | null;
   readonly audience: string | null;
   readonly department: string | null;
+  readonly grade: string | null;
   readonly expires: string | null;
 }
 
@@ -77,6 +89,7 @@ export const EMPTY_DRAFT: BroadcastDraft = {
   bodyAr: '',
   audience: ['parents'],
   department: '',
+  grade: null,
   sectionIds: [],
   expires: '',
 };
@@ -157,6 +170,31 @@ export function departmentOf(draft: BroadcastDraft, ctx: ComposeContext): string
   return draft.department === '' ? null : draft.department;
 }
 
+/**
+ * The grades a manager may name, in her chosen department — sorted, distinct, from her own classes.
+ *
+ * Her sections rather than 1…12: `grade(…)` on the server refuses a grade she manages no class in
+ * with a 400, so a list built from anything else is a list of buttons that answer a red band.
+ */
+export function gradeOptions(draft: BroadcastDraft, ctx: ComposeContext): readonly number[] {
+  const department = departmentOf(draft, ctx);
+  const grades = ctx.sections
+    .filter((row) => department === null || row.curriculum === department)
+    .map((row) => row.grade);
+  return [...new Set(grades)].sort((a, b) => a - b);
+}
+
+/**
+ * Whether a grade may be named at all: only the manager, and only when she holds one department.
+ *
+ * See {@link BroadcastDraft.grade} — the server accepts `grade` only on a row that names no
+ * section, and a two-department manager's row must name sections to say which department it is
+ * for. So the choice is hidden rather than offered and refused.
+ */
+export function canChooseGrade(ctx: ComposeContext): boolean {
+  return ctx.role === 'manager' && ctx.departments.length === 1;
+}
+
 export function composeErrors(draft: BroadcastDraft, ctx: ComposeContext): ComposeErrors {
   const plan = draft.kind === 'weekly_plan';
   const title = draft.title.trim();
@@ -191,8 +229,18 @@ export function composeErrors(draft: BroadcastDraft, ctx: ComposeContext): Compo
       ctx.role === 'manager' && ctx.departments.length > 1 && department === null
         ? 'broadcasts.errors.departmentRequired'
         : null,
+    grade: gradeError(draft, ctx),
     expires: draft.expires !== '' && draft.expires < ctx.today ? 'broadcasts.errors.expiredAlready' : null,
   };
+}
+
+/** The four ways a grade is refused, in the order the server refuses them. */
+function gradeError(draft: BroadcastDraft, ctx: ComposeContext): string | null {
+  if (draft.grade === null) return null;
+  if (ctx.role !== 'manager') return 'broadcasts.errors.gradeManagerOnly';
+  if (draft.sectionIds.length > 0) return 'broadcasts.errors.gradeWithSections';
+  if (ctx.departments.length > 1) return 'broadcasts.errors.gradeOneDepartment';
+  return gradeOptions(draft, ctx).includes(draft.grade) ? null : 'broadcasts.errors.gradeUnmanaged';
 }
 
 export function canPost(draft: BroadcastDraft, ctx: ComposeContext): boolean {
@@ -221,6 +269,7 @@ export function requestOf(draft: BroadcastDraft, ctx: ComposeContext): CreateBro
     // A coordinator's audience is the parents of her classes and the server does not read the
     // field at all; sending one would be a promise the screen cannot keep.
     ...(ctx.role === 'manager' ? { audience: [...draft.audience] } : {}),
+    ...(draft.grade === null ? {} : { grade: draft.grade }),
     ...(sectionIds.length === 0 ? {} : { sectionIds }),
     ...(Number.isNaN(expiresAt) ? {} : { expiresAt }),
   };
@@ -233,6 +282,9 @@ export function requestOf(draft: BroadcastDraft, ctx: ComposeContext): CreateBro
  * the whole of it.
  */
 function sectionsOf(draft: BroadcastDraft, ctx: ComposeContext): string[] {
+  // A grade and a section list are mutually exclusive on the wire, and the grade is the narrower
+  // statement: it is only ever set by a manager of one department, whose row names nothing anyway.
+  if (draft.grade !== null) return [];
   if (draft.sectionIds.length > 0) return [...draft.sectionIds];
   const department = departmentOf(draft, ctx);
   if (department === null || ctx.departments.length <= 1) return [];

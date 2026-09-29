@@ -82,6 +82,13 @@ import {
               <hq-button class="profile__change" variant="primary" (pressed)="openMessage()">
                 {{ 'profile.coordinator.action' | transloco }}
               </hq-button>
+              <!-- MG2b: the message now lands in her thread with the department manager, so the
+                   screen says where the answer will arrive instead of ending the conversation. -->
+              @if (messaged()) {
+                <a class="hq-linkbutton profile__change" routerLink="/teacher/chat">
+                  {{ 'profile.coordinator.openThread' | transloco }}
+                </a>
+              }
             </div>
           </hq-card>
         }
@@ -177,6 +184,12 @@ export class ProfilePage {
     this.messageOpen.set(true);
   }
 
+  /**
+   * Whether this visit has sent one — the toast's own flag expires after four seconds, and the
+   * link to the conversation should still be there when she looks up from the sheet.
+   */
+  protected readonly messaged = signal(false);
+
   protected send(): void {
     const body = this.message().trim();
     if (!body || this.sending()) return;
@@ -187,6 +200,7 @@ export class ProfilePage {
         this.messageOpen.set(false);
         this.message.set('');
         this.sent.set(true);
+        this.messaged.set(true);
       },
       error: (error: unknown) => {
         this.sending.set(false);

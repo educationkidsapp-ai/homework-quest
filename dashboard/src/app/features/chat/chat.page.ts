@@ -11,7 +11,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { rxResource } from '@angular/core/rxjs-interop';
+import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -41,7 +41,14 @@ import {
 } from '../../ui';
 
 /** Which of the manager's three kinds of correspondent a thread is with (RM3b). */
-type Peer = 'parents' | 'coordinators' | 'admin';
+/**
+ * Which correspondent a thread is with — one chip each, on the two inboxes that have more than one
+ * kind of them.
+ *
+ * MG2b added `teachers` (the manager's new threads with her department's teachers) and
+ * `management` (the teacher's own end of them, plus the coordinator's manager thread).
+ */
+type Peer = 'parents' | 'coordinators' | 'admin' | 'teachers' | 'management';
 
 interface EmojiCategory {
   id: 'smileys' | 'education' | 'fun';
@@ -237,6 +244,12 @@ interface ParsedChatMessage {
               </hq-button>
             }
           </div>
+
+          <!-- MG2b: a bell link whose thread this list does not hold. One line, where the list is,
+               instead of a screen that silently says "pick a conversation". -->
+          @if (missingThread()) {
+            <p class="chat-sidebar__missing">{{ 'chat.threadGone' | transloco }}</p>
+          }
 
           @if (showsPeerTabs()) {
             <div class="chat-sidebar__tabs">
@@ -852,6 +865,13 @@ interface ParsedChatMessage {
       display: flex;
       flex-direction: column;
       gap: 4px;
+    }
+
+    .chat-sidebar__missing {
+      margin: 0;
+      padding: var(--hq-space-2) var(--hq-space-3);
+      color: var(--hq-accent);
+      font-size: var(--hq-font-meta-size);
     }
 
     .chat-sidebar__state {
@@ -2004,7 +2024,6 @@ interface ParsedChatMessage {
 })
 export class ChatPage implements AfterViewChecked {
   protected readonly chatService = inject(ChatService);
-  private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
   private readonly transloco = inject(TranslocoService);
   private readonly chatApi = inject(ChatApi);
@@ -2108,10 +2127,17 @@ export class ChatPage implements AfterViewChecked {
   protected readonly startingThreadBusy = signal(false);
   protected readonly chosenPerson = signal<string>('');
 
-  /** Only the two roles that hold a `POST …/chat/threads` naming a person rather than a child. */
+  /**
+   * The roles that hold a `POST …/chat/threads` naming a person rather than a child.
+   *
+   * MG2b: a teacher does now — `POST /teacher/chat/staff-threads {managerUserId}` — so "New
+   * message" is her way to write to the department manager without waiting to be written to. Her
+   * *parent* threads still start from a roster row, which is where a child is chosen.
+   */
   protected readonly canStartThread = computed(
     () =>
       this.auth.role() === 'MANAGERIAL' ||
+      this.auth.role() === 'TEACHER' ||
       // Same header, same reason: there is no school for a new thread to belong to.
       (this.auth.role() === 'ADMIN' && this.chatService.canWrite()),
   );
@@ -2134,6 +2160,20 @@ export class ChatPage implements AfterViewChecked {
     defaultValue: [],
   });
 
+  /** MG2b: the department's teachers, for her chooser and for the chip a thread of theirs carries. */
+  private readonly departmentTeachers = rxResource({
+    params: () => this.auth.role() === 'MANAGERIAL',
+    stream: ({ params }) => (params ? this.management.managementTeachers() : of([])),
+    defaultValue: [],
+  });
+
+  /** MG2b: the manager(s) of the departments this teacher teaches in (`GET /teacher/managers`). */
+  private readonly myManagers = rxResource({
+    params: () => this.auth.role() === 'TEACHER',
+    stream: ({ params }) => (params ? this.chatApi.teacherManagers() : of([])),
+    defaultValue: [],
+  });
+
   /**
    * Which of her three correspondents a thread is with.
    *
@@ -2144,32 +2184,41 @@ export class ChatPage implements AfterViewChecked {
    */
   protected peerOf(thread: ChatThread): Peer {
     if (thread.childId !== '') return 'parents';
-    return this.admins.value().some((person) => person.userId === thread.teacherId)
-      ? 'admin'
+    // A teacher's only child-less threads are with the department manager, so there is nothing to
+    // look up — and `GET /teacher/managers` may not have answered yet when the first row arrives.
+    if (this.auth.role() === 'TEACHER') return 'management';
+    if (this.admins.value().some((person) => person.userId === thread.teacherId)) return 'admin';
+    return this.departmentTeachers.value().some((person) => person.userId === thread.teacherId)
+      ? 'teachers'
       : 'coordinators';
   }
 
-  protected readonly showsPeerTabs = computed(
-    () => this.auth.role() === 'MANAGERIAL' && this.chatService.threads().length > 0,
-  );
+  /**
+   * The chip strip: only where there is more than one kind of correspondent to separate.
+   *
+   * A manager always has four. A teacher has one until somebody from Management writes to her (or
+   * she writes to them), and a strip with a single chip on it is a filter over nothing.
+   */
+  protected readonly showsPeerTabs = computed(() => {
+    const rows = this.chatService.threads();
+    if (rows.length === 0) return false;
+    if (this.auth.role() === 'MANAGERIAL') return true;
+    return this.auth.role() === 'TEACHER' && rows.some((thread) => this.isStaff(thread));
+  });
 
   protected readonly peerTabs = computed<readonly Tab<Peer | 'all'>[]>(() => {
     const counted = (which: Peer) =>
       this.filteredThreads().filter((thread) => this.peerOf(thread) === which).length;
-    return [
-      { id: 'all', label: this.transloco.translate<string>('chat.peer.all') },
-      {
-        id: 'parents',
-        label: this.transloco.translate<string>('chat.peer.parents'),
-        badge: counted('parents'),
-      },
-      {
-        id: 'coordinators',
-        label: this.transloco.translate<string>('chat.peer.coordinators'),
-        badge: counted('coordinators'),
-      },
-      { id: 'admin', label: this.transloco.translate<string>('chat.peer.admin'), badge: counted('admin') },
-    ];
+    const chip = (which: Peer) => ({
+      id: which,
+      label: this.transloco.translate<string>(`chat.peer.${which}`),
+      badge: counted(which),
+    });
+    const all = { id: 'all' as const, label: this.transloco.translate<string>('chat.peer.all') };
+    // MG2b: her two lists, one strip. The teacher's Management chip *is* the staff-thread list —
+    // the rows come from the second transport and are counted in the same badge maths.
+    if (this.auth.role() === 'TEACHER') return [all, chip('parents'), chip('management')];
+    return [all, chip('parents'), chip('teachers'), chip('coordinators'), chip('admin')];
   });
 
   /** The search, then the tab. Both are filters over one list, so neither refetches anything. */
@@ -2182,6 +2231,25 @@ export class ChatPage implements AfterViewChecked {
 
   /** `userId` is prefixed so one select can hold three kinds of person and still say which. */
   protected readonly peopleGroups = computed<readonly SelectOptionGroup[]>(() => {
+    if (this.auth.role() === 'TEACHER') {
+      return [
+        {
+          label: this.transloco.translate<string>('chat.peer.management'),
+          options: this.myManagers
+            .value()
+            .filter((person) => person.userId !== undefined)
+            .map((person) => ({
+              value: `manager:${person.userId}`,
+              label: [
+                person.displayName,
+                person.curriculum ? this.transloco.translate<string>(`curriculum.${person.curriculum}`) : '',
+              ]
+                .filter((part) => part !== '' && part !== undefined)
+                .join(' · '),
+            })),
+        },
+      ];
+    }
     if (this.auth.role() === 'ADMIN') {
       return [
         {
@@ -2207,6 +2275,18 @@ export class ChatPage implements AfterViewChecked {
           })),
       },
       {
+        label: this.transloco.translate<string>('chat.peer.teachers'),
+        options: this.departmentTeachers
+          .value()
+          .filter((person) => person.userId !== undefined)
+          .map((person) => ({
+            value: `teacher:${person.userId}`,
+            label: [person.displayName, (person.subjects ?? []).join(', ')]
+              .filter((part) => part !== '' && part !== undefined)
+              .join(' · '),
+          })),
+      },
+      {
         label: this.transloco.translate<string>('chat.peer.admin'),
         options: this.admins
           .value()
@@ -2222,11 +2302,19 @@ export class ChatPage implements AfterViewChecked {
     if (userId === '') return;
     this.startingThreadBusy.set(true);
     const request =
-      kind === 'manager'
-        ? this.chatApi.supportManagerThread({ managerUserId: userId })
-        : this.managementChat.managementStaffThread(
-            kind === 'admin' ? { adminUserId: userId } : { coordinatorUserId: userId },
-          );
+      this.auth.role() === 'TEACHER'
+        ? // MG2b: her end of the pair. One thread per (teacher, manager), however many times
+          // either side asks for it — so pressing this twice opens the same conversation.
+          this.chatApi.teacherStaffThread({ managerUserId: userId })
+        : kind === 'manager'
+          ? this.chatApi.supportManagerThread({ managerUserId: userId })
+          : this.managementChat.managementStaffThread(
+              kind === 'admin'
+                ? { adminUserId: userId }
+                : kind === 'teacher'
+                  ? { teacherUserId: userId }
+                  : { coordinatorUserId: userId },
+            );
     request
       .pipe(
         tap((thread) => {
@@ -2275,27 +2363,56 @@ export class ChatPage implements AfterViewChecked {
     return (body.length > 0 || hasAtt) && this.draftMessage().length <= 2000;
   });
 
+  /**
+   * The query **as a signal**, not `route.snapshot` (MG2b item 4, the fix `?open=` had on
+   * Broadcasts).
+   *
+   * The bell is on every screen, so clicking a `chat.message` notification *while already on
+   * Messages* is a query-param-only navigation: Angular reuses the component, the snapshot the
+   * constructor read is never re-read, and the conversation the notification named would not open.
+   * `requireSync` because `queryParamMap` emits the current query on subscribe.
+   */
+  private readonly query = toSignal(inject(ActivatedRoute).queryParamMap, { requireSync: true });
+  /** The link this visit has already acted on, so a rerun of the effect is not a second open. */
+  private followed = '';
+  /** A `?thread=` the list does not hold: said in a line rather than left as an empty screen. */
+  protected readonly missingThread = signal(false);
+
   constructor() {
     /*
      * U1 item 6: "Message parent" arrives here as `?childId=…&name=…`, and it has to open the
      * conversation even when the child has never been written to — the thread row is created by
      * the first message, so there is nothing in the list to select yet. `openWith` draws that
      * conversation from the name the link carried; the server's own row replaces it on send.
+     *
+     * MG2b: `?thread=` waits for the threads list. A key is a key *of a row* since a teacher holds
+     * two transports (`core/chat/chat-routes.ts`), so selecting one the list has not answered yet
+     * would send her staff thread's id to her child-keyed parent routes — a 404 in a red band over
+     * the conversation the bell just promised her.
      */
     effect(() => {
-      const params = this.route.snapshot.queryParamMap;
-      // R7: the complaints inbox links here by thread id, which is the key a coordinator's
-      // routes already use — so opening one is `selectThread`, with nothing to invent.
-      const threadId = params.get('thread');
-      if (threadId) {
+      const params = this.query();
+      const rows = this.chatService.threads();
+      const threadId = params.get('thread') ?? '';
+      const childId = params.get('childId') ?? '';
+      const link = `${threadId}|${childId}`;
+      if (link === '|' || link === this.followed) return;
+      if (threadId !== '') {
+        if (!rows.some((thread) => this.keyOf(thread) === threadId)) {
+          // A stale bell link — a thread she has left, or one that was never hers. Said once the
+          // list has actually answered, because "not found" while it is still loading is a lie.
+          if (!this.chatService.loadingThreads()) this.missingThread.set(true);
+          return;
+        }
+        this.followed = link;
+        this.missingThread.set(false);
         this.chatService.selectThread(threadId);
         this.mobileShowConvo.set(true);
+        return;
       }
-      const childId = params.get('childId');
-      if (childId) {
-        this.chatService.openWith(childId, params.get('name') ?? '', params.get('class') ?? undefined);
-        this.mobileShowConvo.set(true);
-      }
+      this.followed = link;
+      this.chatService.openWith(childId, params.get('name') ?? '', params.get('class') ?? undefined);
+      this.mobileShowConvo.set(true);
     });
 
     // Auto-scroll when messages array changes

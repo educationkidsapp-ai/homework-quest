@@ -25,6 +25,7 @@ import {
   type Shortcut,
 } from '../ui';
 import { AuthService } from '../core/auth/auth.service';
+import { ChatService } from '../core/chat/chat.service';
 import { BandService } from '../core/band/band.service';
 import { FlagService } from '../core/flags/flag.service';
 import { activeLang } from '../core/i18n/active-lang';
@@ -39,6 +40,12 @@ import { TourComponent } from '../core/tour/tour.component';
 import { TourService } from '../core/tour/tour.service';
 import { UndoService } from '../core/undo/undo.service';
 import { ShellHeaderComponent } from './shell-header.component';
+
+/**
+ * The rail rows that open a threads list — one id per area (`core/nav/screens.ts`). MG2b puts the
+ * unread count on them, which is the number the header's chat icon has carried since R7.
+ */
+const MESSAGE_ROWS = new Set(['chat', 'messages']);
 
 /**
  * The authenticated frame: the 290 px sidebar, the header, one screen, and the four things that
@@ -262,6 +269,8 @@ export class ShellComponent {
     { initialValue: this.router.url },
   );
 
+  private readonly chat = inject(ChatService);
+
   protected readonly items = computed<readonly NavItem[]>(() => {
     this.lang();
     const role = this.auth.role();
@@ -273,6 +282,12 @@ export class ShellComponent {
         id: screen.id,
         label: this.transloco.translate<string>(screen.labelKey ?? ''),
         link,
+        // MG2b: the unread count on the row that opens the threads, for every role whose Messages
+        // is in the rail. The header's chat icon has carried the same number since R7; a rail row
+        // without it would be the one place in the shell that knows and does not say.
+        ...(MESSAGE_ROWS.has(screen.id) && this.chat.totalUnread() > 0
+          ? { badge: this.chat.totalUnread() }
+          : {}),
       }));
     // `docs/teacher-flow.md` §5: the class she is inside joins the rail as a third item, and
     // leaves with her. It is not a row in the table — the label is a class's name, which only

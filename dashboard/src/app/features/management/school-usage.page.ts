@@ -12,9 +12,10 @@ import {
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { DashboardDataApi } from '../../api';
+import { DashboardDataApi, ManagementApi } from '../../api';
 import { saveFile } from '../../core/download/download';
 import { csvOf } from '../../core/download/csv';
+import { AuthService } from '../../core/auth/auth.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PlatformService } from '../../core/platform/platform.service';
 import {
@@ -53,12 +54,12 @@ const COMMIT_MS = 300;
 /**
  * School usage (MG2a item 5) — `GET /school/usage`, over a window she picks.
  *
- * **It is the school's, not her department's.** `DashboardDataController.mySchoolUsage` resolves
- * the caller's own school and nothing narrower: there is no curriculum or grade axis on
- * `SchoolUsage`, so a manager of the British department sees the American one's teachers in the
- * table too. The subtitle says so in words rather than letting her read her department's name
- * into somebody else's numbers — a department-scoped read is a server change, not a filter this
- * screen may invent.
+ * **Whose numbers they are depends on who is reading** (MG2b item 5). MG1 gave the manager
+ * `GET /management/usage`, which answers the same `SchoolUsage` shape **scoped to her
+ * department(s)** — so she now reads that one and the subtitle says "your department". Every other
+ * role that holds `usage.school` keeps `GET /school/usage`, the whole school, and the subtitle says
+ * that instead. One screen, two reads, and the sentence under the title is the only thing that has
+ * to stay true to which.
  *
  * **No AI tokens or cost here.** Those live on `PlatformUsage` (`GET /admin/usage/platform`),
  * behind `usage.platform`, which only an Admin holds; what a school's own row carries is
@@ -85,7 +86,7 @@ const COMMIT_MS = 300;
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hq-page [title]="'nav.schoolUsage' | transloco" [subtitle]="'management.usage.scope' | transloco">
+    <hq-page [title]="'nav.schoolUsage' | transloco" [subtitle]="scopeLine() | transloco">
       <div class="em-dashboard">
         <div class="mg-filters">
           <hq-input
@@ -183,9 +184,24 @@ const COMMIT_MS = 300;
 })
 export class SchoolUsagePage implements OnDestroy {
   private readonly api = inject(DashboardDataApi);
+  private readonly management = inject(ManagementApi);
+  private readonly auth = inject(AuthService);
   private readonly platform = inject(PlatformService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
+
+  /**
+   * Whether this account reads the department's numbers or the school's.
+   *
+   * The role and not a permission: `usage.school` is what opens the screen, and MANAGERIAL is the
+   * one role `GET /management/usage` answers for (`ManagerScope` resolves her departments from
+   * `staff_scopes`; anybody else is 403).
+   */
+  protected readonly department = computed(() => this.auth.role() === 'MANAGERIAL');
+
+  protected readonly scopeLine = computed(() =>
+    this.department() ? 'management.usage.scopeDepartment' : 'management.usage.scope',
+  );
 
   /** Today where the school is, not where the laptop is set (`ManagementHomePage`'s reason). */
   private readonly schoolToday = computed(() =>
@@ -212,10 +228,17 @@ export class SchoolUsagePage implements OnDestroy {
     // words: a request the page knows will be a 400 buys a red retry band with no reason on it.
     params: () => {
       const { from, to } = this.chosen();
+      // MG2b: **wait for the role**. `/me` has not answered on a cold load, and asking before it
+      // does would send a manager to `/school/usage` — the whole school — and then correct itself
+      // a moment later, which is two requests and one wrong set of numbers on screen.
+      if (this.auth.role() === null) return undefined;
       if (from === '' || to === '' || this.backwards() || this.tooWide()) return undefined;
-      return { from, to };
+      return { from, to, department: this.department() };
     },
-    stream: ({ params }) => this.api.mySchoolUsage(params.from, params.to),
+    stream: ({ params }) =>
+      params.department
+        ? this.management.managementUsage(params.from, params.to)
+        : this.api.mySchoolUsage(params.from, params.to),
   });
 
   protected onFrom(value: string): void {

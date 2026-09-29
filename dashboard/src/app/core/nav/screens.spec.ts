@@ -81,14 +81,27 @@ describe('the screen table', () => {
    * RM3b adds the third, and it is the exception the rule was written for: Broadcasts is a screen
    * she *can* open, behind the `announcements` flag, and the week's plan is the reason she comes
    * to the dashboard on a Sunday. A school without the flag has the two-item rail back.
+   *
+   * MG2b adds the fourth for the same reason, and a stronger one: Messages had **no** row, so a
+   * thread the department manager started was invisible unless she happened to open the screen from
+   * the header's chat icon. Behind `chat`, like every other door onto the threads.
    */
-  it('gives a teacher This week, My classes and Broadcasts in the rail', () => {
-    expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual(['week', 'classes', 'broadcasts']);
+  it('gives a teacher This week, My classes, Broadcasts and Messages in the rail', () => {
+    expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual([
+      'week',
+      'classes',
+      'broadcasts',
+      'chat',
+    ]);
     expect(navScreens('TEACHER').map(({ link }) => link)).toEqual([
       '/teacher/week',
       '/teacher/classes',
       '/teacher/broadcasts',
+      '/teacher/chat',
     ]);
+    const chat = AREAS.TEACHER.screens.find((screen) => screen.id === 'chat');
+    expect(chat?.flag).toBe('chat');
+    expect(chat?.permission).toBe('teacher.chat');
     const broadcasts = AREAS.TEACHER.screens.find((screen) => screen.id === 'broadcasts');
     expect(broadcasts?.flag).toBe('announcements');
     expect(broadcasts?.permission).toBe('broadcast.read');
@@ -201,7 +214,7 @@ describe('the screen table', () => {
    * an old notification's `link` and the runbook's own URL all still resolve. The `/management/**`
    * API routes are untouched, which is why nothing here asserts anything about them.
    */
-  it('gives a manager her ten rail items, and redirects the four screens MG2a removed', () => {
+  it('gives a manager her rail items, and redirects the four screens MG2a removed', () => {
     expect(navScreens('MANAGERIAL').map(({ screen }) => screen.id)).toEqual([
       'home',
       'coordinators',
@@ -209,6 +222,9 @@ describe('the screen table', () => {
       'attendance',
       'people',
       'staff-attendance',
+      // MG2b: the weekly plan per grade and the archive of every one of them, beside Broadcasts
+      // because she writes the week from it.
+      'weekly-plans',
       'broadcasts',
       'messages',
       'usage',

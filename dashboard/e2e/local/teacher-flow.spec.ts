@@ -13,6 +13,7 @@ import {
   signInForToken,
   test,
 } from './env';
+import { api, schoolOfSara, withFlags } from './n4-api';
 
 /**
  * `docs/teacher-flow.md` §10 steps 2–4 and 8, end to end, as the teacher — and N1.3's isolation
@@ -371,6 +372,30 @@ test('step 8 — another teacher is refused her class and her lesson, by API and
   await page.goto(`teacher/classes/${encodeURIComponent(ownClassId)}`);
   await expect(page.getByRole('heading', { level: 1, name: `${ownClassName} · Math` })).toBeHidden();
   await expect(page).toHaveURL(/\/teacher\/(week|classes)(\?|$|\/)/, { timeout: 30_000 });
+});
+
+/**
+ * MG2b: **Messages is in her rail** while `chat` is on.
+ *
+ * It had no row at all, so a thread the department manager started was invisible unless she happened
+ * to open the screen from the header's chat icon. The flag is off in the one-school seed — which is
+ * what the two-link rail above asserts — so this test turns it on, checks the row opens her threads,
+ * and puts it back.
+ */
+test('the teacher finds Messages in her rail once chat is on', async ({ page }) => {
+  const context = await api();
+  const restore = await withFlags(context, await schoolOfSara(context), ['chat']);
+  try {
+    await signInAsSara(page);
+    const rail = page.getByRole('navigation');
+    const messages = rail.getByRole('link', { name: 'Messages' });
+    await expect(messages).toBeVisible({ timeout: 30_000 });
+    await messages.click();
+    await expect(page).toHaveURL(/\/teacher\/chat$/);
+  } finally {
+    await restore();
+    await context.dispose();
+  }
 });
 
 /** What this run created, taken back off the shared database (`env.ts` says how, and why not as Sara). */

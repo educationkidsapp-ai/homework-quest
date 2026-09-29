@@ -208,9 +208,15 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.announcements,
         permission: 'broadcast.read',
       },
+      // MG2b: **a rail row of her own.** It had none — she reached the screen from a roster row's
+      // "Message parent" (a *parent* conversation, by `?childId=`) and from the header's chat icon —
+      // so a thread the department manager started was invisible unless she happened to look. The
+      // rail carries the unread count too (`shell.component.ts`), which is what makes it findable
+      // rather than merely present.
       {
         id: 'chat',
         path: 'chat',
+        labelKey: 'nav.messages',
         flag: FLAGS.chat,
         permission: 'teacher.chat',
       },
@@ -254,6 +260,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         path: 'staff-attendance',
         labelKey: 'nav.staffAttendance',
         permission: 'management.staff.attendance',
+      },
+      // MG2b (owner's items 3 and 4): the weekly plan per grade, and the archive of every one of
+      // them. Her own row rather than a tab on Broadcasts, because it is the screen she *writes*
+      // the week from; a teacher and a coordinator read the same archive one tab over there.
+      {
+        id: 'weekly-plans',
+        path: 'weekly-plans',
+        labelKey: 'nav.weeklyPlans',
+        flag: FLAGS.announcements,
+        permission: 'management.broadcast',
       },
       // RM3b: the feed she reads and the composer only she has — the weekly plan is the
       // department's (DR6), so `weekly_plan` is 400 on every other route.

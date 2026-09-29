@@ -1,5 +1,5 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
-import { catchError, of, tap } from 'rxjs';
+import { catchError, forkJoin, map, of, tap } from 'rxjs';
 import {
   ChatMessage,
   ChatMessageSenderEnum,
@@ -13,7 +13,7 @@ import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { ChatRoutes } from './chat-routes';
+import { type ChatTransport, ChatRoutes } from './chat-routes';
 import { ChatClientCommand, ChatConnectionStatus, ChatServerFrame, LocalMessage } from './chat.models';
 
 const MAX_RECONNECT_DELAY_MS = 30_000;
@@ -77,9 +77,28 @@ export class ChatService {
     return waiting !== null && this.keyOf(waiting) === key ? waiting : null;
   });
 
-  /** The id a thread row is tracked and routed by for whoever is signed in. */
+  /**
+   * The id a thread row is tracked and routed by for whoever is signed in.
+   *
+   * MG2b: **per thread**, not per account. A teacher has two transports — her parent threads are
+   * keyed by child and her threads with the manager by thread — so the row itself decides, and
+   * every screen that asks for a key gets the one that row's four routes take.
+   */
   keyOf(thread: ChatThread): string {
-    return this.routes.transport()?.keyOf(thread) ?? thread.id ?? '';
+    return this.routes.transportFor(thread)?.keyOf(thread) ?? thread.id ?? '';
+  }
+
+  /**
+   * The transport a key's calls go to.
+   *
+   * The list is the lookup table: a key is a key *of a row*, so the row says which half of the
+   * chat it is on. A key with no row yet — the placeholder `openWith` draws for a child who has
+   * never been written to — is the primary transport's, which is the only one that creates threads
+   * by writing to them.
+   */
+  private transportFor(key: string): ChatTransport | null {
+    const row = this.threads().find((thread) => this.keyOf(thread) === key) ?? this.pending();
+    return row === null || row === undefined ? this.routes.transport() : this.routes.transportFor(row);
   }
 
   readonly totalUnread = computed(() => this.threads().reduce((acc, t) => acc + (t.unread ?? 0), 0));
@@ -113,15 +132,25 @@ export class ChatService {
     });
   }
 
+  /**
+   * The threads list — **every transport's, in one list** (MG2b).
+   *
+   * A teacher reads two: `GET /teacher/chat/threads` (her parents, by child) and
+   * `GET /teacher/chat/staff-threads` (the department manager, by thread). One list rather than
+   * two signals, because everything downstream — the badge, the socket's `message` handler, the
+   * search — asks one question of one array, and a second copy would be a second thing to keep in
+   * step. `forkJoin`, so the list is set once: two `set` calls would flash a half list, and a
+   * failure in one half must not blank the other — each catches its own and answers nothing.
+   */
   loadThreads(): void {
-    // The socket opens for every dashboard role; only two of them have a threads list, and only
+    // The socket opens for every dashboard role; not all of them have a threads list, and only
     // with the flag on. Asking anyway would be a 403 in the band on every reconnect for an Admin.
-    const transport = this.routes.transport();
-    if (transport === null || !this.flags.isOn('chat') || this.chatDenied()) return;
+    const transports = this.routes.transports();
+    if (transports.length === 0 || !this.flags.isOn('chat') || this.chatDenied()) return;
     this.loadingThreads.set(true);
-    transport
-      .threads()
+    forkJoin(transports.map((transport) => transport.threads().pipe(catchError(() => of([])))))
       .pipe(
+        map((lists) => lists.flat()),
         tap((threads) => {
           this.threads.set(threads);
           this.loadingThreads.set(false);
@@ -184,7 +213,7 @@ export class ChatService {
     // frame-built rows kept the previous thread's messages under the new header, which reads as
     // the wrong conversation rather than as an empty one.
     this.messages.set([]);
-    const transport = this.routes.transport();
+    const transport = this.transportFor(key);
     if (transport === null) return;
     this.loadingMessages.set(true);
     transport
@@ -204,7 +233,7 @@ export class ChatService {
 
   sendMessage(body: string): void {
     const key = this.activeKey();
-    const transport = this.routes.transport();
+    const transport = key === null ? null : this.transportFor(key);
     const cleanBody = body.trim();
     if (!key || transport === null || !cleanBody || cleanBody.length > 2000) return;
 
@@ -260,7 +289,7 @@ export class ChatService {
 
   sendTyping(): void {
     const key = this.activeKey();
-    const transport = this.routes.transport();
+    const transport = key === null ? null : this.transportFor(key);
     if (!key || transport === null) return;
 
     const now = Date.now();
@@ -274,7 +303,7 @@ export class ChatService {
   }
 
   markRead(key: string): void {
-    const transport = this.routes.transport();
+    const transport = this.transportFor(key);
     if (transport === null) return;
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       const command: ChatClientCommand = { type: 'read', ...transport.commandKey(key) };
@@ -354,7 +383,7 @@ export class ChatService {
 
         // Refetch recent messages for active thread on reconnect
         const activeId = this.activeKey();
-        const transport = this.routes.transport();
+        const transport = activeId === null ? null : this.transportFor(activeId);
         if (activeId && transport !== null) {
           const msgs = this.messages();
           const lastMsg = msgs[msgs.length - 1];

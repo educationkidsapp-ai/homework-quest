@@ -1180,7 +1180,8 @@
     "coordinators": "Coordinators",
     "people": "People",
     "staffAttendance": "Staff attendance",
-    "broadcasts": "Broadcasts"
+    "broadcasts": "Broadcasts",
+    "weeklyPlans": "Weekly plans"
   },
   "notifications": {
     "title": "Notifications",
@@ -1267,11 +1268,14 @@
       "parents": "Parents",
       "coordinators": "Coordinators",
       "admin": "Admin",
-      "managers": "Management"
+      "managers": "Management",
+      "teachers": "Teachers",
+      "management": "Management"
     },
     "supportSubtitle": "Your conversations with the management of this school, and every thread in it for support.",
     "supportEmptyHint": "Pick a manager under New message to start one.",
-    "supportNoSchool": "Pick a school from the header first — chat is read one school at a time."
+    "supportNoSchool": "Pick a school from the header first — chat is read one school at a time.",
+    "threadGone": "That conversation is not in your list any more."
   },
   "profile": {
     "title": "Your profile",
@@ -1289,7 +1293,8 @@
       "placeholder": "What would you like the coordinator to know?",
       "send": "Send",
       "sent": "Sent to your coordinator.",
-      "counter": "{{left}} of {{max}} characters left"
+      "counter": "{{left}} of {{max}} characters left",
+      "openThread": "Open the conversation"
     }
   },
   "results": {
@@ -2079,7 +2084,8 @@
         "weeks": "Weeks with a lesson",
         "consistency": "Consistency",
         "last": "Last published"
-      }
+      },
+      "scopeDepartment": "Your department — over the window you pick"
     }
   },
   "broadcasts": {
@@ -2139,7 +2145,40 @@
       "bodyTooLong": "Keep the message under 1000 characters.",
       "audienceRequired": "Choose at least one group to read this.",
       "departmentRequired": "Choose which of your departments this is for.",
-      "expiredAlready": "Pick today or a later day."
-    }
+      "expiredAlready": "Pick today or a later day.",
+      "gradeManagerOnly": "Only the department manager posts a plan for a grade.",
+      "gradeWithSections": "Choose a grade or choose classes, not both.",
+      "gradeOneDepartment": "A grade can only be named by a manager of one department.",
+      "gradeUnmanaged": "You manage no class in that grade."
+    },
+    "grade": "Which grade",
+    "gradeHint": "One grade of your department, or all of them.",
+    "gradeAll": "All grades",
+    "gradeN": "Grade {{grade}}",
+    "gradeTwoDepartments": "You manage two departments, so this row names the department’s classes. A plan for one grade needs an account with a single department.",
+    "weekReplacesGrade": "Posting this replaces that week’s plan for that grade, and it arrives unread."
+  },
+  "plans": {
+    "subtitle": "The week your department is teaching, grade by grade.",
+    "tab": "Weekly plans",
+    "thisWeek": "This week at a glance",
+    "archive": "Every weekly plan",
+    "none": "No plan yet",
+    "add": "Add plan",
+    "replace": "Replace plan",
+    "readBy": "Read by {{count}}",
+    "gradeFilter": "Grade",
+    "gradeAny": "Every grade",
+    "export": "Export CSV",
+    "empty": "No weekly plan in this window",
+    "emptyHint": "Pick a wider window, or post this week’s plan above.",
+    "emptyReaderHint": "The plans your department posts show up here, this week’s and the weeks before it.",
+    "csv": {
+      "title": "Title",
+      "week": "Week",
+      "grade": "Grade",
+      "readBy": "Read by"
+    },
+    "backwards": "That window ends before it starts."
   }
 }

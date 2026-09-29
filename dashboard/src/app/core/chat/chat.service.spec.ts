@@ -55,6 +55,12 @@ describe('ChatService', () => {
       teacherChatMessages: vi.fn().mockReturnValue(of([sampleMessage])),
       teacherSendChatMessage: vi.fn().mockReturnValue(of({ ...sampleMessage, id: 'msg-2', body: 'Reply' })),
       teacherMarkChatRead: vi.fn().mockReturnValue(of({ threadId: 'th-1', readAt: 1700000001000 })),
+      // MG2b: a teacher reads two lists now (`ChatRoutes.transports`), so every one of her tests
+      // loads both. Empty here — the merge itself is `chat-routes.spec.ts`'s subject.
+      teacherStaffThreads: vi.fn().mockReturnValue(of([])),
+      teacherStaffMessages: vi.fn().mockReturnValue(of([])),
+      teacherSendStaffMessage: vi.fn().mockReturnValue(of({})),
+      teacherMarkStaffRead: vi.fn().mockReturnValue(of({})),
     };
 
     mockCoordinatorApi = {
