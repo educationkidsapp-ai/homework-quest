@@ -67,6 +67,8 @@ public class BroadcastService {
     public static final String PARENTS = "parents", TEACHERS = "teachers", COORDINATORS = "coordinators";
     /** A note, not an essay, and never scheduled to outlive a school year — `AnnouncementService`'s two numbers. */
     private static final int MAX_BODY = 1000, MAX_TITLE = 120, MAX_LIFETIME_DAYS = 400, PAGE = 50;
+    /** MG1's archive: the default window is the last twelve weeks, the widest is two years, and one page is 200 plans. */
+    private static final int ARCHIVE_WEEKS = 12, ARCHIVE_MAX_WEEKS = 104, ARCHIVE_PAGE = 200;
 
     private final BroadcastRepository rows; private final BroadcastReadRepository reads;
     private final ManagerScope managers; private final CoordinatorScope coordinators; private final TeacherScope teachers;
@@ -89,6 +91,11 @@ public class BroadcastService {
      * Her department's broadcast. `sectionIds` empty is the whole department, which is what `curriculum` then carries;
      * a manager who holds two departments and names no section is asked to name them, because one row targets one
      * track.
+     *
+     * <p>MG1 (owner's item 3): `grade` narrows a department-wide row to one grade of it — "the manager adds the weekly
+     * plan for all grades" is a plan per grade as well as one for all of them. It is refused beside `sectionIds`,
+     * which already say which grade is meant, and a grade she manages no class in is 400 rather than a broadcast
+     * nobody is the audience of.
      */
     @Transactional
     public BroadcastDto.View managerPost(Principals.User caller, BroadcastDto.CreateRequest request) {
@@ -103,8 +110,9 @@ public class BroadcastService {
         // a row with none would match — and delete — every department's plan for that week.
         if (WEEKLY_PLAN.equals(kind(request.kind())) && curriculum == null)
             throw ApiException.badRequest("A weekly plan belongs to one department: name the sections of a single track.");
+        Integer grade = grade(request.grade(), named, targets);
         var audience = audience(request.audience());
-        var row = write(schoolId, caller.userId(), ManagerScope.ROLE, request, curriculum, null, named ? targets : null, audience);
+        var row = write(schoolId, caller.userId(), ManagerScope.ROLE, request, curriculum, grade, null, named ? targets : null, audience);
         fanOut(row, schoolId, audience, reach);
         return view(row, displayName(caller.userId()), true);
     }
@@ -128,11 +136,12 @@ public class BroadcastService {
     public CoordinatorPost coordinatorPost(Principals.User caller, BroadcastDto.CreateRequest request) {
         String schoolId = tenant.writeSchoolId();
         if (WEEKLY_PLAN.equals(kind(request.kind()))) throw ApiException.badRequest("A weekly plan is posted by the manager of the department.");
+        if (request.grade() != null) throw ApiException.badRequest("A grade narrows a manager's department; your row names its sections.");
         boolean named = named(request.sectionIds());
         var targets = named ? request.sectionIds().stream().distinct().map(id -> coordinators.requireSection(caller, id)).toList()
                 : coordinators.sectionsOf(caller);
         if (targets.isEmpty()) throw ApiException.badRequest("You coordinate no class yet, so there is nobody to tell.");
-        var row = write(schoolId, caller.userId(), CoordinatorScope.ROLE, request, null, subjectsOf(caller, targets), targets, List.of(PARENTS));
+        var row = write(schoolId, caller.userId(), CoordinatorScope.ROLE, request, null, null, subjectsOf(caller, targets), targets, List.of(PARENTS));
         var mirrored = ANNOUNCEMENT.equals(row.getKind())
                 ? announcements.mirror(caller, targets, row.getBodyEn(), row.getBodyAr(), row.getExpiresAt()) : List.<TeacherDto.Announcement>of();
         return new CoordinatorPost(view(row, displayName(caller.userId()), true), mirrored);
@@ -176,6 +185,98 @@ public class BroadcastService {
         return view(row, displayName(row.getAuthorUserId()), true);
     }
 
+    // ---------------------------------------------------------------- MG1: the weekly-plan archive
+
+    /**
+     * `GET /management/weekly-plans?from&to&grade` (owner's item 4: "see all weekly plans"). Every weekly plan of her
+     * department(s) inside the window, newest week first, each week's plans all-grades first then by grade.
+     *
+     * <p><strong>Past weeks are the point.</strong> The feeds read {@link BroadcastRepository#live} and drop an expired
+     * row; the archive reads {@link BroadcastRepository#plansBetween}, which names no expiry at all, so a plan whose
+     * week has gone by is still there. The window defaults to the last twelve weeks and may not span more than two
+     * years — a screen, not an export.
+     *
+     * <p><strong>`readBy` is the grouped count</strong> ({@link BroadcastReadRepository#countsBy}), one statement for
+     * the whole page. There is <em>no</em> `audienceSize` beside it: an audience is resolved per reader out of
+     * `staff_scopes` and counting one would be a statement per plan — the manager sees how many opened it, and who
+     * did not is `GET /management/people`.
+     */
+    public BroadcastDto.PlanArchive managerArchive(Principals.User caller, String from, String to, Integer grade) {
+        String schoolId = tenant.writeSchoolId();
+        var mine = reach(ManagerScope.require(caller));
+        var window = window(from, to);
+        var found = plans(schoolId, window).stream()
+                .filter(b -> caller.userId().equals(b.getAuthorUserId()) || mine.sees(b))
+                .filter(b -> grade == null || grade.equals(b.getGrade())).toList();
+        return archive(window, found, caller.userId(), true);
+    }
+
+    /**
+     * `GET /me/weekly-plans?from&to` — the plans whose audience includes this teacher, coordinator or manager, by the
+     * very predicate {@link #forStaff} filters her feed with, past weeks included.
+     */
+    public BroadcastDto.PlanArchive myArchive(Principals.User caller, String from, String to) {
+        String schoolId = tenant.writeSchoolId();
+        var mine = reach(caller);
+        var window = window(from, to);
+        return archive(window, plans(schoolId, window).stream().filter(mine::sees).toList(), caller.userId(), false);
+    }
+
+    /**
+     * `GET /children/{id}/weekly-plans?from&to` — the app's archive, named by child for {@link #forChild}'s reason
+     * (a flagged parent route has to say which child it is about). A child on no section yet gets an empty window.
+     */
+    public BroadcastDto.PlanArchive childArchive(Principals.Parent parent, String childId, String from, String to) {
+        var kid = childService.owned(childId, parent);
+        var window = window(from, to);
+        if (kid.getClassId() == null) return new BroadcastDto.PlanArchive(window.from().toString(), window.to().toString(), List.of());
+        var found = rows.plansBetween(kid.getSchoolId(), window.from(), window.to(), PageRequest.of(0, ARCHIVE_PAGE)).stream()
+                .filter(b -> forChild(b, kid)).toList();
+        return archive(window, found, parent.parentId(), false);
+    }
+
+    /** The window a request asked for, both ends snapped to the Sunday of their week — plans are stored that way. */
+    private record Window(LocalDate from, LocalDate to) {}
+
+    private List<BroadcastEntity> plans(String schoolId, Window window) {
+        return rows.plansBetween(schoolId, window.from(), window.to(), PageRequest.of(0, ARCHIVE_PAGE));
+    }
+
+    private Window window(String from, String to) {
+        LocalDate end = blank(to) ? LocalDate.now(clock) : date(to, "to");
+        LocalDate start = blank(from) ? end.minusWeeks(ARCHIVE_WEEKS - 1L) : date(from, "from");
+        if (start.isAfter(end)) throw ApiException.badRequest("from must not be after to.");
+        if (start.isBefore(end.minusWeeks(ARCHIVE_MAX_WEEKS))) throw ApiException.badRequest("Ask for at most " + ARCHIVE_MAX_WEEKS + " weeks at a time.");
+        return new Window(sunday(start), sunday(end));
+    }
+
+    /** One page of plans, grouped by week (newest first, as the query ordered them) and sorted inside it by grade. */
+    private BroadcastDto.PlanArchive archive(Window window, List<BroadcastEntity> found, String readerId, boolean counts) {
+        var authors = names(found.stream().map(BroadcastEntity::getAuthorUserId).distinct().toList());
+        var ids = found.stream().map(BroadcastEntity::getId).toList();
+        var read = ids.isEmpty() ? Set.<String>of() : Set.copyOf(reads.readBy(readerId, ids));
+        var readBy = counts && !ids.isEmpty() ? readCounts(ids) : Map.<String, Integer>of();
+        var byWeek = new LinkedHashMap<LocalDate, List<BroadcastDto.PlanEntry>>();
+        for (var b : found)
+            byWeek.computeIfAbsent(b.getWeekStart(), week -> new ArrayList<>())
+                    .add(new BroadcastDto.PlanEntry(view(b, authors.getOrDefault(b.getAuthorUserId(), ""), read.contains(b.getId())),
+                            counts ? readBy.getOrDefault(b.getId(), 0) : null));
+        var weeks = new ArrayList<BroadcastDto.PlanWeek>(byWeek.size());
+        byWeek.forEach((week, items) -> {
+            var sorted = new ArrayList<>(items);
+            // All-grades first, then grade 1 upwards: the department's own plan is the heading of its week.
+            sorted.sort(java.util.Comparator.comparingInt(e -> e.plan().grade() == null ? -1 : e.plan().grade()));
+            weeks.add(new BroadcastDto.PlanWeek(week.toString(), List.copyOf(sorted)));
+        });
+        return new BroadcastDto.PlanArchive(window.from().toString(), window.to().toString(), List.copyOf(weeks));
+    }
+
+    private Map<String, Integer> readCounts(List<String> ids) {
+        var out = new LinkedHashMap<String, Integer>();
+        for (Object[] row : reads.countsBy(ids)) out.put((String) row[0], ((Number) row[1]).intValue());
+        return out;
+    }
+
     // ---------------------------------------------------------------- the app reads (GET /children/{id}/broadcasts)
 
     /**
@@ -207,7 +308,7 @@ public class BroadcastService {
     // ---------------------------------------------------------------- writing
 
     private BroadcastEntity write(String schoolId, String authorId, String authorRole, BroadcastDto.CreateRequest request,
-                                  String curriculum, String subject, List<ClassEntity> sections, List<String> audience) {
+                                  String curriculum, Integer grade, String subject, List<ClassEntity> sections, List<String> audience) {
         String kind = kind(request.kind());
         String bodyEn = SafeText.plainText(request.bodyEn(), "bodyEn", MAX_BODY);
         if (bodyEn == null) throw ApiException.badRequest("bodyEn must not be empty");
@@ -223,7 +324,7 @@ public class BroadcastService {
             row.setAttachmentName(SafeText.plainText(request.attachment().name(), "attachment.name", 200));
             if (row.getAttachmentUrl() == null) throw ApiException.badRequest("attachment.url must not be empty");
         }
-        row.setAudienceRoles(String.join(",", audience)); row.setCurriculum(curriculum); row.setSubject(subject);
+        row.setAudienceRoles(String.join(",", audience)); row.setCurriculum(curriculum); row.setGrade(grade); row.setSubject(subject);
         row.setSectionIds(sections == null ? null : sections.stream().map(ClassEntity::getId).collect(Collectors.joining(",")));
         row.setExpiresAt(expiry(request.expiresAt(), now)); row.setCreatedAt(now);
         if (WEEKLY_PLAN.equals(kind)) replacePlan(schoolId, row);
@@ -231,13 +332,13 @@ public class BroadcastService {
     }
 
     /**
-     * One plan per week per department: the previous row, its read marks <em>and its bell entries</em> go, so the
-     * week has one plan wherever it is read. The notifications are found by the broadcast id every `broadcast.posted`
+     * One plan per week per department <em>and grade</em> (V23): the previous row, its read marks <em>and its bell
+     * entries</em> go, so the week has one plan wherever it is read. The notifications are found by the broadcast id every `broadcast.posted`
      * row carries as its entity id — without it a superseded plan would go on offering its title and body from the
      * bell, linked to a feed that has only the new one.
      */
     private void replacePlan(String schoolId, BroadcastEntity row) {
-        for (var previous : rows.weeklyPlans(schoolId, row.getWeekStart(), row.getCurriculum())) {
+        for (var previous : rows.weeklyPlans(schoolId, row.getWeekStart(), row.getCurriculum(), row.getGrade())) {
             notifications.forget(previous.getId());
             reads.deleteByBroadcast(previous.getId());
             rows.delete(previous);
@@ -257,10 +358,10 @@ public class BroadcastService {
      */
     private void fanOut(BroadcastEntity row, String schoolId, List<String> audience, CoordinatorScope.Reach reach) {
         if (audience.contains(TEACHERS))
-            notify(row, schoolId, reached(row, ManagerScope.teacherIds(reach), "TEACHER", schoolId), "/teacher/broadcasts");
+            notify(row, schoolId, reached(row, ManagerScope.teacherIds(reach), "TEACHER", schoolId), "TEACHER");
         if (audience.contains(COORDINATORS))
             notify(row, schoolId, reached(row, users.findBySchoolIdAndRole(schoolId, CoordinatorScope.ROLE).stream().map(UserEntity::getId).toList(),
-                    CoordinatorScope.ROLE, schoolId), "/coordinator/broadcasts");
+                    CoordinatorScope.ROLE, schoolId), CoordinatorScope.ROLE);
     }
 
     /** Those of these people whose own feed would show this row; the author is never told about her own post. */
@@ -271,7 +372,13 @@ public class BroadcastService {
         return out;
     }
 
-    private void notify(BroadcastEntity row, String schoolId, Set<String> recipients, String link) {
+    /**
+     * MG1 (owner's item 7): the link opens the row itself on the recipient's <em>own</em> area —
+     * `/teacher/broadcasts?open=…` for a teacher, `/coordinator/…` for a coordinator, `/management/…` for a manager.
+     * A bell that sent a coordinator to the teacher area was a dead end for half the recipients of every post.
+     */
+    private void notify(BroadcastEntity row, String schoolId, Set<String> recipients, String role) {
+        String link = NotificationService.broadcastLink(role, row.getId());
         for (String userId : recipients)
             notifications.notify(schoolId, userId, NotificationKind.BROADCAST_POSTED, headline(row), row.getBodyEn(), link, row.getId());
     }
@@ -282,7 +389,7 @@ public class BroadcastService {
      * The caller's own reach, resolved once per request rather than per row: her sections and the tracks they are in,
      * and whether her role is an audience at all. `all` is the platform ADMIN reading a school (D6).
      */
-    private record Reach(String role, Set<String> sectionIds, Set<String> tracks, boolean all) {
+    private record Reach(String role, Set<String> sectionIds, Set<String> tracks, Set<String> cells, boolean all) {
         boolean sees(BroadcastEntity b) {
             if (all) return true;
             var audience = Set.of(b.getAudienceRoles().split(","));
@@ -292,39 +399,55 @@ public class BroadcastService {
                 case ManagerScope.ROLE -> true;                 // she manages the department, whoever the row is for
                 default -> false;
             };
-            return wanted && touches(b, sectionIds, tracks);
+            return wanted && touches(b, sectionIds, tracks, cells);
         }
     }
 
     private Reach reach(Principals.User caller) {
         String role = caller.role() == null ? "" : caller.role();
-        if ("ADMIN".equals(role)) return new Reach(role, Set.of(), Set.of(), true);
+        if ("ADMIN".equals(role)) return new Reach(role, Set.of(), Set.of(), Set.of(), true);
         if (ManagerScope.ROLE.equals(role)) {
             var sections = managers.sectionsOf(caller);
-            return new Reach(role, ids(sections), Set.copyOf(managers.departments(caller)), false);
+            return new Reach(role, ids(sections), Set.copyOf(managers.departments(caller)), cellsOf(sections), false);
         }
         if (CoordinatorScope.ROLE.equals(role)) {
             var sections = coordinators.sectionsOf(caller);
             var tracks = coordinators.scopesOf(caller).stream().map(CoordinatorScope.Scope::curriculum).filter(Objects::nonNull)
                     .map(ManagerScope::normalise).collect(Collectors.toSet());
             // A coordinator of both tracks holds a row with no curriculum: every track of her sections is hers.
-            return new Reach(role, ids(sections), tracks.isEmpty() ? tracksOf(sections) : tracks, false);
+            return new Reach(role, ids(sections), tracks.isEmpty() ? tracksOf(sections) : tracks, cellsOf(sections), false);
         }
         var mine = teachers.classesOf(caller);
-        return new Reach(role, ids(mine), tracksOf(mine), false);
+        return new Reach(role, ids(mine), tracksOf(mine), cellsOf(mine), false);
     }
 
-    /** A row reaches a reader when it names one of her sections, or — department-wide — when it names her track. */
-    private static boolean touches(BroadcastEntity b, Set<String> sectionIds, Set<String> tracks) {
+    /**
+     * A row reaches a reader when it names one of her sections, or — department-wide — when it names her track and,
+     * since V23, a grade she is actually in <em>that</em> track. <strong>One predicate, one place</strong>: the feeds,
+     * the fan-out that decides who is told, and MG1's three archives all ask this question, so a grade plan can never
+     * ring a bell it does not fill.
+     *
+     * <p><strong>The track and the grade are one key, not two.</strong> A teacher who holds grade 1 British and grade
+     * 5 American has tracks {british, american} and grades {1, 5}; matched independently that is four cells and she
+     * would be handed the British department's grade 5 plan — a week's plan for children she has never taught, on the
+     * feed and in the bell. So {@link Reach#cells} is the set of `curriculum|grade` pairs her sections actually sit
+     * in, and a row with a grade is matched against exactly that. {@code tracks} stays for the grade-less row, which
+     * is the whole department and asks nothing about a grade.
+     */
+    private static boolean touches(BroadcastEntity b, Set<String> sectionIds, Set<String> tracks, Set<String> cells) {
         if (b.getSectionIds() != null && !b.getSectionIds().isBlank())
             return Arrays.stream(b.getSectionIds().split(",")).anyMatch(sectionIds::contains);
-        return b.getCurriculum() != null && tracks.contains(ManagerScope.normalise(b.getCurriculum()));
+        if (b.getCurriculum() == null) return false;
+        String track = ManagerScope.normalise(b.getCurriculum());
+        if (b.getGrade() == null) return tracks.contains(track);
+        return cells.contains(cell(track, b.getGrade()));
     }
 
-    /** The parent's rule: the row is for parents, and it names her child's own section or her child's track. */
+    /** The parent's rule: the row is for parents, and it names her child's own section, or her track and grade. */
     private static boolean forChild(BroadcastEntity b, ChildEntity kid) {
+        String track = ManagerScope.normalise(kid.getCurriculum());
         return Set.of(b.getAudienceRoles().split(",")).contains(PARENTS)
-                && touches(b, Set.of(kid.getClassId()), Set.of(ManagerScope.normalise(kid.getCurriculum())));
+                && touches(b, Set.of(kid.getClassId()), Set.of(track), Set.of(cell(track, kid.getGrade())));
     }
 
     // ---------------------------------------------------------------- shapes
@@ -353,7 +476,7 @@ public class BroadcastService {
 
     private static BroadcastDto.View view(BroadcastEntity b, String authorName, boolean read) {
         return new BroadcastDto.View(b.getId(), b.getKind(), b.getAuthorUserId(), authorName, b.getAuthorRole(), b.getTitle(),
-                b.getBodyEn(), b.getBodyAr(), b.getWeekStart() == null ? null : b.getWeekStart().toString(), b.getCurriculum(), b.getSubject(),
+                b.getBodyEn(), b.getBodyAr(), b.getWeekStart() == null ? null : b.getWeekStart().toString(), b.getCurriculum(), b.getGrade(), b.getSubject(),
                 b.getSectionIds() == null || b.getSectionIds().isBlank() ? List.of() : List.of(b.getSectionIds().split(",")),
                 List.of(b.getAudienceRoles().split(",")),
                 b.getAttachmentUrl() == null ? null : new BroadcastDto.Attachment(b.getAttachmentUrl(), b.getAttachmentName()),
@@ -393,7 +516,14 @@ public class BroadcastService {
         if (raw == null || raw.isBlank()) throw ApiException.badRequest("weekStart is required for a " + WEEKLY_PLAN + " (the Sunday of the week).");
         LocalDate day;
         try { day = LocalDate.parse(raw.trim()); } catch (RuntimeException e) { throw ApiException.badRequest("weekStart must be a date, as 2026-09-27."); }
-        return day.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY));
+        return sunday(day);
+    }
+
+    private static boolean blank(String value) { return value == null || value.isBlank(); }
+    private static LocalDate sunday(LocalDate day) { return day.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY)); }
+
+    private static LocalDate date(String raw, String field) {
+        try { return LocalDate.parse(raw.trim()); } catch (RuntimeException e) { throw ApiException.badRequest(field + " must be a date, as 2026-09-27."); }
     }
 
     private static Instant expiry(Long millis, Instant now) {
@@ -409,6 +539,24 @@ public class BroadcastService {
     private static boolean named(List<String> sectionIds) { return sectionIds != null && !sectionIds.isEmpty(); }
     private static Set<String> ids(List<ClassEntity> sections) { return sections.stream().map(ClassEntity::getId).collect(Collectors.toSet()); }
     private static Set<String> tracksOf(List<ClassEntity> sections) { return sections.stream().map(k -> ManagerScope.normalise(k.getCurriculum())).collect(Collectors.toSet()); }
+    /** The `curriculum|grade` cells a set of sections sits in — one key, so a track and a grade can never be crossed. */
+    private static Set<String> cellsOf(List<ClassEntity> sections) {
+        return sections.stream().map(k -> cell(ManagerScope.normalise(k.getCurriculum()), k.getGrade())).collect(Collectors.toSet());
+    }
+    private static String cell(String track, int grade) { return track + "|" + grade; }
+
+    /**
+     * The one grade a row is for, or null for every grade of the department. It is refused beside named sections —
+     * those already say which grade is meant, and two ways of saying it is two ways for them to disagree — and a
+     * grade the author manages no section in is refused rather than stored as a broadcast with no audience.
+     */
+    private static Integer grade(Integer wanted, boolean named, List<ClassEntity> reach) {
+        if (wanted == null) return null;
+        if (named) throw ApiException.badRequest("Name the sections or the grade, not both: the sections already say which grade is meant.");
+        if (reach.stream().noneMatch(k -> k.getGrade() == wanted.intValue()))
+            throw ApiException.badRequest("You manage no class in grade " + wanted + ".");
+        return wanted;
+    }
     /**
      * The subjects of the coordinator's own scope that reach these sections — what the app labels her card with ("from
      * your maths coordinator"). Her scope rows, not the sections' subjects: she coordinates maths in a section where

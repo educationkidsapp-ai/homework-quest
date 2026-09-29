@@ -43,6 +43,7 @@ class ChatWebSocketTest extends ChatTestSupport {
     @Autowired ChatSessions sessions;
     @Autowired quest.server.notifications.NotificationService notifications;
     @Autowired quest.server.notifications.NotificationRepository notificationRows;
+    @Autowired quest.server.tenancy.StaffScopeRepository staffScopes;
 
     private String maya;
     private final List<WebSocketSession> open = Collections.synchronizedList(new ArrayList<>());
@@ -55,6 +56,7 @@ class ChatWebSocketTest extends ChatTestSupport {
     @AfterEach void clean() {
         open.forEach(s -> { try { s.close(); } catch (Exception ignored) { } });
         notificationRows.deleteAll(notificationRows.findAll().stream().filter(n -> n.getSchoolId().startsWith(prefix())).toList());
+        staffScopes.deleteAll(staffScopes.findAll().stream().filter(r -> r.getSchoolId().startsWith(prefix())).toList());
         removeSeed();
     }
 
@@ -162,6 +164,62 @@ class ChatWebSocketTest extends ChatTestSupport {
         assertThat(read.get("readBy").asText()).isEqualTo("teacher");
         assertThat(teacher.next().get("type").asText()).isEqualTo("read");
         assertThat(parent.received).as("the parent never saw her own typing").noneMatch(f -> f.contains("\"typing\""));
+    }
+
+    /**
+     * MG1 (DR5): a TEACHER's commands are keyed by child, because her conversations are about one — except on the
+     * staff thread she shares with her department manager, which has no child on it at all. A `threadId` she sends is
+     * taken as that thread, so a message, a `typing` and a `read` reach the manager over the socket both already hold
+     * rather than over a second protocol.
+     */
+    @Test void a_teacher_talks_to_her_manager_over_the_socket_by_thread_id() throws Exception {
+        String managerId = prefix() + "manager", managerToken = manager(managerId);
+        String threadId = json(mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .post("/management/chat/threads").header("Authorization", "Bearer " + managerToken)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"teacherUserId\":\"" + SARA + "\"}"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated())
+                .andReturn()).get("id").asText();
+
+        var teacher = new Frames(); var management = new Frames();
+        var teacherSession = connect(sara, true, teacher);
+        connect(managerToken, true, management);
+
+        teacherSession.sendMessage(new TextMessage("{\"type\":\"message\",\"threadId\":\"" + threadId + "\",\"body\":\"The plan is in.\",\"clientId\":\"s-1\"}"));
+        var ack = teacher.next();
+        assertThat(ack.get("type").asText()).isEqualTo("message");
+        assertThat(ack.get("clientId").asText()).as("the sender's copy is the ack").isEqualTo("s-1");
+        var delivered = management.next();
+        assertThat(delivered.get("message").get("body").asText()).isEqualTo("The plan is in.");
+        assertThat(delivered.get("message").get("threadId").asText()).isEqualTo(threadId);
+
+        teacherSession.sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + threadId + "\"}"));
+        var typing = management.next();
+        assertThat(typing.get("type").asText()).isEqualTo("typing");
+        assertThat(typing.get("threadId").asText()).isEqualTo(threadId);
+
+        teacherSession.sendMessage(new TextMessage("{\"type\":\"read\",\"threadId\":\"" + threadId + "\"}"));
+        assertThat(management.next().get("type").asText()).isEqualTo("read");
+        assertThat(teacher.next().get("type").asText()).as("a read is announced to both sides").isEqualTo("read");
+
+        // A thread that is not hers is refused by the very check the REST route applies; nothing is published.
+        teacherSession.sendMessage(new TextMessage("{\"type\":\"read\",\"threadId\":\"not-a-thread-of-hers\"}"));
+        assertThat(teacher.next().get("code").asText()).isEqualTo("not_found");
+    }
+
+    /** A MANAGERIAL account of school A with the British department — a `staff_scopes` row with no subject (DR5). */
+    private String manager(String userId) {
+        var u = users.findById(userId).orElseGet(quest.server.auth.Entities.UserEntity::new);
+        u.setId(userId); u.setSchoolId(A); u.setEmail(userId + "@seed.test"); u.setPasswordHash("x");
+        u.setRole("MANAGERIAL"); u.setStatus("active"); u.setDisplayName("Ms Nour");
+        if (u.getCreatedAt() == null) u.setCreatedAt(java.time.Instant.now());
+        u.setUpdatedAt(java.time.Instant.now());
+        users.save(u);
+        var row = staffScopes.findById(userId + ":british").orElseGet(quest.server.tenancy.Entities.StaffScopeEntity::new);
+        row.setId(userId + ":british"); row.setSchoolId(A); row.setUserId(userId); row.setSubject(null); row.setCurriculum("british");
+        if (row.getCreatedAt() == null) row.setCreatedAt(java.time.Instant.now());
+        staffScopes.save(row);
+        return token(userId, "MANAGERIAL", A);
     }
 
     @Test void a_refused_command_comes_back_as_an_error_frame_with_the_client_id() throws Exception {

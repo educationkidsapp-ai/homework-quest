@@ -136,6 +136,14 @@ interface ContentApi {
      */
     suspend fun childBroadcasts(childId: String): BroadcastFeed = BroadcastFeed()
 
+    /**
+     * MG1 `GET /children/{id}/weekly-plans?from&to` — the weekly plans sent to this child's section over a window,
+     * newest week first, **past weeks included**: the feed above may hide an expired row and the archive never does.
+     * Absent dates mean the last twelve weeks.
+     */
+    suspend fun childWeeklyPlans(childId: String, from: String? = null, to: String? = null): quest.api.dto.WeeklyPlanArchive =
+        quest.api.dto.WeeklyPlanArchive(from ?: "", to ?: "")
+
     /** `POST /children/{id}/broadcasts/{broadcastId}/read` — this one is read; the row comes back with `read = true`. */
     suspend fun markBroadcastRead(childId: String, broadcastId: String): BroadcastView =
         throw NotImplementedError("markBroadcastRead needs a backend")

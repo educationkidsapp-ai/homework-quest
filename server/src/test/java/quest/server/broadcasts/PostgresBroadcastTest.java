@@ -31,19 +31,33 @@ class PostgresBroadcastTest extends PostgresContainerSupport {
     @Test void every_broadcast_statement_runs_on_postgres() {
         var week = LocalDate.now().with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.SUNDAY));
         var plan = row(BroadcastService.WEEKLY_PLAN, week, "british", null);
+        var gradePlan = row(BroadcastService.WEEKLY_PLAN, week, "british", null);
+        gradePlan.setGrade(2);
         var event = row(BroadcastService.EVENT, null, "british", "pg-bc-1a,pg-bc-1b");
         var expired = row(BroadcastService.ANNOUNCEMENT, null, "british", null);
         expired.setExpiresAt(Instant.now().minusSeconds(60));
-        rows.saveAll(List.of(plan, event, expired));
+        rows.saveAll(List.of(plan, gradePlan, event, expired));
 
         var live = rows.live(SCHOOL, Instant.now(), PageRequest.of(0, 50));
         assertThat(live).extracting(Entities.BroadcastEntity::getId).contains(plan.getId(), event.getId()).doesNotContain(expired.getId());
         assertThat(rows.byAuthor(SCHOOL, AUTHOR, PageRequest.of(0, 50))).hasSizeGreaterThanOrEqualTo(3);
-        assertThat(rows.weeklyPlans(SCHOOL, week, "british")).extracting(Entities.BroadcastEntity::getId).contains(plan.getId());
-        assertThat(rows.weeklyPlans(SCHOOL, week, "american")).extracting(Entities.BroadcastEntity::getId)
+        assertThat(rows.weeklyPlans(SCHOOL, week, "british", null)).extracting(Entities.BroadcastEntity::getId)
+                .as("V23: the all-grades plan is the one whose grade is null, and the grade plan is a separate row")
+                .contains(plan.getId()).doesNotContain(gradePlan.getId());
+        assertThat(rows.weeklyPlans(SCHOOL, week, "british", 2)).extracting(Entities.BroadcastEntity::getId)
+                .contains(gradePlan.getId()).doesNotContain(plan.getId());
+        assertThat(rows.weeklyPlans(SCHOOL, week, "american", null)).extracting(Entities.BroadcastEntity::getId)
                 .as("one department's replacement must never reach another's plan").doesNotContain(plan.getId());
-        assertThat(rows.weeklyPlans(SCHOOL, week, null)).extracting(Entities.BroadcastEntity::getId)
+        assertThat(rows.weeklyPlans(SCHOOL, week, null, null)).extracting(Entities.BroadcastEntity::getId)
                 .as("a null curriculum matches a null one only — on PostgreSQL, where `= NULL` is never true")
+                .doesNotContain(plan.getId());
+        // MG1's archive: a `BETWEEN` over a nullable DATE with a two-column ORDER BY, paged. It must return the past
+        // weeks the feeds drop, which is the whole point of the screen, and it runs here on the real database.
+        assertThat(rows.plansBetween(SCHOOL, week.minusWeeks(11), week, PageRequest.of(0, 200)))
+                .extracting(Entities.BroadcastEntity::getId)
+                .contains(plan.getId(), gradePlan.getId()).doesNotContain(event.getId());
+        assertThat(rows.plansBetween(SCHOOL, week.plusWeeks(1), week.plusWeeks(4), PageRequest.of(0, 200)))
+                .as("a window after the only plans holds none of them").extracting(Entities.BroadcastEntity::getId)
                 .doesNotContain(plan.getId());
         assertThat(rows.findOneById(plan.getId())).isPresent();
 
@@ -53,6 +67,9 @@ class PostgresBroadcastTest extends PostgresContainerSupport {
         mark.setBroadcastId(plan.getId()); mark.setReaderId(READER); mark.setReadAt(Instant.now());
         reads.save(mark);
         assertThat(reads.readBy(READER, List.of(plan.getId(), event.getId()))).containsExactly(plan.getId());
+        // The archive's `readBy`: one grouped statement for a whole page, `count(*)` with `GROUP BY`.
+        assertThat(reads.countsBy(List.of(plan.getId(), event.getId()))).singleElement()
+                .satisfies(count -> { assertThat(count[0]).isEqualTo(plan.getId()); assertThat(((Number) count[1]).intValue()).isOne(); });
         assertThat(reads.findOne(plan.getId(), READER)).isPresent();
         assertThat(reads.deleteByBroadcast(plan.getId())).isOne();
         assertThat(reads.readBy(READER, List.of(plan.getId()))).isEmpty();

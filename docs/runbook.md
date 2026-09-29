@@ -346,6 +346,14 @@ one of that grade's (section, subject) cells she holds the assignment for, which
 > grouped query can reach, so an exam with hand-marked questions can sit a point or two from the released class average.
 > The exact figure is one click away — `GET /management/exams/{id}/results` is the very body the teacher reads.
 
+**`GET /management/usage?from&to` — her department's School usage (MG1).** The same `SchoolUsage` shape as
+`GET /school/usage` and `GET /admin/schools/{id}/usage` — children, active families, plays a day, lessons published a
+week, and `teacherConsistency` — but scoped: every statement names her sections (`ManagerScope.sectionsOf`) as well as
+the school, and the teacher rows are the ones she manages (`ManagerScope.teachersOf`), so the British manager is never
+shown the American department's plays or the other track's teachers beside her own. Key `management.read`, no flag,
+five grouped statements, and the window is `Reports.window`'s: both bounds absent is the last 30 days, capped at 400.
+The dashboard's manager screen should call this instead of `/school/usage`, which stays the whole-school answer.
+
 ### The matrix
 
 Generated from `permissions.json` on `develop` (`152f2c8`), before `COORDINATOR` existed — the three keys above are
@@ -1101,12 +1109,32 @@ A parent thread leaves her list when the child leaves her scope, the way a teach
 
 The **manager's** half is keyed by thread for the same reason (RM2): `GET /management/chat/threads?status=`,
 `GET|POST /management/chat/threads/{id}/messages`, `POST /management/chat/threads/{id}/read` and
-`POST /management/chat/threads {coordinatorUserId | adminUserId}`, all behind `management.chat` and the `chat` flag.
+`POST /management/chat/threads {teacherUserId | coordinatorUserId | adminUserId}`, all behind `management.chat` and the
+`chat` flag.
 Her list is the coordinator's one scope wider: the parents who wrote to her about a child of her department, her
 coordinators, and the admin. A parent thread leaves it when the child leaves the department; a thread she is not on is
 404. The Admin writes only in **her own** threads — `POST /admin/chat/threads`, `POST /admin/chat/threads/{id}/messages`
 and `POST /admin/chat/threads/{id}/read`, behind `admin.chat` with `X-School-Id` — while `GET /admin/chat/threads`
 still reads every thread of the school for support.
+
+**The teacher's staff threads (MG1).** `/teacher/chat/threads` is keyed by **child** and always will be — it is her
+conversations with parents. Her conversation with her department manager has no child on it, so it lives on its own
+thread-keyed routes: `GET /teacher/chat/staff-threads`, `GET|POST /teacher/chat/staff-threads/{id}/messages`,
+`POST /teacher/chat/staff-threads/{id}/read` and `POST /teacher/chat/staff-threads {"managerUserId": …}`, all behind
+`teacher.chat` and the `chat` flag. `GET /teacher/managers` is the chooser: the managers of the departments she
+teaches in (a `staff_scopes` row with no subject whose `curriculum` is one of her sections'), each with that
+department. A manager of another department is **404** from either end — she may not open one, and
+`POST /management/chat/threads {teacherUserId}` refuses a teacher outside the manager's own department.
+
+**Which end of a staff thread is which.** On every staff-to-staff thread the *subordinate* holds `chat_threads.teacher_id`
+and the *supervisor* holds `peer_user_id`, and `staff_role` is `MANAGERIAL` — it names the peer. So: teacher → manager,
+coordinator → manager, manager → admin. One rule means `findForStaff` finds a person's threads whichever pair she is
+in, and whichever side opens the conversation there is one row. `teacher_unread` is therefore always the subordinate's
+badge and `parent_unread` the supervisor's.
+
+`POST /teacher/messages/coordinator` (the teacher's note to the office) keeps its notification to every manager of her
+school **and**, since MG1, appends the sentence to the staff thread she shares with the manager(s) of a department she
+teaches in, so it can be answered. The notification's `link` then opens that thread.
 
 Her announcement is `POST /coordinator/announcements {bodyEn, bodyAr?, classIds?, expiresAt?}` — one `announcements`
 row per class (every section in scope when `classIds` is absent, each named one checked through `requireSection`
@@ -1141,13 +1169,16 @@ Allowed origins are `CORS_ORIGINS`; the app sends no `Origin`.
 **Frames** are JSON text, discriminated by `type`, at most **8 KB** (bigger → close 1009).
 
 Client → server (`ChatCommand`): a parent names the thread by `childId` + `teacherId`, a teacher by `childId`, and a
-**coordinator by `threadId`** (R4) — `childId` is optional for that reason.
+**coordinator, a manager or an admin by `threadId`** (R4, RM2) — `childId` is optional for that reason. Since MG1 a
+**teacher** may send `threadId` too, and it is then her staff thread with her department manager (a thread that is not
+hers is `not_found`); with no `threadId` her commands still name a `childId`, exactly as before.
 
 ```json
 {"type":"message","childId":"…","teacherId":"…","body":"Hello","clientId":"7f3a…"}
-{"type":"message","threadId":"…","body":"Hello","clientId":"7f3a…"}   // a coordinator
+{"type":"message","threadId":"…","body":"Hello","clientId":"7f3a…"}   // a coordinator, a manager, or a teacher's staff thread
 {"type":"typing","childId":"…","teacherId":"…"}
 {"type":"read","childId":"…","teacherId":"…"}
+{"type":"typing","threadId":"…"}     {"type":"read","threadId":"…"}
 {"type":"ping"}        {"type":"pong"}
 ```
 
@@ -1229,7 +1260,17 @@ bell a write and take it off the screen during View-as.
 
 A row is `{id, kind, title, body, link, lessonId, readAt, createdAt}`. `kind` is `lesson.needs_skills`,
 `lesson.ready`, `lesson.failed`, `teacher.message` or — RM2 — `broadcast.posted` — **localise from `kind`**; `title` and `body` are English server strings to fall
-back on. `link` is a dashboard *path* (`/teacher/lessons/{id}`, `/admin/lessons/{id}`), never a URL.
+back on. `link` is a dashboard *path*, never a URL, and since MG1 **every row carries one, correct for the recipient's own
+role** — a coordinator sent to `/teacher/…` reaches a screen she has no route to:
+
+| `kind` | `link` |
+|---|---|
+| `lesson.needs_skills`, `lesson.ready`, `lesson.failed` | `/teacher/lessons/{lessonId}`, or `/admin/lessons/{lessonId}` for an ADMIN recipient |
+| `broadcast.posted` | `/<area>/broadcasts?open=<broadcastId>`, `<area>` = `teacher` \| `coordinator` \| `management` by the **recipient's** role |
+| `teacher.message` | `/management/messages?thread=<threadId>`, or `/management/messages` for a manager who holds no department of the sender's |
+
+The entity id the link points at is also on the row: `lessonId` for the three lesson kinds and the broadcast id for
+`broadcast.posted` (which is how a replaced weekly plan's bell entries are withdrawn with it).
 
 **Who gets one, and when.** Only the lesson's creator (`lessons.created_by`, resolved to a `users` row; a lesson
 created by the seed notifies nobody), and only on a real status *transition* written by `LessonState`:
@@ -1282,8 +1323,11 @@ it supersedes already carries — so a school with it off answers 404 to compose
 
 | Route | Permission | What |
 |---|---|---|
-| `POST /management/broadcasts` | `management.broadcast` | `kind` `weekly_plan` \| `announcement` \| `event`, `audience` a non-empty subset of `parents` / `teachers` / `coordinators`, `sectionIds` empty = the whole department. 201 `BroadcastView`. |
+| `POST /management/broadcasts` | `management.broadcast` | `kind` `weekly_plan` \| `announcement` \| `event`, `audience` a non-empty subset of `parents` / `teachers` / `coordinators`, `sectionIds` empty = the whole department, `grade` (MG1) = one grade of it. 201 `BroadcastView`. |
 | `GET /management/broadcasts` | `management.broadcast` | What she posted, newest first, expired rows included. |
+| `GET /management/weekly-plans?from=&to=&grade=` | `management.broadcast` | MG1: the archive of her department(s) — `WeeklyPlanArchive`, newest week first, each entry with `readBy`. |
+| `GET /me/weekly-plans?from=&to=` | `broadcast.read` | The same archive for a teacher, coordinator or manager: the plans whose audience includes her. |
+| `GET /children/{id}/weekly-plans?from=&to=` | `child.broadcast.read` | The app's archive for that child's section. |
 | `POST /coordinator/broadcasts` | `coordinator.broadcast` | `announcement` or `event` for the parents of the classes she coordinates; `weekly_plan` is 400 (the plan is the department's). |
 | `GET /coordinator/broadcasts` | `coordinator.broadcast` | Hers, newest first. |
 | `GET /me/broadcasts` | `broadcast.read` | `BroadcastFeed` — what this teacher, coordinator or manager is an audience of, with her own `unread`. |
@@ -1306,8 +1350,14 @@ when it was sent.
 department (`curriculum`) or the sections she named (each checked through `ManagerScope.requireSection` — the other
 department is 403, another school 404), and a coordinator's always names the classes she coordinates. A reader is in the
 audience when her role is in `audience_roles` **and** the row touches her: one of her sections when `section_ids` is
-set, her track when it is not. A parent's rule is the same from the child's side — the row is for `parents` and names her
-child's section or her child's track.
+set, her track — and, since V23, her **grade** — when it is not. A parent's rule is the same from the child's side — the
+row is for `parents` and names her child's section, or her child's track and grade.
+
+**`grade` (MG1, V23).** A manager's department-wide row may name one grade: `{"grade": 3}` means the sections of grade 3
+in her department and nobody else, and `grade` absent (the pre-V23 meaning of every existing row) means every grade of
+it. It may **not** be sent with `sectionIds` — those already say which grade is meant — and a grade she manages no class
+in is 400 rather than a broadcast with no audience. One predicate decides all of it, so the bell can never announce a
+plan the feed will not show.
 
 Each feed answers the **newest 50 live rows of the school**, filtered to the caller; an expired row (`expiresAt` in the
 past) drops out of every feed and stays in the composer's own list.
@@ -1320,8 +1370,19 @@ service. `unread` is `broadcast_reads`: one row per (broadcast, reader), the rea
 and a `parents` id in the app.
 
 **The weekly plan** is `kind=weekly_plan` with `weekStart` — any date in the week; the server snaps it back to the
-Sunday. There is **one per week per department**: posting it again deletes the previous row and its read marks, so the
-replacement arrives unread. `weekStart` is required for a plan and refused on the other two kinds.
+Sunday. There is **one per week per department and grade** (V23): posting the same `(weekStart, department, grade)`
+again deletes the previous row, its read marks and its bell entries, so the replacement arrives unread — while a
+grade's plan and the department's all-grades plan for the same week are two rows that coexist. `weekStart` is required
+for a plan and refused on the other two kinds.
+
+**The archive (MG1, owner's "see all weekly plans").** The three `weekly-plans` routes above answer
+`WeeklyPlanArchive`: `weeks[]` **newest week first**, each with its `items[]` sorted all-grades first then by grade,
+and each item a `{plan, readBy?}`. Absent `from`/`to` mean the **last twelve weeks** ending this one; both ends are
+snapped to their Sunday, `from` after `to` is 400 and a window wider than 104 weeks is 400; one page is 200 plans.
+It is the feed read backwards, with one deliberate difference: **an expired plan and a past week are still there** —
+the feeds drop an expired row and the archive is the screen that must not. `readBy` (how many people opened it) is
+answered on the manager's archive only, from one grouped statement; there is **no `audienceSize`** beside it, because
+an audience is resolved per reader out of `staff_scopes` and counting one would be a statement per plan.
 
 **Attachments** are a reference, not an upload: `{"attachment":{"url":"/media/pages/…","name":"plan.pdf"}}`, pointing at
 bytes that already exist. RM2 adds no upload route.

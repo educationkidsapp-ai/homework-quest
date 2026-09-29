@@ -52,8 +52,11 @@ public class ManagementChatController {
     /** A person a manager may open a thread with by id — the platform admins (`GET /management/admins`). */
     public record StaffPerson(String userId, String displayName) {}
 
-    /** `POST /management/chat/threads`: one of the two ids, never both — a coordinator of her department, or an admin. */
-    public record StaffThreadRequest(String coordinatorUserId, String adminUserId) {}
+    /**
+     * `POST /management/chat/threads`: one of the three ids — a teacher of her department (MG1), a coordinator of it,
+     * or a platform admin. `teacherUserId` wins when more than one is sent, and the body must name at least one.
+     */
+    public record StaffThreadRequest(String coordinatorUserId, String adminUserId, String teacherUserId) {}
 
     private final ChatService chat; private final Json json;
     public ManagementChatController(ChatService chat, Json json) { this.chat = chat; this.json = json; }
@@ -93,13 +96,13 @@ public class ManagementChatController {
         return json.encodeShared(chat.managerRead(caller, id), ChatReadReceipt.Companion.serializer());
     }
 
-    /** Her thread with a coordinator of her department or with an admin; the same thread whichever side opens it. */
+    /** Her thread with a teacher or a coordinator of her department, or with an admin; one row whichever side opens it. */
     @PostMapping(value = "/management/chat/threads", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('management.chat')")
     @ResponseStatus(HttpStatus.CREATED)
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatThread.class)))
     public String managementStaffThread(@AuthenticationPrincipal Principals.User caller, @RequestBody StaffThreadRequest body) {
-        return json.encodeShared(chat.managerStaffThread(caller, body.coordinatorUserId(), body.adminUserId()),
+        return json.encodeShared(chat.managerStaffThread(caller, body.coordinatorUserId(), body.adminUserId(), body.teacherUserId()),
                 ChatThread.Companion.serializer());
     }
 

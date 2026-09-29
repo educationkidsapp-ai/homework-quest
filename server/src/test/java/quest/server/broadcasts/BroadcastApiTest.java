@@ -61,6 +61,10 @@ class BroadcastApiTest extends ApiTestSupport {
     private static final String NOUR = "manager@test.com", SAMI = "manager2@test.com";
     private static final String MAYA = "maya@test.com", RAMI = "rami@test.com";
     private static final String BRITISH_PARENT = "bc-parent-uk", BRITISH_B_PARENT = "bc-parent-uk-b", AMERICAN_PARENT = "bc-parent-us";
+    /** MG1: a second British grade, so "her department" and "one grade of it" are two different audiences. */
+    private static final String RITA = "bc-rita", BRITISH_2_PARENT = "bc-parent-uk-2";
+    /** A teacher in <em>both</em> departments at different grades — the cross-product bug's only witness. */
+    private static final String ZAID = "bc-zaid", HALA = "bc-hala";
 
     @Autowired SchoolSeed seed;
     @Autowired SchoolRepository schools;
@@ -87,6 +91,7 @@ class BroadcastApiTest extends ApiTestSupport {
     /** A coordinator of maths and english in *both* tracks (`curriculum` NULL), which the seed has none of. */
     private static final String DANA = "bc-dana";
     private String childBritishA, childBritishB, childAmerican, adminToken, adminUserId;
+    private String british2A, childBritish2;
     private final List<ChatEvent> heard = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final LocalDate week = LocalDate.now().with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.SUNDAY));
 
@@ -109,7 +114,22 @@ class BroadcastApiTest extends ApiTestSupport {
         staff(DANA, "Dana", "COORDINATOR");
         scopeRow("bc-scope-dana-math", DANA, "math", null);
         scopeRow("bc-scope-dana-english", DANA, "english", null);
+        // MG1: grade 2 British, a teacher who is only in it and a child who sits in it. Grade 1 is everyone else's,
+        // so a plan for grade 2 has an audience that no grade-1 assertion above can accidentally satisfy.
+        staff(RITA, "Rita", "TEACHER");
+        // `art`, which no coordinator in this fixture holds a scope row for: the new section widens the manager's
+        // department (which is the point) without quietly widening Lina's or Huda's subject scope.
+        british2A = ClassFixtures.section(classes, assignments, SCHOOL + ":british:2:art", SCHOOL, "british", 2, "art", RITA).getId();
         for (String key : List.of(FlagKeys.CHAT, FlagKeys.ANNOUNCEMENTS)) { flag(SCHOOL, key, true); flag(OTHER_SCHOOL, key, true); }
+        childBritish2 = child("Yara", british2A, "british", BRITISH_2_PARENT, 2);
+        // Zaid teaches grade 1 British and grade 3 American. His tracks are {british, american} and his grades
+        // {1, 3}: matched independently that is four cells, two of which he teaches nobody in.
+        staff(ZAID, "Zaid", "TEACHER");
+        ClassFixtures.assign(assignments, classes.findById(britishA).orElseThrow(), "drama", ZAID);
+        ClassFixtures.section(classes, assignments, SCHOOL + ":american:3:drama", SCHOOL, "american", 3, "drama", ZAID);
+        // Grade 3 British exists and is somebody else's: the cell Zaid would be handed by a crossed track and grade.
+        staff(HALA, "Hala", "TEACHER");
+        ClassFixtures.section(classes, assignments, SCHOOL + ":british:3:drama", SCHOOL, "british", 3, "drama", HALA);
         adminToken = adminToken();
         adminUserId = users.findByEmailIgnoreCase("admin@test.local").orElseThrow().getId();
         bus.subscribe(heard::add);
@@ -413,6 +433,189 @@ class BroadcastApiTest extends ApiTestSupport {
         assertThat(names(staffGet(lina, "COORDINATOR", "/me/notifications"), "title")).doesNotContain("American notice");
     }
 
+    // ---------------------------------------------------------------- MG1: the plan per grade, and the archive
+
+    /**
+     * The owner's item 3: "the manager is who adds the weekly plan for all grades" — which is a plan <em>per</em>
+     * grade as well as one for all of them. The grade narrows the same department-wide row, so the audience is the
+     * sections of that grade and the read-time predicate is the one every feed and the fan-out already use.
+     */
+    @Test @Order(11) void a_grade_plan_reaches_that_grade_and_the_all_grades_plan_reaches_the_department() throws Exception {
+        var plan = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":2,"
+                + "\"title\":\"Grade 2 week\",\"bodyEn\":\"Long division all week.\",\"audience\":[\"parents\",\"teachers\"]}");
+        assertThat(plan.get("grade").asInt()).isEqualTo(2);
+        assertThat(plan.get("curriculum").asText()).isEqualTo("british");
+
+        // Rita teaches grade 2 British and nothing else: hers, on the feed and on the bell.
+        assertThat(names(staffGet(RITA, "TEACHER", "/me/broadcasts").get("items"), "title")).contains("Grade 2 week");
+        assertThat(names(staffGet(RITA, "TEACHER", "/me/notifications"), "title")).contains("Grade 2 week");
+        // Maya teaches grade 1 British: the same department, the wrong grade — neither half, or the bell would say
+        // what the feed will not show.
+        assertThat(names(staffGet(maya, "TEACHER", "/me/broadcasts").get("items"), "title")).doesNotContain("Grade 2 week");
+        assertThat(names(staffGet(maya, "TEACHER", "/me/notifications"), "title")).doesNotContain("Grade 2 week");
+        // And the department's own plan for the same week reaches both grades, which is what `grade` null means.
+        assertThat(names(staffGet(RITA, "TEACHER", "/me/broadcasts").get("items"), "title")).contains("Week of subtraction (v2)");
+
+        assertThat(names(parentGet(BRITISH_2_PARENT, "/children/" + childBritish2 + "/broadcasts").get("items"), "title"))
+                .contains("Grade 2 week");
+        assertThat(names(parentGet(BRITISH_PARENT, "/children/" + childBritishA + "/broadcasts").get("items"), "title"))
+                .doesNotContain("Grade 2 week");
+        // The two rows coexist: a grade plan does not replace the department's plan for its week.
+        assertThat(names(staffGet(nour, "MANAGERIAL", "/management/broadcasts"), "title"))
+                .contains("Grade 2 week", "Week of subtraction (v2)");
+
+        for (String body : List.of(
+                "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":9,\"bodyEn\":\"Nobody teaches it\",\"audience\":[\"parents\"]}",
+                "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":1,\"bodyEn\":\"Two ways of saying it\","
+                        + "\"audience\":[\"parents\"],\"sectionIds\":[\"" + britishA + "\"]}"))
+            mvc.perform(as(post("/management/broadcasts").contentType(MediaType.APPLICATION_JSON).content(body), token(nour, "MANAGERIAL")))
+                    .andExpect(status().isBadRequest());
+    }
+
+    /** The replace key is (school, week, department, grade): a re-post takes out its own row and no other. */
+    @Test @Order(12) void re_posting_a_grade_plan_replaces_that_grades_plan_only() throws Exception {
+        created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":2,"
+                + "\"title\":\"Grade 2 week (v2)\",\"bodyEn\":\"Long division, and a test on Thursday.\",\"audience\":[\"parents\",\"teachers\"]}");
+        assertThat(names(staffGet(RITA, "TEACHER", "/me/broadcasts").get("items"), "title"))
+                .contains("Grade 2 week (v2)", "Week of subtraction (v2)").doesNotContain("Grade 2 week");
+        assertThat(names(staffGet(RITA, "TEACHER", "/me/notifications"), "title")).doesNotContain("Grade 2 week");
+    }
+
+    /**
+     * The owner's item 4: "a feature to see all weekly plans". The archive is the feed read backwards — past weeks
+     * and expired rows included, which is the one thing it must do that `GET /me/broadcasts` must not.
+     */
+    @Test @Order(14) void the_archive_holds_past_weeks_and_stops_at_the_department() throws Exception {
+        var old = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week.minusWeeks(3) + "\","
+                + "\"title\":\"Three weeks ago\",\"bodyEn\":\"Shapes.\",\"audience\":[\"parents\",\"teachers\"]}");
+        // Expired by hand: there is no way to post a row that is already over, and "the feed hides it, the archive
+        // does not" is exactly the difference between the two screens.
+        broadcastRows.findById(old.get("id").asText()).ifPresent(row -> { row.setExpiresAt(clock.instant().minusSeconds(60)); broadcastRows.save(row); });
+        assertThat(names(staffGet(maya, "TEACHER", "/me/broadcasts").get("items"), "title")).doesNotContain("Three weeks ago");
+        assertThat(planTitles(staffGet(maya, "TEACHER", "/me/weekly-plans"))).contains("Three weeks ago");
+
+        var hers = staffGet(nour, "MANAGERIAL", "/management/weekly-plans");
+        assertThat(hers.get("weeks").get(0).get("weekStart").asText()).as("newest week first").isEqualTo(week.toString());
+        assertThat(planTitles(hers)).contains("Three weeks ago", "Week of subtraction (v2)", "Grade 2 week (v2)")
+                .as("the other department's week is not hers").doesNotContain("American week");
+        // All-grades first inside a week, then by grade, and her own archive counts the readers.
+        var thisWeek = hers.get("weeks").get(0).get("items");
+        assertThat(thisWeek.get(0).get("plan").get("grade").isNull()).isTrue();
+        assertThat(thisWeek.get(0).get("readBy").asInt()).isGreaterThanOrEqualTo(0);
+        assertThat(planTitles(staffGet(nour, "MANAGERIAL", "/management/weekly-plans?grade=2"))).containsExactly("Grade 2 week (v2)");
+
+        assertThat(planTitles(staffGet(sami, "MANAGERIAL", "/management/weekly-plans")))
+                .contains("American week").doesNotContain("Week of subtraction (v2)");
+        // A teacher's archive is her own audience, grade included; a parent's is her child's section.
+        assertThat(planTitles(staffGet(maya, "TEACHER", "/me/weekly-plans"))).doesNotContain("Grade 2 week (v2)");
+        assertThat(planTitles(staffGet(RITA, "TEACHER", "/me/weekly-plans"))).contains("Grade 2 week (v2)");
+        assertThat(planTitles(parentGet(BRITISH_2_PARENT, "/children/" + childBritish2 + "/weekly-plans"))).contains("Grade 2 week (v2)");
+        assertThat(planTitles(parentGet(AMERICAN_PARENT, "/children/" + childAmerican + "/weekly-plans"))).doesNotContain("Grade 2 week (v2)");
+        // A window that is not one, and one that is too wide, are both refused rather than silently narrowed.
+        for (String query : List.of("?from=" + week + "&to=" + week.minusWeeks(1), "?from=" + week.minusWeeks(300) + "&to=" + week))
+            mvc.perform(as(get("/management/weekly-plans" + query), token(nour, "MANAGERIAL"))).andExpect(status().isBadRequest());
+    }
+
+    /**
+     * The reviewer's blocker: <strong>a track and a grade are one key, not two.</strong> Zaid teaches grade 1 British
+     * and grade 3 American, so a set of tracks crossed with a set of grades offered him four cells — and handed him
+     * the British department's grade 3 plan, a week of work for children he has never taught, on the feed and in the
+     * bell alike. The pair he actually sits in is what decides it, in the one predicate the fan-out, the feeds and
+     * the archives all share.
+     */
+    @Test @Order(13) void a_teacher_in_two_departments_gets_neither_departments_other_grade() throws Exception {
+        created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":3,"
+                + "\"title\":\"British grade 3\",\"bodyEn\":\"Fractions.\",\"audience\":[\"teachers\"]}");
+        created(sami, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":3,"
+                + "\"title\":\"American grade 3\",\"bodyEn\":\"Spelling.\",\"audience\":[\"teachers\"]}");
+        created(sami, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week.minusWeeks(1) + "\",\"grade\":1,"
+                + "\"title\":\"American grade 1\",\"bodyEn\":\"Counting.\",\"audience\":[\"teachers\"]}");
+
+        var feed = names(staffGet(ZAID, "TEACHER", "/me/broadcasts").get("items"), "title");
+        assertThat(feed).as("the two cells he actually teaches in").contains("American grade 3")
+                .as("british|3 and american|1 are cells he holds no section in")
+                .doesNotContain("British grade 3", "American grade 1");
+        // Grade 1 British is his too, through the department-wide plan and a grade plan alike.
+        assertThat(feed).contains("Week of subtraction (v2)");
+        var bells = names(staffGet(ZAID, "TEACHER", "/me/notifications"), "title");
+        assertThat(bells).as("the bell must never say what the feed will not show")
+                .doesNotContain("British grade 3", "American grade 1");
+        // The archive asks the same question, so the three screens cannot drift apart.
+        var archive = planTitles(staffGet(ZAID, "TEACHER", "/me/weekly-plans"));
+        assertThat(archive).contains("American grade 3").doesNotContain("British grade 3", "American grade 1");
+        // And each row still reaches the teacher whose grade it is.
+        assertThat(names(staffGet(RITA, "TEACHER", "/me/broadcasts").get("items"), "title"))
+                .as("Rita is british|2") .doesNotContain("British grade 3");
+        assertThat(names(staffGet(HALA, "TEACHER", "/me/broadcasts").get("items"), "title"))
+                .as("Hala is british|3, so it is hers").contains("British grade 3").doesNotContain("American grade 3");
+    }
+
+    // ---------------------------------------------------------------- MG1: manager ↔ teacher chat
+
+    /**
+     * The owner's item 6, the half RM2 left out: the manager and her teachers. The teacher holds the `teacher_id`
+     * side and the manager `peer_user_id`, the rule R4 set for the coordinator and RM2 for the admin, so whichever
+     * side opens it there is one row and `findForStaff` finds it for both.
+     */
+    @Test @Order(15) void nour_and_maya_share_one_thread_and_sami_reaches_neither_end() throws Exception {
+        int before = (int) heard.stream().filter(e -> ChatEvent.MESSAGE.equals(e.kind())).count();
+        var thread = created(nour, "/management/chat/threads", "{\"teacherUserId\":\"" + maya + "\"}");
+        String threadId = thread.get("id").asText();
+        assertThat(thread.get("staffRole").asText()).isEqualTo("MANAGERIAL");
+        assertThat(thread.get("teacherId").asText()).as("the row names the other person").isEqualTo(maya);
+        created(nour, "/management/chat/threads/" + threadId + "/messages", "{\"body\":\"Your grade 1 plan, please.\"}");
+
+        assertThat(names(staffGet(maya, "TEACHER", "/teacher/managers"), "userId")).containsExactly(nour);
+        assertThat(names(staffGet(maya, "TEACHER", "/teacher/chat/staff-threads"), "id")).containsExactly(threadId);
+        assertThat(names(staffGet(maya, "TEACHER", "/teacher/chat/staff-threads/" + threadId + "/messages"), "body"))
+                .containsExactly("Your grade 1 plan, please.");
+        created(maya, "TEACHER", "/teacher/chat/staff-threads/" + threadId + "/messages", "{\"body\":\"Sent it this morning.\"}");
+        assertThat(names(staffGet(nour, "MANAGERIAL", "/management/chat/threads/" + threadId + "/messages"), "body"))
+                .containsExactly("Your grade 1 plan, please.", "Sent it this morning.");
+        // Opened from her side it is the same row, and the read receipt clears her own badge.
+        assertThat(created(maya, "TEACHER", "/teacher/chat/staff-threads", "{\"managerUserId\":\"" + nour + "\"}").get("id").asText())
+                .isEqualTo(threadId);
+        staffPostStaff(maya, "TEACHER", "/teacher/chat/staff-threads/" + threadId + "/read");
+        assertThat(rowWith(staffGet(maya, "TEACHER", "/teacher/chat/staff-threads"), "id", threadId).get("unread").asInt()).isZero();
+        // Both messages crossed the bus naming this thread and this school: the sockets carry it either way.
+        var frames = heard.stream().filter(e -> ChatEvent.MESSAGE.equals(e.kind()) && threadId.equals(e.threadId())).toList();
+        assertThat(frames).hasSize(2).allSatisfy(e -> { assertThat(e.schoolId()).isEqualTo(SCHOOL); assertThat(e.peerUserId()).isEqualTo(nour); });
+        assertThat(heard.stream().filter(e -> ChatEvent.MESSAGE.equals(e.kind())).count()).isEqualTo(before + 2L);
+
+        // Sami manages the other department: Maya is not his teacher and he is not her manager, from either side.
+        mvc.perform(as(post("/management/chat/threads").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"teacherUserId\":\"" + maya + "\"}"), token(sami, "MANAGERIAL"))).andExpect(status().isNotFound());
+        mvc.perform(as(post("/teacher/chat/staff-threads").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"managerUserId\":\"" + sami + "\"}"), token(maya, "TEACHER"))).andExpect(status().isNotFound());
+        // And a thread of hers is not Rami's to read, whatever id he sends.
+        mvc.perform(as(get("/teacher/chat/staff-threads/" + threadId + "/messages"), token(rami, "TEACHER"))).andExpect(status().isNotFound());
+    }
+
+    /**
+     * The owner's item 7: a bell entry that cannot be opened is a bell entry nobody uses. Every kind carries a link
+     * on the <em>recipient's</em> own dashboard — the area is her role's, never the author's.
+     */
+    @Test @Order(16) void every_notification_kind_links_into_the_recipients_own_area() throws Exception {
+        String id = created(nour, "/management/broadcasts", "{\"kind\":\"announcement\",\"title\":\"Link check\","
+                + "\"bodyEn\":\"Open me.\",\"audience\":[\"teachers\",\"coordinators\"]}").get("id").asText();
+        assertThat(rowWith(staffGet(maya, "TEACHER", "/me/notifications"), "title", "Link check").get("link").asText())
+                .isEqualTo("/teacher/broadcasts?open=" + id);
+        assertThat(rowWith(staffGet(lina, "COORDINATOR", "/me/notifications"), "title", "Link check").get("link").asText())
+                .isEqualTo("/coordinator/broadcasts?open=" + id);
+
+        // `teacher.message` now opens the thread it was appended to, so the manager can answer rather than only read.
+        String threadId = names(staffGet(maya, "TEACHER", "/teacher/chat/staff-threads"), "id").get(0);
+        mvc.perform(as(post("/teacher/messages/coordinator").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"body\":\"The projector in 1A is broken.\"}"), token(maya, "TEACHER"))).andExpect(status().isOk());
+        assertThat(rowWith(staffGet(nour, "MANAGERIAL", "/me/notifications"), "kind", "teacher.message").get("link").asText())
+                .isEqualTo("/management/messages?thread=" + threadId);
+        assertThat(names(staffGet(nour, "MANAGERIAL", "/management/chat/threads/" + threadId + "/messages"), "body"))
+                .contains("The projector in 1A is broken.");
+        // Sami manages no department of hers, so there is no thread of his to open — the screen, without one.
+        assertThat(rowWith(staffGet(sami, "MANAGERIAL", "/me/notifications"), "kind", "teacher.message").get("link").asText())
+                .isEqualTo("/management/messages");
+    }
+
     // ---------------------------------------------------------------- fixture helpers
 
     /** A staff account with no teacher profile behind it — `ManagementApiTest`'s own helper. */
@@ -468,6 +671,16 @@ class BroadcastApiTest extends ApiTestSupport {
     private static List<String> names(JsonNode rows, String field) {
         var out = new ArrayList<String>();
         rows.forEach(row -> out.add(row.get(field) == null || row.get(field).isNull() ? null : row.get(field).asText()));
+        return out;
+    }
+
+    /** Every plan title of an archive, week by week — the archives are grouped, so `names` cannot read them. */
+    private static List<String> planTitles(JsonNode archive) {
+        var out = new ArrayList<String>();
+        archive.get("weeks").forEach(week -> week.get("items").forEach(entry -> {
+            var title = entry.get("plan").get("title");
+            out.add(title == null || title.isNull() ? null : title.asText());
+        }));
         return out;
     }
 
