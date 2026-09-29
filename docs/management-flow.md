@@ -20,12 +20,91 @@ department-scoped.
 | **Home** `/management`                                                                             | `GET /management/me`, `/stats?from&to`, `/lessons?status=`                             | DR5's statistics: a row per grade and the department's total — children, classes, attendance, lessons published and played, exams with their average and pass rate — over a window she picks (a month ending today by default), then the quiet teachers, then **What needs you** |
 | **Coordinators** `/management/coordinators`                                                        | `GET /management/coordinators`                                                         | Name, email, subjects, tracks, how many sections each supervises. Searchable, no row action                                                                                                                                                                                      |
 | **Teachers** `/management/teachers`                                                                | `GET /management/teachers`, `/classes`                                                 | The coordinator's own screen: who teaches in the department and whether today has happened in their sections                                                                                                                                                                     |
-| **Classes** `/management/classes`                                                                  | `GET /management/classes`, `/calendar?from&to`                                         | Every section, under a heading per grade, and one section's month below it                                                                                                                                                                                                       |
-| **All lessons** `/management/lessons`                                                              | `GET /management/lessons?classId&status&from&to`                                       | Every lesson of the department, narrowed by class, status and a date range                                                                                                                                                                                                       |
-| **A lesson** `/management/lessons/{id}`                                                            | `GET /management/lessons/{id}` (+ `/status`)                                           | The teacher's lesson page, read-only, polling her own `/status` alias                                                                                                                                                                                                            |
-| **Records** attendance · gradebook · exams, plus a lesson's results, an exam's results and a child | the six `/management/**` reads                                                         | The teacher's own screens, read-only, one class at a time                                                                                                                                                                                                                        |
+| **Attendance** `/management/attendance`                                                            | `GET /management/classes/{id}/attendance?from&to`                                      | The teacher's register, read-only, one class at a time — the one record screen MG2a kept                                                                                                                                                                                         |
 | **People** `/management/people`                                                                    | `GET /management/people/children\|teachers\|coordinators?q&page&size`                  | Three tabs, searched and paged by the server, with a client-side CSV of the whole tab                                                                                                                                                                                            |
 | **Staff attendance** `/management/staff-attendance`                                                | `GET\|PUT /management/staff-attendance?day=`, `…/summary?month=`, `…/{userId}?from&to` | The department's register for a day, each person's month, and one person's marked days in a drawer                                                                                                                                                                               |
+
+## What MG2a took off her rail (the owner's list, 2026-09-30)
+
+Four rail items and the six routes behind them: **Classes** (and its calendar), **All lessons**
+(and the read-only lesson page), **Gradebook** and **Exams** (and a lesson's results, an exam's
+results and a child's report). Her question is not a coordinator's — she runs a track and asks
+how it is *doing*, which is her Home — and a rail of ten items that mostly opened somebody
+else's screen read-only was ten places to look for the two she uses.
+
+**UI-only.** Every `/management/**` route on the server stays: the coordinator reads the same
+shapes through her own namespace, `LessonApiService`/`ResultsApiService` still branch on the
+role, and `ManagementApiTest` is untouched. The paths are **redirect rows** in
+`core/nav/screens.ts` (`MANAGER_RETIRED`) rather than deletions, so a bookmark, the runbook's
+own URL and a `link` an old notification carries all land on her Home instead of `/not-found`.
+
+**The service branches stay.** `LessonApiService` and `ResultsApiService` still answer
+`/management/**` for six reads no screen of hers makes any more (a lesson, a lesson's results, a
+child, an exam's results, and the gradebook and exam lists). They are one `if` each in services
+the coordinator shares, a department-scoped restore is on the server roadmap, and the redirect
+rows above still need the *live* two — Home's attention list (`lesson-api.service.ts`) and
+Attendance (`results-api.service.ts`). Kept deliberately, not overlooked.
+
+**A child's name on Attendance is a name, not a link.** `children/:childId` is one of the
+retired rows, so `childBase` is nullable and the register draws a `<span>` for her; the
+coordinator's child report never left her area, so hers is still a link.
+
+Her Home's **What needs you** followed: a failed or unreviewed lesson is now a line rather than
+a link (there is no lesson page of hers to open, and what she does about it was always a message),
+and "nothing on today" points at **Teachers**, the screen that says whether today has happened in
+a teacher's sections.
+
+**"Show me around" went with them.** `MANAGERIAL` has no row in `TOURS`, so there is no entry in
+her account menu and nothing is offered on first sign-in; the other three roles are unchanged.
+The other two "developer" surfaces were never hers: **Show the raw JSON** is `ViewModeService`,
+which is `role === 'ADMIN'` and nothing else, and the **Design** styleguide (`/styleguide`) is
+replaced with an empty route array in the `qa` *and* `production` build configurations, so it is
+not in the bundle either environment serves.
+
+## School usage (MG2a) — `/management/usage`
+
+`GET /school/usage` over a window she picks (the month ending today, in the school's timezone, by
+default — asked for once she has **stopped typing or left the box**, because a `type="date"`
+input emits `0002-09-05` on the way to `2026-09-05` and each of those was a request the server
+answered 400; a window longer than `Reports.MAX_DAYS` (400 days) and one that ends before it
+starts are both said on screen instead of sent): four tiles — children, active families, lessons published and lessons played, both
+summed across the window rather than read off its last week — and a row per teacher from
+`teacherConsistency`: lessons published, **weeks with a lesson out of the window's weeks**, that
+ratio as a percentage, and when she last published. A CSV of the rows on screen, built in the
+browser by `core/download/csv.ts`, because the endpoint publishes none.
+
+**It is the school's, not her department's.** `DashboardDataController.mySchoolUsage` resolves
+the caller's own school and `SchoolUsage` carries no curriculum axis at all, so a manager of the
+British department sees the American one's teachers here too. The subtitle says so in words; a
+department-scoped read is a server change, not a filter this screen may invent. **No AI tokens or
+cost**, either — those are on `PlatformUsage` behind `usage.platform`, which only an Admin holds.
+
+## Where a notification goes (MG2a item 7)
+
+Clicking a row — in the bell, or on `/notifications` — marks it read **and navigates**, which
+until MG2a it only did when the server had written a `link`. `core/notifications/
+notification-target.ts` is the single place that turns a row into a route for the *viewer's*
+role, because E2 writes `link` from the recipient's role as it was at the moment the row was
+created and so had three ways to be wrong: a kind with no link at all (`teacher.message` is
+written with `null`), a link into an area the viewer does not have, and a link to a screen a role
+has since lost.
+
+| Kind                                             | Teacher (and Admin)                        | Coordinator                    | Manager                            |
+| ------------------------------------------------ | ------------------------------------------ | ------------------------------ | ---------------------------------- |
+| `lesson.needs_skills` · `lesson.ready` · `lesson.failed` | `/teacher/lessons/{id}` · `/admin/lessons/{id}` | `/coordinator/lessons/{id}`    | `/notifications` (no lesson page)  |
+| `broadcast.posted`                               | `/teacher/broadcasts?open={id}` (Admin: `/notifications`) | `/coordinator/broadcasts?open={id}` | `/management/broadcasts?open={id}` |
+| `teacher.message`                                | `/notifications` (she never gets one)      | `/coordinator/messages`        | `/management/messages`             |
+| anything else                                    | `/notifications`                           | `/notifications`               | `/notifications`                   |
+
+The **server's own `link` wins** when it is a path inside the viewer's area and is not one of the
+manager's retired screens — so MG1's role-correct fan-out takes effect without a second dashboard
+deploy. `?open=` and `?thread=` come from `lessonId`, which is E2's *entity* id rather than a
+lesson's alone (`BroadcastService` puts the broadcast's id there, which is how a superseded weekly
+plan's bell rows are found and forgotten). Broadcasts honours `?open=` by drawing that row open,
+marking it read and scrolling to it — off `toSignal(route.queryParamMap)` rather than the
+snapshot, because the bell is on every screen and clicking a row *while already on Broadcasts*
+is a query-param-only navigation that reuses the component. `features/chat/chat.page.ts` still
+reads `?thread=` off the snapshot and has the same gap; it is a follow-up.
 
 ## Broadcasts and Messages (RM3b, DR5, DR6)
 
@@ -104,7 +183,8 @@ different facts, and a Save that is merely grey is a control nobody can act on.
 
 ## What RM3a and RM3b could not do
 
-- **Complaints is still the stub.** RM3b took the broadcast and the message halves of row RM3;
+- **Complaints is still the stub**, and since MG2a it is not in her rail either — the route
+  resolves, the label comes back with phase 5. RM3b took the broadcast and the message halves of row RM3;
   `/management/complaints` and her Home's "What needs you" complaint line are the rest of it. The
   Complaint badge is already on the row in Messages, which is where a complaint of hers lives.
 - **No attachment on a broadcast.** `{"attachment":{"url","name"}}` is a *reference* to bytes that
@@ -134,7 +214,8 @@ weakest skills and what needs somebody.
 Full local seed (`SEED_SCHOOL=true`): sign in as `manager.a@school.test` (Huda Salem, the British
 department; `seed/managers.csv`) with `E2E_STAFF_PASSWORD`.
 `dashboard/e2e/local/management-area.spec.ts` walks the Home's statistics, the Coordinators list,
-Classes, the staff register and People. `dashboard/e2e/local/broadcasts.spec.ts` turns
+the staff register, People and School usage, and checks that a bookmark of a removed screen lands
+on her Home. `dashboard/e2e/local/broadcasts.spec.ts` turns
 `announcements` on, posts this week's plan as her, and reads it back as Sara Al Harbi — the
 British Math teacher — pinned at the top of `/teacher/broadcasts` with the bell ringing. It is
 re-runnable: a weekly plan replaces the one before it for the same week.

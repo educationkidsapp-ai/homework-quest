@@ -193,6 +193,60 @@ describe('the screen table', () => {
     ).toBe(true);
   });
 
+  /**
+   * MG2a (the owner's list, 2026-09-30): "Remove Classes, All lessons, Gradebook and Exams."
+   *
+   * Both halves are asserted, because the table is what makes them one fact: the rows are gone
+   * from her rail, and the paths behind them redirect to her Home rather than 404 — a bookmark,
+   * an old notification's `link` and the runbook's own URL all still resolve. The `/management/**`
+   * API routes are untouched, which is why nothing here asserts anything about them.
+   */
+  it('gives a manager her ten rail items, and redirects the four screens MG2a removed', () => {
+    expect(navScreens('MANAGERIAL').map(({ screen }) => screen.id)).toEqual([
+      'home',
+      'coordinators',
+      'teachers',
+      'attendance',
+      'people',
+      'staff-attendance',
+      'broadcasts',
+      'messages',
+      'usage',
+    ]);
+    // MG2a: Complaints keeps its route and loses its label until phase 5 fills the stub.
+    const complaints = AREAS.MANAGERIAL.screens.find((screen) => screen.id === 'complaints');
+    expect(complaints?.labelKey).toBeUndefined();
+    expect(phaseOf('/management/complaints')).toBe(5);
+
+    const routes = childrenOf(areaRoutes('MANAGERIAL'));
+    for (const path of [
+      'classes',
+      'lessons',
+      'lessons/:id',
+      'lessons/:id/results',
+      'gradebook',
+      'exams',
+      'exams/:id/results',
+      'children/:childId',
+    ]) {
+      const route = routes.find((candidate) => candidate.path === path);
+      expect(`${path}:${String(route?.redirectTo)}`).toBe(`${path}:/management`);
+      expect(`${path}:${route?.pathMatch}`).toBe(`${path}:full`);
+      // A redirect draws nothing, so it must not also try to load a component.
+      expect(route?.loadComponent).toBeUndefined();
+    }
+    // None of them is in the rail any more, redirect or not.
+    const rail = navScreens('MANAGERIAL').map(({ link }) => link);
+    for (const link of ['/management/classes', '/management/lessons', '/management/gradebook'])
+      expect(rail).not.toContain(link);
+
+    // MG2a item 5: School usage is built, so it is no longer a stub and carries the server's key.
+    const usage = AREAS.MANAGERIAL.screens.find((screen) => screen.id === 'usage');
+    expect(usage?.phase).toBeUndefined();
+    expect(usage?.permission).toBe('usage.school');
+    expect(phaseOf('/management/usage')).toBeUndefined();
+  });
+
   it('names the phase of a stub, including on a detail route', () => {
     expect(phaseOf('/admin/users')).toBe(3);
     expect(phaseOf('/management/complaints')).toBe(5);

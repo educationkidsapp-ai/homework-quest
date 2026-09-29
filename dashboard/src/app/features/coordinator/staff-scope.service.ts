@@ -71,8 +71,14 @@ export interface StaffNeed {
   readonly kind: 'complaint' | 'needs_review' | 'error' | 'no_lesson';
   readonly title: string;
   readonly className: string;
-  /** `{base}/lessons/{id}`, or the Classes screen when there is no lesson to open. */
-  readonly link: readonly string[];
+  /**
+   * `{base}/lessons/{id}`, or the Classes screen when there is no lesson to open.
+   *
+   * `null` for a manager's lesson lines since MG2a: All lessons and the read-only lesson page
+   * left her rail, so the line still tells her which lesson needs somebody — that is the whole
+   * point of the list — but it is not a link to a screen she no longer has.
+   */
+  readonly link: readonly string[] | null;
 }
 
 /**
@@ -309,11 +315,15 @@ export class StaffScopeService {
       className: thread.className ?? '',
       link: [`${base}/complaints`],
     }));
+    // MG2a: a manager has no lesson page and no Classes screen any more, so her two lesson
+    // kinds are lines rather than links, and a class with nothing on today sends her to
+    // Teachers — the screen that says whether today has happened in a teacher's sections.
+    const manager = this.area() === 'management';
     const lessons = this.attentionRes.value().map((lesson) => ({
       kind: lesson.status === AdminLessonStatusEnum.ERROR ? ('error' as const) : ('needs_review' as const),
       title: (lesson.title ?? '').trim(),
       className: lesson.className ?? '',
-      link: [`${base}/lessons`, lesson.id],
+      link: manager ? null : [`${base}/lessons`, lesson.id],
     }));
     const quiet = this.classes()
       .filter((row) => row.todayLessonId === null)
@@ -321,7 +331,7 @@ export class StaffScopeService {
         kind: 'no_lesson' as const,
         title: row.teacherName,
         className: row.className,
-        link: [`${base}/classes`],
+        link: [`${base}/${manager ? 'teachers' : 'classes'}`],
       }));
     const rank = { complaint: 0, error: 1, needs_review: 2, no_lesson: 3 };
     return [...complaints, ...lessons, ...quiet].sort((a, b) => rank[a.kind] - rank[b.kind]);

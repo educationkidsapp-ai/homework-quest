@@ -149,7 +149,13 @@ import {
               <ul class="mg-list">
                 @for (need of staff.needs().slice(0, 12); track $index) {
                   <li class="mg-list__row">
-                    <a [routerLink]="need.link">{{ needLine(need) }}</a>
+                    @if (need.link; as link) {
+                      <a [routerLink]="link">{{ needLine(need) }}</a>
+                    } @else {
+                      <!-- MG2a: her lesson page went with All lessons, so the line is the fact
+                           and the next step is a message, which is what it always was. -->
+                      <span>{{ needLine(need) }}</span>
+                    }
                     <span class="hq-badge" [class.hq-badge--error]="need.kind === 'error'">
                       {{ 'coordinator.need.' + need.kind | transloco }}
                     </span>

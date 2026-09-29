@@ -362,6 +362,32 @@ describe('the coordinator’s record screens', () => {
       expect(document.querySelectorAll('input[type="date"]').length).toBe(0);
     });
 
+    /**
+     * MG2a: the child report left the manager's rail, so on the one record screen she kept a
+     * child's name must not be a link — it resolved to `children/:childId`, a retired row, and
+     * every name on the register bounced her to her Home. The coordinator's is asserted in the
+     * same test, because "hide it from her" and "leave it for everybody else" are one decision.
+     */
+    it('links a child for a coordinator and only names her for a manager', async () => {
+      const { fixture } = await renderHq(ClassAttendanceComponent, {
+        providers,
+        inputs: { classId: 'c-1a', className: '1A British', readOnly: true, days: DAYS, childBase: null },
+      });
+      await settle();
+
+      expect(screen.queryByRole('link', { name: 'Omar' })).toBeNull();
+      expect(screen.getByText('Omar')).toBeInTheDocument();
+
+      // The same table, the same rows, one input: what separates the two readers is the base,
+      // so flipping it is the whole assertion rather than a second render of everything.
+      fixture.componentRef.setInput('childBase', '/coordinator/children');
+      await settle();
+
+      expect(screen.getByRole('link', { name: 'Omar' }).getAttribute('href')).toBe(
+        '/coordinator/children/ch-1',
+      );
+    });
+
     it('gives the teacher the pills, the notes and Save', async () => {
       await renderHq(ClassAttendanceComponent, {
         providers,

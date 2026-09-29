@@ -1747,16 +1747,6 @@
         "body": "Each card shows whether today's lesson is published. One tap adds the missing one."
       }
     },
-    "management": {
-      "nav": {
-        "title": "Your school",
-        "body": "Complaints from parents, how much the school is using, and your teachers."
-      },
-      "cards": {
-        "title": "The three numbers",
-        "body": "Children, families active this week, and teachers."
-      }
-    },
     "coordinator": {
       "nav": {
         "title": "Your screens",
@@ -2068,6 +2058,28 @@
     },
     "exams": {
       "subtitle": "The exams of one of your classes. You can read them; only the teacher sets and marks them."
+    },
+    "usage": {
+      "scope": "The whole school, every department — over the window you pick",
+      "backwards": "That window ends before it starts.",
+      "tilesLabel": "School usage",
+      "export": "Export CSV",
+      "teachers": "How often each teacher publishes",
+      "empty": "No teacher published in this window",
+      "emptyHint": "Try a wider window, or check that lessons are being published at all.",
+      "tile": {
+        "children": "Children",
+        "activeFamilies": "Active families",
+        "lessonsPublished": "Lessons published",
+        "plays": "Lessons played"
+      },
+      "columns": {
+        "teacher": "Teacher",
+        "published": "Lessons published",
+        "weeks": "Weeks with a lesson",
+        "consistency": "Consistency",
+        "last": "Last published"
+      }
     }
   },
   "broadcasts": {

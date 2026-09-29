@@ -67,8 +67,14 @@ export class ClassAttendanceComponent {
    */
   readonly days = input<readonly AttendanceDayDto[] | null>(null);
 
-  /** Where a child's name goes — her report lives under a different area for each role. */
-  readonly childBase = input('/teacher/children');
+  /**
+   * Where a child's name goes — her report lives under a different area for each role.
+   *
+   * `null` means **nowhere**: MG2a took the child report off the manager's rail, so on the one
+   * record screen she kept, a name that was still a link bounced her to her Home. A name is a
+   * name then, not a door with the handle painted over.
+   */
+  readonly childBase = input<string | null>('/teacher/children');
 
   /** U1 item 5: the green strip goes away on its own after three seconds. */
   protected readonly savedToastMs = 3000;
@@ -104,8 +110,9 @@ export class ClassAttendanceComponent {
     return days === null ? null : attendanceRange(days);
   });
 
-  protected childLink(childId: string): readonly string[] {
-    return [this.childBase(), childId];
+  protected childLink(childId: string): readonly string[] | null {
+    const base = this.childBase();
+    return base === null ? null : [base, childId];
   }
 
   /**

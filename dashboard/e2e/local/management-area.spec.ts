@@ -7,8 +7,11 @@ import { MANAGER, expect, signIn, test } from './env';
  *
  * Huda Salem (`seed/managers.csv`) runs the **British** department: every grade and every
  * subject of that track, and nothing of the American one. That is the assertion running through
- * this file — her Coordinators list, her Classes and her People are all British and only
- * British.
+ * this file — her Coordinators list and her People are British and only British.
+ *
+ * MG2a took Classes, All lessons, Gradebook and Exams off her rail, so the Classes walk went
+ * with them; what replaced it is the bookmark test (a removed URL lands on her Home) and School
+ * usage, whose numbers are deliberately *not* her department's.
  *
  * One test writes: the staff register is the single write in the whole namespace. It marks a
  * person late for today and reads it back, which is idempotent — the row is upserted on
@@ -47,18 +50,45 @@ test.describe('the management area', () => {
     // Read-only, everywhere: the whole area has one write and it is not on this screen.
     await expect(stats.getByRole('button')).toHaveCount(0);
 
+    // MG2a: Classes, All lessons, Gradebook and Exams left her rail on the owner's own
+    // instruction, and Complaints lost its label while it is still a stub. Broadcasts and
+    // Messages are flag-gated and absent from the seeded school.
     await expect(rail(page).getByRole('link')).toHaveText([
       'Home',
       'Coordinators',
       'Teachers',
-      'Classes',
-      'All lessons',
       'Attendance',
-      'Gradebook',
-      'Exams',
       'People',
       'Staff attendance',
+      'School usage',
     ]);
+  });
+
+  /** MG2a: the screens that left the rail still resolve — onto her Home, not onto /not-found. */
+  test('sends a bookmark of a removed screen back to her Home', async ({ page }) => {
+    await openManagement(page);
+
+    for (const path of ['/management/classes', '/management/lessons', '/management/gradebook']) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/management$/);
+    }
+  });
+
+  test("shows the school's usage over a window she picks, and exports it", async ({ page }) => {
+    await openManagement(page);
+    await rail(page).getByRole('link', { name: 'School usage' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'School usage' })).toBeVisible();
+
+    // `GET /school/usage` is the school's, every department of it — the screen says so.
+    await expect(page.locator('main')).toContainText('The whole school');
+    const table = page.getByRole('table', { name: 'How often each teacher publishes' });
+    await expect(table).toBeVisible({ timeout: 30_000 });
+    await expect(table.getByRole('row')).not.toHaveCount(1);
+    await expect(page.getByLabel('From')).toBeVisible();
+
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export CSV' }).click();
+    expect((await download).suggestedFilename()).toContain('school-usage');
   });
 
   test('lists the coordinators of her department, and not the other one', async ({ page }) => {
@@ -75,23 +105,6 @@ test.describe('the management area', () => {
 
     await page.getByLabel('Search by name, email or subject').fill('Rasha');
     await expect(table).toContainText('coordinator.math@school.test');
-  });
-
-  test('shows the British sections under a heading per grade, and no American one', async ({ page }) => {
-    await openManagement(page);
-    await rail(page).getByRole('link', { name: 'Classes' }).click();
-    await expect(page.getByRole('heading', { level: 1, name: 'Classes' })).toBeVisible();
-
-    const card = page.locator('hq-card').first();
-    await expect(card.getByRole('heading', { name: 'Grade 1' })).toBeVisible({ timeout: 30_000 });
-    const sections = card.getByRole('listitem');
-    await expect(sections.first()).toBeVisible();
-    for (const text of await sections.allTextContents()) expect(text).toContain(DEPARTMENT);
-    // Her department is every *subject* of the track, which is what a coordinator's is not.
-    await expect(card).toContainText('1A British');
-
-    // Her month has no add affordance either: the teacher's `+` is not drawn for a supervisor.
-    await expect(page.locator('.cal__add')).toHaveCount(0);
   });
 
   test('marks a teacher late today and reads the mark back', async ({ page }) => {
