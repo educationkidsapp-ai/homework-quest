@@ -255,6 +255,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.staffAttendance',
         permission: 'management.staff.attendance',
       },
+      // MG2b (owner's items 3 and 4): the weekly plan per grade, and the archive of every one of
+      // them. Her own row rather than a tab on Broadcasts, because it is the screen she *writes*
+      // the week from; a teacher and a coordinator read the same archive one tab over there.
+      {
+        id: 'weekly-plans',
+        path: 'weekly-plans',
+        labelKey: 'nav.weeklyPlans',
+        flag: FLAGS.announcements,
+        permission: 'management.broadcast',
+      },
       // RM3b: the feed she reads and the composer only she has — the weekly plan is the
       // department's (DR6), so `weekly_plan` is 400 on every other route.
       {

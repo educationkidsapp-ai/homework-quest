@@ -23,6 +23,7 @@ import { api, schoolOfSara, withFlags } from './n4-api';
 const PLAN_TITLE = 'Subtraction week';
 const PLAN_BODY = 'Subtraction all week, and swimming on Thursday.';
 const NOTE_TITLE = 'Reading week';
+const GRADE_PLAN_TITLE = 'Grade 1 counting week';
 
 let context: APIRequestContext;
 let restoreFlags: (() => Promise<void>) | null = null;
@@ -126,5 +127,53 @@ test.describe('broadcasts', () => {
 
     await page.getByRole('tab', { name: 'You posted' }).click();
     await expect(card(page, title)).toContainText('Announcement');
+  });
+
+  /**
+   * MG2b (owner's items 3 and 4): "the manager is who adds the weekly plan for all grades", and
+   * "a feature to see all weekly plans".
+   *
+   * Her own screen: the week at a glance per grade, a plan for one grade of the department, and the
+   * archive that lists it beside the all-grades plan the first test posted. Both are live at once —
+   * a grade's plan and the department's plan for the same week are two rows, not a replacement.
+   */
+  test('the manager posts a grade plan and finds both in the archive', async ({ page }) => {
+    await signIn(page, MANAGER);
+    await rail(page).getByRole('link', { name: 'Weekly plans' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Weekly plans' })).toBeVisible();
+
+    // This week at a glance: the all-grades plan is posted (the first test), so its card offers a
+    // replacement while every grade card still offers a first plan.
+    await expect(page.getByText('This week at a glance')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Replace plan' }).first()).toBeVisible();
+
+    await page.locator('page-footer, [page-footer]').getByRole('button', { name: 'Add plan' }).click();
+    // One kind on this screen, so there is nothing to pick: the sheet is a plan by definition.
+    await expect(page.getByLabel('What is this')).toHaveCount(0);
+    await page.getByLabel('Week').selectOption({ index: 1 });
+    await page.getByLabel('Which grade').selectOption({ label: 'Grade 1' });
+    await expect(page.getByText('replaces that week’s plan for that grade')).toBeVisible();
+    await page.getByLabel('Title').fill(GRADE_PLAN_TITLE);
+    await page.getByLabel('Message (English)').fill('Counting to twenty, every day.');
+    await page.getByRole('button', { name: 'Post', exact: true }).click();
+    await expect(page.getByText('Posted.')).toBeVisible();
+
+    // The archive: this week, newest first, with both rows and the department's own one labelled
+    // "All grades" — and `readBy`, which only her archive answers.
+    const archive = page.locator('hq-card').filter({ hasText: 'Every weekly plan' });
+    await expect(archive).toContainText(GRADE_PLAN_TITLE);
+    await expect(archive).toContainText(PLAN_TITLE);
+    await expect(archive).toContainText('Grade 1');
+    await expect(archive).toContainText('All grades');
+    await expect(archive).toContainText('Read by');
+  });
+
+  /** The same archive, read-only, where a teacher already comes for this week's plan. */
+  test('the teacher reads past weeks on her own Weekly plans tab', async ({ page }) => {
+    await openBroadcasts(page, SARA);
+    await page.getByRole('tab', { name: 'Weekly plans' }).click();
+    await expect(page.locator('main')).toContainText(PLAN_TITLE, { timeout: 30_000 });
+    // Hers carries no reader count: `readBy` is the manager's archive alone.
+    await expect(page.locator('main')).not.toContainText('Read by');
   });
 });

@@ -307,4 +307,44 @@ describe('the broadcasts screen', () => {
       sectionIds: ['c-1'],
     });
   });
+
+  /**
+   * MG2b item 2: the read-only archive a teacher and a coordinator get, on `GET /me/weekly-plans`.
+   *
+   * A tab rather than a rail row: she already comes here for this week's plan (it is the pinned
+   * row), and "the weeks before this one" is the same screen one tab over. Past weeks and expired
+   * plans are in it — that is the whole difference from the feed above.
+   */
+  it('lists the weekly plans of past weeks on its own tab, and asks for them only then', async () => {
+    const backend = await signedInAs(TEACHER_USER);
+    backend.expectOne('/me/broadcasts').flush({ items: [PLAN], unread: 1 });
+    await settle();
+    // Nothing is asked on arrival: the twelve weeks behind this one are a second question.
+    expect(backend.match((request) => request.url === '/me/weekly-plans')).toEqual([]);
+
+    screen.getByRole('tab', { name: 'Weekly plans' }).click();
+    await settle();
+
+    backend
+      .expectOne((request) => request.url === '/me/weekly-plans')
+      .flush({
+        from: '2026-09-13',
+        to: '2026-09-27',
+        weeks: [
+          { weekStart: '2026-09-27', items: [{ plan: PLAN }] },
+          {
+            weekStart: '2026-09-13',
+            items: [{ plan: { ...PLAN, id: 'b-old', title: 'Two weeks ago', grade: 1 } }],
+          },
+        ],
+      });
+    await settle();
+
+    expect(document.body.textContent).toContain('Two weeks ago');
+    // The grade a plan was for, and "All grades" for the department's own week.
+    expect(document.body.textContent).toContain('Grade 1');
+    expect(document.body.textContent).toContain('All grades');
+    // `readBy` is the manager's own archive; a reader's rows carry none, so nothing says it here.
+    expect(document.body.textContent).not.toContain('Read by');
+  });
 });

@@ -4,11 +4,12 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
+import { ADMIN_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
-import { type ManagementStats, BASE_PATH } from '../../api';
+import { type CreateBroadcastRequest, type ManagementStats, BASE_PATH } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
+import { FlagService } from '../../core/flags/flag.service';
 import { LessonApiService } from '../lessons/lesson-api.service';
 import { ResultsApiService } from '../results/results-api.service';
 import { csvOf } from '../../core/download/csv';
@@ -21,6 +22,7 @@ import {
 } from './management-people.page';
 import { statsRows, quietTeachers } from './management-stats';
 import { SchoolUsagePage } from './school-usage.page';
+import { WeeklyPlansPage } from './weekly-plans.page';
 import { usageSummary, usageTeacherRows } from './school-usage.models';
 import { changedMarks, notEditableReason, rosterOf } from './staff-attendance.models';
 
@@ -488,6 +490,13 @@ describe('RM3a — the management area', () => {
         ],
       });
       const backend = TestBed.inject(HttpTestingController);
+      // MG2b: which endpoint this screen reads depends on the role, so the account has to land
+      // before anything is asked — an Admin's is the whole school (`GET /school/usage`).
+      TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+      TestBed.inject(AuthService).loadMe().subscribe();
+      backend.expectOne('/me').flush(ADMIN_USER);
+      await Promise.resolve();
+      TestBed.tick();
       backend.expectOne((request) => request.url === '/school/usage').flush(USAGE);
       await Promise.resolve();
       TestBed.tick();
@@ -525,6 +534,11 @@ describe('RM3a — the management area', () => {
           ],
         });
         const backend = TestBed.inject(HttpTestingController);
+        TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+        TestBed.inject(AuthService).loadMe().subscribe();
+        backend.expectOne('/me').flush(ADMIN_USER);
+        await Promise.resolve();
+        TestBed.tick();
         backend.expectOne((request) => request.url === '/school/usage').flush(USAGE);
         await Promise.resolve();
         TestBed.tick();
@@ -619,6 +633,168 @@ describe('RM3a — the management area', () => {
       expect(notEditableReason({ ...ROSTER, editable: false, schoolDay: true })).toBe('future');
       // No answer yet is not a refusal: the chips stay as they are until the roster lands.
       expect(notEditableReason(undefined)).toBeNull();
+    });
+  });
+
+  /**
+   * **MG2b items 3 and 4** — the weekly plan per grade, and the archive of every one of them.
+   *
+   * One request feeds both halves of the screen: the glance is this week filtered out of the
+   * archive, so the card that says "no plan yet" and the list below it can never disagree.
+   */
+  describe('Weekly plans', () => {
+    const PLAN = {
+      id: 'b-all',
+      kind: 'weekly_plan',
+      title: 'The department’s week',
+      bodyEn: 'Subtraction all week.',
+      weekStart: '2026-09-27',
+      curriculum: 'british',
+      authorName: 'Huda Salem',
+      authorRole: 'MANAGERIAL',
+    };
+
+    const CLASSES = [
+      {
+        grade: 1,
+        classes: [
+          {
+            classId: 'c-1',
+            className: '1A British',
+            grade: 1,
+            curriculum: 'british',
+            subject: 'math',
+            teacherId: 't-1',
+            teacherName: 'Sara Al Harbi',
+            childrenCount: 24,
+            todayLessonId: null,
+            todayStatus: 'none',
+          },
+        ],
+      },
+    ];
+
+    async function settle() {
+      await Promise.resolve();
+      TestBed.tick();
+      await Promise.resolve();
+      TestBed.tick();
+    }
+
+    async function openScreen(weeks: unknown[]) {
+      await renderHq(WeeklyPlansPage, {
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([{ path: '**', children: [] }]),
+          { provide: BASE_PATH, useValue: '' },
+          { provide: FlagService, useValue: { isOn: () => true, refresh: () => undefined } },
+        ],
+      });
+      const backend = TestBed.inject(HttpTestingController);
+      TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+      TestBed.inject(AuthService).loadMe().subscribe();
+      backend.expectOne('/me').flush(MANAGERIAL_USER);
+      await settle();
+      backend
+        .match('/me/permissions')
+        .forEach((request) => request.flush({ permissions: ['management.broadcast'] }));
+      backend.match('/management/me').forEach((request) => request.flush(ME));
+      backend.match('/management/classes').forEach((request) => request.flush(CLASSES));
+      backend.match('/management/teachers').forEach((request) => request.flush([]));
+      await settle();
+      backend
+        .match((request) => request.url === '/management/weekly-plans')
+        .forEach((request) => request.flush({ from: '2026-07-12', to: '2026-09-27', weeks }));
+      await settle();
+      return backend;
+    }
+
+    it('shows this week per grade, and the archive newest week first', async () => {
+      await openScreen([
+        { weekStart: '2026-09-27', items: [{ plan: PLAN, readBy: 12 }] },
+        {
+          weekStart: '2026-09-13',
+          items: [{ plan: { ...PLAN, id: 'b-old', title: 'Two weeks ago', grade: 1 }, readBy: 9 }],
+        },
+      ]);
+
+      // The glance: the department's own plan is posted, and grade 1 is not.
+      expect(document.body.textContent).toContain('The department’s week');
+      expect(document.body.textContent).toContain('No plan yet');
+      expect(screen.getAllByRole('button', { name: 'Add plan' }).length).toBeGreaterThan(0);
+      expect(screen.getByRole('button', { name: 'Replace plan' })).toBeTruthy();
+
+      // The archive, with `readBy` — hers alone — and the week that is already behind her.
+      expect(document.body.textContent).toContain('Two weeks ago');
+      expect(document.body.textContent).toContain('Read by 12');
+    });
+
+    it('posts a grade plan for a chosen grade, and sends grade instead of classes', async () => {
+      const backend = await openScreen([]);
+
+      // The grade-1 card: its "Add plan" prefills the week and the grade the card is for.
+      screen.getAllByRole('button', { name: 'Add plan' })[1]!.click();
+      await settle();
+
+      const title = document.querySelector('input[type="text"]') as HTMLInputElement;
+      title.value = 'Grade 1 week';
+      title.dispatchEvent(new Event('input', { bubbles: true }));
+      const body = document.querySelector('textarea') as HTMLTextAreaElement;
+      body.value = 'Counting to twenty.';
+      body.dispatchEvent(new Event('input', { bubbles: true }));
+      await settle();
+
+      screen.getByRole('button', { name: 'Post' }).click();
+      await settle();
+
+      const posted = backend.expectOne('/management/broadcasts');
+      expect(posted.request.method).toBe('POST');
+      const body = posted.request.body as CreateBroadcastRequest;
+      expect(body.kind).toBe('weekly_plan');
+      expect(body.weekStart).toBeTruthy();
+      expect(body.grade).toBe(1);
+      // A grade and a class list are mutually exclusive on the wire — the server answers 400.
+      expect(body.sectionIds).toBeUndefined();
+      posted.flush({ ...PLAN, id: 'b-new', grade: 1 });
+      await settle();
+      backend
+        .match((request) => request.url === '/management/weekly-plans')
+        .forEach((request) => request.flush({ weeks: [] }));
+    });
+  });
+
+  /**
+   * MG2b item 5: the same screen, two reads. MG1 gave her `GET /management/usage` — the same
+   * `SchoolUsage` shape scoped to her department — so a manager reads that one and everybody else
+   * who holds `usage.school` keeps the whole school's.
+   */
+  describe('usage, by who is reading', () => {
+    it('reads /management/usage for a manager and says the numbers are her department’s', async () => {
+      const rendered = await renderHq(SchoolUsagePage, {
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([{ path: '**', children: [] }]),
+          { provide: BASE_PATH, useValue: '' },
+        ],
+      });
+      const backend = TestBed.inject(HttpTestingController);
+      TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+      TestBed.inject(AuthService).loadMe().subscribe();
+      backend.expectOne('/me').flush(MANAGERIAL_USER);
+      await Promise.resolve();
+      TestBed.tick();
+
+      expect(backend.match((request) => request.url === '/school/usage')).toEqual([]);
+      backend.expectOne((request) => request.url === '/management/usage').flush(USAGE);
+      await Promise.resolve();
+      TestBed.tick();
+
+      expect(document.body.textContent).toContain('Your department');
+      expect(document.body.textContent).not.toContain('The whole school');
+      expect(document.body.textContent).toContain('Sara Al Harbi');
+      rendered.fixture.destroy();
     });
   });
 });

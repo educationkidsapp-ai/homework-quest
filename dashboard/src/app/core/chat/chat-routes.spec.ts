@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ChatApi,
@@ -69,6 +69,11 @@ describe('ChatRoutes', () => {
       teacherChatMessages: vi.fn().mockReturnValue(of([])),
       teacherSendChatMessage: vi.fn().mockReturnValue(of({})),
       teacherMarkChatRead: vi.fn().mockReturnValue(of({})),
+      // MG2b: her second transport — the department manager, keyed by thread.
+      teacherStaffThreads: vi.fn().mockReturnValue(of([staffThread])),
+      teacherStaffMessages: vi.fn().mockReturnValue(of([])),
+      teacherSendStaffMessage: vi.fn().mockReturnValue(of({})),
+      teacherMarkStaffRead: vi.fn().mockReturnValue(of({})),
       // RM3b: the Admin's own half of `/admin/chat/**`, which lives on `ChatApi` because
       // springdoc tags it `Chat` alongside the parent's and the teacher's.
       supportChatThreads: vi.fn().mockReturnValue(of([staffThread])),
@@ -159,6 +164,64 @@ describe('ChatRoutes', () => {
     chat.selectThread('ch-1');
     expect(teacherApi.teacherChatMessages).toHaveBeenCalledWith('ch-1', undefined, undefined);
     expect(coordinatorApi.coordinatorChatThreads).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **MG2b: one screen, two transports for a teacher** (owner's item 6).
+   *
+   * Her parent threads are keyed by child and her threads with the department manager by thread.
+   * Both lists are loaded, merged into one, and each row's key routes its own four calls — sending
+   * a staff thread's id to `/teacher/chat/threads/{childId}/…` would be a 404 in a red band.
+   */
+  it('reads a teacher’s parent threads and her staff threads, and routes each by its own key', () => {
+    role.set('TEACHER');
+    const { routes, chat } = setup();
+
+    expect(routes.transports()).toHaveLength(2);
+    expect(routes.transportFor(parentThread)?.keyOf(parentThread)).toBe('ch-1');
+    expect(routes.transportFor(staffThread)?.keyOf(staffThread)).toBe('th-2');
+    // The socket names a staff thread by thread and a parent one by child, on the same connection.
+    expect(routes.staffTransport()?.commandKey('th-2')).toEqual({ threadId: 'th-2' });
+
+    chat.loadThreads();
+    expect(teacherApi.teacherChatThreads).toHaveBeenCalled();
+    expect(teacherApi.teacherStaffThreads).toHaveBeenCalled();
+    expect(chat.threads().map((thread) => thread.id)).toEqual(['th-1', 'th-2']);
+
+    chat.selectThread('th-2');
+    expect(teacherApi.teacherStaffMessages).toHaveBeenCalledWith('th-2', undefined, undefined);
+    expect(teacherApi.teacherChatMessages).not.toHaveBeenCalledWith('th-2', undefined, undefined);
+    chat.sendMessage('Can we talk about grade 3?');
+    expect(teacherApi.teacherSendStaffMessage).toHaveBeenCalledWith('th-2', {
+      body: 'Can we talk about grade 3?',
+    });
+
+    chat.selectThread('ch-1');
+    expect(teacherApi.teacherChatMessages).toHaveBeenCalledWith('ch-1', undefined, undefined);
+  });
+
+  /** The badge is one number over both lists: three unread parents' messages and two staff ones. */
+  it('sums a teacher’s unread over both of her lists', () => {
+    role.set('TEACHER');
+    const { chat } = setup();
+    (teacherApi.teacherStaffThreads as ReturnType<typeof vi.fn>).mockReturnValue(
+      of([{ ...staffThread, unread: 2 }]),
+    );
+
+    chat.loadThreads();
+    expect(chat.totalUnread()).toBe(5);
+  });
+
+  /** One half failing must not blank the other: each list catches its own error. */
+  it('keeps a teacher’s parent threads when the staff list fails', () => {
+    role.set('TEACHER');
+    const { chat } = setup();
+    (teacherApi.teacherStaffThreads as ReturnType<typeof vi.fn>).mockReturnValue(
+      throwError(() => new Error('403')),
+    );
+
+    chat.loadThreads();
+    expect(chat.threads().map((thread) => thread.id)).toEqual(['th-1']);
   });
 
   /**

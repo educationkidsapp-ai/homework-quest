@@ -1,5 +1,6 @@
-import { type Page } from '@playwright/test';
-import { MANAGER, expect, signIn, test } from './env';
+import { type APIRequestContext, type Page } from '@playwright/test';
+import { MANAGER, SARA, expect, signIn, test } from './env';
+import { api, schoolOfSara, withFlags } from './n4-api';
 
 /**
  * RM3a's acceptance (`docs/management-flow.md`), against the built bundle and a local API on H2
@@ -79,8 +80,11 @@ test.describe('the management area', () => {
     await rail(page).getByRole('link', { name: 'School usage' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'School usage' })).toBeVisible();
 
-    // `GET /school/usage` is the school's, every department of it — the screen says so.
-    await expect(page.locator('main')).toContainText('The whole school');
+    // MG2b: hers is `GET /management/usage` — the same shape scoped to her department — and the
+    // screen says whose numbers they are rather than letting her read her department's name into
+    // the other one's.
+    await expect(page.locator('main')).toContainText('Your department');
+    await expect(page.locator('main')).not.toContainText('The whole school');
     const table = page.getByRole('table', { name: 'How often each teacher publishes' });
     await expect(table).toBeVisible({ timeout: 30_000 });
     await expect(table.getByRole('row')).not.toHaveCount(1);
@@ -162,5 +166,72 @@ test.describe('the management area', () => {
     await page.getByRole('tab', { name: 'Coordinators' }).click();
     await expect(page.getByLabel('Search by name or email')).toHaveValue('');
     await expect(table).toContainText('Rasha Kamal', { timeout: 30_000 });
+  });
+});
+
+/**
+ * **MG2b item 6, the half RM2 left out**: the manager and a teacher of her department, both ways.
+ *
+ * `chat` is off in the one-school seed and the rail assertions above depend on that, so this block
+ * turns it on and puts it back. The round trip is two sign-ins over one thread: Huda writes to Sara
+ * from her own Messages screen (`POST /management/chat/threads {teacherUserId}`), and Sara finds it
+ * under Management in her chat — a second transport beside her parent threads, keyed by thread.
+ */
+test.describe('manager ↔ teacher messages', () => {
+  const FROM_MANAGER = `About grade 1 ${Date.now().toString(36).slice(-5)}`;
+  const FROM_TEACHER = 'Understood, I will look at it today.';
+
+  let context: APIRequestContext;
+  let restoreFlags: (() => Promise<void>) | null = null;
+
+  test.beforeAll(async () => {
+    context = await api();
+    restoreFlags = await withFlags(context, await schoolOfSara(context), ['chat']);
+  });
+
+  test.afterAll(async () => {
+    if (restoreFlags) await restoreFlags();
+    await context.dispose();
+  });
+
+  test('the manager starts a thread with a teacher of her department', async ({ page }) => {
+    await signIn(page, MANAGER);
+    await rail(page).getByRole('link', { name: 'Messages' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    await page.getByRole('button', { name: 'New message' }).click();
+    // Her chooser holds three kinds of person now; the teachers are MG2b's addition.
+    const who = page.getByLabel('Who do you want to write to');
+    await who.selectOption({ label: /Sara Al Harbi/ });
+    await page.getByRole('button', { name: 'Open the conversation' }).click();
+
+    const composer = page.getByPlaceholder('Write a message...');
+    await composer.fill(FROM_MANAGER);
+    await composer.press('Enter');
+    await expect(page.locator('main')).toContainText(FROM_MANAGER, { timeout: 30_000 });
+  });
+
+  test('the teacher finds it under Management and answers it', async ({ page }) => {
+    await signIn(page, SARA);
+    await page.goto('/teacher/chat');
+    await expect(page.getByRole('tab', { name: /Management/ })).toBeVisible({ timeout: 30_000 });
+
+    // Her second list: keyed by thread, beside the parent threads keyed by child.
+    await page.getByRole('tab', { name: /Management/ }).click();
+    await page.locator('.thread-card').first().click();
+    await expect(page.locator('main')).toContainText(FROM_MANAGER);
+
+    const composer = page.getByPlaceholder('Write a message...');
+    await composer.fill(FROM_TEACHER);
+    await composer.press('Enter');
+    await expect(page.locator('main')).toContainText(FROM_TEACHER, { timeout: 30_000 });
+  });
+
+  test('the manager reads the answer on the same thread', async ({ page }) => {
+    await signIn(page, MANAGER);
+    await rail(page).getByRole('link', { name: 'Messages' }).click();
+    await page.getByRole('tab', { name: /Teachers/ }).click();
+    await page.locator('.thread-card').first().click();
+    await expect(page.locator('main')).toContainText(FROM_TEACHER, { timeout: 30_000 });
   });
 });

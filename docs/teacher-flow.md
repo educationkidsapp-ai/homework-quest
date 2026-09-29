@@ -209,11 +209,37 @@ From the class page → **New exam**. Same editor as a lesson, plus settings: ti
 - Exams count with a higher weight in the child's level.
 
 ### Step 11 — Profile
-Name, photo, password, language (EN/AR; the dashboard mirrors to RTL).
+Name, photo, password, language (EN/AR; the dashboard mirrors to RTL). **Message to coordinator**
+(`POST /teacher/messages/coordinator`) notifies everyone who handles the school's messages, and since
+MG1 it also writes into her thread with the manager of a department she teaches in — so after sending,
+the card offers **Open the conversation** (`/teacher/chat`), which is where the answer arrives.
+
+### Step 12 — Messages, and the weekly plans (MG2b)
+
+Behind the `chat` and `announcements` flags respectively.
+
+**Two lists, one screen.** `/teacher/chat` holds her parent threads, keyed by **child**
+(`/teacher/chat/threads/{childId}/…`), and her threads with the **department manager**, keyed by
+**thread** (`GET|POST /teacher/chat/staff-threads`, `…/{id}/messages`, `…/{id}/read`). Both are
+loaded, merged into one list, and each row routes its own four calls — `ChatRoutes` holds the two
+transports and `ChatService` picks one per row (`dashboard/src/app/core/chat/chat-routes.ts`). A
+**Management** chip appears beside Parents once she has a staff thread, the unread badge sums both
+lists, and socket frames update whichever list the thread is on (staff threads are named by
+`threadId`, parent threads by `childId`, on the one connection). **New message** lists
+`GET /teacher/managers` and opens one thread per pair, however many times either side asks for it.
+`GET /teacher/chat/threads` still answers only her child-keyed parent threads, deliberately.
+
+**Weekly plans** are a read-only tab on her Broadcasts screen, from
+`GET /me/weekly-plans` — weeks newest first, past weeks and expired plans included, each plan
+expandable, labelled with the grade it was for ("All grades" for the department's own week). She
+writes none: the plan is the department's (DR6). See `docs/management-flow.md`.
 
 ## 5. Navigation
 
-`This week · My classes · [selected class] · Profile`. Nothing else renders for a teacher.
+`This week · My classes · [selected class] · Broadcasts (with `announcements`) · Profile`. Nothing
+else renders for a teacher. **Messages has no rail row**: she reaches `/teacher/chat` from a roster
+row ("Message parent"), from the bell's `?thread=` link, and — since MG2b — from **Open the
+conversation** on her profile after messaging the coordinator.
 
 ## 6. What the child never sees
 
@@ -234,7 +260,7 @@ Regardless of what the teacher does: no red X, no percentage, no score, no timer
 
 ## 8. API used by the teacher (summary)
 
-`GET /me` · `GET /teacher/week` · `GET /teacher/classes` · `GET /teacher/classes/{id}/calendar` · `GET /teacher/classes/{id}/children` · `POST /teacher/lessons` · `PATCH /teacher/lessons/{id}` · `GET /teacher/lessons/{id}/status` · `POST /teacher/lessons/{id}/copy` · `POST /teacher/lessons/{id}/retry` · `PUT /teacher/lessons/{id}/skills` · `PUT /teacher/stops/{id}` · `POST /teacher/stops/{id}/regenerate` · `POST /teacher/lessons/{id}/publish` · `POST /teacher/lessons/{id}/unpublish` · `DELETE /teacher/lessons/{id}` · `GET /teacher/lessons/{id}/results` · `PUT /teacher/marks` · `POST /teacher/lessons/{id}/release` · `GET /teacher/classes/{id}/gradebook` · `GET /teacher/children/{id}` · `POST /teacher/classes/{id}/exams` · `PATCH /teacher/exams/{id}` · `POST /teacher/exams/{id}/publish` · `POST /teacher/exams/{id}/release` · `POST /teacher/exams/{id}/reopen/{childId}` · `GET /teacher/exams/{id}/results` · exports `.csv`, `.xlsx`, `/results/{childId}.pdf`.
+`GET /me` · `GET /teacher/week` · `GET /teacher/classes` · `GET /teacher/classes/{id}/calendar` · `GET /teacher/classes/{id}/children` · `POST /teacher/lessons` · `PATCH /teacher/lessons/{id}` · `GET /teacher/lessons/{id}/status` · `POST /teacher/lessons/{id}/copy` · `POST /teacher/lessons/{id}/retry` · `PUT /teacher/lessons/{id}/skills` · `PUT /teacher/stops/{id}` · `POST /teacher/stops/{id}/regenerate` · `POST /teacher/lessons/{id}/publish` · `POST /teacher/lessons/{id}/unpublish` · `DELETE /teacher/lessons/{id}` · `GET /teacher/lessons/{id}/results` · `PUT /teacher/marks` · `POST /teacher/lessons/{id}/release` · `GET /teacher/classes/{id}/gradebook` · `GET /teacher/children/{id}` · `POST /teacher/classes/{id}/exams` · `PATCH /teacher/exams/{id}` · `POST /teacher/exams/{id}/publish` · `POST /teacher/exams/{id}/release` · `POST /teacher/exams/{id}/reopen/{childId}` · `GET /teacher/exams/{id}/results` · exports `.csv`, `.xlsx`, `/results/{childId}.pdf` · `GET /teacher/managers` · `GET|POST /teacher/chat/staff-threads` · `GET|POST /teacher/chat/staff-threads/{id}/messages` · `POST /teacher/chat/staff-threads/{id}/read` · `GET /me/weekly-plans`.
 
 ## 9. Feature flags touching this flow
 

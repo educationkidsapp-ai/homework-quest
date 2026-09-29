@@ -73,10 +73,12 @@ summed across the window rather than read off its last week — and a row per te
 ratio as a percentage, and when she last published. A CSV of the rows on screen, built in the
 browser by `core/download/csv.ts`, because the endpoint publishes none.
 
-**It is the school's, not her department's.** `DashboardDataController.mySchoolUsage` resolves
-the caller's own school and `SchoolUsage` carries no curriculum axis at all, so a manager of the
-British department sees the American one's teachers here too. The subtitle says so in words; a
-department-scoped read is a server change, not a filter this screen may invent. **No AI tokens or
+**Hers is the department's, since MG2b.** MG1 added `GET /management/usage`, the same `SchoolUsage`
+shape scoped to the department(s) her `staff_scopes` name, and the screen reads that one for a
+MANAGERIAL account and keeps `GET /school/usage` for every other role that holds `usage.school` (the
+Admin's). The subtitle is the only thing that has to stay true to which — "Your department" or "The
+whole school" — and the request waits for `/me` to answer, because asking before the role is known
+would send her to the school-wide endpoint and correct itself a moment later. **No AI tokens or
 cost**, either — those are on `PlatformUsage` behind `usage.platform`, which only an Admin holds.
 
 ## Where a notification goes (MG2a item 7)
@@ -111,7 +113,13 @@ reads `?thread=` off the snapshot and has the same gap; it is a follow-up.
 | Screen                                  | Reads                                                                                             | What she sees                                                                                                                                                |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Broadcasts** `/management/broadcasts` | `GET /me/broadcasts`, `POST /me/broadcasts/{id}/read`, `GET\|POST /management/broadcasts`         | Two tabs. **For you** is the feed every staff role reads, with the week's plan pinned, drawn open and marked read on arrival (opening the screen *is* opening it) and still collapsible; every other row is read when it is opened and not before. **You posted** is her own list, expired rows included |
-| **Messages** `/management/messages`     | `GET /management/chat/threads`, `…/{id}/messages`, `…/{id}/read`, `POST /management/chat/threads` | Her real inbox: the parents of her department, her coordinators and the admin, filtered by a chip strip, with **New message** to open a staff thread from her side |
+| **Messages** `/management/messages`     | `GET /management/chat/threads`, `…/{id}/messages`, `…/{id}/read`, `POST /management/chat/threads`, `GET /management/teachers` | Her real inbox: the parents of her department, her **teachers** (MG2b), her coordinators and the admin, filtered by a chip strip, with **New message** to open a staff thread from her side |
+
+**Teachers, since MG2b** (owner's item 6). `POST /management/chat/threads {teacherUserId}` opens a
+thread with a teacher of her department — the chooser is `GET /management/teachers`, and a Teachers
+chip counts them in the strip. The teacher's end of it is her own `/teacher/chat/staff-threads`
+(`docs/teacher-flow.md`), and a "Message to coordinator" she sends from her profile lands in that
+same thread, so an answer has somewhere to go.
 
 Both rows carry the flag the server carries — `announcements` and `chat` — plus a key of her own
 (`broadcast.read`, `management.chat`). A school without the flag meets `/not-found` in the router
@@ -123,6 +131,43 @@ her coordinators. The week picker offers **Sundays only** — the server snaps `
 the Sunday of whatever day it is given, and a date input would have let her pick a Wednesday and
 read a different week back — and says in words that posting replaces the current plan for that
 week, because it does, read marks and all.
+
+## Weekly plans (MG2b) — `/management/weekly-plans`
+
+Owner's items 3 and 4: "the manager is who adds the weekly plan for all grades", and "a feature to
+see all weekly plans". Her own rail row, behind `announcements` and `management.broadcast`, with
+three things on it:
+
+1. **This week at a glance** — one card per grade of her department plus the department's own
+   all-grades plan, each either the plan that is posted (with **Replace plan**) or **Add plan**.
+   This is the Sunday-morning question, and a list of twelve weeks does not answer it.
+2. **The composer** — the Broadcasts screen's own sheet
+   (`dashboard/src/app/features/broadcasts/compose-sheet.component.ts`, shared by both screens) with
+   the kind fixed to `weekly_plan` and the week and grade prefilled from the card she pressed.
+3. **The archive** — `GET /management/weekly-plans?from=&to=&grade=`, weeks newest first, **past
+   weeks and expired plans included** (the feeds drop an expired row; the archive is the screen that
+   must not), filtered by grade and by date range, each plan expandable, `readBy` on every row, and
+   a CSV of the list (title, week, grade, readBy) built in the browser.
+
+**A grade plan needs a single-department account.** `POST /management/broadcasts` takes `grade`
+only on a row that names **no** `sectionIds` ("name the sections or the grade, not both"), and a row
+with no `sectionIds` is refused for a manager who holds two departments, because nothing else on the
+request says which department it is for (`BroadcastService.one`). Together those two rules mean a
+**two-department manager cannot send `grade` at all**: she is offered one all-grades card per
+department, the sheet says why in words, and her grade plans wait for the server to accept a
+`grade` + department pair. A manager of one department gets All grades plus a card per grade she
+actually manages — a grade she manages no class in is a 400, so the list is built from her own
+classes and never from 1…12.
+
+A grade's plan and the department's all-grades plan for the same week are **two rows that coexist**:
+replacement is keyed on `(weekStart, department, grade)`, so posting grade 3's week again replaces
+grade 3's plan and leaves the department's alone.
+
+**Teachers and coordinators read the same archive** on a **Weekly plans tab** on their own
+Broadcasts screen (`GET /me/weekly-plans`) — a tab rather than a rail row, because they already come
+to Broadcasts for this week's plan and "the weeks before it" is the same screen one tab over. It is
+read when the tab is opened, not on arrival, and `readBy` is absent from it: an audience is resolved
+per reader, so only the author's archive counts openings.
 
 **"Choose a department" is "name that department's sections".** `CreateBroadcastRequest` has no
 `curriculum` field: the server reads the track off the sections the row names, or off her one
