@@ -93,10 +93,13 @@ export function notificationUrl(target: NotificationTarget): string {
   return query === '' ? target.path : `${target.path}?${query}`;
 }
 
-/** A path of this area, and a path: `//evil.example` and `https://…` are neither. */
+/**
+ * A path of *this* area. It is also what keeps an absolute URL out of `navigateByUrl`:
+ * `https://evil.example/management/x` and `//evil.example` do not begin with `/management`, so
+ * neither is ever followed — the area prefix is the whole check.
+ */
 function inOwnArea(link: string, area: string): boolean {
-  if (!link.startsWith(`${area}/`) && link !== area) return false;
-  return !link.startsWith('//');
+  return link === area || link.startsWith(`${area}/`) || link.startsWith(`${area}?`);
 }
 
 function retired(link: string, role: Role | null): boolean {
