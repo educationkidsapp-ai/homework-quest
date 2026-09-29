@@ -750,12 +750,12 @@ describe('RM3a — the management area', () => {
 
       const posted = backend.expectOne('/management/broadcasts');
       expect(posted.request.method).toBe('POST');
-      const body = posted.request.body as CreateBroadcastRequest;
-      expect(body.kind).toBe('weekly_plan');
-      expect(body.weekStart).toBeTruthy();
-      expect(body.grade).toBe(1);
+      const sent = posted.request.body as CreateBroadcastRequest;
+      expect(sent.kind).toBe('weekly_plan');
+      expect(sent.weekStart).toBeTruthy();
+      expect(sent.grade).toBe(1);
       // A grade and a class list are mutually exclusive on the wire — the server answers 400.
-      expect(body.sectionIds).toBeUndefined();
+      expect(sent.sectionIds).toBeUndefined();
       posted.flush({ ...PLAN, id: 'b-new', grade: 1 });
       await settle();
       backend
