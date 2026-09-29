@@ -45,6 +45,7 @@ const ROUTES = {
   'management home': ['hq-shell', 'hq-management-home-page'],
   'management coordinators': ['hq-shell', 'hq-management-coordinators-page'],
   'management people': ['hq-shell', 'hq-management-people-page'],
+  'school usage': ['hq-shell', 'hq-school-usage-page'],
   'staff attendance': ['hq-shell', 'hq-staff-attendance-page'],
   profile: ['hq-shell', 'hq-profile-page'],
   lessons: ['hq-shell', 'hq-lessons-page'],

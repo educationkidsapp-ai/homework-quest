@@ -142,6 +142,9 @@ function supervisorComponentFor(screen: Screen, role: Role) {
       return import('../../features/management/management-people.page').then((m) => m.ManagementPeoplePage);
     if (screen.id === 'staff-attendance')
       return import('../../features/management/staff-attendance.page').then((m) => m.StaffAttendancePage);
+    // MG2a: `GET /school/usage`, which only she and an Admin hold `usage.school` for.
+    if (screen.id === 'usage')
+      return import('../../features/management/school-usage.page').then((m) => m.SchoolUsagePage);
   }
   if (screen.id === 'attendance')
     return import('../../features/coordinator/coordinator-attendance.page').then(

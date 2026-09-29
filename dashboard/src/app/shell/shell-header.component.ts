@@ -7,6 +7,7 @@ import { of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { type NotificationView, NotificationViewKindEnum, SchoolSummary, SchoolsApi } from '../api';
 import { AuthService } from '../core/auth/auth.service';
+import { notificationTarget } from '../core/notifications/notification-target';
 import { ChatService } from '../core/chat/chat.service';
 import { SchoolScopeStore } from '../core/auth/school-scope.store';
 import { FeatureDirective } from '../core/flags/feature.directive';
@@ -221,18 +222,19 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
           }
         </div>
         <div class="notifications-popup__list">
-          @for (item of recentNotifications(); track item.id) {
+          @for (row of recentNotifications(); track row.item.id) {
             <a
               cdkMenuItem
               class="notifications-popup__item"
-              [class.is-unread]="item.readAt === undefined"
-              [routerLink]="item.link ?? '/notifications'"
-              (click)="markRead(item.id)"
+              [class.is-unread]="row.item.readAt === undefined"
+              [routerLink]="row.target.path"
+              [queryParams]="row.target.queryParams"
+              (click)="markRead(row.item.id)"
             >
-              <div class="notifications-popup__dot" [class.is-active]="item.readAt === undefined"></div>
+              <div class="notifications-popup__dot" [class.is-active]="row.item.readAt === undefined"></div>
               <div class="notifications-popup__content">
-                <p class="notifications-popup__item-title">{{ notificationTitle(item) }}</p>
-                <p class="notifications-popup__item-msg">{{ notificationBody(item) }}</p>
+                <p class="notifications-popup__item-title">{{ notificationTitle(row.item) }}</p>
+                <p class="notifications-popup__item-msg">{{ notificationBody(row.item) }}</p>
               </div>
             </a>
           } @empty {
@@ -297,9 +299,13 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
         <a cdkMenuItem class="hq-menu__item" routerLink="/profile" (cdkMenuItemTriggered)="openProfile()">{{
           'shell.profile.open' | transloco
         }}</a>
-        <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="showMeAround()">
-          {{ 'shell.showMeAround' | transloco }}
-        </button>
+        <!-- MG2a: a role with no tour has no entry. The manager asked for hers to go, and an
+             item that opened nothing would be worse than the one that was removed. -->
+        @if (tourOffered()) {
+          <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="showMeAround()">
+            {{ 'shell.showMeAround' | transloco }}
+          </button>
+        }
         <!-- CR5: the raw surfaces, for the one role that is expected to read them. -->
         @if (viewMode.allowed()) {
           <button
@@ -758,6 +764,8 @@ export class ShellHeaderComponent {
   /** U1 item 1: the box the showing screen claimed, or nothing. */
   protected readonly search = inject(ScreenSearchService);
   protected readonly languages = LANGUAGES;
+  /** MG2a: MANAGERIAL has no tour, so her account menu has no "Show me around". */
+  protected readonly tourOffered = computed(() => this.tour.offeredTo(this.auth.role()));
 
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
   /**
@@ -789,7 +797,16 @@ export class ShellHeaderComponent {
   private readonly permissions = inject(PermissionService);
   private readonly lang = activeLang();
   protected readonly unreadNotifications = this.notificationsService.unreadCount;
-  protected readonly recentNotifications = this.notificationsService.recent;
+  /**
+   * MG2a: each row with the route it opens, resolved once per change rather than per binding —
+   * `[queryParams]` handed a fresh object on every check would re-bind on every check.
+   */
+  protected readonly recentNotifications = computed(() => {
+    const role = this.auth.role();
+    return this.notificationsService
+      .recent()
+      .map((item) => ({ item, target: notificationTarget(item, role) }));
+  });
   protected readonly canAskNotify = signal(this.notificationsService.canAskPermission());
 
   /** The rows are fetched when the bell is opened, not on every page the shell draws. */

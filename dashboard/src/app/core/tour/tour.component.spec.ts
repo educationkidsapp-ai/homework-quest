@@ -103,4 +103,24 @@ describe('hq-tour', () => {
     tour.start('ADMIN');
     expect(tour.running()).toBe(true);
   });
+
+  /**
+   * MG2a item 1: the owner asked for "Show me around" to go, for the manager and for nobody
+   * else. `offeredTo` is both halves of that — the account menu draws its entry from it, and
+   * `offer` on first sign-in is silent for a role with no steps.
+   */
+  it('offers no tour at all to a manager, and still offers one to the other three', () => {
+    const tour = TestBed.inject(TourService);
+
+    expect(tour.offeredTo('MANAGERIAL')).toBe(false);
+    tour.offer('MANAGERIAL');
+    expect(tour.running()).toBe(false);
+    tour.start('MANAGERIAL');
+    expect(tour.running()).toBe(false);
+
+    for (const role of ['ADMIN', 'TEACHER', 'COORDINATOR'] as const) {
+      expect(`${role}:${tour.offeredTo(role)}`).toBe(`${role}:true`);
+    }
+    expect(tour.offeredTo(null)).toBe(false);
+  });
 });

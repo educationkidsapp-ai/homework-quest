@@ -4,7 +4,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { type NotificationView, NotificationViewKindEnum } from '../../api';
+import { AuthService } from '../../core/auth/auth.service';
 import { activeLang } from '../../core/i18n/active-lang';
+import { notificationTarget, notificationUrl } from '../../core/notifications/notification-target';
 import { NotificationsService, bodyKeyOf, titleKeyOf } from '../../core/notifications/notifications.service';
 import { CanDirective } from '../../core/permissions/can.directive';
 import { PermissionService } from '../../core/permissions/permission.service';
@@ -252,6 +254,7 @@ export class NotificationsPage {
   protected readonly notificationsService = inject(NotificationsService);
   private readonly router = inject(Router);
   private readonly permissions = inject(PermissionService);
+  private readonly auth = inject(AuthService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
 
@@ -319,12 +322,16 @@ export class NotificationsPage {
   }
 
   /**
-   * The row marks itself read and then follows its `link`. The write is skipped for a read-only
-   * "View as" session, which the server refuses every POST from: the navigation is the point of
-   * the row, and a 403 red band on the way there is not.
+   * The row marks itself read and then goes where its kind belongs **for this viewer** — MG2a
+   * deliverable 4, and `notificationTarget` is the only thing that decides it. Every row now
+   * navigates: a kind the server wrote no link for used to be a card that did nothing when it
+   * was clicked, which on a screen whose rows all look clickable reads as a broken one.
+   *
+   * The write is skipped for a read-only "View as" session, which the server refuses every POST
+   * from: the navigation is the point of the row, and a 403 red band on the way there is not.
    */
   protected onOpenItem(item: NotificationView): void {
     if (this.permissions.can('notifications.write')) this.notificationsService.markRead(item.id);
-    if (item.link) void this.router.navigateByUrl(item.link);
+    void this.router.navigateByUrl(notificationUrl(notificationTarget(item, this.auth.role())));
   }
 }

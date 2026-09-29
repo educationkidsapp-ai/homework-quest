@@ -22,6 +22,8 @@ export interface Screen {
   /**
    * A path inside the same area this screen redirects to instead of drawing anything.
    *
+   * Absolute (`/management`) for MG2a's retired rows, which leave the rail entirely.
+   *
    * N2.2: a teacher's `/teacher` is her week, not a Home of her own. A redirect row rather than
    * a second route declared beside the table, so the rail, the router and `ROLE_HOME` still have
    * exactly one place to disagree — none.
@@ -43,6 +45,28 @@ export interface Area {
   readonly base: string;
   readonly screens: readonly Screen[];
 }
+
+/**
+ * MG2a: the paths the manager's rail lost — Classes, All lessons and the read-only lesson,
+ * Gradebook, Exams and the three result screens they opened.
+ *
+ * Rows rather than deletions, for the reason `/coordinator/announcements` is one: a bookmark, a
+ * link in an old notification and the runbook's own URL all still have to land somewhere, and
+ * where they land is her Home rather than `/not-found`. The `/management/**` API routes are
+ * untouched — the coordinator reads the same screens through her own namespace.
+ */
+const MANAGER_RETIRED: readonly string[] = [
+  'classes',
+  'lessons',
+  'lessons/:id',
+  'lessons/:id/results',
+  'gradebook',
+  'exams',
+  'exams/:id/results',
+  'children/:childId',
+];
+
+const retired = (path: string): Screen => ({ id: `retired:${path}`, path, redirectTo: '/management' });
 
 /**
  * **The one table.** The rail is built from it and so are the routes, so a menu item and the
@@ -212,61 +236,13 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         permission: 'management.read',
       },
       { id: 'teachers', path: 'teachers', labelKey: 'nav.teachers', permission: 'management.read' },
-      { id: 'classes', path: 'classes', labelKey: 'nav.classes', permission: 'management.read' },
-      {
-        id: 'lessons',
-        path: 'lessons',
-        labelKey: 'nav.allLessons',
-        permission: 'management.lesson.read',
-        readOnly: true,
-      },
-      { id: 'lesson', path: 'lessons/:id', permission: 'management.lesson.read', readOnly: true },
-      // Her records are the coordinator's records one axis over, with the same two flags on the
-      // same two rows: `gradebook` and `exams` are what `ManagementReadsController` carries, so a
-      // school without one meets `/not-found` rather than a screen of 404s. Attendance carries
-      // none — a school with classes has registers.
+      // Attendance carries no flag — a school with classes has registers — and stays after MG2a
+      // because it is the one record screen she asked to keep.
       {
         id: 'attendance',
         path: 'attendance',
         labelKey: 'nav.attendance',
         permission: 'management.attendance.read',
-        readOnly: true,
-      },
-      {
-        id: 'gradebook',
-        path: 'gradebook',
-        labelKey: 'nav.gradebook',
-        flag: FLAGS.gradebook,
-        permission: 'management.results.read',
-        readOnly: true,
-      },
-      {
-        id: 'exams',
-        path: 'exams',
-        labelKey: 'nav.exams',
-        flag: FLAGS.exams,
-        permission: 'management.exams.read',
-        readOnly: true,
-      },
-      {
-        id: 'results',
-        path: 'lessons/:id/results',
-        flag: FLAGS.gradebook,
-        permission: 'management.results.read',
-        readOnly: true,
-      },
-      {
-        id: 'child',
-        path: 'children/:childId',
-        flag: FLAGS.gradebook,
-        permission: 'management.results.read',
-        readOnly: true,
-      },
-      {
-        id: 'exam-results',
-        path: 'exams/:id/results',
-        flag: FLAGS.exams,
-        permission: 'management.exams.read',
         readOnly: true,
       },
       // RM5's two, and neither carries a flag: `ManagementPeopleController` is in the server's
@@ -289,8 +265,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         permission: 'broadcast.read',
       },
       // RM3b: her real inbox, on RM2's `GET /management/chat/threads` — parents of her
-      // department, her coordinators and the admin. Her own `management.chat` key now that
-      // there is a route to gate, rather than the flag alone R7 had to settle for.
+      // department, her coordinators and the admin.
       {
         id: 'messages',
         path: 'messages',
@@ -308,7 +283,11 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         phase: 5,
       },
       { id: 'complaint', path: 'complaints/:id', flag: FLAGS.complaints, phase: 5 },
-      { id: 'usage', path: 'usage', labelKey: 'nav.schoolUsage', permission: 'usage.school', phase: 5 },
+      // MG2a: built, on `GET /school/usage`. The key is the server's own (`usage.school`), which
+      // is what `mySchoolUsage` is gated by — and the reason the screen says in words that the
+      // numbers are the *school's*, not her department's.
+      { id: 'usage', path: 'usage', labelKey: 'nav.schoolUsage', permission: 'usage.school' },
+      ...MANAGER_RETIRED.map(retired),
     ],
   },
   // R5 (DR2, `docs/coordinator-flow.md`): the subject coordinator's area. Every row carries one

@@ -5,6 +5,7 @@ import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DOCUMENT,
   computed,
   effect,
   inject,
@@ -12,6 +13,7 @@ import {
   untracked,
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { catchError, of, tap } from 'rxjs';
 import { type BroadcastFeed, type BroadcastView, BroadcastsApi } from '../../api';
@@ -128,7 +130,8 @@ type Panel = 'received' | 'posted';
           />
         } @else {
           @for (row of rows(); track row.id) {
-            <hq-card [eyebrow]="eyebrowOf(row)">
+            <!-- MG2a: the anchor a notification's ?open= scrolls to, drawn open on arrival. -->
+            <hq-card [attr.id]="domIdOf(row)" [eyebrow]="eyebrowOf(row)">
               <button
                 type="button"
                 class="bc__head"
@@ -380,6 +383,8 @@ export class BroadcastsPage {
   private readonly opened = signal<readonly string[]>([]);
   /** The plans this visit has already drawn open — deliberately not a signal (see the effect). */
   private readonly autoOpened = new Set<string>();
+  private readonly route = inject(ActivatedRoute);
+  private readonly doc = inject(DOCUMENT);
 
   /** Today in the **school's** timezone: `en-CA` is the one locale that formats as `YYYY-MM-DD`. */
   protected readonly today = computed(() =>
@@ -522,6 +527,36 @@ export class BroadcastsPage {
         if (plan?.read === false) this.markRead(id);
       });
     });
+
+    /*
+     * MG2a: `?open=<id>` — where a `broadcast.posted` notification sends her
+     * (`core/notifications/notification-target.ts`). The row is drawn open, marked read like any
+     * row she had clicked, and scrolled to, because a twelve-row feed that merely *contains* the
+     * one she was told about has not answered the click she made on the bell.
+     *
+     * A row that is not in her feed is left alone rather than reported: a weekly plan replaced
+     * while the bell sat unread is exactly that case, and the feed above it is still the answer.
+     */
+    effect(() => {
+      const wanted = this.route.snapshot.queryParamMap.get('open') ?? '';
+      const rows = this.feed.value().items ?? [];
+      untracked(() => {
+        if (wanted === '' || this.autoOpened.has(wanted)) return;
+        const row = rows.find((candidate) => candidate.id === wanted);
+        if (row === undefined) return;
+        this.autoOpened.add(wanted);
+        this.panel.set('received');
+        this.opened.update((ids) => (ids.includes(wanted) ? ids : [...ids, wanted]));
+        if (row.read === false) this.markRead(wanted);
+        // After the row has been drawn open: the element does not exist until it has been.
+        setTimeout(() => this.doc.getElementById(`bc-${wanted}`)?.scrollIntoView({ block: 'start' }));
+      });
+    });
+  }
+
+  /** The anchor `?open=` scrolls to. */
+  protected domIdOf(row: BroadcastView): string | null {
+    return row.id ? `bc-${row.id}` : null;
   }
 
   protected isOpen(row: BroadcastView): boolean {

@@ -32,16 +32,23 @@ export class TourService {
   readonly step = computed<TourStep | null>(() => this.steps()[this.index()] ?? null);
   readonly position = computed(() => ({ index: this.index() + 1, total: this.steps().length }));
 
+  /** Whether this role has a tour at all — what the account menu's entry is drawn from. */
+  offeredTo(role: Role | null): boolean {
+    return role !== null && TOURS[role] !== undefined;
+  }
+
   /** First sign-in for this role in this browser: run it. Otherwise do nothing. */
   offer(role: Role): void {
     if (this.running() || this.seen(role)) return;
     this.start(role);
   }
 
-  /** "Show me around" in the profile menu — always runs, whatever the flag says. */
+  /** "Show me around" in the profile menu — always runs for a role that has one. */
   start(role: Role): void {
+    const steps = TOURS[role];
+    if (steps === undefined) return;
     this.index.set(0);
-    this.steps.set(TOURS[role]);
+    this.steps.set(steps);
   }
 
   next(): void {
@@ -82,8 +89,13 @@ export class TourService {
   }
 }
 
-/** Each role is taught the four things that role's day starts with. */
-const TOURS: Readonly<Record<Role, readonly TourStep[]>> = {
+/**
+ * Each role is taught the four things that role's day starts with — **except the department
+ * manager**, whose row MG2a took out on the owner's own instruction ("remove show me around").
+ * A role missing here is offered nothing on first sign-in and has no entry in her account menu;
+ * {@link TourService.offeredTo} is the one place that answers both.
+ */
+const TOURS: Partial<Readonly<Record<Role, readonly TourStep[]>>> = {
   ADMIN: [
     { target: 'nav', titleKey: 'tour.admin.nav.title', bodyKey: 'tour.admin.nav.body' },
     { target: 'switcher', titleKey: 'tour.admin.switcher.title', bodyKey: 'tour.admin.switcher.body' },
@@ -94,12 +106,6 @@ const TOURS: Readonly<Record<Role, readonly TourStep[]>> = {
     { target: 'nav', titleKey: 'tour.teacher.nav.title', bodyKey: 'tour.teacher.nav.body' },
     { target: 'cards', titleKey: 'tour.teacher.cards.title', bodyKey: 'tour.teacher.cards.body' },
     { target: 'classes', titleKey: 'tour.teacher.classes.title', bodyKey: 'tour.teacher.classes.body' },
-    { target: 'profile', titleKey: 'tour.profile.title', bodyKey: 'tour.profile.body' },
-  ],
-  MANAGERIAL: [
-    { target: 'nav', titleKey: 'tour.management.nav.title', bodyKey: 'tour.management.nav.body' },
-    { target: 'cards', titleKey: 'tour.management.cards.title', bodyKey: 'tour.management.cards.body' },
-    { target: 'needsYou', titleKey: 'tour.needsYou.title', bodyKey: 'tour.needsYou.body' },
     { target: 'profile', titleKey: 'tour.profile.title', bodyKey: 'tour.profile.body' },
   ],
   COORDINATOR: [

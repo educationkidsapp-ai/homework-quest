@@ -20,6 +20,8 @@ import {
   exportPlan,
 } from './management-people.page';
 import { statsRows, quietTeachers } from './management-stats';
+import { SchoolUsagePage } from './school-usage.page';
+import { usageSummary, usageTeacherRows } from './school-usage.models';
 import { changedMarks, notEditableReason, rosterOf } from './staff-attendance.models';
 
 /** `GET /management/me` — her department, and the four counts her Home's cards are (RM1). */
@@ -125,6 +127,48 @@ const CHILDREN = {
       rosterEmail: 'roster@school.test',
     },
     { childId: 'ch-2', name: 'Noor Saleh', className: '1B', grade: 1, curriculum: 'british' },
+  ],
+};
+
+/**
+ * `GET /school/usage` — MG2a. Two weeks of published lessons, three days of plays, and three
+ * teachers chosen for the three cases the table has to keep apart: a busy but irregular one, a
+ * steady one, and one who has never published at all.
+ */
+const USAGE = {
+  schoolId: 's-1',
+  schoolName: 'Al Noor',
+  from: '2026-08-01',
+  to: '2026-09-26',
+  children: 300,
+  activeFamilies: 210,
+  lessonsPublishedPerWeek: [
+    { week: '2026-09-13', count: 6 },
+    { week: '2026-09-20', count: 8 },
+  ],
+  playsPerDay: [
+    { date: '2026-09-24', count: 30 },
+    { date: '2026-09-25', count: 25 },
+    { date: '2026-09-26', count: 35 },
+  ],
+  teacherConsistency: [
+    {
+      teacherId: 't-1',
+      displayName: 'Sara Al Harbi',
+      lessonsPublished: 12,
+      weeks: 8,
+      weeksWithALesson: 2,
+      lastPublishedAt: 1_758_000_000_000,
+    },
+    {
+      teacherId: 't-2',
+      displayName: 'Mr Omar',
+      lessonsPublished: 8,
+      weeks: 8,
+      weeksWithALesson: 8,
+      lastPublishedAt: 1_758_500_000_000,
+    },
+    { teacherId: 't-3', displayName: 'Nobody Yet', lessonsPublished: 0, weeks: 0, weeksWithALesson: 0 },
   ],
 };
 
@@ -400,6 +444,83 @@ describe('RM3a — the management area', () => {
       // An empty tab still reads one page: the export answers with headers, not with nothing.
       expect(exportPlan(0)).toEqual({ pages: 1, truncated: false });
       expect(EXPORT_CONCURRENCY).toBeLessThan(EXPORT_MAX_PAGES);
+    });
+  });
+
+  /**
+   * MG2a item 5 — `GET /school/usage`, the endpoint the "Coming soon" stub was standing in for.
+   *
+   * **It is the school's, not her department's**: `mySchoolUsage` resolves the caller's own
+   * school and `SchoolUsage` has no curriculum axis at all, so both departments' teachers are in
+   * the table. The screen says so; these tests assert the mapping, which is where the two
+   * numbers that are easy to get wrong live — a window's total rather than its last week, and
+   * "weeks with a lesson" kept apart from "lessons".
+   */
+  describe('School usage', () => {
+    it('sums the window rather than reading the last week, and keeps a teacher two counts apart', () => {
+      const summary = usageSummary(USAGE);
+      expect(summary).toEqual({ children: 300, activeFamilies: 210, lessonsPublished: 14, plays: 90 });
+      // Nothing on the wire is required, and a school that answered nothing is zeros, not blanks.
+      expect(usageSummary(undefined)).toEqual({
+        children: 0,
+        activeFamilies: 0,
+        lessonsPublished: 0,
+        plays: 0,
+      });
+
+      const rows = usageTeacherRows(USAGE);
+      // Busiest first: twelve lessons in two of eight weeks is a different fact from eight in eight.
+      expect(rows.map((row) => row.displayName)).toEqual(['Sara Al Harbi', 'Mr Omar', 'Nobody Yet']);
+      expect(rows[0]?.consistency).toBe(25);
+      expect(rows[1]?.consistency).toBe(100);
+      // A teacher who never published has no date — a dash on the screen, never the epoch.
+      expect(rows[2]?.lastPublishedAt).toBeNull();
+      expect(rows[2]?.consistency).toBeNull();
+    });
+
+    it('draws the tiles and the per-teacher table, and exports the rows on screen', async () => {
+      const rendered = await renderHq(SchoolUsagePage, {
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([{ path: '**', children: [] }]),
+          { provide: BASE_PATH, useValue: '' },
+        ],
+      });
+      const backend = TestBed.inject(HttpTestingController);
+      backend.expectOne((request) => request.url === '/school/usage').flush(USAGE);
+      await Promise.resolve();
+      TestBed.tick();
+
+      expect(document.body.textContent).toContain('Sara Al Harbi');
+      // The four tiles are drawn; their figures are `hqCountUp`'s, which needs a layout engine,
+      // so what they add up to is asserted on `usageSummary` above instead.
+      expect(document.body.textContent).toContain('Lessons published');
+      expect(document.body.textContent).toContain('Active families');
+      // It says whose numbers these are: the school's, not her department's.
+      expect(document.body.textContent).toContain('The whole school');
+      const rows = [...document.querySelectorAll('tbody tr')].map((row) => row.textContent ?? '');
+      expect(rows.length).toBe(3);
+      expect(rows[0]).toContain('25%');
+      expect(rows[2]).toContain('—');
+      rendered.fixture.destroy();
+    });
+
+    it('writes a CSV Excel opens, from the rows and not from a second read', () => {
+      const rows = usageTeacherRows(USAGE);
+      const file = csvOf(
+        ['Teacher', 'Lessons published', 'Weeks with a lesson', 'Consistency'],
+        rows.map((row) => [
+          row.displayName,
+          String(row.lessonsPublished),
+          `${row.weeksWithALesson} / ${row.weeks}`,
+          row.consistency === null ? '—' : `${row.consistency}%`,
+        ]),
+      );
+
+      expect(file.startsWith('\uFEFF"Teacher"')).toBe(true);
+      expect(file).toContain('\r\n');
+      expect(file).toContain('"Sara Al Harbi","12","2 / 8","25%"');
     });
   });
 

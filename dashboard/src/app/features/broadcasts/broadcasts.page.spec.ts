@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { COORDINATOR_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
@@ -87,7 +87,7 @@ describe('the broadcasts screen', () => {
     TestBed.tick();
   }
 
-  async function signedInAs(user: typeof MANAGERIAL_USER) {
+  async function signedInAs(user: typeof MANAGERIAL_USER, query: Record<string, string> = {}) {
     await renderHq(BroadcastsPage, {
       providers: [
         provideHttpClient(),
@@ -95,6 +95,9 @@ describe('the broadcasts screen', () => {
         provideRouter([{ path: '**', children: [] }]),
         { provide: BASE_PATH, useValue: '' },
         { provide: FlagService, useValue: { isOn: () => true, refresh: () => undefined } },
+        // MG2a: the screen reads `?open=` off the snapshot, which a bare `provideRouter` leaves
+        // empty — the deep link is the thing under test, so it is supplied rather than navigated.
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
       ],
     });
     const backend = TestBed.inject(HttpTestingController);
@@ -135,6 +138,29 @@ describe('the broadcasts screen', () => {
     // The feed is the unread badge, so a read mark refetches it rather than repainting one row.
     backend.expectOne('/me/broadcasts').flush({ items: [{ ...EVENT, read: true }], unread: 0 });
     await settle();
+  });
+
+  /**
+   * MG2a item 4: `broadcast.posted` links here with `?open=<id>` — the id E2 carries as the
+   * row's entity id. Opening the screen *is* opening that row, exactly as the week's plan is:
+   * a twelve-row feed that merely contains the one the bell named has not answered the click.
+   */
+  it('opens, reads and scrolls to the row a notification named with ?open=', async () => {
+    const backend = await signedInAs(TEACHER_USER, { open: 'b-event' });
+    backend.expectOne('/me/broadcasts').flush({ items: [PLAN, EVENT], unread: 2 });
+    await settle();
+
+    expect(document.body.textContent).toContain('Thursday, on the big field.');
+    expect(document.querySelector('#bc-b-event')).toBeTruthy();
+    backend.expectOne('/me/broadcasts/b-event/read').flush({ ...EVENT, read: true });
+    await settle();
+    backend.expectOne('/me/broadcasts').flush({ items: [PLAN, { ...EVENT, read: true }], unread: 1 });
+    await settle();
+
+    // Collapsing it is still hers to do — the deep link opens the row once, it does not pin it.
+    screen.getByRole('button', { name: /Sports day/ }).click();
+    await settle();
+    expect(document.body.textContent).not.toContain('Thursday, on the big field.');
   });
 
   it("pins the week's plan, opens it, marks it read, and still lets her collapse it", async () => {
