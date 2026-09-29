@@ -211,9 +211,12 @@ describe('the screen table', () => {
       'staff-attendance',
       'broadcasts',
       'messages',
-      'complaints',
       'usage',
     ]);
+    // MG2a: Complaints keeps its route and loses its label until phase 5 fills the stub.
+    const complaints = AREAS.MANAGERIAL.screens.find((screen) => screen.id === 'complaints');
+    expect(complaints?.labelKey).toBeUndefined();
+    expect(phaseOf('/management/complaints')).toBe(5);
 
     const routes = childrenOf(areaRoutes('MANAGERIAL'));
     for (const path of [

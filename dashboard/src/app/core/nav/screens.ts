@@ -273,15 +273,11 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.chat,
         permission: 'management.chat',
       },
-      // RM3b: the department's complaints, on RM2's thread list. Still the stub, and still the
-      // `complaints` flag, so nothing offers her an inbox a school has switched off.
-      {
-        id: 'complaints',
-        path: 'complaints',
-        labelKey: 'nav.complaints',
-        flag: FLAGS.complaints,
-        phase: 5,
-      },
+      // RM3b: the department's complaints, on RM2's thread list. **No `labelKey` since MG2a**: it
+      // still renders the stub, and a rail item that opens "coming later" is the noise this
+      // package took out everywhere else. The route stays — a bookmark has to resolve, and the
+      // label comes back with phase 5.
+      { id: 'complaints', path: 'complaints', flag: FLAGS.complaints, phase: 5 },
       { id: 'complaint', path: 'complaints/:id', flag: FLAGS.complaints, phase: 5 },
       // MG2a: built, on `GET /school/usage`. The key is the server's own (`usage.school`), which
       // is what `mySchoolUsage` is gated by — and the reason the screen says in words that the

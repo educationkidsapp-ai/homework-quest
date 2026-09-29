@@ -38,6 +38,17 @@ role, and `ManagementApiTest` is untouched. The paths are **redirect rows** in
 `core/nav/screens.ts` (`MANAGER_RETIRED`) rather than deletions, so a bookmark, the runbook's
 own URL and a `link` an old notification carries all land on her Home instead of `/not-found`.
 
+**The service branches stay.** `LessonApiService` and `ResultsApiService` still answer
+`/management/**` for six reads no screen of hers makes any more (a lesson, a lesson's results, a
+child, an exam's results, and the gradebook and exam lists). They are one `if` each in services
+the coordinator shares, a department-scoped restore is on the server roadmap, and the redirect
+rows above still need the *live* two — Home's attention list (`lesson-api.service.ts`) and
+Attendance (`results-api.service.ts`). Kept deliberately, not overlooked.
+
+**A child's name on Attendance is a name, not a link.** `children/:childId` is one of the
+retired rows, so `childBase` is nullable and the register draws a `<span>` for her; the
+coordinator's child report never left her area, so hers is still a link.
+
 Her Home's **What needs you** followed: a failed or unreviewed lesson is now a line rather than
 a link (there is no lesson page of hers to open, and what she does about it was always a message),
 and "nothing on today" points at **Teachers**, the screen that says whether today has happened in
@@ -53,7 +64,10 @@ not in the bundle either environment serves.
 ## School usage (MG2a) — `/management/usage`
 
 `GET /school/usage` over a window she picks (the month ending today, in the school's timezone, by
-default): four tiles — children, active families, lessons published and lessons played, both
+default — asked for once she has **stopped typing or left the box**, because a `type="date"`
+input emits `0002-09-05` on the way to `2026-09-05` and each of those was a request the server
+answered 400; a window longer than `Reports.MAX_DAYS` (400 days) and one that ends before it
+starts are both said on screen instead of sent): four tiles — children, active families, lessons published and lessons played, both
 summed across the window rather than read off its last week — and a row per teacher from
 `teacherConsistency`: lessons published, **weeks with a lesson out of the window's weeks**, that
 ratio as a percentage, and when she last published. A CSV of the rows on screen, built in the
@@ -87,7 +101,10 @@ manager's retired screens — so MG1's role-correct fan-out takes effect without
 deploy. `?open=` and `?thread=` come from `lessonId`, which is E2's *entity* id rather than a
 lesson's alone (`BroadcastService` puts the broadcast's id there, which is how a superseded weekly
 plan's bell rows are found and forgotten). Broadcasts honours `?open=` by drawing that row open,
-marking it read and scrolling to it; Messages has honoured `?thread=` since R7.
+marking it read and scrolling to it — off `toSignal(route.queryParamMap)` rather than the
+snapshot, because the bell is on every screen and clicking a row *while already on Broadcasts*
+is a query-param-only navigation that reuses the component. `features/chat/chat.page.ts` still
+reads `?thread=` off the snapshot and has the same gap; it is a follow-up.
 
 ## Broadcasts and Messages (RM3b, DR5, DR6)
 
@@ -166,7 +183,8 @@ different facts, and a Save that is merely grey is a control nobody can act on.
 
 ## What RM3a and RM3b could not do
 
-- **Complaints is still the stub.** RM3b took the broadcast and the message halves of row RM3;
+- **Complaints is still the stub**, and since MG2a it is not in her rail either — the route
+  resolves, the label comes back with phase 5. RM3b took the broadcast and the message halves of row RM3;
   `/management/complaints` and her Home's "What needs you" complaint line are the rest of it. The
   Complaint badge is already on the row in Messages, which is where a complaint of hers lives.
 - **No attachment on a broadcast.** `{"attachment":{"url","name"}}` is a *reference* to bytes that

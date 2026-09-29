@@ -51,8 +51,8 @@ test.describe('the management area', () => {
     await expect(stats.getByRole('button')).toHaveCount(0);
 
     // MG2a: Classes, All lessons, Gradebook and Exams left her rail on the owner's own
-    // instruction. Broadcasts, Messages and Complaints are flag-gated and absent from the
-    // seeded school, so what is left is these six and School usage.
+    // instruction, and Complaints lost its label while it is still a stub. Broadcasts and
+    // Messages are flag-gated and absent from the seeded school.
     await expect(rail(page).getByRole('link')).toHaveText([
       'Home',
       'Coordinators',
