@@ -63,6 +63,8 @@ class BroadcastApiTest extends ApiTestSupport {
     private static final String BRITISH_PARENT = "bc-parent-uk", BRITISH_B_PARENT = "bc-parent-uk-b", AMERICAN_PARENT = "bc-parent-us";
     /** MG1: a second British grade, so "her department" and "one grade of it" are two different audiences. */
     private static final String RITA = "bc-rita", BRITISH_2_PARENT = "bc-parent-uk-2";
+    /** A teacher in <em>both</em> departments at different grades — the cross-product bug's only witness. */
+    private static final String ZAID = "bc-zaid", HALA = "bc-hala";
 
     @Autowired SchoolSeed seed;
     @Autowired SchoolRepository schools;
@@ -120,6 +122,14 @@ class BroadcastApiTest extends ApiTestSupport {
         british2A = ClassFixtures.section(classes, assignments, SCHOOL + ":british:2:art", SCHOOL, "british", 2, "art", RITA).getId();
         for (String key : List.of(FlagKeys.CHAT, FlagKeys.ANNOUNCEMENTS)) { flag(SCHOOL, key, true); flag(OTHER_SCHOOL, key, true); }
         childBritish2 = child("Yara", british2A, "british", BRITISH_2_PARENT, 2);
+        // Zaid teaches grade 1 British and grade 3 American. His tracks are {british, american} and his grades
+        // {1, 3}: matched independently that is four cells, two of which he teaches nobody in.
+        staff(ZAID, "Zaid", "TEACHER");
+        ClassFixtures.assign(assignments, classes.findById(britishA).orElseThrow(), "drama", ZAID);
+        ClassFixtures.section(classes, assignments, SCHOOL + ":american:3:drama", SCHOOL, "american", 3, "drama", ZAID);
+        // Grade 3 British exists and is somebody else's: the cell Zaid would be handed by a crossed track and grade.
+        staff(HALA, "Hala", "TEACHER");
+        ClassFixtures.section(classes, assignments, SCHOOL + ":british:3:drama", SCHOOL, "british", 3, "drama", HALA);
         adminToken = adminToken();
         adminUserId = users.findByEmailIgnoreCase("admin@test.local").orElseThrow().getId();
         bus.subscribe(heard::add);
@@ -475,7 +485,7 @@ class BroadcastApiTest extends ApiTestSupport {
      * The owner's item 4: "a feature to see all weekly plans". The archive is the feed read backwards — past weeks
      * and expired rows included, which is the one thing it must do that `GET /me/broadcasts` must not.
      */
-    @Test @Order(13) void the_archive_holds_past_weeks_and_stops_at_the_department() throws Exception {
+    @Test @Order(14) void the_archive_holds_past_weeks_and_stops_at_the_department() throws Exception {
         var old = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week.minusWeeks(3) + "\","
                 + "\"title\":\"Three weeks ago\",\"bodyEn\":\"Shapes.\",\"audience\":[\"parents\",\"teachers\"]}");
         // Expired by hand: there is no way to post a row that is already over, and "the feed hides it, the archive
@@ -506,6 +516,40 @@ class BroadcastApiTest extends ApiTestSupport {
             mvc.perform(as(get("/management/weekly-plans" + query), token(nour, "MANAGERIAL"))).andExpect(status().isBadRequest());
     }
 
+    /**
+     * The reviewer's blocker: <strong>a track and a grade are one key, not two.</strong> Zaid teaches grade 1 British
+     * and grade 3 American, so a set of tracks crossed with a set of grades offered him four cells — and handed him
+     * the British department's grade 3 plan, a week of work for children he has never taught, on the feed and in the
+     * bell alike. The pair he actually sits in is what decides it, in the one predicate the fan-out, the feeds and
+     * the archives all share.
+     */
+    @Test @Order(13) void a_teacher_in_two_departments_gets_neither_departments_other_grade() throws Exception {
+        created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":3,"
+                + "\"title\":\"British grade 3\",\"bodyEn\":\"Fractions.\",\"audience\":[\"teachers\"]}");
+        created(sami, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":3,"
+                + "\"title\":\"American grade 3\",\"bodyEn\":\"Spelling.\",\"audience\":[\"teachers\"]}");
+        created(sami, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week.minusWeeks(1) + "\",\"grade\":1,"
+                + "\"title\":\"American grade 1\",\"bodyEn\":\"Counting.\",\"audience\":[\"teachers\"]}");
+
+        var feed = names(staffGet(ZAID, "TEACHER", "/me/broadcasts").get("items"), "title");
+        assertThat(feed).as("the two cells he actually teaches in").contains("American grade 3")
+                .as("british|3 and american|1 are cells he holds no section in")
+                .doesNotContain("British grade 3", "American grade 1");
+        // Grade 1 British is his too, through the department-wide plan and a grade plan alike.
+        assertThat(feed).contains("Week of subtraction (v2)");
+        var bells = names(staffGet(ZAID, "TEACHER", "/me/notifications"), "title");
+        assertThat(bells).as("the bell must never say what the feed will not show")
+                .doesNotContain("British grade 3", "American grade 1");
+        // The archive asks the same question, so the three screens cannot drift apart.
+        var archive = planTitles(staffGet(ZAID, "TEACHER", "/me/weekly-plans"));
+        assertThat(archive).contains("American grade 3").doesNotContain("British grade 3", "American grade 1");
+        // And each row still reaches the teacher whose grade it is.
+        assertThat(names(staffGet(RITA, "TEACHER", "/me/broadcasts").get("items"), "title"))
+                .as("Rita is british|2") .doesNotContain("British grade 3");
+        assertThat(names(staffGet(HALA, "TEACHER", "/me/broadcasts").get("items"), "title"))
+                .as("Hala is british|3, so it is hers").contains("British grade 3").doesNotContain("American grade 3");
+    }
+
     // ---------------------------------------------------------------- MG1: manager ↔ teacher chat
 
     /**
@@ -513,7 +557,7 @@ class BroadcastApiTest extends ApiTestSupport {
      * side and the manager `peer_user_id`, the rule R4 set for the coordinator and RM2 for the admin, so whichever
      * side opens it there is one row and `findForStaff` finds it for both.
      */
-    @Test @Order(14) void nour_and_maya_share_one_thread_and_sami_reaches_neither_end() throws Exception {
+    @Test @Order(15) void nour_and_maya_share_one_thread_and_sami_reaches_neither_end() throws Exception {
         int before = (int) heard.stream().filter(e -> ChatEvent.MESSAGE.equals(e.kind())).count();
         var thread = created(nour, "/management/chat/threads", "{\"teacherUserId\":\"" + maya + "\"}");
         String threadId = thread.get("id").asText();
@@ -551,7 +595,7 @@ class BroadcastApiTest extends ApiTestSupport {
      * The owner's item 7: a bell entry that cannot be opened is a bell entry nobody uses. Every kind carries a link
      * on the <em>recipient's</em> own dashboard — the area is her role's, never the author's.
      */
-    @Test @Order(15) void every_notification_kind_links_into_the_recipients_own_area() throws Exception {
+    @Test @Order(16) void every_notification_kind_links_into_the_recipients_own_area() throws Exception {
         String id = created(nour, "/management/broadcasts", "{\"kind\":\"announcement\",\"title\":\"Link check\","
                 + "\"bodyEn\":\"Open me.\",\"audience\":[\"teachers\",\"coordinators\"]}").get("id").asText();
         assertThat(rowWith(staffGet(maya, "TEACHER", "/me/notifications"), "title", "Link check").get("link").asText())

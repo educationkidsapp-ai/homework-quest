@@ -389,7 +389,7 @@ public class BroadcastService {
      * The caller's own reach, resolved once per request rather than per row: her sections and the tracks they are in,
      * and whether her role is an audience at all. `all` is the platform ADMIN reading a school (D6).
      */
-    private record Reach(String role, Set<String> sectionIds, Set<String> tracks, Set<Integer> grades, boolean all) {
+    private record Reach(String role, Set<String> sectionIds, Set<String> tracks, Set<String> cells, boolean all) {
         boolean sees(BroadcastEntity b) {
             if (all) return true;
             var audience = Set.of(b.getAudienceRoles().split(","));
@@ -399,7 +399,7 @@ public class BroadcastService {
                 case ManagerScope.ROLE -> true;                 // she manages the department, whoever the row is for
                 default -> false;
             };
-            return wanted && touches(b, sectionIds, tracks, grades);
+            return wanted && touches(b, sectionIds, tracks, cells);
         }
     }
 
@@ -408,35 +408,46 @@ public class BroadcastService {
         if ("ADMIN".equals(role)) return new Reach(role, Set.of(), Set.of(), Set.of(), true);
         if (ManagerScope.ROLE.equals(role)) {
             var sections = managers.sectionsOf(caller);
-            return new Reach(role, ids(sections), Set.copyOf(managers.departments(caller)), gradesOf(sections), false);
+            return new Reach(role, ids(sections), Set.copyOf(managers.departments(caller)), cellsOf(sections), false);
         }
         if (CoordinatorScope.ROLE.equals(role)) {
             var sections = coordinators.sectionsOf(caller);
             var tracks = coordinators.scopesOf(caller).stream().map(CoordinatorScope.Scope::curriculum).filter(Objects::nonNull)
                     .map(ManagerScope::normalise).collect(Collectors.toSet());
             // A coordinator of both tracks holds a row with no curriculum: every track of her sections is hers.
-            return new Reach(role, ids(sections), tracks.isEmpty() ? tracksOf(sections) : tracks, gradesOf(sections), false);
+            return new Reach(role, ids(sections), tracks.isEmpty() ? tracksOf(sections) : tracks, cellsOf(sections), false);
         }
         var mine = teachers.classesOf(caller);
-        return new Reach(role, ids(mine), tracksOf(mine), gradesOf(mine), false);
+        return new Reach(role, ids(mine), tracksOf(mine), cellsOf(mine), false);
     }
 
     /**
      * A row reaches a reader when it names one of her sections, or — department-wide — when it names her track and,
-     * since V23, her grade. <strong>One predicate, one place</strong>: the feeds, the fan-out that decides who is
-     * told, and MG1's three archives all ask this question, so a grade plan can never ring a bell it does not fill.
+     * since V23, a grade she is actually in <em>that</em> track. <strong>One predicate, one place</strong>: the feeds,
+     * the fan-out that decides who is told, and MG1's three archives all ask this question, so a grade plan can never
+     * ring a bell it does not fill.
+     *
+     * <p><strong>The track and the grade are one key, not two.</strong> A teacher who holds grade 1 British and grade
+     * 5 American has tracks {british, american} and grades {1, 5}; matched independently that is four cells and she
+     * would be handed the British department's grade 5 plan — a week's plan for children she has never taught, on the
+     * feed and in the bell. So {@link Reach#cells} is the set of `curriculum|grade` pairs her sections actually sit
+     * in, and a row with a grade is matched against exactly that. {@code tracks} stays for the grade-less row, which
+     * is the whole department and asks nothing about a grade.
      */
-    private static boolean touches(BroadcastEntity b, Set<String> sectionIds, Set<String> tracks, Set<Integer> grades) {
+    private static boolean touches(BroadcastEntity b, Set<String> sectionIds, Set<String> tracks, Set<String> cells) {
         if (b.getSectionIds() != null && !b.getSectionIds().isBlank())
             return Arrays.stream(b.getSectionIds().split(",")).anyMatch(sectionIds::contains);
-        if (b.getCurriculum() == null || !tracks.contains(ManagerScope.normalise(b.getCurriculum()))) return false;
-        return b.getGrade() == null || grades.contains(b.getGrade());
+        if (b.getCurriculum() == null) return false;
+        String track = ManagerScope.normalise(b.getCurriculum());
+        if (b.getGrade() == null) return tracks.contains(track);
+        return cells.contains(cell(track, b.getGrade()));
     }
 
     /** The parent's rule: the row is for parents, and it names her child's own section, or her track and grade. */
     private static boolean forChild(BroadcastEntity b, ChildEntity kid) {
+        String track = ManagerScope.normalise(kid.getCurriculum());
         return Set.of(b.getAudienceRoles().split(",")).contains(PARENTS)
-                && touches(b, Set.of(kid.getClassId()), Set.of(ManagerScope.normalise(kid.getCurriculum())), Set.of(kid.getGrade()));
+                && touches(b, Set.of(kid.getClassId()), Set.of(track), Set.of(cell(track, kid.getGrade())));
     }
 
     // ---------------------------------------------------------------- shapes
@@ -528,7 +539,11 @@ public class BroadcastService {
     private static boolean named(List<String> sectionIds) { return sectionIds != null && !sectionIds.isEmpty(); }
     private static Set<String> ids(List<ClassEntity> sections) { return sections.stream().map(ClassEntity::getId).collect(Collectors.toSet()); }
     private static Set<String> tracksOf(List<ClassEntity> sections) { return sections.stream().map(k -> ManagerScope.normalise(k.getCurriculum())).collect(Collectors.toSet()); }
-    private static Set<Integer> gradesOf(List<ClassEntity> sections) { return sections.stream().map(ClassEntity::getGrade).collect(Collectors.toSet()); }
+    /** The `curriculum|grade` cells a set of sections sits in — one key, so a track and a grade can never be crossed. */
+    private static Set<String> cellsOf(List<ClassEntity> sections) {
+        return sections.stream().map(k -> cell(ManagerScope.normalise(k.getCurriculum()), k.getGrade())).collect(Collectors.toSet());
+    }
+    private static String cell(String track, int grade) { return track + "|" + grade; }
 
     /**
      * The one grade a row is for, or null for every grade of the department. It is refused beside named sections —
