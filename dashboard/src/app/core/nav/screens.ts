@@ -208,9 +208,15 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.announcements,
         permission: 'broadcast.read',
       },
+      // MG2b: **a rail row of her own.** It had none — she reached the screen from a roster row's
+      // "Message parent" (a *parent* conversation, by `?childId=`) and from the header's chat icon —
+      // so a thread the department manager started was invisible unless she happened to look. The
+      // rail carries the unread count too (`shell.component.ts`), which is what makes it findable
+      // rather than merely present.
       {
         id: 'chat',
         path: 'chat',
+        labelKey: 'nav.messages',
         flag: FLAGS.chat,
         permission: 'teacher.chat',
       },
