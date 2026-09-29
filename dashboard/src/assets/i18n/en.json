@@ -2177,6 +2177,7 @@
       "week": "Week",
       "grade": "Grade",
       "readBy": "Read by"
-    }
+    },
+    "backwards": "That window ends before it starts."
   }
 }

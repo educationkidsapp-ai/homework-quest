@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BroadcastView, WeeklyPlanArchive } from '../../api';
-import {
-  NO_PLAN_FILTER,
-  filterWeeks,
-  gradesIn,
-  planCsv,
-  planRows,
-  planWeeks,
-  readerBodies,
-} from './plan-archive';
+import { NO_PLAN_FILTER, filterWeeks, planCsv, planRows, planWeeks, readerBodies } from './plan-archive';
 
 /**
  * MG2b, owner's item 4 ("see all weekly plans"). The archive is the one screen that must keep what
@@ -60,7 +52,6 @@ describe('the weekly-plan archive', () => {
     ]);
     // `readBy: 0` is a number and not "unknown": nobody has opened it yet, which is the point.
     expect(weeks[0]?.rows[2]?.readBy).toBe(0);
-    expect(gradesIn(weeks)).toEqual([1, 3]);
   });
 
   it('answers an empty list rather than throwing on an empty or absent archive', () => {

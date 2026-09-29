@@ -96,14 +96,6 @@ export function planRows(weeks: readonly PlanWeek[]): readonly PlanRow[] {
   return weeks.flatMap((week) => week.rows);
 }
 
-/** The grades the archive actually holds, for a filter that only offers answers it has. */
-export function gradesIn(weeks: readonly PlanWeek[]): readonly number[] {
-  const grades = planRows(weeks)
-    .map((row) => row.grade)
-    .filter((grade): grade is number => grade !== null);
-  return [...new Set(grades)].sort((a, b) => a - b);
-}
-
 /** The four headers and the one label the export needs, already translated by the caller. */
 export interface PlanCsvLabels {
   readonly title: string;

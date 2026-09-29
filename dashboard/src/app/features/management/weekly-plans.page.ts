@@ -16,7 +16,6 @@ import {
   type GradeFilter,
   type PlanRow,
   filterWeeks,
-  gradesIn,
   planCsv,
   planWeeks,
 } from '../../core/broadcasts/plan-archive';
@@ -73,8 +72,10 @@ interface GlanceCard {
  *    plans included, filtered by grade and by date range, with `readBy` on each row and a CSV of
  *    the list.
  *
- * **One request for all three.** The archive answers this week too (it is the newest week in the
- * window), so the glance is a filter over it rather than a second call that could disagree with it.
+ * **The glance has its own read.** It was a slice of the filtered archive, and that was a defect:
+ * a grade filter or an end date in the past made a card say "No plan yet" for a week that had one,
+ * and "Add plan" there replaces the plan it could not see. So this week is asked for on its own —
+ * one week, no grade — and the archive's filters touch the list below and nothing else.
  *
  * **A grade needs one department.** `POST /management/broadcasts` accepts `grade` only on a row
  * that names no section, and a manager of two departments must name sections to say which
@@ -124,24 +125,32 @@ interface GlanceCard {
 
         <hq-card [title]="'plans.thisWeek' | transloco">
           <p class="hq-muted">{{ weekLabel(thisWeek()) }}</p>
-          <div class="wp__glance">
-            @for (card of glance(); track card.key) {
-              <div class="wp__card">
-                <p class="wp__grade">{{ card.label }}</p>
-                @if (card.plan; as plan) {
-                  <p class="wp__posted">{{ plan.title || ('broadcasts.untitled' | transloco) }}</p>
-                  <hq-button *hqCan="'management.broadcast'" variant="secondary" (pressed)="add(card)">
-                    {{ 'plans.replace' | transloco }}
-                  </hq-button>
-                } @else {
-                  <p class="hq-muted">{{ 'plans.none' | transloco }}</p>
-                  <hq-button *hqCan="'management.broadcast'" variant="secondary" (pressed)="add(card)">
-                    {{ 'plans.add' | transloco }}
-                  </hq-button>
-                }
-              </div>
-            }
-          </div>
+          <!-- Until this week's own read has landed, no card may say "no plan yet": that sentence
+               with a button beside it is an offer to replace a plan nobody has seen. -->
+          @if (glanceLoading()) {
+            <hq-skeleton [loading]="true" [lines]="2" [label]="'ui.loading' | transloco" />
+          } @else if (thisWeekPlans.error()) {
+            <hq-coordinator-read-failed (retry)="thisWeekPlans.reload()" />
+          } @else {
+            <div class="wp__glance">
+              @for (card of glance(); track card.key) {
+                <div class="wp__card">
+                  <p class="wp__grade">{{ card.label }}</p>
+                  @if (card.plan; as plan) {
+                    <p class="wp__posted">{{ plan.title || ('broadcasts.untitled' | transloco) }}</p>
+                    <hq-button *hqCan="'management.broadcast'" variant="secondary" (pressed)="add(card)">
+                      {{ 'plans.replace' | transloco }}
+                    </hq-button>
+                  } @else {
+                    <p class="hq-muted">{{ 'plans.none' | transloco }}</p>
+                    <hq-button *hqCan="'management.broadcast'" variant="secondary" (pressed)="add(card)">
+                      {{ 'plans.add' | transloco }}
+                    </hq-button>
+                  }
+                </div>
+              }
+            </div>
+          }
         </hq-card>
 
         <hq-card [title]="'plans.archive' | transloco">
@@ -170,7 +179,7 @@ interface GlanceCard {
           </div>
 
           @if (backwards()) {
-            <hq-empty-state [message]="'management.usage.backwards' | transloco" />
+            <hq-empty-state [message]="'plans.backwards' | transloco" />
           } @else if (archive.isLoading()) {
             <hq-skeleton [loading]="true" [lines]="6" [label]="'ui.loading' | transloco" />
           } @else if (archive.error()) {
@@ -264,6 +273,36 @@ export class WeeklyPlansPage {
   protected readonly backwards = computed(() => this.from() !== '' && this.from() > this.to());
 
   /**
+   * **This week, unfiltered** — the read the cards are built from, and nothing else.
+   *
+   * The review's first blocker: the glance used to be a slice of the filtered archive, so picking
+   * grade 1 or an end date in the past made every card outside the filter say "No plan yet" for a
+   * week that already had a plan — and "Add plan" on that card is a *replace*
+   * (`BroadcastService.replacePlan` deletes the previous row, its read marks and its bell rows). A
+   * screen may not offer a destructive action because of a filter she set to look at something
+   * else, so this week has its own request: one week, both ends the same Sunday, no `grade`.
+   */
+  protected readonly thisWeekPlans = rxResource({
+    params: () => (this.enabled() ? { week: this.thisWeek() } : undefined),
+    stream: ({ params }) => this.api.managementWeeklyPlans(params.week, params.week, undefined),
+  });
+
+  /**
+   * No card is drawn until this week's own answer is in — see the template.
+   *
+   * Her classes are allowed to arrive later: a grade whose card is not there yet cannot offer to
+   * replace anything, while a card drawn before the plans are known could.
+   */
+  protected readonly glanceLoading = computed(() => this.thisWeekPlans.isLoading());
+
+  /** The plans posted for this week, whatever the archive below is filtered to. */
+  private readonly postedThisWeek = computed<readonly PlanRow[]>(() => {
+    const week = this.thisWeek();
+    const weeks = planWeeks(this.thisWeekPlans.value());
+    return weeks.find((row) => row.weekStart === week)?.rows ?? weeks[0]?.rows ?? [];
+  });
+
+  /**
    * The archive.
    *
    * `grade` goes to the server when she names one — her route takes it, and asking for one grade
@@ -320,8 +359,7 @@ export class WeeklyPlansPage {
    * department a row is for (see the class comment).
    */
   protected readonly glance = computed<readonly GlanceCard[]>(() => {
-    const week = this.thisWeek();
-    const posted = this.allWeeks().find((row) => row.weekStart === week)?.rows ?? [];
+    const posted = this.postedThisWeek();
     const departments = this.departments();
     if (departments.length > 1) {
       return departments.map((department) => ({
@@ -332,7 +370,6 @@ export class WeeklyPlansPage {
         plan: posted.find((row) => row.grade === null && row.plan.curriculum === department) ?? null,
       }));
     }
-    const grades = [...new Set(this.sections().map((row) => row.grade))].sort((a, b) => a - b);
     return [
       {
         key: 'all',
@@ -341,7 +378,7 @@ export class WeeklyPlansPage {
         department: '',
         plan: posted.find((row) => row.grade === null) ?? null,
       },
-      ...grades.map((grade) => ({
+      ...this.myGrades().map((grade) => ({
         key: String(grade),
         label: this.transloco.translate<string>('broadcasts.gradeN', { grade }),
         grade,
@@ -351,10 +388,23 @@ export class WeeklyPlansPage {
     ];
   });
 
+  /** The grades she manages — the cards' own source, and the filter's (see {@link gradeFilters}). */
+  private readonly myGrades = computed<readonly number[]>(() =>
+    [...new Set(this.sections().map((row) => row.grade))].sort((a, b) => a - b),
+  );
+
+  /**
+   * The filter's options, from **her grades** and not from the answer.
+   *
+   * The review's second blocker: built from `gradesIn(archive)` — the server-*filtered* answer —
+   * the select offered only Any / All grades / 1 once she had chosen grade 1, so grade 2 was
+   * reachable only by going back through Any. Her own classes are the same source the cards use,
+   * and the same source `broadcast.rules.ts` validates a grade against.
+   */
   protected readonly gradeFilters = computed<readonly SelectOption[]>(() => [
     { value: 'any', label: this.transloco.translate<string>('plans.gradeAny') },
     { value: 'all', label: this.transloco.translate<string>('broadcasts.gradeAll') },
-    ...gradesIn(this.allWeeks()).map((grade) => ({
+    ...this.myGrades().map((grade) => ({
       value: String(grade),
       label: this.transloco.translate<string>('broadcasts.gradeN', { grade }),
     })),
@@ -386,6 +436,7 @@ export class WeeklyPlansPage {
           this.composing.set(false);
           this.posted.set(true);
           this.archive.reload();
+          this.thisWeekPlans.reload();
         }),
         catchError(() => {
           this.posting.set(false);

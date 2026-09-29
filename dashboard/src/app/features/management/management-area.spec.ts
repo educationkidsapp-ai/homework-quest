@@ -703,9 +703,11 @@ describe('RM3a — the management area', () => {
       backend.match('/management/classes').forEach((request) => request.flush(CLASSES));
       backend.match('/management/teachers').forEach((request) => request.flush([]));
       await settle();
-      backend
-        .match((request) => request.url === '/management/weekly-plans')
-        .forEach((request) => request.flush({ from: '2026-07-12', to: '2026-09-27', weeks }));
+      // Two reads: this week on its own (the cards) and the window (the archive). The cards may
+      // never be built from the filtered one — see the test below.
+      const reads = backend.match((request) => request.url === '/management/weekly-plans');
+      expect(reads.length).toBe(2);
+      reads.forEach((request) => request.flush({ from: '2026-07-12', to: '2026-09-27', weeks }));
       await settle();
       return backend;
     }
@@ -728,6 +730,47 @@ describe('RM3a — the management area', () => {
       // The archive, with `readBy` — hers alone — and the week that is already behind her.
       expect(document.body.textContent).toContain('Two weeks ago');
       expect(document.body.textContent).toContain('Read by 12');
+    });
+
+    /**
+     * The review's first blocker, as a test: the cards come from **this week's own unfiltered
+     * read**, so no filter she sets on the archive can make a posted plan look missing — and
+     * "Add plan" on a card is never an offer to replace a plan the screen could not see.
+     */
+    it('keeps this week’s cards when the archive is filtered to a grade and a past week', async () => {
+      const backend = await openScreen([{ weekStart: '2026-09-27', items: [{ plan: PLAN, readBy: 3 }] }]);
+      expect(document.body.textContent).toContain('The department’s week');
+
+      // A grade and an end date that exclude the all-grades plan from the archive entirely.
+      const grade = document.querySelectorAll('select')[0] as HTMLSelectElement;
+      grade.value = '1';
+      grade.dispatchEvent(new Event('change', { bubbles: true }));
+      const to = document.querySelectorAll('input[type="date"]')[1] as HTMLInputElement;
+      to.value = '2026-09-13';
+      to.dispatchEvent(new Event('input', { bubbles: true }));
+      await settle();
+
+      // The archive asks again, with her filter, and answers nothing for that window.
+      const refetch = backend.match((request) => request.url === '/management/weekly-plans');
+      expect(refetch.length).toBeGreaterThan(0);
+      // Every one of them carries the window and the grade; this week's own read is not among them.
+      refetch.forEach((request) => {
+        expect(request.request.params.get('grade')).toBe('1');
+        request.flush({ weeks: [] });
+      });
+      await settle();
+
+      // The card still says what is posted, and offers Replace rather than Add.
+      expect(document.body.textContent).toContain('The department’s week');
+      expect(screen.getByRole('button', { name: 'Replace plan' })).toBeTruthy();
+      expect(document.body.textContent).toContain('No weekly plan in this window');
+
+      // And the filter still offers every grade she manages, not only the one she chose.
+      expect([...grade.options].map((option) => option.textContent?.trim())).toEqual([
+        'Every grade',
+        'All grades',
+        'Grade 1',
+      ]);
     });
 
     it('posts a grade plan for a chosen grade, and sends grade instead of classes', async () => {
