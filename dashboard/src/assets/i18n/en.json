@@ -2061,6 +2061,7 @@
     },
     "usage": {
       "scope": "The whole school, every department — over the window you pick",
+      "backwards": "That window ends before it starts.",
       "tilesLabel": "School usage",
       "export": "Export CSV",
       "teachers": "How often each teacher publishes",

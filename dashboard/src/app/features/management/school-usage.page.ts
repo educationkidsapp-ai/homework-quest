@@ -2,7 +2,14 @@
    `usage.school`, the key the row in `core/nav/screens.ts` puts on the route. A school cannot
    switch off knowing how much of itself is being used. */
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  type OnDestroy,
+  computed,
+  inject,
+  linkedSignal,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { DashboardDataApi } from '../../api';
@@ -22,8 +29,26 @@ import {
   TableComponent,
 } from '../../ui';
 import { CoordinatorReadFailedComponent } from '../coordinator/read-failed.component';
-import { defaultStatsRange } from './management-stats';
+import { defaultStatsRange, windowDays } from './management-stats';
 import { type UsageTeacherRow, usageSummary, usageTeacherRows } from './school-usage.models';
+
+/**
+ * `Reports.MAX_DAYS` — the server answers 400 for a longer window, so the screen says so and
+ * does not send it. Named here rather than shared with `MAX_WINDOW_DAYS` (186) because that one
+ * is `/management/stats`'s limit and the two endpoints do not have to agree.
+ */
+const MAX_DAYS = 400;
+
+/**
+ * How long a typed date waits before it is asked about.
+ *
+ * A `type="date"` input emits a *complete* value while the year is still being typed — `0002`,
+ * then `0020`, then `0202` — so "only ask for a full date" is not a guard at all: each of those
+ * is a full date, a window of two thousand years, and a 400 from the server. She stops typing
+ * for a moment, or she leaves the field, and then it is a question. 300 ms is the People
+ * screen's own number for the same reason.
+ */
+const COMMIT_MS = 300;
 
 /**
  * School usage (MG2a item 5) — `GET /school/usage`, over a window she picks.
@@ -67,20 +92,30 @@ import { type UsageTeacherRow, usageSummary, usageTeacherRows } from './school-u
             type="date"
             [label]="'coordinator.lessons.from' | transloco"
             [value]="from()"
-            (valueChange)="from.set($event)"
+            (valueChange)="onFrom($event)"
+            (blurred)="commit()"
           />
           <hq-input
             type="date"
             [label]="'coordinator.lessons.to' | transloco"
             [value]="to()"
-            (valueChange)="to.set($event)"
+            (valueChange)="onTo($event)"
+            (blurred)="commit()"
           />
           <hq-button variant="secondary" [disabled]="rows().length === 0" (pressed)="exportCsv()">
             {{ 'management.usage.export' | transloco }}
           </hq-button>
         </div>
 
-        @if (usage.isLoading()) {
+        @if (backwards()) {
+          <!-- Four zero tiles and an empty table are a statement about the school; a window that
+               ends before it starts has made no such statement. -->
+          <hq-empty-state [message]="'management.usage.backwards' | transloco" />
+        } @else if (tooWide()) {
+          <!-- The server refuses more than 400 days with a 400; the Attendance page's own
+               sentence says the number, and the request is not sent. -->
+          <hq-empty-state [message]="'coordinator.attendance.tooWide' | transloco: { days: maxDays }" />
+        } @else if (usage.isLoading()) {
           <hq-skeleton [loading]="true" [lines]="6" [label]="'ui.loading' | transloco" />
         } @else if (usage.error()) {
           <hq-coordinator-read-failed (retry)="usage.reload()" />
@@ -146,7 +181,7 @@ import { type UsageTeacherRow, usageSummary, usageTeacherRows } from './school-u
     }
   `,
 })
-export class SchoolUsagePage {
+export class SchoolUsagePage implements OnDestroy {
   private readonly api = inject(DashboardDataApi);
   private readonly platform = inject(PlatformService);
   private readonly transloco = inject(TranslocoService);
@@ -156,19 +191,62 @@ export class SchoolUsagePage {
   private readonly schoolToday = computed(() =>
     new Intl.DateTimeFormat('en-CA', { timeZone: this.platform.timezone() }).format(new Date()),
   );
-  private readonly window = computed(() => defaultStatsRange(this.schoolToday()));
-  protected readonly from = linkedSignal(() => this.window().from);
-  protected readonly to = linkedSignal(() => this.window().to);
+  private readonly defaults = computed(() => defaultStatsRange(this.schoolToday()));
+  /** What the two boxes show — every keystroke of it. */
+  protected readonly from = linkedSignal(() => this.defaults().from);
+  protected readonly to = linkedSignal(() => this.defaults().to);
+  /** What a request is made for: the pair she has finished typing (see {@link COMMIT_MS}). */
+  private readonly chosen = linkedSignal(() => this.defaults());
+  private debounce: ReturnType<typeof setTimeout> | null = null;
+
+  protected readonly maxDays = MAX_DAYS;
+  /** Both refusals are computed on the *chosen* pair, so neither flashes while she types. */
+  protected readonly tooWide = computed(() => windowDays(this.chosen().from, this.chosen().to) > MAX_DAYS);
+  protected readonly backwards = computed(() => {
+    const { from, to } = this.chosen();
+    return from !== '' && to !== '' && from > to;
+  });
 
   protected readonly usage = rxResource({
-    // Both bounds or neither: a half-typed date would ask for a window nobody has chosen yet.
+    // Both bounds or neither, and neither of the two windows the screen has already refused in
+    // words: a request the page knows will be a 400 buys a red retry band with no reason on it.
     params: () => {
-      const from = this.from();
-      const to = this.to();
-      return from === '' || to === '' || from > to ? undefined : { from, to };
+      const { from, to } = this.chosen();
+      if (from === '' || to === '' || this.backwards() || this.tooWide()) return undefined;
+      return { from, to };
     },
     stream: ({ params }) => this.api.mySchoolUsage(params.from, params.to),
   });
+
+  protected onFrom(value: string): void {
+    this.from.set(value);
+    this.schedule();
+  }
+
+  protected onTo(value: string): void {
+    this.to.set(value);
+    this.schedule();
+  }
+
+  /** Leaving the field is finishing with it, so it is asked about at once. */
+  protected commit(): void {
+    this.stopDebounce();
+    this.chosen.set({ from: this.from(), to: this.to() });
+  }
+
+  private schedule(): void {
+    this.stopDebounce();
+    this.debounce = setTimeout(() => this.commit(), COMMIT_MS);
+  }
+
+  private stopDebounce(): void {
+    if (this.debounce !== null) clearTimeout(this.debounce);
+    this.debounce = null;
+  }
+
+  ngOnDestroy(): void {
+    this.stopDebounce();
+  }
 
   protected readonly tiles = computed(() => {
     const summary = usageSummary(this.usage.value());
@@ -207,9 +285,12 @@ export class SchoolUsagePage {
       String(row.lessonsPublished),
       `${row.weeksWithALesson} / ${row.weeks}`,
       this.percent(row.consistency),
-      row.lastPublishedAt === null ? '' : new Date(row.lastPublishedAt).toISOString().slice(0, 10),
+      // `en-CA` in the *browser's* zone — the same day the table's `DatePipe` drew, where
+      // `toISOString()` would print yesterday's for anyone east of Greenwich near midnight.
+      row.lastPublishedAt === null ? '' : new Date(row.lastPublishedAt).toLocaleDateString('en-CA'),
     ]);
-    saveFile(csvOf(headers, body), `school-usage-${this.from()}-${this.to()}.csv`, 'text/csv;charset=utf-8');
+    const { from, to } = this.chosen();
+    saveFile(csvOf(headers, body), `school-usage-${from}-${to}.csv`, 'text/csv;charset=utf-8');
   }
 
   private t(key: string): string {

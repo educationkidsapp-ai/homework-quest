@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { type ManagementStats, BASE_PATH } from '../../api';
@@ -504,6 +504,67 @@ describe('RM3a — the management area', () => {
       expect(rows[0]).toContain('25%');
       expect(rows[2]).toContain('—');
       rendered.fixture.destroy();
+    });
+
+    /**
+     * The review's third blocker: the two date boxes fired a request on every `valueChange`, and
+     * a `type="date"` input emits a *complete* value while the year is being typed — `0002-09-05`
+     * is a full date, a window of two thousand years, and a 400 the page showed as a bare red
+     * retry band. Now: nothing is asked while she types, and the two windows the server would
+     * refuse are refused in words first.
+     */
+    it('asks nothing while she types, and refuses both bad windows in words', async () => {
+      vi.useFakeTimers();
+      try {
+        const rendered = await renderHq(SchoolUsagePage, {
+          providers: [
+            provideHttpClient(),
+            provideHttpClientTesting(),
+            provideRouter([{ path: '**', children: [] }]),
+            { provide: BASE_PATH, useValue: '' },
+          ],
+        });
+        const backend = TestBed.inject(HttpTestingController);
+        backend.expectOne((request) => request.url === '/school/usage').flush(USAGE);
+        await Promise.resolve();
+        TestBed.tick();
+
+        const boxes = [...document.querySelectorAll('input[type="date"]')] as HTMLInputElement[];
+        const type = (box: HTMLInputElement, value: string) => {
+          box.value = value;
+          box.dispatchEvent(new Event('input', { bubbles: true }));
+          TestBed.tick();
+        };
+
+        // A year typed digit by digit: three complete dates, and not one of them a request.
+        for (const year of ['0002', '0020', '0202']) type(boxes[0]!, `${year}-09-05`);
+        expect(backend.match('/school/usage')).toEqual([]);
+
+        // It settles on a window longer than the server's 400 days: the sentence, not a request.
+        vi.advanceTimersByTime(400);
+        TestBed.tick();
+        expect(backend.match('/school/usage')).toEqual([]);
+        expect(document.body.textContent).toContain('400 days or less');
+
+        // A window that ends before it starts says so rather than drawing four zero tiles.
+        type(boxes[0]!, '2026-09-26');
+        type(boxes[1]!, '2026-09-01');
+        vi.advanceTimersByTime(400);
+        TestBed.tick();
+        expect(backend.match('/school/usage')).toEqual([]);
+        expect(document.body.textContent).toContain('ends before it starts');
+
+        // Put it right and exactly one request goes, for the window she actually chose.
+        type(boxes[1]!, '2026-09-30');
+        vi.advanceTimersByTime(400);
+        TestBed.tick();
+        const asked = backend.match('/school/usage?from=2026-09-26&to=2026-09-30');
+        expect(asked.length).toBe(1);
+        asked[0]!.flush(USAGE);
+        rendered.fixture.destroy();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('writes a CSV Excel opens, from the rows and not from a second read', () => {
