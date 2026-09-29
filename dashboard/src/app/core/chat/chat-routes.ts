@@ -34,6 +34,10 @@ import { ChatCommandKey } from './chat.models';
  * ({@link ChatTransport.owns}), `transports()` is the list the screen loads, and `transportFor`
  * is how one merged thread list routes each row to the four calls that carry it.
  *
+ * One namespace, two kinds of key: a teacher's parent keys are child ids and her staff keys are
+ * thread ids, and {@link ChatTransport.owns} decides per row which is which — a collision would take
+ * a child whose id is also a thread id, and both are server-side UUIDs.
+ *
  * RM3b filled the last two in. A manager's threads are keyed by thread as well (one of hers has
  * no child either), and so are an ADMIN's: `GET /admin/chat/threads` is the support view of the
  * school and `POST /admin/chat/threads/{id}/messages` is the half she may write. So all four

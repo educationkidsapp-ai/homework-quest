@@ -24,6 +24,17 @@ const AREA: Readonly<Record<Role, string>> = {
 };
 
 /**
+ * Where a role's own threads list is. **A teacher's is `/teacher/chat`**, not `/teacher/messages`:
+ * hers was the first chat screen in the dashboard (C1) and it kept its path.
+ */
+const MESSAGES: Readonly<Record<Role, string>> = {
+  ADMIN: '/admin/messages',
+  TEACHER: '/teacher/chat',
+  COORDINATOR: '/coordinator/messages',
+  MANAGERIAL: '/management/messages',
+};
+
+/**
  * The manager's retired screens (MG2a, `core/nav/screens.ts`). A `link` the server wrote before
  * they went — or one a role-blind sender still writes — would resolve to a redirect back to her
  * Home, which reads as a click that did nothing; the resolver answers from the kind instead.
@@ -61,6 +72,13 @@ export function notificationTarget(item: NotificationView, role: Role | null): N
   const link = item.link?.trim() ?? '';
   if (area !== null && inOwnArea(link, area) && !retired(link, role)) return split(link);
 
+  // MG2b: a thread link written for somebody else's area, **rewritten to the viewer's own**.
+  // `NotificationService.threadLink` always says `/management/messages?thread=…` — it was written
+  // for the manager, and MG1 made a teacher a recipient of the same conversation. The thread id is
+  // the same row whoever opens it, so the only thing that has to change is which screen shows it.
+  const thread = threadOf(link);
+  if (role !== null && thread !== null) return { path: MESSAGES[role], queryParams: { thread } };
+
   const entityId = item.lessonId?.trim() ?? '';
   switch (item.kind) {
     // The three lesson kinds are a teacher's (and an Admin's, who reads the teacher's rows).
@@ -76,12 +94,14 @@ export function notificationTarget(item: NotificationView, role: Role | null): N
       return area === null || area === '/admin'
         ? INBOX
         : { path: `${area}/broadcasts`, queryParams: entityId === '' ? null : { open: entityId } };
-    // A teacher's message is read by whoever handles the school's messages — her coordinator,
-    // her manager, the admin. A teacher never receives one, so she has nowhere to be sent.
+    // A teacher's message is read by whoever handles the school's messages — her coordinator, her
+    // manager, the admin — and, since MG1 files it in her staff thread, by the teacher who wrote it
+    // when the manager answers. Whoever is looking goes to her own threads list; without a thread id
+    // there is nothing to open, so the list itself is the answer.
     case NotificationViewKindEnum.TEACHER_MESSAGE:
-      return area === null || area === '/teacher'
+      return role === null
         ? INBOX
-        : { path: `${area}/messages`, queryParams: entityId === '' ? null : { thread: entityId } };
+        : { path: MESSAGES[role], queryParams: entityId === '' ? null : { thread: entityId } };
     default:
       return INBOX;
   }
@@ -91,6 +111,19 @@ export function notificationTarget(item: NotificationView, role: Role | null): N
 export function notificationUrl(target: NotificationTarget): string {
   const query = new URLSearchParams(target.queryParams ?? {}).toString();
   return query === '' ? target.path : `${target.path}?${query}`;
+}
+
+/**
+ * The thread a link names, or `null` when it names none.
+ *
+ * Only a `?thread=` is read across areas, and only the id: the path is thrown away, which is what
+ * keeps `https://evil.example/management/messages?thread=x` from sending anybody anywhere but her
+ * own threads list.
+ */
+function threadOf(link: string): string | null {
+  const query = link.split('?', 2)[1] ?? '';
+  const thread = new URLSearchParams(query).get('thread')?.trim() ?? '';
+  return thread === '' ? null : thread;
 }
 
 /**

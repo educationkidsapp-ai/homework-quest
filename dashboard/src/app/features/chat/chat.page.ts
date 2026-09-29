@@ -245,6 +245,12 @@ interface ParsedChatMessage {
             }
           </div>
 
+          <!-- MG2b: a bell link whose thread this list does not hold. One line, where the list is,
+               instead of a screen that silently says "pick a conversation". -->
+          @if (missingThread()) {
+            <p class="chat-sidebar__missing">{{ 'chat.threadGone' | transloco }}</p>
+          }
+
           @if (showsPeerTabs()) {
             <div class="chat-sidebar__tabs">
               <hq-tabs
@@ -859,6 +865,13 @@ interface ParsedChatMessage {
       display: flex;
       flex-direction: column;
       gap: 4px;
+    }
+
+    .chat-sidebar__missing {
+      margin: 0;
+      padding: var(--hq-space-2) var(--hq-space-3);
+      color: var(--hq-accent);
+      font-size: var(--hq-font-meta-size);
     }
 
     .chat-sidebar__state {
@@ -2362,6 +2375,8 @@ export class ChatPage implements AfterViewChecked {
   private readonly query = toSignal(inject(ActivatedRoute).queryParamMap, { requireSync: true });
   /** The link this visit has already acted on, so a rerun of the effect is not a second open. */
   private followed = '';
+  /** A `?thread=` the list does not hold: said in a line rather than left as an empty screen. */
+  protected readonly missingThread = signal(false);
 
   constructor() {
     /*
@@ -2383,8 +2398,14 @@ export class ChatPage implements AfterViewChecked {
       const link = `${threadId}|${childId}`;
       if (link === '|' || link === this.followed) return;
       if (threadId !== '') {
-        if (!rows.some((thread) => this.keyOf(thread) === threadId)) return;
+        if (!rows.some((thread) => this.keyOf(thread) === threadId)) {
+          // A stale bell link — a thread she has left, or one that was never hers. Said once the
+          // list has actually answered, because "not found" while it is still loading is a lie.
+          if (!this.chatService.loadingThreads()) this.missingThread.set(true);
+          return;
+        }
         this.followed = link;
+        this.missingThread.set(false);
         this.chatService.selectThread(threadId);
         this.mobileShowConvo.set(true);
         return;

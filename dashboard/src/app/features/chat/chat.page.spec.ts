@@ -211,10 +211,12 @@ describe('ChatPage', () => {
     expect(mockChatService.selectThread).toHaveBeenCalledWith('th-2');
 
     // A thread this list has never answered is left alone: selecting it would send its id to the
-    // child-keyed routes and buy a 404 in a red band.
+    // child-keyed routes and buy a 404 in a red band. It is *said*, though — a stale bell link that
+    // leaves the screen on "pick a conversation" reads as a click that did nothing.
     (mockChatService.selectThread as ReturnType<typeof vi.fn>).mockClear();
     query.next({ thread: 'th-9' });
     TestBed.tick();
     expect(mockChatService.selectThread).not.toHaveBeenCalled();
+    expect(await screen.findByText('That conversation is not in your list any more.')).toBeTruthy();
   });
 });

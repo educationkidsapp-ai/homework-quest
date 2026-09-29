@@ -1274,7 +1274,8 @@
     },
     "supportSubtitle": "Your conversations with the management of this school, and every thread in it for support.",
     "supportEmptyHint": "Pick a manager under New message to start one.",
-    "supportNoSchool": "Pick a school from the header first — chat is read one school at a time."
+    "supportNoSchool": "Pick a school from the header first — chat is read one school at a time.",
+    "threadGone": "That conversation is not in your list any more."
   },
   "profile": {
     "title": "Your profile",

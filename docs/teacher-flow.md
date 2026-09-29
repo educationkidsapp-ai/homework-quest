@@ -236,10 +236,16 @@ writes none: the plan is the department's (DR6). See `docs/management-flow.md`.
 
 ## 5. Navigation
 
-`This week · My classes · [selected class] · Broadcasts (with `announcements`) · Profile`. Nothing
-else renders for a teacher. **Messages has no rail row**: she reaches `/teacher/chat` from a roster
-row ("Message parent"), from the bell's `?thread=` link, and — since MG2b — from **Open the
-conversation** on her profile after messaging the coordinator.
+`This week · My classes · [selected class] · Broadcasts (with `announcements`) · Messages (with
+`chat`) · Profile`. Nothing else renders for a teacher.
+
+**Messages** got its rail row in MG2b, with the unread count on it — a thread the department manager
+starts has to be findable. She also reaches `/teacher/chat` from a roster row's "Message parent"
+(which opens a *parent* conversation by `?childId=`), from the header's chat icon, from **Open the
+conversation** on her profile after messaging the coordinator, and from the bell: a `teacher.message`
+row carries `?thread=<id>` in a link the server writes for the manager's screen, and
+`core/notifications/notification-target.ts` rewrites it to `/teacher/chat?thread=<id>` for whoever is
+reading — the thread is the same row on both sides.
 
 ## 6. What the child never sees
 

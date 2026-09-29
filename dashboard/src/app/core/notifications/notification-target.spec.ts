@@ -48,16 +48,38 @@ describe('MG2a — where a notification sends its reader', () => {
     );
   });
 
-  it("sends a teacher's message to the inbox of whoever handles it", () => {
+  it("sends a teacher's message to the threads list of whoever is reading it", () => {
     const item = row(NotificationViewKindEnum.TEACHER_MESSAGE);
     expect(target(item, 'MANAGERIAL')).toBe('/management/messages');
     expect(target(item, 'COORDINATOR')).toBe('/coordinator/messages');
     expect(target(item, 'ADMIN')).toBe('/admin/messages');
-    // A teacher never receives one, so there is nowhere to send her but the page.
-    expect(target(item, 'TEACHER')).toBe('/notifications');
+    // MG2b: she *is* a party to it now — MG1 files the message in her thread with the manager, so
+    // the answer comes back on a row she holds. Her list lives at `/teacher/chat`.
+    expect(target(item, 'TEACHER')).toBe('/teacher/chat');
     // R7's thread deep link, once a sender carries the id.
     expect(target(row(NotificationViewKindEnum.TEACHER_MESSAGE, { lessonId: 't-3' }), 'MANAGERIAL')).toBe(
       '/management/messages?thread=t-3',
+    );
+  });
+
+  /**
+   * MG2b blocker 4: `NotificationService.threadLink` always writes `/management/messages?thread=…`
+   * — it was written for the manager, and MG1 made a teacher a party to the same conversation. The
+   * thread is the same row whoever opens it, so the link is rewritten to the reader's own screen
+   * rather than sent to the notifications page.
+   */
+  it('rewrites a thread link written for another area to the reader’s own list', () => {
+    const item = row(NotificationViewKindEnum.TEACHER_MESSAGE, {
+      link: '/management/messages?thread=t-7',
+      lessonId: '',
+    });
+    expect(target(item, 'TEACHER')).toBe('/teacher/chat?thread=t-7');
+    expect(target(item, 'COORDINATOR')).toBe('/coordinator/messages?thread=t-7');
+    // Her own area's link is followed as it stands, as it always was.
+    expect(target(item, 'MANAGERIAL')).toBe('/management/messages?thread=t-7');
+    // The path is thrown away and only the id is read, so an absolute URL cannot send her out.
+    expect(target({ ...item, link: 'https://evil.example/management/messages?thread=t-7' }, 'TEACHER')).toBe(
+      '/teacher/chat?thread=t-7',
     );
   });
 
