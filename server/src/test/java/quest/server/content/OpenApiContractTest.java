@@ -125,6 +125,8 @@ class OpenApiContractTest extends ApiTestSupport {
             "/children/{id}/chat/threads", "/children/{id}/chat/threads/{teacherId}/messages", "/children/{id}/chat/threads/{teacherId}/read",
             "/children/{id}/coordinators",
             "/teacher/chat/threads", "/teacher/chat/threads/{childId}/messages", "/teacher/chat/threads/{childId}/read",
+            "/teacher/managers", "/teacher/chat/staff-threads", "/teacher/chat/staff-threads/{id}/messages",
+            "/teacher/chat/staff-threads/{id}/read",
             "/admin/chat/threads", "/admin/chat/threads/{threadId}/messages", "/admin/chat/threads/{threadId}/read",
             "/children/{id}/managers");
 
@@ -172,7 +174,7 @@ class OpenApiContractTest extends ApiTestSupport {
      */
     static final List<String> MANAGEMENT_API = List.of(
             "/management/me", "/management/coordinators", "/management/teachers", "/management/classes",
-            "/management/calendar", "/management/stats",
+            "/management/calendar", "/management/stats", "/management/usage",
             "/management/lessons", "/management/lessons/{id}", "/management/lessons/{id}/status",
             "/management/classes/{id}/attendance", "/management/classes/{id}/results",
             "/management/lessons/{id}/results", "/management/children/{id}",
@@ -188,13 +190,17 @@ class OpenApiContractTest extends ApiTestSupport {
      * `announcements` flag and the chat paths `chat`, the very keys the features they supersede and join already
      * carry; both are in the document, because it describes the API the server can serve rather than what one school
      * has switched on.
+     *
+     * <p>MG1 adds the three weekly-plan archives (owner's item 4) — the manager's, every other dashboard role's and
+     * the parent's — which carry the same two keys as the feeds they page backwards through.
      */
     static final List<String> BROADCASTS_API = List.of(
             "/management/broadcasts", "/coordinator/broadcasts",
             "/me/broadcasts", "/me/broadcasts/{id}/read",
             "/children/{id}/broadcasts", "/children/{id}/broadcasts/{broadcastId}/read",
             "/management/chat/threads", "/management/chat/threads/{id}/messages",
-            "/management/chat/threads/{id}/read", "/management/admins");
+            "/management/chat/threads/{id}/read", "/management/admins",
+            "/management/weekly-plans", "/me/weekly-plans", "/children/{id}/weekly-plans");
 
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",

@@ -64,18 +64,21 @@ public class ChatSocketHandler extends TextWebSocketHandler {
                 chatOnly(peer);
                 if (parent) chat.parentSend((Principals.Parent) peer.principal(), required(s.getChildId(), "childId"), required(s.getTeacherId(), "teacherId"), s.getBody(), s.getClientId(), null);
                 else if (byThread) chat.staffSend((Principals.User) peer.principal(), required(s.getThreadId(), "threadId"), s.getBody(), s.getClientId());
+                else if (named(s.getThreadId())) chat.teacherStaffSend((Principals.User) peer.principal(), s.getThreadId(), s.getBody(), s.getClientId());
                 else chat.teacherSend((Principals.User) peer.principal(), required(s.getChildId(), "childId"), s.getBody(), s.getClientId());
             }
             case ChatCommand.Read r -> {
                 chatOnly(peer);
                 if (parent) chat.parentRead((Principals.Parent) peer.principal(), required(r.getChildId(), "childId"), required(r.getTeacherId(), "teacherId"));
                 else if (byThread) chat.staffRead((Principals.User) peer.principal(), required(r.getThreadId(), "threadId"));
+                else if (named(r.getThreadId())) chat.teacherStaffRead((Principals.User) peer.principal(), r.getThreadId());
                 else chat.teacherRead((Principals.User) peer.principal(), required(r.getChildId(), "childId"));
             }
             case ChatCommand.Typing t -> {
                 chatOnly(peer);
                 if (parent) chat.parentTyping((Principals.Parent) peer.principal(), required(t.getChildId(), "childId"), required(t.getTeacherId(), "teacherId"));
                 else if (byThread) chat.staffTyping((Principals.User) peer.principal(), required(t.getThreadId(), "threadId"));
+                else if (named(t.getThreadId())) chat.teacherStaffTyping((Principals.User) peer.principal(), t.getThreadId());
                 else chat.teacherTyping((Principals.User) peer.principal(), required(t.getChildId(), "childId"));
             }
             case ChatCommand.Ping p -> live.offer(hub.encode(ChatFrame.Pong.INSTANCE), false);
@@ -96,6 +99,14 @@ public class ChatSocketHandler extends TextWebSocketHandler {
         tenant.set(peer.role().toUpperCase(java.util.Locale.ROOT), peer.schoolId(), null);
         try { work.run(); } finally { tenant.clear(); }
     }
+
+    /**
+     * MG1: a TEACHER's commands are keyed by child, because her conversations are about one — <em>except</em> on the
+     * staff thread she holds with her department manager, which has no child on it at all. So a `threadId` she sends
+     * is taken as that thread (and refused by {@code ChatService.ownTeacherThread} when it is not hers), and a command
+     * with neither field still asks for `childId`, as it always did.
+     */
+    private static boolean named(String value) { return value != null && !value.isBlank(); }
 
     /** A command names what its sender's half of the chat is keyed by: a child, a teacher, or — R4 — a thread. */
     private static String required(String value, String field) {

@@ -427,6 +427,10 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "id" : {
             "type" : "string"
           },
@@ -1737,6 +1741,10 @@
           },
           "expiresAt" : {
             "format" : "int64",
+            "type" : "integer"
+          },
+          "grade" : {
+            "format" : "int32",
             "type" : "integer"
           },
           "kind" : {
@@ -3956,6 +3964,16 @@
         } ],
         "required" : [ "id", "ingredient", "mode", "modelAnswer", "parentTip", "prompt", "speak", "title", "type" ]
       },
+      "OpenManagerThreadRequest" : {
+        "properties" : {
+          "managerUserId" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "managerUserId" ],
+        "type" : "object"
+      },
       "Option" : {
         "properties" : {
           "id" : {
@@ -5661,6 +5679,9 @@
           },
           "coordinatorUserId" : {
             "type" : "string"
+          },
+          "teacherUserId" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -7156,6 +7177,49 @@
           "marksWaiting" : {
             "format" : "int32",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "WeeklyPlanArchive" : {
+        "properties" : {
+          "from" : {
+            "type" : "string"
+          },
+          "to" : {
+            "type" : "string"
+          },
+          "weeks" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WeeklyPlanWeek"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "WeeklyPlanEntry" : {
+        "properties" : {
+          "plan" : {
+            "$ref" : "#/components/schemas/BroadcastView"
+          },
+          "readBy" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "WeeklyPlanWeek" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WeeklyPlanEntry"
+            },
+            "type" : "array"
+          },
+          "weekStart" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -10973,6 +11037,46 @@
         "tags" : [ "Teacher questions" ]
       }
     },
+    "/children/{id}/weekly-plans" : {
+      "get" : {
+        "operationId" : "childWeeklyPlans",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WeeklyPlanArchive"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Broadcasts" ]
+      }
+    },
     "/classes/lookup" : {
       "post" : {
         "operationId" : "classByJoinCode",
@@ -11165,7 +11269,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/StaffThreadRequest"
+                "$ref" : "#/components/schemas/OpenManagerThreadRequest"
               }
             }
           },
@@ -12800,6 +12904,80 @@
         "tags" : [ "Management" ]
       }
     },
+    "/management/usage" : {
+      "get" : {
+        "operationId" : "managementUsage",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolUsage"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management" ]
+      }
+    },
+    "/management/weekly-plans" : {
+      "get" : {
+        "operationId" : "managementWeeklyPlans",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "grade",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WeeklyPlanArchive"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Broadcasts" ]
+      }
+    },
     "/me" : {
       "get" : {
         "operationId" : "me",
@@ -13021,6 +13199,39 @@
           }
         },
         "tags" : [ "Auth" ]
+      }
+    },
+    "/me/weekly-plans" : {
+      "get" : {
+        "operationId" : "myWeeklyPlans",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WeeklyPlanArchive"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Broadcasts" ]
       }
     },
     "/media/child/{id}" : {
@@ -13336,6 +13547,164 @@
           }
         },
         "tags" : [ "Announcements" ]
+      }
+    },
+    "/teacher/chat/staff-threads" : {
+      "get" : {
+        "operationId" : "teacherStaffThreads",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      },
+      "post" : {
+        "operationId" : "teacherStaffThread",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenManagerThreadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatThread"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/teacher/chat/staff-threads/{id}/messages" : {
+      "get" : {
+        "operationId" : "teacherStaffMessages",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatMessage"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      },
+      "post" : {
+        "operationId" : "teacherSendStaffMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/teacher/chat/staff-threads/{id}/read" : {
+      "post" : {
+        "operationId" : "teacherMarkStaffRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
       }
     },
     "/teacher/chat/threads" : {
@@ -15176,6 +15545,27 @@
           }
         },
         "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/managers" : {
+      "get" : {
+        "operationId" : "teacherManagers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/CoordinatorManager"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
       }
     },
     "/teacher/marks" : {

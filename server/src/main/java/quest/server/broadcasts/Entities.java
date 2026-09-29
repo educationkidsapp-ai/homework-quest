@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import org.hibernate.annotations.Filter;
 
-/** V22: the weekly plan, announcements and events a manager or a coordinator sends out, and who has read them (RM2, DR6). */
+/** V22, widened by V23 with `broadcasts.grade` (MG1): the weekly plan, announcements and events a manager or a coordinator sends out, and who has read them (RM2, DR6). */
 public final class Entities {
     private Entities() {}
 
@@ -20,6 +20,10 @@ public final class Entities {
      * <p>`audienceRoles` and `sectionIds` are comma-separated lists in one column each: nothing joins on them and
      * every read wants all of them. `sectionIds` null means "every section of `curriculum`", which is the manager's
      * department-wide broadcast; a coordinator's row names its sections and carries no curriculum.
+     *
+     * <p>V23 (MG1): `grade` narrows a department-wide row to one grade of it, and null means every grade — which is
+     * what every row written before V23 already meant, so nothing was backfilled. It is never set beside
+     * `sectionIds`: those already say which sections are meant.
      */
     @Entity(name = "BroadcastEntity") @Table(name = "broadcasts")
     @Filter(name = "school", condition = "school_id = :schoolId")
@@ -37,6 +41,7 @@ public final class Entities {
         @Column(name = "attachment_name") private String attachmentName;
         @Column(name = "audience_roles", nullable = false) private String audienceRoles;
         @Column private String curriculum;
+        @Column private Integer grade;
         @Column private String subject;
         @Column(name = "section_ids") private String sectionIds;
         @Column(name = "expires_at") private Instant expiresAt;
@@ -54,6 +59,7 @@ public final class Entities {
         public String getAttachmentName() { return attachmentName; } public void setAttachmentName(String v) { attachmentName = v; }
         public String getAudienceRoles() { return audienceRoles; } public void setAudienceRoles(String v) { audienceRoles = v; }
         public String getCurriculum() { return curriculum; } public void setCurriculum(String v) { curriculum = v; }
+        public Integer getGrade() { return grade; } public void setGrade(Integer v) { grade = v; }
         public String getSubject() { return subject; } public void setSubject(String v) { subject = v; }
         public String getSectionIds() { return sectionIds; } public void setSectionIds(String v) { sectionIds = v; }
         public Instant getExpiresAt() { return expiresAt; } public void setExpiresAt(Instant v) { expiresAt = v; }

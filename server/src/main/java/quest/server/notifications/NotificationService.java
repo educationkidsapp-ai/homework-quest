@@ -181,6 +181,27 @@ public class NotificationService {
     private String roleOf(String userId) { return users.findById(userId).map(quest.server.auth.Entities.UserEntity::getRole).orElse("TEACHER"); }
 
     static String link(String role, String lessonId) { return ("ADMIN".equals(role) ? "/admin/lessons/" : "/teacher/lessons/") + lessonId; }
+
+    /**
+     * MG1 (owner's item 7): <strong>every notification row carries a link the recipient's own dashboard can open.</strong>
+     * The three areas are the three dashboards a broadcast can land on, and the area is the <em>recipient's</em> role,
+     * never the author's — a coordinator sent to `/teacher/broadcasts` reaches a screen she has no route to.
+     */
+    public static String area(String role) {
+        return switch (role == null ? "" : role) {
+            case "COORDINATOR" -> "coordinator";
+            case "MANAGERIAL" -> "management";
+            default -> "teacher";
+        };
+    }
+
+    /** `broadcast.posted`: the recipient's own feed, opened on the row itself. */
+    public static String broadcastLink(String role, String broadcastId) { return "/" + area(role) + "/broadcasts?open=" + broadcastId; }
+
+    /** `teacher.message`: the manager's Messages screen, on the thread the message was appended to (MG1). */
+    public static String threadLink(String threadId) {
+        return threadId == null || threadId.isBlank() ? "/management/messages" : "/management/messages?thread=" + threadId;
+    }
     static String key(NotificationKind kind) { return kind.name().toLowerCase(Locale.ROOT).replaceFirst("_", "."); }
     static NotificationKind kind(String key) { return NotificationKind.valueOf(key.toUpperCase(Locale.ROOT).replace('.', '_')); }
 

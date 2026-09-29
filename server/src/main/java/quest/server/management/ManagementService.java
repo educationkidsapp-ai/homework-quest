@@ -52,12 +52,36 @@ public class ManagementService {
     private final ManagerScope scope; private final CoordinatorService coordinators; private final AdminLessonService admin;
     private final AttendanceService attendance; private final GradingService grading; private final ExamService exams;
     private final quest.server.auth.UserRepository users;
+    private final quest.server.dashboard.UsageService usage; private final quest.server.schools.SchoolService schools;
+    private final quest.server.tenancy.TenantContext tenant;
 
     public ManagementService(ManagerScope scope, CoordinatorService coordinators, AdminLessonService admin,
                              AttendanceService attendance, GradingService grading, ExamService exams,
-                             quest.server.auth.UserRepository users) {
+                             quest.server.auth.UserRepository users, quest.server.dashboard.UsageService usage,
+                             quest.server.schools.SchoolService schools, quest.server.tenancy.TenantContext tenant) {
         this.scope = scope; this.coordinators = coordinators; this.admin = admin; this.attendance = attendance;
-        this.grading = grading; this.exams = exams; this.users = users;
+        this.grading = grading; this.exams = exams; this.users = users; this.usage = usage; this.schools = schools;
+        this.tenant = tenant;
+    }
+
+    // ---------------------------------------------------------------- GET /management/usage
+
+    /**
+     * MG1: the School usage screen, her department's half. The dashboard's manager screen used `GET /school/usage`,
+     * which is the <em>whole school</em> — a manager of the British department was shown the American one's plays and
+     * the other track's teachers beside her own.
+     *
+     * <p>It answers {@link quest.server.dashboard.SchoolDataDto.SchoolUsage} unchanged, narrowed by the sections of
+     * her departments and by the teachers she manages — {@link ManagerScope#sectionsOf} and
+     * {@link ManagerScope#teachersOf}, never a parameter — so the screen keeps the one generated type it already has.
+     * The platform ADMIN reading her area with `X-School-Id` is not narrowed (D6) and sees the school, which is what
+     * `/school/usage` would have told her anyway.
+     */
+    public quest.server.dashboard.SchoolDataDto.SchoolUsage usage(Principals.User caller, String from, String to) {
+        var sections = scope.sectionsOf(caller).stream().map(ClassEntity::getId).toList();
+        var teachers = new LinkedHashMap<String, String>();
+        for (var person : scope.teachersOf(caller)) teachers.put(person.getId(), SectionService.displayName(person));
+        return usage.departmentUsage(schools.require(tenant.writeSchoolId()), sections, teachers, from, to);
     }
 
     // ---------------------------------------------------------------- GET /management/me

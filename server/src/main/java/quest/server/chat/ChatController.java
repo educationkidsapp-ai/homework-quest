@@ -24,6 +24,7 @@ import quest.api.dto.ChatThread;
 import quest.api.dto.SendChatMessageRequest;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
+import quest.server.coordinator.CoordinatorDto;
 import quest.server.config.Json;
 import quest.server.flags.FeatureFlag;
 import quest.server.flags.FlagKeys;
@@ -40,8 +41,8 @@ import quest.server.flags.FlagKeys;
 @FeatureFlag(FlagKeys.CHAT)
 @Tag(name = "Chat", description = "Parent and teacher chat: threads, message pages, sending and read receipts")
 public class ChatController {
-    private final ChatService chat; private final Json json;
-    public ChatController(ChatService chat, Json json) { this.chat = chat; this.json = json; }
+    private final ChatService chat; private final Json json; private final ChatPeers peers;
+    public ChatController(ChatService chat, Json json, ChatPeers peers) { this.chat = chat; this.json = json; this.peers = peers; }
 
     // ---------------------------------------------------------------- the parent (app)
 
@@ -128,6 +129,64 @@ public class ChatController {
     @PreAuthorize("@permit.has('teacher.chat')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatReadReceipt.class)))
     public String teacherMarkChatRead(@AuthenticationPrincipal Principals.User caller, @PathVariable String childId) { return receipt(chat.teacherRead(caller, childId)); }
+
+    // ---------------------------------------------------------------- the teacher's staff threads (MG1, DR5)
+
+    /**
+     * `GET /teacher/managers`: the managers of the departments she teaches in — whom the write below will accept.
+     * It answers `CoordinatorDto.CoordinatorManager`, the shape `GET /coordinator/managers` already answers, because
+     * it is the same chooser one role over and a second record with the same fields could only drift from the first.
+     */
+    @GetMapping(value = "/teacher/managers", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.chat')")
+    public List<CoordinatorDto.CoordinatorManager> teacherManagers(@AuthenticationPrincipal Principals.User caller) {
+        return peers.managersForTeacher(quest.server.tenancy.TeacherScope.require(caller)).stream()
+                .map(m -> new CoordinatorDto.CoordinatorManager(m.user().getId(), ChatService.name(m.user()), m.curriculum())).toList();
+    }
+
+    /**
+     * Her conversations with those managers, keyed by thread id rather than by child: a staff thread has no child on
+     * it, so `/teacher/chat/threads` above — which is keyed by child and always will be — could not carry one.
+     */
+    @GetMapping(value = "/teacher/chat/staff-threads", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.chat')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatThread.class))))
+    public String teacherStaffThreads(@AuthenticationPrincipal Principals.User caller) { return threads(chat.teacherStaffThreads(caller)); }
+
+    /** Her thread with one manager of a department she teaches in; the same row whichever side opens it. */
+    @PostMapping(value = "/teacher/chat/staff-threads", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.chat')")
+    @ResponseStatus(HttpStatus.CREATED)
+    @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatThread.class)))
+    public String teacherStaffThread(@AuthenticationPrincipal Principals.User caller, @RequestBody CoordinatorDto.StaffThreadRequest body) {
+        return json.encodeShared(chat.teacherStaffThread(caller, body.managerUserId()), ChatThread.Companion.serializer());
+    }
+
+    @GetMapping(value = "/teacher/chat/staff-threads/{id}/messages", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.chat')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatMessage.class))))
+    public String teacherStaffMessages(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
+                                       @RequestParam(required = false) String before, @RequestParam(required = false) String since,
+                                       @RequestParam(required = false) Integer limit) {
+        return messages(chat.teacherStaffMessages(caller, id, before, since, limit));
+    }
+
+    @PostMapping(value = "/teacher/chat/staff-threads/{id}/messages", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.chat')")
+    @ResponseStatus(HttpStatus.CREATED)
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = SendChatMessageRequest.class)))
+    @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
+    public String teacherSendStaffMessage(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @RequestBody String body) {
+        var req = decode(body);
+        return message(chat.teacherStaffSend(caller, id, req.getBody(), req.getClientId()));
+    }
+
+    @PostMapping(value = "/teacher/chat/staff-threads/{id}/read", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.chat')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatReadReceipt.class)))
+    public String teacherMarkStaffRead(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
+        return receipt(chat.teacherStaffRead(caller, id));
+    }
 
     // ---------------------------------------------------------------- support (Admin, read-only)
 

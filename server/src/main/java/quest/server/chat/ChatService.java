@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -271,6 +272,101 @@ public class ChatService {
                 child.getId(), teacher.userId(), child.getParentId(), t.getPeerUserId(), key(TEACHER, teacher.userId()), TEACHER)));
     }
 
+    // ---------------------------------------------------------------- the teacher's staff threads (MG1, DR5)
+
+    /**
+     * <strong>Which end of a manager ↔ teacher thread is which.</strong> The subordinate holds `teacher_id` and the
+     * supervisor `peer_user_id`, which is the rule R4 set for coordinator ↔ manager and RM2 for manager ↔ admin: a
+     * coordinator is `teacher_id` to her manager, a manager is `teacher_id` to the admin, and so a teacher is
+     * `teacher_id` to her manager. `staff_role` is `MANAGERIAL` on all three — it names the peer, the person on the
+     * other end — and `teacher_unread` is therefore always the subordinate's badge, `parent_unread` the supervisor's.
+     * One rule means {@code findForStaff} finds a person's threads whichever pair she is in, and whichever side opens
+     * the conversation gets the one row.
+     *
+     * <p>`GET /teacher/chat/staff-threads`: keyed by thread, not by child, because a staff thread has no child on it.
+     * `/teacher/chat/threads` stays the parent list and stays keyed by child, which is what the dashboard calls it by.
+     */
+    public List<ChatThread> teacherStaffThreads(Principals.User caller) {
+        var me = TeacherScope.require(caller);
+        requireOn(tenant.writeSchoolId());
+        var allowed = managerIdsOf(me);
+        return threads.findForStaff(me.userId()).stream().filter(t -> staffThreadOf(t, me.userId(), allowed))
+                .map(t -> one(t, me.userId())).toList();
+    }
+
+    /**
+     * `POST /teacher/chat/staff-threads`: her thread with one manager of a department she teaches in. A manager of
+     * the other department is 404 through {@link ChatPeers#managersForTeacher} — she is not told which managers exist
+     * outside her own, any more than a parent is told which teachers exist outside her child's.
+     */
+    @Transactional
+    public ChatThread teacherStaffThread(Principals.User caller, String managerUserId) {
+        var me = TeacherScope.require(caller);
+        String schoolId = tenant.writeSchoolId();
+        requireOn(schoolId);
+        if (managerUserId == null || managerUserId.isBlank()) throw ApiException.badRequest("managerUserId is required");
+        if (!managerIdsOf(me).contains(managerUserId)) throw ApiException.notFound("manager");
+        return one(threadRows.getOrCreateStaff(schoolId, me.userId(), managerUserId), me.userId());
+    }
+
+    public List<ChatMessage> teacherStaffMessages(Principals.User caller, String threadId, String before, String since, Integer limit) {
+        return page(ownTeacherThread(TeacherScope.require(caller), threadId).getId(), before, since, limit);
+    }
+
+    @Transactional
+    public ChatMessage teacherStaffSend(Principals.User caller, String threadId, String body, String clientId) {
+        var me = TeacherScope.require(caller); var t = ownTeacherThread(me, threadId);
+        return send(t, parentOf(t), roleOn(t, me.userId()), me.userId(), body, clientId);
+    }
+
+    @Transactional
+    public ChatReadReceipt teacherStaffRead(Principals.User caller, String threadId) {
+        var me = TeacherScope.require(caller); var t = ownTeacherThread(me, threadId);
+        return read(t, parentOf(t), roleOn(t, me.userId()), me.userId());
+    }
+
+    public void teacherStaffTyping(Principals.User caller, String threadId) {
+        var me = TeacherScope.require(caller); var t = ownTeacherThread(me, threadId);
+        String role = roleOn(t, me.userId());
+        publish(ChatEvent.typing(t.getSchoolId(), t.getId(), t.getChildId(), t.getTeacherId(), parentOf(t), t.getPeerUserId(), key(role, me.userId()), role));
+    }
+
+    /**
+     * MG1: `POST /teacher/messages/coordinator` keeps its notification and gains a conversation — her sentence is
+     * appended to the staff thread with that manager, so the answer has somewhere to go. Answers the thread id, which
+     * the notification's link names, or null when the school has chat off: the bell still rings, and no thread is
+     * written for a Messages screen that school does not have.
+     */
+    @Transactional
+    public String teacherStaffMessage(Principals.User caller, String managerUserId, String body) {
+        String schoolId = tenant.writeSchoolId();
+        if (!flags.isOn(schoolId, FlagKeys.CHAT)) return null;
+        var t = threadRows.getOrCreateStaff(schoolId, caller.userId(), managerUserId);
+        send(t, null, TEACHER, caller.userId(), body, null);
+        return t.getId();
+    }
+
+    /** MG1: the same list as a set of ids, for `TeacherMessageService` — it asks before it opens a thread. */
+    public Set<String> managersOfTeacher(Principals.User caller) { return managerIdsOf(TeacherScope.require(caller)); }
+
+    /** The managers she may hold a staff thread with, by id — one reach, asked once per request. */
+    private Set<String> managerIdsOf(Principals.User teacher) {
+        return peers.managersForTeacher(teacher).stream().map(m -> m.user().getId()).collect(Collectors.toSet());
+    }
+
+    /** Her side of a staff thread: no child, she is the `teacher_id`, and the peer is still a manager of hers. */
+    private static boolean staffThreadOf(ChatThreadEntity t, String meId, Set<String> managers) {
+        return t.getChildId() == null && meId.equals(t.getTeacherId()) && managers.contains(t.getPeerUserId());
+    }
+
+    /** One staff thread of hers: 404 for another school's (the filter), another person's, or another department's. */
+    private ChatThreadEntity ownTeacherThread(Principals.User me, String threadId) {
+        requireOn(tenant.writeSchoolId());
+        var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
+        if (!staffThreadOf(t, me.userId(), managerIdsOf(me))) throw ApiException.notFound("thread");
+        return t;
+    }
+
     // ---------------------------------------------------------------- support (Admin, read-only, `X-School-Id`)
 
     public List<ChatThread> supportThreads() {
@@ -432,25 +528,32 @@ public class ChatService {
     }
 
     /**
-     * `POST /management/chat/threads`: her thread with one coordinator of her department, or with a platform admin
-     * (DR5: "the manager reports to and chats with the admin"). The coordinator is resolved through
-     * {@link ManagerScope#coordinatorsOf} — one of the other department's is 404 — and the admin
+     * `POST /management/chat/threads`: her thread with one teacher of her department (MG1, owner's item 6), one
+     * coordinator of it, or a platform admin (DR5: "the manager reports to and chats with the admin"). The teacher is
+     * resolved through {@link ManagerScope#teachersOf} and the coordinator through
+     * {@link ManagerScope#coordinatorsOf} — one of the other department's is 404 either way — and the admin
      * through {@code findById}, which Hibernate filters never touch, because the ADMIN row carries no school at all.
      *
-     * <p>The coordinator holds the `teacher_id` side of her thread and the manager holds it on the admin's, so a
-     * person's threads are always found by {@code findForStaff} whichever pair she is in.
+     * <p>The subordinate holds the `teacher_id` side and the supervisor `peer_user_id`: the teacher and the
+     * coordinator on their threads with her, and she on the admin's. See {@link #teacherStaffThreads} for the whole
+     * rule and why it is one rule.
      */
     @Transactional
-    public ChatThread managerStaffThread(Principals.User caller, String coordinatorUserId, String adminUserId) {
+    public ChatThread managerStaffThread(Principals.User caller, String coordinatorUserId, String adminUserId, String teacherUserId) {
         var me = ManagerScope.require(caller);
         String schoolId = tenant.writeSchoolId();
         requireOn(schoolId);
+        if (teacherUserId != null && !teacherUserId.isBlank()) {
+            var teacher = managerScope.teachersOf(me).stream().filter(u -> u.getId().equals(teacherUserId)).findFirst()
+                    .orElseThrow(() -> ApiException.notFound("teacher"));
+            return one(threadRows.getOrCreateStaff(schoolId, teacher.getId(), me.userId()), me.userId());
+        }
         if (coordinatorUserId != null && !coordinatorUserId.isBlank()) {
             var coordinator = managerScope.coordinatorsOf(me).keySet().stream().filter(u -> u.getId().equals(coordinatorUserId))
                     .findFirst().orElseThrow(() -> ApiException.notFound("coordinator"));
             return one(threadRows.getOrCreateStaff(schoolId, coordinator.getId(), me.userId()), me.userId());
         }
-        if (adminUserId == null || adminUserId.isBlank()) throw ApiException.badRequest("Send coordinatorUserId or adminUserId.");
+        if (adminUserId == null || adminUserId.isBlank()) throw ApiException.badRequest("Send teacherUserId, coordinatorUserId or adminUserId.");
         var admin = admin(adminUserId);
         return one(threadRows.getOrCreateStaff(schoolId, me.userId(), admin.getId()), me.userId());
     }

@@ -137,6 +137,33 @@ public class ChatPeers {
         return List.copyOf(out);
     }
 
+    /**
+     * MG1 (DR5, owner's item 6): the managers of the departments this <em>teacher</em> teaches in — `GET
+     * /teacher/managers`, and the check behind the staff thread she opens. {@link #managerOptionsFor}'s shape one
+     * role over: her tracks come from {@link TeacherScope#classesOf}, her own assignments, so a manager of the other
+     * department is not on the list and is 404 to her, exactly as a coordinator's is.
+     *
+     * <p>Three statements whatever her timetable holds: her sections, the school's managers, their scope rows. A
+     * teacher with no section yet reaches nobody — there is no department she belongs to to reach one through.
+     */
+    public List<Manager> managersForTeacher(Principals.User caller) {
+        String schoolId = tenant.writeSchoolId();
+        var tracks = teachers.classesOf(caller).stream().map(k -> normalise(k.getCurriculum())).collect(Collectors.toSet());
+        if (tracks.isEmpty()) return List.of();
+        var staff = users.findBySchoolIdAndRole(schoolId, ChatService.MANAGERIAL);
+        if (staff.isEmpty()) return List.of();
+        var rows = rowsOf(schoolId, staff);
+        var out = new ArrayList<Manager>();
+        for (var person : staff)
+            for (var row : rows.getOrDefault(person.getId(), List.of()))
+                if (row.getSubject() == null && !blank(row.getCurriculum()) && tracks.contains(normalise(row.getCurriculum()))) {
+                    out.add(new Manager(person, normalise(row.getCurriculum())));
+                    break;
+                }
+        out.sort(java.util.Comparator.comparing(m -> ChatService.name(m.user())));
+        return List.copyOf(out);
+    }
+
     private java.util.Map<String, List<StaffScopeEntity>> rowsOf(String schoolId, List<UserEntity> staff) {
         var out = new LinkedHashMap<String, List<StaffScopeEntity>>();
         for (var row : scopes.findBySchoolIdAndUserIdInOrderBySubjectAscCurriculumAsc(schoolId, staff.stream().map(UserEntity::getId).toList()))

@@ -33,6 +33,13 @@ import quest.server.notifications.NotificationService;
  *
  * <p>A school with no MANAGERIAL account at all is a 409 rather than a silent success, because "sent" over a message
  * nobody received is the one answer she must not get.
+ *
+ * <p><strong>MG1 (owner's items 6 and 7): the message is now answerable.</strong> The notification stays exactly as it
+ * was — every manager of her school is told, in her own words — and, for the manager(s) of a department she actually
+ * teaches in, the sentence is also appended to the staff thread the two of them share
+ * ({@code ChatService.teacherStaffMessage}), so the reply has somewhere to go. The row's `link` then opens that
+ * thread; a manager who holds no department of hers, or a school with `chat` off, gets the Messages screen without a
+ * thread on it rather than the null link the bell used to carry.
  */
 @Service
 public class TeacherMessageService {
@@ -41,9 +48,11 @@ public class TeacherMessageService {
     private final UserRepository users;
     private final NotificationService notifications;
     private final TeacherAccess access;
+    private final quest.server.chat.ChatService chat;
 
-    public TeacherMessageService(UserRepository users, NotificationService notifications, TeacherAccess access) {
-        this.users = users; this.notifications = notifications; this.access = access;
+    public TeacherMessageService(UserRepository users, NotificationService notifications, TeacherAccess access,
+                                 quest.server.chat.ChatService chat) {
+        this.users = users; this.notifications = notifications; this.access = access; this.chat = chat;
     }
 
     @Transactional
@@ -56,8 +65,13 @@ public class TeacherMessageService {
             throw ApiException.conflict("no_coordinator", "Your school has no coordinator account yet. Ask your admin to add one.");
 
         String title = "Message from " + nameOf(caller);
-        for (UserEntity coordinator : coordinators)
-            notifications.notify(schoolId, coordinator.getId(), NotificationKind.TEACHER_MESSAGE, title, body, null, null);
+        // MG1: a manager of a department she teaches in also gets the message *as a thread*, so she can answer it.
+        var mine = chat.managersOfTeacher(caller);
+        for (UserEntity coordinator : coordinators) {
+            String threadId = mine.contains(coordinator.getId()) ? chat.teacherStaffMessage(caller, coordinator.getId(), body) : null;
+            notifications.notify(schoolId, coordinator.getId(), NotificationKind.TEACHER_MESSAGE, title, body,
+                    NotificationService.threadLink(threadId), null);
+        }
         return new TeacherDto.CoordinatorMessageResult(coordinators.size());
     }
 

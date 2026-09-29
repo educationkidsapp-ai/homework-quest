@@ -308,6 +308,41 @@ class ManagementApiTest extends GradingTestSupport {
         return as(builder, adminToken).header(quest.server.tenancy.TenantContext.HEADER, SCHOOL);
     }
 
+    /**
+     * MG1 addendum: the manager's School usage screen read `GET /school/usage`, which is the <em>whole</em> school —
+     * a British manager was shown the American department's plays and Rami beside her own teacher.
+     * `GET /management/usage` is the same shape scoped to her sections and her teachers.
+     */
+    @Test void her_school_usage_counts_her_department_and_not_the_other_one() throws Exception {
+        // The window is named rather than defaulted: the default ends on the injected clock's *yesterday*, which the
+        // open `backend/usage-window-boundary` branch is fixing — this route is not the place to decide that.
+        String window = "?from=" + day.minusDays(2) + "&to=" + LocalDate.now().plusDays(1);
+        var hers = json(mvc.perform(as(get("/management/usage" + window), nour)).andExpect(status().isOk()).andReturn());
+        assertThat(hers.get("schoolId").asText()).isEqualTo(SCHOOL);
+        assertThat(hers.get("children").asInt()).as("Hana sits in a British section; Yousef is Sami's").isOne();
+        assertThat(ids(hers.get("teacherConsistency"), "teacherId")).containsExactly(MAYA);
+        assertThat(total(hers.get("lessonsPublishedPerWeek")))
+                .as("the British homework and exam; the grade 2 draft and Rami's lesson are neither").isEqualTo(2);
+        assertThat(total(hers.get("playsPerDay"))).as("Hana played the British lesson").isPositive();
+        var his = json(mvc.perform(as(get("/management/usage" + window), sami)).andExpect(status().isOk()).andReturn());
+        assertThat(his.get("children").asInt()).isOne();
+        assertThat(ids(his.get("teacherConsistency"), "teacherId")).containsExactly(RAMI);
+        assertThat(total(his.get("lessonsPublishedPerWeek"))).as("Rami published once").isOne();
+        assertThat(total(his.get("playsPerDay"))).as("nobody American has played").isZero();
+        assertThat(hers.get("activeFamilies").asInt()).as("one British family answered in the window").isOne();
+        assertThat(his.get("activeFamilies").asInt()).as("no American family has").isZero();
+
+        // A window that is not one is refused by the very code `/school/usage` uses.
+        mvc.perform(as(get("/management/usage?from=" + day + "&to=" + day.minusDays(30)), nour)).andExpect(status().isBadRequest());
+    }
+
+    /** The sum of a `DayCount` / `WeekCount` series — the screen draws the bars, the test adds them up. */
+    private static int total(JsonNode series) {
+        int sum = 0;
+        for (var row : series) sum += row.get("count").asInt();
+        return sum;
+    }
+
     private List<String> ids(JsonNode rows) { return ids(rows, null); }
 
     private List<String> ids(JsonNode rows, String field) {

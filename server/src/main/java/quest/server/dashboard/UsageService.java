@@ -74,9 +74,94 @@ public class UsageService {
     }
 
     /**
+     * MG1 (DR5): the same report for <strong>one department</strong> — `GET /management/usage`. The shape is
+     * {@link SchoolDataDto.SchoolUsage} unchanged, because the manager's School usage screen is the school's screen
+     * with a narrower scope, and a second record with the same fields could only drift away from the first.
+     *
+     * <p>The department is not a column anywhere: it is a <em>list of sections</em>, resolved by
+     * {@link quest.server.tenancy.ManagerScope} from her `staff_scopes` rows and handed in here. So every statement
+     * that {@link #schoolUsage} scopes by `school_id` alone is scoped by `school_id` <em>and</em> `class_id IN (…)`,
+     * and the teachers are the ones she manages rather than the school's — which is why they arrive as
+     * `[teacherId -&gt; display name]` instead of being looked up again by role.
+     *
+     * <p>Same statement count as the whole-school report minus the one that lists teachers, and the buckets are still
+     * built in Java from per-day rows; `UsageQueryCountTest`'s rule holds. A manager with no section yet gets the
+     * shape with zeroes rather than an `IN ()` no database will parse.
+     */
+    @Transactional(readOnly = true)
+    public SchoolDataDto.SchoolUsage departmentUsage(SchoolEntity school, List<String> sectionIds,
+                                                     Map<String, String> teachers, String from, String to) {
+        var window = Reports.window(from, to, today());
+        if (sectionIds.isEmpty())
+            return new SchoolDataDto.SchoolUsage(school.getId(), school.getName(), window.from().toString(), window.to().toString(),
+                    0, 0, days(List.of(), window), weeks(List.of(), window), List.of());
+        var scope = Map.<String, Object>of("schoolId", school.getId(), "sections", sectionIds,
+                "windowFrom", window.fromInstant().atZone(ZoneOffset.UTC).toLocalDateTime(),
+                "windowEnd", window.toExclusive().atZone(ZoneOffset.UTC).toLocalDateTime());
+
+        int children = (int) one("SELECT COUNT(*) FROM children WHERE school_id = :schoolId AND deleted_at IS NULL"
+                + " AND class_id IN (:sections)", scope);
+        int activeFamilies = (int) one("SELECT COUNT(DISTINCT c.parent_id) FROM children c JOIN attempts a ON a.child_id = c.id"
+                + " WHERE c.school_id = :schoolId AND c.deleted_at IS NULL AND c.class_id IN (:sections)"
+                + " AND a.answered_at >= :windowFrom AND a.answered_at < :windowEnd", scope);
+
+        var playsPerDay = days(Reports.rows(Reports.bind(em,
+                "SELECT CAST(a.answered_at AS DATE) AS d, COUNT(DISTINCT a.child_id || \':\' || a.lesson_id) AS n"
+                        + " FROM attempts a JOIN children c ON c.id = a.child_id"
+                        + " WHERE c.school_id = :schoolId AND c.class_id IN (:sections)"
+                        + " AND a.answered_at >= :windowFrom AND a.answered_at < :windowEnd"
+                        + " GROUP BY CAST(a.answered_at AS DATE) ORDER BY d", scope)), window);
+
+        var publishedPerDay = Reports.rows(Reports.bind(em,
+                "SELECT CAST(l.published_at AS DATE) AS d, COUNT(*) AS n FROM lessons l"
+                        + " WHERE l.school_id = :schoolId AND l.status = \'published\' AND l.class_id IN (:sections)"
+                        + " AND l.published_at >= :windowFrom AND l.published_at < :windowEnd"
+                        + " GROUP BY CAST(l.published_at AS DATE) ORDER BY d", scope));
+
+        return new SchoolDataDto.SchoolUsage(school.getId(), school.getName(), window.from().toString(), window.to().toString(),
+                children, activeFamilies, playsPerDay, weeks(publishedPerDay, window), consistencyOf(teachers, window, scope));
+    }
+
+    /**
+     * {@link #teacherConsistency} for a named set of teachers and a named set of sections: the lessons counted are
+     * the ones published <em>into her department</em>, so a teacher who also teaches the other track is measured on
+     * the half that is hers.
+     */
+    private List<SchoolDataDto.TeacherConsistency> consistencyOf(Map<String, String> teachers, Reports.Window window,
+                                                                 Map<String, Object> scope) {
+        if (teachers.isEmpty()) return List.of();
+        var perTeacher = new LinkedHashMap<String, int[]>();
+        var weeksSeen = new LinkedHashMap<String, java.util.Set<LocalDate>>();
+        for (var row : Reports.rows(Reports.bind(em,
+                "SELECT k.teacher_id, CAST(l.published_at AS DATE) AS d, COUNT(*) AS n FROM lessons l"
+                        + " JOIN classes k ON k.id = l.class_id WHERE l.school_id = :schoolId AND l.status = \'published\'"
+                        + " AND l.class_id IN (:sections) AND k.teacher_id IS NOT NULL"
+                        + " AND l.published_at >= :windowFrom AND l.published_at < :windowEnd"
+                        + " GROUP BY k.teacher_id, CAST(l.published_at AS DATE)", scope))) {
+            String teacherId = Reports.text(row[0]);
+            perTeacher.computeIfAbsent(teacherId, k -> new int[1])[0] += (int) Reports.number(row[2]);
+            weeksSeen.computeIfAbsent(teacherId, k -> new java.util.LinkedHashSet<>()).add(Reports.weekOf(Reports.day(row[1])));
+        }
+        var lastPublished = new LinkedHashMap<String, Long>();
+        for (var row : Reports.rows(Reports.bind(em,
+                "SELECT k.teacher_id, MAX(l.published_at) FROM lessons l JOIN classes k ON k.id = l.class_id"
+                        + " WHERE l.school_id = :schoolId AND l.status = \'published\' AND l.class_id IN (:sections)"
+                        + " AND k.teacher_id IS NOT NULL GROUP BY k.teacher_id", scope))) {
+            var at = Reports.instant(row[1]);
+            if (at != null) lastPublished.put(Reports.text(row[0]), at.toEpochMilli());
+        }
+        int weeks = weekStarts(window).size();
+        var out = new ArrayList<SchoolDataDto.TeacherConsistency>(teachers.size());
+        teachers.forEach((id, name) -> out.add(new SchoolDataDto.TeacherConsistency(id, name,
+                perTeacher.containsKey(id) ? perTeacher.get(id)[0] : 0, weeks,
+                weeksSeen.containsKey(id) ? weeksSeen.get(id).size() : 0, lastPublished.get(id))));
+        return List.copyOf(out);
+    }
+
+    /**
      * §6 screen 19, "teachers' publishing consistency": in how many of the window's weeks each teacher published at
      * least one lesson. Three statements — the teachers, their published days, and when each last published —
-     * whatever the number of teachers.
+     * whatever the number of teachers. {@link #consistencyOf} is the department's version, for a named set of both.
      */
     private List<SchoolDataDto.TeacherConsistency> teacherConsistency(String schoolId, Reports.Window window, Map<String, Object> scope) {
         var teachers = new LinkedHashMap<String, String>();

@@ -15,6 +15,13 @@ public interface BroadcastReadRepository extends JpaRepository<Entities.Broadcas
     @Query("select r.broadcastId from BroadcastReadEntity r where r.readerId = :readerId and r.broadcastId in :ids")
     List<String> readBy(@Param("readerId") String readerId, @Param("ids") List<String> ids);
 
+    /**
+     * MG1: `[broadcastId, how many people have opened it]` for a whole archive page in one statement — the manager's
+     * archive says how many read each plan, and one count per row would be a statement per week.
+     */
+    @Query("select r.broadcastId, count(r.id) from BroadcastReadEntity r where r.broadcastId in :ids group by r.broadcastId")
+    List<Object[]> countsBy(@Param("ids") List<String> ids);
+
     @Query("select r from BroadcastReadEntity r where r.broadcastId = :broadcastId and r.readerId = :readerId")
     Optional<Entities.BroadcastReadEntity> findOne(@Param("broadcastId") String broadcastId, @Param("readerId") String readerId);
 

@@ -54,7 +54,7 @@ public class CoordinatorAnnouncementController {
     public List<TeacherDto.Announcement> createCoordinatorAnnouncement(@AuthenticationPrincipal Principals.User caller,
                                                                       @RequestBody @Valid CoordinatorDto.CreateAnnouncementRequest body) {
         var request = new quest.server.broadcasts.BroadcastDto.CreateRequest(quest.server.broadcasts.BroadcastService.ANNOUNCEMENT,
-                body.bodyEn(), null, body.bodyAr(), null, java.util.List.of(quest.server.broadcasts.BroadcastService.PARENTS),
+                body.bodyEn(), null, body.bodyAr(), null, null, java.util.List.of(quest.server.broadcasts.BroadcastService.PARENTS),
                 body.classIds(), null, body.expiresAt());
         return broadcasts.coordinatorPost(CoordinatorScope.require(caller), request).announcements();
     }

@@ -852,6 +852,13 @@ interface DashboardApi {
     /** `GET /management/people/teachers?q&page&size` — her teachers, with subjects and sections. */
     suspend fun directoryTeachers(q: String? = null, page: Int = 0, size: Int = 0): TeacherDirectory
 
+    /**
+     * MG1 `GET /management/usage?from&to` — the School usage numbers for **her department(s)**: the same
+     * `SchoolUsage` shape `GET /school/usage` answers, scoped to her sections and to the teachers she manages.
+     * Absent dates mean the last 30 days.
+     */
+    suspend fun managementUsage(from: String? = null, to: String? = null): SchoolUsage
+
     /** `GET /management/people/coordinators?q&page&size` — her coordinators, with subjects and tracks. */
     suspend fun directoryCoordinators(q: String? = null, page: Int = 0, size: Int = 0): CoordinatorDirectory
     // ---- RM2 (DR6): her broadcasts and her chat. `management.broadcast` behind the `announcements` flag,
@@ -867,6 +874,13 @@ interface DashboardApi {
     /** `GET /management/broadcasts` — what she posted, newest first, expired rows included. */
     suspend fun managementBroadcasts(): List<quest.api.dto.BroadcastView>
 
+    /**
+     * MG1 `GET /management/weekly-plans?from&to&grade` — every weekly plan of her department(s) in the window, newest
+     * week first, each entry with `readBy`. Absent dates mean the last twelve weeks; past weeks are never hidden.
+     */
+    suspend fun managementWeeklyPlans(from: String? = null, to: String? = null,
+                                      grade: Int? = null): quest.api.dto.WeeklyPlanArchive
+
     /** `GET /management/chat/threads?status=` — the parents of her department, her coordinators and the admin. */
     suspend fun managementChatThreads(status: String? = null): List<quest.api.dto.ChatThread>
 
@@ -881,10 +895,12 @@ interface DashboardApi {
     suspend fun markManagementChatRead(threadId: String): quest.api.dto.ChatReadReceipt
 
     /**
-     * `POST /management/chat/threads` — her thread with one coordinator of her department (`coordinatorUserId`) or with
-     * a platform admin (`adminUserId`), whichever the body names. The same thread whichever side opens it.
+     * `POST /management/chat/threads` — her thread with one teacher of her department (`teacherUserId`, MG1), one
+     * coordinator of it (`coordinatorUserId`) or a platform admin (`adminUserId`), whichever the body names. The same
+     * thread whichever side opens it; a person outside her department is 404.
      */
-    suspend fun createManagementChatThread(coordinatorUserId: String? = null, adminUserId: String? = null): quest.api.dto.ChatThread
+    suspend fun createManagementChatThread(coordinatorUserId: String? = null, adminUserId: String? = null,
+                                           teacherUserId: String? = null): quest.api.dto.ChatThread
 
     /** `GET /management/admins` — whom `adminUserId` may name. `GET /management/coordinators` is the other chooser. */
     suspend fun managementAdmins(): List<ManagerAdmin>
@@ -896,6 +912,32 @@ interface DashboardApi {
 
     /** `POST /me/broadcasts/{id}/read` — this one is read; the row comes back with `read = true`. */
     suspend fun markMyBroadcastRead(broadcastId: String): quest.api.dto.BroadcastView
+
+    /** MG1 `GET /me/weekly-plans?from&to` — the plans whose audience includes this teacher, coordinator or manager. */
+    suspend fun myWeeklyPlans(from: String? = null, to: String? = null): quest.api.dto.WeeklyPlanArchive
+
+    // ---- MG1 (DR5): the teacher's staff threads with the manager(s) of the departments she teaches in.
+    // Behind the `chat` flag and `teacher.chat`, keyed by thread because a staff thread has no child on it.
+
+    /** `GET /teacher/managers` — whom `createTeacherStaffThread` will accept, each with her department. */
+    suspend fun teacherManagers(): List<CoordinatorManager>
+
+    /** `GET /teacher/chat/staff-threads` — her conversations with those managers, unread first then newest. */
+    suspend fun teacherStaffThreads(): List<quest.api.dto.ChatThread>
+
+    /** `POST /teacher/chat/staff-threads` — `{"managerUserId": …}`; the same row whichever side opens it. */
+    suspend fun createTeacherStaffThread(managerUserId: String): quest.api.dto.ChatThread
+
+    /** `GET /teacher/chat/staff-threads/{id}/messages?before&since&limit` — a page, oldest first. */
+    suspend fun teacherStaffMessages(threadId: String, before: String? = null, since: String? = null,
+                                     limit: Int? = null): List<quest.api.dto.ChatMessage>
+
+    /** `POST /teacher/chat/staff-threads/{id}/messages` — 1–2000 characters of plain text. */
+    suspend fun sendTeacherStaffMessage(threadId: String,
+                                        request: quest.api.dto.SendChatMessageRequest): quest.api.dto.ChatMessage
+
+    /** `POST /teacher/chat/staff-threads/{id}/read` — everything the manager wrote is read. */
+    suspend fun markTeacherStaffRead(threadId: String): quest.api.dto.ChatReadReceipt
 
     /** `POST /coordinator/broadcasts` — an announcement or an event for the parents of the classes she coordinates. */
     suspend fun createCoordinatorBroadcast(request: quest.api.dto.CreateBroadcastRequest): quest.api.dto.BroadcastView

@@ -52,6 +52,19 @@ public class ManagementController {
         this.management = management; this.stats = stats; this.json = json;
     }
 
+    /**
+     * MG1: her department's School usage — children, active families, plays a day, lessons published a week and how
+     * steadily each of <em>her</em> teachers publishes. The whole-school `GET /school/usage` answers the same shape;
+     * this one is scoped, so a manager is never shown the other department's numbers.
+     */
+    @GetMapping(value = "/management/usage", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('management.read')")
+    public quest.server.dashboard.SchoolDataDto.SchoolUsage managementUsage(@AuthenticationPrincipal Principals.User caller,
+                                                                            @RequestParam(required = false) String from,
+                                                                            @RequestParam(required = false) String to) {
+        return management.usage(ManagerScope.require(caller), from, to);
+    }
+
     /** Her departments and their five numbers — what Home leads with, in one request. */
     @GetMapping(value = "/management/me", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('management.read')")

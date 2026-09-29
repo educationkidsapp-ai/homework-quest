@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import quest.server.auth.Principals;
@@ -57,6 +58,19 @@ public class BroadcastController {
         return broadcasts.managerPosts(ManagerScope.require(caller));
     }
 
+    /**
+     * MG1 (owner's item 4): every weekly plan of her department(s) in the window, newest week first, with how many
+     * people have read each. The default window is the last twelve weeks; past weeks are never hidden.
+     */
+    @GetMapping(value = "/management/weekly-plans", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('management.broadcast')")
+    public BroadcastDto.PlanArchive managementWeeklyPlans(@AuthenticationPrincipal Principals.User caller,
+                                                          @RequestParam(required = false) String from,
+                                                          @RequestParam(required = false) String to,
+                                                          @RequestParam(required = false) Integer grade) {
+        return broadcasts.managerArchive(ManagerScope.require(caller), from, to, grade);
+    }
+
     // ---------------------------------------------------------------- the coordinator composes
 
     /** The parents of the classes she coordinates; `weekly_plan` is the manager's kind and is refused here. */
@@ -94,6 +108,15 @@ public class BroadcastController {
         return broadcasts.staffRead(quest.server.tenancy.TeacherScope.require(caller), id);
     }
 
+    /** MG1: the same archive for a teacher, a coordinator or a manager — the plans whose audience includes her. */
+    @GetMapping(value = "/me/weekly-plans", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('broadcast.read')")
+    public BroadcastDto.PlanArchive myWeeklyPlans(@AuthenticationPrincipal Principals.User caller,
+                                                  @RequestParam(required = false) String from,
+                                                  @RequestParam(required = false) String to) {
+        return broadcasts.myArchive(quest.server.tenancy.TeacherScope.require(caller), from, to);
+    }
+
     // ---------------------------------------------------------------- the app reads
 
     /**
@@ -105,6 +128,15 @@ public class BroadcastController {
     @PreAuthorize("@permit.has('child.broadcast.read')")
     public BroadcastDto.Feed childBroadcasts(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) {
         return broadcasts.forChild(parent, id);
+    }
+
+    /** MG1: the plans sent to this child's section over a window, past weeks included — the app's own archive. */
+    @GetMapping(value = "/children/{id}/weekly-plans", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('child.broadcast.read')")
+    public BroadcastDto.PlanArchive childWeeklyPlans(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id,
+                                                     @RequestParam(required = false) String from,
+                                                     @RequestParam(required = false) String to) {
+        return broadcasts.childArchive(parent, id, from, to);
     }
 
     @PostMapping(value = "/children/{id}/broadcasts/{broadcastId}/read", produces = MediaType.APPLICATION_JSON_VALUE)
