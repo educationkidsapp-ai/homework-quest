@@ -35,8 +35,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import org.jetbrains.compose.resources.decodeToImageBitmap
 import quest.api.dto.BroadcastAttachment
+import quest.core.LruCache
+import quest.core.platform.decodeBoundedImage
 import quest.feature.broadcasts.domain.AttachmentImages
 import quest.feature.broadcasts.domain.NoAttachmentImages
 import quest.feature.parent.presentation.ParentButton
@@ -47,8 +48,24 @@ import quest.ui.design.Palette
 /** Provided by the app root; [NoAttachmentImages] under tests, screenshots and previews, so nothing is fetched. */
 val LocalAttachmentImages = staticCompositionLocalOf<AttachmentImages> { NoAttachmentImages }
 
-/** Decoded bitmaps per attachment id, for the life of the process: the pinned plan is redrawn on every recomposition. */
-private val decoded = HashMap<String, ImageBitmap>()
+/**
+ * Decoded bitmaps, **at most three**: the pinned plan, the one earlier week a parent has open, and whichever of them
+ * the full-screen viewer is showing at full size. A card is redrawn on every recomposition, so some cache is needed;
+ * holding every week she has ever opened is not, and a weekly plan is a 5 MB photograph rather than a small asset.
+ *
+ * The key carries the bound, because the card and the viewer want different sizes of the same image.
+ */
+private val decoded = LruCache<String, ImageBitmap>(MAX_DECODED)
+
+internal const val MAX_DECODED = 3
+
+/**
+ * The longest edge the **card** decodes to. The card is capped at 420 dp and the widest phone the app ships on is
+ * about 430 dp at 3.5×, so this is already more pixels than it can draw; a plan straight off a camera is several times
+ * larger again. [FULL_SIZE] is the viewer's bound — none, because zooming in is the whole reason to open it.
+ */
+internal const val CARD_MAX_PX = 1440
+internal const val FULL_SIZE = 0
 
 private sealed interface Load {
     data object Loading : Load
@@ -56,15 +73,21 @@ private sealed interface Load {
     data class Ready(val image: ImageBitmap) : Load
 }
 
+/** The cache key for one attachment at one decode bound. */
+internal fun decodeKey(attachment: BroadcastAttachment, maxDimensionPx: Int) =
+    "${attachment.id ?: attachment.url}@$maxDimensionPx"
+
 @Composable
-private fun rememberAttachment(attachment: BroadcastAttachment, attempt: Int): State<Load> {
+private fun rememberAttachment(attachment: BroadcastAttachment, attempt: Int, maxDimensionPx: Int): State<Load> {
     val images = LocalAttachmentImages.current
-    val key = attachment.id ?: attachment.url
+    val key = decodeKey(attachment, maxDimensionPx)
     return produceState<Load>(decoded[key]?.let { Load.Ready(it) } ?: Load.Loading, key, attempt, images) {
         decoded[key]?.let { value = Load.Ready(it); return@produceState }
         value = Load.Loading
+        // The bytes come off the disk cache after the first fetch, so a second decode at the viewer's size is a read
+        // and a decode rather than a second download.
         val bytes = images.load(attachment)
-        val image = bytes?.let { runCatching { it.decodeToImageBitmap() }.getOrNull() }
+        val image = bytes?.let { runCatching { decodeBoundedImage(it, maxDimensionPx) }.getOrNull() }
         value = if (image == null) Load.Failed else Load.Ready(image).also { decoded[key] = image }
     }
 }
@@ -80,7 +103,7 @@ private fun rememberAttachment(attachment: BroadcastAttachment, attempt: Int): S
 @Composable
 fun AttachmentImage(attachment: BroadcastAttachment, description: String, strings: Strings, modifier: Modifier = Modifier) {
     var attempt by remember { mutableIntStateOf(0) }
-    val load by rememberAttachment(attachment, attempt)
+    val load by rememberAttachment(attachment, attempt, CARD_MAX_PX)
     var full by remember { mutableStateOf(false) }
 
     Box(
@@ -106,9 +129,8 @@ fun AttachmentImage(attachment: BroadcastAttachment, description: String, string
     if (load is Load.Failed) {
         Text(strings.imageFailed, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
     }
-    (load as? Load.Ready)?.let { ready ->
-        if (full) FullScreenImage(ready.image, description, strings) { full = false }
-    }
+    // The viewer decodes the same bytes again at full size, so pinching to 6× shows detail the card never held.
+    if (full && load is Load.Ready) FullScreenImage(attachment, description, strings) { full = false }
 }
 
 /**
@@ -116,7 +138,8 @@ fun AttachmentImage(attachment: BroadcastAttachment, description: String, string
  * flicked off its own dialog and lost — the way back is always the same tap.
  */
 @Composable
-private fun FullScreenImage(image: ImageBitmap, description: String, strings: Strings, onClose: () -> Unit) {
+private fun FullScreenImage(attachment: BroadcastAttachment, description: String, strings: Strings, onClose: () -> Unit) {
+    val load by rememberAttachment(attachment, attempt = 0, maxDimensionPx = FULL_SIZE)
     // `usePlatformDefaultWidth = false`, or the dialog keeps a phone-dialog inset and the plan is a stamp in the middle
     // of a black sheet — the whole point of the full-screen view is that the week is legible.
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -134,6 +157,11 @@ private fun FullScreenImage(image: ImageBitmap, description: String, strings: St
                 .clickable(onClick = onClose),
             contentAlignment = Alignment.Center,
         ) {
+            val image = (load as? Load.Ready)?.image
+            if (image == null) {
+                CircularProgressIndicator(color = Color.White)
+                return@Box
+            }
             Image(
                 bitmap = image,
                 contentDescription = description,

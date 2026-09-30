@@ -28,7 +28,15 @@ kotlin {
         }
     }
 
+    // MH3: desktop and iOS both render through skiko, so the one image decoder they share lives in `skikoMain`
+    // rather than being copied into each. Android decodes with `BitmapFactory` and keeps its own actual.
+    applyDefaultHierarchyTemplate()
+
     sourceSets {
+        val skikoMain by creating { dependsOn(commonMain.get()) }
+        val desktopMain by getting { dependsOn(skikoMain) }
+        iosMain.get().dependsOn(skikoMain)
+
         commonMain.dependencies {
             api(projects.sharedApi)
             api(projects.sharedUi)
@@ -85,13 +93,11 @@ kotlin {
             implementation(libs.ktor.client.darwin)
             implementation(libs.sqldelight.native)
         }
-        val desktopMain by getting {
-            dependencies {
-                implementation(compose.desktop.currentOs)
-                implementation(libs.kotlinx.coroutines.swing)
-                implementation(libs.ktor.client.cio)
-                implementation(libs.sqldelight.sqlite)
-            }
+        desktopMain.dependencies {
+            implementation(compose.desktop.currentOs)
+            implementation(libs.kotlinx.coroutines.swing)
+            implementation(libs.ktor.client.cio)
+            implementation(libs.sqldelight.sqlite)
         }
         val desktopTest by getting {
             dependencies {
