@@ -281,6 +281,17 @@ class ChatWebSocketTest extends ChatTestSupport {
         assertThat(left.get("userId").asText()).isEqualTo(SARA);
         await(() -> !presence.userOnline(SARA));
         assertThat(presence.userOnline(SARA)).as("the last socket of hers has gone").isFalse();
+
+        // and the other way round: the parent leaving reaches the teacher, named by `parentId`. A parent carries no
+        // school at all, so this is also the schoolless fan-out — a school-matched write would reach nobody.
+        var back = new Frames();
+        connect(sara, true, back);
+        assertThat(frameOfType(parent, "presence").get("online").asBoolean()).isTrue();
+        parentSession.close();
+        var gone = frameOfType(back, "presence");
+        assertThat(gone.get("online").asBoolean()).isFalse();
+        assertThat(gone.has("userId")).as("a parent is named by parentId alone").isFalse();
+        assertThat(gone.get("parentId").asText()).isNotBlank();
     }
 
     /**

@@ -348,7 +348,9 @@ public class ChatService {
         String schoolId = tenant.writeSchoolId();
         if (!flags.isOn(schoolId, FlagKeys.CHAT)) return null;
         var t = threadRows.getOrCreateStaff(schoolId, caller.userId(), managerUserId);
-        send(t, null, TEACHER, caller.userId(), body, null);
+        // No `chat.message` bell here: `TeacherMessageService` already writes the manager a `teacher.message` row for
+        // this very sentence (MG1), and two bell entries for one note would be noise rather than news.
+        send(t, null, TEACHER, caller.userId(), body, null, false);
         return t.getId();
     }
 
@@ -730,6 +732,10 @@ public class ChatService {
      * the child's parent or the manager on the other end of a staff thread.
      */
     private ChatMessage send(ChatThreadEntity thread, String parentId, String role, String senderId, String rawBody, String clientId) {
+        return send(thread, parentId, role, senderId, rawBody, clientId, true);
+    }
+
+    private ChatMessage send(ChatThreadEntity thread, String parentId, String role, String senderId, String rawBody, String clientId, boolean bell) {
         String body = clean(rawBody);
         limiter.record(key(role, senderId));
         var m = new ChatMessageEntity();
@@ -738,7 +744,7 @@ public class ChatService {
         messages.save(m);
         if (TEACHER.equals(role)) threads.bumpParentUnread(thread.getId(), m.getCreatedAt()); else threads.bumpTeacherUnread(thread.getId(), m.getCreatedAt());
         var dto = dto(m);
-        bell(thread, role, senderId, body);
+        if (bell) bell(thread, role, senderId, body);
         publish(ChatEvent.message(thread.getSchoolId(), thread.getId(), thread.getChildId(), thread.getTeacherId(), parentId, thread.getPeerUserId(),
                 key(role, senderId), clientId, dto.getId(), json.encodeShared(dto, ChatMessage.Companion.serializer())));
         return dto;

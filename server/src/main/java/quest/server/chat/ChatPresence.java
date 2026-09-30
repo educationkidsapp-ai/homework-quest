@@ -92,7 +92,10 @@ public class ChatPresence {
         if (online && known) return;                            // a refresh of what we already knew: nothing moved
         if (sessions.count() == 0) return;
         String frame = json.encodeShared(frame(key, online), ChatFrame.Companion.serializer());
-        for (String peer : peersOf(key)) sessions.sendToSchool(peer, e.schoolId(), frame);
+        // A parent and the platform ADMIN carry no school, and `sendToSchool` would then match no dashboard session at
+        // all — so a schoolless event goes to every session of each peer, which is what "she is online" means anyway.
+        for (String peer : peersOf(key))
+            if (e.schoolId() == null) sessions.send(peer, frame); else sessions.sendToSchool(peer, e.schoolId(), frame);
     }
 
     private void publish(ChatSessions.Peer peer, boolean online) {

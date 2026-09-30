@@ -1490,7 +1490,9 @@ first 120 characters of what was written.
 message she has not looked at yet updates the row she already has — new body, new time, the same id — so a conversation
 of twenty messages is one bell entry showing the latest line rather than twenty she has to clear. Reading the thread
 (`POST …/read`, over REST or the socket) marks that row read, and the next message after that rings again. A bell that
-cannot be written is logged and never fails the send.
+cannot be written is logged and never fails the send. One exception, so that one note does not ring twice:
+`POST /teacher/messages/coordinator` appends its sentence to the staff thread (MG1) but writes **no** `chat.message`
+row, because the manager already gets a `teacher.message` row for it.
 
 **Who gets one, and when.** Only the lesson's creator (`lessons.created_by`, resolved to a `users` row; a lesson
 created by the seed notifies nobody), and only on a real status *transition* written by `LessonState`:
