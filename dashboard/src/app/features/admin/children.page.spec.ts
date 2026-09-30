@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { EnvironmentProviders, Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { screen } from '@testing-library/angular';
+import { screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../../api';
@@ -217,8 +217,13 @@ describe('Children & parents', () => {
       );
     await settle(rendered);
 
-    expect(screen.getByText(/not configured on this server/)).toBeInTheDocument();
-    // Nothing was created, so no success sheet claims otherwise.
+    // Inside the dialog, which is still open: it opened with `showModal()`, so a band on the page
+    // behind it would be behind the backdrop and she would see the spinner stop and nothing else.
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByText(/not configured on this server/)).toBeInTheDocument();
+    // And on the page too, for when she closes the dialog.
+    expect(screen.getAllByText(/not configured on this server/)).toHaveLength(2);
+    // Nothing was created, so no result band claims otherwise.
     expect(screen.queryByText(/is admitted/)).not.toBeInTheDocument();
   });
 

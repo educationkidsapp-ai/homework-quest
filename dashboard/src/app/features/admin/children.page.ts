@@ -376,10 +376,17 @@ export class ChildrenPage implements OnDestroy {
         error: (error: unknown) => {
           this.saving.set(false);
           // `unavailable` is `ParentAccountsConfig`'s 503: no Firebase credentials on this server.
-          // A sentence naming the deployment, not the person, and no red band — there is nothing
-          // for her to correct in the form.
+          // A sentence naming the deployment, not the person.
+          //
+          // **It goes in the dialog she is looking at, not only on the page behind it.** `hq-dialog`
+          // opens with `showModal()`, so the page's own band sits behind the backdrop: the first cut
+          // set `notConfigured` alone and, on a deployment without Firebase, the Admin saw the
+          // spinner stop and nothing else. Both are set — the dialog explains why this admission did
+          // not happen, and the page's band is still there when she closes it, which is also where a
+          // failed "Reset parent password" from a row lands.
           if (apiErrorCodeOf(error) === 'unavailable') {
             this.notConfigured.set(true);
+            this.formError.set(this.t('admin.children.notConfigured.message'));
             return;
           }
           const message = apiErrorOf(error)?.message ?? this.t('band.unreachable');
