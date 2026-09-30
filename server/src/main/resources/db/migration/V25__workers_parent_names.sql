@@ -9,7 +9,9 @@
 --    retires a row the way `children.active` does — a person who has left is part of the school's record, so
 --    `DELETE /admin/workers/{id}` clears the flag and deletes nothing.
 --    `school_id` carries the Hibernate `school` filter like every other tenant table and is always the caller's own
---    scope, never a request parameter.
+--    scope, never a request parameter, and it `REFERENCES schools(id)` as `classes.school_id` and `children.school_id`
+--    do (`V4__schools_roles.sql`): a worker of a school that does not exist is not a row worth keeping, and the
+--    constraint is free here because the table is new and empty on every database that runs this file.
 --
 -- 2. `parents.display_name` — the owner's item 5 asks the Children & parents page for a parent *name*, and until now
 --    the only name a parent had was the one Firebase holds: `parents` carried a uid, an address and (MH1) a telephone
@@ -22,7 +24,7 @@
 
 CREATE TABLE IF NOT EXISTS workers (
     id         TEXT PRIMARY KEY,
-    school_id  TEXT NOT NULL,
+    school_id  TEXT NOT NULL REFERENCES schools(id),
     full_name  TEXT NOT NULL,
     job        TEXT NOT NULL,
     phone      VARCHAR(20),
