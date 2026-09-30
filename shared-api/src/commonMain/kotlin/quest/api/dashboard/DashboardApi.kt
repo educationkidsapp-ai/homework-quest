@@ -995,8 +995,17 @@ interface DashboardApi {
     /** `GET /teacher/chat/staff-threads` — her conversations with those managers, unread first then newest. */
     suspend fun teacherStaffThreads(): List<quest.api.dto.ChatThread>
 
-    /** `POST /teacher/chat/staff-threads` — `{"managerUserId": …}`; the same row whichever side opens it. */
-    suspend fun createTeacherStaffThread(managerUserId: String): quest.api.dto.ChatThread
+    /**
+     * `POST /teacher/chat/staff-threads` — **exactly one** of `managerUserId` and `coordinatorUserId` (T1b), the same
+     * row whichever side opens it. A coordinator of a subject she teaches is the "direct message" on her Coordinator
+     * page, and the coordinator reads and answers it through her own `/coordinator/chat` routes (a Kotlin block comment
+     * nests, so the wildcard is left off on purpose). 400 for both or neither,
+     * 404 for anyone the matching directory page does not list.
+     */
+    suspend fun createTeacherStaffThread(
+        managerUserId: String? = null,
+        coordinatorUserId: String? = null,
+    ): quest.api.dto.ChatThread
 
     /** `GET /teacher/chat/staff-threads/{id}/messages?before&since&limit` — a page, oldest first. */
     suspend fun teacherStaffMessages(threadId: String, before: String? = null, since: String? = null,

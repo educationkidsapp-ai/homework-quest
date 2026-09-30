@@ -1294,9 +1294,16 @@ triple is matched whole against a coordinator's scope rows, so a teacher of Brit
 handed the British drama coordinator. The reach is the chat reach — `ChatPeers.managersForTeacher`,
 `managerOptionsFor`, `coordinatorsOn`'s rule read backwards — so the directory can never offer somebody the
 "direct message" button would then refuse. No new permission key: the lists exist so she can write to them, and
-`teacher.chat` / `coordinator.chat` are the keys her Messages screen already holds. **Still open:** a teacher can open
-a staff thread with a *manager* only (`POST /teacher/chat/staff-threads {managerUserId}`); "direct message" from a
-Coordinator page has no route yet.
+`teacher.chat` / `coordinator.chat` are the keys her Messages screen already holds.
+
+**The direct message (T1b).** `POST /teacher/chat/staff-threads` takes **exactly one** of `{managerUserId}` and
+`{coordinatorUserId}` — 400 for both or neither, and 404 for anyone the matching directory page above does not list, so
+the button can never open a thread the read would refuse. A coordinator thread is the ordinary staff row: the teacher on
+`teacher_id`, the coordinator on `peer_user_id`, `staff_role` **`COORDINATOR`** (it names the peer, as everywhere else),
+so `teacher_unread` is the teacher's badge and `parent_unread` the coordinator's. The coordinator lists it, reads it and
+answers it through her existing `/coordinator/chat/threads`, `…/{id}/messages` and `…/{id}/read` — the reach check on her
+side is the same subject-and-track rule read backwards, so a thread can never exist that one of its two parties cannot
+open — and her `chat.message` bell links to `/coordinator/messages?thread=…`, the teacher's to `/teacher/chat?thread=…`.
 
 **Which end of a staff thread is which.** On every staff-to-staff thread the *subordinate* holds `chat_threads.teacher_id`
 and the *supervisor* holds `peer_user_id`, and `staff_role` is `MANAGERIAL` — it names the peer. So: teacher → manager,

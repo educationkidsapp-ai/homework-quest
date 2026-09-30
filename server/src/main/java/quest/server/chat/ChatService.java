@@ -86,16 +86,17 @@ public class ChatService {
     private final FeatureFlags flags; private final Clock clock; private final Json json;
     private final quest.server.auth.ParentRepository parents;
     private final ChatPresence presence; private final quest.server.notifications.NotificationService bells;
+    private final StaffDirectory directory;
 
     public ChatService(ChatThreadRepository threads, ChatMessageRepository messages, ChatThreads threadRows, ChatRateLimiter limiter, ChatBus bus,
                        ChildService childService, ChildRepository children, ClassRepository classes, UserRepository users, TeacherScope scope,
                        TenantContext tenant, CoordinatorScope coordinatorScope, ManagerScope managerScope,
                        ChatPeers peers, FeatureFlags flags, Clock clock, Json json, quest.server.auth.ParentRepository parents,
-                       ChatPresence presence, quest.server.notifications.NotificationService bells) {
+                       ChatPresence presence, quest.server.notifications.NotificationService bells, StaffDirectory directory) {
         this.threads = threads; this.messages = messages; this.threadRows = threadRows; this.limiter = limiter; this.bus = bus;
         this.childService = childService; this.children = children; this.classes = classes; this.users = users; this.scope = scope;
         this.tenant = tenant; this.coordinatorScope = coordinatorScope; this.managerScope = managerScope; this.peers = peers; this.flags = flags; this.clock = clock;
-        this.json = json; this.parents = parents; this.presence = presence; this.bells = bells;
+        this.json = json; this.parents = parents; this.presence = presence; this.bells = bells; this.directory = directory;
     }
 
     /**
@@ -295,25 +296,34 @@ public class ChatService {
     public List<ChatThread> teacherStaffThreads(Principals.User caller) {
         var me = TeacherScope.require(caller);
         requireOn(tenant.writeSchoolId());
-        var allowed = managerIdsOf(me);
+        var allowed = supervisorsOf(me);
         return threads.findForStaff(me.userId()).stream().filter(t -> staffThreadOf(t, me.userId(), allowed))
                 .map(t -> one(t, me.userId())).toList();
     }
 
     /**
-     * `POST /teacher/chat/staff-threads`: her thread with one manager of a department she teaches in. A manager of
-     * the other department is 404 through {@link ChatPeers#managersForTeacher} — she is not told which managers exist
-     * outside her own, any more than a parent is told which teachers exist outside her child's.
+     * `POST /teacher/chat/staff-threads`: her thread with **one manager of a department she teaches in, or (T1b) one
+     * coordinator of a subject she teaches** — exactly one of the two ids, because the two are different people and a
+     * request that named both would be asking for a thread that does not exist. Anyone outside her own reach is 404
+     * through the directory that offered her the list: she is not told which staff exist beyond it, any more than a
+     * parent is told which teachers exist outside her child's section.
      */
     @Transactional
-    public ChatThread teacherStaffThread(Principals.User caller, String managerUserId) {
+    public ChatThread teacherStaffThread(Principals.User caller, String managerUserId, String coordinatorUserId) {
         var me = TeacherScope.require(caller);
         String schoolId = tenant.writeSchoolId();
         requireOn(schoolId);
-        if (managerUserId == null || managerUserId.isBlank()) throw ApiException.badRequest("managerUserId is required");
+        boolean manager = named(managerUserId), coordinator = named(coordinatorUserId);
+        if (manager == coordinator) throw ApiException.badRequest("Send exactly one of managerUserId and coordinatorUserId.");
+        if (coordinator) {
+            if (!directory.coordinatorIdsForTeacher(me).contains(coordinatorUserId)) throw ApiException.notFound("coordinator");
+            return one(threadRows.getOrCreateStaff(schoolId, me.userId(), coordinatorUserId, COORDINATOR), me.userId());
+        }
         if (!managerIdsOf(me).contains(managerUserId)) throw ApiException.notFound("manager");
         return one(threadRows.getOrCreateStaff(schoolId, me.userId(), managerUserId), me.userId());
     }
+
+    private static boolean named(String id) { return id != null && !id.isBlank(); }
 
     public List<ChatMessage> teacherStaffMessages(Principals.User caller, String threadId, String before, String since, Integer limit) {
         return page(ownTeacherThread(TeacherScope.require(caller), threadId).getId(), before, since, limit);
@@ -362,16 +372,27 @@ public class ChatService {
         return peers.managersForTeacher(teacher).stream().map(m -> m.user().getId()).collect(Collectors.toSet());
     }
 
-    /** Her side of a staff thread: no child, she is the `teacher_id`, and the peer is still a manager of hers. */
-    private static boolean staffThreadOf(ChatThreadEntity t, String meId, Set<String> managers) {
-        return t.getChildId() == null && meId.equals(t.getTeacherId()) && managers.contains(t.getPeerUserId());
+    /**
+     * T1b: everyone above her she may hold a staff thread with — the managers of her departments and the coordinators
+     * of her subjects, which is exactly what her two directory pages offer. One set, so the list, the reads and the
+     * writes cannot disagree about who her peers are.
+     */
+    private Set<String> supervisorsOf(Principals.User teacher) {
+        var out = new java.util.LinkedHashSet<>(managerIdsOf(teacher));
+        out.addAll(directory.coordinatorIdsForTeacher(teacher));
+        return out;
+    }
+
+    /** Her side of a staff thread: no child, she is the `teacher_id`, and the peer is still a supervisor of hers. */
+    private static boolean staffThreadOf(ChatThreadEntity t, String meId, Set<String> supervisors) {
+        return t.getChildId() == null && meId.equals(t.getTeacherId()) && supervisors.contains(t.getPeerUserId());
     }
 
     /** One staff thread of hers: 404 for another school's (the filter), another person's, or another department's. */
     private ChatThreadEntity ownTeacherThread(Principals.User me, String threadId) {
         requireOn(tenant.writeSchoolId());
         var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
-        if (!staffThreadOf(t, me.userId(), managerIdsOf(me))) throw ApiException.notFound("thread");
+        if (!staffThreadOf(t, me.userId(), supervisorsOf(me))) throw ApiException.notFound("thread");
         return t;
     }
 
@@ -679,8 +700,14 @@ public class ChatService {
         requireOn(tenant.writeSchoolId());
         var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
         if (!me.userId().equals(t.getTeacherId()) && !me.userId().equals(t.getPeerUserId())) throw ApiException.notFound("thread");
-        if (t.getChildId() != null) coordinatorScope.requireChild(me, t.getChildId());
-        else if (peers.managersFor(me).stream().noneMatch(u -> u.getId().equals(named(t, me.userId())))) throw ApiException.notFound("thread");
+        if (t.getChildId() != null) { coordinatorScope.requireChild(me, t.getChildId()); return t; }
+        String other = named(t, me.userId());
+        // Her staff threads are of two kinds since T1b: the one she opened with her manager, and the one a teacher of
+        // her subjects opened with her. `findForStaff` already lists both, so refusing the second here would leave a
+        // row in her inbox she could not open.
+        boolean hers = peers.managersFor(me).stream().anyMatch(u -> u.getId().equals(other))
+                || (me.userId().equals(t.getPeerUserId()) && directory.coversTeacher(me, other));
+        if (!hers) throw ApiException.notFound("thread");
         return t;
     }
 

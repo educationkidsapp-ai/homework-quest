@@ -25,6 +25,15 @@ public final class StaffDto {
      * the fields RM1's chooser already carried, so a client written against it reads this row unchanged; `job` is the
      * English sentence to fall back on and `jobParts` the same thing localisable. `online` is presence (T1).
      */
+    /**
+     * T1b `POST /teacher/chat/staff-threads`: whom the teacher wants to talk to — **exactly one** of the two ids, and
+     * 400 for both or neither, because a manager and a coordinator are different people and a request naming both is
+     * asking for a thread that does not exist. Each is validated against the directory page that offered it
+     * (`GET /teacher/managers`, `GET /teacher/coordinators`), so anyone outside her own reach is 404.
+     */
+    @Schema(name = "OpenStaffThreadRequest")
+    public record OpenStaffThreadRequest(String managerUserId, String coordinatorUserId) {}
+
     @Schema(name = "StaffContact")
     public record StaffContact(String userId, String displayName, String email, String role, String job,
                                StaffJobParts jobParts, String phone, String curriculum, String subjects, boolean online) {}

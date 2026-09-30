@@ -161,6 +161,61 @@ class StaffDirectoryApiTest extends ApiTestSupport {
         assertThat(chatRows(nour).get(0).get("body").asText()).isEqualTo("Thank you.");
     }
 
+    // ---------------------------------------------------------------- T1b: the direct message to a coordinator
+
+    /**
+     * The owner's "direct message" on the Coordinator page. One row, opened from the teacher's side: Maya writes to
+     * Lina, Lina finds it in her own inbox and answers it there, and each of them gets the other's message in her bell
+     * linked to her own screen. The reach is the directory's, so Omar — the American english coordinator — is 404 to
+     * her, and naming both a manager and a coordinator is 400.
+     */
+    @Test @Order(6) void maya_opens_a_thread_with_lina_and_lina_answers_it_from_her_own_inbox() throws Exception {
+        var opened = created(maya, "TEACHER", "/teacher/chat/staff-threads", "{\"coordinatorUserId\":\"" + lina + "\"}");
+        String thread = opened.get("id").asText();
+        assertThat(opened.get("staffRole").asText()).as("staff_role names the peer").isEqualTo("COORDINATOR");
+        assertThat(opened.get("teacherId").asText()).as("the row names the other person").isEqualTo(lina);
+        // the same row whichever side asks, and it is in both lists
+        assertThat(created(maya, "TEACHER", "/teacher/chat/staff-threads", "{\"coordinatorUserId\":\"" + lina + "\"}")
+                .get("id").asText()).isEqualTo(thread);
+        assertThat(names(staffGet(maya, "TEACHER", "/teacher/chat/staff-threads"), "id")).contains(thread);
+
+        created(maya, "TEACHER", "/teacher/chat/staff-threads/" + thread + "/messages", "{\"body\":\"Is the counting unit still on?\"}");
+        var hers = rowOf(staffGet(lina, "COORDINATOR", "/coordinator/chat/threads"), thread);
+        assertThat(hers.get("teacherName").asText()).isEqualTo("Maya");
+        assertThat(hers.get("unread").asInt()).as("the coordinator's badge is parent_unread on a staff row").isEqualTo(1);
+        var bell = chatRows(lina);
+        assertThat(bell).hasSize(1);
+        assertThat(bell.get(0).get("title").asText()).isEqualTo("Message from Maya");
+        assertThat(bell.get(0).get("link").asText()).isEqualTo("/coordinator/messages?thread=" + thread);
+
+        // she reads it — which clears her bell — and answers in the same thread
+        mvc.perform(as(post("/coordinator/chat/threads/" + thread + "/read"), token(lina, "COORDINATOR"))).andExpect(status().isOk());
+        assertThat(chatRows(lina)).isEmpty();
+        created(lina, "COORDINATOR", "/coordinator/chat/threads/" + thread + "/messages", "{\"body\":\"It is, until Thursday.\"}");
+        assertThat(names(staffGet(maya, "TEACHER", "/teacher/chat/staff-threads/" + thread + "/messages"), "body"))
+                .containsExactly("Is the counting unit still on?", "It is, until Thursday.");
+        var mayasBell = chatRows(maya);
+        assertThat(mayasBell).hasSize(1);
+        assertThat(mayasBell.get(0).get("title").asText()).isEqualTo("Message from Lina");
+        assertThat(mayasBell.get(0).get("link").asText()).as("the teacher's inbox is /teacher/chat").isEqualTo("/teacher/chat?thread=" + thread);
+    }
+
+    @Test @Order(7) void a_coordinator_of_another_subject_is_not_hers_and_naming_two_peers_is_a_bad_request() throws Exception {
+        // Omar coordinates english in the American track; Maya teaches British maths, so he is not on her page at all
+        mvc.perform(as(post("/teacher/chat/staff-threads").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"coordinatorUserId\":\"" + omar + "\"}"), token(maya, "TEACHER")))
+                .andExpect(status().isNotFound());
+        mvc.perform(as(post("/teacher/chat/staff-threads").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"managerUserId\":\"" + nour + "\",\"coordinatorUserId\":\"" + lina + "\"}"), token(maya, "TEACHER")))
+                .andExpect(status().isBadRequest());
+        mvc.perform(as(post("/teacher/chat/staff-threads").contentType(MediaType.APPLICATION_JSON).content("{}"), token(maya, "TEACHER")))
+                .andExpect(status().isBadRequest());
+        // and a thread of Maya's is not Omar's to read, whichever id he guesses
+        String thread = rowOf(staffGet(maya, "TEACHER", "/teacher/chat/staff-threads"), names(staffGet(maya, "TEACHER", "/teacher/chat/staff-threads"), "id").get(0)).get("id").asText();
+        mvc.perform(as(get("/coordinator/chat/threads/" + thread + "/messages"), token(omar, "COORDINATOR")))
+                .andExpect(status().isNotFound());
+    }
+
     // ---------------------------------------------------------------- presence
 
     @Test @Order(5) void a_socket_of_the_managers_makes_her_online_on_the_directory_and_on_the_thread_row() throws Exception {

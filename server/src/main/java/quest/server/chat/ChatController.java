@@ -24,7 +24,6 @@ import quest.api.dto.ChatThread;
 import quest.api.dto.SendChatMessageRequest;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
-import quest.server.coordinator.CoordinatorDto;
 import quest.server.config.Json;
 import quest.server.flags.FeatureFlag;
 import quest.server.flags.FlagKeys;
@@ -164,13 +163,17 @@ public class ChatController {
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatThread.class))))
     public String teacherStaffThreads(@AuthenticationPrincipal Principals.User caller) { return threads(chat.teacherStaffThreads(caller)); }
 
-    /** Her thread with one manager of a department she teaches in; the same row whichever side opens it. */
+    /**
+     * Her thread with one manager of a department she teaches in — or, since T1b, one coordinator of a subject she
+     * teaches, which is the "direct message" button on her Coordinator page. Exactly one of the two ids; the same row
+     * whichever side opens it, and the coordinator reads and answers it through her own `/coordinator/chat/**`.
+     */
     @PostMapping(value = "/teacher/chat/staff-threads", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('teacher.chat')")
     @ResponseStatus(HttpStatus.CREATED)
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatThread.class)))
-    public String teacherStaffThread(@AuthenticationPrincipal Principals.User caller, @RequestBody CoordinatorDto.StaffThreadRequest body) {
-        return json.encodeShared(chat.teacherStaffThread(caller, body.managerUserId()), ChatThread.Companion.serializer());
+    public String teacherStaffThread(@AuthenticationPrincipal Principals.User caller, @RequestBody StaffDto.OpenStaffThreadRequest body) {
+        return json.encodeShared(chat.teacherStaffThread(caller, body.managerUserId(), body.coordinatorUserId()), ChatThread.Companion.serializer());
     }
 
     @GetMapping(value = "/teacher/chat/staff-threads/{id}/messages", produces = MediaType.APPLICATION_JSON_VALUE)

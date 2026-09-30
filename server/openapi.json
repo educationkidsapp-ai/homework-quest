@@ -4169,6 +4169,17 @@
         "required" : [ "managerUserId" ],
         "type" : "object"
       },
+      "OpenStaffThreadRequest" : {
+        "properties" : {
+          "coordinatorUserId" : {
+            "type" : "string"
+          },
+          "managerUserId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "Option" : {
         "properties" : {
           "id" : {
@@ -14392,7 +14403,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/OpenManagerThreadRequest"
+                "$ref" : "#/components/schemas/OpenStaffThreadRequest"
               }
             }
           },

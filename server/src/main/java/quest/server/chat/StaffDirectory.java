@@ -5,7 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 import quest.server.auth.Entities.UserEntity;
 import quest.server.auth.Principals;
@@ -13,7 +15,6 @@ import quest.server.auth.UserRepository;
 import quest.server.tenancy.CoordinatorScope;
 import quest.server.tenancy.Entities.ClassEntity;
 import quest.server.tenancy.Entities.StaffScopeEntity;
-import quest.server.tenancy.StaffScopeRepository;
 import quest.server.tenancy.TeacherScope;
 import quest.server.tenancy.TenantContext;
 
@@ -41,16 +42,48 @@ import quest.server.tenancy.TenantContext;
 public class StaffDirectory {
     static final String COORDINATOR = "coordinator", MANAGER = "manager";
 
-    private final ChatPeers peers; private final TeacherScope teachers; private final StaffScopeRepository scopes;
+    private final ChatPeers peers; private final TeacherScope teachers; private final CoordinatorScope coordinators;
     private final UserRepository users; private final TenantContext tenant; private final ChatPresence presence;
 
-    public StaffDirectory(ChatPeers peers, TeacherScope teachers, StaffScopeRepository scopes, UserRepository users,
+    public StaffDirectory(ChatPeers peers, TeacherScope teachers, CoordinatorScope coordinators, UserRepository users,
                           TenantContext tenant, ChatPresence presence) {
-        this.peers = peers; this.teachers = teachers; this.scopes = scopes; this.users = users; this.tenant = tenant; this.presence = presence;
+        this.peers = peers; this.teachers = teachers; this.coordinators = coordinators; this.users = users;
+        this.tenant = tenant; this.presence = presence;
     }
 
     /** One (subject, track, grade) this teacher actually teaches — the unit a coordinator's scope is matched against. */
     private record Taught(String subject, String curriculum, int grade) {}
+
+    /**
+     * The whole rule, in one place: a `staff_scopes` row covers a triple when the subject is the same and the track
+     * is either the same or the row's is blank (DR1's "both tracks"). Both directions of the directory call it, so
+     * "who may I write to" and "is she one of mine" can never drift apart.
+     */
+    private static boolean covers(String rowSubject, String rowCurriculum, Taught taught) {
+        return taught.subject().equals(normalise(rowSubject))
+                && (rowCurriculum == null || rowCurriculum.isBlank() || taught.curriculum().equals(normalise(rowCurriculum)));
+    }
+
+    /**
+     * T1b, the mirror: <strong>is this teacher one of mine?</strong> The coordinator side of
+     * {@link #coordinatorsForTeacher}, asked of a thread a teacher opened with her — `/coordinator/chat/**` has to
+     * answer it to let her read and reply, and it must be the same question the write asked, or a thread would exist
+     * that one of its two parties cannot open. Her scope comes from {@link CoordinatorScope#scopesOf}, so the
+     * architecture test sees the check.
+     */
+    public boolean coversTeacher(Principals.User coordinator, String teacherId) {
+        if (teacherId == null) return false;
+        var taught = taughtByUser(teacherId);
+        if (taught.isEmpty()) return false;
+        for (var scope : coordinators.scopesOf(coordinator))
+            for (Taught t : taught) if (covers(scope.subject(), scope.curriculum(), t)) return true;
+        return false;
+    }
+
+    /** T1b: the coordinators this teacher may open a thread with, by id — the directory as the write's guest list. */
+    public Set<String> coordinatorIdsForTeacher(Principals.User caller) {
+        return coordinatorsForTeacher(caller).stream().map(StaffDto.StaffContact::userId).collect(Collectors.toSet());
+    }
 
     /**
      * `GET /teacher/coordinators`: the coordinators whose scope covers any (subject, track) pair of hers, each with the
@@ -69,8 +102,7 @@ public class StaffDirectory {
             var grades = new TreeSet<Integer>(); var subjects = new LinkedHashSet<String>(); var tracks = new LinkedHashSet<String>();
             for (StaffScopeEntity row : rows.getOrDefault(person.getId(), List.of()))
                 for (Taught t : mine)
-                    if (t.subject().equals(normalise(row.getSubject()))
-                            && (row.getCurriculum() == null || row.getCurriculum().isBlank() || t.curriculum().equals(normalise(row.getCurriculum())))) {
+                    if (covers(row.getSubject(), row.getCurriculum(), t)) {
                         grades.add(t.grade()); subjects.add(t.subject()); tracks.add(t.curriculum());
                     }
             if (grades.isEmpty()) continue;
@@ -112,6 +144,22 @@ public class StaffDirectory {
             var section = sections.get(assignment.getClassId());
             if (section != null && assignment.getSubject() != null)
                 out.add(new Taught(normalise(assignment.getSubject()), normalise(section.getCurriculum()), section.getGrade()));
+        }
+        return List.copyOf(out);
+    }
+
+    /**
+     * The same triples for a teacher the caller is not — what a coordinator asks about the other end of her thread.
+     * Both reads are {@link TeacherScope}'s, so `staff_scopes` and `teaching_assignments` keep their single owner, and
+     * a section that has been deleted since the assignment was written is skipped rather than guessed at.
+     */
+    private List<Taught> taughtByUser(String teacherId) {
+        var out = new LinkedHashSet<Taught>();
+        for (var assignment : teachers.assignmentsOf(teacherId)) {
+            if (assignment.getSubject() == null) continue;
+            ClassEntity section;
+            try { section = teachers.section(assignment.getClassId()); } catch (RuntimeException gone) { continue; }
+            out.add(new Taught(normalise(assignment.getSubject()), normalise(section.getCurriculum()), section.getGrade()));
         }
         return List.copyOf(out);
     }

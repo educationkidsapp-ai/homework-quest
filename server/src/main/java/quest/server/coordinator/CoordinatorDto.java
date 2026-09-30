@@ -63,8 +63,9 @@ public final class CoordinatorDto {
     // ---------------------------------------------------------------- communication (R4, DR3/DR4)
 
     /**
-     * `POST /coordinator/chat/threads` and — MG1 — `POST /teacher/chat/staff-threads`: the manager the caller wants to
-     * talk to, validated against her own department either way.
+     * `POST /coordinator/chat/threads`: the manager the coordinator wants to talk to, validated against her own
+     * department. The teacher's route sends `StaffDto.OpenStaffThreadRequest` instead since T1b — hers may name a
+     * coordinator as well, and required-ness is then a rule about the pair rather than about one field.
      *
      * <p><strong>Named for the document.</strong> springdoc keys a schema by the record's simple name, and
      * `ManagementChatController.StaffThreadRequest` is a different shape with the same one — so the generated client

@@ -35,18 +35,27 @@ public class ChatThreads {
     }
 
     /**
-     * R4: the staff-to-staff thread of a coordinator and a manager of her department — no child, and the pair
-     * de-duplicated by `chat_threads_staff_pair` the way the parent's is by `chat_threads_child_teacher`. The
-     * coordinator is always the `teacherId` side, so whichever of the two writes first gets one row.
+     * R4: a staff-to-staff thread — no child, and the pair de-duplicated by `chat_threads_staff_pair` the way the
+     * parent's is by `chat_threads_child_teacher`. The **subordinate** is always the `teacherId` side, so whichever
+     * of the two writes first gets one row.
+     */
+    public Entities.ChatThreadEntity getOrCreateStaff(String schoolId, String subordinateId, String supervisorId) {
+        return getOrCreateStaff(schoolId, subordinateId, supervisorId, ChatService.MANAGERIAL);
+    }
+
+    /**
+     * T1b: the same row with the peer's role named — `COORDINATOR` on the thread a teacher opens with a coordinator
+     * of her subjects, `MANAGERIAL` on the three pairs R4 and RM2 wrote. `staff_role` names the *peer*, which is the
+     * rule the whole staff half keeps, so a client can tell a teacher's two staff threads apart on the row alone.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Entities.ChatThreadEntity getOrCreateStaff(String schoolId, String coordinatorId, String managerId) {
-        var existing = threads.findByTeacherIdAndPeerUserId(coordinatorId, managerId);
+    public Entities.ChatThreadEntity getOrCreateStaff(String schoolId, String subordinateId, String supervisorId, String peerRole) {
+        var existing = threads.findByTeacherIdAndPeerUserId(subordinateId, supervisorId);
         if (existing.isPresent()) return existing.get();
-        var t = row(schoolId, coordinatorId, ChatService.MANAGERIAL, ChatService.QUESTION);
-        t.setPeerUserId(managerId);
+        var t = row(schoolId, subordinateId, peerRole, ChatService.QUESTION);
+        t.setPeerUserId(supervisorId);
         try { return threads.saveAndFlush(t); }
-        catch (DataIntegrityViolationException raced) { return threads.findByTeacherIdAndPeerUserId(coordinatorId, managerId).orElseThrow(() -> raced); }
+        catch (DataIntegrityViolationException raced) { return threads.findByTeacherIdAndPeerUserId(subordinateId, supervisorId).orElseThrow(() -> raced); }
     }
 
     private Entities.ChatThreadEntity row(String schoolId, String staffId, String staffRole, String topic) {
