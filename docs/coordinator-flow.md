@@ -13,32 +13,32 @@ themselves without write controls rather than with disabled ones.
 
 ## Her screens (R5)
 
-| Screen | Reads | What she sees |
-| --- | --- | --- |
-| **Home** `/coordinator` | `GET /coordinator/me`, `/classes`, `/lessons?status=` | Her scope ("Math · both tracks"), the three counts (classes, teachers, children), **What needs you**, and a preview of her teachers and her classes |
-| **Teachers** `/coordinator/teachers` | `GET /coordinator/teachers` | Name, email, subjects, the classes of hers each teacher takes, and how many of them have today's lesson. Search by name, email or class |
-| **Classes** `/coordinator/classes` | `GET /coordinator/classes`, `/coordinator/calendar?from&to` | Every section in scope with grade, track, teacher, roster size and today's status; below it one section's **month**, drawn by the same calendar the teacher's class page uses |
-| **All lessons** `/coordinator/lessons` | `GET /coordinator/lessons?classId&status&from&to` | Every lesson of every class in scope, narrowed by class, status and a date range |
-| **A lesson** `/coordinator/lessons/{id}` | `GET /coordinator/lessons/{id}` | The teacher's own lesson page in **read-only mode**: the steps, the files, the questions and the phone preview. No control that writes — including the "Lesson day" date input, which is a teacher's. R6 turned the 2.5 s `/status` poll on for her (see below); **Refresh** stays in the header, and a lesson still being generated says so |
+| Screen                                   | Reads                                                       | What she sees                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Home** `/coordinator`                  | `GET /coordinator/me`, `/classes`, `/lessons?status=`       | Her scope ("Math · both tracks"), the three counts (classes, teachers, children), **What needs you**, and a preview of her teachers and her classes                                                                                                                                                                                          |
+| **Teachers** `/coordinator/teachers`     | `GET /coordinator/teachers`                                 | Name, email, subjects, the classes of hers each teacher takes, and how many of them have today's lesson. Search by name, email or class                                                                                                                                                                                                      |
+| **Classes** `/coordinator/classes`       | `GET /coordinator/classes`, `/coordinator/calendar?from&to` | Every section in scope with grade, track, teacher, roster size and today's status; below it one section's **month**, drawn by the same calendar the teacher's class page uses                                                                                                                                                                |
+| **All lessons** `/coordinator/lessons`   | `GET /coordinator/lessons?classId&status&from&to`           | Every lesson of every class in scope, narrowed by class, status and a date range                                                                                                                                                                                                                                                             |
+| **A lesson** `/coordinator/lessons/{id}` | `GET /coordinator/lessons/{id}`                             | The teacher's own lesson page in **read-only mode**: the steps, the files, the questions and the phone preview. No control that writes — including the "Lesson day" date input, which is a teacher's. R6 turned the 2.5 s `/status` poll on for her (see below); **Refresh** stays in the header, and a lesson still being generated says so |
 
 A failed read is the house error band with Try again on every one of her screens, never an
 empty state: "no classes carry your subject yet" is a statement about her school, and a request
 that did not happen has made no such statement.
 
 **What needs you** is the point of the Home: the lessons in her scope that failed, then the ones
-waiting for a review, then the classes with nothing on today. Each line is a way *in* to the lesson
+waiting for a review, then the classes with nothing on today. Each line is a way _in_ to the lesson
 or the class, never an action of her own.
 
 ## Her records (R6)
 
-| Screen | Reads | What she sees |
-| --- | --- | --- |
-| **Attendance** `/coordinator/attendance` | `GET /coordinator/classes/{id}/attendance?from&to` | One of her sections over a range of days, defaulting to **this week** (Monday to today): children down the side, days across the top, a letter and a colour per mark, and present/late/absent/excused plus a rate per child. **Export CSV** is built in the browser from those rows |
-| **Gradebook** `/coordinator/gradebook` | `GET /coordinator/classes/{id}/results?from&to` | The teacher's grid — children × lessons, one coloured square each, the class average line, each child's average, band and trend. The range is the grid's own eight weeks |
-| **A lesson's results** `/coordinator/lessons/{id}/results` | `GET /coordinator/lessons/{id}/results` | The teacher's results page: the five numbers, the per-child table, the stops each child got wrong |
-| **Exams** `/coordinator/exams` | `GET /coordinator/classes/{id}/exams` | The teacher's exams table: title, window, state, how many sat, how much marking is left |
-| **An exam's results** `/coordinator/exams/{id}/results` | `GET /coordinator/exams/{id}/results` | The distribution, the per-child rows and the question breakdown |
-| **A child** `/coordinator/children/{id}` | `GET /coordinator/children/{id}` | Her report: level per subject, the trend chart, released scores, exam results and the comments a parent has read |
+| Screen                                                     | Reads                                              | What she sees                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Attendance** `/coordinator/attendance`                   | `GET /coordinator/classes/{id}/attendance?from&to` | One of her sections over a range of days, defaulting to **this week** (Monday to today): children down the side, days across the top, a letter and a colour per mark, and present/late/absent/excused plus a rate per child. **Export CSV** is built in the browser from those rows |
+| **Gradebook** `/coordinator/gradebook`                     | `GET /coordinator/classes/{id}/results?from&to`    | The teacher's grid — children × lessons, one coloured square each, the class average line, each child's average, band and trend. The range is the grid's own eight weeks                                                                                                            |
+| **A lesson's results** `/coordinator/lessons/{id}/results` | `GET /coordinator/lessons/{id}/results`            | The teacher's results page: the five numbers, the per-child table, the stops each child got wrong                                                                                                                                                                                   |
+| **Exams** `/coordinator/exams`                             | `GET /coordinator/classes/{id}/exams`              | The teacher's exams table: title, window, state, how many sat, how much marking is left                                                                                                                                                                                             |
+| **An exam's results** `/coordinator/exams/{id}/results`    | `GET /coordinator/exams/{id}/results`              | The distribution, the per-child rows and the question breakdown                                                                                                                                                                                                                     |
+| **A child** `/coordinator/children/{id}`                   | `GET /coordinator/children/{id}`                   | Her report: level per subject, the trend chart, released scores, exam results and the comments a parent has read                                                                                                                                                                    |
 
 Every one of the six is the **teacher's own component**, in read-only mode. Two mechanisms do it,
 and they are different on purpose:
@@ -105,9 +105,9 @@ alias would poll the teacher's and be answered 404 every 2.5 s, silently.
 
 - Mark a register, write a note on one, or press Save on the attendance screen; override a score,
   release results to parents, edit a parent comment, reopen an exam for a child, or create or
-  change an exam. Every one of those *actions* is absent from her copies — hidden, not disabled.
+  change an exam. Every one of those _actions_ is absent from her copies — hidden, not disabled.
   The **one exception is the mark panel** a child's name opens on the results and exam-results
-  tables: its stars, score and parent-comment fields are drawn *disabled* to any reader without
+  tables: its stars, score and parent-comment fields are drawn _disabled_ to any reader without
   `results.write`, which is how a `MANAGERIAL` account has always seen them, so she sees the marks
   as fields she cannot type in rather than as text. Apply is still absent.
 - Create, edit, publish, unpublish, **move** or delete a lesson; add, reorder or remove a question;
@@ -133,24 +133,24 @@ four R5 screens and `coordinator-area-2.spec.ts` the three R6 ones plus the chil
 
 ## Her messages (R7, DR3)
 
-| Screen | Reads / writes | What she sees |
-| --- | --- | --- |
-| **Messages** `/coordinator/messages` | `GET` + `POST /coordinator/chat/threads/{id}/messages`, `POST …/read` | The teacher's chat screen — the same threads list, conversation, composer, attachments and emoji — over her own routes. A parent thread carries the child and the class; a **manager** thread carries a "Management" badge, the manager's name and no child at all |
-| **Complaints** `/coordinator/complaints` | `GET /coordinator/complaints?status=`, `PATCH …/threads/{id}/status` | The `complaint` threads she is the staff peer of, filtered open/resolved: child, whose parent, class, last message. A row opens the conversation; **Mark resolved** / **Reopen** ask first, in a red band |
-| **Broadcasts** `/coordinator/broadcasts` | `GET /me/broadcasts`, `POST /me/broadcasts/{id}/read`, `GET` + `POST /coordinator/broadcasts` | Two tabs (RM3b): **For you** is the feed with the manager's weekly plan pinned, drawn open and read on arrival; **You posted** is her own list. One sheet writes another: kind (announcement or event), title, body EN (required), AR (optional), the classes of hers it goes to, an optional expiry |
+| Screen                                         | Reads / writes                                                                                                        | What she sees                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Messages** `/coordinator/messages`           | `GET` + `POST /coordinator/chat/threads/{id}/messages`, `POST …/read`                                                 | The teacher's chat screen — the same threads list, conversation, composer, attachments and emoji — over her own routes. A parent thread carries the child and the class; a **manager** thread carries a "Management" badge, the manager's name and no child at all                                                                                                                                                                                                                                                   |
+| **Complaints** `/coordinator/complaints`       | `GET /coordinator/complaints?status=`, `PATCH …/threads/{id}/status`                                                  | The `complaint` threads she is the staff peer of, filtered open/resolved: child, whose parent, class, last message. A row opens the conversation; **Mark resolved** / **Reopen** ask first, in a red band                                                                                                                                                                                                                                                                                                            |
+| **Announcements** `/coordinator/announcements` | `GET /me/broadcasts`, `POST /me/broadcasts/{id}/read`, `GET` + `POST /coordinator/broadcasts`, `GET /me/weekly-plans` | Three tabs: **For you** is the feed — announcements and events only since MH2 item 5, read when a row is opened and not before; **Weekly plans** is the manager's plans as **pictures** (`GET /me/weekly-plans`, read when the tab is opened), each a thumbnail that opens full size; **You posted** is her own list. One sheet writes another: kind (announcement or event), title, body EN (required), AR (optional), the classes of hers it goes to, an optional expiry. `/coordinator/broadcasts` redirects here |
 
 **One screen, two sets of routes.** A teacher's chat is keyed by **child**
 (`/teacher/chat/threads/{childId}/…`); a coordinator's by **thread**, because
 `POST /coordinator/chat/threads {managerUserId}` opens a conversation with no child on it at all.
-`core/chat/chat-routes.ts` is that seam and the only place that knows it: it answers *which* four
-routes this role's chat runs on and *what a key is* (`childId` for a teacher, `threadId` for her,
+`core/chat/chat-routes.ts` is that seam and the only place that knows it: it answers _which_ four
+routes this role's chat runs on and _what a key is_ (`childId` for a teacher, `threadId` for her,
 also as the socket command's field), so `ChatService` and the screen speak in keys and one chat
 screen serves both roles rather than two that drift. RM3b filled in the last two roles — a manager
 and an Admin, both keyed by thread as well — so all four now have one, and `null` means only that
 nobody is signed in.
 
 Her two chat rows carry the **`chat`** flag and `coordinator.chat` / `coordinator.complaints`;
-Broadcasts carries `announcements` and `broadcast.read`, the key every dashboard role reads
+Announcements carries `announcements` and `broadcast.read`, the key every dashboard role reads
 `GET /me/broadcasts` with, while her composer inside it is gated on `coordinator.broadcast`.
 
 Complaints is `chat` rather than N5.2's `complaints`: DR3 keeps a complaint **in the conversation it arrived in**, so
@@ -163,14 +163,15 @@ status from there over their own `GET /coordinator/complaints` — so a complain
 tab, or in the conversation itself, leaves her open list on the other with no refetch. Her header
 badge is the teacher's, pointed at `/coordinator/messages`.
 
-**Her announcements became broadcasts (RM3b).** `POST /coordinator/broadcasts` is the route now,
-and it writes the `announcements` rows the app's shipped screen reads as a side effect — so nothing
-changed for a parent, and what she gains is a **kind**, a **title** and the manager's weekly plan
-above her own posts. `weekly_plan` is 400 on her route (DR6: the plan is the department's), so her
-kind select offers two; her audience is always the parents of her classes and the server ignores
-the field, so the sheet says that in a line instead of offering boxes she cannot change.
-`/coordinator/announcements` now redirects to `/coordinator/broadcasts` — the rail item she learned
-in R7 still lands somewhere.
+**Her announcements became broadcasts (RM3b), and the screen is called Announcements again (MH2
+item 5).** `POST /coordinator/broadcasts` is the route, and it writes the `announcements` rows the
+app's shipped screen reads as a side effect — so nothing changed for a parent, and what she gains is
+a **kind**, a **title** and the department's weekly plans one tab over. `weekly_plan` is 400 on her
+route (DR6: the plan is the department's) and is no longer a kind either sheet offers, since a plan is
+a grade, a week and an image now; her audience is always the parents of her classes and the server
+ignores the field, so the sheet says that in a line instead of offering boxes she cannot change.
+The rail row is `announcements` and `/coordinator/broadcasts` is the redirect — the arrow RM3b drew
+now points the other way, and both URLs still resolve.
 
 **What a manager does here now.** `/management/messages` is a real inbox on RM2's
 `GET /management/chat/threads`, and `Peer.chat` reaches MANAGERIAL and ADMIN, so she replies on the
@@ -179,16 +180,16 @@ same composer everyone else uses. See `docs/management-flow.md`.
 ## What R7 and RM3b could not do
 
 - **"New message to a manager" is still not on her screen.** `POST /coordinator/chat/threads
-  {managerUserId}` exists and `ChatPeers.managersFor` already decides which managers she may reach
+{managerUserId}` exists and `ChatPeers.managersFor` already decides which managers she may reach
   — but **no endpoint exposes that list**, and a coordinator holds no route that names a MANAGERIAL
-  user. RM3b gave the *manager* the picker instead, because `GET /management/coordinators` and
+  user. RM3b gave the _manager_ the picker instead, because `GET /management/coordinators` and
   `GET /management/admins` do exist; her side still waits for a `GET /coordinator/managers`, and a
   manager who opens the thread first solves it in practice (one row per pair, either way).
-- **No parent's name anywhere.** `ChatThread` carries the child, the class and the *staff* peer;
+- **No parent's name anywhere.** `ChatThread` carries the child, the class and the _staff_ peer;
   the parent has no name on the contract, so the Complaints table says "Parent of <child>".
 - **`GET /coordinator/announcements` is no longer read by the dashboard.** It still exists, and
   RM2 made it a second door onto the same service, so the mis-exported
-  `CreateAnnouncementRequest` (`classIds` plural, sharing a schema *name* with the teacher's
+  `CreateAnnouncementRequest` (`classIds` plural, sharing a schema _name_ with the teacher's
   `classId`) no longer needs a hand-asserted body anywhere in `dashboard/`: `CreateBroadcastRequest`
   is exported correctly and the screen posts that.
 - **No attachment on a broadcast.** RM2's `attachment` is a reference to bytes that already exist
@@ -203,4 +204,5 @@ Turn `chat` (and `announcements`) on for the school first — both are off in th
 `dashboard/e2e/local/coordinator-comms.spec.ts` makes one: a fake-auth parent creates a child with
 1A British's join code, asks `GET /children/{id}/coordinators`, and posts her first message with
 `{"topic":"complaint"}`. That spec walks Messages and Complaints;
-`dashboard/e2e/local/broadcasts.spec.ts` walks Broadcasts for all three staff roles.
+`dashboard/e2e/local/announcements.spec.ts` walks Announcements and the weekly-plan upload for all
+three staff roles.

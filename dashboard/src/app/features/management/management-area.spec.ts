@@ -18,9 +18,9 @@ import { ManagementHomePage } from './management-home.page';
 import {
   EXPORT_CONCURRENCY,
   EXPORT_MAX_PAGES,
-  ManagementPeoplePage,
+  ManagementChildrenPage,
   exportPlan,
-} from './management-people.page';
+} from './management-children.page';
 import { statsRows, quietTeachers } from './management-stats';
 import { SchoolUsagePage } from './school-usage.page';
 import { WeeklyPlansPage } from './weekly-plans.page';
@@ -128,7 +128,11 @@ const CHILDREN = {
       curriculum: 'british',
       parentEmail: 'parent@home.test',
       rosterEmail: 'roster@school.test',
+      parentPhone: '+968 9123 4567',
+      parentId: 'u-parent',
     },
+    // MH1: `parentId` null is a roster row nobody has signed up for — no phone, and nobody to
+    // message. The two rows are the two states the action has.
     { childId: 'ch-2', name: 'Noor Saleh', className: '1B', grade: 1, curriculum: 'british' },
   ],
 };
@@ -411,9 +415,9 @@ describe('RM3a — the management area', () => {
     });
   });
 
-  describe('the people directory', () => {
-    async function renderPeople() {
-      const rendered = await renderHq(ManagementPeoplePage, {
+  describe('the children directory', () => {
+    async function renderChildren() {
+      const rendered = await renderHq(ManagementChildrenPage, {
         providers: [
           provideHttpClient(),
           provideHttpClientTesting(),
@@ -450,7 +454,7 @@ describe('RM3a — the management area', () => {
     }
 
     it('asks once for a typed word, not once per keystroke', async () => {
-      const { rendered, backend } = await renderPeople();
+      const { rendered, backend } = await renderChildren();
 
       // Eight keystrokes. Before the debounce every one of them was a server-side search across
       // the whole department; "Mohammed" is now one request, for the word she finished typing.
@@ -466,7 +470,7 @@ describe('RM3a — the management area', () => {
     });
 
     it('puts the department back at once when the box is emptied — clearing is not debounced', async () => {
-      const { rendered, backend } = await renderPeople();
+      const { rendered, backend } = await renderChildren();
 
       await type('ali');
       await settle();
@@ -481,7 +485,7 @@ describe('RM3a — the management area', () => {
     });
 
     it("pages on the server's own count and says where in it she is", async () => {
-      const { rendered } = await renderPeople();
+      const { rendered } = await renderChildren();
 
       expect(screen.getByText('Ali Hassan')).toBeTruthy();
       // The parent's own address, with the roster's as the fallback: two columns would be two
@@ -491,8 +495,8 @@ describe('RM3a — the management area', () => {
       rendered.fixture.destroy();
     });
 
-    it('takes a new tab back to the first page with no needle', async () => {
-      const { rendered, backend } = await renderPeople();
+    it('takes a new needle back to the first page', async () => {
+      const { rendered, backend } = await renderChildren();
 
       screen.getByRole('button', { name: 'Next' }).click();
       await Promise.resolve();
@@ -501,18 +505,60 @@ describe('RM3a — the management area', () => {
       await Promise.resolve();
       TestBed.tick();
 
+      // Page 1 of a list that no longer exists is not an answer, so a new word starts at the top.
       await type('ali');
       await settle();
       backend.expectOne('/management/people/children?q=ali&page=0&size=25').flush(CHILDREN);
+      rendered.fixture.destroy();
+    });
+
+    /**
+     * MH2 item 3: the teachers and the coordinators tabs are gone — they are rail rows of their own
+     * with a phone number and a Message action — and what is left carries the parent's phone.
+     */
+    it('is one list of children, with the parent’s phone as a tel: link', async () => {
+      const { rendered, backend } = await renderChildren();
+
+      expect(screen.queryByRole('tab', { name: 'Coordinators' })).toBeNull();
+      expect(backend.match((request) => request.url.includes('/people/teachers'))).toEqual([]);
+
+      const tel = document.querySelector('a[href^="tel:"]') as HTMLAnchorElement;
+      expect(tel.getAttribute('href')).toBe('tel:+968 9123 4567');
+      expect(tel.textContent?.trim()).toBe('+968 9123 4567');
+      rendered.fixture.destroy();
+    });
+
+    /**
+     * MH1 answers 404 `no_parent` for a roster row nobody has signed up for, so the button that
+     * would post it is disabled with the reason on it rather than left to fail.
+     */
+    it('opens the parent thread from a row, and disables it when there is no parent', async () => {
+      const { rendered, backend } = await renderChildren();
+      backend
+        .match('/me/permissions')
+        .forEach((request) => request.flush({ permissions: ['management.people', 'management.chat'] }));
       await Promise.resolve();
       TestBed.tick();
 
-      // A name typed to find a child means nothing among the coordinators, so the tab clears it:
-      // a tab that opened on "nobody matches that search" would read as an empty department.
-      screen.getByRole('tab', { name: 'Coordinators' }).click();
+      const buttons = screen.getAllByRole('button', { name: 'Message parent' });
+      expect(buttons).toHaveLength(2);
+      expect(buttons[1]!.hasAttribute('disabled')).toBe(true);
+
+      buttons[0]!.click();
       await Promise.resolve();
       TestBed.tick();
-      backend.expectOne('/management/people/coordinators?page=0&size=25').flush({ ...CHILDREN, rows: [] });
+      const opened = backend.expectOne('/management/chat/threads');
+      expect(opened.request.method).toBe('POST');
+      // The **child**, not the parent's user id: the server resolves the parent, and a dashboard
+      // that guessed would open a thread with whoever happened to be attached last.
+      expect(opened.request.body).toEqual({ childId: 'ch-1' });
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      opened.flush({ id: 'th-9' });
+      await Promise.resolve();
+      TestBed.tick();
+      expect(navigate).toHaveBeenCalledWith(['/management/messages'], {
+        queryParams: { thread: 'th-9' },
+      });
       rendered.fixture.destroy();
     });
 
@@ -739,15 +785,16 @@ describe('RM3a — the management area', () => {
    * archive, so the card that says "no plan yet" and the list below it can never disagree.
    */
   describe('Weekly plans', () => {
+    /** MH1: a plan is a grade, a week and an image — no title and no body on the wire at all. */
     const PLAN = {
-      id: 'b-all',
+      id: 'b-g1',
       kind: 'weekly_plan',
-      title: 'The department’s week',
-      bodyEn: 'Subtraction all week.',
       weekStart: '2026-09-27',
+      grade: 1,
       curriculum: 'british',
       authorName: 'Huda Salem',
       authorRole: 'MANAGERIAL',
+      attachment: { id: 'att-1', name: 'g1.png', type: 'image/png', url: 'https://api.example/x' },
     };
 
     const CLASSES = [
@@ -768,7 +815,34 @@ describe('RM3a — the management area', () => {
           },
         ],
       },
+      {
+        grade: 3,
+        classes: [
+          {
+            classId: 'c-2',
+            className: '3A British',
+            grade: 3,
+            curriculum: 'british',
+            subject: 'math',
+            teacherId: 't-2',
+            teacherName: 'Mona Adel',
+            childrenCount: 22,
+            todayLessonId: null,
+            todayStatus: 'none',
+          },
+        ],
+      },
     ];
+
+    /** A PNG of a known type and size, without allocating megabytes to prove the cap. */
+    function pick(type = 'image/png', size = 2048): File {
+      const file = new File(['plan'], 'plan.png', { type });
+      Object.defineProperty(file, 'size', { value: size });
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      Object.defineProperty(input, 'files', { value: [file], configurable: true });
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return file;
+    }
 
     async function settle() {
       await Promise.resolve();
@@ -776,6 +850,9 @@ describe('RM3a — the management area', () => {
       await Promise.resolve();
       TestBed.tick();
     }
+
+    /** The two `weekly-plans` reads the screen opens with, url and params, for the tests to assert. */
+    let weeklyReads: string[] = [];
 
     async function openScreen(weeks: unknown[]) {
       await renderHq(WeeklyPlansPage, {
@@ -792,6 +869,8 @@ describe('RM3a — the management area', () => {
       TestBed.inject(AuthService).loadMe().subscribe();
       backend.expectOne('/me').flush(MANAGERIAL_USER);
       await settle();
+      // `*hqCan` on the footer's action reads `GET /me/permissions`, so the list has to land or every
+      // "Add plan" on the screen is missing — the cards' own actions carry the same key.
       backend
         .match('/me/permissions')
         .forEach((request) => request.flush({ permissions: ['management.broadcast'] }));
@@ -799,32 +878,40 @@ describe('RM3a — the management area', () => {
       backend.match('/management/classes').forEach((request) => request.flush(CLASSES));
       backend.match('/management/teachers').forEach((request) => request.flush([]));
       await settle();
-      // Two reads: this week on its own (the cards) and the window (the archive). The cards may
-      // never be built from the filtered one — see the test below.
+      // Two reads: the five weeks she can post for (the cards and the replace warning) and the
+      // window (the archive). The cards may never be built from the filtered one — see below.
       const reads = backend.match((request) => request.url === '/management/weekly-plans');
       expect(reads.length).toBe(2);
+      weeklyReads = reads.map((request) => request.request.urlWithParams);
       reads.forEach((request) => request.flush({ from: '2026-07-12', to: '2026-09-27', weeks }));
       await settle();
       return backend;
     }
 
-    it('shows this week per grade, and the archive newest week first', async () => {
-      await openScreen([
-        { weekStart: '2026-09-27', items: [{ plan: PLAN, readBy: 12 }] },
-        {
-          weekStart: '2026-09-13',
-          items: [{ plan: { ...PLAN, id: 'b-old', title: 'Two weeks ago', grade: 1 }, readBy: 9 }],
-        },
-      ]);
+    /**
+     * MH2 item 4: a card per grade she manages, **and no all-grades card** — the server refuses a
+     * plan with no grade, so a card offering one was a card that answered a red band.
+     */
+    it('shows a card per grade with the posted image, and no all-grades card', async () => {
+      const backend = await openScreen([{ weekStart: '2026-09-27', items: [{ plan: PLAN, readBy: 12 }] }]);
 
-      // The glance: the department's own plan is posted, and grade 1 is not.
-      expect(document.body.textContent).toContain('The department’s week');
-      expect(document.body.textContent).toContain('No plan yet');
-      expect(screen.getAllByRole('button', { name: 'Add plan' }).length).toBeGreaterThan(0);
+      const grades = [...document.querySelectorAll('.wp__grade')].map((node) => node.textContent?.trim());
+      expect(grades).toEqual(['Grade 1', 'Grade 3']);
+      expect(document.body.textContent).not.toContain('All grades');
+
+      // Grade 1 has this week's plan, so its card offers a replacement; grade 3 has none.
       expect(screen.getByRole('button', { name: 'Replace plan' })).toBeTruthy();
+      expect(document.body.textContent).toContain('No plan yet');
 
-      // The archive, with `readBy` — hers alone — and the week that is already behind her.
-      expect(document.body.textContent).toContain('Two weeks ago');
+      // The picture is fetched with the bearer, never pointed at the DTO's absolute url.
+      const bytes = backend.match((request) => request.url === '/media/attachments/att-1');
+      expect(bytes.length).toBeGreaterThan(0);
+      const alt = (document.querySelector('.wp__thumb') as HTMLImageElement).getAttribute('alt');
+      expect(alt).toContain('Weekly plan');
+      expect(alt).toContain('Grade 1');
+      bytes.forEach((request) => request.flush(new Blob(['x'], { type: 'image/png' })));
+      await settle();
+      // And the archive still answers `readBy`, which is hers alone.
       expect(document.body.textContent).toContain('Read by 12');
     });
 
@@ -835,11 +922,11 @@ describe('RM3a — the management area', () => {
      */
     it('keeps this week’s cards when the archive is filtered to a grade and a past week', async () => {
       const backend = await openScreen([{ weekStart: '2026-09-27', items: [{ plan: PLAN, readBy: 3 }] }]);
-      expect(document.body.textContent).toContain('The department’s week');
+      expect(screen.getByRole('button', { name: 'Replace plan' })).toBeTruthy();
 
-      // A grade and an end date that exclude the all-grades plan from the archive entirely.
+      // A grade and an end date that exclude grade 1's plan from the archive entirely.
       const grade = document.querySelectorAll('select')[0] as HTMLSelectElement;
-      grade.value = '1';
+      grade.value = '3';
       grade.dispatchEvent(new Event('change', { bubbles: true }));
       const to = document.querySelectorAll('input[type="date"]')[1] as HTMLInputElement;
       to.value = '2026-09-13';
@@ -849,57 +936,181 @@ describe('RM3a — the management area', () => {
       // The archive asks again, with her filter, and answers nothing for that window.
       const refetch = backend.match((request) => request.url === '/management/weekly-plans');
       expect(refetch.length).toBeGreaterThan(0);
-      // Every one of them carries the window and the grade; this week's own read is not among them.
       refetch.forEach((request) => {
-        expect(request.request.params.get('grade')).toBe('1');
+        expect(request.request.params.get('grade')).toBe('3');
         request.flush({ weeks: [] });
       });
       await settle();
 
-      // The card still says what is posted, and offers Replace rather than Add.
-      expect(document.body.textContent).toContain('The department’s week');
+      // The card still offers Replace rather than Add, and the archive says it found nothing.
       expect(screen.getByRole('button', { name: 'Replace plan' })).toBeTruthy();
       expect(document.body.textContent).toContain('No weekly plan in this window');
 
       // And the filter still offers every grade she manages, not only the one she chose.
       expect([...grade.options].map((option) => option.textContent?.trim())).toEqual([
         'Every grade',
-        'All grades',
         'Grade 1',
+        'Grade 3',
       ]);
     });
 
-    it('posts a grade plan for a chosen grade, and sends grade instead of classes', async () => {
+    it('refuses a file the upload route would refuse, without uploading it', async () => {
+      const backend = await openScreen([]);
+      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      await settle();
+
+      pick('application/pdf');
+      await settle();
+      expect(document.body.textContent).toContain('JPEG, a PNG or a WebP');
+      expect(screen.getByRole('button', { name: 'Post' }).hasAttribute('disabled')).toBe(true);
+
+      pick('image/png', 6 * 1024 * 1024);
+      await settle();
+      expect(document.body.textContent).toContain('over 5 MB');
+      // Neither of them left the browser: the cap is checked before the twenty-second upload.
+      expect(backend.match('/media/attachments')).toEqual([]);
+    });
+
+    /**
+     * MH2 item 4, the round trip: upload the image, then post the plan with the id it answered.
+     * Two requests in that order, because `attachmentId` is required and only the upload knows it.
+     */
+    it('uploads the image and posts the grade, the week and the attachment id', async () => {
       const backend = await openScreen([]);
 
-      // The grade-1 card: its "Add plan" prefills the week and the grade the card is for.
-      screen.getAllByRole('button', { name: 'Add plan' })[1]!.click();
+      // The grade-1 card's "Add plan" prefills the week and the grade the card is for.
+      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
       await settle();
+      // No title and no body on this sheet at all — a plan has neither.
+      expect(document.querySelector('textarea')).toBeNull();
 
-      const title = document.querySelector('input[type="text"]') as HTMLInputElement;
-      title.value = 'Grade 1 week';
-      title.dispatchEvent(new Event('input', { bubbles: true }));
-      const body = document.querySelector('textarea') as HTMLTextAreaElement;
-      body.value = 'Counting to twenty.';
-      body.dispatchEvent(new Event('input', { bubbles: true }));
+      pick();
       await settle();
-
       screen.getByRole('button', { name: 'Post' }).click();
       await settle();
 
+      const upload = backend.expectOne('/media/attachments');
+      expect(upload.request.method).toBe('POST');
+      expect(upload.request.body instanceof FormData).toBe(true);
+      upload.flush({ id: 'att-9', name: 'plan.png', type: 'image/png', sizeBytes: 2048 });
+      await settle();
+
       const posted = backend.expectOne('/management/broadcasts');
-      expect(posted.request.method).toBe('POST');
       const sent = posted.request.body as CreateBroadcastRequest;
-      expect(sent.kind).toBe('weekly_plan');
+      expect(sent).toEqual({
+        kind: 'weekly_plan',
+        weekStart: sent.weekStart,
+        grade: 1,
+        attachmentId: 'att-9',
+      });
       expect(sent.weekStart).toBeTruthy();
-      expect(sent.grade).toBe(1);
-      // A grade and a class list are mutually exclusive on the wire — the server answers 400.
-      expect(sent.sectionIds).toBeUndefined();
-      posted.flush({ ...PLAN, id: 'b-new', grade: 1 });
+      posted.flush({ ...PLAN, id: 'b-new' });
       await settle();
       backend
         .match((request) => request.url === '/management/weekly-plans')
         .forEach((request) => request.flush({ weeks: [] }));
+    });
+
+    /**
+     * Review, non-blocking 1 and 2: a post that fails after the bytes were accepted must not re-upload
+     * them on the retry (the first attachment would be orphaned and the retry slow), and an upload
+     * that answers without an id must not leave the sheet on a spinner for ever.
+     */
+    it('reuses an accepted upload on a retry, and never freezes on a response with no id', async () => {
+      const backend = await openScreen([]);
+      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      await settle();
+      pick();
+      await settle();
+
+      // First attempt: the upload is accepted, the broadcast is refused.
+      screen.getByRole('button', { name: 'Post' }).click();
+      await settle();
+      backend.expectOne('/media/attachments').flush({ id: 'att-9', name: 'plan.png' });
+      await settle();
+      backend
+        .expectOne('/management/broadcasts')
+        .flush({ message: 'nope' }, { status: 500, statusText: 'Server Error' });
+      await settle();
+
+      expect(document.body.textContent).toContain('Nothing was sent');
+      // The sheet is still open with her draft in it, and Post is live again.
+      const retry = screen.getByRole('button', { name: 'Post' });
+      expect(retry.hasAttribute('disabled')).toBe(false);
+
+      // Retry: straight to the broadcast with the id she already paid for.
+      retry.click();
+      await settle();
+      expect(backend.match('/media/attachments')).toEqual([]);
+      const posted = backend.expectOne('/management/broadcasts');
+      expect((posted.request.body as CreateBroadcastRequest).attachmentId).toBe('att-9');
+      posted.flush({ ...PLAN, id: 'b-new' });
+      await settle();
+      backend
+        .match((request) => request.url === '/management/weekly-plans')
+        .forEach((request) => request.flush({ weeks: [] }));
+      await settle();
+    });
+
+    it('shows the band and re-enables the sheet when an upload answers without an id', async () => {
+      const backend = await openScreen([]);
+      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      await settle();
+      pick();
+      await settle();
+      screen.getByRole('button', { name: 'Post' }).click();
+      await settle();
+
+      // 201 with a body that names no attachment: there is nothing to post, and saying nothing at
+      // all left the sheet spinning.
+      backend.expectOne('/media/attachments').flush({ name: 'plan.png' });
+      await settle();
+
+      expect(document.body.textContent).toContain('Nothing was sent');
+      expect(backend.match('/management/broadcasts')).toEqual([]);
+      expect(screen.getByRole('button', { name: 'Post' }).hasAttribute('disabled')).toBe(false);
+    });
+
+    /** Posting over a grade's existing plan deletes it, its read marks and its bell rows. */
+    it('confirms a replacement with a red band before it posts', async () => {
+      await openScreen([{ weekStart: '2026-09-27', items: [{ plan: PLAN, readBy: 3 }] }]);
+      screen.getByRole('button', { name: 'Replace plan' }).click();
+      await settle();
+
+      expect(document.body.textContent).toContain('This replaces the plan that is already there');
+      expect(screen.getAllByRole('button', { name: 'Replace plan' }).length).toBeGreaterThan(1);
+    });
+
+    /**
+     * Review blocker 2: the week select offers five Sundays, and the confirm used to know only about
+     * this one. She posts next week's plan on Thursday and a corrected image on Friday — the second
+     * one deletes the first, its read marks and its bell rows, so it has to say so.
+     */
+    it('asks for every week the select offers, and confirms a replacement in a future one', async () => {
+      const nextWeek = '2026-10-04';
+      await openScreen([
+        { weekStart: nextWeek, items: [{ plan: { ...PLAN, id: 'b-next', weekStart: nextWeek } }] },
+      ]);
+
+      // The cards' own read spans the five Sundays the select offers, not only this one.
+      const cards = weeklyReads.find((url) => !url.includes('2026-07-12'));
+      expect(cards).toContain('from=2026-09-27');
+      expect(cards).toContain('to=2026-10-25');
+
+      // This week has no plan of its own, so grade 1's card offers a first one — the wider read
+      // must not draw next week's plan on it.
+      expect(screen.queryByRole('button', { name: 'Replace plan' })).toBeNull();
+      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      await settle();
+
+      // Picking next week turns the sheet into a replacement, wording and red band together.
+      const week = document.querySelectorAll('hq-dialog select')[1] as HTMLSelectElement;
+      week.value = nextWeek;
+      week.dispatchEvent(new Event('change', { bubbles: true }));
+      await settle();
+
+      expect(document.body.textContent).toContain('This replaces the plan that is already there');
+      expect(screen.queryByRole('button', { name: 'Post' })).toBeNull();
     });
   });
 

@@ -8,7 +8,7 @@ import { api, schoolOfSara, withFlags } from './n4-api';
  *
  * Huda Salem (`seed/managers.csv`) runs the **British** department: every grade and every
  * subject of that track, and nothing of the American one. That is the assertion running through
- * this file — her Coordinators list and her People are British and only British.
+ * this file — her Coordinators list and her Children are British and only British.
  *
  * MG2a took Classes, All lessons, Gradebook and Exams off her rail, so the Classes walk went
  * with them; what replaced it is the bookmark test (a removed URL lands on her Home) and School
@@ -52,14 +52,14 @@ test.describe('the management area', () => {
     await expect(stats.getByRole('button')).toHaveCount(0);
 
     // MG2a: Classes, All lessons, Gradebook and Exams left her rail on the owner's own
-    // instruction, and Complaints lost its label while it is still a stub. Broadcasts and
+    // instruction, and Complaints lost its label while it is still a stub. Announcements and
     // Messages are flag-gated and absent from the seeded school.
     await expect(rail(page).getByRole('link')).toHaveText([
       'Home',
       'Coordinators',
       'Teachers',
       'Attendance',
-      'People',
+      'Children',
       'Staff attendance',
       'School usage',
     ]);
@@ -149,23 +149,53 @@ test.describe('the management area', () => {
     await expect(page.getByText("Each person's month")).toBeVisible({ timeout: 30_000 });
   });
 
+  /**
+   * MH2 item 3: People became **Children** — one list, no tabs, with the parent's phone on it. The
+   * teachers and the coordinators it used to tab to are rail rows of their own now, with a phone
+   * column and a Message action each.
+   */
   test('lists the children of her department with their parents and classes', async ({ page }) => {
     await openManagement(page);
-    await rail(page).getByRole('link', { name: 'People' }).click();
-    await expect(page.getByRole('heading', { level: 1, name: 'People' })).toBeVisible();
+    await rail(page).getByRole('link', { name: 'Children' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Children' })).toBeVisible();
 
-    const table = page.getByRole('table', { name: 'People' });
+    const table = page.getByRole('table', { name: 'Children' });
     await expect(table.getByRole('row')).not.toHaveCount(1);
     await expect(table).toContainText('Grade 1');
     // Paged by the server, and the pager says where in the whole department she is.
     await expect(page.getByText(/\d+–\d+ of \d+/)).toBeVisible();
+    // No tabs left: the other two lists have screens of their own.
+    await expect(page.getByRole('tab')).toHaveCount(0);
 
     await page.getByLabel('Search by name or email').fill('zzzz-nobody');
     await expect(page.getByText('Nobody matches that search.')).toBeVisible({ timeout: 30_000 });
+  });
 
-    await page.getByRole('tab', { name: 'Coordinators' }).click();
-    await expect(page.getByLabel('Search by name or email')).toHaveValue('');
-    await expect(table).toContainText('Rasha Kamal', { timeout: 30_000 });
+  /** The old URL still resolves: a bookmark and the runbook's own link land on the renamed screen. */
+  test('sends the old People URL to Children', async ({ page }) => {
+    await openManagement(page);
+    await page.goto('management/people');
+    await expect(page).toHaveURL(/\/management\/children$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Children' })).toBeVisible();
+  });
+
+  /**
+   * MH2 items 1 and 2: the phone number on both supervision lists, and the coordinators who
+   * supervise each teacher. The seed's numbers are whatever it wrote, so what is asserted is the
+   * column and the `tel:` scheme rather than a digit string.
+   */
+  test('puts a phone column on Coordinators and Teachers, as tel: links', async ({ page }) => {
+    await openManagement(page);
+
+    await rail(page).getByRole('link', { name: 'Coordinators' }).click();
+    await expect(page.getByRole('table', { name: 'Coordinators' })).toContainText('Phone');
+
+    await rail(page).getByRole('link', { name: 'Teachers' }).click();
+    const teachers = page.getByRole('table', { name: 'Teachers' });
+    await expect(teachers).toContainText('Phone');
+    // MH1 put the supervising coordinators on the teacher row, with the subject each covers.
+    await expect(teachers).toContainText('Coordinator(s)');
+    await expect(teachers).toContainText('Rasha Kamal', { timeout: 30_000 });
   });
 });
 

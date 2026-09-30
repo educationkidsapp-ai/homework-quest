@@ -96,8 +96,8 @@ test.describe('the coordinator’s messages, complaints and broadcasts', () => {
       'All lessons',
       'Messages',
       'Complaints',
-      // RM3b: her Announcements item became Broadcasts, the screen that now writes them.
-      'Broadcasts',
+      // RM3b made her Announcements item Broadcasts; MH2 item 5 gave it its name back.
+      'Announcements',
     ]);
 
     // The complaint is the first line of "What needs you": the only one she can act on herself.
@@ -147,13 +147,14 @@ test.describe('the coordinator’s messages, complaints and broadcasts', () => {
   /**
    * RM3b: her announcement is a broadcast now — `POST /coordinator/broadcasts` writes the
    * `announcements` rows the app's shipped screen reads as a side effect, so the parent's end is
-   * unchanged and this test moved to `broadcasts.spec.ts` with the composer. What is asserted
-   * here is only that the item she learned in R7 still lands somewhere.
+   * unchanged and this test moved to `announcements.spec.ts` with the composer. What is asserted
+   * here is that RM3b's own path still lands somewhere: MH2 item 5 made `announcements` the screen
+   * again, so `broadcasts` is the redirect now and the arrow points the other way.
    */
-  test('sends her old Announcements URL to Broadcasts', async ({ page }) => {
+  test('sends the old Broadcasts URL to Announcements', async ({ page }) => {
     await openCoordinator(page);
-    await page.goto('coordinator/announcements');
-    await expect(page).toHaveURL(/\/coordinator\/broadcasts$/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Broadcasts' })).toBeVisible();
+    await page.goto('coordinator/broadcasts');
+    await expect(page).toHaveURL(/\/coordinator\/announcements$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Announcements' })).toBeVisible();
   });
 });

@@ -154,25 +154,29 @@ describe('the screen table', () => {
    * thread the department manager started was invisible unless she happened to open the screen from
    * the header's chat icon. Behind `chat`, like every other door onto the threads.
    */
-  it('gives a teacher This week, My classes, Broadcasts and Messages in the rail', () => {
+  it('gives a teacher This week, My classes, Announcements and Messages in the rail', () => {
     expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual([
       'week',
       'classes',
-      'broadcasts',
+      'announcements',
       'chat',
     ]);
     expect(navScreens('TEACHER').map(({ link }) => link)).toEqual([
       '/teacher/week',
       '/teacher/classes',
-      '/teacher/broadcasts',
+      '/teacher/announcements',
       '/teacher/chat',
     ]);
     const chat = AREAS.TEACHER.screens.find((screen) => screen.id === 'chat');
     expect(chat?.flag).toBe('chat');
     expect(chat?.permission).toBe('teacher.chat');
-    const broadcasts = AREAS.TEACHER.screens.find((screen) => screen.id === 'broadcasts');
-    expect(broadcasts?.flag).toBe('announcements');
-    expect(broadcasts?.permission).toBe('broadcast.read');
+    const announcements = AREAS.TEACHER.screens.find((screen) => screen.id === 'announcements');
+    expect(announcements?.flag).toBe('announcements');
+    expect(announcements?.permission).toBe('broadcast.read');
+    // MH2 item 5: the path RM3b gave the screen is a redirect now, so a bookmark still resolves.
+    expect(AREAS.TEACHER.screens.find((screen) => screen.id === 'broadcasts')?.redirectTo).toBe(
+      'announcements',
+    );
     // The screens later phases fill keep their routes — a bookmark still resolves to the stub.
     expect(AREAS.TEACHER.screens.map((screen) => screen.path)).toContain('students');
     // N2.3: the class page and the lessons list are routes, not rail items. §5 puts the class
@@ -209,7 +213,7 @@ describe('the screen table', () => {
       'exams',
       'messages',
       'complaints',
-      'broadcasts',
+      'announcements',
     ]);
     expect(navScreens('COORDINATOR').map(({ link }) => link)).toEqual([
       '/coordinator',
@@ -221,18 +225,18 @@ describe('the screen table', () => {
       '/coordinator/exams',
       '/coordinator/messages',
       '/coordinator/complaints',
-      '/coordinator/broadcasts',
+      '/coordinator/announcements',
     ]);
     // R7: all three carry the flag their server routes carry, so a school without chat has none
     // of them — in the rail or at the URL.
     for (const id of ['messages', 'complaints'])
       expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === id)?.flag).toBe('chat');
-    expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === 'broadcasts')?.flag).toBe(
+    expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === 'announcements')?.flag).toBe(
       'announcements',
     );
-    // RM3b: the rail item she learned in R7 still resolves, onto the screen that took its job.
-    expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === 'announcements')?.redirectTo).toBe(
-      'broadcasts',
+    // MH2 item 5: the rail item she learned in R7 is the row again, and RM3b's path is the redirect.
+    expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === 'broadcasts')?.redirectTo).toBe(
+      'announcements',
     );
 
     // R6: every one of her record screens is read-only too, and the two flagged ones carry the
@@ -259,7 +263,7 @@ describe('the screen table', () => {
     // R5's list screens and R7's three are the rows without `readOnly`, and their flag is `false`
     // rather than absent: a page reads `data.readOnly` and must never have to tell false from
     // missing. Everything R6 added is `true` — asserted above, row by row.
-    const listOnly = ['', 'teachers', 'classes', 'lessons', 'messages', 'complaints', 'broadcasts'];
+    const listOnly = ['', 'teachers', 'classes', 'lessons', 'messages', 'complaints', 'announcements'];
     for (const route of routes.filter((candidate) => listOnly.includes(candidate.path ?? '')))
       expect(`${route.path}:${route.data?.['readOnly']}`).toBe(`${route.path}:false`);
 
@@ -288,15 +292,22 @@ describe('the screen table', () => {
       'coordinators',
       'teachers',
       'attendance',
-      'people',
+      // MH2 item 3: **Children**, not People — its other two tabs are rail rows of their own now.
+      'children',
       'staff-attendance',
-      // MG2b: the weekly plan per grade and the archive of every one of them, beside Broadcasts
+      // MG2b: the weekly plan per grade and the archive of every one of them, beside Announcements
       // because she writes the week from it.
       'weekly-plans',
-      'broadcasts',
+      'announcements',
       'messages',
       'usage',
     ]);
+    // MH2 item 5: both renamed paths keep a redirect row, so a bookmark and an old notification's
+    // `link` still land on the screen that took the job over.
+    const redirectOf = (id: string) => AREAS.MANAGERIAL.screens.find((screen) => screen.id === id);
+    expect(redirectOf('people')?.redirectTo).toBe('children');
+    expect(redirectOf('people')?.labelKey).toBeUndefined();
+    expect(redirectOf('broadcasts')?.redirectTo).toBe('announcements');
     // MG2a: Complaints keeps its route and loses its label until phase 5 fills the stub.
     const complaints = AREAS.MANAGERIAL.screens.find((screen) => screen.id === 'complaints');
     expect(complaints?.labelKey).toBeUndefined();

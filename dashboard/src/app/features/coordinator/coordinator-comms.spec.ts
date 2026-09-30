@@ -38,7 +38,7 @@ const COMPLAINT = {
 /**
  * R7 (DR3, DR4), narrowed by RM3b: the one screen in `/coordinator/**` where the read-only
  * coordinator writes something is Complaints. Her announcements became broadcasts and moved to
- * `features/broadcasts/broadcasts.page.spec.ts` with the composer they belong to.
+ * `features/broadcasts/announcements.page.spec.ts` with the composer they belong to.
  */
 describe('the coordinator comms screens', () => {
   beforeEach(() => {
