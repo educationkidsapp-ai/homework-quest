@@ -182,7 +182,9 @@
         "track": "Track",
         "anyTrack": "Both tracks",
         "add": "Add a subject",
-        "remove": "Remove"
+        "remove": "Remove",
+        "duplicate": "{{scope}} is named twice. Remove one of them.",
+        "bothTracksOf": "{{subject}} (both tracks)"
       }
     },
     "managers": {

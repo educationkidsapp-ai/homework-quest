@@ -80,6 +80,11 @@ interface ScopeRow {
 
 type FormMode = 'create' | 'edit';
 
+/** `math/british` or `math/` — a subject on one track is not the same row as the same subject on both. */
+function pairKey(subject: Subject | '', curriculum: Curriculum | ''): string {
+  return `${subject}/${curriculum}`;
+}
+
 /**
  * Coordinators and Managers (MA1 items 3, `docs/admin-flow.md`) — **one** screen, twice.
  *
@@ -276,15 +281,59 @@ export class StaffAccountsPage {
     if (this.fullName().trim() === '') return false;
     if (this.formMode() === 'edit') return true;
     if (this.email().trim() === '') return false;
-    return this.isManager ? this.createCurriculum() !== '' : this.filledScopes().length > 0;
+    if (this.isManager) return this.createCurriculum() !== '';
+    return this.filledScopes().length > 0 && this.duplicateScope() === null;
   });
 
-  /** The rows that name a subject. An empty row is a row she has not filled in, not an error. */
-  private readonly filledScopes = computed<readonly Scope[]>(() =>
-    this.scopeRows()
-      .filter((row) => row.subject !== '')
-      .map((row) => ({ subject: row.subject, curriculum: row.curriculum || undefined })),
-  );
+  /**
+   * The rows that name a subject, **de-duplicated**. An empty row is a row she has not filled in,
+   * not an error.
+   *
+   * `PUT …/scopes` refuses a subject named twice for one track with a 400 by design
+   * (`CoordinatorAdminService.wanted`) — the unique index treats two "both tracks" rows of one
+   * subject as distinct, so the refusal has to come from the service. That refusal must not be how
+   * the Admin finds out: {@link duplicateScope} says so under the editor and the save is blocked,
+   * and this never sends the pair twice even if something else got past that.
+   */
+  private readonly filledScopes = computed<readonly Scope[]>(() => {
+    const seen = new Set<string>();
+    const out: Scope[] = [];
+    for (const row of this.scopeRows()) {
+      const key = pairKey(row.subject, row.curriculum);
+      // `Set.prototype.add` answers the Set itself, not whether it was new — `has` is the question.
+      if (row.subject === '' || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ subject: row.subject, curriculum: row.curriculum || undefined });
+    }
+    return out;
+  });
+
+  /**
+   * The pair she has named twice, in words, or `null`.
+   *
+   * "Math · British" or "Math (both tracks)" — the same two shapes the server's own message uses,
+   * because a coordinator who supervises Math on both tracks and a coordinator who supervises Math
+   * on the British one are different rows and the sentence has to tell them apart.
+   */
+  protected readonly duplicateScope = computed(() => {
+    this.lang();
+    const seen = new Set<string>();
+    for (const row of this.scopeRows()) {
+      if (row.subject === '') continue;
+      const key = pairKey(row.subject, row.curriculum);
+      if (!seen.has(key)) {
+        seen.add(key);
+        continue;
+      }
+      const subject = this.word(`subject.${row.subject}`, row.subject);
+      return this.t('admin.coordinators.scopes.duplicate', {
+        scope: row.curriculum
+          ? `${subject} · ${this.word(`curriculum.${row.curriculum}`, row.curriculum)}`
+          : this.t('admin.coordinators.scopes.bothTracksOf', { subject }),
+      });
+    }
+    return null;
+  });
 
   protected setFullName(value: string): void {
     this.formError.set(null);
@@ -411,7 +460,9 @@ export class StaffAccountsPage {
   });
 
   protected readonly canSaveScopes = computed(() =>
-    this.isManager ? this.curricula().size > 0 : this.filledScopes().length > 0,
+    this.isManager
+      ? this.curricula().size > 0
+      : this.filledScopes().length > 0 && this.duplicateScope() === null,
   );
 
   protected openScopes(person: Person | null): void {

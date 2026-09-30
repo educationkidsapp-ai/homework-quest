@@ -196,6 +196,9 @@
             </hq-button>
           </div>
         }
+        @if (duplicateScope(); as duplicate) {
+          <p class="staff__scope-error" role="alert">{{ duplicate }}</p>
+        }
         <hq-button variant="secondary" (pressed)="addScopeRow()">
           {{ 'admin.coordinators.scopes.add' | transloco }}
         </hq-button>

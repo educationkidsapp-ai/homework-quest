@@ -49,3 +49,10 @@
     flex: 1 1 11rem;
   }
 }
+
+.staff__scope-error {
+  margin: 0;
+  color: var(--hq-color-accent);
+  font-size: var(--hq-text-theme-sm);
+  font-weight: var(--hq-text-weight-semibold);
+}

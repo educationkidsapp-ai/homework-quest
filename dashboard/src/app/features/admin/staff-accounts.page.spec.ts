@@ -150,6 +150,44 @@ describe('Coordinators', () => {
     expect(put.request.body).toEqual({ scopes: [{ subject: 'math', curriculum: 'british' }] });
   });
 
+  /**
+   * `PUT …/scopes` refuses a subject named twice for one track with a 400 by design, and a red band
+   * must not be how the Admin learns it: the editor says so and the save is refused.
+   */
+  it('refuses a subject named twice, under the editor rather than from the server', async () => {
+    const { rendered, backend } = await renderSignedIn('coordinators', [HODA]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Hoda' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Subjects' }));
+    await settle(rendered);
+    await userEvent.click(screen.getByRole('button', { name: 'Add a subject' }));
+    await settle(rendered);
+    // The second row repeats Math on the British track, which is the row she already has.
+    const subjects = screen.getAllByLabelText('Subject');
+    await userEvent.selectOptions(subjects[1]!, 'math');
+    await userEvent.selectOptions(screen.getAllByLabelText(/^Track/)[1]!, 'british');
+    await settle(rendered);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Math · British is named twice.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    backend.expectNone('/admin/coordinators/u-hoda/scopes');
+  });
+
+  /** Two "both tracks" rows of one subject are two rows to the unique index, so they are named. */
+  it('names a duplicate that has no track as "(both tracks)"', async () => {
+    const { rendered } = await renderSignedIn('coordinators', []);
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Add coordinator' })[0]!);
+    await settle(rendered);
+    await userEvent.selectOptions(screen.getByLabelText('Subject'), 'math');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a subject' }));
+    await settle(rendered);
+    await userEvent.selectOptions(screen.getAllByLabelText('Subject')[1]!, 'math');
+    await settle(rendered);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Math (both tracks) is named twice.');
+  });
+
   it('answers a reset with a password shown once', async () => {
     const { rendered, backend } = await renderSignedIn('coordinators', [HODA]);
 

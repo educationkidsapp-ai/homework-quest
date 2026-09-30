@@ -182,7 +182,9 @@
         "track": "المسار",
         "anyTrack": "المسارَان",
         "add": "إضافة مادة",
-        "remove": "إزالة"
+        "remove": "إزالة",
+        "duplicate": "{{scope}} مذكورة مرتين. أزل إحداهما.",
+        "bothTracksOf": "{{subject}} (المسارَان)"
       }
     },
     "managers": {
