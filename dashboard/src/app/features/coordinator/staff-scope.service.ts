@@ -71,14 +71,8 @@ export interface StaffNeed {
   readonly kind: 'complaint' | 'needs_review' | 'error' | 'no_lesson';
   readonly title: string;
   readonly className: string;
-  /**
-   * `{base}/lessons/{id}`, or the Classes screen when there is no lesson to open.
-   *
-   * `null` for a manager's lesson lines since MG2a: All lessons and the read-only lesson page
-   * left her rail, so the line still tells her which lesson needs somebody — that is the whole
-   * point of the list — but it is not a link to a screen she no longer has.
-   */
-  readonly link: readonly string[] | null;
+  /** `{base}/lessons/{id}`, or the list screen when there is no one lesson to open. */
+  readonly link: readonly string[];
 }
 
 /**
@@ -185,19 +179,32 @@ export class StaffScopeService {
   });
 
   /**
-   * The two lesson statuses Home's "What needs you" is about, in one resource.
+   * The two lesson statuses a coordinator's "What needs you" is about, in one resource.
    *
-   * Both namespaces narrow by a single status, so this asks twice and joins. One resource rather
-   * than two, because a half-loaded list would draw a shorter "needs you" than the truth and then
-   * grow under her.
+   * One namespace, not two, since MG2a: All lessons and the read-only lesson page left the
+   * manager's rail, so her Home has no lesson line left to draw — and `GET /management/lessons`
+   * narrows by `draft|ready|published` alone (`CoordinatorService.coarse`), so asking it for
+   * `needs_review` was a 400 on every open of her Home (MH0). Both halves of that mattered: the
+   * band read "Status is draft, ready or published", and an errored resource's `value()` *throws*,
+   * which took `needs` below — and with it her whole screen — down inside change detection.
+   *
+   * It asks twice and joins, because the namespace narrows by a single status. One resource
+   * rather than two, because a half-loaded list would draw a shorter "needs you" than the truth
+   * and then grow under her. `catchError` for the reason the complaints below have one: a read
+   * that did not answer contributes no line, and never an exception in a template — the
+   * coordinator's own two asks are these same two words on her namespace and meet the same 400,
+   * which is a filter the server has yet to learn rather than a screen to take away from her.
    */
   private readonly attentionRes = rxResource({
-    params: () => this.readingArea(),
-    stream: ({ params: area }) =>
+    params: () => (this.area() === 'coordinator' ? 'coordinator' : undefined),
+    stream: () =>
       forkJoin([
-        this.lessonsOf(area, AdminLessonStatusEnum.NEEDS_REVIEW),
-        this.lessonsOf(area, AdminLessonStatusEnum.ERROR),
-      ]).pipe(map(([review, failed]) => [...review, ...failed])),
+        this.lessonsOf(AdminLessonStatusEnum.NEEDS_REVIEW),
+        this.lessonsOf(AdminLessonStatusEnum.ERROR),
+      ]).pipe(
+        map(([review, failed]) => [...review, ...failed]),
+        catchError(() => of([])),
+      ),
     defaultValue: [],
   });
 
@@ -315,15 +322,15 @@ export class StaffScopeService {
       className: thread.className ?? '',
       link: [`${base}/complaints`],
     }));
-    // MG2a: a manager has no lesson page and no Classes screen any more, so her two lesson
-    // kinds are lines rather than links, and a class with nothing on today sends her to
-    // Teachers — the screen that says whether today has happened in a teacher's sections.
+    // MG2a: a manager has no All lessons, no lesson page and no Classes screen any more, so she
+    // has no lesson lines at all, and a class with nothing on today sends her to Teachers — the
+    // screen that says whether today has happened in a teacher's sections.
     const manager = this.area() === 'management';
     const lessons = this.attentionRes.value().map((lesson) => ({
       kind: lesson.status === AdminLessonStatusEnum.ERROR ? ('error' as const) : ('needs_review' as const),
       title: (lesson.title ?? '').trim(),
       className: lesson.className ?? '',
-      link: manager ? null : [`${base}/lessons`, lesson.id],
+      link: [`${base}/lessons`, lesson.id],
     }));
     const quiet = this.classes()
       .filter((row) => row.todayLessonId === null)
@@ -350,9 +357,7 @@ export class StaffScopeService {
     this.complaintsRes.reload();
   }
 
-  private lessonsOf(area: 'coordinator' | 'management', status: AdminLessonStatusEnum) {
-    return area === 'management'
-      ? this.management.managementLessons(undefined, status)
-      : this.api.coordinatorLessons(undefined, status);
+  private lessonsOf(status: AdminLessonStatusEnum) {
+    return this.api.coordinatorLessons(undefined, status);
   }
 }

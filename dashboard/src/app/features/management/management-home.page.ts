@@ -136,12 +136,12 @@ import {
             }
           </hq-card>
 
-          <!-- What needs her: the lessons of her department that failed, then the ones waiting
-               for a review, then the sections with nothing on today. The **complaints** of her
-               department belong at the top of this list and are RM3b's: RM2 shipped the server
-               half (GET /management/chat/threads) while this package was being written, and no
-               screen of hers reads it yet — a line built from nothing would be a promise this
-               screen cannot keep, so the slot is left open rather than filled with a zero. -->
+          <!-- What needs her: since MG2a took All lessons off her rail, the sections of her
+               department with nothing on today, each a way in to the teacher who owns it. Her
+               **complaints** belong at the top of this list and are RM3b's: RM2 shipped the
+               server half (GET /management/chat/threads) and no screen of hers reads it yet — a
+               line built from nothing would be a promise this screen cannot keep, so the slot is
+               left open rather than filled with a zero. -->
           <hq-card [title]="'home.needsYou' | transloco">
             @if (staff.needs().length === 0) {
               <p class="hq-muted">{{ 'home.allClear' | transloco }}</p>
@@ -149,13 +149,7 @@ import {
               <ul class="mg-list">
                 @for (need of staff.needs().slice(0, 12); track $index) {
                   <li class="mg-list__row">
-                    @if (need.link; as link) {
-                      <a [routerLink]="link">{{ needLine(need) }}</a>
-                    } @else {
-                      <!-- MG2a: her lesson page went with All lessons, so the line is the fact
-                           and the next step is a message, which is what it always was. -->
-                      <span>{{ needLine(need) }}</span>
-                    }
+                    <a [routerLink]="need.link">{{ needLine(need) }}</a>
                     <span class="hq-badge" [class.hq-badge--error]="need.kind === 'error'">
                       {{ 'coordinator.need.' + need.kind | transloco }}
                     </span>
