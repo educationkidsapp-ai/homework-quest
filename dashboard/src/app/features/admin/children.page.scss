@@ -1,0 +1,71 @@
+.families__aside {
+  color: var(--hq-color-ink-muted);
+  font-size: var(--hq-text-theme-sm);
+  margin-block: 0 var(--hq-space-16);
+}
+
+.families__search {
+  margin-block: var(--hq-space-16);
+  max-width: 28rem;
+}
+
+.families__retry {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--hq-space-16);
+}
+
+.families__pager {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-16);
+  margin-block-start: var(--hq-space-16);
+}
+
+.families__overflow {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--hq-color-ink);
+  font-size: var(--hq-text-theme-lg);
+  line-height: 1;
+  padding: var(--hq-space-8);
+}
+
+/* Curriculum and grade read as one question — which class — so they sit on one line. */
+.families__pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-16);
+
+  hq-select {
+    flex: 1 1 11rem;
+  }
+}
+
+.families__password {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--hq-space-16);
+
+  hq-input {
+    flex: 1 1 14rem;
+  }
+}
+
+.families__rule {
+  border: 0;
+  border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  margin-block: var(--hq-space-16);
+}
+
+/* `passwordApplied: false` is the one answer she has to notice: the password she just wrote on a
+   piece of paper is worthless, and the existing one still works. */
+.families__verdict {
+  font-weight: var(--hq-text-weight-semibold);
+}
+
+.families__verdict--warn {
+  color: var(--hq-color-accent);
+}

@@ -61,6 +61,16 @@ async function renderHome(
   return rendered;
 }
 
+/** The stat cards that are links: their label → their href. */
+function cardLinks(rendered: { container: Element }): Map<string, string> {
+  return new Map(
+    [...rendered.container.querySelectorAll<HTMLAnchorElement>('a[data-hq-card-link]')].map((link) => [
+      link.querySelector('.em-stat-label')?.textContent?.trim() ?? '',
+      link.getAttribute('href') ?? '',
+    ]),
+  );
+}
+
 describe('Home', () => {
   beforeEach(() => localStorage.clear());
 
@@ -71,6 +81,68 @@ describe('Home', () => {
     expect(screen.getByText('Schools')).toBeInTheDocument();
     expect(screen.getByText('Children')).toBeInTheDocument();
     expect(screen.getByText('Lessons this week')).toBeInTheDocument();
+  });
+
+  /**
+   * MA2 (the owner's admin list item 1): `GET /me/home` answers her eight counts and six of them
+   * are rail rows of their own, so each of the six is the door to the screen it counts. `schools`
+   * needs `multiSchool` to have a screen at all and `lessonsThisWeek` stands for no one list, so
+   * both are drawn flat — a card that looks clickable and is not is worse than one that plainly
+   * is not.
+   */
+  it('makes each of her six people counts a link to the screen behind it', async () => {
+    const rendered = await renderHome(
+      ADMIN_USER,
+      {
+        ...ADMIN_HOME,
+        cards: [
+          { key: 'managers', value: 2 },
+          { key: 'coordinators', value: 4 },
+          { key: 'teachers', value: 18 },
+          { key: 'children', value: 148 },
+          { key: 'classes', value: 12 },
+          { key: 'workers', value: 6 },
+          { key: 'lessonsThisWeek', value: 9 },
+        ],
+      },
+      {
+        role: 'ADMIN',
+        permissions: [
+          'manager.manage',
+          'coordinator.manage',
+          'teacher.read',
+          'admin.children.read',
+          'section.read',
+          'worker.read',
+        ],
+        readOnly: false,
+      },
+    );
+
+    // By the cards' own anchors rather than by their words: "Teachers" and "Classes" are also
+    // quick actions on the same screen, and `getByText` would find either.
+    expect(cardLinks(rendered)).toEqual(
+      new Map([
+        ['Managers', '/admin/managers'],
+        ['Coordinators', '/admin/coordinators'],
+        ['Teachers', '/admin/teachers'],
+        ['Children', '/admin/children'],
+        ['Classes', '/admin/classes'],
+        ['Workers', '/admin/workers'],
+      ]),
+    );
+  });
+
+  /** A card whose screen the router would refuse is a card, not a link onto a guard. */
+  it('draws a count flat when the account lacks the key its screen is gated by', async () => {
+    const rendered = await renderHome(
+      ADMIN_USER,
+      { ...ADMIN_HOME, cards: [{ key: 'workers', value: 6 }] },
+      { role: 'ADMIN', permissions: ['section.read'], readOnly: false },
+    );
+
+    expect(screen.getByText('Workers')).toBeInTheDocument();
+    expect(cardLinks(rendered).size).toBe(0);
   });
 
   /**

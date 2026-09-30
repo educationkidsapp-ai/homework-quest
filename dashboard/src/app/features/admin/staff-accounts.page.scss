@@ -1,0 +1,51 @@
+.staff__search {
+  margin-block: var(--hq-space-16);
+  max-width: 28rem;
+}
+
+.staff__retry {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--hq-space-16);
+}
+
+.staff__overflow {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--hq-color-ink);
+  font-size: var(--hq-text-theme-lg);
+  line-height: 1;
+  padding: var(--hq-space-8);
+}
+
+.staff__fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-8);
+}
+
+.staff__legend {
+  font-size: var(--hq-text-theme-sm);
+  font-weight: var(--hq-text-weight-semibold);
+  letter-spacing: var(--hq-font-letter-spacing-label);
+  color: var(--hq-color-ink-muted);
+  padding: 0;
+  margin-block-end: var(--hq-space-8);
+}
+
+/* Subject, track and the remove button on one line, wrapping rather than shrinking past reading
+   width — the dialog is narrow in Arabic and narrower again on a laptop at 125%. */
+.staff__scope-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--hq-space-16);
+
+  hq-select {
+    flex: 1 1 11rem;
+  }
+}

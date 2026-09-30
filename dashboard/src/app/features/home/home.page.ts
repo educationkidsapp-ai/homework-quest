@@ -1,6 +1,6 @@
 /* hq-flag: none (shell) — every role's Home. A flag can empty a section of it; it cannot
    take away the screen `/` redirects to. */
-import { NgClass } from '@angular/common';
+import { NgClass, NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
@@ -10,13 +10,22 @@ import { AuthService } from '../../core/auth/auth.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PermissionService } from '../../core/permissions/permission.service';
 import { ThemeService } from '../../core/theme/theme.service';
-import {
-  BandComponent,
-  ButtonComponent,
-  CountUpDirective,
-  PageComponent,
-  SkeletonComponent,
-} from '../../ui';
+import { BandComponent, ButtonComponent, CountUpDirective, PageComponent, SkeletonComponent } from '../../ui';
+
+/**
+ * MA2: the Admin's count → the screen behind it, with the key that screen's row is gated by.
+ *
+ * The same six rows `core/nav/screens.ts` declares. Listed again here only as `key → path`, which
+ * is the one thing the table cannot answer: a server card's key is not a screen id.
+ */
+const ADMIN_CARD_LINKS: Readonly<Record<string, { readonly path: string; readonly key: string }>> = {
+  managers: { path: '/admin/managers', key: 'manager.manage' },
+  coordinators: { path: '/admin/coordinators', key: 'coordinator.manage' },
+  teachers: { path: '/admin/teachers', key: 'teacher.read' },
+  children: { path: '/admin/children', key: 'admin.children.read' },
+  classes: { path: '/admin/classes', key: 'section.read' },
+  workers: { path: '/admin/workers', key: 'worker.read' },
+};
 
 interface QuickActionItem {
   readonly label: string;
@@ -26,7 +35,6 @@ interface QuickActionItem {
   readonly color: string;
   readonly bgColor: string;
 }
-
 
 /**
  * Home, for an Admin and a teacher.
@@ -46,6 +54,7 @@ interface QuickActionItem {
   selector: 'hq-home-page',
   imports: [
     NgClass,
+    NgTemplateOutlet,
     PageComponent,
     CountUpDirective,
     SkeletonComponent,
@@ -86,10 +95,33 @@ interface QuickActionItem {
         </div>
       } @else {
         <div class="em-dashboard">
-          <!-- ================= 1. Four Hero Stats Cards ================= -->
+          <!-- =========== 1. The counts, each a door to the screen behind it =========== -->
           <section class="em-stats-grid" [attr.aria-label]="'home.cardsLabel' | transloco" data-hq-tour="cards">
             @for (card of cards(); track card.key) {
-              <div class="em-stat-card">
+              @if (cardLink(card.key); as link) {
+                <a class="em-stat-card em-stat-card--link" [routerLink]="link" data-hq-card-link>
+                  <ng-container
+                    [ngTemplateOutlet]="statCard"
+                    [ngTemplateOutletContext]="{ $implicit: card }"
+                  />
+                </a>
+              } @else {
+                <div class="em-stat-card">
+                  <ng-container
+                    [ngTemplateOutlet]="statCard"
+                    [ngTemplateOutletContext]="{ $implicit: card }"
+                  />
+                </div>
+              }
+            }
+          </section>
+
+          <!-- MA2: one card body, drawn inside a link when the count has a screen of its own
+               (managers, coordinators, teachers, children, classes, workers) and inside a plain
+               div when it has none — a card that looks clickable and is not is worse than a card
+               that plainly is not. -->
+          <ng-template #statCard let-card>
+            <div class="em-stat-card__body">
                 <div class="em-stat-info">
                   <p class="em-stat-label">{{ cardLabel(card.key) }}</p>
                   <h3 class="em-stat-value"><span [hqCountUp]="card.value"></span></h3>
@@ -123,6 +155,32 @@ interface QuickActionItem {
                         <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
                       </svg>
                     }
+                    @case ('teachers') {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 10L12 5 2 10l10 5 10-5z" /><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5" />
+                      </svg>
+                    }
+                    @case ('coordinators') {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 3h6v3H9zM6 5h12v16H6z" /><polyline points="9 13 11 15 15 11" />
+                      </svg>
+                    }
+                    @case ('managers') {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="7" width="20" height="14" rx="2" /><path d="M9 7V4h6v3" /><path d="M2 13h20" />
+                      </svg>
+                    }
+                    @case ('classes') {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+                        <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+                      </svg>
+                    }
+                    @case ('workers') {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14.7 6.3a4 4 0 1 0 3 3l-8.4 8.4a2.1 2.1 0 1 1-3-3z" />
+                      </svg>
+                    }
                     @default {
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
@@ -131,9 +189,8 @@ interface QuickActionItem {
                     }
                   }
                 </div>
-              </div>
-            }
-          </section>
+            </div>
+          </ng-template>
 
           <!-- ================= 2. Quick Actions Panel ================= -->
           <section class="em-card em-quick-actions-card" [attr.aria-label]="'home.quickActions.title' | transloco">
@@ -336,6 +393,20 @@ interface QuickActionItem {
       @include m.below(600px) {
         grid-template-columns: 1fr;
       }
+    }
+
+    /* MA2: the card's own layout moved one level in, so the same body draws inside a link. */
+    .em-stat-card__body {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--hq-space-16);
+      inline-size: 100%;
+    }
+
+    .em-stat-card--link {
+      text-decoration: none;
+      color: inherit;
     }
 
     .em-stat-card {
@@ -669,21 +740,79 @@ export class HomePage {
   private readonly adminActions = computed<readonly QuickActionItem[]>(() => {
     this.lang();
     const rows: readonly (QuickActionItem & { readonly key: string })[] = [
-      { key: 'section.read', label: this.t('nav.classes'), icon: 'calendar', link: '/admin/classes', color: 'em-gradient--blue', bgColor: 'em-bg--blue' },
-      { key: 'teacher.read', label: this.t('nav.teachers'), icon: 'user-plus', link: '/admin/teachers', color: 'em-gradient--purple', bgColor: 'em-bg--purple' },
-      { key: 'lesson.write', label: this.t('nav.newLesson'), icon: 'file-text', link: '/admin/lessons/new', color: 'em-gradient--pink', bgColor: 'em-bg--pink' },
+      {
+        key: 'section.read',
+        label: this.t('nav.classes'),
+        icon: 'calendar',
+        link: '/admin/classes',
+        color: 'em-gradient--blue',
+        bgColor: 'em-bg--blue',
+      },
+      {
+        key: 'teacher.read',
+        label: this.t('nav.teachers'),
+        icon: 'user-plus',
+        link: '/admin/teachers',
+        color: 'em-gradient--purple',
+        bgColor: 'em-bg--purple',
+      },
+      {
+        key: 'lesson.write',
+        label: this.t('nav.newLesson'),
+        icon: 'file-text',
+        link: '/admin/lessons/new',
+        color: 'em-gradient--pink',
+        bgColor: 'em-bg--pink',
+      },
     ];
     return rows.filter((row) => this.permissions.can(row.key));
   });
 
   // EduManage Quick Actions — strictly Homework Quest teacher workflows
   private readonly teacherActions: readonly QuickActionItem[] = [
-    { label: 'This Week', icon: 'calendar', link: '/teacher/week', color: 'em-gradient--blue', bgColor: 'em-bg--blue' },
-    { label: 'My Classes', icon: 'user-plus', link: '/teacher/classes', color: 'em-gradient--purple', bgColor: 'em-bg--purple' },
-    { label: 'New Lesson', icon: 'file-text', link: '/teacher/lessons/new', color: 'em-gradient--pink', bgColor: 'em-bg--pink' },
-    { label: 'Create Exam', icon: 'download', link: '/teacher/exams/new', color: 'em-gradient--cyan', bgColor: 'em-bg--cyan' },
-    { label: 'Attendance', icon: 'bell', link: '/teacher/classes', queryParams: { tab: 'attendance' }, color: 'em-gradient--green', bgColor: 'em-bg--green' },
-    { label: 'Parent Chat', icon: 'mail', link: '/teacher/chat', color: 'em-gradient--orange', bgColor: 'em-bg--orange' },
+    {
+      label: 'This Week',
+      icon: 'calendar',
+      link: '/teacher/week',
+      color: 'em-gradient--blue',
+      bgColor: 'em-bg--blue',
+    },
+    {
+      label: 'My Classes',
+      icon: 'user-plus',
+      link: '/teacher/classes',
+      color: 'em-gradient--purple',
+      bgColor: 'em-bg--purple',
+    },
+    {
+      label: 'New Lesson',
+      icon: 'file-text',
+      link: '/teacher/lessons/new',
+      color: 'em-gradient--pink',
+      bgColor: 'em-bg--pink',
+    },
+    {
+      label: 'Create Exam',
+      icon: 'download',
+      link: '/teacher/exams/new',
+      color: 'em-gradient--cyan',
+      bgColor: 'em-bg--cyan',
+    },
+    {
+      label: 'Attendance',
+      icon: 'bell',
+      link: '/teacher/classes',
+      queryParams: { tab: 'attendance' },
+      color: 'em-gradient--green',
+      bgColor: 'em-bg--green',
+    },
+    {
+      label: 'Parent Chat',
+      icon: 'mail',
+      link: '/teacher/chat',
+      color: 'em-gradient--orange',
+      bgColor: 'em-bg--orange',
+    },
   ];
 
   protected readonly greeting = computed(() => {
@@ -692,16 +821,40 @@ export class HomePage {
     return this.transloco.translate<string>('home.greeting', { name });
   });
 
+  /**
+   * MA2 (the owner's admin list item 1): the screen a count is the count *of*.
+   *
+   * `GET /me/home` answers the Admin eight cards — managers, coordinators, teachers, children,
+   * classes and workers, plus P3.0's schools and lessons-this-week — and six of them are now rail
+   * rows of their own. A number nobody can act on is a number, so each of the six is a link and the
+   * other two are not: `schools` needs `multiSchool` to have a screen at all, and
+   * `lessonsThisWeek` counts across every class rather than standing for one list.
+   *
+   * Keyed off the role, because `children` is also a *teacher's* card and `/admin/children` is not
+   * hers; and filtered by `can()`, so a card whose screen the router would refuse is drawn flat
+   * rather than as a link onto a guard.
+   */
+  protected cardLink(key: string): string | null {
+    if (this.isTeacher()) return null;
+    const link = ADMIN_CARD_LINKS[key];
+    return link !== undefined && this.permissions.can(link.key) ? link.path : null;
+  }
+
   protected statIconGradient(key: string): string {
     switch (key) {
       case 'playedYesterday':
       case 'schools':
+      case 'managers':
         return 'em-gradient--blue';
       case 'lessonsThisWeek':
       case 'children':
+      case 'coordinators':
         return 'em-gradient--purple';
       case 'needsReview':
+      case 'workers':
         return 'em-gradient--pink';
+      case 'classes':
+        return 'em-gradient--cyan';
       default:
         return 'em-gradient--green';
     }

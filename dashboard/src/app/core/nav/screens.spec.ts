@@ -81,6 +81,12 @@ describe('the screen table', () => {
       'home',
       'classes',
       'teachers',
+      // MA2 (items 3–5): the three staff lists that carry a login, then the staff who have none,
+      // then the families. Coordinators and Managers are one component, two rows.
+      'coordinators',
+      'managers',
+      'workers',
+      'children',
       // D13: `schools` keeps its label and its `multiSchool` flag — the rail hides it at runtime,
       // and the table is what it is hidden from.
       'schools',
