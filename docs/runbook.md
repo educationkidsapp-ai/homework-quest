@@ -601,10 +601,10 @@ tabs are two views of one session, and both ways that can go wrong ended in the 
 so a status 0, a 502/503/504 or a timeout — a cold start, a deploy, one lost second of Wi-Fi — read
 as an expiry. It now forgets only on a **401 or 403 from `/auth/refresh`**; anything else keeps the
 session, retries once after 600 ms (the retry retakes the cross-tab lock and re-reads the token) and
-shows a `notice` band, *"Reconnecting…"*. The chat socket asks through
-`refreshForReconnect`, which never ends the session whatever the answer: Cloud Run closes that
-socket every hour and every blip reopens it, so it must not be the thing that signs her out — a 401
-there costs another backoff, and the next request she actually makes is what discovers a session
+shows a `notice` band, *"Reconnecting…"*. The chat socket asks with
+`refresh({endsSession: false})`, which never ends the session whatever the answer: Cloud Run closes
+that socket every hour and every blip reopens it, so it must not be the thing that signs her out — a
+401 there costs another backoff, and the next request she actually makes is what discovers a session
 that is really over. A request that is *waiting* on a shared refresh upgrades it, so a real 401 in
 front of a person still signs out.
 

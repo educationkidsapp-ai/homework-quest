@@ -220,7 +220,7 @@ describe('AuthService', () => {
       auth.loadMe().subscribe();
       http.expectOne('/me').flush(TEACHER_USER);
       const failed = new Promise<void>((resolve) =>
-        auth.refreshForReconnect().subscribe({ error: () => resolve() }),
+        auth.refresh({ endsSession: false }).subscribe({ error: () => resolve() }),
       );
 
       await settle();
@@ -238,7 +238,7 @@ describe('AuthService', () => {
       http.expectOne('/me').flush(TEACHER_USER);
 
       const quiet = new Promise<void>((resolve) =>
-        auth.refreshForReconnect().subscribe({ error: () => resolve() }),
+        auth.refresh({ endsSession: false }).subscribe({ error: () => resolve() }),
       );
       const loud = new Promise<void>((resolve) => auth.refresh().subscribe({ error: () => resolve() }));
 

@@ -157,25 +157,22 @@ export class AuthService {
     );
   }
 
-  /** The new access token, from one shared request however many callers ask at once. */
-  refresh(): Observable<string> {
-    return this.startRefresh(true);
-  }
-
   /**
-   * A refresh for a **background reconnect** — the chat socket, which reopens by itself every hour
-   * on Cloud Run and after every network blip.
+   * The new access token, from one shared request however many callers ask at once.
    *
-   * It never ends the session, whatever the answer. The socket is not something the person did, so
-   * it must not be the thing that signs her out: on a 401 it simply keeps backing off
+   * `endsSession: false` is for a **background reconnect** — the chat socket, which reopens by
+   * itself every hour on Cloud Run and after every network blip. That refresh never ends the
+   * session whatever the answer: the socket is not something the person did, so it must not be the
+   * thing that signs her out. On a 401 it simply keeps backing off
    * (`ChatService.scheduleReconnect`), and the next request she actually makes is what discovers a
    * session that is really over.
+   *
+   * An option rather than a second method on purpose: every spec that stands a partial
+   * `AuthService` in front of `ChatService` would otherwise have to grow a mock for it, and a mock
+   * nobody remembered is a `TypeError` in a spec about something else entirely.
    */
-  refreshForReconnect(): Observable<string> {
-    return this.startRefresh(false);
-  }
-
-  private startRefresh(endSession: boolean): Observable<string> {
+  refresh(options?: { endsSession?: boolean }): Observable<string> {
+    const endSession = options?.endsSession !== false;
     const existing = this.inFlightRefresh;
     // A caller that *would* end the session upgrades one that would not: it is the same 401, and
     // the person is waiting on this request rather than on a socket.

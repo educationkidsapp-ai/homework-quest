@@ -78,8 +78,6 @@ describe('ChatService', () => {
       role: signal('TEACHER' as const),
       user: signal({ ...TEACHER_USER, id: 'u-sara', displayName: 'Ms Sara' }),
       refresh: vi.fn().mockReturnValue(of('new-token')),
-      // T2 follow-up: the socket asks for the refresh that cannot end the session.
-      refreshForReconnect: vi.fn().mockReturnValue(of('new-token')),
     };
 
     accessTokenSig.set('test-jwt');
@@ -288,7 +286,8 @@ describe('ChatService', () => {
     accessTokenSig.set(null);
     service.connect();
 
-    expect(mockAuth.refreshForReconnect).toHaveBeenCalled();
-    expect(mockAuth.refresh).not.toHaveBeenCalled();
+    // `endsSession: false` is the whole of it: a 401 on this path costs another backoff and
+    // nothing else.
+    expect(mockAuth.refresh).toHaveBeenCalledWith({ endsSession: false });
   });
 });
