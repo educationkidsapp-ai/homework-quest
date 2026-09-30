@@ -81,10 +81,14 @@ data class ChatThread(
     val parentName: String? = null,
     /**
      * T1: whether the person on the other end is **online right now** — she holds at least one live `/ws/chat`
-     * socket. It is a snapshot taken when the row was built; the [ChatFrame.Presence] frame keeps it true while the
-     * list is open, and a client that ignores both simply never shows a presence dot.
+     * socket. It is a snapshot taken when the row was built; the [ChatFrame.Presence] frame keeps it current while
+     * the list is open, and a client that ignores both simply never shows a presence dot.
+     *
+     * Nullable, and therefore optional on the wire, because "nobody to be online about" is a real answer and not the
+     * same as offline: the Admin's read-only support list is about the thread rather than about a conversation of
+     * hers, and it carries no presence at all. Treat absent as "do not show a dot".
      */
-    val peerOnline: Boolean = false,
+    val peerOnline: Boolean? = null,
 )
 
 /**

@@ -766,7 +766,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "childId", "childName", "peerOnline", "staffRole", "status", "teacherId", "teacherName", "topic", "unread" ],
+        "required" : [ "childId", "childName", "staffRole", "status", "teacherId", "teacherName", "topic", "unread" ],
         "type" : "object"
       },
       "Child" : {

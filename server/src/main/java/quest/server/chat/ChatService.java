@@ -888,7 +888,8 @@ public class ChatService {
      *
      * <p>`peerKey` (T1) is the session key of the person on the *other* end — the parent on a parent thread, the
      * colleague on a staff one — and settles `peerOnline`; null on a row where presence means nothing (the Admin's
-     * support list, which is about the thread rather than about a conversation of hers).
+     * support list, which is about the thread rather than about a conversation of hers), and `peerOnline` is then
+     * absent rather than false.
      */
     private ChatThread row(ChatThreadEntity t, String childId, String childName, String staffId, String staffName,
                            String className, String subject, int unread, ChatMessage last, String staffRole,
@@ -897,7 +898,7 @@ public class ChatService {
                 staffRole(t == null ? staffRole : t.getStaffRole()), topic(t == null ? QUESTION : t.getTopic()),
                 status(t == null ? OPEN : t.getStatus()),
                 t == null || t.getResolvedAt() == null ? null : t.getResolvedAt().toEpochMilli(),
-                parentName == null || parentName.isBlank() ? null : parentName, presence.online(peerKey));
+                parentName == null || parentName.isBlank() ? null : parentName, peerKey == null ? null : presence.online(peerKey));
     }
 
     /**
