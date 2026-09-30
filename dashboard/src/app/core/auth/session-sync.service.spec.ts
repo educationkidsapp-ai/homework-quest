@@ -74,10 +74,82 @@ describe('SessionSyncService', () => {
   it('adopts a refresh token another tab rotated instead of spending the one it holds', async () => {
     await signIn();
 
+    // Same stamp in storage: a rotation by a tab of this same account, which is ours to take.
     sync.onStorage({ key: REFRESH_KEY, newValue: 'refresh-2' });
 
     expect(session.refreshToken()).toBe('refresh-2');
     expect(auth.signedIn()).toBe(true);
+  });
+
+  /**
+   * **The review's finding.** A sign-in writes the tokens before it can know whose they are — the
+   * user id arrives with `/me` — so for a moment `hq.refresh` holds a token and the owner stamp
+   * does not say whose. Adopting on the token event alone meant the teacher's tab took the
+   * manager's token on the way past and was revoked at its next refresh: the very bug the listener
+   * was added to stop, reintroduced by the listener.
+   */
+  it('refuses a token that arrives while the stored owner is missing, and ends the session', async () => {
+    await signIn();
+    // Exactly what `SessionStore.disown` leaves behind in the other tab's sign-in.
+    localStorage.removeItem(SESSION_OWNER_KEY);
+
+    sync.onStorage({ key: REFRESH_KEY, newValue: 'somebody-elses-token' });
+
+    expect(session.refreshToken()).not.toBe('somebody-elses-token');
+    expect(auth.signedIn()).toBe(false);
+    expect(navigate).toHaveBeenCalledWith(['/sign-in'], { queryParams: { ended: 'takenOver' } });
+  });
+
+  it('refuses a token that arrives under a foreign owner, and names the role', async () => {
+    await signIn();
+    localStorage.setItem(SESSION_OWNER_KEY, 'u-mona:MANAGERIAL');
+
+    sync.onStorage({ key: REFRESH_KEY, newValue: 'somebody-elses-token' });
+
+    expect(session.refreshToken()).not.toBe('somebody-elses-token');
+    expect(auth.signedIn()).toBe(false);
+    expect(navigate).toHaveBeenCalledWith(['/sign-in'], {
+      queryParams: { ended: 'takenOver', as: 'MANAGERIAL' },
+    });
+  });
+
+  /**
+   * A reload racing another tab. `identity()` is null until `/me` lands, so the only thing this tab
+   * can compare is the stamp it *loaded* — which is why `SessionStore.claimedOwner` exists. Without
+   * it, a rotation by a tab of the same account signed the reloading tab out, and a takeover during
+   * the same window was ignored.
+   */
+  describe('while a reload is still restoring', () => {
+    beforeEach(() => {
+      localStorage.setItem(REFRESH_KEY, 'refresh-1');
+      localStorage.setItem(SESSION_OWNER_KEY, 'u-sara:TEACHER');
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [provideHttpClient(), provideHttpClientTesting(), { provide: BASE_PATH, useValue: '' }],
+      });
+      sync = TestBed.inject(SessionSyncService);
+      auth = TestBed.inject(AuthService);
+      session = TestBed.inject(SessionStore);
+      http = TestBed.inject(HttpTestingController);
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    });
+
+    it('takes a rotation by a tab of the same account', () => {
+      expect(session.identity()).toBeNull();
+
+      sync.onStorage({ key: REFRESH_KEY, newValue: 'refresh-2' });
+
+      expect(session.refreshToken()).toBe('refresh-2');
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('abandons the restore when another role takes the browser over mid-reload', () => {
+      sync.onStorage({ key: SESSION_OWNER_KEY, newValue: 'u-mona:MANAGERIAL' });
+
+      expect(navigate).toHaveBeenCalledWith(['/sign-in'], {
+        queryParams: { ended: 'takenOver', as: 'MANAGERIAL' },
+      });
+    });
   });
 
   it('ends the session when another tab signs out, because the shared token is revoked', async () => {

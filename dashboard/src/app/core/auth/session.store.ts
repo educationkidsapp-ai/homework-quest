@@ -32,6 +32,14 @@ export class SessionStore {
   private readonly access = signal<string | null>(null);
   private readonly refresh = signal<string | null>(this.read(REFRESH_KEY));
   private readonly owner = signal<string | null>(null);
+  /**
+   * The owner stamp this tab **found in storage when it loaded**.
+   *
+   * `identity` is null for the length of a reload's `restore()` — `/me` has not landed — and a
+   * listener that compared against it in that window could not tell a takeover from an ordinary
+   * rotation by a tab of the same account. This survives the reload, so it can.
+   */
+  private readonly loadedOwner = signal<string | null>(this.read(SESSION_OWNER_KEY));
 
   readonly accessToken = this.access.asReadonly();
   readonly refreshToken = this.refresh.asReadonly();
@@ -43,6 +51,11 @@ export class SessionStore {
    * compares the arriving one against ({@link SessionSyncService}).
    */
   readonly identity = this.owner.asReadonly();
+  /**
+   * Whose session this tab believes it is holding — what `/me` confirmed, or, while a reload is
+   * still restoring, what was in storage when it started. `null` is "no claim to contradict".
+   */
+  readonly claimedOwner = computed(() => this.owner() ?? this.loadedOwner());
 
   /** True when a reload could plausibly restore a session — there is a refresh token to spend. */
   readonly restorable = computed(() => this.refresh() !== null);
@@ -59,7 +72,29 @@ export class SessionStore {
   claim(userId: string, role: string): void {
     const identity = `${userId}:${role}`;
     this.owner.set(identity);
+    this.loadedOwner.set(identity);
     this.write(SESSION_OWNER_KEY, identity);
+  }
+
+  /**
+   * **A new session is being written, and nobody owns it yet.**
+   *
+   * Called before the tokens of a sign-in. The user id only arrives with `/me`, so for a moment
+   * `hq.refresh` holds a token and `hq.session.owner` says whose it is *not*. That moment is what
+   * makes a second-role sign-in safe: the other tab's listener sees a token arrive with no owner,
+   * which is never something it may adopt (`SessionSyncService.onStorage`). Stamping afterwards
+   * rather than before is the only order available — and it is the safe one, because "unknown
+   * owner" is refused while a stale owner would be believed.
+   */
+  disown(): void {
+    this.owner.set(null);
+    this.loadedOwner.set(null);
+    this.write(SESSION_OWNER_KEY, null);
+  }
+
+  /** What the *storage* says right now — which is what another tab has just written. */
+  ownerInStorage(): string | null {
+    return this.read(SESSION_OWNER_KEY);
   }
 
   /**
@@ -77,6 +112,7 @@ export class SessionStore {
     this.access.set(null);
     this.refresh.set(null);
     this.owner.set(null);
+    this.loadedOwner.set(null);
     this.write(REFRESH_KEY, null);
     this.write(SESSION_OWNER_KEY, null);
   }

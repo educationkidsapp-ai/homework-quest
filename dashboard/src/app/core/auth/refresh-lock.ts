@@ -52,22 +52,32 @@ export class RefreshLock {
     if (!locks) return this.acquireByStamp();
     let release: () => void = () => undefined;
     const held = new Promise<void>((resolve) => (release = resolve));
-    await new Promise<void>((granted) => {
-      void locks.request(LOCK_NAME, () => {
-        granted();
-        return held;
-      });
+    // `navigator.locks.request` waits for ever by default, and a tab that hangs on to the lock
+    // (a long request on a bad connection, a breakpoint) would hold every other tab's session
+    // hostage. The same {@link WAIT_MS} the stand-in uses, so both paths give up the same way:
+    // refresh unlocked rather than leave the person on a screen that cannot recover.
+    const granted = await new Promise<boolean>((resolve) => {
+      void locks
+        .request(LOCK_NAME, { signal: AbortSignal.timeout(WAIT_MS) }, () => {
+          resolve(true);
+          return held;
+        })
+        .catch(() => resolve(false));
     });
-    return release;
+    // Not granted means never held, so there is nothing to release.
+    return granted ? release : () => undefined;
   }
 
   private async acquireByStamp(): Promise<() => void> {
     const storage = this.storage();
     if (!storage) return () => undefined;
     const deadline = Date.now() + WAIT_MS;
-    const mine = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
     for (;;) {
       if (this.stampIsFree(storage)) {
+        // Stamped **now**, not when the wait began: a stamp minted five seconds ago is already
+        // halfway to {@link STALE_MS}, so a tab that waited would be collected as dead almost as
+        // soon as it started working.
+        const mine = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
         storage.setItem(FALLBACK_KEY, mine);
         // Only the holder clears it: a tab whose claim was stale-collected must not remove the
         // stamp of the tab that took it over.

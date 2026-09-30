@@ -121,6 +121,12 @@ export class AuthService {
 
   /** Accepting an invitation signs the new account in, so it lands here too. */
   adopt(response: SignInResponse): Observable<DashboardUser> {
+    // **Disown first.** These tokens belong to whoever just signed in, and who that is only
+    // arrives with `/me` — so the stamp cannot be written before them. Clearing it instead means
+    // the other tabs of this browser profile see the new token land with *no* owner, which is
+    // never something they may adopt (`SessionSyncService.onStorage`). Without this, a teacher's
+    // tab took the manager's token on the way past and was revoked at its next refresh.
+    this.session.disown();
     this.session.set(response);
     return this.loadMe();
   }

@@ -57,22 +57,41 @@ export class SessionSyncService {
   }
 
   private onOwnerChanged(arriving: string | null): void {
-    const mine = this.session.identity();
-    // Nothing of ours to lose (signed out, or `/me` has not landed), or the same session being
-    // re-stamped by a tab of the same account — which is what a plain reload elsewhere is.
+    const mine = this.session.claimedOwner();
+    // Nothing of ours to lose — an anonymous tab on the sign-in screen — or the same session being
+    // re-stamped by a tab of the same account, which is what a plain reload elsewhere is.
+    // `claimedOwner` rather than `identity` so a reload whose `/me` has not landed still counts as
+    // holding a session: it does, and it is that session another tab has just replaced.
     if (mine === null || arriving === null || arriving === mine) return;
     this.end('takenOver', roleOf(arriving));
   }
 
   private onTokenChanged(arriving: string | null): void {
+    const mine = this.session.claimedOwner();
     if (arriving === null) {
-      if (this.session.identity() === null) return;
+      if (mine === null) return;
       this.end('signedOutElsewhere', null);
       return;
     }
-    // A rotation by a tab of the same account: adopt it, so this tab's next refresh spends the
-    // live token instead of the one it has just replaced.
-    this.session.adopt(arriving);
+    // An anonymous tab has no claim to contradict: whatever is in storage is simply the newest
+    // token there, and this tab will find out whose it is if it ever signs in.
+    if (mine === null) {
+      this.session.adopt(arriving);
+      return;
+    }
+
+    // **Whose token is this?** A sign-in cannot stamp the owner before the tokens — the user id
+    // arrives with `/me` — so `SessionStore.disown` clears the stamp first. A token that arrives
+    // while the stored owner is *missing* or *somebody else's* therefore belongs to a session this
+    // tab is not on, and adopting it would make this tab present a foreign token at its next
+    // refresh: the revocation this listener exists to prevent. Only a rotation under our own
+    // stamp is ours to take.
+    const owner = this.session.ownerInStorage();
+    if (owner === mine) {
+      this.session.adopt(arriving);
+      return;
+    }
+    this.end('takenOver', owner === null ? null : roleOf(owner));
   }
 
   private end(reason: SessionEnd, role: Role | null): void {
