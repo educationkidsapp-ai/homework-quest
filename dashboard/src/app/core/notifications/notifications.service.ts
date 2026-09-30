@@ -138,13 +138,20 @@ export class NotificationsService {
       .subscribe();
   }
 
-  /** A `notification` frame off the socket: straight into the list, the badge and the toast. */
-  receive(notification: NotificationView): void {
+  /**
+   * A `notification` frame off the socket: straight into the list, the badge and the toast.
+   *
+   * T2 item (c) made the toast optional. The row and the badge are never in question — the bell
+   * has to carry it either way — but a `chat.message` for the conversation she is reading arrives
+   * as a bubble in the same second, and a toast on top of that is the same sentence twice.
+   * `ChatService` is what knows which thread is on screen, so it is what decides.
+   */
+  receive(notification: NotificationView, options?: { toast?: boolean }): void {
     this.items.update((list) =>
       list.some((item) => item.id === notification.id) ? list : [notification, ...list],
     );
     if (notification.readAt === undefined) this.unread.update((count) => count + 1);
-    this.toast.set(notification);
+    if (options?.toast !== false) this.toast.set(notification);
   }
 
   /** (Re)connect: nothing was replayed while we were away, so ask again. */

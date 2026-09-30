@@ -4,6 +4,7 @@ import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from 
 import { provideTransloco } from '@jsverse/transloco';
 import { provideApiClient } from './api';
 import { routes } from './app.routes';
+import { provideSessionSync } from './core/auth/session-sync.service';
 import { authInterceptor } from './core/http/auth.interceptor';
 import { errorInterceptor } from './core/http/error.interceptor';
 import { LANGUAGES, provideLanguage } from './core/i18n/language.service';
@@ -36,5 +37,8 @@ export const appConfig: ApplicationConfig = {
     // After `provideTransloco`: it reads the language the person last chose and waits for that
     // bundle, so no screen can paint its keys. See `provideLanguage`.
     provideLanguage(),
+    // T2 item (e): one `localStorage` serves every tab of the profile, so what another tab does
+    // to the session has to reach this one. Listening from the first tick, not from the shell.
+    provideSessionSync(),
   ],
 };

@@ -29,6 +29,23 @@ that did not happen has made no such statement.
 waiting for a review, then the classes with nothing on today. Each line is a way _in_ to the lesson
 or the class, never an action of her own.
 
+## Her manager (T2)
+
+`/coordinator/manager`, behind the `chat` flag and `coordinator.chat` — the keys
+`GET /coordinator/managers` and `POST /coordinator/chat/threads` carry.
+
+One card per department manager whose department meets her scope: name, job ("American department
+manager", built in the browser from the contact's `jobParts` so it reads as a sentence in Arabic
+too), the phone as a `tel:` and the address as a `mailto:`, and **Message**. Message is a
+navigation, not a composer: `POST /coordinator/chat/threads {managerUserId}` answers the thread that
+exists or opens one — one row per pair however many times either side asks — so she lands on
+`/coordinator/messages?thread=<id>` with the conversation already on screen.
+
+It is **the teacher's screen**, one namespace over (`features/staff/staff-manager.page.ts`,
+`docs/teacher-flow.md` step 13): `StaffAreaService` decides which of `GET /teacher/managers` and
+`GET /coordinator/managers` to read and which thread route to open, the way Announcements and
+Messages are one component for three roles.
+
 ## Her records (R6)
 
 | Screen                                                     | Reads                                              | What she sees                                                                                                                                                                                                                                                                       |
@@ -179,12 +196,9 @@ same composer everyone else uses. See `docs/management-flow.md`.
 
 ## What R7 and RM3b could not do
 
-- **"New message to a manager" is still not on her screen.** `POST /coordinator/chat/threads
-{managerUserId}` exists and `ChatPeers.managersFor` already decides which managers she may reach
-  — but **no endpoint exposes that list**, and a coordinator holds no route that names a MANAGERIAL
-  user. RM3b gave the _manager_ the picker instead, because `GET /management/coordinators` and
-  `GET /management/admins` do exist; her side still waits for a `GET /coordinator/managers`, and a
-  manager who opens the thread first solves it in practice (one row per pair, either way).
+- ~~**"New message to a manager" is still not on her screen.**~~ **Fixed in T2 (item b).** The
+  route RM3b was waiting for — `GET /coordinator/managers` — exists, and her **Manager** screen is
+  it: see below.
 - **No parent's name anywhere.** `ChatThread` carries the child, the class and the _staff_ peer;
   the parent has no name on the contract, so the Complaints table says "Parent of <child>".
 - **`GET /coordinator/announcements` is no longer read by the dashboard.** It still exists, and

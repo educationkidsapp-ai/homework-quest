@@ -28,6 +28,15 @@ describe('AuthService', () => {
     session = TestBed.inject(SessionStore);
   });
 
+  /**
+   * Every pending microtask.
+   *
+   * T2 item (e) put a cross-tab lock in front of the rotation ({@link RefreshLock}), so a refresh
+   * now leaves on the next microtask rather than on the same turn as the call. That is the whole
+   * of the change these `await settle()` lines record.
+   */
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
   it('signs in, keeps the refresh token and reads /me', async () => {
     const signedIn = auth.signIn('sara@alnoor.test', 'secret-enough');
     const done = new Promise<void>((resolve) => signedIn.subscribe(() => resolve()));
@@ -56,6 +65,7 @@ describe('AuthService', () => {
 
     // One request, not three: the server treats a replayed refresh token as theft and revokes
     // every live token of the user, so three parallel refreshes would sign the person out.
+    await settle();
     const request = http.expectOne('/auth/refresh');
     request.flush({ token: 'access-2', refreshToken: 'refresh-2' });
     await all;
@@ -68,6 +78,7 @@ describe('AuthService', () => {
     session.set({ token: 'stale', refreshToken: 'spent' });
     const failed = new Promise<void>((resolve) => auth.refresh().subscribe({ error: () => resolve() }));
 
+    await settle();
     http
       .expectOne('/auth/refresh')
       .flush(
@@ -82,10 +93,10 @@ describe('AuthService', () => {
 
   it('asks a second time after a failed refresh rather than replaying the dead request', async () => {
     session.set({ token: 'stale', refreshToken: 'spent' });
-    await new Promise<void>((resolve) => {
-      auth.refresh().subscribe({ error: () => resolve() });
-      http.expectOne('/auth/refresh').flush({}, { status: 401, statusText: 'Unauthorized' });
-    });
+    const firstAttempt = new Promise<void>((resolve) => auth.refresh().subscribe({ error: () => resolve() }));
+    await settle();
+    http.expectOne('/auth/refresh').flush({}, { status: 401, statusText: 'Unauthorized' });
+    await firstAttempt;
 
     // The in-flight request is cleared on failure, so the next attempt is a new one (and,
     // with no refresh token left, fails without touching the network at all).
@@ -119,6 +130,7 @@ describe('AuthService', () => {
     session.set({ refreshToken: 'refresh-1' });
 
     const restored = new Promise((resolve) => auth.restore().subscribe(resolve));
+    await settle();
     http.expectOne('/auth/refresh').flush({ token: 'access-2', refreshToken: 'refresh-2' });
     http.expectOne('/me').flush(TEACHER_USER);
 

@@ -251,10 +251,35 @@ in a dialog, with the grade and the week in its alt text. The bytes come through
 `<img src>` pointed at the DTO's absolute url answers 401. A plan is not on the feed tab at all. She
 writes none: the plan is the department's (DR6). See `docs/management-flow.md`.
 
+### Step 13 — Manager (T2)
+
+Behind the `chat` flag and `teacher.chat`, the keys `GET /teacher/managers` and
+`POST /teacher/chat/staff-threads` carry.
+
+Before T2 she could answer her manager but not find her: the conversation existed and only the
+manager could open it, and the phone number she actually wanted was nowhere. `/teacher/manager` is
+one card per department manager — name, job, `tel:` and `mailto:` — and one **Message** button.
+
+The **job** is built in the browser from the contact's `jobParts`, not read as a sentence off the
+wire: "American department manager" for a manager, "Coordinator · Grade 1 · Arabic · British" for a
+coordinator, every word of it through the `curriculum.*` / `subject.*` keys the rest of the dashboard
+uses, so it is a sentence in Arabic as well (`features/staff/staff-contacts.ts`). A contact with no
+`jobParts` is read as a manager of its own `curriculum`, which is what keeps the screen truthful
+against a server that has not shipped the field yet.
+
+**Message is a navigation.** `POST /teacher/chat/staff-threads {managerUserId}` answers the thread
+that exists or opens one, so she lands on `/teacher/chat?thread=<id>` with everything already said on
+it — the context the message she is about to write depends on. The coordinator's row is the same
+screen over `/coordinator/**` (`docs/coordinator-flow.md`).
+
+**Coordinators** is the other half of the owner's item (a) and is **not** in this package: a teacher
+has no route that lists the coordinators of her sections. `GET /teacher/coordinators` and a
+`coordinatorUserId` on `POST /teacher/chat/staff-threads` are T1's, and the screen lands with them.
+
 ## 5. Navigation
 
 `This week · My classes · [selected class] · Announcements (with `announcements`) · Messages (with
-`chat`) · Profile`. Nothing else renders for a teacher. MH2 item 5 renamed the row and its path;
+`chat`) · Manager (with `chat`) · Profile`. Nothing else renders for a teacher. MH2 item 5 renamed the row and its path;
 `/teacher/broadcasts` redirects, and the bell's own links are rewritten
 (`core/notifications/notification-target.ts`) because the server still writes the old one.
 
@@ -265,6 +290,23 @@ conversation** on her profile after messaging the coordinator, and from the bell
 row carries `?thread=<id>` in a link the server writes for the manager's screen, and
 `core/notifications/notification-target.ts` rewrites it to `/teacher/chat?thread=<id>` for whoever is
 reading — the thread is the same row on both sides.
+
+**The bell rings for a message now (T2 item c).** T1 writes a `chat.message` row, throttled per
+thread and cleared when she reads the thread, and delivers it on the same `notification` frame every
+other kind arrives on. The client needed no new case in
+`core/notifications/notification-target.ts` — the row's `/<area>/messages?thread=…` link is already
+rewritten to her own list by thread id — but the **toast** is now suppressed for the conversation she
+is looking at (`ChatService.receive`): the bubble and the toast would be the same sentence twice. The
+bell row, the badge on the rail's Messages and the badge on the header's chat icon are unaffected and
+appear either way.
+
+**"Live" means the other person, not the socket (T2 item d).** The pill in the conversation header
+used to read this tab's own `connectionStatus`, so a manager who had signed out still read as *Live*
+in the teacher's tab — her own socket was fine. It now reads T1's `presence` frames and the thread
+row's `peerOnline` (`ChatService.activePeerOnline`); a peer nobody has reported on gets **no pill at
+all**, because an empty header is honest where a guess is not. Signing out closes the socket before
+`POST /auth/sign-out` is sent and empties the presence map, so the last thing this tab does is stop
+claiming to be present.
 
 ## 6. What the child never sees
 

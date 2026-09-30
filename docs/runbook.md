@@ -580,6 +580,26 @@ that user is revoked** and they have to sign in again. Verified locally — a re
 *"That session has expired. Sign in again."* `POST /auth/sign-out` with a refresh token revokes just that one, and an
 unknown token is not an error.
 
+**The dashboard's side of that rule (T2 item e).** A browser profile has one `localStorage`, so two
+tabs are two views of one session, and both ways that can go wrong ended in the same revocation:
+
+- **Two tabs of one account** each refreshed with the one single-use token, and the loser presented
+  a rotated one. `AuthService.refresh` has always been single-flight *inside* a tab; T2 made it
+  single-flight *across* tabs with `core/auth/refresh-lock.ts` — the Web Locks API where it exists
+  (`navigator.locks`), a stamped `localStorage` key where it does not — and the waiting tab re-reads
+  the token from storage inside the lock, so it spends the live one instead of the spent one. The
+  `storage` listener in `core/auth/session-sync.service.ts` is what keeps that value current.
+- **A second role in a second tab** overwrote the first tab's token and its owner stamp
+  (`hq.session.owner`, `<userId>:<role>`, written when `/me` lands). The first tab used to carry on
+  silently: its next refresh spent a foreign token, the pair was revoked, and the person was signed
+  out "after a few minutes" with no explanation — and in between it was running the other role's
+  socket. It is now signed out at once, on the sign-in screen, with *"You signed in as <role> in
+  another tab of this browser"* (`?ended=takenOver&as=<role>`). A sign-out in another tab revokes the
+  shared token, so that tab ends too (`?ended=signedOutElsewhere`).
+
+Neither is a server change: the access token still lives 15 minutes and the refresh token is still
+single-use. What changed is that one tab no longer spends another tab's token.
+
 ### Forgot / reset password
 
 `POST /auth/forgot-password` **always** answers 204, whether or not the address has an account, so the page cannot be
@@ -1405,6 +1425,23 @@ timeout. Sockets on Cloud Run are HTTP requests and end at the service's request
 in the Terraform); the client must expect a close every hour and reconnect with the refetch. Reconnect with
 exponential backoff (1 s → 30 s) and a fresh token: a dashboard access token lives 15 minutes, so reconnect after
 `/auth/refresh`, not with the expired one.
+
+**What the dashboard does with the two newest frames (T2).**
+
+- **`presence`** is the only source of "is the other person there". Before T2 the conversation
+  header's pill read the tab's *own* `connectionStatus` and said **Live**, so a manager who had
+  signed out went on reading as present in the teacher's tab — her own socket was fine. It now reads
+  the `presence` frames, falling back to the thread row's `peerOnline` from the last `GET …/threads`
+  (`core/chat/chat.service.ts`, `activePeerOnline`); the peer is found by dropping the viewer's own id
+  from the ids the row names, so no branch on her role is needed. A peer nobody has reported on draws
+  **no pill at all**. `disconnect()` empties the map, and sign-out calls it before
+  `POST /auth/sign-out` goes out rather than leaving the socket alive for the length of that request.
+- **`chat.message`** goes into the bell, the badge on the rail's Messages row and the badge on the
+  header's chat icon exactly as every other kind does. The one rule of its own is the **toast**: it is
+  suppressed when the notification's `?thread=` is the conversation already on screen, because the
+  bubble arrives in the same second and the two would be one sentence twice. The link needs no case in
+  `core/notifications/notification-target.ts` — a `/<area>/messages?thread=…` written for somebody
+  else's area is already rewritten to the reader's own list by thread id.
 
 **Across instances.** QA runs up to two instances and a socket lives on whichever took its handshake. A message
 committed on one reaches the other's sockets through PostgreSQL `LISTEN/NOTIFY` on channel `chat_events`

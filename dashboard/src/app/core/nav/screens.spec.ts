@@ -160,19 +160,25 @@ describe('the screen table', () => {
    * thread the department manager started was invisible unless she happened to open the screen from
    * the header's chat icon. Behind `chat`, like every other door onto the threads.
    */
-  it('gives a teacher This week, My classes, Announcements and Messages in the rail', () => {
+  it('gives a teacher This week, My classes, Announcements, Messages and Manager in the rail', () => {
     expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual([
       'week',
       'classes',
       'announcements',
       'chat',
+      // T2 (the owner's list, 2026-10-01): who she reports to, with the phone number on it.
+      'manager',
     ]);
     expect(navScreens('TEACHER').map(({ link }) => link)).toEqual([
       '/teacher/week',
       '/teacher/classes',
       '/teacher/announcements',
       '/teacher/chat',
+      '/teacher/manager',
     ]);
+    const manager = AREAS.TEACHER.screens.find((screen) => screen.id === 'manager');
+    expect(manager?.flag).toBe('chat');
+    expect(manager?.permission).toBe('teacher.chat');
     const chat = AREAS.TEACHER.screens.find((screen) => screen.id === 'chat');
     expect(chat?.flag).toBe('chat');
     expect(chat?.permission).toBe('teacher.chat');
@@ -207,7 +213,7 @@ describe('the screen table', () => {
    * are properties of the table: a row that lost `readOnly` would hand her a publish button, and
    * the page would never know.
    */
-  it('gives a coordinator her ten rail items and read-only detail routes', () => {
+  it('gives a coordinator her eleven rail items and read-only detail routes', () => {
     expect(navScreens('COORDINATOR').map(({ screen }) => screen.id)).toEqual([
       'home',
       'teachers',
@@ -219,6 +225,8 @@ describe('the screen table', () => {
       'exams',
       'messages',
       'complaints',
+      // T2 item (b): her own Manager row, on `GET /coordinator/managers`.
+      'manager',
       'announcements',
     ]);
     expect(navScreens('COORDINATOR').map(({ link }) => link)).toEqual([
@@ -231,11 +239,12 @@ describe('the screen table', () => {
       '/coordinator/exams',
       '/coordinator/messages',
       '/coordinator/complaints',
+      '/coordinator/manager',
       '/coordinator/announcements',
     ]);
     // R7: all three carry the flag their server routes carry, so a school without chat has none
     // of them — in the rail or at the URL.
-    for (const id of ['messages', 'complaints'])
+    for (const id of ['messages', 'complaints', 'manager'])
       expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === id)?.flag).toBe('chat');
     expect(AREAS.COORDINATOR.screens.find((screen) => screen.id === 'announcements')?.flag).toBe(
       'announcements',

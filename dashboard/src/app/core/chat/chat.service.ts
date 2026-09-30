@@ -14,7 +14,14 @@ import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { type ChatTransport, ChatRoutes } from './chat-routes';
-import { ChatClientCommand, ChatConnectionStatus, ChatServerFrame, LocalMessage } from './chat.models';
+import {
+  type ChatClientCommand,
+  type ChatConnectionStatus,
+  type ChatServerFrame,
+  type LocalMessage,
+  peerIdsOf,
+  rowPeerOnline,
+} from './chat.models';
 
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const TYPING_TIMEOUT_MS = 3_000;
@@ -46,6 +53,34 @@ export class ChatService {
   readonly loadingMessages = signal<boolean>(false);
   readonly connectionStatus = signal<ChatConnectionStatus>('disconnected');
   readonly isParentTyping = signal<boolean>(false);
+
+  /**
+   * Who the server says is connected, by user id (a `presence` frame's `userId` or `parentId`).
+   *
+   * **T2 item (d).** Nothing but a frame writes this, and `disconnect` empties it: a presence this
+   * tab cannot hear any more is not a presence it may keep showing, which is the whole of the
+   * "the manager signed out and still reads as Live" bug. A peer nobody has said anything about
+   * is absent from the map rather than `false` — "not known" and "offline" are different answers
+   * and only one of them is worth a pill.
+   */
+  private readonly presence = signal<ReadonlyMap<string, boolean>>(new Map());
+
+  /**
+   * Is the person at the other end of the open conversation connected? `undefined` = no answer.
+   *
+   * A `presence` frame wins over the thread row's `peerOnline`, because the row is what the last
+   * `GET …/threads` said and the frame is what is true now.
+   */
+  readonly activePeerOnline = computed<boolean | undefined>(() => {
+    const thread = this.activeThread();
+    if (!thread) return undefined;
+    const heard = this.presence();
+    for (const id of peerIdsOf(thread, this.auth.user()?.id ?? null)) {
+      const state = heard.get(id);
+      if (state !== undefined) return state;
+    }
+    return rowPeerOnline(thread);
+  });
 
   /**
    * Whether this account may write at all.
@@ -453,8 +488,24 @@ export class ChatService {
         break;
 
       case 'notification':
-        this.notifications.receive(frame.notification);
+        // T2 item (c): the toast is for a notification she is **not** already looking at. A
+        // `chat.message` for the thread open on her screen is a bubble arriving in the same
+        // second — a toast over it says the same thing twice and steals the focus ring.
+        this.notifications.receive(frame.notification, {
+          toast: !this.isViewingThread(frame.notification.link),
+        });
         break;
+
+      // T2 item (d): presence comes from the server, which is the only party that knows which
+      // sockets are open. Sign-out closes them (T1), so the frame that clears a peer arrives
+      // before the tab that was watching her can go stale.
+      case 'presence': {
+        const id = frame.userId ?? frame.parentId ?? '';
+        if (id !== '') {
+          this.presence.update((map) => new Map(map).set(id, frame.online));
+        }
+        break;
+      }
 
       case 'typing':
         if (frame.from === 'parent') {
@@ -625,5 +676,22 @@ export class ChatService {
     }
     this.notifications.onSocketClosed();
     this.connectionStatus.set('disconnected');
+    // Presence is only as live as the socket that carries it (T2 item d).
+    this.presence.set(new Map());
+    this.isParentTyping.set(false);
+  }
+
+  /**
+   * Does this notification's `link` name the conversation already on screen?
+   *
+   * The thread id and nothing else: the path is the sender's idea of which area the reader is in
+   * (`NotificationService.threadLink` writes one for everybody), and the reader's own screen is
+   * the authority on that — the same reason `notificationTarget` reads only the query.
+   */
+  private isViewingThread(link: string | undefined): boolean {
+    const active = this.activeThread();
+    if (!active?.id || !link) return false;
+    const thread = new URLSearchParams(link.split('?', 2)[1] ?? '').get('thread')?.trim();
+    return thread !== undefined && thread === active.id;
   }
 }

@@ -257,6 +257,17 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.chat,
         permission: 'teacher.chat',
       },
+      // T2 (the owner's list, 2026-10-01): **who she reports to, and how to reach them.** Both
+      // rows carry `chat` and `teacher.chat` because that is what `GET /teacher/coordinators`,
+      // `GET /teacher/managers` and the `staff-threads` route carry — the directory is the
+      // chooser for a conversation, so a school without chat has neither.
+      {
+        id: 'manager',
+        path: 'manager',
+        labelKey: 'nav.manager',
+        flag: FLAGS.chat,
+        permission: 'teacher.chat',
+      },
     ],
   },
   // RM3a (DR5, DR7, `docs/management-flow.md`): the department manager's area. RM1 gave her
@@ -434,6 +445,15 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.complaints',
         flag: FLAGS.chat,
         permission: 'coordinator.complaints',
+      },
+      // T2 item (b): the teacher's row, one namespace over — `GET /coordinator/managers` and
+      // `POST /coordinator/chat/threads {managerUserId}`, the same screen.
+      {
+        id: 'manager',
+        path: 'manager',
+        labelKey: 'nav.manager',
+        flag: FLAGS.chat,
+        permission: 'coordinator.chat',
       },
       // RM3b: her announcements *are* broadcasts now — `POST /coordinator/broadcasts` writes the
       // `announcements` rows the app's shipped screen reads as a side effect, so one screen with

@@ -326,7 +326,10 @@
     "signIn": {
       "title": "Sign in",
       "action": "Sign in",
-      "failedTitle": "Could not sign in"
+      "failedTitle": "Could not sign in",
+      "endedTitle": "This session ended",
+      "takenOver": "You signed in as {{role}} in another tab of this browser, so this tab was signed out. Sign in again to carry on here.",
+      "signedOutElsewhere": "This session was signed out in another tab of this browser. Sign in again to carry on here."
     },
     "forgot": {
       "link": "Forgot your password?",
@@ -1369,7 +1372,8 @@
     "children": "Children",
     "managers": "Managers",
     "workers": "Workers",
-    "childrenParents": "Children & parents"
+    "childrenParents": "Children & parents",
+    "manager": "Manager"
   },
   "notifications": {
     "title": "Notifications",
@@ -1408,6 +1412,12 @@
         "posted": {
           "title": "New broadcast",
           "body": "The weekly plan, an announcement or an event was posted for you."
+        }
+      },
+      "chat": {
+        "message": {
+          "title": "New message",
+          "body": "Someone wrote to you. Open the conversation to read it."
         }
       }
     }
@@ -1463,7 +1473,8 @@
     "supportSubtitle": "Your conversations with the management of this school, and every thread in it for support.",
     "supportEmptyHint": "Pick a manager under New message to start one.",
     "supportNoSchool": "Pick a school from the header first — chat is read one school at a time.",
-    "threadGone": "That conversation is not in your list any more."
+    "threadGone": "That conversation is not in your list any more.",
+    "away": "Away"
   },
   "profile": {
     "title": "Your profile",
@@ -2406,6 +2417,26 @@
     "phone": {
       "invalid": "Between 7 and 15 digits, with an optional + at the front.",
       "hint": "Optional. Digits, spaces, dashes and brackets; a + for a country code."
+    }
+  },
+  "staff": {
+    "manager": {
+      "subtitle": "The manager of your department, and the conversation you share.",
+      "empty": "No department manager yet",
+      "emptyHint": "Your school has not appointed a manager for your department. Your coordinator can help in the meantime."
+    },
+    "message": "Message",
+    "messageFailed": "The conversation could not be opened. Try again.",
+    "phone": "Phone",
+    "email": "Email",
+    "job": {
+      "manager": "{{curriculum}} department manager",
+      "grade": "Grade {{grade}}",
+      "kind": {
+        "manager": "Department manager",
+        "coordinator": "Coordinator",
+        "teacher": "Teacher"
+      }
     }
   }
 }

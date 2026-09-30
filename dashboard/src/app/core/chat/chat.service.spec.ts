@@ -16,6 +16,7 @@ import { TEACHER_USER } from '../../../testing/fixtures';
 import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ChatService } from './chat.service';
 
 describe('ChatService', () => {
@@ -164,5 +165,111 @@ describe('ChatService', () => {
 
     service.sendMessage('a'.repeat(2001));
     expect(mockApi.teacherSendChatMessage).not.toHaveBeenCalled();
+  });
+
+  /**
+   * T2 item (d). The pill used to read this tab's own socket and say "Live"; these four say where
+   * the answer comes from now — a `presence` frame first, the thread row second, and nothing at
+   * all when neither has spoken. The manager who signed out is the third of them.
+   */
+  describe('peer presence', () => {
+    /** T1 names the parent on a parent thread; presence for anybody the row does not name is
+        not this thread's peer and is ignored. */
+    const withParent = (extra: Record<string, unknown> = {}) => {
+      mockApi.teacherChatThreads = vi
+        .fn()
+        .mockReturnValue(of([{ ...sampleThread, parentId: 'parent-1', ...extra }]));
+    };
+
+    it('has no answer for a peer nobody has reported on', () => {
+      withParent();
+      service.loadThreads();
+      service.selectThread('ch-1');
+      expect(service.activePeerOnline()).toBeUndefined();
+    });
+
+    it('takes the peer from a presence frame, not from its own connection', () => {
+      withParent();
+      service.loadThreads();
+      service.selectThread('ch-1');
+
+      service.receive({ type: 'presence', parentId: 'parent-1', online: true });
+      expect(service.activePeerOnline()).toBe(true);
+
+      // The manager (or parent) signed out: one frame, and the pill stops saying Live even though
+      // this tab's own socket never wavered.
+      service.receive({ type: 'presence', parentId: 'parent-1', online: false });
+      expect(service.activePeerOnline()).toBe(false);
+    });
+
+    it('ignores presence for somebody who is not on this thread, and never for herself', () => {
+      withParent();
+      service.loadThreads();
+      service.selectThread('ch-1');
+
+      service.receive({ type: 'presence', userId: 'u-other', online: true });
+      expect(service.activePeerOnline()).toBeUndefined();
+      // `u-sara` is the signed-in teacher and also this row's `teacherId`: her own presence is
+      // not the peer's, or every thread would read as Live for ever.
+      service.receive({ type: 'presence', userId: 'u-sara', online: true });
+      expect(service.activePeerOnline()).toBeUndefined();
+    });
+
+    it('falls back to peerOnline on the thread row until a frame arrives', () => {
+      withParent({ peerOnline: true });
+      service.loadThreads();
+      service.selectThread('ch-1');
+      expect(service.activePeerOnline()).toBe(true);
+
+      // A frame is newer than the last GET, so it wins.
+      service.receive({ type: 'presence', parentId: 'parent-1', online: false });
+      expect(service.activePeerOnline()).toBe(false);
+    });
+
+    it('forgets every presence when the socket closes, because sign-out closes the socket', () => {
+      withParent();
+      service.loadThreads();
+      service.selectThread('ch-1');
+      service.receive({ type: 'presence', parentId: 'parent-1', online: true });
+
+      service.disconnect();
+      expect(service.activePeerOnline()).toBeUndefined();
+    });
+  });
+
+  /**
+   * T2 item (c). The bell row and the badge are never in question; the toast is, and the rule is
+   * "not for the conversation she is already reading".
+   */
+  describe('the chat.message notification frame', () => {
+    const notification = (thread: string) => ({
+      id: `n-${thread}`,
+      kind: 'chat.message' as never,
+      title: 'New message',
+      createdAt: 1,
+      link: `/management/messages?thread=${thread}`,
+    });
+
+    it('toasts a message for a conversation she is not looking at', () => {
+      const notifications = TestBed.inject(NotificationsService);
+      service.loadThreads();
+      service.selectThread('ch-1');
+
+      service.receive({ type: 'notification', notification: notification('th-9') });
+      expect(notifications.toast()?.id).toBe('n-th-9');
+      expect(notifications.unreadCount()).toBe(1);
+    });
+
+    it('files a message for the open conversation without a toast over it', () => {
+      const notifications = TestBed.inject(NotificationsService);
+      service.loadThreads();
+      service.selectThread('ch-1');
+
+      service.receive({ type: 'notification', notification: notification('th-1') });
+      expect(notifications.toast()).toBeNull();
+      // Still in the bell, and still counted: only the toast was the duplicate.
+      expect(notifications.notifications()[0]?.id).toBe('n-th-1');
+      expect(notifications.unreadCount()).toBe(1);
+    });
   });
 });

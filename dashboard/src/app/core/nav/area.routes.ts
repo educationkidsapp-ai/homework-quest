@@ -121,6 +121,10 @@ function componentFor(screen: Screen, role: Role) {
   // everyone — the namespace it does *not* vary by is the whole reason it is one component.
   if (screen.id === 'announcements')
     return import('../../features/broadcasts/announcements.page').then((m) => m.AnnouncementsPage);
+  // T2 (a)/(b): the staff directory card, shared by the teacher and the coordinator the way
+  // Announcements is — `StaffAreaService` picks the namespace inside the component.
+  if (screen.id === 'manager')
+    return import('../../features/staff/staff-manager.page').then((m) => m.StaffManagerPage);
   return import('../../features/stub/stub.page').then((m) => m.StubPage);
 }
 
@@ -132,7 +136,15 @@ function componentFor(screen: Screen, role: Role) {
  * a phase. They draw themselves read-only from `data.readOnly` and from the permissions she does
  * not hold, and they read her namespace rather than the teacher's.
  */
-const SHARED_WITH_TEACHER = new Set(['lesson', 'results', 'child', 'exam-results', 'announcements']);
+const SHARED_WITH_TEACHER = new Set([
+  'lesson',
+  'results',
+  'child',
+  'exam-results',
+  'announcements',
+  // T2: Manager is the coordinator's row too, and the component reads her namespace itself.
+  'manager',
+]);
 
 /**
  * The two read-only areas, one lazy chunk per screen so a Home never carries the calendar or the

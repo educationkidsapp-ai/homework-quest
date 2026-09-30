@@ -357,6 +357,12 @@ export class ShellComponent {
   }
 
   protected signOut(): void {
+    // T2 item (d): **close the socket first.** The effect in `ChatService` would do it a tick
+    // later off `signedIn()`, but "a tick later" is a live socket for the length of
+    // `POST /auth/sign-out` — long enough to take one more frame and to leave the peer she was
+    // talking to reading her as connected. T1 closes it from the server too; this is the end the
+    // browser owns, and it is also what empties the presence map.
+    this.chat.disconnect();
     this.auth.signOut().subscribe(() => void this.router.navigate(['/sign-in']));
   }
 

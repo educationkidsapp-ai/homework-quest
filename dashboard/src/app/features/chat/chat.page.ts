@@ -371,27 +371,31 @@ interface ParsedChatMessage {
                 </span>
               </div>
 
+              <!-- T2 item (d): the peer's presence, from the server. See peerState() below. -->
               <div class="convo-header__status">
-                <span
-                  class="status-pill"
-                  [class.status-pill--connected]="chatService.connectionStatus() === 'connected'"
-                  [class.status-pill--connecting]="
-                    chatService.connectionStatus() === 'connecting' ||
-                    chatService.connectionStatus() === 'reconnecting'
-                  "
-                >
-                  <span class="status-pill__dot"></span>
-                  @if (chatService.connectionStatus() === 'connected') {
-                    {{ 'chat.live' | transloco }}
-                  } @else if (
-                    chatService.connectionStatus() === 'connecting' ||
-                    chatService.connectionStatus() === 'reconnecting'
-                  ) {
-                    {{ 'chat.connecting' | transloco }}
-                  } @else {
-                    {{ 'chat.offline' | transloco }}
-                  }
-                </span>
+                @if (peerState(); as state) {
+                  <span
+                    class="status-pill"
+                    [class.status-pill--connected]="state === 'online'"
+                    [class.status-pill--connecting]="state === 'connecting'"
+                  >
+                    <span class="status-pill__dot"></span>
+                    @switch (state) {
+                      @case ('online') {
+                        {{ 'chat.live' | transloco }}
+                      }
+                      @case ('connecting') {
+                        {{ 'chat.connecting' | transloco }}
+                      }
+                      @case ('away') {
+                        {{ 'chat.away' | transloco }}
+                      }
+                      @default {
+                        {{ 'chat.offline' | transloco }}
+                      }
+                    }
+                  </span>
+                }
               </div>
             </header>
 
@@ -2034,6 +2038,27 @@ export class ChatPage implements AfterViewChecked {
   readonly flag = FLAGS.chat;
   readonly senderTeacher = ChatMessageSenderEnum.TEACHER;
   readonly topicComplaint = ChatThreadTopicEnum.COMPLAINT;
+
+  /**
+   * **What the header's pill says**, or `null` for no pill (T2 item d).
+   *
+   * It used to read `connectionStatus` — *this* tab's own socket — and say "Live", which every
+   * reader took to mean the other person was there: a manager who had signed out still read as
+   * Live in the teacher's tab, because the teacher's own socket was fine. It now says what the
+   * `presence` frames and the row's `peerOnline` say (`ChatService.activePeerOnline`).
+   *
+   * Our own socket comes first and only while it is broken: with no socket there is no presence
+   * to report, and saying "Away" would blame the peer for our connection. With the socket up the
+   * answer is the peer's — and `undefined`, a peer nobody has reported on, is no pill at all: an
+   * empty header is honest where a guess is not.
+   */
+  protected readonly peerState = computed<'connecting' | 'offline' | 'online' | 'away' | null>(() => {
+    const status = this.chatService.connectionStatus();
+    if (status === 'connecting' || status === 'reconnecting') return 'connecting';
+    if (status === 'disconnected') return 'offline';
+    const peer = this.chatService.activePeerOnline();
+    return peer === undefined ? null : peer ? 'online' : 'away';
+  });
 
   /**
    * R7: one screen, three doors. `/teacher/chat` is the parent conversations, and

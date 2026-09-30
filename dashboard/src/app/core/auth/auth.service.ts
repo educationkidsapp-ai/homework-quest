@@ -3,6 +3,7 @@ import { Observable, of, shareReplay, throwError } from 'rxjs';
 import { catchError, finalize, map, switchMap, tap } from 'rxjs/operators';
 import { AuthApi, DashboardUser, SignInResponse, TokenPair } from '../../api';
 import { MediaService } from '../media/media.service';
+import { RefreshLock } from './refresh-lock';
 import { SchoolScopeStore } from './school-scope.store';
 import { SessionStore } from './session.store';
 
@@ -37,7 +38,10 @@ export function isRole(value: string | undefined): value is Role {
  * times, and the server treats presenting an already-rotated token as theft and revokes every
  * live token of that user (runbook, "Refresh rotation") — so a burst of parallel 401s would
  * sign the person out rather than recover. {@link refresh} therefore shares one in-flight
- * request between every caller.
+ * request between every caller. T2 item (e) made it single-flight **across tabs** too, through
+ * {@link RefreshLock}: two tabs of one account were two independent single-flights, and the
+ * second to arrive presented a token the first had already rotated — the same revocation, and
+ * the "logged out after a few minutes" the owner reported.
  *
  * **A failed refresh signs out.** There is nothing left to try: the refresh token is spent or
  * revoked, and retrying makes the theft heuristic worse.
@@ -52,6 +56,7 @@ export class AuthService {
   private readonly session = inject(SessionStore);
   private readonly schoolScope = inject(SchoolScopeStore);
   private readonly media = inject(MediaService);
+  private readonly lock = inject(RefreshLock);
 
   private readonly currentUser = signal<DashboardUser | null>(null);
   private readonly currentStatus = signal<AuthStatus>('unknown');
@@ -116,6 +121,9 @@ export class AuthService {
       tap((user) => {
         this.currentUser.set(user);
         this.currentStatus.set('authenticated');
+        // T2 item (e): stamp the stored session with whose it is, so a second role signing in
+        // in a second tab is something the first tab can see rather than inherit.
+        if (user.id && user.role) this.session.claim(user.id, user.role);
       }),
     );
   }
@@ -125,19 +133,28 @@ export class AuthService {
     const existing = this.inFlightRefresh;
     if (existing) return existing;
 
-    const token = this.session.refreshToken();
-    if (token === null) return throwError(() => new Error('no refresh token'));
+    if (this.session.refreshToken() === null) return throwError(() => new Error('no refresh token'));
 
-    const request = this.api.refresh({ refreshToken: token }).pipe(
-      tap((pair: TokenPair) => this.session.set(pair)),
-      map((pair) => pair.token ?? ''),
-      catchError((error: unknown) => {
-        this.forget();
-        return throwError(() => error);
-      }),
-      finalize(() => (this.inFlightRefresh = null)),
-      shareReplay({ bufferSize: 1, refCount: false }),
-    );
+    const request = this.lock
+      .run(() => {
+        // Read the token **inside** the lock. Another tab may have rotated it while this one
+        // waited, and the token this caller saw is then spent — presenting it is what the
+        // server reads as theft and answers by revoking the account (T2 item e).
+        const token = this.session.refreshToken();
+        return token === null
+          ? throwError(() => new Error('no refresh token'))
+          : this.api.refresh({ refreshToken: token });
+      })
+      .pipe(
+        tap((pair: TokenPair) => this.session.set(pair)),
+        map((pair) => pair.token ?? ''),
+        catchError((error: unknown) => {
+          this.forget();
+          return throwError(() => error);
+        }),
+        finalize(() => (this.inFlightRefresh = null)),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
     this.inFlightRefresh = request;
     return request;
   }
