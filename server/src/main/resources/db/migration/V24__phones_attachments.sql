@@ -12,7 +12,9 @@
 --    (`quest.server.files.MediaAccess`). `storage_path` is the `FileStore` key (a bucket object on QA, a file on
 --    disk in the tests); `school_id` carries the Hibernate `school` filter like every other tenant table and is the
 --    uploader's own school, never a request parameter. No foreign keys, as in `V15__chat.sql` and `V22__broadcasts.sql`:
---    an attachment outlives the row that referenced it and `UploadRetention` is what sweeps orphans.
+--    an attachment outlives the row that referenced it, and what reclaims one is a pair: `BroadcastService.replacePlan`
+--    deletes the superseded weekly plan's image at once, and `UploadRetention.sweep` drops every row no broadcast
+--    references after 24 hours (the grace period an upload still open in a composer needs).
 --
 -- 3. `broadcasts.attachment_id` — the reference V22 could not make. Until now an attachment was free text
 --    (`attachment_url`/`attachment_name`, "bytes that already exist"), so nothing could say whether the recipient

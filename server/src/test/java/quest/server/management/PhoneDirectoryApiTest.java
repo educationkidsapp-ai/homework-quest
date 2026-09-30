@@ -84,7 +84,9 @@ class PhoneDirectoryApiTest extends GradingTestSupport {
 
         // An empty string is how she takes the number back off the screens; nonsense is a 400, not a stored string.
         assertThat(patched("/me", token(MAYA, "TEACHER", SCHOOL), "{\"phone\":\"\"}").get("phone").isNull()).isTrue();
-        for (String bad : List.of("\"12345\"", "\"+9715010020301234567\"", "\"050 ABC 2030\""))
+        // A `+` is a country code, so it belongs at the front and nowhere else: "050+1002030" is two numbers run
+        // together, and dropping the sign would have stored one plausible-looking number for both.
+        for (String bad : List.of("\"12345\"", "\"+9715010020301234567\"", "\"050 ABC 2030\"", "\"050+1002030\""))
             mvc.perform(as(patch("/me").contentType(MediaType.APPLICATION_JSON).content("{\"phone\":" + bad + "}"),
                     token(MAYA, "TEACHER", SCHOOL))).andExpect(status().isBadRequest());
     }

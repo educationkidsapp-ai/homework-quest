@@ -60,6 +60,19 @@ public interface BroadcastRepository extends JpaRepository<Entities.BroadcastEnt
     @Query("select b from BroadcastEntity b where b.schoolId = :schoolId and b.attachmentId = :attachmentId")
     List<Entities.BroadcastEntity> byAttachment(@Param("schoolId") String schoolId, @Param("attachmentId") String attachmentId);
 
+    /**
+     * Every attachment id any broadcast still points at — the whole set in one statement, which is what
+     * {@code UploadRetention.sweep} needs to tell an orphan from a live image. It runs from the scheduler, where no
+     * Hibernate filter is enabled, so the answer is the platform's and not one school's: an attachment is an orphan
+     * only when <em>nobody</em> references it.
+     */
+    @Query("select distinct b.attachmentId from BroadcastEntity b where b.attachmentId is not null")
+    java.util.Set<String> referencedAttachmentIds();
+
+    /** How many broadcasts point at one attachment — 0 is what makes deleting its bytes safe. */
+    @Query("select count(b) from BroadcastEntity b where b.attachmentId = :id")
+    long countByAttachment(@Param("id") String id);
+
     /** Filters do not apply to `em.find`, so the scoped lookup goes through a query (see `ClassRepository.findOneById`). */
     @Query("select b from BroadcastEntity b where b.id = :id")
     Optional<Entities.BroadcastEntity> findOneById(@Param("id") String id);

@@ -24,8 +24,12 @@ public final class Phones {
         var digits = new StringBuilder();
         String trimmed = raw.trim();
         boolean plus = trimmed.startsWith("+") || trimmed.startsWith("00");
-        for (char c : trimmed.toCharArray()) {
+        for (int i = 0; i < trimmed.length(); i++) {
+            char c = trimmed.charAt(i);
             if (Character.isDigit(c)) digits.append(c);
+            // A `+` is a country code, so it belongs at the front and nowhere else: "050+1002030" is two numbers run
+            // together or a typo, and silently dropping the sign stored one plausible-looking number for both.
+            else if (c == '+' && i > 0) throw ApiException.badRequest(field + " may only begin with a +.");
             else if (c != '+' && c != '-' && c != ' ' && c != '(' && c != ')' && c != '.')
                 throw ApiException.badRequest(field + " may hold digits, spaces, dashes, brackets and a leading +.");
         }

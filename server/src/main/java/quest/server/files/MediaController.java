@@ -46,6 +46,19 @@ public class MediaController {
     @io.swagger.v3.oas.annotations.media.Schema(name = "AttachmentRef")
     public record Attachment(String id, String name, String type, long sizeBytes) {}
 
+    /**
+     * A file name safe to put inside a quoted header: the stored name is already plain text and lower-cased, but a
+     * quote, a semicolon or a newline in it would end the header early, so only `[a-z0-9._-]` survives and anything
+     * else falls back to the media type's own extension.
+     */
+    private static String downloadName(Entities.AttachmentEntity row) {
+        var out = new StringBuilder();
+        for (char c : row.getName().toCharArray())
+            if (c == '.' || c == '_' || c == '-' || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) out.append(c);
+        String safe = out.toString();
+        return safe.length() < 3 || safe.startsWith(".") ? "image." + row.getMimeType().substring("image/".length()) : safe;
+    }
+
     private final FileStore files; private final PageImageRepository pageImages; private final ChildMediaRepository childMedia; private final MediaAccess access;
     private final AttachmentRepository attachments; private final AttachmentService uploads;
 
@@ -85,6 +98,10 @@ public class MediaController {
         access.requireAttachment(row, parent, user);
         var blob = files.get(row.getStoragePath()).orElseThrow(() -> ApiException.notFound("media file"));
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePrivate())
+                // `nosniff` and an explicit `inline` disposition: only the three sniffed image types can ever be the
+                // content type, so neither is load-bearing — they are the belt beside the braces, and one line each.
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Disposition", "inline; filename=\"" + downloadName(row) + "\"")
                 .contentType(MediaType.parseMediaType(blob.mimeType())).body(blob.bytes());
     }
 

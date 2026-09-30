@@ -347,8 +347,14 @@ each of them would refuse the one it had not heard of.
 | `PATCH /admin/users/{id} {phone}` | the Admin, on anybody's — the only update route a coordinator's or a manager's account has |
 | `POST /admin/teachers`, `PATCH /admin/teachers/{id}` | with the teacher's account |
 | `POST /admin/coordinators`, `POST /admin/managers`, `POST /admin/schools/{id}/users` | with the account |
-| `seed/teachers.csv`, `managers.csv`, `coordinators.csv` | an **optional trailing `phone` column** — a file without it loads exactly as before, and a file with it re-applies the number on every run, as the shared password already does |
+| `seed/teachers.csv`, `managers.csv`, `coordinators.csv` | an **optional trailing `phone` column** — a file without it loads exactly as before |
 | `PATCH /parent/me {phone}` | the parent, hers and only hers (`parent.me.write`) |
+
+**The seed owns the numbers it names.** `SchoolSeed` re-applies the `phone` column on **every boot**, exactly as it
+re-applies `SEED_STAFF_PASSWORD`, so a staff number edited on QA is put back to the fixture value on the next deploy.
+That is deliberate — the acceptance seed is the owner's known-good starting point and a half-edited fixture is worse
+than a restored one — and the way out is the same as for every other seeded field: a file with **no** `phone` column
+touches nobody's number, so drop the column from the three CSVs when QA's own numbers are the ones that matter.
 
 `GET`/`PATCH /parent/me` is new: a parent had no route of her own, because she is a Firebase identity with a `parents`
 row rather than a `users` row and `/me` is dashboard roles only. It answers `{parentId, email, phone}` and `phone` is
@@ -1450,7 +1456,16 @@ needs no change. V22's free-text `attachment` still works, which is what the row
 predicate the feeds, the archives and the bell share, so a plan's image can never reach somebody the plan does not —
 plus the uploader herself, who has to see it in the composer before she posts. Everything else is **404, never 403**,
 `MediaAccess`'s rule for every id-addressed route: an id in another department must look exactly like one that never
-existed. Chat attachments are **not** in MH1: `chat_messages` has no attachment column and nothing below reads one.
+existed. The response carries `X-Content-Type-Options: nosniff` and `Content-Disposition: inline` with the stored name
+reduced to `[a-z0-9._-]`. Chat attachments are **not** in MH1: `chat_messages` has no attachment column.
+
+**An attachment nothing points at is reclaimed.** Two places, because a re-posted weekly plan is the common case and a
+sweep is the safety net. `BroadcastService.replacePlan` deletes the superseded plan's image — row **and** bytes —
+**immediately**, unless the replacement names the same `attachmentId` or another broadcast still points at it.
+`UploadRetention.sweep()` (hourly) then drops every `attachments` row that no broadcast references and that is more than
+**24 hours** old: the grace period is what protects an upload a composer is still holding, and the reference set is read
+across the whole platform (the sweep runs from the scheduler with no `school` filter enabled, so one school can never
+decide another's image is an orphan).
 
 **The weekly plan is one grade's week as an image (MH1, the owner's item 6).** `POST /management/broadcasts` with
 `kind=weekly_plan` now **requires `grade`** — an all-grades plan is a 400, so RM2's department-wide plan is gone — and

@@ -74,18 +74,19 @@ public class BroadcastService {
     private final ManagerScope managers; private final CoordinatorScope coordinators; private final TeacherScope teachers;
     private final UserRepository users; private final ChildService childService;
     private final NotificationService notifications; private final CoordinatorAnnouncementService announcements;
-    private final quest.server.files.AttachmentRepository attachments;
+    private final quest.server.files.AttachmentRepository attachments; private final quest.server.files.FileStore files;
     private final TenantContext tenant; private final Clock clock;
 
     public BroadcastService(BroadcastRepository rows, BroadcastReadRepository reads, ManagerScope managers,
                            CoordinatorScope coordinators, TeacherScope teachers,
                            UserRepository users, ChildService childService, NotificationService notifications,
                            CoordinatorAnnouncementService announcements,
-                           quest.server.files.AttachmentRepository attachments, TenantContext tenant, Clock clock) {
+                           quest.server.files.AttachmentRepository attachments, quest.server.files.FileStore files,
+                           TenantContext tenant, Clock clock) {
         this.rows = rows; this.reads = reads; this.managers = managers; this.coordinators = coordinators;
         this.teachers = teachers; this.users = users; this.childService = childService;
         this.notifications = notifications; this.announcements = announcements; this.attachments = attachments;
-        this.tenant = tenant; this.clock = clock;
+        this.files = files; this.tenant = tenant; this.clock = clock;
     }
 
     // ---------------------------------------------------------------- the manager composes (POST /management/broadcasts)
@@ -358,7 +359,28 @@ public class BroadcastService {
             notifications.forget(previous.getId());
             reads.deleteByBroadcast(previous.getId());
             rows.delete(previous);
+            rows.flush();                                                       // so the count below cannot see it
+            discard(previous.getAttachmentId(), row.getAttachmentId());
         }
+    }
+
+    /**
+     * The superseded plan's image, reclaimed <strong>at once</strong>: a plan re-posted every week would otherwise
+     * leave one orphaned upload per post, readable by nobody but its uploader and swept by nothing — the leak the
+     * reviewer found in V24's own comment. {@code UploadRetention.sweep} is the backstop for everything this misses
+     * (an expired row deleted elsewhere, a upload nobody ever attached).
+     *
+     * <p>`keep` is the replacement's own attachment: re-posting the same `attachmentId` is allowed, and deleting it
+     * here would take the bytes out from under the row about to be saved. The count is the second guard — two
+     * broadcasts may point at one image, and the last one out deletes it.
+     */
+    private void discard(String attachmentId, String keep) {
+        if (attachmentId == null || attachmentId.equals(keep)) return;
+        if (rows.countByAttachment(attachmentId) > 0) return;
+        attachments.findOneById(attachmentId).ifPresent(file -> {
+            files.delete(file.getStoragePath());
+            attachments.delete(file);
+        });
     }
 
     /**

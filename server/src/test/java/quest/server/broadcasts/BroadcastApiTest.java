@@ -84,6 +84,9 @@ class BroadcastApiTest extends ApiTestSupport {
     @Autowired quest.server.flags.FeatureFlags featureFlags;
     @Autowired ChatBus bus;
     @Autowired AdminJwtService jwt;
+    @Autowired quest.server.files.AttachmentRepository attachmentRows;
+    @Autowired quest.server.files.FileStore store;
+    @Autowired quest.server.files.UploadRetention retention;
 
     private String lina, omar, nour, sami, maya, rami, britishA, britishB, americanA;
     /** A British science coordinator whose only section is 1B, so a row naming 1A is one she must not hear about. */
@@ -136,6 +139,7 @@ class BroadcastApiTest extends ApiTestSupport {
     }
 
     @AfterAll void takeItBackOut() {
+        attachmentRows.deleteAll(attachmentRows.findAll().stream().filter(a -> a.getSchoolId().startsWith("bc-")).toList());
         readRows.deleteAll(readRows.findAll().stream().filter(r -> r.getSchoolId().startsWith("bc-")).toList());
         broadcastRows.deleteAll(broadcastRows.findAll().stream().filter(b -> b.getSchoolId().startsWith("bc-")).toList());
         notificationRows.deleteAll(notificationRows.findAll().stream().filter(n -> n.getSchoolId().startsWith("bc-")).toList());
@@ -696,6 +700,58 @@ class BroadcastApiTest extends ApiTestSupport {
         var pdf = new org.springframework.mock.web.MockMultipartFile("file", "plan.pdf", "image/png", "%PDF-1.7".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         mvc.perform(as(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/media/attachments").file(pdf),
                 token(nour, "MANAGERIAL"))).andExpect(status().isBadRequest());
+    }
+
+    /**
+     * The reviewer's blocker: `replacePlan` deletes the superseded plan, so a plan re-posted every week left one
+     * orphaned image per post — row and bytes — that nothing swept and only its uploader could still read. Both halves
+     * are asserted here: the replacement reclaims the old image <em>at once</em>, and `UploadRetention.sweep` is the
+     * backstop for an upload nobody ever attached.
+     */
+    @Test @Order(21) void replacing_a_plan_reclaims_the_image_it_replaced() throws Exception {
+        String first = imageId(nour, "MANAGERIAL");
+        var week1 = week.minusWeeks(6);
+        created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week1 + "\",\"grade\":1,"
+                + "\"title\":\"Six weeks back\",\"attachmentId\":\"" + first + "\"}");
+        String path = attachmentRows.findById(first).orElseThrow().getStoragePath();
+        assertThat(store.get(path)).as("the bytes are there while the plan is").isPresent();
+
+        String second = imageId(nour, "MANAGERIAL");
+        created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week1 + "\",\"grade\":1,"
+                + "\"title\":\"Six weeks back (v2)\",\"attachmentId\":\"" + second + "\"}");
+        assertThat(attachmentRows.findById(first)).as("the superseded plan's row goes with it").isEmpty();
+        assertThat(store.get(path)).as("and so do its bytes").isEmpty();
+        assertThat(attachmentRows.findById(second)).as("the replacement's own image stays").isPresent();
+        mvc.perform(as(get("/media/attachments/" + first), token(nour, "MANAGERIAL"))).andExpect(status().isNotFound());
+
+        // Re-posting the *same* image must not delete the bytes the new row points at.
+        created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week1 + "\",\"grade\":1,"
+                + "\"title\":\"Six weeks back (v3)\",\"attachmentId\":\"" + second + "\"}");
+        assertThat(attachmentRows.findById(second)).isPresent();
+        mvc.perform(as(get("/media/attachments/" + second), token(nour, "MANAGERIAL"))).andExpect(status().isOk());
+    }
+
+    /**
+     * The sweep's own half: an upload nobody attached is an orphan, and one a broadcast points at never is. Age is the
+     * other guard — a fresh upload is what a composer is still holding, so the sweep leaves it alone.
+     */
+    @Test @Order(22) void the_sweep_drops_an_unattached_upload_and_keeps_an_attached_one() throws Exception {
+        String orphan = imageId(nour, "MANAGERIAL"), live = imageId(nour, "MANAGERIAL");
+        created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week.minusWeeks(7) + "\","
+                + "\"grade\":1,\"title\":\"Seven weeks back\",\"attachmentId\":\"" + live + "\"}");
+        String orphanPath = attachmentRows.findById(orphan).orElseThrow().getStoragePath();
+
+        retention.sweep();
+        assertThat(attachmentRows.findById(orphan)).as("too young to be swept — she may still be composing").isPresent();
+
+        // Aged by hand: there is no way to wait a day in a test, and the grace period is the rule being proved.
+        attachmentRows.findById(orphan).ifPresent(a -> {
+            a.setCreatedAt(clock.instant().minusSeconds(60 * 60 * 25)); attachmentRows.save(a);
+        });
+        retention.sweep();
+        assertThat(attachmentRows.findById(orphan)).as("nothing references it and it is a day old").isEmpty();
+        assertThat(store.get(orphanPath)).isEmpty();
+        assertThat(attachmentRows.findById(live)).as("a broadcast points at this one, whatever its age").isPresent();
     }
 
     /**
