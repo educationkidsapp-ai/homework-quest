@@ -21,9 +21,15 @@ import quest.api.dto.Child
 import quest.api.dto.CreateChildRequest
 import quest.api.dto.Curriculum
 import quest.api.dto.UpdateChildRequest
+import quest.api.dto.WeeklyPlanArchive
+import quest.api.dto.WeeklyPlanEntry
+import quest.api.dto.WeeklyPlanWeek
 import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.broadcasts.presentation.BroadcastsContract
+import quest.feature.broadcasts.domain.weekStartOf
 import quest.feature.broadcasts.presentation.BroadcastsViewModel
+import quest.feature.broadcasts.presentation.WeeklyPlanContract
+import quest.feature.broadcasts.presentation.WeeklyPlanViewModel
 import quest.feature.chat.domain.ChatConnectionState
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.presentation.CoordinatorPickerContract
@@ -78,12 +84,15 @@ class BroadcastsViewModelTest {
     private class FakeBroadcasts(
         var feed: BroadcastFeed = BroadcastFeed(),
         var failure: Throwable? = null,
+        var archive: WeeklyPlanArchive = WeeklyPlanArchive("2026-09-27", "2026-09-27"),
     ) : BroadcastsRepository {
         val reads = mutableListOf<String>()
         override suspend fun feed(childId: String): BroadcastFeed = failure?.let { throw it } ?: feed
+        override suspend fun plans(childId: String): WeeklyPlanArchive = failure?.let { throw it } ?: archive
         override suspend fun markRead(childId: String, broadcastId: String): BroadcastView {
             reads += broadcastId
-            return feed.items.first { it.id == broadcastId }.copy(read = true)
+            val all = feed.items + archive.weeks.flatMap { week -> week.items.map { it.plan } }
+            return all.first { it.id == broadcastId }.copy(read = true)
         }
     }
 
@@ -120,6 +129,9 @@ class BroadcastsViewModelTest {
 
     private fun pickerViewModel(children: ChildrenRepository, chat: ChatRepository) =
         CoordinatorPickerViewModel(children, chat).also { built.add(it) }
+
+    private fun planViewModel(children: ChildrenRepository, repo: BroadcastsRepository) =
+        WeeklyPlanViewModel(children, repo).also { built.add(it) }
 
     private suspend fun <S> settle(state: StateFlow<S>, predicate: (S) -> Boolean) {
         repeat(400) {
@@ -210,7 +222,85 @@ class BroadcastsViewModelTest {
         assertEquals(0, vm.state.value.unread)
     }
 
-    // ---- 2. the picker: coordinators and the department manager, each surviving the other's failure
+    /** MH3: a plan the server still puts on this feed is not on the Announcements page, and not in its badge. */
+    @Test fun aWeeklyPlanOnTheFeedIsNotShownOrCounted() = runBlocking {
+        val repo = FakeBroadcasts(
+            BroadcastFeed(unread = 2, items = listOf(broadcast("plan", BroadcastKind.WEEKLY_PLAN), broadcast("ann"))),
+        )
+        val vm = feedViewModel(FakeChildren(maya), repo)
+        vm.dispatch(BroadcastsContract.Intent.Load)
+        settle(vm.state) { !it.loading }
+        assertEquals(listOf("ann"), vm.state.value.groups.announcements.map { it.id })
+        assertEquals(1, vm.state.value.unread, "the feed said 2; one of them was a plan")
+    }
+
+    // ---- 2. MH3: the Weekly plan page
+
+    private fun archive(unread: Int, vararg weeks: Pair<String, List<BroadcastView>>) = WeeklyPlanArchive(
+        from = weeks.last().first, to = weeks.first().first, unread = unread,
+        weeks = weeks.map { (week, plans) -> WeeklyPlanWeek(week, plans.map { WeeklyPlanEntry(it) }) },
+    )
+
+    private fun plan(week: String, read: Boolean = false) = broadcast("p-$week", BroadcastKind.WEEKLY_PLAN, read)
+        .copy(weekStart = week, grade = 1)
+
+    /**
+     * The pinned plan is on the screen the moment the page opens, so it is marked read without a tap — and the badge on
+     * the parent home clears with it, which is the behaviour the brief asks for.
+     */
+    @Test fun openingThePagePinsThisWeekAndMarksItRead() = runBlocking {
+        val thisWeek = weekStartOf(quest.core.platform.Today.date()).toString()
+        val repo = FakeBroadcasts(archive = archive(1, thisWeek to listOf(plan(thisWeek))))
+        val vm = planViewModel(FakeChildren(maya), repo)
+        vm.dispatch(WeeklyPlanContract.Intent.Load)
+        settle(vm.state) { !it.loading && it.unread == 0 }
+        assertEquals("p-$thisWeek", vm.state.value.plans.current?.id)
+        assertEquals(listOf("p-$thisWeek"), repo.reads)
+        assertTrue(vm.state.value.plans.current?.read == true)
+        assertEquals(1, vm.state.value.grade)
+    }
+
+    /** An earlier week is not read until she opens it, and opening it expands exactly that one. */
+    @Test fun anEarlierWeekIsReadWhenItIsOpened() = runBlocking {
+        val repo = FakeBroadcasts(
+            archive = archive(2, "2026-09-20" to listOf(plan("2026-09-20")), "2026-09-13" to listOf(plan("2026-09-13"))),
+        )
+        val vm = planViewModel(FakeChildren(maya), repo)
+        vm.dispatch(WeeklyPlanContract.Intent.Load)
+        settle(vm.state) { !it.loading }
+        assertTrue(repo.reads.isEmpty(), "nothing is pinned, so nothing was on the screen to be read")
+
+        vm.dispatch(WeeklyPlanContract.Intent.Open("p-2026-09-20"))
+        settle(vm.state) { it.openId == "p-2026-09-20" && it.unread == 1 }
+        assertEquals(listOf("p-2026-09-20"), repo.reads)
+
+        // Tapping the open row again collapses it, and a row already read is not marked a second time.
+        vm.dispatch(WeeklyPlanContract.Intent.Open("p-2026-09-20"))
+        settle(vm.state) { it.openId == null }
+        assertEquals(listOf("p-2026-09-20"), repo.reads)
+        assertEquals(1, vm.state.value.unread)
+    }
+
+    @Test fun theArchiveFourOhFourIsTheNotEnabledState() = runBlocking {
+        val repo = FakeBroadcasts(failure = ApiException(ApiError(ApiError.NOT_FOUND, "no")))
+        val vm = planViewModel(FakeChildren(maya), repo)
+        vm.dispatch(WeeklyPlanContract.Intent.Load)
+        settle(vm.state) { !it.loading }
+        assertTrue(vm.state.value.notEnabled)
+        assertEquals(null, vm.state.value.errorMessage)
+        assertTrue(vm.state.value.plans.isEmpty)
+    }
+
+    @Test fun noChildMeansNoArchiveRequest() = runBlocking {
+        val repo = FakeBroadcasts(archive = archive(3, "2026-09-20" to listOf(plan("2026-09-20"))))
+        val vm = planViewModel(FakeChildren(null), repo)
+        vm.dispatch(WeeklyPlanContract.Intent.Load)
+        settle(vm.state) { !it.loading }
+        assertTrue(vm.state.value.plans.isEmpty)
+        assertEquals(0, vm.state.value.unread)
+    }
+
+    // ---- 3. the picker: coordinators and the department manager, each surviving the other's failure
 
     @Test fun thePickerOffersBothSections() = runBlocking {
         val chat = FakePeers(

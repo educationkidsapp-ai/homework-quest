@@ -28,6 +28,8 @@ object Routes {
 
     /** RM4: the broadcasts feed — this week's plan, announcements and events for the current child. */
     @Serializable object Broadcasts
+    /** MH3: the weekly-plan archive, the other half of what RM4 called School news. */
+    @Serializable object WeeklyPlan
 
     /** R8: the coordinators of the current child's section, where a parent starts a thread with one of them. */
     @Serializable object ChatCoordinators

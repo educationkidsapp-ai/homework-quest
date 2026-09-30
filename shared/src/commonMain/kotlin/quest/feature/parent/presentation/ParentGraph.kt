@@ -14,6 +14,7 @@ import quest.feature.chat.presentation.ChatConversationRoute
 import quest.feature.chat.presentation.ChatThreadsRoute
 import quest.feature.chat.presentation.CoordinatorPickerRoute
 import quest.feature.broadcasts.presentation.BroadcastsRoute
+import quest.feature.broadcasts.presentation.WeeklyPlanRoute
 import quest.feature.children.presentation.AddChildRoute
 
 /** Parent-mode graph (behind the PIN). Nothing here is reachable from child screens except the PIN entry. */
@@ -33,6 +34,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } }, onExit = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } },
             onMessages = { nav.navigate(Routes.ChatThreads) },
             onBroadcasts = { nav.navigate(Routes.Broadcasts) },
+            onWeeklyPlan = { nav.navigate(Routes.WeeklyPlan) },
         )
     }
     composable<Routes.Calendar> { CalendarRoute(onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) }, onBack = { nav.popBackStack() }) }
@@ -67,6 +69,9 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onSettings = { nav.navigate(Routes.Settings) { popUpTo(Routes.ParentHome) { inclusive = false } } },
         )
     }
+    // MH3: a detail page reached from Home, like Calendar and Progress — a back arrow and no bottom bar, because the
+    // bar's four tabs are Home, Announcements, Messages and Settings and the plan is none of them.
+    composable<Routes.WeeklyPlan> { WeeklyPlanRoute(onBack = { nav.popBackStack() }) }
     composable<Routes.ChatCoordinators> {
         CoordinatorPickerRoute(
             onBack = { nav.popBackStack() },

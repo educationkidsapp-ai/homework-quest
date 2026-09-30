@@ -11,9 +11,12 @@ import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.presentation.ChatConversationViewModel
 import quest.feature.chat.presentation.ChatThreadsViewModel
+import quest.feature.broadcasts.data.AttachmentImageStore
 import quest.feature.broadcasts.data.BroadcastsRepositoryImpl
+import quest.feature.broadcasts.domain.AttachmentImages
 import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.broadcasts.presentation.BroadcastsViewModel
+import quest.feature.broadcasts.presentation.WeeklyPlanViewModel
 import quest.feature.chat.presentation.CoordinatorPickerViewModel
 import quest.api.AuthProvider
 import quest.api.ContentApi
@@ -110,6 +113,8 @@ fun apiModule(config: ApiConfig): Module = module {
         is ApiConfig.Server -> config.baseUrl
     }
     single { ChatSocketClient(chatBaseUrl, get(), get()) }
+    // MH3: `attachment.url` is root-relative and authenticated, so the loader needs the same base and the same bearer.
+    single<AttachmentImages> { AttachmentImageStore(chatBaseUrl, get(), get()) }
     single<ChatRepository> { ChatRepositoryImpl(get(), get()) }
 }
 
@@ -163,7 +168,7 @@ val parentModule = module {
     viewModel { ParentHomeViewModel(get(), get(), get(), get(), get()) }
     viewModel { CalendarViewModel(get(), get(), get()) }
     viewModel { ProgressViewModel(get(), get(), get(), get()) }
-    viewModel { SettingsViewModel(get(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get()) }
 }
 
 val chatModule = module {
@@ -174,8 +179,9 @@ val chatModule = module {
 
 /** RM4: the parent's broadcasts feed. Its own module — the feed is not chat, and it is read behind its own flag. */
 val broadcastsModule = module {
-    single<BroadcastsRepository> { BroadcastsRepositoryImpl(get()) }
+    single<BroadcastsRepository> { BroadcastsRepositoryImpl(get(), get()) }
     viewModel { BroadcastsViewModel(get(), get()) }
+    viewModel { WeeklyPlanViewModel(get(), get()) }
 }
 
 fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, broadcastsModule)

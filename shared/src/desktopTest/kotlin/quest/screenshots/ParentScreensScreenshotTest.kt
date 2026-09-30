@@ -53,7 +53,11 @@ import quest.api.dto.BroadcastKind
 import quest.api.dto.BroadcastView
 import quest.feature.broadcasts.domain.BroadcastGroups
 import quest.feature.broadcasts.presentation.BroadcastsContract
+import quest.feature.broadcasts.domain.PlanWeek
+import quest.feature.broadcasts.domain.WeeklyPlans
 import quest.feature.broadcasts.presentation.BroadcastsScreen
+import quest.feature.broadcasts.presentation.WeeklyPlanContract
+import quest.feature.broadcasts.presentation.WeeklyPlanScreen
 import quest.ui.design.schoolThemeOverrides
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -127,8 +131,9 @@ class ParentScreensScreenshotTest {
         )
     }
 
-    @Test fun settings() = shot("47-settings") { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("en"), "Maya", "c1"), s, {}, {}, {}) }
-    @Test fun settingsArabic() = shot("47b-settings-ar", Strings.ar) { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("ar"), "مايا", "c1"), s, {}, {}, {}) }
+    /** MH3: the Mobile number section appears once `GET /parent/me` has answered, which is what `phoneKnown` says. */
+    @Test fun settings() = shot("47-settings") { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("en"), "Maya", "c1", phone = "+971501234567", phoneKnown = true), s, {}, {}, {}) }
+    @Test fun settingsArabic() = shot("47b-settings-ar", Strings.ar) { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("ar"), "مايا", "c1", phone = "+971501234567", phoneKnown = true), s, {}, {}, {}) }
     @Test fun lessonPanel() = shot("48-lesson-panel") { s -> LessonPanelScreen(HotSoupSeed.lesson, s) }
     @Test fun lessonPanelArabic() = shot("48b-lesson-panel-ar", Strings.ar) { s -> LessonPanelScreen(HotSoupSeed.lesson, s) }
 
@@ -275,14 +280,13 @@ class ParentScreensScreenshotTest {
         )
     }
 
-    // RM4: the broadcasts feed, and the picker once it also offers the department manager.
-    private fun plan(read: Boolean = false) = BroadcastView(
-        id = "bc-plan", kind = BroadcastKind.WEEKLY_PLAN, authorId = "mg", authorName = "Ms. Nour",
-        authorRole = ChatStaffRole.MANAGERIAL, title = "Week of subtraction", weekStart = "2026-09-27",
-        bodyEn = "Subtraction all week; swimming on Thursday. Please send a towel.",
-        bodyAr = "الطرح طوال الأسبوع؛ السباحة يوم الخميس. يرجى إرسال منشفة.",
+    // RM4, split by MH3: the Announcements feed, the Weekly plan page, and the picker with the department manager.
+    private fun plan(week: String, read: Boolean = false) = BroadcastView(
+        id = "bc-plan-$week", kind = BroadcastKind.WEEKLY_PLAN, authorId = "mg", authorName = "Ms. Nour",
+        authorRole = ChatStaffRole.MANAGERIAL, weekStart = week, grade = 1,
+        bodyEn = "Weekly plan · Grade 1 · week of $week",
         curriculum = Curriculum.BRITISH,
-        attachment = BroadcastAttachment("/media/pages/week-plan.pdf", "week-plan.pdf"),
+        attachment = BroadcastAttachment("/media/attachments/att-1", "week-plan.png", "att-1", "image/png"),
         createdAt = 1_758_500_000_000L, read = read,
     )
 
@@ -303,19 +307,45 @@ class ParentScreensScreenshotTest {
     )
 
     private fun feedState() = BroadcastsContract.State(
-        loading = false, unread = 2,
-        groups = BroadcastGroups(weeklyPlan = plan(), announcements = listOf(announcement()), events = listOf(event())),
+        loading = false, unread = 1,
+        groups = BroadcastGroups(announcements = listOf(announcement()), events = listOf(event())),
     )
 
-    @Test fun broadcasts() = shot("54-broadcasts") { s -> BroadcastsScreen(state = feedState(), strings = s) }
+    @Test fun broadcasts() = shot("54-announcements") { s -> BroadcastsScreen(state = feedState(), strings = s) }
 
-    @Test fun broadcastsArabic() = shot("54b-broadcasts-ar", Strings.ar) { s ->
+    @Test fun broadcastsArabic() = shot("54b-announcements-ar", Strings.ar) { s ->
         BroadcastsScreen(state = feedState(), strings = s)
     }
 
     /** A school without the `announcements` flag: the server 404s and the screen says so rather than showing an error. */
-    @Test fun broadcastsNotEnabled() = shot("54c-broadcasts-off") { s ->
+    @Test fun broadcastsNotEnabled() = shot("54c-announcements-off") { s ->
         BroadcastsScreen(state = BroadcastsContract.State(loading = false, notEnabled = true), strings = s)
+    }
+
+    /**
+     * MH3: the Weekly plan page. `LocalAttachmentImages` is the no-op here, so the pinned plan draws its **Try again**
+     * state — which is exactly what the page looks like offline with nothing in the cache, and worth a shot of its own.
+     */
+    private fun planState() = WeeklyPlanContract.State(
+        loading = false, unread = 1, grade = 1,
+        plans = WeeklyPlans(
+            current = plan("2026-09-27"),
+            earlier = listOf(
+                PlanWeek("2026-09-20", listOf(plan("2026-09-20", read = true))),
+                PlanWeek("2026-09-13", listOf(plan("2026-09-13", read = true))),
+            ),
+        ),
+    )
+
+    @Test fun weeklyPlan() = shot("56-weekly-plan") { s -> WeeklyPlanScreen(state = planState(), strings = s) }
+
+    @Test fun weeklyPlanArabic() = shot("56b-weekly-plan-ar", Strings.ar) { s ->
+        WeeklyPlanScreen(state = planState(), strings = s)
+    }
+
+    /** No plan yet: the page says the manager sends one each week rather than showing an empty frame. */
+    @Test fun weeklyPlanEmpty() = shot("56c-weekly-plan-empty") { s ->
+        WeeklyPlanScreen(state = WeeklyPlanContract.State(loading = false), strings = s)
     }
 
     @Test fun peerPickerWithManager() = shot("55-peer-picker") { s ->

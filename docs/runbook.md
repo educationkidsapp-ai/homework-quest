@@ -744,8 +744,14 @@ name falls back to `DEFAULT_FLAGS` — so a slow network never hides a feature t
 **never composed** — no placeholder, no message. `GateFallback` sends a route that was gated off while it was open back
 where it came from, and `LevelGate` is the single door for `levels.three`. Gated today: the treasure chest, retell
 recording, open-answer drawing, the Arabic parent panel, certificates, level 3, chat and — since RM4 — `announcements`,
-which gates the parent's **School news** screen (`Routes.Broadcasts`: this week's plan pinned, then announcements and
-events, tap to mark read, pull to refresh) and its unread badge on the parent home.
+which **since MH3 gates two parent screens**, each with its own unread badge on the parent home: **Weekly plan**
+(`Routes.WeeklyPlan`, `GET /children/{id}/weekly-plans` — this week's plan for the child's grade as the image, earlier
+weeks collapsed below, pull to refresh) and **Announcements** (`Routes.Broadcasts`, the RM4 feed with the weekly plans
+filtered out client-side, since `GET /children/{id}/broadcasts` still carries them). An image attachment is downloaded
+through the app's Ktor client with the parent's bearer (`GET /media/attachments/{id}`) and cached under the
+`attachments` row id in the app's private media directory, so the last plan she opened is still there offline; tapping
+it opens a full-screen pinch-and-pan viewer. Her own mobile number sits in parent **Settings** (`GET|PATCH /parent/me`),
+validated client-side by `quest.feature.parent.domain.Phones`, the mirror of the server's `Phones` rule.
 
 **Two gates keep a new screen or controller from shipping without a flag:**
 

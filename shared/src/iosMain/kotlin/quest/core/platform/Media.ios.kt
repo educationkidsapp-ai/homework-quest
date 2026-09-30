@@ -48,6 +48,7 @@ actual object MediaFiles {
     actual fun save(name: String, bytes: ByteArray): String { val p = "$dir/$name"; bytes.toNSData().writeToFile(p, true); return p }
     actual fun read(path: String): ByteArray? = NSData.dataWithContentsOfFile(path)?.toByteArray()
     actual fun delete(path: String) { NSFileManager.defaultManager.removeItemAtPath(path, null) }
+    actual fun pathOf(name: String): String = "$dir/$name"
 }
 
 @OptIn(ExperimentalForeignApi::class)
