@@ -67,10 +67,16 @@ type ViewMode = 'list' | 'calendar';
 const POLL_MS = 2500;
 
 /**
- * All lessons (Admin, §6 screen 8) and My lessons (Teacher, §6 screen 12) — one component,
- * because `GET /admin/lessons` is one endpoint scoped by the caller's tenant filter. The role
- * only decides which columns show (Admin's school column) and where the curriculum/grade
- * chooser's options come from (every course for Admin, `GET /teacher/options` for a teacher).
+ * My lessons (Teacher, §6 screen 12) — and, until MA0, All lessons (Admin, §6 screen 8) as well:
+ * one component, because `GET /admin/lessons` is one endpoint scoped by the caller's tenant
+ * filter. The role only decides which columns show (Admin's school column) and where the
+ * curriculum/grade chooser's options come from (every course for Admin, `GET /teacher/options`
+ * for a teacher).
+ *
+ * **MA0 took the Admin's row and route away** (`core/nav/screens.ts`, `ADMIN_RETIRED`), so no
+ * `isAdmin()` branch below is reachable today. They are left standing rather than unpicked in the
+ * same package that removed a menu item: the screen still serves a teacher, and pulling the role
+ * apart from her filters, her columns and her stored state is its own change with its own tests.
  *
  * The lesson detail page and the New lesson wizard stay the P3.1 stub until P3.2c/d; a row
  * here only links to `/…/lessons/:id`, and the primary action only links to `/…/lessons/new`.

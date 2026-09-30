@@ -50,10 +50,8 @@ export interface Area {
  * MG2a: the paths the manager's rail lost — Classes, All lessons and the read-only lesson,
  * Gradebook, Exams and the three result screens they opened.
  *
- * Rows rather than deletions, for the reason `/coordinator/announcements` is one: a bookmark, a
- * link in an old notification and the runbook's own URL all still have to land somewhere, and
- * where they land is her Home rather than `/not-found`. The `/management/**` API routes are
- * untouched — the coordinator reads the same screens through her own namespace.
+ * Rows rather than deletions ({@link retired}). The `/management/**` API routes are untouched —
+ * the coordinator reads the same screens through her own namespace.
  */
 const MANAGER_RETIRED: readonly string[] = [
   'classes',
@@ -66,7 +64,32 @@ const MANAGER_RETIRED: readonly string[] = [
   'children/:childId',
 ];
 
-const retired = (path: string): Screen => ({ id: `retired:${path}`, path, redirectTo: '/management' });
+/**
+ * MA0 (the owner's admin list, 2026-09-30): the paths the **Admin's** rail lost — Feature flags,
+ * All lessons, Platform usage and Platform settings.
+ *
+ * Three of the four never drew anything of their own: they were the stub naming a phase, and the
+ * owner's answer to "what is coming" is that it is not. All lessons was a real screen
+ * (`features/lessons/lessons.page.ts`), and it stays — the *teacher* opens it from her class page;
+ * what went is the Admin's row and the Admin's way in to it.
+ *
+ * `lessons/new` and `lessons/:id` are **not** here. The new-lesson wizard and the lesson review
+ * page are the Admin's authoring pair, the server's Home links straight at a lesson that needs
+ * her (`/admin/lessons/{id}`, `core/notifications/notification-target.ts`), and the wizard is now
+ * reached from her Home's quick actions rather than from the list's primary button.
+ */
+const ADMIN_RETIRED: readonly string[] = ['flags', 'lessons', 'usage', 'settings'];
+
+/**
+ * A row that draws nothing and sends the address to the area's Home.
+ *
+ * Rows rather than deletions, for the reason `/coordinator/announcements` is one: a bookmark, a
+ * link in an old notification and the runbook's own URL all still have to land somewhere, and
+ * where they land is a Home rather than `/not-found`.
+ */
+const retired =
+  (base: string) =>
+  (path: string): Screen => ({ id: `retired:${path}`, path, redirectTo: base });
 
 /**
  * **The one table.** The rail is built from it and so are the routes, so a menu item and the
@@ -112,7 +135,6 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         phase: 3,
       },
       { id: 'users', path: 'users', labelKey: 'nav.users', permission: 'user.read', phase: 3 },
-      { id: 'flags', path: 'flags', labelKey: 'nav.flags', permission: 'flag.read', phase: 3 },
       // RM3b: her side of the manager ↔ admin threads. `chat.support` and not `admin.chat`,
       // because the key that opens the screen has to be the one the GET carries — `admin.chat`
       // is a write (it covers the send), and gating the route on it would take the inbox away
@@ -124,23 +146,13 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.chat,
         permission: 'chat.support',
       },
-      // lessons (P3.2b/c/d): the list, the new-lesson wizard and the review page are all
-      // built. `new-lesson` and `lesson` have no `labelKey` — they are links the list's rows,
-      // primary action and empty state open, not rail items of their own.
-      { id: 'lessons', path: 'lessons', labelKey: 'nav.allLessons', permission: 'lesson.read' },
+      // lessons (P3.2c/d): the new-lesson wizard and the review page. Neither has a `labelKey`
+      // — the wizard is a quick action on her Home and the review page is what the Home's
+      // "needs you" rows and the bell's notifications open, not rail items of their own. The
+      // list they used to be reached from is in {@link ADMIN_RETIRED}.
       { id: 'new-lesson', path: 'lessons/new', permission: 'lesson.write' },
       { id: 'lesson', path: 'lessons/:id', permission: 'lesson.read' },
-      { id: 'usage', path: 'usage', labelKey: 'nav.platformUsage', permission: 'usage.platform', phase: 6 },
-      // `platform.manage`, not `platform.read`: reading the platform's name is PUBLIC (the
-      // sign-in page needs it before anyone has signed in), so gating the Admin screen on it
-      // would hide the screen from the only role that can open it.
-      {
-        id: 'settings',
-        path: 'settings',
-        labelKey: 'nav.platformSettings',
-        permission: 'platform.manage',
-        phase: 3,
-      },
+      ...ADMIN_RETIRED.map(retired('/admin')),
     ],
   },
   // N2.2 (`docs/teacher-flow.md` §4): "No other menu items render." A teacher's rail is **This
@@ -299,7 +311,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       // is what `mySchoolUsage` is gated by — and the reason the screen says in words that the
       // numbers are the *school's*, not her department's.
       { id: 'usage', path: 'usage', labelKey: 'nav.schoolUsage', permission: 'usage.school' },
-      ...MANAGER_RETIRED.map(retired),
+      ...MANAGER_RETIRED.map(retired('/management')),
     ],
   },
   // R5 (DR2, `docs/coordinator-flow.md`): the subject coordinator's area. Every row carries one

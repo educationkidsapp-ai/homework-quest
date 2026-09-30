@@ -29,8 +29,19 @@ const providers: (Provider | EnvironmentProviders)[] = [
   { provide: BASE_PATH, useValue: '' },
 ];
 
+/** MA0: her quick actions are filtered by these, so the Home's spec has to answer them. */
+const ADMIN_PERMISSIONS = {
+  role: 'ADMIN',
+  permissions: ['section.read', 'teacher.read', 'lesson.write'],
+  readOnly: false,
+};
+
 /** Renders the Home for one role against the exact shape `GET /me/home` answers with. */
-async function renderHome(user: DashboardUserFixture, home: HomeResponse) {
+async function renderHome(
+  user: DashboardUserFixture,
+  home: HomeResponse,
+  permissions: { role: string; permissions: readonly string[]; readOnly: boolean } = ADMIN_PERMISSIONS,
+) {
   const rendered = await renderHq(HomePage, { providers });
   const backend = TestBed.inject(HttpTestingController);
 
@@ -38,6 +49,7 @@ async function renderHome(user: DashboardUserFixture, home: HomeResponse) {
   TestBed.inject(AuthService).loadMe().subscribe();
   backend.expectOne('/me').flush(user);
   TestBed.tick();
+  backend.expectOne('/me/permissions').flush(permissions);
 
   backend.expectOne('/me/home').flush(home);
   // Anything else the shell's services ask for is not this screen's business. Cancelled ones are
@@ -59,6 +71,33 @@ describe('Home', () => {
     expect(screen.getByText('Schools')).toBeInTheDocument();
     expect(screen.getByText('Children')).toBeInTheDocument();
     expect(screen.getByText('Lessons this week')).toBeInTheDocument();
+  });
+
+  /**
+   * MA0: the panel used to offer an Admin six of the teacher's links, and it is now the only door
+   * to the new-lesson wizard — All lessons, whose primary button was the other one, left her rail.
+   */
+  it('offers an Admin her own quick actions, and the wizard among them', async () => {
+    await renderHome(ADMIN_USER, ADMIN_HOME);
+
+    expect(screen.getByRole('link', { name: 'New lesson' })).toHaveAttribute('href', '/admin/lessons/new');
+    expect(screen.getByRole('link', { name: 'Classes' })).toHaveAttribute('href', '/admin/classes');
+    expect(screen.getByRole('link', { name: 'Teachers' })).toHaveAttribute('href', '/admin/teachers');
+    // None of the teacher's six, which is what she used to be shown.
+    for (const teachers of ['This Week', 'My Classes', 'Create Exam', 'Parent Chat'])
+      expect(screen.queryByRole('link', { name: teachers })).not.toBeInTheDocument();
+  });
+
+  /** A read-only "View as" session is offered no write: `lesson.write` is one. */
+  it('offers no New lesson while the session is read-only', async () => {
+    await renderHome(ADMIN_USER, ADMIN_HOME, {
+      role: 'ADMIN',
+      permissions: ['section.read', 'teacher.read', 'lesson.write'],
+      readOnly: true,
+    });
+
+    expect(screen.queryByRole('link', { name: 'New lesson' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Classes' })).toBeInTheDocument();
   });
 
   it('turns a needs-you row into a sentence from its kind and params', async () => {

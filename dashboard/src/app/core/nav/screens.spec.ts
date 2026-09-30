@@ -59,11 +59,79 @@ describe('the screen table', () => {
 
   it('guards the Admin screens the review named', () => {
     const routes = childrenOf(areaRoutes('ADMIN'));
-    for (const path of ['settings', 'users', 'flags', 'usage'])
+    // MA0 retired `settings`, `flags` and `usage`; `users` and the two lesson routes are what is
+    // left of the gated Admin rows the review named.
+    for (const path of ['users', 'lessons/new', 'lessons/:id'])
       expect(`${path}:${gateCount(routes.find((route) => route.path === path)!)}`).toBe(`${path}:1`);
 
     const teacher = childrenOf(areaRoutes('TEACHER'));
     expect(gateCount(teacher.find((route) => route.path === 'lessons/new')!)).toBe(1);
+  });
+
+  /**
+   * MA0 (the owner's admin list, 2026-09-30), items 6–9: "Remove Feature flags page, All lessons
+   * page, Platform usage page and Platform settings page from the side menu."
+   *
+   * Both halves, as in MG2a's test: the rows are gone from her rail, and the four paths redirect
+   * to her Home rather than 404 — a bookmark and the runbook's own URL both still resolve. The
+   * `/admin/**` API routes are untouched, which is why nothing here asserts anything about them.
+   */
+  it('gives the Admin her rail items, and redirects the four screens MA0 removed', () => {
+    expect(navScreens('ADMIN').map(({ screen }) => screen.id)).toEqual([
+      'home',
+      'classes',
+      'teachers',
+      // D13: `schools` keeps its label and its `multiSchool` flag — the rail hides it at runtime,
+      // and the table is what it is hidden from.
+      'schools',
+      'users',
+      'messages',
+    ]);
+
+    const routes = childrenOf(areaRoutes('ADMIN'));
+    for (const path of ['flags', 'lessons', 'usage', 'settings']) {
+      const route = routes.find((candidate) => candidate.path === path);
+      expect(`${path}:${String(route?.redirectTo)}`).toBe(`${path}:/admin`);
+      expect(`${path}:${route?.pathMatch}`).toBe(`${path}:full`);
+      // A redirect draws nothing, so it must not also try to load a component.
+      expect(route?.loadComponent).toBeUndefined();
+      // Nor may it be a stub any more: there is no phase left to name.
+      expect(`${path}:${String(phaseOf(`/admin/${path}`))}`).toBe(`${path}:undefined`);
+    }
+
+    // None of the four is in the rail any more, redirect or not.
+    const rail = navScreens('ADMIN').map(({ link }) => link);
+    for (const link of ['/admin/flags', '/admin/lessons', '/admin/usage', '/admin/settings'])
+      expect(rail).not.toContain(link);
+
+    // The authoring pair survives the list: the wizard her Home's quick action opens, and the
+    // review page the Home's "needs you" rows and the bell link straight at.
+    const ids = AREAS.ADMIN.screens.map((screen) => screen.id);
+    expect(ids).toContain('new-lesson');
+    expect(ids).toContain('lesson');
+    expect(AREAS.ADMIN.screens.find((screen) => screen.id === 'lesson')?.labelKey).toBeUndefined();
+  });
+
+  /**
+   * MA0's negative control. The four screens are the **Admin's** rows; a coordinator reads her own
+   * All lessons and a teacher her own lessons list, both through their own areas, so neither rail
+   * may have moved. Their exact rails are asserted in the two tests above and below this one — what
+   * is asserted here is the thing those cannot see: that the paths still open a screen for them.
+   */
+  it('leaves the other three roles alone', () => {
+    for (const role of ['TEACHER', 'COORDINATOR', 'MANAGERIAL'] as const) {
+      const lessons = childrenOf(areaRoutes(role)).find((route) => route.path === 'lessons');
+      // A teacher's and a coordinator's list still loads; the manager's still redirects, as MG2a
+      // left it — not one of the three answers `/admin`.
+      expect(`${role}:${String(lessons?.redirectTo)}`).toBe(
+        `${role}:${role === 'MANAGERIAL' ? '/management' : 'undefined'}`,
+      );
+    }
+    // And no other area grew a row from the four ids MA0 retired.
+    for (const role of ['TEACHER', 'COORDINATOR', 'MANAGERIAL'] as const)
+      expect(AREAS[role].screens.filter((screen) => screen.id.startsWith('retired:')).length).toBe(
+        role === 'MANAGERIAL' ? 8 : 0,
+      );
   });
 
   it('leaves each role Home open to that role — the redirect target cannot need a permission', () => {
@@ -266,7 +334,6 @@ describe('the screen table', () => {
   it('names the phase of a stub, including on a detail route', () => {
     expect(phaseOf('/admin/users')).toBe(3);
     expect(phaseOf('/management/complaints')).toBe(5);
-    expect(phaseOf('/admin/usage')).toBe(6);
     // Matched against the pattern, so a real id resolves.
     expect(phaseOf('/admin/schools/5c5bc15a-0e3b-4d87-b3a2-d04f7bc267e2')).toBe(3);
     // A still-stubbed detail route (school) stays stubbed with a query string on it.
