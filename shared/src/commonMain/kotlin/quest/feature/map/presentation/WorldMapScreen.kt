@@ -68,8 +68,11 @@ import quest.core.platform.Speaker
 import quest.feature.map.presentation.MapContract.Effect
 import quest.feature.map.presentation.MapContract.Intent
 import quest.feature.map.presentation.MapContract.State
+import quest.feature.parent.domain.ParentRepository
+import quest.feature.parent.presentation.Strings
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
+import quest.feature.school.presentation.featureEnabled
 import quest.feature.school.presentation.LocalSchoolBranding
 import quest.feature.school.presentation.SchoolLogo
 import quest.ui.design.AcademicTheme
@@ -111,6 +114,11 @@ fun WorldMapRoute(
     val vm: MapViewModel = koinViewModel()
     val speaker: Speaker = koinInject()
     val state by vm.state.collectAsStateWithLifecycle()
+    // The child screen reads in the language the parent picked, the same rule `ChatConversationRoute` follows: a
+    // school without `parentPanel.arabic` has no Arabic at all, so it stays English rather than half-translated.
+    val parent: ParentRepository = koinInject()
+    val language by parent.language.collectAsStateWithLifecycle()
+    val strings = if (featureEnabled(Flags.PARENT_PANEL_ARABIC)) Strings.forLanguage(language) else Strings.en
     LaunchedEffect(vm) {
         vm.dispatch(Intent.Load)
         vm.effects.collect { e ->
@@ -131,6 +139,7 @@ fun WorldMapRoute(
         onNotifications = onNotifications,
         onMessages = onMessages,
         onSettings = onSettings,
+        strings = strings,
     )
 }
 
@@ -150,6 +159,7 @@ fun WorldMapScreen(
     onNotifications: () -> Unit = {},
     onMessages: () -> Unit = {},
     onSettings: () -> Unit = {},
+    strings: Strings = Strings.en,
 ) {
     FormalStudentScreen(
         state = state,
@@ -161,6 +171,7 @@ fun WorldMapScreen(
         onNotifications = onNotifications,
         onMessages = onMessages,
         onSettings = onSettings,
+        strings = strings,
     )
 }
 
@@ -347,12 +358,14 @@ fun FormalStudentScreen(
     onNotifications: () -> Unit = {},
     onMessages: () -> Unit = {},
     onSettings: () -> Unit = {},
+    strings: Strings = Strings.en,
 ) {
     var selectedSubject by remember { mutableStateOf<Subject?>(null) }
+    val rtl = strings.isRtl
 
-    AcademicTheme {
+    AcademicTheme(rtl = rtl) {
         if (state.loading) {
-            AnimatedLoadingView("Loading your coursework…")
+            AnimatedLoadingView(strings.loadingCoursework)
             return@AcademicTheme
         }
 
@@ -362,16 +375,18 @@ fun FormalStudentScreen(
                 .background(DashboardTokens.bg)
                 .safeDrawingPadding(),
         ) {
+            // The 16 dp gutter sits on each child rather than on this Column, so the filter row can scroll edge to
+            // edge: a chip leaving the viewport slides under the screen edge instead of being sliced by the padding.
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .fillMaxWidth(),
             ) {
                 // Header Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
                         .padding(top = 12.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -399,12 +414,12 @@ fun FormalStudentScreen(
                         Spacer(Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = state.child?.name ?: "Student",
+                                text = state.child?.name ?: strings.student,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = DashboardTokens.inkStrong,
                             )
                             Text(
-                                text = "Grade ${state.child?.grade ?: 1}",
+                                text = "${strings.grade} ${state.child?.grade ?: 1}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = DashboardTokens.inkSoft,
                             )
@@ -416,7 +431,7 @@ fun FormalStudentScreen(
                     // Streak Badge
                     if (state.streakDays > 0) {
                         DashboardPill(
-                            text = "${state.streakDays}d streak",
+                            text = strings.dayStreakShort.replace("{n}", "${state.streakDays}"),
                             icon = "🔥",
                             variant = DashboardPillVariant.WARNING,
                         )
@@ -431,12 +446,12 @@ fun FormalStudentScreen(
                             .border(1.dp, DashboardTokens.rule, RoundedCornerShape(DashboardTokens.radiusSm))
                             .clip(RoundedCornerShape(DashboardTokens.radiusSm))
                             .clickable(role = Role.Button, onClick = onGrownUps)
-                            .semantics { contentDescription = "Parent Portal" },
+                            .semantics { contentDescription = strings.parentPortal },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = Icons.Default.Person,
-                            contentDescription = "Parent Portal",
+                            contentDescription = strings.parentPortal,
                             tint = DashboardTokens.brand,
                             modifier = Modifier.size(20.dp),
                         )
@@ -451,11 +466,12 @@ fun FormalStudentScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     item {
                         DashboardFilterChip(
-                            text = "All Subjects",
+                            text = strings.allSubjects,
                             selected = selectedSubject == null,
                             onClick = { selectedSubject = null },
                         )
@@ -467,7 +483,7 @@ fun FormalStudentScreen(
                     items(availableSubjects) { subject ->
                         val meta = SubjectMeta.of(subject)
                         DashboardFilterChip(
-                            text = meta.labelEn,
+                            text = meta.label(rtl),
                             icon = meta.emoji,
                             selected = selectedSubject == subject,
                             onClick = { selectedSubject = if (selectedSubject == subject) null else subject },
@@ -481,7 +497,7 @@ fun FormalStudentScreen(
                     else state.islands.filter { it.subject == selectedSubject }
                 }
 
-                Box(Modifier.weight(1f)) {
+                Box(Modifier.weight(1f).padding(horizontal = 16.dp)) {
                     if (filteredIslands.isEmpty()) {
                         Box(
                             modifier = Modifier
@@ -499,14 +515,14 @@ fun FormalStudentScreen(
                                     Text("📚", fontSize = 40.sp)
                                     Spacer(Modifier.height(8.dp))
                                     Text(
-                                        text = if (state.isEmpty && !state.loading) "No coursework scheduled today" else "No assignments found for this subject",
+                                        text = if (state.isEmpty && !state.loading) strings.noCourseworkToday else strings.noCourseworkForSubject,
                                         style = MaterialTheme.typography.titleMedium,
                                         color = DashboardTokens.inkStrong,
                                         textAlign = TextAlign.Center,
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        text = "Check back soon for new lessons and tasks.",
+                                        text = strings.checkBackSoon,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = DashboardTokens.inkSoft,
                                         textAlign = TextAlign.Center,
@@ -523,6 +539,7 @@ fun FormalStudentScreen(
                             items(filteredIslands, key = { it.id }) { island ->
                                 FormalCourseworkCard(
                                     island = island,
+                                    strings = strings,
                                     onOpen = { dispatch(Intent.TapIsland(island.id)) },
                                 )
                             }
@@ -537,6 +554,7 @@ fun FormalStudentScreen(
 @Composable
 private fun FormalCourseworkCard(
     island: Island,
+    strings: Strings,
     onOpen: () -> Unit,
 ) {
     val meta = SubjectMeta.of(island.subject)
@@ -562,7 +580,7 @@ private fun FormalCourseworkCard(
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     ) {
                         Text(
-                            text = "${meta.emoji} ${meta.labelEn}",
+                            text = "${meta.emoji} ${meta.label(strings.isRtl)}",
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 12.sp,
@@ -572,7 +590,7 @@ private fun FormalCourseworkCard(
                     }
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = dateLabel(island.date),
+                        text = dateLabel(island.date, strings),
                         style = MaterialTheme.typography.bodySmall,
                         color = DashboardTokens.inkMuted,
                     )
@@ -580,11 +598,11 @@ private fun FormalCourseworkCard(
 
                 // Status Badge
                 when {
-                    isLocked -> DashboardPill(text = "Locked", variant = DashboardPillVariant.NEUTRAL)
-                    isDone -> DashboardPill(text = "Completed", variant = DashboardPillVariant.SUCCESS)
-                    isReview -> DashboardPill(text = "Review", variant = DashboardPillVariant.WARNING)
-                    isToday -> DashboardPill(text = "Assigned Today", variant = DashboardPillVariant.INFO)
-                    else -> DashboardPill(text = "Available", variant = DashboardPillVariant.NEUTRAL)
+                    isLocked -> DashboardPill(text = strings.lessonLocked, variant = DashboardPillVariant.NEUTRAL)
+                    isDone -> DashboardPill(text = strings.lessonCompleted, variant = DashboardPillVariant.SUCCESS)
+                    isReview -> DashboardPill(text = strings.lessonReview, variant = DashboardPillVariant.WARNING)
+                    isToday -> DashboardPill(text = strings.lessonAssignedToday, variant = DashboardPillVariant.INFO)
+                    else -> DashboardPill(text = strings.lessonAvailable, variant = DashboardPillVariant.NEUTRAL)
                 }
             }
 
@@ -615,13 +633,13 @@ private fun FormalCourseworkCard(
                         val stars = island.starsEarned ?: 0
                         val total = island.starsTotal ?: 1
                         Text(
-                            text = "Score: $stars/$total",
+                            text = strings.lessonScore.replace("{earned}", "$stars").replace("{total}", "$total"),
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                             color = DashboardTokens.success,
                         )
                     }
                     DashboardButton(
-                        text = "Review",
+                        text = strings.lessonReview,
                         onClick = onOpen,
                         variant = DashboardButtonVariant.SECONDARY,
                         modifier = Modifier.width(110.dp),
@@ -629,18 +647,18 @@ private fun FormalCourseworkCard(
                     )
                 } else if (isLocked) {
                     Text(
-                        text = "Complete prior lessons to unlock",
+                        text = strings.lessonUnlockHint,
                         style = MaterialTheme.typography.bodySmall,
                         color = DashboardTokens.inkMuted,
                     )
                 } else {
                     Text(
-                        text = if (isReview) "Reinforce concepts" else "Standard curriculum lesson",
+                        text = if (isReview) strings.lessonReinforce else strings.lessonStandard,
                         style = MaterialTheme.typography.bodySmall,
                         color = DashboardTokens.inkSoft,
                     )
                     DashboardButton(
-                        text = if (isToday) "Start Lesson" else "Open",
+                        text = if (isToday) strings.startLesson else strings.openLesson,
                         onClick = onOpen,
                         variant = DashboardButtonVariant.PRIMARY,
                         modifier = Modifier.width(130.dp),
@@ -652,4 +670,8 @@ private fun FormalCourseworkCard(
     }
 }
 
-private fun dateLabel(d: LocalDate): String = "${d.dayOfMonth} ${d.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }}"
+/** `11 Sep` / `11 سبتمبر` — English abbreviates, Arabic does not (a three-letter Arabic month is not a word). */
+private fun dateLabel(d: LocalDate, strings: Strings = Strings.en): String {
+    val month = strings.months.getOrNull(d.monthNumber - 1) ?: d.month.name
+    return "${d.dayOfMonth} ${if (strings.isRtl) month else month.take(3)}"
+}

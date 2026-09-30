@@ -86,6 +86,18 @@ const val COMPLAINT_NEEDS_COORDINATOR = "complaint_needs_coordinator"
 fun staffLabel(thread: ChatThread, strings: Strings, department: String? = null): String =
     staffLabel(thread.staffRole, thread.subject, thread.className, strings, department)
 
+/**
+ * MH4: the one-line preview under a thread. An attachment travels in the body as `[attachment:id:type:name:size]`
+ * (`parseMessageBody`), which the conversation's bubble turns into a card — but the thread list printed the tag
+ * verbatim. The same decoder is used here so the row reads `📎 report.png`, with the parent's own words after it
+ * when the message carried both.
+ */
+fun threadPreview(body: String): String {
+    val parsed = parseMessageBody(body)
+    val attachment = parsed.attachment ?: return body
+    return if (parsed.text.isBlank()) "📎 ${attachment.name}" else "📎 ${attachment.name} · ${parsed.text}"
+}
+
 /** Screen-reader copy for a row: who, what about, and where it stands — the chips say the same thing visually. */
 fun threadDescription(thread: ChatThread, strings: Strings, department: String? = null): String = buildList {
     add(thread.teacherName)
@@ -153,10 +165,10 @@ fun ChatThreadRow(
                     overflow = TextOverflow.Ellipsis,
                 )
 
-                thread.lastMessage?.body?.let { preview ->
+                thread.lastMessage?.body?.let { body ->
                     Spacer(Modifier.height(Dimens.s4))
                     Text(
-                        text = preview,
+                        text = threadPreview(body),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.parentInkSoft,
                         maxLines = 1,

@@ -58,6 +58,8 @@ import quest.feature.broadcasts.domain.WeeklyPlans
 import quest.feature.broadcasts.presentation.BroadcastsScreen
 import quest.feature.broadcasts.presentation.WeeklyPlanContract
 import quest.feature.broadcasts.presentation.WeeklyPlanScreen
+import quest.ui.design.DashboardBottomNavigation
+import quest.ui.design.DashboardTab
 import quest.ui.design.schoolThemeOverrides
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -380,5 +382,17 @@ class ParentScreensScreenshotTest {
             strings = s,
             onSelect = {},
         )
+    }
+
+    /**
+     * MH4: the bottom bar with `announcements` off. §4's rule is that a school without a feature never learns it
+     * exists, so the Notifications tab is absent rather than present-and-bouncing.
+     */
+    @Test fun bottomNavWithoutAnnouncements() = shot("56-bottom-nav-no-announcements") {
+        DashboardBottomNavigation(DashboardTab.HOME, {}, showNotifications = false)
+    }
+
+    @Test fun bottomNavArabic() = shot("56b-bottom-nav-ar", Strings.ar) { s ->
+        DashboardBottomNavigation(DashboardTab.MESSAGES, {}, isRtl = s.isRtl, unreadMessages = 2)
     }
 }
