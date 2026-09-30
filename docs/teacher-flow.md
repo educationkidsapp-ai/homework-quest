@@ -251,10 +251,37 @@ in a dialog, with the grade and the week in its alt text. The bytes come through
 `<img src>` pointed at the DTO's absolute url answers 401. A plan is not on the feed tab at all. She
 writes none: the plan is the department's (DR6). See `docs/management-flow.md`.
 
+### Step 13 — Coordinators and Manager (T2)
+
+Two rail rows behind the `chat` flag and `teacher.chat`, the keys `GET /teacher/coordinators`,
+`GET /teacher/managers` and `POST /teacher/chat/staff-threads` carry.
+
+Before T2 she could answer her supervisors but not find them: the conversation existed and only the
+other side could open it, and the phone number she actually wanted was nowhere.
+`/teacher/coordinators` and `/teacher/manager` are one card per person — name, job, `tel:` and
+`mailto:` — and one **Message** button. One component serves both, and the coordinator's Manager row
+as well: the route's `screenId` says which directory it is and `StaffAreaService` says which
+namespace to read it through (`features/staff/staff-manager.page.ts`).
+
+The **job** is built in the browser from the contact's `jobParts`, not read as the `job` string T1
+also sends: "American department manager" for a manager, "Coordinator · Grades 1, 2 · Arabic ·
+British" for a coordinator, every word of it through the `curriculum.*` / `subject.*` keys the rest of
+the dashboard uses, so it is a sentence in Arabic as well (`features/staff/staff-contacts.ts`).
+**One line per entry**, because T1 keeps one entry per *track* and never flattens grades across them:
+"Grades 1, 2 · Arabic · British and American" would claim four posts for two. The server joins its
+own `job` with "; " for a client that cannot lay out lines; this one can.
+
+**Message is a navigation.** `POST /teacher/chat/staff-threads` takes **exactly one** of
+`managerUserId` and `coordinatorUserId` — T1 refuses both or neither — and answers the thread that
+exists or opens one, so she lands on `/teacher/chat?thread=<id>` with everything already said on it.
+The coordinator's Manager row is the same screen over `/coordinator/**`
+(`docs/coordinator-flow.md`).
+
 ## 5. Navigation
 
 `This week · My classes · [selected class] · Announcements (with `announcements`) · Messages (with
-`chat`) · Profile`. Nothing else renders for a teacher. MH2 item 5 renamed the row and its path;
+`chat`) · Coordinators (with `chat`) · Manager (with `chat`) · Profile`. Nothing else renders for a
+teacher. MH2 item 5 renamed the row and its path;
 `/teacher/broadcasts` redirects, and the bell's own links are rewritten
 (`core/notifications/notification-target.ts`) because the server still writes the old one.
 
@@ -265,6 +292,27 @@ conversation** on her profile after messaging the coordinator, and from the bell
 row carries `?thread=<id>` in a link the server writes for the manager's screen, and
 `core/notifications/notification-target.ts` rewrites it to `/teacher/chat?thread=<id>` for whoever is
 reading — the thread is the same row on both sides.
+
+**The bell rings for a message now (T2 item c).** T1 writes a `chat.message` row, throttled per
+thread and cleared when she reads the thread, and delivers it on the same `notification` frame every
+other kind arrives on. The client needed no new case in
+`core/notifications/notification-target.ts` — the row's `/<area>/messages?thread=…` link is already
+rewritten to her own list by thread id — but the **toast** is now suppressed for the conversation she
+is looking at (`ChatService.receive`): the bubble and the toast would be the same sentence twice. The
+bell row, the badge on the rail's Messages and the badge on the header's chat icon are unaffected and
+appear either way.
+
+**"Live" means the other person, not the socket (T2 item d).** The pill in the conversation header
+used to read this tab's own `connectionStatus`, so a manager who had signed out still read as *Live*
+in the teacher's tab — her own socket was fine. It now reads T1's `presence` frames and the thread
+row's `peerOnline` (`ChatService.activePeerOnline`); a peer nobody has reported on gets **no pill at
+all**, because an empty header is honest where a guess is not. The row names the staff side by
+`teacherId` and names no parent at all, so on a parent thread the parent's own `senderId` is what a
+`parentId` frame is matched against, and `peerOnline` carries a conversation that is still empty.
+Signing out closes the socket before `POST /auth/sign-out` is sent and empties the presence map; a
+`1000 signed out` close from the server does **not** start a reconnect (a `1000 idle` one does — that
+is only her having stopped typing), because the refresh token is revoked and each attempt would back
+off and try again for as long as the tab stayed open.
 
 ## 6. What the child never sees
 

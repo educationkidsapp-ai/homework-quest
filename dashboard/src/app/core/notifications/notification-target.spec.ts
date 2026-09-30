@@ -106,6 +106,24 @@ describe('MG2a — where a notification sends its reader', () => {
   });
 
   /**
+   * T2 item (c): T1's **`chat.message`**, the kind nobody had told this function about.
+   *
+   * It needs no case of its own and deliberately has none: the row carries a
+   * `/<area>/messages?thread=…` link, and the two rules above already cover both halves of that —
+   * the reader's own area is followed as written, and anybody else's is rewritten to the reader's
+   * own list by the thread id alone. A `chat.message` with no link at all is the notifications
+   * page, which is the one screen that can always show the row itself.
+   */
+  it("sends a chat.message row to the reader's own conversation", () => {
+    const item = { ...row('teacher.message' as never), kind: 'chat.message' as never, lessonId: '' };
+    const link = '/management/messages?thread=t-9';
+    expect(target({ ...item, link }, 'TEACHER')).toBe('/teacher/chat?thread=t-9');
+    expect(target({ ...item, link }, 'COORDINATOR')).toBe('/coordinator/messages?thread=t-9');
+    expect(target({ ...item, link }, 'MANAGERIAL')).toBe('/management/messages?thread=t-9');
+    expect(target({ ...item, link: '' }, 'TEACHER')).toBe('/notifications');
+  });
+
+  /**
    * MG1 is making the server write role-correct links. The resolver has to prefer them the day
    * they land — with two exceptions it must not: a link into somebody else's area, which is
    * exactly the bug this function exists for, and one of the manager's retired screens.

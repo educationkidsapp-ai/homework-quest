@@ -27,6 +27,7 @@ describe('ChatPage', () => {
   const activeThreadSig = signal<ChatThread | null>(null);
   const messagesSig = signal<LocalMessage[]>([]);
   const canWriteSig = signal(true);
+  const peerOnlineSig = signal<boolean | undefined>(undefined);
 
   const sampleThread: ChatThread = {
     id: 'th-1',
@@ -55,6 +56,7 @@ describe('ChatPage', () => {
     activeThreadSig.set(null);
     messagesSig.set([]);
     canWriteSig.set(true);
+    peerOnlineSig.set(undefined);
 
     mockChatService = {
       threads: signal([sampleThread]),
@@ -64,6 +66,9 @@ describe('ChatPage', () => {
       messages: messagesSig,
       loadingMessages: signal(false),
       connectionStatus: signal('connected'),
+      // T2 item (d): the header's pill reads the peer's presence, not this tab's own socket.
+      // `undefined` is "the server has not said", which draws no pill at all.
+      activePeerOnline: peerOnlineSig,
       isParentTyping: signal(false),
       totalUnread: signal(1),
       loadThreads: vi.fn(),
@@ -150,7 +155,18 @@ describe('ChatPage', () => {
 
     expect(mockChatService.selectThread).toHaveBeenCalledWith('ch-1');
     expect(screen.getByText('Parent of Layla · 1A British')).toBeTruthy();
+    // T2 item (d): with a live socket and nothing said about the parent, the header claims
+    // nothing — "Live" used to mean "this tab's socket is up", which is what let a manager who
+    // had signed out go on reading as present.
+    expect(screen.queryByText('Live')).toBeNull();
+
+    peerOnlineSig.set(true);
+    rendered.fixture.detectChanges();
     expect(screen.getByText('Live')).toBeTruthy();
+
+    peerOnlineSig.set(false);
+    rendered.fixture.detectChanges();
+    expect(screen.getByText('Away')).toBeTruthy();
   });
 
   /**

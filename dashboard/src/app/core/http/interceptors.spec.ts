@@ -53,6 +53,12 @@ describe('interceptors', () => {
     router = TestBed.inject(Router);
   });
 
+  /**
+   * Every pending microtask. T2 item (e) put the cross-tab {@link RefreshLock} in front of the
+   * rotation, so the refresh leaves on the microtask after the 401 rather than in the same turn.
+   */
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
   function signedInAs(user: typeof TEACHER_USER): void {
     session.set({ token: 'access-1', refreshToken: 'refresh-1' });
     auth.loadMe().subscribe();
@@ -122,6 +128,7 @@ describe('interceptors', () => {
     const answered = new Promise<unknown>((resolve) => http.get('/me/home').subscribe(resolve));
 
     backend.expectOne('/me/home').flush({}, { status: 401, statusText: 'Unauthorized' });
+    await settle();
     backend.expectOne('/auth/refresh').flush({ token: 'access-2', refreshToken: 'refresh-2' });
 
     const replay = backend.expectOne('/me/home');
@@ -146,6 +153,7 @@ describe('interceptors', () => {
 
     for (const path of paths) backend.expectOne(path).flush({}, { status: 401, statusText: 'Unauthorized' });
 
+    await settle();
     const refreshes = backend.match('/auth/refresh');
     expect(refreshes).toHaveLength(1);
     refreshes[0]?.flush({ token: 'access-2', refreshToken: 'refresh-2' });
@@ -166,6 +174,7 @@ describe('interceptors', () => {
     const failed = new Promise<void>((resolve) => http.get('/me/home').subscribe({ error: () => resolve() }));
 
     backend.expectOne('/me/home').flush({}, { status: 401, statusText: 'Unauthorized' });
+    await settle();
     backend.expectOne('/auth/refresh').flush({ token: 'access-2', refreshToken: 'refresh-2' });
     backend.expectOne('/me/home').flush({}, { status: 401, statusText: 'Unauthorized' });
     await failed;

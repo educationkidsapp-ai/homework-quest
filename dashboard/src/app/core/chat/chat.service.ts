@@ -14,9 +14,17 @@ import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { type ChatTransport, ChatRoutes } from './chat-routes';
-import { ChatClientCommand, ChatConnectionStatus, ChatServerFrame, LocalMessage } from './chat.models';
+import {
+  type ChatClientCommand,
+  type ChatConnectionStatus,
+  type ChatServerFrame,
+  type LocalMessage,
+  peerIdsOf,
+} from './chat.models';
 
 const MAX_RECONNECT_DELAY_MS = 30_000;
+/** `ChatSessions.SIGNED_OUT` — `CloseStatus.NORMAL.withReason("signed out")` (T1). */
+const SIGNED_OUT_REASON = 'signed out';
 const TYPING_TIMEOUT_MS = 3_000;
 const TYPING_THROTTLE_MS = 2_000;
 
@@ -46,6 +54,51 @@ export class ChatService {
   readonly loadingMessages = signal<boolean>(false);
   readonly connectionStatus = signal<ChatConnectionStatus>('disconnected');
   readonly isParentTyping = signal<boolean>(false);
+
+  /**
+   * Who the server says is connected, by user id (a `presence` frame's `userId` or `parentId`).
+   *
+   * **T2 item (d).** Nothing but a frame writes this, and `disconnect` empties it: a presence this
+   * tab cannot hear any more is not a presence it may keep showing, which is the whole of the
+   * "the manager signed out and still reads as Live" bug. A peer nobody has said anything about
+   * is absent from the map rather than `false` — "not known" and "offline" are different answers
+   * and only one of them is worth a pill.
+   */
+  private readonly presence = signal<ReadonlyMap<string, boolean>>(new Map());
+
+  /**
+   * Is the person at the other end of the open conversation connected? `undefined` = no answer.
+   *
+   * A `presence` frame wins over the thread row's `peerOnline`, because the row is what the last
+   * `GET …/threads` said and the frame is what is true now.
+   */
+  readonly activePeerOnline = computed<boolean | undefined>(() => {
+    const thread = this.activeThread();
+    if (!thread) return undefined;
+    const heard = this.presence();
+    for (const id of this.activePeerIds(thread)) {
+      const state = heard.get(id);
+      if (state !== undefined) return state;
+    }
+    // T1's `peerOnline` on the row: what the last `GET …/threads` said, which is the only answer
+    // for a parent whose conversation is still empty (there is no parent id anywhere else).
+    return thread.peerOnline;
+  });
+
+  /**
+   * Whose presence would be *this* conversation's.
+   *
+   * The row names the staff side; a parent is named nowhere on the contract, so her own messages
+   * are the source — `senderId` on anything she sent. That is not a guess: it is the parent of this
+   * thread by construction, because a thread has exactly one parent on it.
+   */
+  private activePeerIds(thread: ChatThread): readonly string[] {
+    const fromRow = peerIdsOf(thread, this.auth.user()?.id ?? null);
+    const parent = this.messages().find(
+      (message) => message.sender === ChatMessageSenderEnum.PARENT && (message.senderId ?? '') !== '',
+    )?.senderId;
+    return parent === undefined ? fromRow : [...fromRow, parent];
+  }
 
   /**
    * Whether this account may write at all.
@@ -331,9 +384,10 @@ export class ChatService {
 
     const token = this.session.accessToken();
     if (!token) {
-      // Need token: refresh session first
+      // Need token: refresh session first. `endsSession: false` — opening a socket is not
+      // something she did, so it must not be what signs her out (T2 follow-up).
       this.auth
-        .refresh()
+        .refresh({ endsSession: false })
         .pipe(
           tap(() => this.connectWithToken()),
           catchError(() => of(null)),
@@ -414,14 +468,22 @@ export class ChatService {
         }
       };
 
-      this.socket.onclose = () => {
+      this.socket.onclose = (event: CloseEvent) => {
         this.notifications.onSocketClosed();
-        if (!this.intentionalDisconnect) {
-          this.connectionStatus.set('reconnecting');
-          this.scheduleReconnect();
-        } else {
+        // T1 closes every socket of an account that signs out, `1000 signed out`. Reconnecting on
+        // that is a loop with nothing at the end of it: the refresh token is revoked, so each
+        // attempt refreshes, fails, backs off and tries again for as long as the tab is open. A
+        // `1000 idle` close is the opposite — she stopped typing, and coming back is right — so it
+        // is the reason, not the code, that decides.
+        const deliberate = this.intentionalDisconnect || event.reason === SIGNED_OUT_REASON;
+        if (deliberate) {
+          this.intentionalDisconnect = true;
           this.connectionStatus.set('disconnected');
+          this.presence.set(new Map());
+          return;
         }
+        this.connectionStatus.set('reconnecting');
+        this.scheduleReconnect();
       };
 
       this.socket.onerror = () => {
@@ -453,8 +515,24 @@ export class ChatService {
         break;
 
       case 'notification':
-        this.notifications.receive(frame.notification);
+        // T2 item (c): the toast is for a notification she is **not** already looking at. A
+        // `chat.message` for the thread open on her screen is a bubble arriving in the same
+        // second — a toast over it says the same thing twice and steals the focus ring.
+        this.notifications.receive(frame.notification, {
+          toast: !this.isViewingThread(frame.notification.link),
+        });
         break;
+
+      // T2 item (d): presence comes from the server, which is the only party that knows which
+      // sockets are open. Sign-out closes them (T1), so the frame that clears a peer arrives
+      // before the tab that was watching her can go stale.
+      case 'presence': {
+        const id = frame.userId ?? frame.parentId ?? '';
+        if (id !== '') {
+          this.presence.update((map) => new Map(map).set(id, frame.online));
+        }
+        break;
+      }
 
       case 'typing':
         if (frame.from === 'parent') {
@@ -595,9 +673,12 @@ export class ChatService {
     const delay = Math.min(1000 * 2 ** (this.reconnectAttempts - 1), MAX_RECONNECT_DELAY_MS);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      // Refresh token before reconnecting as per runbook
+      // Refresh token before reconnecting as per runbook — and with `endsSession: false`, so a
+      // refusal here can only cost another backoff. Cloud Run closes this socket every hour and
+      // every blip reopens it, so if this path could forget the session the socket alone would
+      // sign her out while she was reading a lesson.
       this.auth
-        .refresh()
+        .refresh({ endsSession: false })
         .pipe(
           tap(() => this.connectWithToken()),
           catchError(() => {
@@ -625,5 +706,22 @@ export class ChatService {
     }
     this.notifications.onSocketClosed();
     this.connectionStatus.set('disconnected');
+    // Presence is only as live as the socket that carries it (T2 item d).
+    this.presence.set(new Map());
+    this.isParentTyping.set(false);
+  }
+
+  /**
+   * Does this notification's `link` name the conversation already on screen?
+   *
+   * The thread id and nothing else: the path is the sender's idea of which area the reader is in
+   * (`NotificationService.threadLink` writes one for everybody), and the reader's own screen is
+   * the authority on that — the same reason `notificationTarget` reads only the query.
+   */
+  private isViewingThread(link: string | undefined): boolean {
+    const active = this.activeThread();
+    if (!active?.id || !link) return false;
+    const thread = new URLSearchParams(link.split('?', 2)[1] ?? '').get('thread')?.trim();
+    return thread !== undefined && thread === active.id;
   }
 }

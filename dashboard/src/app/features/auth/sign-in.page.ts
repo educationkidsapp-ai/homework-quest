@@ -42,6 +42,17 @@ const LOGO_DEBOUNCE_MS = 400;
       }
 
       <form class="sign-in" (submit)="submit($event)">
+        @if (ended(); as notice) {
+          <hq-band
+            variant="notice"
+            [open]="true"
+            [title]="'auth.signIn.endedTitle' | transloco"
+            (dismissed)="ended.set(null)"
+          >
+            {{ notice }}
+          </hq-band>
+        }
+
         <hq-band
           [open]="failed()"
           [title]="'auth.signIn.failedTitle' | transloco"
@@ -107,6 +118,15 @@ export class SignInPage {
   protected readonly failure = signal<string | null>(null);
   protected readonly failed = computed(() => this.failure() !== null);
 
+  /**
+   * Why she is looking at this screen again, when another tab is the answer (T2 item e).
+   *
+   * A sentence rather than nothing: a teacher whose tab went back to sign-in the moment her
+   * colleague signed in as the manager on the same laptop had no way to tell that from a bug,
+   * and "it logs me out after a few minutes" is what that looked like from the outside.
+   */
+  protected readonly ended = signal<string | null>(null);
+
   /** The typed address, once it has stopped changing and looks like an address at all. */
   private readonly settledEmail = toSignal(
     toObservable(this.email).pipe(
@@ -131,6 +151,21 @@ export class SignInPage {
   protected readonly schoolLogo = computed(
     () => this.lookup.value()?.logoUrl || this.platform.platformLogoUrl(),
   );
+
+  constructor() {
+    const params = this.route.snapshot.queryParamMap;
+    const reason = params.get('ended');
+    const role = params.get('as');
+    if (reason === 'takenOver' && role !== null) {
+      this.ended.set(
+        this.transloco.translate<string>('auth.signIn.takenOver', {
+          role: this.transloco.translate<string>(`role.${role}`),
+        }),
+      );
+    } else if (reason === 'takenOver' || reason === 'signedOutElsewhere') {
+      this.ended.set(this.transloco.translate<string>('auth.signIn.signedOutElsewhere'));
+    }
+  }
 
   protected submit(event: Event): void {
     event.preventDefault();

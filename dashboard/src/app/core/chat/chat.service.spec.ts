@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ChatApi,
   CoordinatorChatApi,
@@ -16,6 +16,7 @@ import { TEACHER_USER } from '../../../testing/fixtures';
 import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ChatService } from './chat.service';
 
 describe('ChatService', () => {
@@ -25,6 +26,8 @@ describe('ChatService', () => {
   let mockAuth: Partial<AuthService>;
   let mockSession: Partial<SessionStore>;
   let mockFlags: Partial<FlagService>;
+
+  const accessTokenSig = signal<string | null>('test-jwt');
 
   const sampleThread: ChatThread = {
     id: 'th-1',
@@ -77,8 +80,9 @@ describe('ChatService', () => {
       refresh: vi.fn().mockReturnValue(of('new-token')),
     };
 
+    accessTokenSig.set('test-jwt');
     mockSession = {
-      accessToken: signal('test-jwt'),
+      accessToken: accessTokenSig,
     };
 
     mockFlags = {
@@ -164,5 +168,194 @@ describe('ChatService', () => {
 
     service.sendMessage('a'.repeat(2001));
     expect(mockApi.teacherSendChatMessage).not.toHaveBeenCalled();
+  });
+
+  /**
+   * T2 item (d). The pill used to read this tab's own socket and say "Live"; these four say where
+   * the answer comes from now — a `presence` frame first, the thread row second, and nothing at
+   * all when neither has spoken. The manager who signed out is the third of them.
+   */
+  describe('peer presence', () => {
+    /** T1 names the parent on a parent thread; presence for anybody the row does not name is
+        not this thread's peer and is ignored. */
+    const withParent = (extra: Record<string, unknown> = {}) => {
+      mockApi.teacherChatThreads = vi
+        .fn()
+        .mockReturnValue(of([{ ...sampleThread, parentId: 'parent-1', ...extra }]));
+    };
+
+    it('has no answer for a peer nobody has reported on', () => {
+      withParent();
+      service.loadThreads();
+      service.selectThread('ch-1');
+      expect(service.activePeerOnline()).toBeUndefined();
+    });
+
+    it('takes the peer from a presence frame, not from its own connection', () => {
+      withParent();
+      service.loadThreads();
+      service.selectThread('ch-1');
+
+      service.receive({ type: 'presence', parentId: 'parent-1', online: true });
+      expect(service.activePeerOnline()).toBe(true);
+
+      // The manager (or parent) signed out: one frame, and the pill stops saying Live even though
+      // this tab's own socket never wavered.
+      service.receive({ type: 'presence', parentId: 'parent-1', online: false });
+      expect(service.activePeerOnline()).toBe(false);
+    });
+
+    it('ignores presence for somebody who is not on this thread, and never for herself', () => {
+      withParent();
+      service.loadThreads();
+      service.selectThread('ch-1');
+
+      service.receive({ type: 'presence', userId: 'u-other', online: true });
+      expect(service.activePeerOnline()).toBeUndefined();
+      // `u-sara` is the signed-in teacher and also this row's `teacherId`: her own presence is
+      // not the peer's, or every thread would read as Live for ever.
+      service.receive({ type: 'presence', userId: 'u-sara', online: true });
+      expect(service.activePeerOnline()).toBeUndefined();
+    });
+
+    it('falls back to peerOnline on the thread row until a frame arrives', () => {
+      withParent({ peerOnline: true });
+      service.loadThreads();
+      service.selectThread('ch-1');
+      expect(service.activePeerOnline()).toBe(true);
+
+      // A frame is newer than the last GET, so it wins.
+      service.receive({ type: 'presence', parentId: 'parent-1', online: false });
+      expect(service.activePeerOnline()).toBe(false);
+    });
+
+    it('forgets every presence when the socket closes, because sign-out closes the socket', () => {
+      withParent();
+      service.loadThreads();
+      service.selectThread('ch-1');
+      service.receive({ type: 'presence', parentId: 'parent-1', online: true });
+
+      service.disconnect();
+      expect(service.activePeerOnline()).toBeUndefined();
+    });
+  });
+
+  /**
+   * T2 item (c). The bell row and the badge are never in question; the toast is, and the rule is
+   * "not for the conversation she is already reading".
+   */
+  describe('the chat.message notification frame', () => {
+    const notification = (thread: string) => ({
+      id: `n-${thread}`,
+      kind: 'chat.message' as never,
+      title: 'New message',
+      createdAt: 1,
+      link: `/management/messages?thread=${thread}`,
+    });
+
+    it('toasts a message for a conversation she is not looking at', () => {
+      const notifications = TestBed.inject(NotificationsService);
+      service.loadThreads();
+      service.selectThread('ch-1');
+
+      service.receive({ type: 'notification', notification: notification('th-9') });
+      expect(notifications.toast()?.id).toBe('n-th-9');
+      expect(notifications.unreadCount()).toBe(1);
+    });
+
+    it('files a message for the open conversation without a toast over it', () => {
+      const notifications = TestBed.inject(NotificationsService);
+      service.loadThreads();
+      service.selectThread('ch-1');
+
+      service.receive({ type: 'notification', notification: notification('th-1') });
+      expect(notifications.toast()).toBeNull();
+      // Still in the bell, and still counted: only the toast was the duplicate.
+      expect(notifications.notifications()[0]?.id).toBe('n-th-1');
+      expect(notifications.unreadCount()).toBe(1);
+    });
+  });
+
+  /**
+   * T2 follow-up. Cloud Run closes this socket every hour and every network blip reopens it, so if
+   * the reconnect could forget the session the socket alone would sign her out mid-lesson.
+   */
+  it('reconnects through the refresh that cannot end the session', () => {
+    // No access token in memory — a reload, or one that has aged out — so `connect` has to get one
+    // before it can open the socket.
+    accessTokenSig.set(null);
+    service.connect();
+
+    // `endsSession: false` is the whole of it: a 401 on this path costs another backoff and
+    // nothing else.
+    expect(mockAuth.refresh).toHaveBeenCalledWith({ endsSession: false });
+  });
+
+  /**
+   * T1 closes every socket of an account that signs out, `1000 signed out`.
+   *
+   * Reconnecting on that is a loop with nothing at the end of it: the refresh token is revoked, so
+   * each attempt refreshes, fails, backs off and tries again for as long as the tab is open. A
+   * `1000 idle` close is the opposite — she stopped typing, and coming back is right — so it is the
+   * reason, not the code, that has to decide.
+   */
+  describe('a close the server sent on purpose', () => {
+    /** Just enough `WebSocket` to be constructed and then closed by the test. */
+    class FakeSocket {
+      static last: FakeSocket | undefined = undefined;
+      readyState = 1;
+      onopen: (() => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+      onerror: (() => void) | null = null;
+      readonly sent: string[] = [];
+      constructor() {
+        FakeSocket.last = this;
+      }
+      send(frame: string): void {
+        this.sent.push(frame);
+      }
+      close(): void {
+        this.readyState = 3;
+      }
+    }
+
+    let original: typeof WebSocket;
+
+    /** Read through a function so the assignment in `beforeEach` does not narrow it to `never`. */
+    const latest = (): FakeSocket => {
+      const socket = FakeSocket.last;
+      expect(socket, 'the service should have opened a socket').toBeTruthy();
+      return socket as FakeSocket;
+    };
+
+    beforeEach(() => {
+      original = window.WebSocket;
+      (window as unknown as { WebSocket: unknown }).WebSocket = FakeSocket;
+      FakeSocket.last = undefined;
+      service.connect();
+      latest().onopen?.();
+    });
+
+    afterEach(() => {
+      (window as unknown as { WebSocket: unknown }).WebSocket = original;
+    });
+
+    it('does not reconnect after "signed out", and forgets the presence it was showing', () => {
+      service.receive({ type: 'presence', userId: 'u-huda', online: true });
+
+      latest().onclose?.({ code: 1000, reason: 'signed out' } as CloseEvent);
+
+      expect(service.connectionStatus()).toBe('disconnected');
+      // A reconnect would have had to ask for a token first.
+      expect(mockAuth.refresh).not.toHaveBeenCalled();
+      expect(service.activePeerOnline()).toBeUndefined();
+    });
+
+    it('does reconnect after an idle close, which is only her having stopped typing', () => {
+      latest().onclose?.({ code: 1000, reason: 'idle' } as CloseEvent);
+
+      expect(service.connectionStatus()).toBe('reconnecting');
+    });
   });
 });

@@ -354,9 +354,30 @@ export class ShellComponent {
       const role = this.auth.role();
       if (role) this.tour.offer(role);
     });
+
+    // A refresh that failed on the network rather than on the token (T2 follow-up). A notice, not
+    // an error: nothing is lost and the session is still hers — it says what is happening so that
+    // a moment of unresponsiveness does not read as a sign-out about to happen.
+    effect(() => {
+      if (this.auth.reconnecting()) {
+        this.band.show({
+          message: this.transloco.translate<string>('band.reconnecting'),
+          titleKey: 'band.reconnectingTitle',
+          variant: 'notice',
+        });
+      } else if (this.band.current()?.titleKey === 'band.reconnectingTitle') {
+        this.band.dismiss();
+      }
+    });
   }
 
   protected signOut(): void {
+    // T2 item (d): **close the socket first.** The effect in `ChatService` would do it a tick
+    // later off `signedIn()`, but "a tick later" is a live socket for the length of
+    // `POST /auth/sign-out` — long enough to take one more frame and to leave the peer she was
+    // talking to reading her as connected. T1 closes it from the server too; this is the end the
+    // browser owns, and it is also what empties the presence map.
+    this.chat.disconnect();
     this.auth.signOut().subscribe(() => void this.router.navigate(['/sign-in']));
   }
 
