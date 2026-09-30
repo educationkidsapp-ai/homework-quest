@@ -54,9 +54,21 @@ data class CoordinatorTeacher(
     val email: String,
     val displayName: String,
     val photoUrl: String? = null,
+    /** MH1 (owner's item 4): her mobile number, so the Teachers screen can show it and dial it. */
+    val phone: String? = null,
     val subjects: List<Subject> = emptyList(),
     val sections: List<CoordinatorAssignmentRef> = emptyList(),
+    /**
+     * MH1: the coordinator(s) above her — one per (subject, track) of her slots that a coordinator's scope covers.
+     * Answered on `GET /management/teachers` and the manager's people directory; empty on `GET /coordinator/teachers`,
+     * where the reader is the person on this list.
+     */
+    val coordinators: List<TeacherCoordinator> = emptyList(),
 )
+
+/** One coordinator above a teacher, and the subject that puts her there — enough to name her and open a thread. */
+@Serializable
+data class TeacherCoordinator(val userId: String, val displayName: String, val subject: Subject)
 
 /**
  * `GET /coordinator/classes`: one card per (section, subject) in scope, with today's lesson already resolved — the
@@ -129,6 +141,7 @@ data class CoordinatorAccount(
     val userId: String,
     val email: String,
     val fullName: String,
+    val phone: String? = null,
     val status: UserStatus = UserStatus.ACTIVE,
     val scopes: List<CoordinatorScopeRow> = emptyList(),
 )
@@ -138,6 +151,7 @@ data class CoordinatorAccount(
 data class CreateCoordinatorRequest(
     val fullName: String,
     val email: String,
+    val phone: String? = null,
     val scopes: List<CoordinatorScopeRow> = emptyList(),
 )
 

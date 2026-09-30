@@ -138,6 +138,9 @@ public class AuthService {
         if (request.displayName() != null) user.setDisplayName(quest.server.platform.SafeText.plainText(request.displayName(), "displayName", 120));
         if (request.photoUrl() != null) user.setPhotoUrl(quest.server.platform.SafeText.httpsUrl(request.photoUrl(), "photoUrl"));
         if (request.language() != null) user.setLanguage(language(request.language()));
+        // MH1: her own mobile number, the one the manager's Teachers and Coordinators screens print. An empty string
+        // clears it — `null` means "not in this request" everywhere else in this method and has to keep meaning that.
+        if (request.phone() != null) user.setPhone(quest.server.platform.Phones.normalise(request.phone(), "phone"));
         user.setUpdatedAt(java.time.Instant.now());
         return users.save(user);
     }

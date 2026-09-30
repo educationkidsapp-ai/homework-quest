@@ -1,5 +1,6 @@
 package quest.server.files;
 
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -21,9 +22,11 @@ import quest.server.content.LessonRepository;
 @Service
 public class MediaAccess {
     private final LessonRepository lessons; private final ChildRepository children; private final ChildService childService;
+    private final quest.server.broadcasts.BroadcastService broadcasts;
 
-    public MediaAccess(LessonRepository lessons, ChildRepository children, ChildService childService) {
-        this.lessons = lessons; this.children = children; this.childService = childService;
+    public MediaAccess(LessonRepository lessons, ChildRepository children, ChildService childService,
+                       quest.server.broadcasts.BroadcastService broadcasts) {
+        this.lessons = lessons; this.children = children; this.childService = childService; this.broadcasts = broadcasts;
     }
 
     /**
@@ -59,6 +62,30 @@ public class MediaAccess {
         try {
             if (user != null) childService.scoped(childId); else childService.owned(childId, parent);
         } catch (ApiException e) { throw hidden(); }
+    }
+
+    /**
+     * MH1: `/media/attachments/{id}`, by the broadcast the bytes are attached to.
+     *
+     * <ul>
+     *   <li><strong>The uploader</strong> reads her own file whether or not it is attached to anything yet — she has
+     *       to see it in the composer before she posts. Nobody else may read an unattached upload, which is why this
+     *       is the only case answered without asking the broadcasts.</li>
+     *   <li><strong>Everybody else</strong> reads it exactly when she may read a broadcast that carries it
+     *       ({@link quest.server.broadcasts.BroadcastService#readsAttachment}) — the one predicate the feeds, the
+     *       archives and the bell all use, so a weekly plan's image reaches that grade and nobody else.</li>
+     * </ul>
+     *
+     * <p>The row was already fetched through the tenant-filtered {@code findOneById}, so a scoped dashboard caller
+     * never gets this far with another school's id; a parent has no filter and her school is the row's own, checked
+     * against the school of the child the broadcast reached. Anything else is 404, like everything else here.
+     */
+    public void requireAttachment(Entities.AttachmentEntity row, Principals.Parent parent, Principals.User user) {
+        if (user != null && user.userId().equals(row.getUploadedBy())) return;
+        if (user == null && parent == null) throw hidden();
+        var kids = user != null ? List.<ChildEntity>of()
+                : children.findByParentIdAndDeletedAtIsNullOrderByCreatedAt(parent.parentId());
+        if (!broadcasts.readsAttachment(row.getId(), row.getSchoolId(), user, kids)) throw hidden();
     }
 
     /** The schools a parent reaches through her children; a parent with no child reaches none. */

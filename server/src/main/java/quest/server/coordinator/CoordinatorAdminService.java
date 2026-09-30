@@ -88,6 +88,7 @@ public class CoordinatorAdminService {
         user.setId(UUID.randomUUID().toString()); user.setSchoolId(schoolId); user.setEmail(email);
         user.setRole(CoordinatorScope.ROLE); user.setStatus("active"); user.setMustChangePassword(true);
         user.setDisplayName(fullName); user.setPasswordHash(encoder.encode(temporary));
+        user.setPhone(quest.server.platform.Phones.normalise(request.phone(), "phone"));
         user.setCreatedAt(Instant.now()); user.setUpdatedAt(Instant.now());
         users.save(user);
         write(schoolId, user.getId(), wanted);
@@ -154,7 +155,7 @@ public class CoordinatorAdminService {
 
     private static CoordinatorDto.CoordinatorAccount account(UserEntity user, List<CoordinatorDto.Scope> scopes) {
         return new CoordinatorDto.CoordinatorAccount(user.getId(), user.getEmail(), SectionService.displayName(user),
-                user.getStatus(), scopes);
+                user.getPhone(), user.getStatus(), scopes);
     }
 
     private static CoordinatorDto.Scope scope(StaffScopeEntity row) {

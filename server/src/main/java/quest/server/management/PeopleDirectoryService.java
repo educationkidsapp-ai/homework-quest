@@ -19,10 +19,10 @@ import quest.server.tenancy.ManagerScope;
  * RM5 (DR7): <strong>the people directory</strong> — who is in the department, with the contact details the school
  * actually holds. Three lists, all department-scoped, all paginated, all searchable by name or address.
  *
- * <p><strong>Nothing here invents a field.</strong> A child's contact is her registered parent's account address
- * (null until a parent signs up) and the roster's own `children.parent_email`; no table in this schema carries a
- * telephone number, for a child or for a member of staff, so no row returns one. `placedAt` is the roster row's
- * creation, which is when she joined the section.
+ * <p><strong>Nothing here invents a field.</strong> A child's contact is her registered parent's account — address,
+ * telephone number (MH1's `parents.phone`, null until she types one into the app) and `parentId`, which is what tells
+ * the screen there is somebody to message at all — beside the roster's own `children.parent_email`, which is what the
+ * school imported. `placedAt` is the roster row's creation, which is when she joined the section.
  *
  * <p><strong>The teacher and coordinator lists are the department's own rows, paged.</strong> They are the same
  * records `/management/teachers` and `/management/coordinators` answer — subjects, sections, tracks and coverage
@@ -64,17 +64,20 @@ public class PeopleDirectoryService {
         var rows = children.findDirectory(byId.keySet(), pattern,
                 PageRequest.of(index, each, Sort.by("name").ascending().and(Sort.by("id").ascending())));
 
-        var emails = new LinkedHashMap<String, String>();
+        var accounts = new LinkedHashMap<String, quest.server.auth.Entities.ParentEntity>();
         var parentIds = rows.stream().map(quest.server.children.Entities.ChildEntity::getParentId).filter(java.util.Objects::nonNull).distinct().toList();
-        if (!parentIds.isEmpty()) parents.findAllById(parentIds).forEach(p -> emails.put(p.getId(), p.getEmail()));
+        if (!parentIds.isEmpty()) parents.findAllById(parentIds).forEach(p -> accounts.put(p.getId(), p));
 
         var out = new ArrayList<ManagementDto.DirectoryChild>(rows.size());
         for (var child : rows) {
             var section = byId.get(child.getClassId());
+            var account = child.getParentId() == null ? null : accounts.get(child.getParentId());
             out.add(new ManagementDto.DirectoryChild(child.getId(), child.getName(), child.getClassId(),
                     section == null ? null : section.getName(), child.getGrade(),
-                    ManagerScope.normalise(child.getCurriculum()), emails.get(child.getParentId()),
-                    child.getParentEmail(), child.getCreatedAt() == null ? 0L : child.getCreatedAt().toEpochMilli()));
+                    ManagerScope.normalise(child.getCurriculum()), account == null ? null : account.getEmail(),
+                    child.getParentEmail(), account == null ? null : account.getId(),
+                    account == null ? null : account.getPhone(),
+                    child.getCreatedAt() == null ? 0L : child.getCreatedAt().toEpochMilli()));
         }
         return new ManagementDto.ChildDirectory(index, each, total, List.copyOf(out));
     }

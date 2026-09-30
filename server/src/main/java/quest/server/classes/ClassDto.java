@@ -35,7 +35,7 @@ public final class ClassDto {
                                      String subject, String teacherId, String teacherName) {}
 
     public record CreateTeacherRequest(@NotBlank String fullName, @NotBlank String email, List<String> subjects,
-                                       String curriculum, String photoUrl) {}
+                                       String curriculum, String photoUrl, String phone) {}
 
     /** The one and only sight of a new teacher's password. It is never stored in clear, logged or answered twice. */
     public record TeacherCreated(TeacherAccount teacher, String temporaryPassword) {}
@@ -43,9 +43,9 @@ public final class ClassDto {
     public record TemporaryPassword(String temporaryPassword) {}
 
     public record UpdateTeacherRequest(String fullName, List<String> subjects, String curriculum, String photoUrl,
-                                       Boolean active) {}
+                                       Boolean active, String phone) {}
 
-    public record TeacherAccount(String userId, String email, String fullName, String photoUrl, String status,
+    public record TeacherAccount(String userId, String email, String fullName, String photoUrl, String phone, String status,
                                  List<String> subjects, String curriculum, List<TeachingAssignment> assignments) {}
 
     public record AssignmentInput(@NotBlank String classId, @NotBlank String subject) {}

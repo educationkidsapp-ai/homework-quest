@@ -55,7 +55,7 @@ public class CoordinatorAnnouncementController {
                                                                       @RequestBody @Valid CoordinatorDto.CreateAnnouncementRequest body) {
         var request = new quest.server.broadcasts.BroadcastDto.CreateRequest(quest.server.broadcasts.BroadcastService.ANNOUNCEMENT,
                 body.bodyEn(), null, body.bodyAr(), null, null, java.util.List.of(quest.server.broadcasts.BroadcastService.PARENTS),
-                body.classIds(), null, body.expiresAt());
+                body.classIds(), null, null, body.expiresAt());
         return broadcasts.coordinatorPost(CoordinatorScope.require(caller), request).announcements();
     }
 }

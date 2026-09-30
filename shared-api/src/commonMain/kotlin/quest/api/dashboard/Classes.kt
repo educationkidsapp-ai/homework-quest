@@ -52,6 +52,8 @@ data class CreateTeacherRequest(
     val subjects: List<Subject> = emptyList(),
     val curriculum: Curriculum? = null,
     val photoUrl: String? = null,
+    /** MH1: her mobile number, which the manager's Teachers screen shows beside her name (owner's item 4). */
+    val phone: String? = null,
 )
 
 /** The one and only sight of a new teacher's password: read it out, then it is gone. */
@@ -70,6 +72,7 @@ data class UpdateTeacherRequest(
     val curriculum: Curriculum? = null,
     val photoUrl: String? = null,
     val active: Boolean? = null,
+    val phone: String? = null,
 )
 
 /** A teacher as the Admin's Teachers screen sees her, with everything she is assigned to teach. */
@@ -79,6 +82,7 @@ data class TeacherAccount(
     val email: String,
     val fullName: String,
     val photoUrl: String? = null,
+    val phone: String? = null,
     val status: UserStatus = UserStatus.ACTIVE,
     val subjects: List<Subject> = emptyList(),
     val curriculum: Curriculum? = null,

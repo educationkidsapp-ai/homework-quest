@@ -3,12 +3,16 @@ package quest.server.files;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.concurrent.TimeUnit;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import quest.server.auth.Principals;
 import quest.server.children.ChildMediaRepository;
@@ -35,10 +39,53 @@ import quest.server.content.PageImageRepository;
 @RestController
 @Tag(name = "Media", description = "Page crops and child recordings")
 public class MediaController {
-    private final FileStore files; private final PageImageRepository pageImages; private final ChildMediaRepository childMedia; private final MediaAccess access;
+    /**
+     * MH1: what `POST /media/attachments` answers — the reference a composer then names as `attachmentId`. `sizeBytes`
+     * and `type` are what was actually stored, not what was sent: the type is sniffed from the bytes.
+     */
+    @io.swagger.v3.oas.annotations.media.Schema(name = "AttachmentRef")
+    public record Attachment(String id, String name, String type, long sizeBytes) {}
 
-    public MediaController(FileStore files, PageImageRepository pageImages, ChildMediaRepository childMedia, MediaAccess access) {
+    private final FileStore files; private final PageImageRepository pageImages; private final ChildMediaRepository childMedia; private final MediaAccess access;
+    private final AttachmentRepository attachments; private final AttachmentService uploads;
+
+    public MediaController(FileStore files, PageImageRepository pageImages, ChildMediaRepository childMedia, MediaAccess access,
+                           AttachmentRepository attachments, AttachmentService uploads) {
         this.files = files; this.pageImages = pageImages; this.childMedia = childMedia; this.access = access;
+        this.attachments = attachments; this.uploads = uploads;
+    }
+
+    /**
+     * MH1 (owner's items 6 and 7): the image a manager, a coordinator or a teacher attaches to a broadcast. It is
+     * uploaded on its own, before the broadcast exists, so the composer can show it and then post — `attachmentId` on
+     * `POST /management/broadcasts` is what ties the two together, and an upload nobody attaches is readable by its
+     * uploader alone.
+     */
+    @PreAuthorize("@permit.has('media.attachment.write')")
+    @PostMapping(value = "/media/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public Attachment uploadAttachment(@AuthenticationPrincipal Principals.User caller,
+                                       @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+        if (caller == null) throw ApiException.unauthorized("Sign in first.");
+        var row = uploads.upload(caller, file);
+        return new Attachment(row.getId(), row.getName(), row.getMimeType(), row.getSizeBytes());
+    }
+
+    /**
+     * The bytes, to whoever may read a broadcast that carries them — or to the uploader before she has attached it
+     * anywhere ({@link MediaAccess#requireAttachment}). Cached like a page crop and `private` for the same reason: it
+     * is the answer to an authorised request and must never be served from a shared cache to the next caller.
+     */
+    @PreAuthorize("@permit.has('media.attachment.read')")
+    @GetMapping("/media/attachments/{id}")
+    public ResponseEntity<byte[]> attachment(@PathVariable String id,
+                                             @AuthenticationPrincipal Principals.Parent parent,
+                                             @AuthenticationPrincipal Principals.User user) {
+        var row = attachments.findOneById(id).orElseThrow(() -> ApiException.notFound("media"));
+        access.requireAttachment(row, parent, user);
+        var blob = files.get(row.getStoragePath()).orElseThrow(() -> ApiException.notFound("media file"));
+        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePrivate())
+                .contentType(MediaType.parseMediaType(blob.mimeType())).body(blob.bytes());
     }
 
     @PreAuthorize("@permit.has('media.page.read')")

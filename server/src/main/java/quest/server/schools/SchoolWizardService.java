@@ -73,9 +73,9 @@ public class SchoolWizardService {
                     .orElseThrow(() -> new IllegalStateException("the invite created no user row for " + invite.email()));
         } else {
             var created = users.create(actor, school.id(),
-                    new UserDto.CreateUserRequest(manager.email(), MANAGERIAL, manager.password(), manager.displayName(), null));
+                    new UserDto.CreateUserRequest(manager.email(), MANAGERIAL, manager.password(), manager.displayName(), null, null));
             user = new DashboardDto.DashboardUser(created.id(), created.email(), created.role(), created.schoolId(),
-                    created.status(), created.displayName(), created.photoUrl(), created.language(),
+                    created.status(), created.displayName(), created.photoUrl(), created.phone(), created.language(),
                     created.mustChangePassword(), created.lastLoginAt(), created.createdAt(), null, null, school.name(), null, null);
         }
 

@@ -537,12 +537,26 @@ public class ChatService {
      * <p>The subordinate holds the `teacher_id` side and the supervisor `peer_user_id`: the teacher and the
      * coordinator on their threads with her, and she on the admin's. See {@link #teacherStaffThreads} for the whole
      * rule and why it is one rule.
+     *
+     * <p>MH1 (owner's item 5) adds the fourth: `childId`, the parent thread <em>she</em> opens. Until now only the
+     * parent could start one, so a manager reading the Children directory had nobody to press. It is the same row a
+     * parent's first message creates — {@link ChatThreads#getOrCreate} de-duplicated on (child, staff) — with
+     * `staff_role` `MANAGERIAL`, so it appears in the parent's app list beside her coordinator threads and in
+     * `GET /management/chat/threads` beside everything else of hers. A child of the other department is the 403
+     * {@link ManagerScope#requireChild} answers everywhere; a child with no registered parent is 404 `no_parent`,
+     * because there is no account to deliver to and she is already entitled to know that child exists.
      */
     @Transactional
-    public ChatThread managerStaffThread(Principals.User caller, String coordinatorUserId, String adminUserId, String teacherUserId) {
+    public ChatThread managerStaffThread(Principals.User caller, String childId, String coordinatorUserId, String adminUserId, String teacherUserId) {
         var me = ManagerScope.require(caller);
         String schoolId = tenant.writeSchoolId();
         requireOn(schoolId);
+        if (childId != null && !childId.isBlank()) {
+            var child = managerScope.requireChild(me, childId);
+            if (child.getParentId() == null)
+                throw new ApiException(HttpStatus.NOT_FOUND, "no_parent", "No parent has registered for this child yet.");
+            return one(threadRows.getOrCreate(child, me.userId(), MANAGERIAL, QUESTION), me.userId());
+        }
         if (teacherUserId != null && !teacherUserId.isBlank()) {
             var teacher = managerScope.teachersOf(me).stream().filter(u -> u.getId().equals(teacherUserId)).findFirst()
                     .orElseThrow(() -> ApiException.notFound("teacher"));
@@ -553,7 +567,7 @@ public class ChatService {
                     .findFirst().orElseThrow(() -> ApiException.notFound("coordinator"));
             return one(threadRows.getOrCreateStaff(schoolId, coordinator.getId(), me.userId()), me.userId());
         }
-        if (adminUserId == null || adminUserId.isBlank()) throw ApiException.badRequest("Send teacherUserId, coordinatorUserId or adminUserId.");
+        if (adminUserId == null || adminUserId.isBlank()) throw ApiException.badRequest("Send childId, teacherUserId, coordinatorUserId or adminUserId.");
         var admin = admin(adminUserId);
         return one(threadRows.getOrCreateStaff(schoolId, me.userId(), admin.getId()), me.userId());
     }

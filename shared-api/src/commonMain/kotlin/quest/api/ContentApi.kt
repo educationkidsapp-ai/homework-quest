@@ -127,6 +127,20 @@ interface ContentApi {
      */
     suspend fun childManagers(childId: String): List<ChatThread> = throw NotImplementedError("childManagers needs a backend")
 
+    /**
+     * MH1 `GET /parent/me` — her own account: the address she signed in with and the mobile number the school has for
+     * her. The default is an empty profile so a build against an older server still runs.
+     */
+    suspend fun parentProfile(): quest.api.dashboard.ParentProfile =
+        throw NotImplementedError("parentProfile needs a backend")
+
+    /**
+     * MH1 `PATCH /parent/me` — her mobile number, and nothing else (the address is her Firebase identity). An empty
+     * string clears it. It is what the department manager reaches her on from the Children directory.
+     */
+    suspend fun updateParentProfile(phone: String?): quest.api.dashboard.ParentProfile =
+        throw NotImplementedError("updateParentProfile needs a backend")
+
     // ---- RM2: broadcasts (`docs/runbook.md` "Broadcasts"). Behind the `announcements` flag: 404 while off.
 
     /**

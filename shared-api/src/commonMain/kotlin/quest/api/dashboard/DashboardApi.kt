@@ -120,6 +120,8 @@ data class DashboardUser(
     val status: UserStatus = UserStatus.ACTIVE,
     val displayName: String? = null,
     val photoUrl: String? = null,
+    /** MH1: her own mobile number, E.164-ish and normalised by the server. Absent until somebody types one. */
+    val phone: String? = null,
     val language: String = "en",
     val mustChangePassword: Boolean = false,
     val lastLoginAt: Long? = null,
@@ -242,6 +244,7 @@ data class CreateUserRequest(
     val role: Role,
     val password: String,
     val displayName: String? = null,
+    val phone: String? = null,
     val teacherProfile: TeacherProfileInput? = null,
 )
 
@@ -260,7 +263,25 @@ data class InviteInfo(val email: String, val role: Role, val schoolName: String?
  * island. [language] is `en` or `ar` — the two catalogues §6 ships.
  */
 @Serializable
-data class UpdateMeRequest(val displayName: String? = null, val photoUrl: String? = null, val language: String? = null)
+data class UpdateMeRequest(
+    val displayName: String? = null,
+    val photoUrl: String? = null,
+    val language: String? = null,
+    /** MH1: her mobile number. An empty string clears it; `null` means "not in this request", as every field here does. */
+    val phone: String? = null,
+)
+
+/**
+ * MH1: a **parent's** own account (`GET`/`PATCH /parent/me`). She has no dashboard [DashboardUser] — she is a Firebase
+ * identity with a `parents` row — so this is the whole of it, and [phone] is the only field she may change: the manager
+ * reaches her on it from the Children directory (`DirectoryChild.parentPhone`).
+ */
+@Serializable
+data class ParentProfile(val parentId: String, val email: String, val phone: String? = null)
+
+/** `PATCH /parent/me`: an empty [phone] clears the number, which is how she takes it off the directory. */
+@Serializable
+data class UpdateParentRequest(val phone: String? = null)
 
 /** `GET /me/permissions`: the keys of `permissions.json` the caller's role holds. */
 @Serializable
@@ -272,7 +293,13 @@ data class UserFilter(val role: Role? = null, val schoolId: String? = null, val 
 
 /** `PATCH /admin/users/{id}`: status (disable/enable), display name, or role within the same school. */
 @Serializable
-data class UpdateUserRequest(val status: UserStatus? = null, val displayName: String? = null, val role: Role? = null)
+data class UpdateUserRequest(
+    val status: UserStatus? = null,
+    val displayName: String? = null,
+    val role: Role? = null,
+    /** MH1: the one update route a coordinator's or a manager's account has, so it is where a number is corrected. */
+    val phone: String? = null,
+)
 
 /**
  * The Schools Dashboard's view of the backend (P1.3). The Angular client is generated from `server/openapi.json`
@@ -895,12 +922,22 @@ interface DashboardApi {
     suspend fun markManagementChatRead(threadId: String): quest.api.dto.ChatReadReceipt
 
     /**
-     * `POST /management/chat/threads` — her thread with one teacher of her department (`teacherUserId`, MG1), one
-     * coordinator of it (`coordinatorUserId`) or a platform admin (`adminUserId`), whichever the body names. The same
-     * thread whichever side opens it; a person outside her department is 404.
+     * `POST /management/chat/threads` — her thread with the registered parent of a child of her department
+     * (`childId`, MH1), one teacher of it (`teacherUserId`, MG1), one coordinator of it (`coordinatorUserId`) or a
+     * platform admin (`adminUserId`), whichever the body names — read in that order. The same thread whichever side
+     * opens it; a person outside her department is 404, a child of the other department 403, and a child nobody has
+     * registered for 404 `no_parent`.
      */
-    suspend fun createManagementChatThread(coordinatorUserId: String? = null, adminUserId: String? = null,
+    suspend fun createManagementChatThread(childId: String? = null, coordinatorUserId: String? = null,
+                                           adminUserId: String? = null,
                                            teacherUserId: String? = null): quest.api.dto.ChatThread
+
+    /**
+     * MH1 `POST /media/attachments` — one image (JPEG, PNG or WebP, at most 5 MB) as `multipart/form-data` under
+     * `file`. The reply's id is what `createManagementBroadcast` sends as `attachmentId`; until it is attached to a
+     * broadcast, only the uploader can read it back from `GET /media/attachments/{id}`.
+     */
+    suspend fun uploadAttachment(file: quest.api.UploadFile): quest.api.dto.AttachmentRef
 
     /** `GET /management/admins` — whom `adminUserId` may name. `GET /management/coordinators` is the other chooser. */
     suspend fun managementAdmins(): List<ManagerAdmin>

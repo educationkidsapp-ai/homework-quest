@@ -86,6 +86,7 @@ public class TeachingStaffService {
         user.setId(UUID.randomUUID().toString()); user.setSchoolId(schoolId); user.setEmail(email); user.setRole("TEACHER");
         user.setStatus("active"); user.setMustChangePassword(true); user.setDisplayName(fullName);
         user.setPhotoUrl(photo(request.photoUrl())); user.setPasswordHash(encoder.encode(temporary));
+        user.setPhone(quest.server.platform.Phones.normalise(request.phone(), "phone"));
         user.setCreatedAt(Instant.now()); user.setUpdatedAt(Instant.now());
         users.save(user);
         saveProfile(user.getId(), subjects, curriculum);
@@ -100,6 +101,7 @@ public class TeachingStaffService {
         var user = teacher(userId);
         if (request.fullName() != null) user.setDisplayName(text(request.fullName(), "fullName", 80));
         if (request.photoUrl() != null) user.setPhotoUrl(request.photoUrl().isBlank() ? null : photo(request.photoUrl()));
+        if (request.phone() != null) user.setPhone(quest.server.platform.Phones.normalise(request.phone(), "phone"));
         if (request.active() != null) {
             if (caller.userId().equals(user.getId())) throw ApiException.badRequest("You cannot disable your own account.");
             user.setStatus(request.active() ? "active" : "disabled");
@@ -195,7 +197,7 @@ public class TeachingStaffService {
 
     private ClassDto.TeacherAccount account(UserEntity user, TeacherEntity profile, List<ClassDto.TeachingAssignment> mine) {
         return new ClassDto.TeacherAccount(user.getId(), user.getEmail(), SectionService.displayName(user), user.getPhotoUrl(),
-                user.getStatus(), profile == null ? List.of() : json.strings(profile.getSubjectsJson()),
+                user.getPhone(), user.getStatus(), profile == null ? List.of() : json.strings(profile.getSubjectsJson()),
                 profile == null ? null : profile.getCurriculum(), mine);
     }
 

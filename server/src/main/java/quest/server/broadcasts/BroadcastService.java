@@ -74,15 +74,18 @@ public class BroadcastService {
     private final ManagerScope managers; private final CoordinatorScope coordinators; private final TeacherScope teachers;
     private final UserRepository users; private final ChildService childService;
     private final NotificationService notifications; private final CoordinatorAnnouncementService announcements;
+    private final quest.server.files.AttachmentRepository attachments;
     private final TenantContext tenant; private final Clock clock;
 
     public BroadcastService(BroadcastRepository rows, BroadcastReadRepository reads, ManagerScope managers,
                            CoordinatorScope coordinators, TeacherScope teachers,
                            UserRepository users, ChildService childService, NotificationService notifications,
-                           CoordinatorAnnouncementService announcements, TenantContext tenant, Clock clock) {
+                           CoordinatorAnnouncementService announcements,
+                           quest.server.files.AttachmentRepository attachments, TenantContext tenant, Clock clock) {
         this.rows = rows; this.reads = reads; this.managers = managers; this.coordinators = coordinators;
         this.teachers = teachers; this.users = users; this.childService = childService;
-        this.notifications = notifications; this.announcements = announcements; this.tenant = tenant; this.clock = clock;
+        this.notifications = notifications; this.announcements = announcements; this.attachments = attachments;
+        this.tenant = tenant; this.clock = clock;
     }
 
     // ---------------------------------------------------------------- the manager composes (POST /management/broadcasts)
@@ -100,6 +103,7 @@ public class BroadcastService {
     @Transactional
     public BroadcastDto.View managerPost(Principals.User caller, BroadcastDto.CreateRequest request) {
         String schoolId = tenant.writeSchoolId();
+        boolean plan = WEEKLY_PLAN.equals(kind(request.kind()));
         var departments = managers.departments(caller);
         var reach = managers.reach(caller);
         boolean named = named(request.sectionIds());
@@ -108,10 +112,19 @@ public class BroadcastService {
         String curriculum = named ? oneTrack(targets) : one(departments);
         // A weekly plan is a department's week and replaces the one before it, so it has to say which department:
         // a row with none would match — and delete — every department's plan for that week.
-        if (WEEKLY_PLAN.equals(kind(request.kind())) && curriculum == null)
+        if (plan && curriculum == null)
             throw ApiException.badRequest("A weekly plan belongs to one department: name the sections of a single track.");
         Integer grade = grade(request.grade(), named, targets);
-        var audience = audience(request.audience());
+        // MH1 (owner's item 6): a plan is one grade's week as an image. Both are required rather than defaulted,
+        // because the two things she could get wrong — the department-wide plan she did not mean and a plan with
+        // nothing in it — are exactly what a default would hide.
+        if (plan && grade == null)
+            throw ApiException.badRequest("A weekly plan is for one grade: name the grade it is for.");
+        if (plan && blank(request.attachmentId()))
+            throw ApiException.badRequest("A weekly plan is an image: upload it to /media/attachments first and send attachmentId.");
+        // Her plan goes to the whole grade whatever she ticked: DR6 gives the plan one audience and the owner's list
+        // names it — the parents, the teachers and the coordinators of that grade.
+        var audience = plan ? List.of(PARENTS, TEACHERS, COORDINATORS) : audience(request.audience());
         var row = write(schoolId, caller.userId(), ManagerScope.ROLE, request, curriculum, grade, null, named ? targets : null, audience);
         fanOut(row, schoolId, audience, reach);
         return view(row, displayName(caller.userId()), true);
@@ -229,7 +242,7 @@ public class BroadcastService {
     public BroadcastDto.PlanArchive childArchive(Principals.Parent parent, String childId, String from, String to) {
         var kid = childService.owned(childId, parent);
         var window = window(from, to);
-        if (kid.getClassId() == null) return new BroadcastDto.PlanArchive(window.from().toString(), window.to().toString(), List.of());
+        if (kid.getClassId() == null) return new BroadcastDto.PlanArchive(window.from().toString(), window.to().toString(), 0, List.of());
         var found = rows.plansBetween(kid.getSchoolId(), window.from(), window.to(), PageRequest.of(0, ARCHIVE_PAGE)).stream()
                 .filter(b -> forChild(b, kid)).toList();
         return archive(window, found, parent.parentId(), false);
@@ -261,6 +274,7 @@ public class BroadcastService {
             byWeek.computeIfAbsent(b.getWeekStart(), week -> new ArrayList<>())
                     .add(new BroadcastDto.PlanEntry(view(b, authors.getOrDefault(b.getAuthorUserId(), ""), read.contains(b.getId())),
                             counts ? readBy.getOrDefault(b.getId(), 0) : null));
+        int unread = (int) found.stream().filter(b -> !read.contains(b.getId())).count();
         var weeks = new ArrayList<BroadcastDto.PlanWeek>(byWeek.size());
         byWeek.forEach((week, items) -> {
             var sorted = new ArrayList<>(items);
@@ -268,7 +282,7 @@ public class BroadcastService {
             sorted.sort(java.util.Comparator.comparingInt(e -> e.plan().grade() == null ? -1 : e.plan().grade()));
             weeks.add(new BroadcastDto.PlanWeek(week.toString(), List.copyOf(sorted)));
         });
-        return new BroadcastDto.PlanArchive(window.from().toString(), window.to().toString(), List.copyOf(weeks));
+        return new BroadcastDto.PlanArchive(window.from().toString(), window.to().toString(), unread, List.copyOf(weeks));
     }
 
     private Map<String, Integer> readCounts(List<String> ids) {
@@ -310,20 +324,22 @@ public class BroadcastService {
     private BroadcastEntity write(String schoolId, String authorId, String authorRole, BroadcastDto.CreateRequest request,
                                   String curriculum, Integer grade, String subject, List<ClassEntity> sections, List<String> audience) {
         String kind = kind(request.kind());
-        String bodyEn = SafeText.plainText(request.bodyEn(), "bodyEn", MAX_BODY);
-        if (bodyEn == null) throw ApiException.badRequest("bodyEn must not be empty");
         Instant now = clock.instant();
         var row = new BroadcastEntity();
         row.setId(UUID.randomUUID().toString()); row.setSchoolId(schoolId);
         row.setAuthorUserId(authorId); row.setAuthorRole(authorRole); row.setKind(kind);
         row.setWeekStart(week(kind, request.weekStart()));
-        row.setTitle(SafeText.plainText(request.title(), "title", MAX_TITLE));
-        row.setBodyEn(bodyEn); row.setBodyAr(SafeText.plainText(request.bodyAr(), "bodyAr", MAX_BODY));
-        if (request.attachment() != null) {
-            row.setAttachmentUrl(SafeText.plainText(request.attachment().url(), "attachment.url", 500));
-            row.setAttachmentName(SafeText.plainText(request.attachment().name(), "attachment.name", 200));
-            if (row.getAttachmentUrl() == null) throw ApiException.badRequest("attachment.url must not be empty");
+        String title = SafeText.plainText(request.title(), "title", MAX_TITLE);
+        String bodyEn = SafeText.plainText(request.bodyEn(), "bodyEn", MAX_BODY);
+        if (WEEKLY_PLAN.equals(kind)) {
+            // MH1: "no title/message — just the week and an uploaded image". `broadcasts.body_en` is NOT NULL and the
+            // bell needs a headline, so the server writes the sentence she did not have to type.
+            if (title == null) title = "Weekly plan · Grade " + grade + " · week of " + row.getWeekStart();
+            if (bodyEn == null) bodyEn = title;
         }
+        if (bodyEn == null) throw ApiException.badRequest("bodyEn must not be empty");
+        row.setTitle(title); row.setBodyEn(bodyEn); row.setBodyAr(SafeText.plainText(request.bodyAr(), "bodyAr", MAX_BODY));
+        attach(row, schoolId, authorId, request);
         row.setAudienceRoles(String.join(",", audience)); row.setCurriculum(curriculum); row.setGrade(grade); row.setSubject(subject);
         row.setSectionIds(sections == null ? null : sections.stream().map(ClassEntity::getId).collect(Collectors.joining(",")));
         row.setExpiresAt(expiry(request.expiresAt(), now)); row.setCreatedAt(now);
@@ -381,6 +397,58 @@ public class BroadcastService {
         String link = NotificationService.broadcastLink(role, row.getId());
         for (String userId : recipients)
             notifications.notify(schoolId, userId, NotificationKind.BROADCAST_POSTED, headline(row), row.getBodyEn(), link, row.getId());
+    }
+
+    // ---------------------------------------------------------------- MH1: the attachment
+
+    /**
+     * What is attached, resolved to an `attachments` row when the request names one. <strong>Only the author's own
+     * upload</strong>: a composer could otherwise name any id and publish another school's — or another manager's —
+     * image to her whole department, and a 400 here is the same answer an id that never existed gets.
+     *
+     * <p>`attachmentUrl`/`attachmentName` are written beside the id so a feed row needs no second read, and the free
+     * text V22 allowed still works for a caller that sends `attachment` without an id — the rows QA already has.
+     */
+    private void attach(BroadcastEntity row, String schoolId, String authorId, BroadcastDto.CreateRequest request) {
+        String wanted = request.attachmentId();
+        if (blank(wanted) && request.attachment() != null) wanted = request.attachment().id();
+        if (!blank(wanted)) {
+            String id = wanted.trim();
+            var file = attachments.findOneById(id)
+                    .filter(a -> schoolId.equals(a.getSchoolId()) && authorId.equals(a.getUploadedBy()))
+                    .orElseThrow(() -> ApiException.badRequest("Upload the image to /media/attachments first — that attachmentId is not one of yours."));
+            row.setAttachmentId(file.getId()); row.setAttachmentUrl("/media/attachments/" + file.getId());
+            row.setAttachmentName(file.getName()); row.setAttachmentType(file.getMimeType());
+            return;
+        }
+        if (request.attachment() == null) return;
+        row.setAttachmentUrl(SafeText.plainText(request.attachment().url(), "attachment.url", 500));
+        row.setAttachmentName(SafeText.plainText(request.attachment().name(), "attachment.name", 200));
+        if (row.getAttachmentUrl() == null) throw ApiException.badRequest("attachment.url must not be empty");
+    }
+
+    private static BroadcastDto.Attachment attachment(BroadcastEntity b) {
+        if (b.getAttachmentId() == null && b.getAttachmentUrl() == null) return null;
+        return new BroadcastDto.Attachment(b.getAttachmentUrl(), b.getAttachmentName(), b.getAttachmentId(), b.getAttachmentType());
+    }
+
+    /**
+     * MH1: may this caller read those bytes? `GET /media/attachments/{id}` asks it, and it is answered by
+     * <strong>the very predicate the feeds use</strong> — an attachment is readable exactly when a broadcast carrying
+     * it is, so a plan's image can never be visible to somebody the plan is not, nor hidden from somebody it is.
+     * The uploader's own file is {@link quest.server.files.MediaAccess}'s business, not this method's.
+     *
+     * @param kids the parent's children, empty for a dashboard caller
+     */
+    public boolean readsAttachment(String attachmentId, String schoolId, Principals.User user, List<ChildEntity> kids) {
+        var carrying = rows.byAttachment(schoolId, attachmentId);
+        if (carrying.isEmpty()) return false;
+        if (user != null) {
+            var mine = reach(user);
+            return carrying.stream().anyMatch(b -> user.userId().equals(b.getAuthorUserId()) || mine.sees(b));
+        }
+        return carrying.stream().anyMatch(b -> kids.stream()
+                .anyMatch(k -> k.getClassId() != null && schoolId.equals(k.getSchoolId()) && forChild(b, k)));
     }
 
     // ---------------------------------------------------------------- who sees what
@@ -479,7 +547,7 @@ public class BroadcastService {
                 b.getBodyEn(), b.getBodyAr(), b.getWeekStart() == null ? null : b.getWeekStart().toString(), b.getCurriculum(), b.getGrade(), b.getSubject(),
                 b.getSectionIds() == null || b.getSectionIds().isBlank() ? List.of() : List.of(b.getSectionIds().split(",")),
                 List.of(b.getAudienceRoles().split(",")),
-                b.getAttachmentUrl() == null ? null : new BroadcastDto.Attachment(b.getAttachmentUrl(), b.getAttachmentName()),
+                attachment(b),
                 b.getExpiresAt() == null ? null : b.getExpiresAt().toEpochMilli(), b.getCreatedAt().toEpochMilli(), read);
     }
 

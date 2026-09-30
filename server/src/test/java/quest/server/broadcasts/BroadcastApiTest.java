@@ -155,15 +155,18 @@ class BroadcastApiTest extends ApiTestSupport {
     // ---------------------------------------------------------------- the manager's weekly plan
 
     @Test @Order(1) void the_british_weekly_plan_reaches_the_british_department_only() throws Exception {
-        var plan = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\","
+        var plan = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":1,"
                 + "\"title\":\"Week of subtraction\",\"bodyEn\":\"Subtraction all week; swimming on Thursday.\","
                 + "\"bodyAr\":\"الطرح\",\"audience\":[\"parents\",\"teachers\",\"coordinators\"],"
-                + "\"attachment\":{\"url\":\"/media/pages/plan-1\",\"name\":\"plan.pdf\"}}");
+                + "\"attachmentId\":\"" + imageId(nour, "MANAGERIAL") + "\"}");
         assertThat(plan.get("kind").asText()).isEqualTo("weekly_plan");
         assertThat(plan.get("weekStart").asText()).isEqualTo(week.toString());
         assertThat(plan.get("curriculum").asText()).isEqualTo("british");
         assertThat(plan.get("authorRole").asText()).isEqualTo("MANAGERIAL");
-        assertThat(plan.get("attachment").get("name").asText()).isEqualTo("plan.pdf");
+        // MH1: the attachment is a reference now, and `url` is the route the recipient actually fetches.
+        assertThat(plan.get("attachment").get("type").asText()).isEqualTo("image/png");
+        assertThat(plan.get("attachment").get("url").asText())
+                .isEqualTo("/media/attachments/" + plan.get("attachment").get("id").asText());
         assertThat(plan.get("sectionIds")).as("the whole department, so no section is named").isEmpty();
 
         // The two British parents see it; the American one does not.
@@ -198,9 +201,9 @@ class BroadcastApiTest extends ApiTestSupport {
         staffPost(BRITISH_PARENT, "/children/" + childBritishA + "/broadcasts/" + first + "/read");
         assertThat(parentGet(BRITISH_PARENT, "/children/" + childBritishA + "/broadcasts").get("unread").asInt()).isZero();
 
-        var again = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\","
+        var again = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":1,"
                 + "\"title\":\"Week of subtraction (v2)\",\"bodyEn\":\"Swimming moved to Wednesday.\","
-                + "\"audience\":[\"parents\",\"teachers\"]}");
+                + "\"attachmentId\":\"" + imageId(nour, "MANAGERIAL") + "\"}");
         // One week, one bell entry: the superseded plan's notification goes with its row, or Maya is left with two
         // titles for one week and one of them opens a feed that no longer has it.
         var bells = names(staffGet(maya, "TEACHER", "/me/notifications"), "title");
@@ -227,15 +230,16 @@ class BroadcastApiTest extends ApiTestSupport {
         mvc.perform(as(post("/management/broadcasts").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"kind\":\"event\",\"bodyEn\":\"Hello\",\"audience\":[\"parents\"],\"sectionIds\":[\"" + britishA + "\"]}"),
                 token(sami, "MANAGERIAL"))).andExpect(status().isForbidden());
-        // A weekly plan whose sections span both tracks names no department, and a plan with no department would
-        // match — and delete — every department's plan for that week. Refused, so the delete is always one track's.
+        // A weekly plan names one grade of one department (MH1), so sections instead of a grade — here spanning both
+        // tracks, which would name no department at all and match every department's plan for that week — is refused.
         mvc.perform(as(post("/management/broadcasts").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"bodyEn\":\"Both tracks\","
                                 + "\"audience\":[\"parents\"],\"sectionIds\":[\"" + britishA + "\",\"" + americanA + "\"]}"),
                 adminToken).header(TenantContext.HEADER, SCHOOL)).andExpect(status().isBadRequest());
         // The American manager's own plan leaves the British one where it is.
-        created(sami, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\","
-                + "\"title\":\"American week\",\"bodyEn\":\"Spelling bee.\",\"audience\":[\"parents\"]}");
+        created(sami, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":1,"
+                + "\"title\":\"American week\",\"bodyEn\":\"Spelling bee.\","
+                + "\"attachmentId\":\"" + imageId(sami, "MANAGERIAL") + "\"}");
         assertThat(names(staffGet(nour, "MANAGERIAL", "/management/broadcasts"), "title"))
                 .as("the other department's replacement is not hers").contains("Week of subtraction (v2)");
         assertThat(names(parentGet(AMERICAN_PARENT, "/children/" + childAmerican + "/broadcasts").get("items"), "title"))
@@ -442,7 +446,8 @@ class BroadcastApiTest extends ApiTestSupport {
      */
     @Test @Order(11) void a_grade_plan_reaches_that_grade_and_the_all_grades_plan_reaches_the_department() throws Exception {
         var plan = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":2,"
-                + "\"title\":\"Grade 2 week\",\"bodyEn\":\"Long division all week.\",\"audience\":[\"parents\",\"teachers\"]}");
+                + "\"title\":\"Grade 2 week\",\"bodyEn\":\"Long division all week.\","
+                + "\"attachmentId\":\"" + imageId(nour, "MANAGERIAL") + "\"}");
         assertThat(plan.get("grade").asInt()).isEqualTo(2);
         assertThat(plan.get("curriculum").asText()).isEqualTo("british");
 
@@ -453,8 +458,9 @@ class BroadcastApiTest extends ApiTestSupport {
         // what the feed will not show.
         assertThat(names(staffGet(maya, "TEACHER", "/me/broadcasts").get("items"), "title")).doesNotContain("Grade 2 week");
         assertThat(names(staffGet(maya, "TEACHER", "/me/notifications"), "title")).doesNotContain("Grade 2 week");
-        // And the department's own plan for the same week reaches both grades, which is what `grade` null means.
-        assertThat(names(staffGet(RITA, "TEACHER", "/me/broadcasts").get("items"), "title")).contains("Week of subtraction (v2)");
+        // MH1: there is no all-grades plan any more, so grade 1's week is Maya's and not Rita's.
+        assertThat(names(staffGet(RITA, "TEACHER", "/me/broadcasts").get("items"), "title")).doesNotContain("Week of subtraction (v2)");
+        assertThat(names(staffGet(maya, "TEACHER", "/me/broadcasts").get("items"), "title")).contains("Week of subtraction (v2)");
 
         assertThat(names(parentGet(BRITISH_2_PARENT, "/children/" + childBritish2 + "/broadcasts").get("items"), "title"))
                 .contains("Grade 2 week");
@@ -464,10 +470,16 @@ class BroadcastApiTest extends ApiTestSupport {
         assertThat(names(staffGet(nour, "MANAGERIAL", "/management/broadcasts"), "title"))
                 .contains("Grade 2 week", "Week of subtraction (v2)");
 
+        String image = imageId(nour, "MANAGERIAL");
         for (String body : List.of(
-                "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":9,\"bodyEn\":\"Nobody teaches it\",\"audience\":[\"parents\"]}",
+                "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":9,\"bodyEn\":\"Nobody teaches it\",\"attachmentId\":\"" + image + "\"}",
                 "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":1,\"bodyEn\":\"Two ways of saying it\","
-                        + "\"audience\":[\"parents\"],\"sectionIds\":[\"" + britishA + "\"]}"))
+                        + "\"sectionIds\":[\"" + britishA + "\"],\"attachmentId\":\"" + image + "\"}",
+                // MH1: the plan is one grade's week as an image, so neither half may be left out — and an id that is
+                // not this author's own upload is the same 400 as one that never existed.
+                "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"bodyEn\":\"Every grade\",\"attachmentId\":\"" + image + "\"}",
+                "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":1,\"bodyEn\":\"No image\"}",
+                "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":1,\"attachmentId\":\"" + imageId(sami, "MANAGERIAL") + "\"}"))
             mvc.perform(as(post("/management/broadcasts").contentType(MediaType.APPLICATION_JSON).content(body), token(nour, "MANAGERIAL")))
                     .andExpect(status().isBadRequest());
     }
@@ -475,9 +487,10 @@ class BroadcastApiTest extends ApiTestSupport {
     /** The replace key is (school, week, department, grade): a re-post takes out its own row and no other. */
     @Test @Order(12) void re_posting_a_grade_plan_replaces_that_grades_plan_only() throws Exception {
         created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":2,"
-                + "\"title\":\"Grade 2 week (v2)\",\"bodyEn\":\"Long division, and a test on Thursday.\",\"audience\":[\"parents\",\"teachers\"]}");
+                + "\"title\":\"Grade 2 week (v2)\",\"bodyEn\":\"Long division, and a test on Thursday.\","
+                + "\"attachmentId\":\"" + imageId(nour, "MANAGERIAL") + "\"}");
         assertThat(names(staffGet(RITA, "TEACHER", "/me/broadcasts").get("items"), "title"))
-                .contains("Grade 2 week (v2)", "Week of subtraction (v2)").doesNotContain("Grade 2 week");
+                .contains("Grade 2 week (v2)").doesNotContain("Grade 2 week");
         assertThat(names(staffGet(RITA, "TEACHER", "/me/notifications"), "title")).doesNotContain("Grade 2 week");
     }
 
@@ -486,8 +499,9 @@ class BroadcastApiTest extends ApiTestSupport {
      * and expired rows included, which is the one thing it must do that `GET /me/broadcasts` must not.
      */
     @Test @Order(14) void the_archive_holds_past_weeks_and_stops_at_the_department() throws Exception {
-        var old = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week.minusWeeks(3) + "\","
-                + "\"title\":\"Three weeks ago\",\"bodyEn\":\"Shapes.\",\"audience\":[\"parents\",\"teachers\"]}");
+        var old = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week.minusWeeks(3) + "\",\"grade\":1,"
+                + "\"title\":\"Three weeks ago\",\"bodyEn\":\"Shapes.\","
+                + "\"attachmentId\":\"" + imageId(nour, "MANAGERIAL") + "\"}");
         // Expired by hand: there is no way to post a row that is already over, and "the feed hides it, the archive
         // does not" is exactly the difference between the two screens.
         broadcastRows.findById(old.get("id").asText()).ifPresent(row -> { row.setExpiresAt(clock.instant().minusSeconds(60)); broadcastRows.save(row); });
@@ -498,10 +512,13 @@ class BroadcastApiTest extends ApiTestSupport {
         assertThat(hers.get("weeks").get(0).get("weekStart").asText()).as("newest week first").isEqualTo(week.toString());
         assertThat(planTitles(hers)).contains("Three weeks ago", "Week of subtraction (v2)", "Grade 2 week (v2)")
                 .as("the other department's week is not hers").doesNotContain("American week");
-        // All-grades first inside a week, then by grade, and her own archive counts the readers.
+        // By grade inside a week, and her own archive counts the readers.
         var thisWeek = hers.get("weeks").get(0).get("items");
-        assertThat(thisWeek.get(0).get("plan").get("grade").isNull()).isTrue();
+        assertThat(thisWeek.get(0).get("plan").get("grade").asInt()).isEqualTo(1);
         assertThat(thisWeek.get(0).get("readBy").asInt()).isGreaterThanOrEqualTo(0);
+        // MH1: a parent has no bell, so the archive carries her own unread count — this is her notification.
+        assertThat(parentGet(BRITISH_2_PARENT, "/children/" + childBritish2 + "/weekly-plans").get("unread").asInt())
+                .isGreaterThan(0);
         assertThat(planTitles(staffGet(nour, "MANAGERIAL", "/management/weekly-plans?grade=2"))).containsExactly("Grade 2 week (v2)");
 
         assertThat(planTitles(staffGet(sami, "MANAGERIAL", "/management/weekly-plans")))
@@ -525,11 +542,11 @@ class BroadcastApiTest extends ApiTestSupport {
      */
     @Test @Order(13) void a_teacher_in_two_departments_gets_neither_departments_other_grade() throws Exception {
         created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":3,"
-                + "\"title\":\"British grade 3\",\"bodyEn\":\"Fractions.\",\"audience\":[\"teachers\"]}");
+                + "\"title\":\"British grade 3\",\"bodyEn\":\"Fractions.\",\"attachmentId\":\"" + imageId(nour, "MANAGERIAL") + "\"}");
         created(sami, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week + "\",\"grade\":3,"
-                + "\"title\":\"American grade 3\",\"bodyEn\":\"Spelling.\",\"audience\":[\"teachers\"]}");
+                + "\"title\":\"American grade 3\",\"bodyEn\":\"Spelling.\",\"attachmentId\":\"" + imageId(sami, "MANAGERIAL") + "\"}");
         created(sami, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week.minusWeeks(1) + "\",\"grade\":1,"
-                + "\"title\":\"American grade 1\",\"bodyEn\":\"Counting.\",\"audience\":[\"teachers\"]}");
+                + "\"title\":\"American grade 1\",\"bodyEn\":\"Counting.\",\"attachmentId\":\"" + imageId(sami, "MANAGERIAL") + "\"}");
 
         var feed = names(staffGet(ZAID, "TEACHER", "/me/broadcasts").get("items"), "title");
         assertThat(feed).as("the two cells he actually teaches in").contains("American grade 3")
@@ -628,6 +645,94 @@ class BroadcastApiTest extends ApiTestSupport {
         users.save(u);
     }
 
+    /** MH1: the staff seed files gained an optional `phone`, and the acceptance numbers land on the accounts. */
+    @Test @Order(20) void the_acceptance_seed_carries_the_staff_phone_numbers() {
+        assertThat(users.findById(maya).orElseThrow().getPhone()).isEqualTo("+971501000101");
+        assertThat(users.findById(nour).orElseThrow().getPhone()).isEqualTo("+971501000201");
+        assertThat(users.findById(lina).orElseThrow().getPhone()).isEqualTo("+971501000301");
+    }
+
+    // ---------------------------------------------------------------- MH1: the image, and the parent thread she opens
+
+    /**
+     * The owner's item 6 in full: "no title/message — just the week and an uploaded image". The server writes the
+     * sentence she did not type, so `broadcasts.body_en` is never null and the bell still has a headline, and the
+     * audience is the whole grade whatever she ticked — a plan has one audience, and the owner named it.
+     */
+    @Test @Order(17) void a_plan_is_a_week_a_grade_and_an_image_and_needs_nothing_else() throws Exception {
+        var bare = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week.minusWeeks(2) + "\","
+                + "\"grade\":2,\"audience\":[\"parents\"],\"attachmentId\":\"" + imageId(nour, "MANAGERIAL") + "\"}");
+        assertThat(bare.get("title").asText()).isEqualTo("Weekly plan · Grade 2 · week of " + week.minusWeeks(2));
+        assertThat(bare.get("bodyEn").asText()).isEqualTo(bare.get("title").asText());
+        assertThat(ids(bare.get("audience"))).containsExactly("parents", "teachers", "coordinators");
+        assertThat(planTitles(staffGet(RITA, "TEACHER", "/me/weekly-plans"))).contains(bare.get("title").asText());
+    }
+
+    /**
+     * MH1: an attachment is readable exactly by whoever may read a broadcast that carries it — the one predicate the
+     * feeds, the archives and the bell share — plus its uploader, who has to see it in the composer before she posts.
+     * Everything else is 404 and never 403, `MediaAccess`'s rule: an id that exists in another department must look
+     * exactly like an id that never existed.
+     */
+    @Test @Order(18) void the_plans_image_reaches_that_grade_and_nobody_else() throws Exception {
+        String image = imageId(nour, "MANAGERIAL");
+        // Hers before it is attached to anything; nobody else's, not even the other manager of the same school.
+        mvc.perform(as(get("/media/attachments/" + image), token(nour, "MANAGERIAL"))).andExpect(status().isOk());
+        mvc.perform(as(get("/media/attachments/" + image), token(sami, "MANAGERIAL"))).andExpect(status().isNotFound());
+        mvc.perform(get("/media/attachments/" + image).header("Authorization", bearer(BRITISH_PARENT))).andExpect(status().isNotFound());
+
+        created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week.minusWeeks(4) + "\","
+                + "\"grade\":1,\"title\":\"Grade 1, four weeks back\",\"attachmentId\":\"" + image + "\"}");
+        // A parent and a teacher of grade 1 British may read it; the American side and the other grade may not.
+        mvc.perform(get("/media/attachments/" + image).header("Authorization", bearer(BRITISH_PARENT)))
+                .andExpect(status().isOk()).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Content-Type", "image/png"));
+        mvc.perform(as(get("/media/attachments/" + image), token(maya, "TEACHER"))).andExpect(status().isOk());
+        mvc.perform(as(get("/media/attachments/" + image), token(RITA, "TEACHER"))).andExpect(status().isNotFound());
+        mvc.perform(get("/media/attachments/" + image).header("Authorization", bearer(AMERICAN_PARENT))).andExpect(status().isNotFound());
+        mvc.perform(get("/media/attachments/" + java.util.UUID.randomUUID()).header("Authorization", bearer(BRITISH_PARENT)))
+                .andExpect(status().isNotFound());
+        // Only an image, and only a small one: a PDF announced as a PNG is refused on its own bytes.
+        var pdf = new org.springframework.mock.web.MockMultipartFile("file", "plan.pdf", "image/png", "%PDF-1.7".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        mvc.perform(as(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/media/attachments").file(pdf),
+                token(nour, "MANAGERIAL"))).andExpect(status().isBadRequest());
+    }
+
+    /**
+     * The owner's item 5: the manager writes to a parent from the Children directory. Until MH1 only the parent could
+     * open that thread, so there was nobody for her to press. It is the same row either side creates — `staff_role`
+     * `MANAGERIAL`, `child_id` the child — so it lands in the parent's app list beside her coordinator threads.
+     */
+    @Test @Order(19) void the_manager_opens_a_thread_with_a_childs_parent() throws Exception {
+        var thread = created(nour, "/management/chat/threads", "{\"childId\":\"" + childBritishA + "\"}");
+        assertThat(thread.get("staffRole").asText()).isEqualTo("MANAGERIAL");
+        assertThat(thread.get("childId").asText()).isEqualTo(childBritishA);
+        assertThat(created(nour, "/management/chat/threads", "{\"childId\":\"" + childBritishA + "\"}").get("id").asText())
+                .as("asked for twice, it is the same row").isEqualTo(thread.get("id").asText());
+        assertThat(names(staffGet(nour, "MANAGERIAL", "/management/chat/threads"), "childId")).contains(childBritishA);
+        // The parent sees the same manager on her own list, which is where she answers from.
+        assertThat(names(parentGet(BRITISH_PARENT, "/children/" + childBritishA + "/managers"), "teacherId")).contains(nour);
+
+        // A child of the other department is 403 — `ManagerScope.requireChild`'s answer everywhere under
+        // `/management` — and a child nobody has registered for is 404 `no_parent`.
+        mvc.perform(as(post("/management/chat/threads").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"childId\":\"" + childAmerican + "\"}"), token(nour, "MANAGERIAL"))).andExpect(status().isForbidden());
+        String orphan = rosterChild("Nabil", britishA);
+        mvc.perform(as(post("/management/chat/threads").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"childId\":\"" + orphan + "\"}"), token(nour, "MANAGERIAL")))
+                .andExpect(status().isNotFound())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value("no_parent"));
+    }
+
+    /** A roster row nobody has registered for: `parent_id` null, which is what MH1's `no_parent` refusal is about. */
+    private String rosterChild(String name, String classId) {
+        var row = new quest.server.children.Entities.ChildEntity();
+        row.setId("bc-roster-" + name.toLowerCase(Locale.ROOT)); row.setSchoolId(SCHOOL); row.setName(name);
+        row.setAvatarColor("sun"); row.setCurriculum("british"); row.setGrade(1); row.setClassId(classId);
+        row.setCreatedAt(Instant.now());
+        return childRows.save(row).getId();
+    }
+
     /** One `staff_scopes` row: a coordinator's is a subject, and a null `curriculum` means both tracks (DR5). */
     private void scopeRow(String id, String userId, String subject, String curriculum) {
         var row = staffScopes.findById(id).orElseGet(quest.server.tenancy.Entities.StaffScopeEntity::new);
@@ -638,6 +743,20 @@ class BroadcastApiTest extends ApiTestSupport {
     }
 
     private String token(String userId, String role) { return jwt.issue(userId, userId + "@seed.test", role, SCHOOL).token(); }
+
+    /** The smallest thing `AttachmentService` will accept as a PNG: the eight-byte signature and a little after it. */
+    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 'I', 'H', 'D', 'R'};
+
+    /**
+     * MH1: a weekly plan <em>is</em> an image, so every plan below uploads one first — and as its own author, because
+     * a composer may only attach her own upload.
+     */
+    private String imageId(String userId, String role) throws Exception {
+        var file = new org.springframework.mock.web.MockMultipartFile("file", "plan.png", "image/png", PNG);
+        return json(mvc.perform(as(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/media/attachments").file(file), token(userId, role)))
+                .andExpect(status().isCreated()).andReturn()).get("id").asText();
+    }
 
     private MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder b, String token) { return b.header("Authorization", "Bearer " + token); }
 

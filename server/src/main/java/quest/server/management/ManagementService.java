@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import quest.api.AdminLesson;
 import quest.server.admin.AdminLessonService;
@@ -112,16 +113,45 @@ public class ManagementService {
             long covered = sections.stream().filter(k -> scopes.stream()
                     .anyMatch(s -> s.curriculum() == null || s.curriculum().equals(ManagerScope.normalise(k.getCurriculum())))).count();
             rows.add(new ManagementDto.ManagerCoordinator(person.getId(), person.getEmail(), SectionService.displayName(person),
-                    person.getPhotoUrl(), subjects, curricula, (int) covered));
+                    person.getPhotoUrl(), person.getPhone(), subjects, curricula, (int) covered));
         });
         return List.copyOf(rows);
     }
 
     // ---------------------------------------------------------------- GET /management/teachers, /classes, /calendar
 
-    /** Every teacher of the department, with her assignments — the coordinator's own rows, one scope wider. */
+    /**
+     * Every teacher of the department, with her assignments — the coordinator's own rows, one scope wider — and, since
+     * MH1 (owner's item 4), the coordinator(s) above each of them.
+     *
+     * <p><strong>The coordinators are matched on the slot, not on the person.</strong> A coordinator covers a
+     * (section, subject) when her scope row names that subject and either the section's track or no track at all
+     * (DR5: a row with no curriculum is both of them) — the same rule
+     * {@link ManagementService#coordinators} counts her coverage with. It costs no extra statement: the department's
+     * coordinators and their scopes are one read this class already makes, and the sections are the reach.
+     */
     public List<CoordinatorDto.CoordinatorTeacher> teachers(Principals.User caller) {
-        return coordinators.teachers(scope.reach(caller));
+        var reach = scope.reach(caller);
+        var rows = coordinators.teachers(reach);
+        var above = new ArrayList<Map.Entry<CoordinatorDto.TeacherCoordinator, String>>();   // (coordinator, subject|track)
+        scope.coordinatorsOf(caller).forEach((person, scopes) -> scopes.forEach(s -> above.add(Map.entry(
+                new CoordinatorDto.TeacherCoordinator(person.getId(), SectionService.displayName(person), s.subject()),
+                s.subject() + "|" + (s.curriculum() == null ? "" : ManagerScope.normalise(s.curriculum()))))));
+        if (above.isEmpty()) return rows;
+        var out = new ArrayList<CoordinatorDto.CoordinatorTeacher>(rows.size());
+        for (var t : rows) {
+            var keys = new java.util.LinkedHashSet<String>();
+            for (var ref : t.sections()) {
+                var section = reach.byId().get(ref.classId());
+                if (section == null) continue;
+                keys.add(ref.subject() + "|" + ManagerScope.normalise(section.getCurriculum()));
+                keys.add(ref.subject() + "|");                                  // a scope row with no track is both
+            }
+            var mine = above.stream().filter(e -> keys.contains(e.getValue())).map(Map.Entry::getKey).distinct().toList();
+            out.add(new CoordinatorDto.CoordinatorTeacher(t.userId(), t.email(), t.displayName(), t.photoUrl(), t.phone(),
+                    t.subjects(), t.sections(), mine));
+        }
+        return List.copyOf(out);
     }
 
     /**

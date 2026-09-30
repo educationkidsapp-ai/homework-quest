@@ -17,10 +17,13 @@ public final class Entities {
         @Id private String id;
         @Column(name = "firebase_uid", nullable = false, unique = true) private String firebaseUid;
         @Column(nullable = false) private String email;
+        /** MH1: how the manager reaches her (owner's item 5). Null until the parent types one into the app. */
+        @Column(length = 20) private String phone;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getFirebaseUid() { return firebaseUid; } public void setFirebaseUid(String v) { firebaseUid = v; }
         public String getEmail() { return email; } public void setEmail(String v) { email = v; }
+        public String getPhone() { return phone; } public void setPhone(String v) { phone = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }
 
@@ -42,6 +45,8 @@ public final class Entities {
         @Column(name = "must_change_password", nullable = false) private boolean mustChangePassword;
         @Column(name = "display_name") private String displayName;
         @Column(name = "photo_url") private String photoUrl;
+        /** MH1: the mobile number the Coordinators and Teachers screens show (owner's items 3 and 4), E.164-ish. */
+        @Column(length = 20) private String phone;
         @Column(nullable = false) private String language = "en";
         @Column(name = "last_login_at") private Instant lastLoginAt;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
@@ -55,6 +60,7 @@ public final class Entities {
         public boolean isMustChangePassword() { return mustChangePassword; } public void setMustChangePassword(boolean v) { mustChangePassword = v; }
         public String getDisplayName() { return displayName; } public void setDisplayName(String v) { displayName = v; }
         public String getPhotoUrl() { return photoUrl; } public void setPhotoUrl(String v) { photoUrl = v; }
+        public String getPhone() { return phone; } public void setPhone(String v) { phone = v; }
         public String getLanguage() { return language; } public void setLanguage(String v) { language = v; }
         public Instant getLastLoginAt() { return lastLoginAt; } public void setLastLoginAt(Instant v) { lastLoginAt = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }

@@ -30,7 +30,7 @@ class OpenApiContractTest extends ApiTestSupport {
     /** `quest.api.dashboard.DashboardApi` (P1.3, P2.1): the Angular client is generated from exactly these. */
     static final List<String> DASHBOARD_API = List.of(
             "/auth/sign-in", "/auth/refresh", "/auth/sign-out", "/auth/forgot-password", "/auth/reset-password", "/auth/change-password",
-            "/me", "/me/permissions",
+            "/me", "/me/permissions", "/parent/me",
             "/admin/schools", "/admin/schools/{id}", "/admin/schools/{id}/invites", "/admin/schools/{id}/users",
             "/admin/users", "/admin/users/{id}", "/admin/users/{id}/reset-password", "/admin/users/{id}/impersonate",
             "/invites/{token}", "/invites/{token}/accept", "/schools/by-code/{code}",
@@ -223,7 +223,8 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(MANAGEMENT_API);
         assertThat(paths).containsAll(BROADCASTS_API);
         assertThat(paths).containsAll(PUBLIC_API);
-        assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}");
+        // MH1: the upload and the download of a broadcast attachment — the app and the dashboard both call them.
+        assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}", "/media/attachments", "/media/attachments/{id}");
     }
 
     /**
@@ -277,6 +278,26 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(doc.get("paths").get("/teacher/announcements").get("post").get("requestBody")
                 .get("content").get(org.springframework.http.MediaType.APPLICATION_JSON_VALUE).get("schema").get("$ref").asText())
                 .isEqualTo("#/components/schemas/CreateAnnouncementRequest");
+    }
+
+    /**
+     * MH1, the same trap one package over: `BroadcastDto.Attachment` (what is on a broadcast) and
+     * `MediaController.Attachment` (what an upload answers) are two shapes with one simple name, and springdoc keys
+     * `components/schemas` by simple name — so without the two `@Schema(name = …)` the generated client had one
+     * `Attachment` and `BroadcastView.attachment` pointed at the upload's body.
+     */
+    @Test void the_two_attachment_shapes_are_two_schemas() throws Exception {
+        var doc = json(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn());
+        var schemas = doc.get("components").get("schemas");
+        assertThat(schemas.has("Attachment")).as("neither shape may claim the bare name").isFalse();
+        assertThat(schemas.get("BroadcastAttachment").get("properties").has("url")).isTrue();
+        assertThat(schemas.get("AttachmentRef").get("properties").has("sizeBytes")).isTrue();
+        assertThat(schemas.get("BroadcastAttachment").get("properties").has("sizeBytes")).isFalse();
+        assertThat(doc.get("paths").get("/media/attachments").get("post").get("responses").get("201")
+                .get("content").get(org.springframework.http.MediaType.APPLICATION_JSON_VALUE).get("schema").get("$ref").asText())
+                .isEqualTo("#/components/schemas/AttachmentRef");
+        assertThat(schemas.get("BroadcastView").get("properties").get("attachment").get("$ref").asText())
+                .isEqualTo("#/components/schemas/BroadcastAttachment");
     }
 
     private void collect(Class<?> root, List<Class<?>> out) {
