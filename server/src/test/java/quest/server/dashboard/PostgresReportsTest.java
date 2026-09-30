@@ -91,7 +91,10 @@ class PostgresReportsTest extends PostgresContainerSupport {
         seed();
         // ADMIN across the platform, then narrowed with the school switcher, then the two scoped roles: four
         // different statement sets, including the stale-invite cutoff, `NOT EXISTS` and the today's-lesson lookup.
-        assertThat(as("ADMIN", "pg-admin", null, () -> home.home(admin())).cards()).hasSize(3);
+        // MA1's five scalar subqueries are on this path too — the unscoped Admin, where the school clause is absent.
+        assertThat(as("ADMIN", "pg-admin", null, () -> home.home(admin())).cards()).extracting(HomeDto.HomeCard::key)
+                .containsExactly("managers", "coordinators", "teachers", "children", "classes", "workers",
+                        "schools", "lessonsThisWeek");
         assertThat(as("ADMIN", "pg-admin", SCHOOL, () -> home.home(admin())).schoolName()).isEqualTo("Postgres Academy");
 
         var teacher = as("TEACHER", TEACHER, SCHOOL, () -> home.home(new Principals.User(TEACHER, "t@pg-school.test", "TEACHER", SCHOOL)));
