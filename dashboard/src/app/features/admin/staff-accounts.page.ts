@@ -18,6 +18,7 @@ import {
   apiErrorOf,
 } from '../../api';
 import { BandService } from '../../core/band/band.service';
+import { MAX_PHONE_LENGTH, phoneErrorKey } from '../../core/forms/phone';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
 import { PermissionService } from '../../core/permissions/permission.service';
@@ -277,8 +278,17 @@ export class StaffAccountsPage {
     return this.t(`${this.words}.formReason`);
   });
 
+  /** Why this number will not do, or `null` — `core/forms/phone.ts`, the server's own rule. */
+  protected readonly phoneError = computed(() => {
+    this.lang();
+    const key = phoneErrorKey(this.phone());
+    return key === null ? null : this.t(key);
+  });
+
+  protected readonly maxPhone = MAX_PHONE_LENGTH;
+
   protected readonly canSave = computed(() => {
-    if (this.fullName().trim() === '') return false;
+    if (this.fullName().trim() === '' || this.phoneError() !== null) return false;
     if (this.formMode() === 'edit') return true;
     if (this.email().trim() === '') return false;
     if (this.isManager) return this.createCurriculum() !== '';

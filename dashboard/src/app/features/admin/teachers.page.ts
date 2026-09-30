@@ -8,6 +8,7 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { filter } from 'rxjs';
 import { ClassesApi, TeachersApi, apiErrorOf, type TeacherAccount } from '../../api';
 import { BandService } from '../../core/band/band.service';
+import { MAX_PHONE_LENGTH, phoneErrorKey } from '../../core/forms/phone';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
 import { PermissionService } from '../../core/permissions/permission.service';
@@ -199,11 +200,21 @@ export class TeachersPage {
     );
   });
 
+  /** Why this number will not do, or `null` — `core/forms/phone.ts`, the server's own rule. */
+  protected readonly phoneError = computed(() => {
+    this.lang();
+    const key = phoneErrorKey(this.phone());
+    return key === null ? null : this.t(key);
+  });
+
+  protected readonly maxPhone = MAX_PHONE_LENGTH;
+
   protected readonly canSave = computed(
     () =>
       this.fullName().trim().length > 0 &&
       (this.formMode() === 'edit' || this.email().trim().length > 0) &&
-      this.subjects().size > 0,
+      this.subjects().size > 0 &&
+      this.phoneError() === null,
   );
 
   protected hasSubject(subject: Subject): boolean {

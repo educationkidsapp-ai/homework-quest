@@ -87,6 +87,13 @@ its controls switched off. What was genuinely shared is lifted out instead:
 — now serves this screen and the Children one, and the value lives in the caller's one signal and is
 dropped on `NavigationStart`, so "shown once" keeps meaning once.
 
+**A duplicate scope is refused in the editor.** `PUT …/scopes` answers 400 for a subject named twice
+on one track, by design: the unique index treats two "both tracks" rows of one subject as distinct
+(NULLs are distinct in a unique index on PostgreSQL and H2 alike), so `CoordinatorAdminService.wanted`
+has to be the one that says no. That refusal must not be how the Admin learns it, so the editor names
+the repeated pair in the server's own two shapes — "Math · British" or "Math (both tracks)" — under
+the rows with `role="alert"`, blocks the save, and de-duplicates what it sends anyway.
+
 **A manager's create takes one department.** `POST /admin/managers` takes a single `curriculum`,
 while `PUT …/{id}/scopes` takes a list, so the form asks for one and the Departments editor is where
 a second is added. The form's hint says so rather than offering a multi-select the create would have
@@ -107,9 +114,19 @@ behind a red confirm band that says nothing is deleted, and the row stays on scr
 `POST /admin/children` writes three things: the parent's login (in Firebase Auth, through
 `quest.server.auth.ParentAccounts`), the local `parents` row, and the child on the section's roster.
 
-The class select offers only the **active sections of the chosen curriculum and grade**, because the
+**Every form here applies the server's telephone rule before the request.** `core/forms/phone.ts`
+mirrors `quest.server.platform.Phones` — seven to fifteen digits, separators dropped, a leading `00`
+becoming `+`, a `+` only at the front, twenty characters stored — and Children, Teachers, Coordinators,
+Managers and Workers all read the same function, so a number one screen accepts is a number the others
+and the server accept. Without it the school learned the rule from a red band after a request that had
+also written nothing. Where the two ever disagree the server is right, which is why every form still
+shows its refusal. The child's and the parent's names stop at the server's own 40 and 80.
+
+The class select offers only the **active, named sections of the chosen curriculum and grade**, because the
 server refuses a mismatch with a 400 — a Grade 1 British child in a Grade 1 American class would be
-shown lessons for a syllabus she is not taught — so the form never offers one. Until both are chosen
+shown lessons for a syllabus she is not taught — so the form never offers one. A section with no name
+is left out too: an option with an empty label is a blank line she can select and cannot tell from
+the placeholder. Until both are chosen
 the select is empty and says which answer it is waiting for. The password is checked here against the
 server's own two rules (at least eight characters, never the address itself) so the answer arrives
 while she is still typing, has a Show/Hide toggle, and carries a weak/fair/strong hint that is a hint
@@ -133,9 +150,15 @@ what this system uses for everything else that has to be read rather than answer
 by `role="status"` when it appears, and it survives the dialog closing because it was never inside
 it.
 
-A **503** (`code: unavailable`, `ParentAccountsConfig`) is not a red band on the form: there is
-nothing in it for her to correct. It draws its own band — "Parent accounts are not configured on this
-server. Nothing was created." — and names the deployment rather than the person. The `h2` and `test`
+A **503** (`code: unavailable`, `ParentAccountsConfig`) names the deployment rather than the person:
+"Parent accounts are not configured on this server. Nothing was created." It is shown **twice on
+purpose** — inside the dialog and on the page. `hq-dialog` opens with `showModal()`, so the page's
+band alone sits behind the backdrop and the Admin sees the spinner stop and nothing else; the page's
+copy is what is left when she closes the dialog, and is where a failed "Reset parent password" from a
+row lands, since that one has no dialog at all.
+
+The typed password is dropped from the screen the moment the admission succeeds: it has been sent, and
+a signal holding it until the next Admit is a secret kept for no reason. The `h2` and `test`
 profiles set `quest.auth.fake: true`, so the local seed and `e2e/local/admin-people.spec.ts` never
 need Firebase and never meet it.
 

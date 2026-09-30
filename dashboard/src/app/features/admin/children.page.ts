@@ -16,6 +16,7 @@ import {
   apiErrorOf,
 } from '../../api';
 import { BandService } from '../../core/band/band.service';
+import { MAX_PHONE_LENGTH, phoneErrorKey } from '../../core/forms/phone';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
 import { PermissionService } from '../../core/permissions/permission.service';
@@ -57,6 +58,9 @@ const PAGE_SIZE = 25;
 const DEBOUNCE_MS = 250;
 /** The server's floor. Enforced here too, so the field says so before the request. */
 const MIN_PASSWORD = 8;
+/** `ChildAdmissionService.MAX_CHILD_NAME` / `MAX_PARENT_NAME`, mirrored so the field stops at them. */
+const MAX_CHILD_NAME = 40;
+const MAX_PARENT_NAME = 80;
 
 /**
  * Children & parents (MA1 item 5, `docs/admin-flow.md`) — the one Admin screen that creates a login
@@ -236,9 +240,19 @@ export class ChildrenPage implements OnDestroy {
     const grade = this.grade();
     if (curriculum === '' || grade === '') return [];
     return [...this.sections.value()]
-      .filter((one) => one.active !== false && one.curriculum === curriculum && one.grade === grade)
+      .filter(
+        (one) =>
+          one.active !== false &&
+          one.curriculum === curriculum &&
+          one.grade === grade &&
+          // A section with no name would render an option with an empty label — a blank line she
+          // can select and cannot tell from the placeholder. `GET /admin/classes` widens a record
+          // springdoc publishes narrow (`admin.models.ts`), so `name` is optional to this client.
+          (one.name ?? '').trim() !== '' &&
+          (one.id ?? '') !== '',
+      )
       .sort(byCourseThenName)
-      .map((one) => ({ value: one.id ?? '', label: one.name ?? '' }));
+      .map((one) => ({ value: one.id ?? '', label: (one.name ?? '').trim() }));
   });
 
   protected readonly classHint = computed(() => {
@@ -308,6 +322,17 @@ export class ChildrenPage implements OnDestroy {
     return this.t(`admin.children.form.strength.${level}`);
   });
 
+  /** Why this number will not do, or `null` — `core/forms/phone.ts`, the server's own rule. */
+  protected readonly phoneError = computed(() => {
+    this.lang();
+    const key = phoneErrorKey(this.parentPhone());
+    return key === null ? null : this.t(key);
+  });
+
+  protected readonly maxPhone = MAX_PHONE_LENGTH;
+  protected readonly maxChildName = MAX_CHILD_NAME;
+  protected readonly maxParentName = MAX_PARENT_NAME;
+
   protected readonly canAdmit = computed(
     () =>
       this.name().trim() !== '' &&
@@ -315,7 +340,8 @@ export class ChildrenPage implements OnDestroy {
       this.parentName().trim() !== '' &&
       this.parentEmail().trim() !== '' &&
       this.parentPassword().trim() !== '' &&
-      this.passwordError() === null,
+      this.passwordError() === null &&
+      this.phoneError() === null,
   );
 
   protected setCurriculum(value: string): void {
@@ -371,6 +397,11 @@ export class ChildrenPage implements OnDestroy {
           this.saving.set(false);
           this.formOpen.set(false);
           this.admitted.set({ childName: this.name().trim(), admission });
+          // It has been sent and it is hers now: nothing on this screen has any further use for it,
+          // and a signal still holding it until the next `openCreate()` is a secret kept for no
+          // reason. The band beside this says whether it was even applied.
+          this.parentPassword.set('');
+          this.revealPassword.set(false);
           this.families.reload();
         },
         error: (error: unknown) => {
@@ -457,7 +488,9 @@ export class ChildrenPage implements OnDestroy {
 
   /** The edit takes a name and a section; the admission takes the parent and her password too. */
   protected readonly canSave = computed(() =>
-    this.isEdit() ? this.name().trim() !== '' && this.classId() !== '' : this.canAdmit(),
+    this.isEdit()
+      ? this.name().trim() !== '' && this.classId() !== '' && this.phoneError() === null
+      : this.canAdmit(),
   );
 
   protected save(): void {

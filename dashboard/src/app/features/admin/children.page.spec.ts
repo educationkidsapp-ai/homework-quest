@@ -227,6 +227,67 @@ describe('Children & parents', () => {
     expect(screen.queryByText(/is admitted/)).not.toBeInTheDocument();
   });
 
+  /** The server's own rule (`quest.server.platform.Phones`), so the refusal arrives before a 400. */
+  it('refuses a number the server would refuse, and says what shape it wants', async () => {
+    const { rendered } = await renderSignedIn([]);
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Admit a child' })[0]!);
+    await settle(rendered);
+    await userEvent.type(screen.getByLabelText(/^Parent's mobile/), '050/100');
+    await settle(rendered);
+
+    expect(screen.getByText(/Between 7 and 15 digits/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Admit' })).toBeDisabled();
+  });
+
+  /** A section with no name would be a blank line she can pick and cannot tell from the placeholder. */
+  it('leaves an unnamed section out of the class list', async () => {
+    const rendered = await renderHq(ChildrenPage, { providers });
+    const backend = TestBed.inject(HttpTestingController);
+    TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+    TestBed.inject(AuthService).loadMe().subscribe();
+    backend.expectOne('/me').flush(ADMIN_USER);
+    TestBed.tick();
+    backend.expectOne('/me/permissions').flush(ADMIN_PERMISSIONS);
+    backend
+      .expectOne((request) => request.url === '/admin/children/search')
+      .flush({ rows: [], total: 0, page: 0, size: 25 });
+    backend
+      .expectOne('/admin/classes')
+      .flush([ONE_A, { ...ONE_A, id: 'c-blank', name: '   ' }, { ...ONE_A, id: 'c-none', name: undefined }]);
+    await settle(rendered);
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Admit a child' })[0]!);
+    await settle(rendered);
+    await userEvent.selectOptions(screen.getByLabelText('Curriculum'), 'british');
+    await userEvent.selectOptions(screen.getByLabelText('Grade'), '1');
+    await settle(rendered);
+
+    const options = within(screen.getByLabelText('Class')).getAllByRole('option');
+    // The placeholder and 1A, and neither of the two nameless sections.
+    expect(options.map((option) => option.textContent?.trim())).toEqual(['Choose a class', '1A']);
+  });
+
+  it('clears the typed password once the admission has happened', async () => {
+    const { rendered, backend } = await renderSignedIn([]);
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Admit a child' })[0]!);
+    await settle(rendered);
+    await fillAdmission(rendered, 'Sunflower-91');
+    await userEvent.click(screen.getByRole('button', { name: 'Admit' }));
+    backend
+      .expectOne('/admin/children')
+      .flush({ childId: 'ch-hala', parentId: 'p-ahmed', parentCreated: true, passwordApplied: true });
+    await settle(rendered);
+    backend
+      .expectOne((request) => request.url === '/admin/children/search')
+      .flush({ rows: [HALA], total: 1 });
+    await settle(rendered);
+
+    // It has been sent and it is hers now; nothing on this screen has any further use for it.
+    expect(screen.getByLabelText('Password for the parent')).toHaveValue('');
+  });
+
   it('edits the name, the section and the parent number — and asks for no grade of its own', async () => {
     const { rendered, backend } = await renderSignedIn();
 

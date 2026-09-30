@@ -2401,5 +2401,11 @@
   },
   "announcements": {
     "subtitle": "The announcements and the events of your school."
+  },
+  "form": {
+    "phone": {
+      "invalid": "Between 7 and 15 digits, with an optional + at the front.",
+      "hint": "Optional. Digits, spaces, dashes and brackets; a + for a country code."
+    }
   }
 }

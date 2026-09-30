@@ -246,7 +246,9 @@
       type="tel"
       autocomplete="off"
       [value]="phone()"
-      [hint]="'ui.optional' | transloco"
+      [maxLength]="maxPhone"
+      [error]="phoneError()"
+      [hint]="'form.phone.hint' | transloco"
       (valueChange)="setPhone($event)"
     />
     @if (formOpen() && formMode() === 'create') {

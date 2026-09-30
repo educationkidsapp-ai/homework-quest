@@ -8,6 +8,7 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { type Worker, WorkersApi, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
+import { MAX_PHONE_LENGTH, phoneErrorKey } from '../../core/forms/phone';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
 import { PermissionService } from '../../core/permissions/permission.service';
@@ -249,7 +250,9 @@ interface WorkerRow {
           type="tel"
           autocomplete="off"
           [value]="phone()"
-          [hint]="'ui.optional' | transloco"
+          [maxLength]="maxPhone"
+          [error]="phoneError()"
+          [hint]="'form.phone.hint' | transloco"
           (valueChange)="setPhone($event)"
         />
         @if (formMode() === 'edit') {
@@ -364,7 +367,18 @@ export class WorkersPage {
     return this.t(this.formMode() === 'create' ? 'admin.workers.createTitle' : 'admin.workers.editTitle');
   });
 
-  protected readonly canSave = computed(() => this.fullName().trim() !== '' && this.job().trim() !== '');
+  /** Why this number will not do, or `null` — `core/forms/phone.ts`, the server's own rule. */
+  protected readonly phoneError = computed(() => {
+    this.lang();
+    const key = phoneErrorKey(this.phone());
+    return key === null ? null : this.t(key);
+  });
+
+  protected readonly maxPhone = MAX_PHONE_LENGTH;
+
+  protected readonly canSave = computed(
+    () => this.fullName().trim() !== '' && this.job().trim() !== '' && this.phoneError() === null,
+  );
 
   protected setFullName(value: string): void {
     this.formError.set(null);

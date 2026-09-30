@@ -205,6 +205,7 @@
       [label]="'admin.children.form.name' | transloco"
       [value]="name()"
       [required]="true"
+      [maxLength]="maxChildName"
       (valueChange)="name.set($event)"
     />
     <div class="families__pair">
@@ -243,6 +244,7 @@
         [label]="'admin.children.form.parentName' | transloco"
         [value]="parentName()"
         [required]="true"
+        [maxLength]="maxParentName"
         (valueChange)="parentName.set($event)"
       />
       <hq-input
@@ -260,7 +262,9 @@
       type="tel"
       autocomplete="off"
       [value]="parentPhone()"
-      [hint]="'ui.optional' | transloco"
+      [maxLength]="maxPhone"
+      [error]="phoneError()"
+      [hint]="'form.phone.hint' | transloco"
       (valueChange)="parentPhone.set($event)"
     />
     @if (!isEdit()) {
