@@ -71,15 +71,12 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
                     onChest = { nav.navigate(Routes.TreasureChest) },
                     onGrownUps = { nav.navigate(Routes.ParentPin()) },
                     onNeedsChild = { nav.navigate(Routes.AddChild()) { popUpTo(Routes.WorldMap) { inclusive = true } } },
-                    onNotifications = { nav.navigate(Routes.Broadcasts) },
-                    onMessages = { nav.navigate(Routes.ChatThreads) },
-                    onSettings = { nav.navigate(Routes.Settings) },
                 )
             }
         }
         composable<Routes.Journey> { entry ->
             val r = entry.toRoute<Routes.Journey>()
-            ChildTheme {
+            AcademicTheme {
                 // §4 `levels.three`: the route is the last door into the Challenge path. A child who reaches it any
                 // other way — a deep link, a back stack from before the flag was turned off — lands on the map
                 // instead of a level whose own selector would not even list it.
@@ -87,7 +84,7 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
                     JourneyRoute(r.lessonId, r.level, r.variant,
                         onOpenStop = { id, level, variant, index -> nav.navigate(Routes.StopPlayer(id, level, variant, index)) },
                         onComplete = { id, level, variant -> nav.navigate(Routes.LessonComplete(id, level, variant)) },
-                        onParentPanel = { nav.navigate(Routes.ParentPin(it)) }, onBack = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } })
+                        onParentPanel = {}, onBack = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } })
                 }
             }
         }

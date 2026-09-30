@@ -154,7 +154,12 @@ class BroadcastsViewModel(
 }
 
 @Composable
-fun BroadcastsRoute(onBack: () -> Unit) {
+fun BroadcastsRoute(
+    onBack: () -> Unit,
+    onHome: () -> Unit = onBack,
+    onMessages: () -> Unit = {},
+    onSettings: () -> Unit = {},
+) {
     val vm: BroadcastsViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
     // Inside the gate, so a deep link into a school without the flag fires no request at all, and `GateFallback`
@@ -162,7 +167,19 @@ fun BroadcastsRoute(onBack: () -> Unit) {
     GateFallback(Flags.ANNOUNCEMENTS, onBack)
     FeatureGate(Flags.ANNOUNCEMENTS) {
         LaunchedEffect(vm) { vm.dispatch(BroadcastsContract.Intent.Load) }
-        ParentShell(title = { it.broadcasts }, onBack = onBack) { strings ->
+        ParentShell(
+            title = { it.broadcasts },
+            onBack = onBack,
+            currentTab = quest.ui.design.DashboardTab.NOTIFICATION,
+            onTabSelected = { tab ->
+                when (tab) {
+                    quest.ui.design.DashboardTab.HOME -> onHome()
+                    quest.ui.design.DashboardTab.NOTIFICATION -> {}
+                    quest.ui.design.DashboardTab.MESSAGES -> onMessages()
+                    quest.ui.design.DashboardTab.SETTINGS -> onSettings()
+                }
+            },
+        ) { strings ->
             BroadcastsScreen(
                 state = state,
                 strings = strings,

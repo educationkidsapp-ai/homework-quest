@@ -37,8 +37,6 @@ class LessonImagesTest {
         var refreshes = 0; private set
         override val state: StateFlow<AuthState> = MutableStateFlow(AuthState.SignedOut)
         override suspend fun signIn(email: String, password: String) = Unit
-        override suspend fun register(email: String, password: String) = Unit
-        override suspend fun signInWithGoogle() = Unit
         override suspend fun signOut() = Unit
         override suspend fun idToken(forceRefresh: Boolean): String? {
             if (forceRefresh) refreshes++

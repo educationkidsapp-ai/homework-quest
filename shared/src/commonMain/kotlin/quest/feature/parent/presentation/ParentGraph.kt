@@ -37,7 +37,16 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
     }
     composable<Routes.Calendar> { CalendarRoute(onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) }, onBack = { nav.popBackStack() }) }
     composable<Routes.Progress> { ProgressRoute(onBack = { nav.popBackStack() }) }
-    composable<Routes.Settings> { SettingsRoute(onChangePin = { nav.navigate(Routes.ChangePin) }, onEditChild = { nav.navigate(Routes.AddChild(it)) }, onBack = { nav.popBackStack() }) }
+    composable<Routes.Settings> {
+        SettingsRoute(
+            onChangePin = { nav.navigate(Routes.ChangePin) },
+            onEditChild = { nav.navigate(Routes.AddChild(it)) },
+            onBack = { nav.popBackStack() },
+            onHome = { nav.navigate(Routes.ParentHome) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onNotifications = { nav.navigate(Routes.Broadcasts) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onMessages = { nav.navigate(Routes.ChatThreads) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+        )
+    }
     composable<Routes.ChangePin> { PinRoute(onUnlocked = { nav.popBackStack() }, onBack = { nav.popBackStack() }, changePin = true) }
     composable<Routes.LessonPanel> { entry -> LessonPanelRoute(entry.toRoute<Routes.LessonPanel>().lessonId, onBack = { nav.popBackStack() }) }
     composable<Routes.ChatThreads> {
@@ -45,9 +54,19 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onBack = { nav.popBackStack() },
             onOpenConversation = { nav.navigate(it.asConversation()) },
             onMessageCoordinator = { nav.navigate(Routes.ChatCoordinators) },
+            onHome = { nav.navigate(Routes.ParentHome) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onNotifications = { nav.navigate(Routes.Broadcasts) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onSettings = { nav.navigate(Routes.Settings) { popUpTo(Routes.ParentHome) { inclusive = false } } },
         )
     }
-    composable<Routes.Broadcasts> { BroadcastsRoute(onBack = { nav.popBackStack() }) }
+    composable<Routes.Broadcasts> {
+        BroadcastsRoute(
+            onBack = { nav.popBackStack() },
+            onHome = { nav.navigate(Routes.ParentHome) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onMessages = { nav.navigate(Routes.ChatThreads) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onSettings = { nav.navigate(Routes.Settings) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+        )
+    }
     composable<Routes.ChatCoordinators> {
         CoordinatorPickerRoute(
             onBack = { nav.popBackStack() },

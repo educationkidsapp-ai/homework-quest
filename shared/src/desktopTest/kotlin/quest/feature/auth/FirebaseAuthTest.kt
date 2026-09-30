@@ -49,14 +49,11 @@ class FirebaseAuthTest {
         assertEquals("r-1|uid-1|p@x.com", settings.get(SettingsStore.KEY_FIREBASE_SESSION))
     }
 
-    @Test fun registerUsesSignUpAndWrongPasswordIsFriendly() = runTest {
+    @Test fun wrongPasswordIsFriendly() = runTest {
         settings.load()
-        val a = auth { req ->
-            if (req.url.encodedPath.endsWith("accounts:signUp")) HttpStatusCode.OK to ok
-            else HttpStatusCode.BadRequest to """{"error":{"code":400,"message":"INVALID_LOGIN_CREDENTIALS"}}"""
+        val a = auth { _ ->
+            HttpStatusCode.BadRequest to """{"error":{"code":400,"message":"INVALID_LOGIN_CREDENTIALS"}}"""
         }
-        a.register("p@x.com", "secret1")
-        assertTrue(calls.last().url.encodedPath.endsWith("accounts:signUp"))
         val e = assertFailsWith<IllegalStateException> { a.signIn("p@x.com", "nope-nope") }
         assertEquals("Wrong email or password.", e.message)
     }

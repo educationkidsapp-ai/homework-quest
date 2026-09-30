@@ -530,19 +530,6 @@ fun FormalStudentScreen(
                     }
                 }
             }
-
-            // Bottom Navigation Bar
-            DashboardBottomNavigation(
-                currentTab = DashboardTab.HOME,
-                onTabSelected = { tab ->
-                    when (tab) {
-                        DashboardTab.HOME -> {}
-                        DashboardTab.NOTIFICATION -> onNotifications()
-                        DashboardTab.MESSAGES -> onMessages()
-                        DashboardTab.SETTINGS -> onSettings()
-                    }
-                },
-            )
         }
     }
 }

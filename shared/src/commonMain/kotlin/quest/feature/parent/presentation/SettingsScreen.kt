@@ -44,11 +44,30 @@ class SettingsViewModel(private val parent: ParentRepository, private val childr
 }
 
 @Composable
-fun SettingsRoute(onChangePin: () -> Unit, onEditChild: (String) -> Unit, onBack: () -> Unit) {
+fun SettingsRoute(
+    onChangePin: () -> Unit,
+    onEditChild: (String) -> Unit,
+    onBack: () -> Unit,
+    onHome: () -> Unit = onBack,
+    onNotifications: () -> Unit = {},
+    onMessages: () -> Unit = {},
+) {
     val vm: SettingsViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(vm) { vm.dispatch(SettingsContract.Intent.Load) }
-    ParentShell(title = { it.settings }, onBack = onBack) { s -> SettingsScreen(state, s, vm::dispatch, onChangePin, onEditChild) }
+    ParentShell(
+        title = { it.settings },
+        onBack = onBack,
+        currentTab = quest.ui.design.DashboardTab.SETTINGS,
+        onTabSelected = { tab ->
+            when (tab) {
+                quest.ui.design.DashboardTab.HOME -> onHome()
+                quest.ui.design.DashboardTab.NOTIFICATION -> onNotifications()
+                quest.ui.design.DashboardTab.MESSAGES -> onMessages()
+                quest.ui.design.DashboardTab.SETTINGS -> {}
+            }
+        },
+    ) { s -> SettingsScreen(state, s, vm::dispatch, onChangePin, onEditChild) }
 }
 
 /** Screens 22–23: language (EN / AR with RTL), child profile, change PIN, privacy. */

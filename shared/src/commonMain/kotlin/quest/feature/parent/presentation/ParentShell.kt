@@ -57,12 +57,22 @@ import quest.ui.design.Dimens
 import quest.ui.design.Palette
 import quest.ui.design.ParentTheme
 
+import quest.ui.design.DashboardBottomNavigation
+import quest.ui.design.DashboardTab
+
 /**
- * Wraps every parent route: applies the parent theme, RTL when Arabic, and the modern header
- * with the language toggle aligned with the TailAdmin dashboard design system.
+ * Wraps every parent route: applies the parent theme, RTL when Arabic, the modern header
+ * with the language toggle aligned with the TailAdmin dashboard design system, and
+ * the persistent dashboard bottom navigation bar on parent portal tabs.
  */
 @Composable
-fun ParentShell(title: (Strings) -> String, onBack: (() -> Unit)?, content: @Composable (Strings) -> Unit) {
+fun ParentShell(
+    title: (Strings) -> String,
+    onBack: (() -> Unit)?,
+    currentTab: DashboardTab? = null,
+    onTabSelected: ((DashboardTab) -> Unit)? = null,
+    content: @Composable (Strings) -> Unit,
+) {
     val parent: ParentRepository = koinInject()
     val language by parent.language.collectAsStateWithLifecycle()
     // §4 `parentPanel.arabic`: a school without it has an English-only parent mode — no toggle, and a parent who set
@@ -109,6 +119,14 @@ fun ParentShell(title: (Strings) -> String, onBack: (() -> Unit)?, content: @Com
                     }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) { content(strings) }
+
+                if (currentTab != null && onTabSelected != null) {
+                    DashboardBottomNavigation(
+                        currentTab = currentTab,
+                        onTabSelected = onTabSelected,
+                        isRtl = strings.isRtl,
+                    )
+                }
             }
         }
     }

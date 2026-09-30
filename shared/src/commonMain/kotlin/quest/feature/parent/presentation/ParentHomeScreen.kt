@@ -44,6 +44,7 @@ import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.ui.design.DashboardPill
 import quest.ui.design.DashboardPillVariant
+import quest.ui.design.DashboardTab
 import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
@@ -140,7 +141,19 @@ fun ParentHomeRoute(
             }
         }
     }
-    ParentShell(title = { it.parentHome }, onBack = onExit) { s ->
+    ParentShell(
+        title = { it.parentHome },
+        onBack = onExit,
+        currentTab = DashboardTab.HOME,
+        onTabSelected = { tab ->
+            when (tab) {
+                DashboardTab.HOME -> {}
+                DashboardTab.NOTIFICATION -> onBroadcasts()
+                DashboardTab.MESSAGES -> onMessages()
+                DashboardTab.SETTINGS -> onSettings()
+            }
+        },
+    ) { s ->
         ParentHomeScreen(
             state, s, vm::dispatch, onAddChild, onEditChild, onCalendar,
             onProgress, onSettings, onLessonPanel, onMessages, onBroadcasts,

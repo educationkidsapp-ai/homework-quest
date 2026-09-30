@@ -41,8 +41,6 @@ class ChatCoordinatorTest {
         private val _state = MutableStateFlow<AuthState>(AuthState.SignedIn("p1", "parent@example.com"))
         override val state: StateFlow<AuthState> = _state
         override suspend fun signIn(email: String, password: String) {}
-        override suspend fun register(email: String, password: String) {}
-        override suspend fun signInWithGoogle() {}
         override suspend fun signOut() {}
         override suspend fun idToken(forceRefresh: Boolean): String = "mock-token"
     }

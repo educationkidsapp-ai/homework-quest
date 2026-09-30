@@ -124,6 +124,9 @@ fun ChatThreadsRoute(
     onBack: () -> Unit,
     onOpenConversation: (ChatThread) -> Unit,
     onMessageCoordinator: () -> Unit,
+    onHome: () -> Unit = onBack,
+    onNotifications: () -> Unit = {},
+    onSettings: () -> Unit = {},
 ) {
     val vm: ChatThreadsViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -133,7 +136,19 @@ fun ChatThreadsRoute(
     }
 
     FeatureGate(Flags.CHAT) {
-        ParentShell(title = { it.messages }, onBack = onBack) { strings ->
+        ParentShell(
+            title = { it.messages },
+            onBack = onBack,
+            currentTab = quest.ui.design.DashboardTab.MESSAGES,
+            onTabSelected = { tab ->
+                when (tab) {
+                    quest.ui.design.DashboardTab.HOME -> onHome()
+                    quest.ui.design.DashboardTab.NOTIFICATION -> onNotifications()
+                    quest.ui.design.DashboardTab.MESSAGES -> {}
+                    quest.ui.design.DashboardTab.SETTINGS -> onSettings()
+                }
+            },
+        ) { strings ->
             ChatThreadsScreen(
                 state = state,
                 strings = strings,

@@ -51,11 +51,6 @@ class FirebaseAuth(
     }
 
     override suspend fun signIn(email: String, password: String) = authenticate("accounts:signInWithPassword", email, password)
-    override suspend fun register(email: String, password: String) = authenticate("accounts:signUp", email, password)
-
-    override suspend fun signInWithGoogle() {
-        throw IllegalStateException("Google sign-in is not available in this build yet — please use your email and password.")
-    }
 
     override suspend fun signOut() {
         lock.withLock { idToken = null; refreshToken = null; expiresAt = 0 }
