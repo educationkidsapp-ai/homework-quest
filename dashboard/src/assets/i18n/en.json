@@ -402,7 +402,9 @@
       "GOING_WELL": "Going well",
       "GETTING_THERE": "Getting there",
       "NEEDS_ANOTHER_LOOK": "Needs another look"
-    }
+    },
+    "reconnectingTitle": "Reconnecting",
+    "reconnecting": "The connection dropped for a moment. Nothing was lost — trying again."
   },
   "classes": {
     "title": "My classes",

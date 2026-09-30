@@ -1,11 +1,27 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, of, shareReplay, throwError } from 'rxjs';
-import { catchError, finalize, map, switchMap, tap } from 'rxjs/operators';
+import { Observable, of, shareReplay, throwError, timer } from 'rxjs';
+import { catchError, finalize, map, retry, switchMap, tap } from 'rxjs/operators';
 import { AuthApi, DashboardUser, SignInResponse, TokenPair } from '../../api';
 import { MediaService } from '../media/media.service';
 import { RefreshLock } from './refresh-lock';
 import { SchoolScopeStore } from './school-scope.store';
 import { SessionStore } from './session.store';
+
+/** How long a transport failure waits before the one retry. */
+const RETRY_AFTER_MS = 600;
+
+/**
+ * **Is this refusal about the token, or about the network?**
+ *
+ * Only a 401 or a 403 from `/auth/refresh` says the refresh token is spent or revoked. A status
+ * 0 (offline, DNS, a cancelled request), a 502/503/504 (a Cloud Run cold start, a deploy) or a
+ * timeout says nothing at all about the token — and treating those as "your session is over" is
+ * what turned one bad request at the fifteen-minute mark into a sign-out.
+ */
+function isCredentialFailure(error: unknown): boolean {
+  return error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403);
+}
 
 export type Role = 'ADMIN' | 'TEACHER' | 'MANAGERIAL' | 'COORDINATOR';
 export type AuthStatus = 'unknown' | 'anonymous' | 'authenticated';
@@ -43,8 +59,11 @@ export function isRole(value: string | undefined): value is Role {
  * second to arrive presented a token the first had already rotated — the same revocation, and
  * the "logged out after a few minutes" the owner reported.
  *
- * **A failed refresh signs out.** There is nothing left to try: the refresh token is spent or
- * revoked, and retrying makes the theft heuristic worse.
+ * **Only a refused *token* signs out.** A 401 or a 403 from `/auth/refresh` means the refresh
+ * token is spent or revoked and there is nothing left to try. A status 0, a 502/503/504 or a
+ * timeout means the request never happened, so the session is kept, the call is retried once
+ * after {@link RETRY_AFTER_MS}, and {@link reconnecting} says so — signing out on a cold start
+ * was the rest of the owner's "logged out after a few minutes".
  *
  * **`mustChangePassword` is the client's job.** The server does not block other calls while
  * the flag is set (runbook, "First-login password change"), so the guard in `auth.guards.ts`
@@ -60,10 +79,20 @@ export class AuthService {
 
   private readonly currentUser = signal<DashboardUser | null>(null);
   private readonly currentStatus = signal<AuthStatus>('unknown');
+  private readonly reconnectingNow = signal(false);
   private inFlightRefresh: Observable<string> | null = null;
+  /** Whether the shared in-flight refresh is one whose 401 ends the session. */
+  private inFlightEndsSession = true;
 
   readonly user = this.currentUser.asReadonly();
   readonly status = this.currentStatus.asReadonly();
+  /**
+   * A refresh is between its transport failure and its retry — "Reconnecting…", not "signed out".
+   *
+   * The shell shows it as a notice band (`shell.component.ts`). It is deliberately not an error:
+   * nothing has been lost, and the session is still this person's.
+   */
+  readonly reconnecting = this.reconnectingNow.asReadonly();
   readonly signedIn = computed(() => this.currentStatus() === 'authenticated');
   readonly role = computed<Role | null>(() => {
     const role = this.currentUser()?.role;
@@ -130,10 +159,33 @@ export class AuthService {
 
   /** The new access token, from one shared request however many callers ask at once. */
   refresh(): Observable<string> {
+    return this.startRefresh(true);
+  }
+
+  /**
+   * A refresh for a **background reconnect** — the chat socket, which reopens by itself every hour
+   * on Cloud Run and after every network blip.
+   *
+   * It never ends the session, whatever the answer. The socket is not something the person did, so
+   * it must not be the thing that signs her out: on a 401 it simply keeps backing off
+   * (`ChatService.scheduleReconnect`), and the next request she actually makes is what discovers a
+   * session that is really over.
+   */
+  refreshForReconnect(): Observable<string> {
+    return this.startRefresh(false);
+  }
+
+  private startRefresh(endSession: boolean): Observable<string> {
     const existing = this.inFlightRefresh;
-    if (existing) return existing;
+    // A caller that *would* end the session upgrades one that would not: it is the same 401, and
+    // the person is waiting on this request rather than on a socket.
+    if (existing) {
+      this.inFlightEndsSession = this.inFlightEndsSession || endSession;
+      return existing;
+    }
 
     if (this.session.refreshToken() === null) return throwError(() => new Error('no refresh token'));
+    this.inFlightEndsSession = endSession;
 
     const request = this.lock
       .run(() => {
@@ -146,10 +198,27 @@ export class AuthService {
           : this.api.refresh({ refreshToken: token });
       })
       .pipe(
-        tap((pair: TokenPair) => this.session.set(pair)),
+        // One retry, and only for a failure that was never about the token. `retry` resubscribes
+        // the source, so the second attempt retakes the lock and re-reads the token — which is
+        // what makes it safe to send at all.
+        retry({
+          count: 1,
+          delay: (error: unknown) => {
+            if (isCredentialFailure(error)) return throwError(() => error);
+            this.reconnectingNow.set(true);
+            return timer(RETRY_AFTER_MS);
+          },
+        }),
+        tap((pair: TokenPair) => {
+          this.session.set(pair);
+          this.reconnectingNow.set(false);
+        }),
         map((pair) => pair.token ?? ''),
         catchError((error: unknown) => {
-          this.forget();
+          this.reconnectingNow.set(false);
+          // **Only the token ends the session.** A transport failure leaves it exactly as it was:
+          // the caller sees the error, the error interceptor paints its band, and she carries on.
+          if (this.inFlightEndsSession && isCredentialFailure(error)) this.forget();
           return throwError(() => error);
         }),
         finalize(() => (this.inFlightRefresh = null)),
@@ -177,6 +246,7 @@ export class AuthService {
     this.currentUser.set(null);
     this.currentStatus.set('anonymous');
     this.inFlightRefresh = null;
+    this.reconnectingNow.set(false);
     // Page crops are megabytes of one teacher's scanned pages, held in a root-provided cache
     // whose injector never dies in a single-page app. This is the moment that session ends.
     this.media.clear();

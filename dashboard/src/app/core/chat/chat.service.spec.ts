@@ -27,6 +27,8 @@ describe('ChatService', () => {
   let mockSession: Partial<SessionStore>;
   let mockFlags: Partial<FlagService>;
 
+  const accessTokenSig = signal<string | null>('test-jwt');
+
   const sampleThread: ChatThread = {
     id: 'th-1',
     childId: 'ch-1',
@@ -76,10 +78,13 @@ describe('ChatService', () => {
       role: signal('TEACHER' as const),
       user: signal({ ...TEACHER_USER, id: 'u-sara', displayName: 'Ms Sara' }),
       refresh: vi.fn().mockReturnValue(of('new-token')),
+      // T2 follow-up: the socket asks for the refresh that cannot end the session.
+      refreshForReconnect: vi.fn().mockReturnValue(of('new-token')),
     };
 
+    accessTokenSig.set('test-jwt');
     mockSession = {
-      accessToken: signal('test-jwt'),
+      accessToken: accessTokenSig,
     };
 
     mockFlags = {
@@ -271,5 +276,19 @@ describe('ChatService', () => {
       expect(notifications.notifications()[0]?.id).toBe('n-th-1');
       expect(notifications.unreadCount()).toBe(1);
     });
+  });
+
+  /**
+   * T2 follow-up. Cloud Run closes this socket every hour and every network blip reopens it, so if
+   * the reconnect could forget the session the socket alone would sign her out mid-lesson.
+   */
+  it('reconnects through the refresh that cannot end the session', () => {
+    // No access token in memory — a reload, or one that has aged out — so `connect` has to get one
+    // before it can open the socket.
+    accessTokenSig.set(null);
+    service.connect();
+
+    expect(mockAuth.refreshForReconnect).toHaveBeenCalled();
+    expect(mockAuth.refresh).not.toHaveBeenCalled();
   });
 });

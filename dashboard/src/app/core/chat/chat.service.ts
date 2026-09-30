@@ -366,9 +366,10 @@ export class ChatService {
 
     const token = this.session.accessToken();
     if (!token) {
-      // Need token: refresh session first
+      // Need token: refresh session first. `refreshForReconnect` never ends the session — opening
+      // a socket is not something she did, so it must not be what signs her out (T2 follow-up).
       this.auth
-        .refresh()
+        .refreshForReconnect()
         .pipe(
           tap(() => this.connectWithToken()),
           catchError(() => of(null)),
@@ -646,9 +647,12 @@ export class ChatService {
     const delay = Math.min(1000 * 2 ** (this.reconnectAttempts - 1), MAX_RECONNECT_DELAY_MS);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      // Refresh token before reconnecting as per runbook
+      // Refresh token before reconnecting as per runbook — and with `refreshForReconnect`, so a
+      // refusal here can only cost another backoff. Cloud Run closes this socket every hour and
+      // every blip reopens it, so if this path could forget the session the socket alone would
+      // sign her out while she was reading a lesson.
       this.auth
-        .refresh()
+        .refreshForReconnect()
         .pipe(
           tap(() => this.connectWithToken()),
           catchError(() => {

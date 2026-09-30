@@ -354,6 +354,21 @@ export class ShellComponent {
       const role = this.auth.role();
       if (role) this.tour.offer(role);
     });
+
+    // A refresh that failed on the network rather than on the token (T2 follow-up). A notice, not
+    // an error: nothing is lost and the session is still hers — it says what is happening so that
+    // a moment of unresponsiveness does not read as a sign-out about to happen.
+    effect(() => {
+      if (this.auth.reconnecting()) {
+        this.band.show({
+          message: this.transloco.translate<string>('band.reconnecting'),
+          titleKey: 'band.reconnectingTitle',
+          variant: 'notice',
+        });
+      } else if (this.band.current()?.titleKey === 'band.reconnectingTitle') {
+        this.band.dismiss();
+      }
+    });
   }
 
   protected signOut(): void {
