@@ -6,7 +6,7 @@ import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { HttpEventType } from '@angular/common/http';
-import { catchError, of, switchMap, tap } from 'rxjs';
+import { EMPTY, catchError, filter, of, take, tap } from 'rxjs';
 import { BroadcastsApi, MediaApi } from '../../api';
 import { sundayOf, weekOptions } from '../../core/broadcasts/broadcast.rules';
 import {
@@ -270,6 +270,13 @@ export class WeeklyPlansPage {
   protected readonly posted = signal(false);
   protected readonly failed = signal(false);
   protected readonly initial = signal<PlanDraft>(EMPTY_PLAN_DRAFT);
+  /**
+   * The picture that is already on the server, and which file it was.
+   *
+   * So a post that failed *after* the upload succeeded can be retried without sending the bytes
+   * again — and without leaving the first attachment behind with nothing pointing at it.
+   */
+  private readonly uploaded = signal<{ readonly file: File; readonly id: string } | null>(null);
 
   /**
    * MH2 item 6: `?open=<id>`, where a `broadcast.posted` for a plan sends her. The Announcements
@@ -420,6 +427,8 @@ export class WeeklyPlansPage {
       grade: card?.grade ?? null,
     });
     this.progress.set(0);
+    // A new sheet is a new picture: the id from the last attempt belongs to the file she picked then.
+    this.uploaded.set(null);
     this.composing.set(true);
   }
 
@@ -427,17 +436,31 @@ export class WeeklyPlansPage {
    * Post: **upload the image, then broadcast its id.**
    *
    * Two requests, in that order, because `attachmentId` is required on the plan and only the upload
-   * knows it. `reportProgress` on the first one, so a photograph on a school's uplink is a bar
-   * rather than a frozen sheet; a failure at either step leaves the sheet open with the red band
-   * above it, which is the rule for a write that did not happen — nothing was posted, so there is
-   * nothing to undo.
+   * knows it. `reportProgress` on the first one, so a photograph on a school's uplink is a bar rather
+   * than a frozen sheet; a failure at either step leaves the sheet open with the red band above it,
+   * which is the rule for a write that did not happen — nothing was posted, so there is nothing
+   * to undo.
+   *
+   * **The upload is not repeated on a retry.** If the broadcast failed after the bytes were already
+   * accepted, pressing Post again reuses the `attachmentId` the server gave: re-uploading five
+   * megabytes she has already sent is a slow retry that also orphans the first attachment (review,
+   * non-blocking 1). The id is kept against the exact `File` object, so picking a different picture
+   * uploads again.
    */
   protected post(draft: PlanDraft): void {
     const file = draft.file;
     if (file === null) return;
     this.posting.set(true);
-    this.progress.set(0);
     this.failed.set(false);
+
+    const already = this.uploaded();
+    if (already !== null && already.file === file) {
+      this.progress.set(100);
+      this.write(draft, already.id);
+      return;
+    }
+
+    this.progress.set(0);
     this.media
       .uploadAttachment(file, 'events', true)
       .pipe(
@@ -446,26 +469,53 @@ export class WeeklyPlansPage {
             this.progress.set(Math.round((event.loaded / event.total) * 100));
           }
         }),
-        switchMap((event) =>
-          event.type === HttpEventType.Response && event.body?.id
-            ? this.api.createManagementBroadcast(planRequestOf(draft, event.body.id))
-            : of(null),
-        ),
-        tap((row) => {
-          if (row === null) return;
+        filter((event) => event.type === HttpEventType.Response),
+        take(1),
+        catchError(() => {
+          this.stall();
+          return EMPTY;
+        }),
+      )
+      .subscribe((event) => {
+        // No cast: `filter` on `event.type` narrows the event to the response, so `body` is typed.
+        const id = event.body?.id ?? '';
+        // An accepted upload that named no id is nothing to post. Before this the stream simply
+        // ended and the sheet sat on a spinner for ever (review, non-blocking 2).
+        if (id === '') {
+          this.stall();
+          return;
+        }
+        this.uploaded.set({ file, id });
+        this.write(draft, id);
+      });
+  }
+
+  /** The second half: the broadcast itself, from an attachment id that is already on the server. */
+  private write(draft: PlanDraft, attachmentId: string): void {
+    this.api
+      .createManagementBroadcast(planRequestOf(draft, attachmentId))
+      .pipe(
+        tap(() => {
           this.posting.set(false);
           this.composing.set(false);
           this.posted.set(true);
+          // Posted, so the id has been spent: a later plan must upload its own picture.
+          this.uploaded.set(null);
           this.archive.reload();
           this.upcomingPlans.reload();
         }),
         catchError(() => {
-          this.posting.set(false);
-          this.failed.set(true);
+          this.stall();
           return of(null);
         }),
       )
       .subscribe();
+  }
+
+  /** Nothing was posted: the band says so and the sheet stays open, with her draft in it. */
+  private stall(): void {
+    this.posting.set(false);
+    this.failed.set(true);
   }
 
   protected exportCsv(): void {

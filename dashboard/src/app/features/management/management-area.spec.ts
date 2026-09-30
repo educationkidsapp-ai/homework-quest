@@ -1011,6 +1011,66 @@ describe('RM3a — the management area', () => {
         .forEach((request) => request.flush({ weeks: [] }));
     });
 
+    /**
+     * Review, non-blocking 1 and 2: a post that fails after the bytes were accepted must not re-upload
+     * them on the retry (the first attachment would be orphaned and the retry slow), and an upload
+     * that answers without an id must not leave the sheet on a spinner for ever.
+     */
+    it('reuses an accepted upload on a retry, and never freezes on a response with no id', async () => {
+      const backend = await openScreen([]);
+      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      await settle();
+      pick();
+      await settle();
+
+      // First attempt: the upload is accepted, the broadcast is refused.
+      screen.getByRole('button', { name: 'Post' }).click();
+      await settle();
+      backend.expectOne('/media/attachments').flush({ id: 'att-9', name: 'plan.png' });
+      await settle();
+      backend
+        .expectOne('/management/broadcasts')
+        .flush({ message: 'nope' }, { status: 500, statusText: 'Server Error' });
+      await settle();
+
+      expect(document.body.textContent).toContain('Nothing was sent');
+      // The sheet is still open with her draft in it, and Post is live again.
+      const retry = screen.getByRole('button', { name: 'Post' });
+      expect(retry.hasAttribute('disabled')).toBe(false);
+
+      // Retry: straight to the broadcast with the id she already paid for.
+      retry.click();
+      await settle();
+      expect(backend.match('/media/attachments')).toEqual([]);
+      const posted = backend.expectOne('/management/broadcasts');
+      expect((posted.request.body as CreateBroadcastRequest).attachmentId).toBe('att-9');
+      posted.flush({ ...PLAN, id: 'b-new' });
+      await settle();
+      backend
+        .match((request) => request.url === '/management/weekly-plans')
+        .forEach((request) => request.flush({ weeks: [] }));
+      await settle();
+    });
+
+    it('shows the band and re-enables the sheet when an upload answers without an id', async () => {
+      const backend = await openScreen([]);
+      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      await settle();
+      pick();
+      await settle();
+      screen.getByRole('button', { name: 'Post' }).click();
+      await settle();
+
+      // 201 with a body that names no attachment: there is nothing to post, and saying nothing at
+      // all left the sheet spinning.
+      backend.expectOne('/media/attachments').flush({ name: 'plan.png' });
+      await settle();
+
+      expect(document.body.textContent).toContain('Nothing was sent');
+      expect(backend.match('/management/broadcasts')).toEqual([]);
+      expect(screen.getByRole('button', { name: 'Post' }).hasAttribute('disabled')).toBe(false);
+    });
+
     /** Posting over a grade's existing plan deletes it, its read marks and its bell rows. */
     it('confirms a replacement with a red band before it posts', async () => {
       await openScreen([{ weekStart: '2026-09-27', items: [{ plan: PLAN, readBy: 3 }] }]);

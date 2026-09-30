@@ -174,6 +174,22 @@ attachmentId}`. Replacing a grade's existing plan for that week is **confirmed w
    built in the browser. The file name rather than a title: MH1 took the title off a plan, and the
    name of the picture is the only words a row has left.
 
+**Posting is two requests, and a retry is one.** `POST /media/attachments` then
+`POST /management/broadcasts`. If the broadcast fails after the bytes were accepted, the sheet keeps
+the `attachmentId` the server gave and the retry goes straight to the broadcast — re-uploading five
+megabytes she has already sent is a slow retry that also leaves the first attachment with nothing
+pointing at it. An upload that answers without an id is treated as a failure rather than as a plan:
+the red band goes up and the sheet is live again.
+
+**The pictures load as she scrolls to them.** One `<img>` per archive row and a twelve-week default
+window is, for a six-grade department, seventy-odd full-size scans — so
+`ui/media/attachment-image.directive.ts` waits for an `IntersectionObserver` (200 px `rootMargin`)
+before it asks, drawing the row's grade and week in the picture's box until then, and `MediaQueue`
+keeps at most three reads in flight however fast she scrolls. The manager's this-week cards are
+`eager`: they are above the fold and they are the question. `MEDIA_CACHE_LIMITS` is 40 MB / 32
+entries — at 16 MB it held two scans and every change of the grade filter re-fetched the screen — and
+`MediaService.scopeTo` no longer drops attachments, because a plan belongs to no lesson.
+
 **Every picture is fetched with the bearer.** `GET /media/attachments/{id}` requires one and the
 `url` on `BroadcastAttachment` is the server's own absolute `publicUrl`, so an `<img src>` pointed at
 it answers 401 and draws a broken-image glyph on every card. `ui/media/attachment-image.directive.ts`
