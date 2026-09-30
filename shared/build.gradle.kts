@@ -58,6 +58,8 @@ kotlin {
             implementation(libs.ktor.serialization.json)
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.client.websockets)
+            implementation(libs.filekit.core)
+            implementation(libs.filekit.compose)
 
             implementation(libs.sqldelight.runtime)
             implementation(libs.sqldelight.coroutines)

@@ -206,8 +206,6 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
 interface AuthProvider {
     val state: StateFlow<AuthState>
     suspend fun signIn(email: String, password: String)
-    suspend fun register(email: String, password: String)
-    suspend fun signInWithGoogle()
     suspend fun signOut()
     /** The Firebase ID token the app attaches to every request; null when signed out. */
     suspend fun idToken(forceRefresh: Boolean = false): String?

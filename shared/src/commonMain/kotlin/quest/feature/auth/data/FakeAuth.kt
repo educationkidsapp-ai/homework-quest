@@ -30,10 +30,6 @@ class FakeAuth(private val settings: SettingsStore) : AuthProvider, SessionResto
         _state.value = AuthState.SignedIn(uid, email.trim())
     }
 
-    override suspend fun register(email: String, password: String) = signIn(email, password)
-
-    override suspend fun signInWithGoogle() = signIn("parent@gmail.com", "google-sign-in")
-
     override suspend fun signOut() {
         settings.set(SettingsStore.KEY_FAKE_UID, null)
         settings.setCurrentChild(null)

@@ -284,8 +284,6 @@ class BroadcastsViewModelTest {
     private class TestAuth : AuthProvider {
         override val state: StateFlow<AuthState> = MutableStateFlow(AuthState.SignedIn("p1", "parent@example.com"))
         override suspend fun signIn(email: String, password: String) {}
-        override suspend fun register(email: String, password: String) {}
-        override suspend fun signInWithGoogle() {}
         override suspend fun signOut() {}
         override suspend fun idToken(forceRefresh: Boolean): String = "mock-token"
     }

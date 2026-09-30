@@ -1,9 +1,11 @@
 package quest.feature.parent.presentation
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -16,10 +18,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 import quest.api.dto.ReleasedResult
-import quest.api.dto.Subject
 import quest.api.progress.Band
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
@@ -30,12 +34,19 @@ import quest.feature.parent.domain.ProgressReportUseCase
 import quest.feature.parent.domain.ReleasedResultsUseCase
 import quest.feature.parent.domain.SkillReport
 import quest.feature.parent.domain.epochToDate
+import quest.ui.design.DashboardPill
+import quest.ui.design.DashboardPillVariant
+import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
+import quest.ui.design.SubjectMeta
 
 object ProgressContract {
     data class State(
-        val loading: Boolean = true, val reports: List<SkillReport> = emptyList(), val streakDays: Int = 0, val stickers: Int = 0,
+        val loading: Boolean = true,
+        val reports: List<SkillReport> = emptyList(),
+        val streakDays: Int = 0,
+        val stickers: Int = 0,
         /** Step 9: what the teacher has released, newest first. Empty until she releases something. */
         val results: List<ReleasedResult> = emptyList(),
     ) : MviState
@@ -51,7 +62,9 @@ class ProgressViewModel(
 ) : MviViewModel<ProgressContract.State, ProgressContract.Intent, ProgressContract.Effect>(ProgressContract.State()) {
     override suspend fun handle(intent: ProgressContract.Intent) {
         val child = children.currentChild.value ?: return
-        val r = report(child); val streak = rewards.streak().currentDays; val stickers = rewards.stickers().size
+        val r = report(child)
+        val streak = rewards.streak().currentDays
+        val stickers = rewards.stickers().size
         val marks = runCatching { released(child) }.getOrDefault(emptyList())
         reduce { copy(loading = false, reports = r, streakDays = streak, stickers = stickers, results = marks) }
     }
@@ -68,91 +81,152 @@ fun ProgressRoute(onBack: () -> Unit) {
 /** Screen 21: bands and words, never a percentage. */
 @Composable
 fun ProgressScreen(state: ProgressContract.State, s: Strings) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
-        Spacer(Modifier.height(Dimens.s8))
-        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Dimens.s12)) {
-            ParentCard(Modifier.weight(1f)) { Text("🔥 ${state.streakDays}", style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk); Text(s.streak, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft) }
-            ParentCard(Modifier.weight(1f)) { Text("🌟 ${state.stickers}", style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk); Text(s.stickers, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft) }
-        }
-        ReleasedResults(state.results, s)
-        SectionTitle(s.weakSkills)
-        val weak = state.reports.filter { it.band == Band.NEEDS_ANOTHER_LOOK }
-        if (weak.isEmpty()) ParentCard { Text(s.noWeakSkills, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft) }
-        weak.forEach { r -> ParentCard(Modifier.padding(bottom = Dimens.s8)) { Row(verticalAlignment = Alignment.CenterVertically) { Text(r.name, style = MaterialTheme.typography.titleMedium, color = Palette.parentInk, modifier = Modifier.weight(1f)); Chip("↻", Palette.bandLook) } } }
-        SectionTitle(s.progress)
-        if (state.reports.isEmpty() && !state.loading) ParentCard { Text(s.noLessonsToday, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInkSoft) }
-        state.reports.forEach { r ->
-            ParentCard(Modifier.padding(bottom = Dimens.s12)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (r.subject == Subject.MATH) "🔢" else "📖", style = MaterialTheme.typography.titleLarge)
-                    Spacer(Modifier.padding(Dimens.s4))
-                    Text(r.name, style = MaterialTheme.typography.titleMedium, color = Palette.parentInk, modifier = Modifier.weight(1f))
-                    BandChip(r.band, s)
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+    ) {
+        Spacer(Modifier.height(8.dp))
+
+        // Stat Cards Row (TailAdmin stat style)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ParentCard(Modifier.weight(1f)) {
+                Column {
+                    Text("🔥 ${state.streakDays}", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong)
+                    Spacer(Modifier.height(2.dp))
+                    Text(s.streak, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
                 }
-                Spacer(Modifier.height(Dimens.s8))
-                r.accuracyWords?.let { Text("${s.firstTry}: ${s.accuracy(it)}", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk) }
-                Text("${r.attempts} ${s.attempts}" + (r.lastPractised?.let { " · ${s.lastPractised} ${epochToDate(it).dayOfMonth}/${epochToDate(it).monthNumber}" } ?: ""), style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+            }
+            ParentCard(Modifier.weight(1f)) {
+                Column {
+                    Text("🌟 ${state.stickers}", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong)
+                    Spacer(Modifier.height(2.dp))
+                    Text(s.stickers, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                }
             }
         }
-        Spacer(Modifier.height(Dimens.s24))
+
+        ReleasedResults(state.results, s)
+
+        SectionTitle(s.weakSkills)
+        val weak = state.reports.filter { it.band == Band.NEEDS_ANOTHER_LOOK }
+        if (weak.isEmpty()) {
+            ParentCard { Text(s.noWeakSkills, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft) }
+        }
+        weak.forEach { r ->
+            ParentCard(Modifier.padding(bottom = 8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(r.name, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = DashboardTokens.inkStrong, modifier = Modifier.weight(1f))
+                    DashboardPill(text = "Needs Review", icon = "↻", variant = DashboardPillVariant.WARNING)
+                }
+            }
+        }
+
+        SectionTitle(s.progress)
+        if (state.reports.isEmpty() && !state.loading) {
+            ParentCard { Text(s.noLessonsToday, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkSoft) }
+        }
+        state.reports.forEach { r ->
+            val meta = SubjectMeta.of(r.subject)
+            ParentCard(Modifier.padding(bottom = 10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Text(meta.emoji, fontSize = 20.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(r.name, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = DashboardTokens.inkStrong)
+                    }
+                    BandPill(r.band, s)
+                }
+                Spacer(Modifier.height(8.dp))
+                r.accuracyWords?.let {
+                    Text(
+                        "${s.firstTry}: ${s.accuracy(it)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = DashboardTokens.ink,
+                    )
+                }
+                Text(
+                    "${r.attempts} ${s.attempts}" + (r.lastPractised?.let { " · ${s.lastPractised} ${epochToDate(it).dayOfMonth}/${epochToDate(it).monthNumber}" } ?: ""),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = DashboardTokens.inkSoft,
+                )
+            }
+        }
+        Spacer(Modifier.height(24.dp))
     }
 }
 
-/**
- * Step 9, the last step: the score and the one line the teacher wrote, once she has released the lesson.
- *
- * This is the only place in the app a number for a child's work is shown, and it is behind the parent PIN. §6 is the
- * constraint it lives under: no red X, no percentage, no score, no timer where a child can see it — the child mode
- * screens read stars, a sticker and a certificate, and none of them can reach this composable.
- *
- * Nothing renders before release: the server does not send a result for a lesson the teacher has not released, so an
- * empty list is "she has not marked anything yet" and not "she gave zero".
- */
 @Composable
 private fun ReleasedResults(results: List<ReleasedResult>, s: Strings) {
     if (results.isEmpty()) return
     SectionTitle(s.teacherMarks)
     results.forEach { r ->
-        ParentCard(Modifier.padding(bottom = Dimens.s8)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (r.subject == Subject.MATH) "🔢" else "📖", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.padding(Dimens.s4))
-                Column(Modifier.weight(1f)) {
-                    Text(r.title ?: s.lessonPanel, style = MaterialTheme.typography.titleMedium, color = Palette.parentInk)
-                    Text("${r.date.dayOfMonth}/${r.date.monthNumber}", style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+        val meta = SubjectMeta.of(r.subject)
+        ParentCard(Modifier.padding(bottom = 8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Text(meta.emoji, fontSize = 20.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(r.title ?: s.lessonPanel, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = DashboardTokens.inkStrong)
+                        Text("${r.date.dayOfMonth}/${r.date.monthNumber}", style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                    }
                 }
-                r.score?.let { Text("$it", style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk) }
+                r.score?.let {
+                    Text("$it", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.brand)
+                }
             }
             r.band?.let {
-                Spacer(Modifier.height(Dimens.s8))
-                Chip(s.scoreBand(it), bandColour(it))
+                Spacer(Modifier.height(8.dp))
+                DashboardPill(
+                    text = s.scoreBand(it),
+                    variant = when (it.lowercase()) {
+                        "exceeding", "secure" -> DashboardPillVariant.SUCCESS
+                        "developing" -> DashboardPillVariant.INFO
+                        "emerging" -> DashboardPillVariant.WARNING
+                        else -> DashboardPillVariant.NEUTRAL
+                    },
+                )
             }
             r.comment?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(Dimens.s8))
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk)
+                Spacer(Modifier.height(8.dp))
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink)
             }
             val stopNotesOrFaults = r.stops.filter { !it.comment.isNullOrBlank() || !it.correct }
             if (stopNotesOrFaults.isNotEmpty()) {
-                Spacer(Modifier.height(Dimens.s8))
+                Spacer(Modifier.height(8.dp))
                 stopNotesOrFaults.forEach { stop ->
-                    Row(Modifier.padding(vertical = Dimens.s4), verticalAlignment = Alignment.Top) {
+                    Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
                         Text(
                             if (stop.correct) "✓" else "⚠",
-                            color = if (stop.correct) Palette.bandGood else Palette.bandLook,
-                            style = MaterialTheme.typography.bodySmall
+                            color = if (stop.correct) DashboardTokens.success else DashboardTokens.warning,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                         )
-                        Spacer(Modifier.width(Dimens.s4))
+                        Spacer(Modifier.width(6.dp))
                         Column {
                             Text(
                                 stop.title,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Palette.parentInk
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                color = DashboardTokens.inkStrong,
                             )
                             stop.comment?.takeIf { it.isNotBlank() }?.let { note ->
                                 Text(
                                     note,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Palette.parentInkSoft
+                                    color = DashboardTokens.inkSoft,
                                 )
                             }
                         }
@@ -163,21 +237,18 @@ private fun ReleasedResults(results: List<ReleasedResult>, s: Strings) {
     }
 }
 
-/** The teacher's four bands (`server/.../grading/Bands.java`) in the palette the parent screens already use. */
-private fun bandColour(band: String) = when (band.lowercase()) {
-    "exceeding", "secure" -> Palette.bandGood
-    "developing" -> Palette.bandMid
-    "emerging" -> Palette.bandLook
-    else -> Palette.parentRule
+@Composable
+fun BandPill(band: Band?, s: Strings) {
+    val (label, variant) = when (band) {
+        Band.GOING_WELL -> s.goingWell to DashboardPillVariant.SUCCESS
+        Band.GETTING_THERE -> s.gettingThere to DashboardPillVariant.INFO
+        Band.NEEDS_ANOTHER_LOOK -> s.needsAnotherLook to DashboardPillVariant.WARNING
+        null -> s.notPlayedYet to DashboardPillVariant.NEUTRAL
+    }
+    DashboardPill(text = label, variant = variant)
 }
 
 @Composable
 fun BandChip(band: Band?, s: Strings) {
-    val (label, color) = when (band) {
-        Band.GOING_WELL -> s.goingWell to Palette.bandGood
-        Band.GETTING_THERE -> s.gettingThere to Palette.bandMid
-        Band.NEEDS_ANOTHER_LOOK -> s.needsAnotherLook to Palette.bandLook
-        null -> s.notPlayedYet to Palette.parentRule
-    }
-    Chip(label, color)
+    BandPill(band, s)
 }

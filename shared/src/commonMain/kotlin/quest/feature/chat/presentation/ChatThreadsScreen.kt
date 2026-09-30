@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import quest.ui.design.AnimatedDotsLoader
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -124,6 +124,9 @@ fun ChatThreadsRoute(
     onBack: () -> Unit,
     onOpenConversation: (ChatThread) -> Unit,
     onMessageCoordinator: () -> Unit,
+    onHome: () -> Unit = onBack,
+    onNotifications: () -> Unit = {},
+    onSettings: () -> Unit = {},
 ) {
     val vm: ChatThreadsViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -133,7 +136,19 @@ fun ChatThreadsRoute(
     }
 
     FeatureGate(Flags.CHAT) {
-        ParentShell(title = { it.messages }, onBack = onBack) { strings ->
+        ParentShell(
+            title = { it.messages },
+            onBack = onBack,
+            currentTab = quest.ui.design.DashboardTab.MESSAGES,
+            onTabSelected = { tab ->
+                when (tab) {
+                    quest.ui.design.DashboardTab.HOME -> onHome()
+                    quest.ui.design.DashboardTab.NOTIFICATION -> onNotifications()
+                    quest.ui.design.DashboardTab.MESSAGES -> {}
+                    quest.ui.design.DashboardTab.SETTINGS -> onSettings()
+                }
+            },
+        ) { strings ->
             ChatThreadsScreen(
                 state = state,
                 strings = strings,
@@ -158,7 +173,7 @@ fun ChatThreadsScreen(
     ) {
         if (state.loading) {
             Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                AnimatedDotsLoader(dotSize = 12.dp, spacing = 8.dp)
             }
             return
         }

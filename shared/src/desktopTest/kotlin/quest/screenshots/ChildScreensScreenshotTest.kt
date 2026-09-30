@@ -94,6 +94,15 @@ class ChildScreensScreenshotTest {
 
     @Test fun worldMapEmpty() = shot("02b-world-map-empty") { WorldMapScreen(MapContract.State(loading = false, child = child, islands = listOf(Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Still asleep"))), {}, {}, {}, {}) }
 
+    @Test fun worldMapFormalGrade5() = shot("02d-world-map-formal-grade5") {
+        WorldMapScreen(MapContract.State(loading = false, child = child.copy(grade = 5), streakDays = 4, islands = listOf(
+            Island("a", IslandKind.LESSON, LocalDate(2026, 9, 11), IslandState.DONE, "Fractions & Decimals", Subject.MATH, "l1", 1, listOf(1, 2), listOf(1), 18, 21),
+            Island("b", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "Cellular Biology", Subject.SCIENCE, "l2", 1, listOf(1)),
+            Island("c", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.WAITING, "Shakespeare & Sonnets", Subject.ENGLISH, "l3", 1, listOf(1)),
+            Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Grammaire Française", Subject.FRENCH),
+        )), {}, {}, {}, {})
+    }
+
     @Test fun journey() = shot("03-journey") {
         JourneyScreen(JourneyContract.State(loading = false, lesson = hot, play = hot.plays[0], levelsUnlocked = listOf(1), stopStars = mapOf("hs1-move" to 3, "hs1-pieces" to 3), childName = "Maya"), {}, {}, {})
     }

@@ -82,6 +82,26 @@ class BroadcastsFeedTest {
         assertTrue(groupBroadcasts(emptyList(), monday, now).isEmpty)
     }
 
+    @Test fun onSaturdayUpcomingWeeksPlanIsPinnedWhenAvailable() {
+        val saturday = LocalDate(2026, 9, 26)
+        val groupsWithUpcoming = groupBroadcasts(
+            listOf(
+                row("plan-next", BroadcastKind.WEEKLY_PLAN, weekStart = "2026-09-27"),
+                row("plan-old", BroadcastKind.WEEKLY_PLAN, weekStart = "2026-09-20"),
+            ),
+            today = saturday, nowMillis = now,
+        )
+        assertEquals("plan-next", groupsWithUpcoming.weeklyPlan?.id)
+        assertEquals(listOf("plan-old"), groupsWithUpcoming.earlierPlans.map { it.id })
+
+        val groupsWithoutUpcoming = groupBroadcasts(
+            listOf(row("plan-old", BroadcastKind.WEEKLY_PLAN, weekStart = "2026-09-20")),
+            today = saturday, nowMillis = now,
+        )
+        assertEquals("plan-old", groupsWithoutUpcoming.weeklyPlan?.id)
+        assertTrue(groupsWithoutUpcoming.earlierPlans.isEmpty())
+    }
+
     // ---- 3. expiry: the server drops expired rows, and the app drops them again against its own clock
 
     @Test fun anExpiredRowIsHiddenAndAFutureOneIsNot() {
@@ -183,5 +203,13 @@ class BroadcastsFeedTest {
 
         // Once read, the badge is gone from what is spoken as well as from what is drawn.
         assertTrue(!broadcastDescription(unread.copy(read = true), Strings.en).startsWith("New"))
+    }
+
+    @Test fun theScreenReaderHearsAnExternalAttachmentWithoutDashboardFallback() {
+        val external = row("a", BroadcastKind.WEEKLY_PLAN, curriculum = Curriculum.BRITISH)
+            .copy(attachment = BroadcastAttachment("https://example.com/plan.pdf", "plan.pdf"))
+        val said = broadcastDescription(external, Strings.en)
+        assertTrue(said.contains("plan.pdf"), said)
+        assertTrue(!said.contains("Available on the dashboard"), said)
     }
 }

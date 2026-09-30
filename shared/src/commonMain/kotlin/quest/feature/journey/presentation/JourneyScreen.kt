@@ -60,22 +60,19 @@ fun JourneyRoute(lessonId: String, level: Int, variant: Int, onOpenStop: (String
     JourneyScreen(state, vm::dispatch, onParentPanel = { onParentPanel(lessonId) }, onBack = onBack)
 }
 
-/** The journey: level selector, the path of stops, the pot at the end. */
 @Composable
-fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onParentPanel: () -> Unit, onBack: () -> Unit) {
+fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onParentPanel: () -> Unit = {}, onBack: () -> Unit) {
     if (state.error != null) { quest.feature.journey.presentation.ErrorView(state.error, onBack); return }
     if (state.loading || state.play == null) { LoadingView("Getting the journey ready…"); return }
     val play = state.play
-    Column(Modifier.fillMaxSize().background(Palette.sky).safeDrawingPadding()) {
+    Column(Modifier.fillMaxSize().background(quest.ui.design.DashboardTokens.bg).safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = Dimens.s16, vertical = Dimens.s8), verticalAlignment = Alignment.CenterVertically) {
             BackButton(onBack)
             Spacer(Modifier.weight(1f))
-            RoundIconButton(onParentPanel, "Parent panel") { Text("👩‍🏫", fontSize = 26.sp) }
-            Spacer(Modifier.padding(Dimens.s4))
             ReadAloudButton({ dispatch(Intent.ReadAloud) })
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(state.lesson?.title ?: "", style = MaterialTheme.typography.headlineMedium, color = Palette.ink, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = Dimens.s16))
+            Text(state.lesson?.title ?: "", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = quest.ui.design.DashboardTokens.inkStrong, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = Dimens.s16))
             Spacer(Modifier.height(Dimens.s8))
             // §4 `levels.three`: off, the Challenge path is not offered at all.
             val levels = Flags.levels(featureEnabled(Flags.LEVEL_THREE))
@@ -94,21 +91,21 @@ fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onParentPanel: () ->
 
 @Composable
 fun LoadingView(text: String) {
-    Column(Modifier.fillMaxSize().background(Palette.sky).safeDrawingPadding(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
+    Column(Modifier.fillMaxSize().background(quest.ui.design.DashboardTokens.bg).safeDrawingPadding(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
         quest.ui.design.Pip(quest.ui.design.PipPose.THINKING, Dimens.pipLarge)
         Spacer(Modifier.height(Dimens.s16))
-        androidx.compose.material3.CircularProgressIndicator(color = Palette.sunDeep)
+        quest.ui.design.AnimatedDotsLoader(color = Palette.sunDeep, dotSize = 12.dp, spacing = 8.dp)
         Spacer(Modifier.height(Dimens.s16))
-        Text(text, style = MaterialTheme.typography.bodyLarge, color = Palette.ink, textAlign = TextAlign.Center)
+        Text(text, style = MaterialTheme.typography.bodyLarge, color = quest.ui.design.DashboardTokens.inkSoft, textAlign = TextAlign.Center)
     }
 }
 
 @Composable
 fun ErrorView(text: String, onBack: () -> Unit) {
-    Column(Modifier.fillMaxSize().background(Palette.sky).safeDrawingPadding().padding(Dimens.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
+    Column(Modifier.fillMaxSize().background(quest.ui.design.DashboardTokens.bg).safeDrawingPadding().padding(Dimens.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
         quest.ui.design.Pip(quest.ui.design.PipPose.SLEEPING, Dimens.pipLarge)
         Spacer(Modifier.height(Dimens.s16))
-        Text(text, style = MaterialTheme.typography.bodyLarge, color = Palette.ink, textAlign = TextAlign.Center)
+        Text(text, style = MaterialTheme.typography.bodyLarge, color = quest.ui.design.DashboardTokens.inkStrong, textAlign = TextAlign.Center)
         Spacer(Modifier.height(Dimens.s24))
         BigButton("Back to the map", onClick = onBack)
     }

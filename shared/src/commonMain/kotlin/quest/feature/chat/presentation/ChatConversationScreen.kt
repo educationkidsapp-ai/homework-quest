@@ -1,5 +1,6 @@
 package quest.feature.chat.presentation
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -29,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -81,6 +85,12 @@ import quest.feature.parent.presentation.Strings
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.featureEnabled
+import androidx.compose.ui.text.style.TextOverflow
+import io.github.vinceglb.filekit.compose.rememberFilePickerLauncher
+import io.github.vinceglb.filekit.core.PickerMode
+import io.github.vinceglb.filekit.core.PickerType
+import quest.ui.design.AnimatedLoadingView
+import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
 import quest.ui.design.ParentTheme
@@ -143,6 +153,7 @@ object ChatConversationContract {
         data object Load : Intent
         data class UpdateInput(val text: String) : Intent
         data object SendMessage : Intent
+        data class SendCustom(val body: String) : Intent
         data class RetrySend(val clientId: String) : Intent
         data object ToggleComplaint : Intent
     }
@@ -171,6 +182,7 @@ class ChatConversationViewModel(
             ChatConversationContract.Intent.Load -> loadInitialMessages()
             is ChatConversationContract.Intent.UpdateInput -> handleInputChanged(intent.text)
             ChatConversationContract.Intent.SendMessage -> sendMessage()
+            is ChatConversationContract.Intent.SendCustom -> sendMessage(intent.body)
             is ChatConversationContract.Intent.RetrySend -> retrySend(intent.clientId)
             ChatConversationContract.Intent.ToggleComplaint -> reduce { copy(markAsComplaint = !markAsComplaint, errorCode = null) }
         }
@@ -197,8 +209,8 @@ class ChatConversationViewModel(
         }
     }
 
-    private suspend fun sendMessage() {
-        val body = current.inputText.trim()
+    private suspend fun sendMessage(customBody: String? = null) {
+        val body = (customBody ?: current.inputText).trim()
         if (body.isBlank() || body.length > 2000) return
 
         // `topic` only says anything on the message that creates the thread, so it rides on the first send alone.
@@ -418,10 +430,66 @@ fun ChatConversationRoute(
                     onSend = { vm.dispatch(ChatConversationContract.Intent.SendMessage) },
                     onRetry = { vm.dispatch(ChatConversationContract.Intent.RetrySend(it)) },
                     onToggleComplaint = { vm.dispatch(ChatConversationContract.Intent.ToggleComplaint) },
+                    onSendCustom = { vm.dispatch(ChatConversationContract.Intent.SendCustom(it)) },
                 )
             }
         }
     }
+}
+
+data class AttachedFile(
+    val name: String,
+    val size: Long,
+    val type: String, // "image" or "pdf"
+)
+
+data class ParsedMessage(
+    val text: String,
+    val attachment: AttachmentMeta? = null,
+)
+
+data class AttachmentMeta(
+    val id: String,
+    val type: String,
+    val name: String,
+    val size: String,
+)
+
+fun parseMessageBody(body: String): ParsedMessage {
+    val tagRegex = Regex("""\[attachment:([^:]+):(image|pdf):([^:]+):([^\]]+)\]""")
+    val match = tagRegex.find(body)
+    if (match != null) {
+        val (id, type, name, size) = match.destructured
+        val cleanText = body.replace(match.value, "").trim()
+        return ParsedMessage(
+            text = cleanText,
+            attachment = AttachmentMeta(id, type, name, size),
+        )
+    }
+
+    val imgRegex = Regex("""!\[([^\]]*)\]\(([^)]+)\)""")
+    val imgMatch = imgRegex.find(body)
+    if (imgMatch != null) {
+        val alt = imgMatch.groupValues[1].ifBlank { "Image" }
+        val cleanText = body.replace(imgMatch.value, "").trim()
+        return ParsedMessage(
+            text = cleanText,
+            attachment = AttachmentMeta(id = "img", type = "image", name = alt, size = "Image"),
+        )
+    }
+
+    val pdfRegex = Regex("""\[([^\]]+)\]\(([^)]+\.pdf[^)]*)\)""")
+    val pdfMatch = pdfRegex.find(body)
+    if (pdfMatch != null) {
+        val name = pdfMatch.groupValues[1]
+        val cleanText = body.replace(pdfMatch.value, "").trim()
+        return ParsedMessage(
+            text = cleanText,
+            attachment = AttachmentMeta(id = "pdf", type = "pdf", name = name, size = "PDF"),
+        )
+    }
+
+    return ParsedMessage(text = body)
 }
 
 @Composable
@@ -433,8 +501,37 @@ fun ChatConversationScreen(
     onSend: () -> Unit,
     onRetry: (String) -> Unit,
     onToggleComplaint: () -> Unit = {},
+    onSendCustom: (String) -> Unit = { onSend() },
 ) {
     val listState = rememberLazyListState()
+    var attachedFile by remember { mutableStateOf<AttachedFile?>(null) }
+    var showEmojiTray by remember { mutableStateOf(false) }
+
+    val filePicker = rememberFilePickerLauncher(
+        type = PickerType.File(listOf("png", "jpg", "jpeg", "webp", "pdf")),
+        mode = PickerMode.Single,
+    ) { platformFile ->
+        if (platformFile != null) {
+            val ext = platformFile.name.substringAfterLast('.', "").lowercase()
+            val isPdf = ext == "pdf"
+            val type = if (isPdf) "pdf" else "image"
+            val size = platformFile.getSize() ?: 0L
+            attachedFile = AttachedFile(
+                name = platformFile.name,
+                size = size,
+                type = type,
+            )
+        }
+    }
+
+    val quickEmojis = remember {
+        listOf(
+            "😊", "👍", "❤️", "⭐", "🎉", "👏", "🙏", "🙌",
+            "📚", "✏️", "📝", "📖", "🎓", "💯", "🏆", "📌",
+            "👋", "🤔", "🤝", "🌟", "💪", "🎯", "🚀", "💡",
+            "😃", "🤩", "✨", "📐", "🗓️", "🎈", "🥳", "🔥",
+        )
+    }
 
     LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) {
@@ -442,7 +539,7 @@ fun ChatConversationScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(Palette.parentBg)) {
+    Column(Modifier.fillMaxSize().background(Palette.parentBg).safeDrawingPadding()) {
         // Conversation Top Bar
         Row(
             modifier = Modifier.fillMaxWidth()
@@ -472,7 +569,6 @@ fun ChatConversationScreen(
                         Chip(strings.complaintBadge, Palette.sun)
                     }
                 }
-                // R8: whose side of the school this is. A row from a pre-R4 server says "Teacher", as it always did.
                 Text(
                     text = staffLabel(state.staffRole, state.subject, null, strings),
                     style = MaterialTheme.typography.bodySmall,
@@ -499,8 +595,6 @@ fun ChatConversationScreen(
             }
         }
 
-        // A resolved thread is still hers to write in — the server refuses nothing, so the composer stays live and
-        // the banner is the whole of it (R8). The `status` frame flips this without a refetch.
         if (state.resolved) {
             Row(
                 Modifier.fillMaxWidth().background(Palette.mint).padding(horizontal = Dimens.s16, vertical = Dimens.s8),
@@ -531,7 +625,7 @@ fun ChatConversationScreen(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (state.loading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    AnimatedLoadingView("Loading conversation…")
                 }
             } else if (state.messages.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(Dimens.s24), contentAlignment = Alignment.Center) {
@@ -558,7 +652,6 @@ fun ChatConversationScreen(
             }
         }
 
-        // The complaint toggle, offered only while this send would create the thread (state.canMarkComplaint).
         if (state.canMarkComplaint) {
             Column(
                 Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)
@@ -582,14 +675,107 @@ fun ChatConversationScreen(
             }
         }
 
+        // Attached File Preview Chip
+        if (attachedFile != null) {
+            val file = attachedFile!!
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(horizontal = Dimens.s12, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(DashboardTokens.brandSoft, RoundedCornerShape(8.dp))
+                        .border(1.dp, DashboardTokens.brandSubtle, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(if (file.type == "pdf") "📄" else "🖼️", fontSize = 20.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = file.name,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = DashboardTokens.inkStrong,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        val sizeKb = "${(file.size / 1024).coerceAtLeast(1)} KB"
+                        Text(
+                            text = "${if (file.type == "pdf") "PDF" else "Image"} • $sizeKb",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = DashboardTokens.inkSoft,
+                        )
+                    }
+                    IconButton(
+                        onClick = { attachedFile = null },
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Text("✕", color = DashboardTokens.inkSoft, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+
+        // Emoji Tray
+        if (showEmojiTray) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            ) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    items(quickEmojis) { emoji ->
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable(role = Role.Button) {
+                                    onInputChange(state.inputText + emoji)
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(emoji, fontSize = 22.sp)
+                        }
+                    }
+                }
+            }
+        }
+
         // Bottom Message Composer
         Row(
             modifier = Modifier.fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface)
                 .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
-                .padding(horizontal = Dimens.s12, vertical = Dimens.s8),
+                .padding(horizontal = Dimens.s8, vertical = Dimens.s8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Emoji Tray Toggle
+            IconButton(
+                onClick = { showEmojiTray = !showEmojiTray },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Text(if (showEmojiTray) "⌨️" else "😊", fontSize = 20.sp)
+            }
+
+            // Attachment Picker
+            IconButton(
+                onClick = { filePicker.launch() },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Text("📎", fontSize = 20.sp)
+            }
+
+            Spacer(Modifier.width(4.dp))
+
             OutlinedTextField(
                 value = state.inputText,
                 onValueChange = { if (it.length <= 2000) onInputChange(it) },
@@ -604,11 +790,29 @@ fun ChatConversationScreen(
 
             Spacer(Modifier.width(Dimens.s8))
 
-            val canSend = state.inputText.trim().isNotBlank() && state.inputText.length <= 2000
+            val hasAttachment = attachedFile != null
+            val hasText = state.inputText.trim().isNotBlank() && state.inputText.length <= 2000
+            val canSend = hasAttachment || hasText
+
             IconButton(
-                onClick = onSend,
+                onClick = {
+                    if (canSend) {
+                        val body = if (attachedFile != null) {
+                            val att = attachedFile!!
+                            val sizeKb = "${(att.size / 1024).coerceAtLeast(1)} KB"
+                            val id = "att-${Today.epochMillis()}"
+                            val tag = "[attachment:$id:${att.type}:${att.name}:$sizeKb]"
+                            if (state.inputText.isNotBlank()) "$tag ${state.inputText.trim()}" else tag
+                        } else {
+                            state.inputText.trim()
+                        }
+                        attachedFile = null
+                        showEmojiTray = false
+                        onSendCustom(body)
+                    }
+                },
                 enabled = canSend,
-                modifier = Modifier.size(48.dp).background(
+                modifier = Modifier.size(44.dp).background(
                     if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                     CircleShape,
                 ),
@@ -633,6 +837,7 @@ private fun MessageBubble(
     val bubbleColor = if (isParent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
     val textColor = if (isParent) MaterialTheme.colorScheme.onPrimary else Palette.parentInk
     val shape = if (isParent) RoundedCornerShape(12.dp, 12.dp, 2.dp, 12.dp) else RoundedCornerShape(12.dp, 12.dp, 12.dp, 2.dp)
+    val parsed = remember(msg.body) { parseMessageBody(msg.body) }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -644,11 +849,85 @@ private fun MessageBubble(
                 .then(if (!isParent) Modifier.border(1.dp, MaterialTheme.colorScheme.outline, shape) else Modifier)
                 .padding(horizontal = Dimens.s12, vertical = Dimens.s8),
         ) {
-            Text(
-                text = msg.body,
-                style = MaterialTheme.typography.bodyLarge,
-                color = textColor,
-            )
+            // Render attachment card if present
+            if (parsed.attachment != null) {
+                val att = parsed.attachment
+                if (att.type == "pdf") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isParent) Color.White.copy(alpha = 0.15f) else Color(0xFFFEF3F2))
+                            .border(1.dp, if (isParent) Color.White.copy(alpha = 0.3f) else Color(0xFFFEE4E2), RoundedCornerShape(8.dp))
+                            .padding(8.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color(0xFFB42318), RoundedCornerShape(6.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("PDF", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    text = att.name,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = textColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = "PDF • ${att.size}",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = if (isParent) textColor.copy(alpha = 0.8f) else DashboardTokens.inkSoft,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isParent) Color.White.copy(alpha = 0.15f) else DashboardTokens.brandSoft)
+                            .border(1.dp, if (isParent) Color.White.copy(alpha = 0.3f) else DashboardTokens.brandSubtle, RoundedCornerShape(8.dp))
+                            .padding(8.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🖼️", fontSize = 24.sp)
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    text = att.name,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = textColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = "Image • ${att.size}",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = if (isParent) textColor.copy(alpha = 0.8f) else DashboardTokens.inkSoft,
+                                )
+                            }
+                        }
+                    }
+                }
+                if (parsed.text.isNotBlank()) {
+                    Spacer(Modifier.height(Dimens.s8))
+                }
+            }
+
+            if (parsed.text.isNotBlank()) {
+                Text(
+                    text = parsed.text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = textColor,
+                )
+            }
 
             Spacer(Modifier.height(Dimens.s4))
 

@@ -33,6 +33,8 @@ import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.GateFallback
 import quest.feature.school.presentation.LevelGate
 import quest.feature.school.presentation.SchoolThemeHost
+import quest.ui.design.AcademicTheme
+import quest.ui.design.AnimatedLoadingView
 import quest.ui.design.ChildTheme
 
 /** Root of the shared UI. Koin must already be started by the platform entry point. */
@@ -43,7 +45,7 @@ fun App() {
         val auth: AuthProvider = koinInject()
         var ready by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) { initializer.initialise(); ready = true }
-        if (!ready) { ChildTheme { LoadingView("Waking Pip up…") }; return@KoinContext }
+        if (!ready) { AcademicTheme { AnimatedLoadingView("Waking Pip up…") }; return@KoinContext }
         val nav = rememberNavController()
         val start: Any = if (auth.state.value is AuthState.SignedIn) Routes.WorldMap else Routes.SignIn
         // Everything below sees the joined school's colours, name, logo and feature flags (§3, §4).
@@ -61,11 +63,12 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
         }
         composable<Routes.ChildPicker> { ChildPickerRoute(onPicked = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } }, onAdd = { nav.navigate(Routes.AddChild()) }, onBack = { nav.popBackStack() }) }
         composable<Routes.WorldMap> {
-            ChildTheme {
+            AcademicTheme {
                 WorldMapRoute(
                     onSwitchChild = { nav.navigate(Routes.ChildPicker) },
                     onOpenLesson = { id, level, variant -> nav.navigate(Routes.Journey(id, level, variant)) },
-                    onStickers = { nav.navigate(Routes.StickerBook) }, onChest = { nav.navigate(Routes.TreasureChest) },
+                    onStickers = { nav.navigate(Routes.StickerBook) },
+                    onChest = { nav.navigate(Routes.TreasureChest) },
                     onGrownUps = { nav.navigate(Routes.ParentPin()) },
                     onNeedsChild = { nav.navigate(Routes.AddChild()) { popUpTo(Routes.WorldMap) { inclusive = true } } },
                 )
@@ -73,7 +76,7 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
         }
         composable<Routes.Journey> { entry ->
             val r = entry.toRoute<Routes.Journey>()
-            ChildTheme {
+            AcademicTheme {
                 // §4 `levels.three`: the route is the last door into the Challenge path. A child who reaches it any
                 // other way — a deep link, a back stack from before the flag was turned off — lands on the map
                 // instead of a level whose own selector would not even list it.
@@ -81,7 +84,7 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
                     JourneyRoute(r.lessonId, r.level, r.variant,
                         onOpenStop = { id, level, variant, index -> nav.navigate(Routes.StopPlayer(id, level, variant, index)) },
                         onComplete = { id, level, variant -> nav.navigate(Routes.LessonComplete(id, level, variant)) },
-                        onParentPanel = { nav.navigate(Routes.ParentPin(it)) }, onBack = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } })
+                        onParentPanel = {}, onBack = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } })
                 }
             }
         }

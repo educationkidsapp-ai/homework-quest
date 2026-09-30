@@ -22,6 +22,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.Font
@@ -74,8 +75,15 @@ fun softAccentOf(accent: Color?, ground: Color?): Color? =
     accent?.copy(alpha = 0.12f)?.compositeOver(ground ?: Palette.parentBg)
 
 /** `theme.worldPalettes.math` / `.english` — the per-subject world colour a school may override. */
-data class WorldPaletteOverrides(val math: Color? = null, val english: Color? = null) {
-    val isEmpty: Boolean get() = math == null && english == null
+data class WorldPaletteOverrides(
+    val math: Color? = null,
+    val english: Color? = null,
+    val french: Color? = null,
+    val science: Color? = null,
+    val religion: Color? = null,
+    val arabic: Color? = null,
+) {
+    val isEmpty: Boolean get() = math == null && english == null && french == null && science == null && religion == null && arabic == null
 }
 
 /** No overrides by default; the app's root provides the joined school's theme (P2.2). */
@@ -117,6 +125,10 @@ fun schoolThemeOverrides(theme: SchoolTheme): ThemeOverrides = ThemeOverrides(
     worldPalettes = WorldPaletteOverrides(
         math = parseThemeColor(theme.worldPalettes["math"]?.primary),
         english = parseThemeColor(theme.worldPalettes["english"]?.primary),
+        french = parseThemeColor(theme.worldPalettes["french"]?.primary),
+        science = parseThemeColor(theme.worldPalettes["science"]?.primary),
+        religion = parseThemeColor(theme.worldPalettes["religion"]?.primary),
+        arabic = parseThemeColor(theme.worldPalettes["arabic"]?.primary),
     ),
     fontChoice = theme.fontChoice.name.lowercase(),
 )
@@ -276,8 +288,47 @@ fun ParentTheme(rtl: Boolean, content: @Composable () -> Unit) {
         LocalThemeMode provides ThemeMode.PARENT,
         LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
     ) {
-        MaterialTheme(colorScheme = scheme, typography = parentTypography(family), shapes = Shapes(extraSmall = RoundedCornerShape(0), small = RoundedCornerShape(0), medium = RoundedCornerShape(0), large = RoundedCornerShape(0), extraLarge = RoundedCornerShape(0))) {
-            Box(Modifier.fillMaxSize().background(scheme.background)) { content() }
+        MaterialTheme(
+            colorScheme = scheme,
+            typography = parentTypography(family),
+            shapes = Shapes(
+                extraSmall = RoundedCornerShape(DashboardTokens.radiusSm),
+                small = RoundedCornerShape(DashboardTokens.radiusSm),
+                medium = RoundedCornerShape(DashboardTokens.radiusMd),
+                large = RoundedCornerShape(DashboardTokens.radiusLg),
+                extraLarge = RoundedCornerShape(24.dp),
+            ),
+        ) {
+            Box(Modifier.fillMaxSize().background(DashboardTokens.bg)) { content() }
+        }
+    }
+}
+
+/**
+ * Formal academic student theme for upper elementary (Grades 4–6).
+ * Shares the sleek, high-contrast dashboard typography, surfaces, and rounded corners,
+ * providing a mature student hub experience instead of cartoon island aesthetics.
+ */
+@Composable
+fun AcademicTheme(rtl: Boolean = false, content: @Composable () -> Unit) {
+    val family = parentFontFamily(rtl)
+    val scheme = parentScheme(LocalThemeOverrides.current)
+    CompositionLocalProvider(
+        LocalThemeMode provides ThemeMode.CHILD,
+        LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
+    ) {
+        MaterialTheme(
+            colorScheme = scheme,
+            typography = parentTypography(family),
+            shapes = Shapes(
+                extraSmall = RoundedCornerShape(DashboardTokens.radiusSm),
+                small = RoundedCornerShape(DashboardTokens.radiusSm),
+                medium = RoundedCornerShape(DashboardTokens.radiusMd),
+                large = RoundedCornerShape(DashboardTokens.radiusLg),
+                extraLarge = RoundedCornerShape(24.dp),
+            ),
+        ) {
+            Box(Modifier.fillMaxSize().background(DashboardTokens.bg)) { content() }
         }
     }
 }
