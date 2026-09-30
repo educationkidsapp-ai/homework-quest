@@ -56,12 +56,20 @@ fun weeklyPlans(archive: WeeklyPlanArchive, today: LocalDate, grade: Int?): Week
 }
 
 /**
- * Whether an attachment is an image this app can draw. The server sniffs [BroadcastAttachment.type] from the bytes, so
- * it is the honest answer; the extension is the fallback for a row written before MH1, which carries no type.
+ * Whether an attachment is an image **this app can fetch and draw**. Both halves matter: the server sniffs
+ * [BroadcastAttachment.type] from the bytes, so it is the honest answer about the format, and [BroadcastAttachment.id]
+ * says the bytes are ours to ask for — `/media/attachments/{id}` with the parent's bearer.
+ *
+ * **A row with no id is never an image here**, whatever its name ends in. Before MH1 an attachment was a URL the
+ * composer typed, and there is nothing to authenticate and no cache key for it; a `https://…/plan.png` that took this
+ * branch would download nothing and leave a permanent *Try again* where #171 draws a tappable link. The extension is
+ * only a fallback for a row that has an id but no stored type.
  */
 val BroadcastAttachment.isImage: Boolean
-    get() = type?.startsWith("image/") == true ||
-        (type == null && name?.substringAfterLast('.', "")?.lowercase() in setOf("png", "jpg", "jpeg", "webp"))
+    get() = id?.isNotBlank() == true && (
+        type?.startsWith("image/") == true ||
+            (type == null && name?.substringAfterLast('.', "")?.lowercase() in setOf("png", "jpg", "jpeg", "webp"))
+        )
 
 /**
  * Whether an attachment is somebody else's page rather than ours: #171 lets the platform open an `http(s)` URL a

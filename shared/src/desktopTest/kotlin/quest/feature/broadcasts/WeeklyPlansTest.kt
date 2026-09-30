@@ -10,6 +10,7 @@ import quest.api.dto.WeeklyPlanArchive
 import quest.api.dto.WeeklyPlanEntry
 import quest.api.dto.WeeklyPlanWeek
 import quest.feature.broadcasts.domain.isImage
+import quest.feature.broadcasts.domain.isWebUrl
 import quest.feature.broadcasts.domain.weeklyPlans
 import quest.feature.broadcasts.presentation.planDescription
 import quest.feature.parent.presentation.Strings
@@ -98,10 +99,29 @@ class WeeklyPlansTest {
         assertTrue(BroadcastAttachment("/media/attachments/a", "plan.png", "a", "image/png").isImage)
         assertTrue(BroadcastAttachment("/media/attachments/a", "plan.webp", "a", "image/webp").isImage)
         assertFalse(BroadcastAttachment("/media/attachments/a", "plan.pdf", "a", "application/pdf").isImage)
-        // A row written before MH1 carries no type, so the extension is all there is to go on.
-        assertTrue(BroadcastAttachment("/x/plan.JPG", "plan.JPG").isImage)
-        assertFalse(BroadcastAttachment("/x/plan.pdf", "plan.pdf").isImage)
-        assertFalse(BroadcastAttachment("/x/plan", null).isImage)
+        // An MH1 row with no stored type falls back to the extension.
+        assertTrue(BroadcastAttachment("/media/attachments/a", "plan.JPG", "a").isImage)
+        assertFalse(BroadcastAttachment("/media/attachments/a", "plan.pdf", "a").isImage)
+        assertFalse(BroadcastAttachment("/media/attachments/a", null, "a").isImage)
+    }
+
+    /**
+     * **A row with no id is never drawn, whatever it is called.** Before MH1 an attachment was a URL the composer
+     * typed: there is no `attachments` row to fetch with the parent's bearer and no cache key for it, so a
+     * `https://…/plan.png` taking the image branch would download nothing and leave a permanent *Try again* where
+     * #171 draws a tappable link. The card tests [isWebUrl] first for the same reason.
+     */
+    @Test fun aPreMh1RowIsALinkAndNotAnImage() {
+        val typed = BroadcastAttachment("https://school.test/plan.png", "plan.png")
+        assertFalse(typed.isImage, "nothing here is ours to fetch")
+        assertTrue(typed.isWebUrl, "so #171's chip keeps it")
+
+        // An `http` one too, and case does not matter.
+        assertTrue(BroadcastAttachment("HTTP://school.test/plan.jpg", "plan.jpg").isWebUrl)
+        // An MH1 attachment is root-relative, so it is never mistaken for somebody else's page.
+        assertFalse(BroadcastAttachment("/media/attachments/a", "plan.png", "a", "image/png").isWebUrl)
+        // A blank id is no id.
+        assertFalse(BroadcastAttachment("/media/attachments/a", "plan.png", "  ", "image/png").isImage)
     }
 
     // ---- 3. a11y: the image says what it is, which grade it is for and which week

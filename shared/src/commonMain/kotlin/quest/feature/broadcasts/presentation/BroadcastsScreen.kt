@@ -287,7 +287,7 @@ fun broadcastDescription(view: BroadcastView, strings: Strings): String = buildL
         val name = attachment.name ?: strings.attachment
         // An image is drawn and an external link is tappable, so both are just named; only the one the app can neither
         // render nor open has to say where it can be.
-        add(if (attachment.isImage || attachment.isWebUrl) name else "$name, ${strings.attachmentOnDashboard}")
+        add(if (attachment.isWebUrl || attachment.isImage) name else "$name, ${strings.attachmentOnDashboard}")
     }
 }.joinToString(", ")
 
@@ -329,9 +329,10 @@ fun BroadcastCard(
         // the platform opens it. Anything else the app can neither render nor open says where it can be.
         view.attachment?.let { attachment ->
             Spacer(Modifier.height(Dimens.s8))
-            if (attachment.isImage) {
-                AttachmentImage(attachment, attachment.name ?: strings.attachment, strings)
-            } else if (attachment.isWebUrl) {
+            // `isWebUrl` first: a pre-MH1 row can be an `https://…/plan.png` that this app has no way to fetch, and
+            // #171's chip is the right answer for it. `isImage` now also requires an id, so the two cannot both be
+            // true for such a row — the order is belt and braces, and it is the cheaper test besides.
+            if (attachment.isWebUrl) {
                 Chip(
                     text = "📎 ${attachment.name ?: strings.attachment} ↗",
                     color = MaterialTheme.colorScheme.primaryContainer,
@@ -340,6 +341,8 @@ fun BroadcastCard(
                         runCatching { uriHandler.openUri(attachment.url) }
                     },
                 )
+            } else if (attachment.isImage) {
+                AttachmentImage(attachment, attachment.name ?: strings.attachment, strings)
             } else {
                 Text(
                     text = "📎 ${attachment.name ?: strings.attachment} · ${strings.attachmentOnDashboard}",
