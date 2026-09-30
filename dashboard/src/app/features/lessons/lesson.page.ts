@@ -226,6 +226,14 @@ export class LessonPage {
   );
   protected readonly lessonId = this.route.snapshot.paramMap.get('id') ?? '';
 
+  /**
+   * MA0: where leaving this page lands — the Admin's Home, because her list is retired, and the
+   * list for a teacher and a coordinator. {@link basePath} stays the *lesson* namespace either way:
+   * it is what the copy links and the results link are built from, and `/admin/lessons/:id` is a
+   * live route.
+   */
+  private readonly exitPath = computed(() => (this.isAdmin() && !this.readOnly ? '/admin' : this.basePath()));
+
   // N4.2: the way in to §4 step 9, and only once the lesson is published — an unpublished lesson
   // has no attempts to show. `gradebook` + the read key gate the link itself, the same pair the
   // route and the server check, so the three cannot disagree.
@@ -299,12 +307,18 @@ export class LessonPage {
     return status ? this.t(`lessons.status.${status}`) : '';
   });
 
+  /**
+   * MA0: the Admin's crumb is her **Home**, not "All lessons" — the list left her rail, so a crumb
+   * pointing at it would name a screen she can no longer open and land on a redirect. A coordinator
+   * still reads the list, and a teacher's is still "My lessons".
+   */
   protected readonly breadcrumbs = computed(() => {
     this.lang();
+    const toHome = this.isAdmin() && !this.readOnly;
     return [
       {
-        label: this.t(this.isAdmin() || this.readOnly ? 'nav.allLessons' : 'nav.myLessons'),
-        link: this.basePath(),
+        label: this.t(toHome ? 'nav.home' : this.readOnly ? 'nav.allLessons' : 'nav.myLessons'),
+        link: toHome ? '/admin' : this.basePath(),
       },
       { label: this.pageTitle() },
     ];
@@ -1553,14 +1567,14 @@ export class LessonPage {
   /** "Leave anyway": the guard is told yes once, and the navigation that was refused is retried. */
   private doLeave(): void {
     this.leaveConfirmed = true;
-    void this.router.navigateByUrl(this.leaveTarget ?? this.basePath());
+    void this.router.navigateByUrl(this.leaveTarget ?? this.exitPath());
   }
 
   private doDelete(): void {
     const lesson = this.lesson();
     if (!lesson) return;
     this.api.deleteLesson(lesson.id).subscribe({
-      next: () => void this.router.navigate([this.basePath()]),
+      next: () => void this.router.navigate([this.exitPath()]),
       error: () => undefined,
     });
   }

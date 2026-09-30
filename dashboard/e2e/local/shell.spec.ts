@@ -115,17 +115,22 @@ test('the Admin rail carries every screen §6 gives the Admin on one school', as
   await signIn(page, ADMIN);
   const rail = page.getByRole('navigation');
 
-  for (const item of [
-    'Home',
-    'Classes',
-    'Teachers',
-    'Users',
-    'Feature flags',
-    'All lessons',
-    'Platform usage',
-    'Platform settings',
-  ])
+  for (const item of ['Home', 'Classes', 'Teachers', 'Users'])
     await expect(rail.getByRole('link', { name: item })).toBeVisible();
+
+  // MA0 (the owner's admin list, 2026-09-30), items 6–9: the four rows are gone from the rail,
+  // and the addresses behind them land on her Home rather than on “Coming soon” or /not-found.
+  for (const item of ['Feature flags', 'All lessons', 'Platform usage', 'Platform settings'])
+    await expect(rail.getByRole('link', { name: item })).toHaveCount(0);
+  for (const url of ['admin/flags', 'admin/lessons', 'admin/usage', 'admin/settings']) {
+    await page.goto(url);
+    await expect(page).toHaveURL(/\/dashboard\/admin$/);
+  }
+
+  // Her authoring pair outlived the list: the wizard is a quick action on the Home the four
+  // addresses now land on, and the review page is what a “needs you” row opens.
+  await page.getByRole('link', { name: 'New lesson', exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard\/admin\/lessons\/new$/);
 
   // D13: one school, so no switcher and none of the three screens behind `multiSchool`.
   await expect(page.getByRole('button', { name: 'School' })).toHaveCount(0);
@@ -143,7 +148,7 @@ test('a teacher is offered nothing that belongs to the Admin', async ({ page }) 
   await expect(rail.getByRole('list').getByRole('link')).toHaveCount(2);
   for (const hers of ['This week', 'My classes'])
     await expect(rail.getByRole('link', { name: hers })).toBeVisible();
-  for (const admin of ['Users', 'Feature flags', 'All lessons', 'Platform settings'])
+  for (const admin of ['Users', 'Feature flags', 'Platform settings'])
     await expect(rail.getByRole('link', { name: admin })).toHaveCount(0);
 
   // And the URL is closed too, not just the menu.
@@ -159,6 +164,8 @@ test('a permission-gated URL refuses a teacher who types it', async ({ page }) =
   await signIn(page, SARA);
   await expect(page.getByRole('heading', { level: 1, name: 'This week' })).toBeVisible();
 
+  // MA0 turned three of these four into redirects onto the Admin's Home, and `roleGuard` runs on
+  // the area before Angular resolves a child redirect, so all four are still the same closed door.
   for (const url of ['admin/users', 'admin/settings', 'admin/flags', 'admin/usage']) {
     await page.goto(url);
     // `roleGuard` turns the area away first; either way she never reaches the screen.

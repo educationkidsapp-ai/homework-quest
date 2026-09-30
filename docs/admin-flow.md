@@ -6,6 +6,38 @@ lesson pipeline she shares with a teacher. This file starts where that stopped b
 screens that are hers alone and were added after the flow docs existed. It is not yet a tour of the
 whole area.
 
+## Her rail, and the four rows it lost (MA0)
+
+The Admin's rail is **Home · Classes · Teachers · Users · Messages**, plus **Schools** wherever
+`multiSchool` is on (D13). Items 6–9 of the owner's admin-role list (2026-09-30) took four rows off
+it, in the dashboard only — every `/admin/**` API route behind them is untouched, and the
+runbook still describes them.
+
+| Row              | Path                    | What it was                                                     |
+| ---------------- | ----------------------- | --------------------------------------------------------------- |
+| Feature flags    | `/admin/flags`          | The stub naming phase 3. No flags matrix or audit screen existed |
+| All lessons      | `/admin/lessons`        | The real list (`features/lessons/lessons.page.ts`)               |
+| Platform usage   | `/admin/usage`          | The stub naming phase 6                                         |
+| Platform settings| `/admin/settings`       | The stub naming phase 3                                         |
+
+All four are **redirect rows** in `core/nav/screens.ts` (`ADMIN_RETIRED`), so the four addresses
+land on `/admin` rather than on `/not-found` — a bookmark, an old notification's `link` and the
+runbook's own URL all still resolve. `nav.flags`, `nav.platformUsage` and `nav.platformSettings`
+went from `en.json` and `ar.json` with them; `nav.allLessons` stayed, because the **coordinator's**
+rail still carries it.
+
+**What kept the lessons she authors reachable.** `/admin/lessons/new` (the wizard) and
+`/admin/lessons/{id}` (the review page) are *not* retired: they are the Admin's authoring pair, and
+the server's Home and the bell link straight at the second one
+(`core/notifications/notification-target.ts`). The wizard's only door, though, was the retired
+list's primary button, so the Home's **quick actions** are now hers — Classes, Teachers and **New
+lesson**, filtered by `PermissionService.can()` — instead of the six *teacher* links it had been
+showing her since the comp. Her breadcrumb out of a lesson is her Home, not "All lessons".
+
+`lessons.page.ts` keeps its `isAdmin()` branches (the school column, the unfiltered curriculum and
+grade lists). They are unreachable for an Admin now and a separate package should take them out;
+the screen still serves a teacher, which is why this one left them alone.
+
 ## Messages (RM3b, DR5)
 
 `/admin/messages` — "the manager reports to and chats with the admin", from the Admin's side.

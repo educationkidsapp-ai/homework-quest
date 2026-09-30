@@ -8,6 +8,7 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { HomeApi, HomeResponse, NeedsYouItem, TeacherClassInfo } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { activeLang } from '../../core/i18n/active-lang';
+import { PermissionService } from '../../core/permissions/permission.service';
 import { ThemeService } from '../../core/theme/theme.service';
 import {
   BandComponent,
@@ -143,7 +144,7 @@ interface QuickActionItem {
               </div>
             </div>
             <div class="em-quick-actions-grid">
-              @for (act of quickActions; track act.label) {
+              @for (act of quickActions(); track act.link) {
                 <a
                   class="em-quick-action-btn"
                   [ngClass]="act.bgColor"
@@ -628,6 +629,7 @@ export class HomePage {
   protected readonly transloco = inject(TranslocoService);
   protected readonly theme = inject(ThemeService);
   private readonly api = inject(HomeApi);
+  private readonly permissions = inject(PermissionService);
 
   private readonly lang = activeLang();
 
@@ -650,8 +652,32 @@ export class HomePage {
 
   protected readonly weakSkills = computed(() => this.home.value()?.weakSkills ?? null);
 
+  /**
+   * MA0: the panel is the Admin's way in too, and until now it offered her six of the *teacher's*
+   * links. Her own three are the rail rows she keeps plus the new-lesson wizard — which is why
+   * this had to change in the same package that retired All lessons: the wizard's only door was
+   * that list's primary button, and taking the list away without this would have left her no way
+   * to author a lesson at all.
+   *
+   * Filtered by `can()`, so a read-only "View as" session is offered no New lesson (it is a write
+   * key) and a row whose key she somehow lacks is absent rather than a link onto a guard.
+   */
+  protected readonly quickActions = computed<readonly QuickActionItem[]>(() =>
+    this.isTeacher() ? this.teacherActions : this.adminActions(),
+  );
+
+  private readonly adminActions = computed<readonly QuickActionItem[]>(() => {
+    this.lang();
+    const rows: readonly (QuickActionItem & { readonly key: string })[] = [
+      { key: 'section.read', label: this.t('nav.classes'), icon: 'calendar', link: '/admin/classes', color: 'em-gradient--blue', bgColor: 'em-bg--blue' },
+      { key: 'teacher.read', label: this.t('nav.teachers'), icon: 'user-plus', link: '/admin/teachers', color: 'em-gradient--purple', bgColor: 'em-bg--purple' },
+      { key: 'lesson.write', label: this.t('nav.newLesson'), icon: 'file-text', link: '/admin/lessons/new', color: 'em-gradient--pink', bgColor: 'em-bg--pink' },
+    ];
+    return rows.filter((row) => this.permissions.can(row.key));
+  });
+
   // EduManage Quick Actions — strictly Homework Quest teacher workflows
-  protected readonly quickActions: readonly QuickActionItem[] = [
+  private readonly teacherActions: readonly QuickActionItem[] = [
     { label: 'This Week', icon: 'calendar', link: '/teacher/week', color: 'em-gradient--blue', bgColor: 'em-bg--blue' },
     { label: 'My Classes', icon: 'user-plus', link: '/teacher/classes', color: 'em-gradient--purple', bgColor: 'em-bg--purple' },
     { label: 'New Lesson', icon: 'file-text', link: '/teacher/lessons/new', color: 'em-gradient--pink', bgColor: 'em-bg--pink' },
@@ -731,6 +757,10 @@ export class HomePage {
       if (value) out[field] = this.translateOrEmpty(`${field}.${value}`) || value;
     }
     return out;
+  }
+
+  private t(key: string): string {
+    return this.transloco.translate<string>(key);
   }
 
   private translateOrEmpty(key: string): string {
