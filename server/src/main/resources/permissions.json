@@ -354,6 +354,8 @@
     { "method": "POST", "path": "/teacher/chat/staff-threads/{id}/messages", "permission": "teacher.chat" },
     { "method": "POST", "path": "/teacher/chat/staff-threads/{id}/read", "permission": "teacher.chat" },
     { "method": "GET", "path": "/teacher/chat/threads", "permission": "teacher.chat" },
+    { "method": "POST", "path": "/teacher/chat/threads", "permission": "teacher.chat" },
+    { "method": "GET", "path": "/teacher/coordinators", "permission": "teacher.chat" },
     { "method": "GET", "path": "/teacher/chat/threads/{childId}/messages", "permission": "teacher.chat" },
     { "method": "POST", "path": "/teacher/chat/threads/{childId}/messages", "permission": "teacher.chat" },
     { "method": "POST", "path": "/teacher/chat/threads/{childId}/read", "permission": "teacher.chat" },

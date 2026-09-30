@@ -77,6 +77,49 @@ public class ChatPeers {
     }
 
     /**
+     * The coordinators supervising subjects the teacher teaches, in name order.
+     */
+    public List<Coordinator> coordinatorsFor(Principals.User teacher) {
+        var assignments = teachers.assignmentsOf(teacher);
+        if (assignments.isEmpty()) return List.of();
+        String schoolId = tenant.writeSchoolId();
+        var staff = users.findBySchoolIdAndRole(schoolId, CoordinatorScope.ROLE);
+        if (staff.isEmpty()) return List.of();
+        var rows = rowsOf(schoolId, staff);
+        var mySubjects = assignments.stream().map(TeachingAssignmentEntity::getSubject).map(ChatPeers::normalise).collect(Collectors.toSet());
+        var classIds = assignments.stream().map(TeachingAssignmentEntity::getClassId).collect(Collectors.toSet());
+        var myCurriculums = classIds.stream().map(teachers::section).filter(Objects::nonNull)
+                .map(ClassEntity::getCurriculum).map(ChatPeers::normalise).collect(Collectors.toSet());
+
+        var out = new ArrayList<Coordinator>();
+        for (var person : staff) {
+            var hers = new LinkedHashSet<String>();
+            for (var row : rows.getOrDefault(person.getId(), List.of()))
+                if (row.getSubject() != null && mySubjects.contains(normalise(row.getSubject()))
+                        && (blank(row.getCurriculum()) || myCurriculums.contains(normalise(row.getCurriculum()))))
+                    hers.add(normalise(row.getSubject()));
+            if (!hers.isEmpty()) out.add(new Coordinator(person, String.join(", ", hers)));
+        }
+        out.sort(java.util.Comparator.comparing(c -> ChatService.name(c.user())));
+        return List.copyOf(out);
+    }
+
+    /**
+     * The teachers assigned to sections and subjects within the coordinator's reach, in name order.
+     */
+    public List<UserEntity> teachersFor(Principals.User coordinator) {
+        var reach = coordinators.reach(CoordinatorScope.require(coordinator));
+        if (reach.assignments().isEmpty()) return List.of();
+        var teacherIds = reach.assignments().stream()
+                .map(TeachingAssignmentEntity::getTeacherId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (teacherIds.isEmpty()) return List.of();
+        var staff = new ArrayList<>(users.findAllById(teacherIds));
+        staff.sort(java.util.Comparator.comparing(ChatService::name));
+        return List.copyOf(staff);
+    }
+
+    /**
      * The managers whose department intersects the caller's scope (DR5: a MANAGERIAL row is `subject` null and
      * `curriculum` set). A coordinator of both tracks reaches both managers; a coordinator of one reaches one. An
      * ADMIN reading the coordinator's area holds no scope row and so is offered nobody — a staff thread is the

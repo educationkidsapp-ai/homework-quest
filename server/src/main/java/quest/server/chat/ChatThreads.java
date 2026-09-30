@@ -35,18 +35,28 @@ public class ChatThreads {
     }
 
     /**
-     * R4: the staff-to-staff thread of a coordinator and a manager of her department — no child, and the pair
-     * de-duplicated by `chat_threads_staff_pair` the way the parent's is by `chat_threads_child_teacher`. The
-     * coordinator is always the `teacherId` side, so whichever of the two writes first gets one row.
+     * R4: the staff-to-staff thread between two staff members — no child, and the pair de-duplicated by
+     * `chat_threads_staff_pair`. Either direction (staff1, staff2) or (staff2, staff1) resolves to the same single row.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Entities.ChatThreadEntity getOrCreateStaff(String schoolId, String coordinatorId, String managerId) {
-        var existing = threads.findByTeacherIdAndPeerUserId(coordinatorId, managerId);
+    public Entities.ChatThreadEntity getOrCreateStaff(String schoolId, String staff1Id, String staff2Id, String staffRole) {
+        var existing = threads.findByTeacherIdAndPeerUserId(staff1Id, staff2Id);
         if (existing.isPresent()) return existing.get();
-        var t = row(schoolId, coordinatorId, ChatService.MANAGERIAL, ChatService.QUESTION);
-        t.setPeerUserId(managerId);
+        existing = threads.findByTeacherIdAndPeerUserId(staff2Id, staff1Id);
+        if (existing.isPresent()) return existing.get();
+        var t = row(schoolId, staff1Id, staffRole, ChatService.QUESTION);
+        t.setPeerUserId(staff2Id);
         try { return threads.saveAndFlush(t); }
-        catch (DataIntegrityViolationException raced) { return threads.findByTeacherIdAndPeerUserId(coordinatorId, managerId).orElseThrow(() -> raced); }
+        catch (DataIntegrityViolationException raced) {
+            return threads.findByTeacherIdAndPeerUserId(staff1Id, staff2Id)
+                    .or(() -> threads.findByTeacherIdAndPeerUserId(staff2Id, staff1Id))
+                    .orElseThrow(() -> raced);
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Entities.ChatThreadEntity getOrCreateStaff(String schoolId, String coordinatorId, String managerId) {
+        return getOrCreateStaff(schoolId, coordinatorId, managerId, ChatService.MANAGERIAL);
     }
 
     private Entities.ChatThreadEntity row(String schoolId, String staffId, String staffRole, String topic) {

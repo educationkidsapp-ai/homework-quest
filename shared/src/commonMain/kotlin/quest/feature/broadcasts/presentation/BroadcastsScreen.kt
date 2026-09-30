@@ -11,9 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import quest.ui.design.AnimatedDotsLoader
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -187,7 +188,7 @@ fun BroadcastsScreen(
         ) {
             if (state.loading) {
                 Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    AnimatedDotsLoader(dotSize = 12.dp, spacing = 8.dp)
                 }
                 return@Column
             }
@@ -268,7 +269,15 @@ fun broadcastDescription(view: BroadcastView, strings: Strings): String = buildL
     view.title?.takeIf { it.isNotBlank() }?.let { add(it) }
     add(authorLine(view, strings))
     add(broadcastBody(view, strings.isRtl))
-    view.attachment?.let { add("${it.name ?: strings.attachment}, ${strings.attachmentOnDashboard}") }
+    view.attachment?.let { attachment ->
+        val isWebUrl = attachment.url.startsWith("http://", ignoreCase = true) ||
+            attachment.url.startsWith("https://", ignoreCase = true)
+        if (isWebUrl) {
+            add(attachment.name ?: strings.attachment)
+        } else {
+            add("${attachment.name ?: strings.attachment}, ${strings.attachmentOnDashboard}")
+        }
+    }
 }.joinToString(", ")
 
 @Composable
@@ -278,6 +287,7 @@ fun BroadcastCard(
     pinned: Boolean = false,
     onOpen: () -> Unit = {},
 ) {
+    val uriHandler = LocalUriHandler.current
     ParentCard(
         // `mergeDescendants`, not `clearAndSetSemantics`: clearing the subtree would also clear any descendant that
         // carries an action, so a control inside the card would become unreachable to a screen reader.
@@ -309,16 +319,29 @@ fun BroadcastCard(
         Spacer(Modifier.height(Dimens.s8))
         Text(broadcastBody(view, strings.isRtl), style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk)
 
-        // The attachment is named but not opened. RM2 stores a reference to bytes that already exist, and nothing
-        // serves them to the app: there is no `/media/**` handler on the server, and the API is stateless bearer-only,
-        // so handing the URL to the system browser would open a 401. Saying where the file is beats a tap that fails.
+        // RM2 stores a reference to bytes that already exist. If it's a web/external URL (http/https),
+        // parents can tap to open it via the system browser/viewer. Otherwise (e.g. internal /media/** path
+        // which requires session credentials), display that it is available on the dashboard.
         view.attachment?.let { attachment ->
             Spacer(Modifier.height(Dimens.s8))
-            Text(
-                text = "📎 ${attachment.name ?: strings.attachment} · ${strings.attachmentOnDashboard}",
-                style = MaterialTheme.typography.bodySmall,
-                color = Palette.parentInkSoft,
-            )
+            val isWebUrl = attachment.url.startsWith("http://", ignoreCase = true) ||
+                attachment.url.startsWith("https://", ignoreCase = true)
+            if (isWebUrl) {
+                Chip(
+                    text = "📎 ${attachment.name ?: strings.attachment} ↗",
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    onClick = {
+                        onOpen()
+                        runCatching { uriHandler.openUri(attachment.url) }
+                    },
+                )
+            } else {
+                Text(
+                    text = "📎 ${attachment.name ?: strings.attachment} · ${strings.attachmentOnDashboard}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.parentInkSoft,
+                )
+            }
         }
     }
 }

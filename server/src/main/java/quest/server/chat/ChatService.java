@@ -46,6 +46,7 @@ import quest.server.tenancy.Entities.TeachingAssignmentEntity;
 import quest.server.tenancy.ManagerScope;
 import quest.server.tenancy.TeacherScope;
 import quest.server.tenancy.TenantContext;
+import quest.server.teacher.TeacherDto;
 
 /**
  * C1: who may talk to whom, and the four things they do — list, page, send, read. REST and the socket both land
@@ -230,23 +231,121 @@ public class ChatService {
 
     // ---------------------------------------------------------------- the teacher (dashboard)
 
-    /** Her conversations across the sections she is assigned to, unread first then newest. */
+    /** Her conversations across the sections she is assigned to, and with coordinators supervising her subjects, unread first then newest. */
     public List<ChatThread> teacherThreads(Principals.User caller) {
         var teacher = TeacherScope.require(caller);
         requireOn(tenant.writeSchoolId());
         var subjects = scope.assignmentsOf(teacher).stream().collect(Collectors.groupingBy(TeachingAssignmentEntity::getClassId, LinkedHashMap::new,
                 Collectors.mapping(TeachingAssignmentEntity::getSubject, Collectors.joining(", "))));
-        var mine = threads.findForTeacher(teacher.userId());
-        var kids = byId(children.findAllById(mine.stream().map(ChatThreadEntity::getChildId).toList()), ChildEntity::getId);
-        var live = mine.stream().filter(t -> { var c = kids.get(t.getChildId()); return c != null && c.getDeletedAt() == null && c.getClassId() != null && subjects.containsKey(c.getClassId()); }).toList();
+        var mine = threads.findForStaff(teacher.userId());
+        var parentThreads = mine.stream().filter(t -> t.getChildId() != null).toList();
+        var staffThreads = mine.stream().filter(t -> t.getChildId() == null).toList();
+
+        var kids = byId(children.findAllById(parentThreads.stream().map(ChatThreadEntity::getChildId).toList()), ChildEntity::getId);
+        var live = parentThreads.stream().filter(t -> { var c = kids.get(t.getChildId()); return c != null && c.getDeletedAt() == null && c.getClassId() != null && subjects.containsKey(c.getClassId()); }).toList();
         var sections = byId(classes.findAllById(live.stream().map(t -> kids.get(t.getChildId()).getClassId()).distinct().toList()), ClassEntity::getId);
-        var last = lastMessages(live);
+
+        var myCoordinators = peers.coordinatorsFor(caller);
+        var coordMap = myCoordinators.stream().collect(Collectors.toMap(c -> c.user().getId(), c -> c, (a, b) -> a));
+        var validStaffThreads = staffThreads.stream().filter(t -> coordMap.containsKey(named(t, teacher.userId()))).toList();
+
+        var allLive = new ArrayList<>(live);
+        allLive.addAll(validStaffThreads);
+        var last = lastMessages(allLive);
         String teacherName = users.findById(teacher.userId()).map(ChatService::name).orElse(teacher.email());
         var parentNames = parentNames(kids.values());
-        return live.stream().map(t -> { var c = kids.get(t.getChildId()); var k = sections.get(c.getClassId());
-            return row(t, c.getId(), c.getName(), teacher.userId(), teacherName, k == null ? null : k.getName(),
+
+        var rows = new ArrayList<ChatThread>();
+        for (var t : live) {
+            var c = kids.get(t.getChildId()); var k = sections.get(c.getClassId());
+            rows.add(row(t, c.getId(), c.getName(), teacher.userId(), teacherName, k == null ? null : k.getName(),
                     subjects.get(c.getClassId()), t.getTeacherUnread(), last.get(t.getId()), ROLE_TEACHER,
-                    parentNames.get(c.getId())); }).toList();
+                    parentNames.get(c.getId())));
+        }
+        for (var t : validStaffThreads) {
+            String otherId = named(t, teacher.userId());
+            var coord = coordMap.get(otherId);
+            rows.add(row(t, "", "", otherId, name(coord.user()), null, coord.subjects(),
+                    unreadFor(t, teacher.userId()), last.get(t.getId()), COORDINATOR, null));
+        }
+        rows.sort(order());
+        return rows;
+    }
+
+    public List<TeacherDto.TeacherCoordinator> teacherCoordinators(Principals.User caller) {
+        TeacherScope.require(caller);
+        requireOn(tenant.writeSchoolId());
+        return peers.coordinatorsFor(caller).stream()
+                .map(c -> new TeacherDto.TeacherCoordinator(c.user().getId(), name(c.user()), c.subjects()))
+                .toList();
+    }
+
+    @Transactional
+    public ChatThread teacherStaffThread(Principals.User caller, String coordinatorUserId) {
+        TeacherScope.require(caller);
+        String schoolId = tenant.writeSchoolId();
+        requireOn(schoolId);
+        if (coordinatorUserId == null || coordinatorUserId.isBlank()) throw ApiException.badRequest("coordinatorUserId is required");
+        var coordinator = peers.coordinatorsFor(caller).stream().filter(c -> c.user().getId().equals(coordinatorUserId)).findFirst()
+                .orElseThrow(() -> ApiException.notFound("coordinator"));
+        return one(threadRows.getOrCreateStaff(schoolId, caller.userId(), coordinator.user().getId(), COORDINATOR), caller.userId());
+    }
+
+    public List<ChatMessage> teacherMessagesOrStaff(Principals.User caller, String childOrThreadId, String before, String since, Integer limit) {
+        var staff = threads.findOneById(childOrThreadId).filter(t -> t.getChildId() == null);
+        if (staff.isPresent()) {
+            var t = ownTeacherStaffThread(caller, childOrThreadId);
+            return page(t.getId(), before, since, limit);
+        }
+        return teacherMessages(caller, childOrThreadId, before, since, limit);
+    }
+
+    @Transactional
+    public ChatMessage teacherSendOrStaff(Principals.User caller, String childOrThreadId, String body, String clientId) {
+        var staff = threads.findOneById(childOrThreadId).filter(t -> t.getChildId() == null);
+        if (staff.isPresent()) {
+            return teacherStaffSend(caller, childOrThreadId, body, clientId);
+        }
+        return teacherSend(caller, childOrThreadId, body, clientId);
+    }
+
+    @Transactional
+    public ChatReadReceipt teacherReadOrStaff(Principals.User caller, String childOrThreadId) {
+        var staff = threads.findOneById(childOrThreadId).filter(t -> t.getChildId() == null);
+        if (staff.isPresent()) {
+            return teacherStaffRead(caller, childOrThreadId);
+        }
+        return teacherRead(caller, childOrThreadId);
+    }
+
+    private ChatThreadEntity ownTeacherStaffThread(Principals.User caller, String threadId) {
+        requireOn(tenant.writeSchoolId());
+        var t = threads.findOneById(threadId).filter(th -> th.getChildId() == null)
+                .orElseThrow(() -> ApiException.notFound("thread"));
+        if (!caller.userId().equals(t.getTeacherId()) && !caller.userId().equals(t.getPeerUserId()))
+            throw ApiException.notFound("thread");
+        String otherUserId = named(t, caller.userId());
+        boolean isCoordinator = peers.coordinatorsFor(caller).stream().anyMatch(c -> c.user().getId().equals(otherUserId));
+        if (!isCoordinator) throw ApiException.notFound("thread");
+        return t;
+    }
+
+    @Transactional
+    public ChatMessage teacherStaffSend(Principals.User caller, String threadId, String body, String clientId) {
+        var t = ownTeacherStaffThread(caller, threadId);
+        return send(t, null, roleOn(t, caller.userId()), caller.userId(), body, clientId);
+    }
+
+    @Transactional
+    public ChatReadReceipt teacherStaffRead(Principals.User caller, String threadId) {
+        var t = ownTeacherStaffThread(caller, threadId);
+        return read(t, null, roleOn(t, caller.userId()), caller.userId());
+    }
+
+    public void teacherStaffTyping(Principals.User caller, String threadId) {
+        var t = ownTeacherStaffThread(caller, threadId);
+        String role = roleOn(t, caller.userId());
+        publish(ChatEvent.typing(t.getSchoolId(), t.getId(), null, t.getTeacherId(), null, t.getPeerUserId(), key(role, caller.userId()), role));
     }
 
     public List<ChatMessage> teacherMessages(Principals.User caller, String childId, String before, String since, Integer limit) {
@@ -476,19 +575,29 @@ public class ChatService {
     }
 
     /**
-     * `POST /coordinator/chat/threads`: her thread with one manager of her own department (DR5). The manager is
-     * resolved through {@link ChatPeers#managersFor} — a manager of the other track is 404, because she is not told
-     * which managers exist outside her department any more than a parent is told which teachers exist.
+     * `POST /coordinator/chat/threads`: her thread with one manager of her own department (DR5) or one teacher in her reach.
      */
     @Transactional
-    public ChatThread coordinatorStaffThread(Principals.User caller, String managerUserId) {
+    public ChatThread coordinatorStaffThread(Principals.User caller, String managerUserId, String teacherUserId) {
         var me = CoordinatorScope.require(caller);
         String schoolId = tenant.writeSchoolId();
         requireOn(schoolId);
-        if (managerUserId == null || managerUserId.isBlank()) throw ApiException.badRequest("managerUserId is required");
-        var manager = peers.managersFor(me).stream().filter(u -> u.getId().equals(managerUserId)).findFirst()
-                .orElseThrow(() -> ApiException.notFound("manager"));
-        return one(threadRows.getOrCreateStaff(schoolId, me.userId(), manager.getId()), me.userId());
+        if (teacherUserId != null && !teacherUserId.isBlank()) {
+            var teacher = peers.teachersFor(me).stream().filter(u -> u.getId().equals(teacherUserId)).findFirst()
+                    .orElseThrow(() -> ApiException.notFound("teacher"));
+            return one(threadRows.getOrCreateStaff(schoolId, teacher.getId(), me.userId(), ROLE_TEACHER), me.userId());
+        }
+        if (managerUserId != null && !managerUserId.isBlank()) {
+            var manager = peers.managersFor(me).stream().filter(u -> u.getId().equals(managerUserId)).findFirst()
+                    .orElseThrow(() -> ApiException.notFound("manager"));
+            return one(threadRows.getOrCreateStaff(schoolId, me.userId(), manager.getId(), MANAGERIAL), me.userId());
+        }
+        throw ApiException.badRequest("Send managerUserId or teacherUserId.");
+    }
+
+    @Transactional
+    public ChatThread coordinatorStaffThread(Principals.User caller, String managerUserId) {
+        return coordinatorStaffThread(caller, managerUserId, null);
     }
 
     // ---------------------------------------------------------------- the manager (dashboard, RM2, DR5)
@@ -637,14 +746,15 @@ public class ChatService {
     // ---------------------------------------------------------------- the socket's staff half
 
     /**
-     * A COORDINATOR (R4), a MANAGERIAL or an ADMIN (RM2) names her thread by id rather than by child, because not all
-     * of her threads are about one. Which scope proves the thread is hers is her role's, so {@link ChatSocketHandler}
-     * holds no rule of its own; a role that reaches neither branch cannot send at all.
+     * A COORDINATOR (R4), a MANAGERIAL or an ADMIN (RM2), or a TEACHER on a coordinator thread names her thread by id
+     * rather than by child, because not all of her threads are about one. Which scope proves the thread is hers is her
+     * role's, so {@link ChatSocketHandler} holds no rule of its own; a role that reaches neither branch cannot send at all.
      */
     @Transactional
     public ChatMessage staffSend(Principals.User caller, String threadId, String body, String clientId) {
         if (CoordinatorScope.ROLE.equals(caller.role())) return coordinatorSend(caller, threadId, body, clientId);
         if (MANAGERIAL.equals(caller.role())) return managerSend(caller, threadId, body, clientId);
+        if (ROLE_TEACHER.equals(caller.role())) return teacherStaffSend(caller, threadId, body, clientId);
         return adminSend(caller, threadId, body, clientId);
     }
 
@@ -652,27 +762,34 @@ public class ChatService {
     public ChatReadReceipt staffRead(Principals.User caller, String threadId) {
         if (CoordinatorScope.ROLE.equals(caller.role())) return coordinatorRead(caller, threadId);
         if (MANAGERIAL.equals(caller.role())) return managerRead(caller, threadId);
+        if (ROLE_TEACHER.equals(caller.role())) return teacherStaffRead(caller, threadId);
         return adminRead(caller, threadId);
     }
 
     public void staffTyping(Principals.User caller, String threadId) {
         if (CoordinatorScope.ROLE.equals(caller.role())) coordinatorTyping(caller, threadId);
         else if (MANAGERIAL.equals(caller.role())) managerTyping(caller, threadId);
+        else if (ROLE_TEACHER.equals(caller.role())) teacherStaffTyping(caller, threadId);
     }
 
     // ---------------------------------------------------------------- who reaches a coordinator's thread
 
     /**
      * One thread with her on it: 404 for another school's (the filter), another person's, a child who has left her
-     * scope, or a manager whose department no longer meets hers. Every `/coordinator/chat` handler goes through it,
-     * which is what puts {@link CoordinatorScope} in the reach of each one.
+     * scope, or a manager/teacher whose department/subject no longer meets hers. Every `/coordinator/chat` handler goes
+     * through it, which is what puts {@link CoordinatorScope} in the reach of each one.
      */
     private ChatThreadEntity ownThread(Principals.User me, String threadId) {
         requireOn(tenant.writeSchoolId());
         var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
         if (!me.userId().equals(t.getTeacherId()) && !me.userId().equals(t.getPeerUserId())) throw ApiException.notFound("thread");
         if (t.getChildId() != null) coordinatorScope.requireChild(me, t.getChildId());
-        else if (peers.managersFor(me).stream().noneMatch(u -> u.getId().equals(named(t, me.userId())))) throw ApiException.notFound("thread");
+        else {
+            String otherUserId = named(t, me.userId());
+            boolean isManager = peers.managersFor(me).stream().anyMatch(u -> u.getId().equals(otherUserId));
+            boolean isTeacher = peers.teachersFor(me).stream().anyMatch(u -> u.getId().equals(otherUserId));
+            if (!isManager && !isTeacher) throw ApiException.notFound("thread");
+        }
         return t;
     }
 

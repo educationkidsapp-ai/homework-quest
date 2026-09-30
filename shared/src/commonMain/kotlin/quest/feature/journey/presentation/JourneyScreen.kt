@@ -97,7 +97,7 @@ fun LoadingView(text: String) {
     Column(Modifier.fillMaxSize().background(Palette.sky).safeDrawingPadding(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
         quest.ui.design.Pip(quest.ui.design.PipPose.THINKING, Dimens.pipLarge)
         Spacer(Modifier.height(Dimens.s16))
-        androidx.compose.material3.CircularProgressIndicator(color = Palette.sunDeep)
+        quest.ui.design.AnimatedDotsLoader(color = Palette.sunDeep, dotSize = 12.dp, spacing = 8.dp)
         Spacer(Modifier.height(Dimens.s16))
         Text(text, style = MaterialTheme.typography.bodyLarge, color = Palette.ink, textAlign = TextAlign.Center)
     }

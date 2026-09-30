@@ -257,9 +257,10 @@ export class ChatService {
 
     // Try WebSocket send first
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      const isStaff = this.activeThread()?.childId === '';
       const command: ChatClientCommand = {
         type: 'message',
-        ...transport.commandKey(key),
+        ...transport.commandKey(key, isStaff),
         body: cleanBody,
         clientId,
       };
@@ -297,7 +298,8 @@ export class ChatService {
     this.lastTypingSentAt = now;
 
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      const command: ChatClientCommand = { type: 'typing', ...transport.commandKey(key) };
+      const isStaff = this.activeThread()?.childId === '';
+      const command: ChatClientCommand = { type: 'typing', ...transport.commandKey(key, isStaff) };
       this.socket.send(JSON.stringify(command));
     }
   }
@@ -306,7 +308,8 @@ export class ChatService {
     const transport = this.transportFor(key);
     if (transport === null) return;
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      const command: ChatClientCommand = { type: 'read', ...transport.commandKey(key) };
+      const isStaff = this.activeThread()?.childId === '';
+      const command: ChatClientCommand = { type: 'read', ...transport.commandKey(key, isStaff) };
       this.socket.send(JSON.stringify(command));
     }
 
@@ -456,30 +459,39 @@ export class ChatService {
         this.notifications.receive(frame.notification);
         break;
 
-      case 'typing':
-        if (frame.from === 'parent') {
-          const active = this.activeThread();
-          if (active && active.id === frame.threadId) {
-            this.isParentTyping.set(true);
-            if (this.typingClearTimer) clearTimeout(this.typingClearTimer);
-            this.typingClearTimer = setTimeout(() => {
-              this.isParentTyping.set(false);
-            }, TYPING_TIMEOUT_MS);
-          }
+      case 'typing': {
+        const active = this.activeThread();
+        if (active && active.id === frame.threadId) {
+          this.isParentTyping.set(true);
+          if (this.typingClearTimer) clearTimeout(this.typingClearTimer);
+          this.typingClearTimer = setTimeout(() => {
+            this.isParentTyping.set(false);
+          }, TYPING_TIMEOUT_MS);
         }
         break;
+      }
 
-      case 'read':
-        if (frame.readBy === 'parent') {
+      case 'read': {
+        const active = this.activeThread();
+        const myUserId = this.auth.user()?.id;
+        if (active && active.id === frame.threadId) {
           this.messages.update((list) =>
-            list.map((m) =>
-              m.sender === ChatMessageSenderEnum.TEACHER && !m.readAt ? { ...m, readAt: frame.readAt } : m,
-            ),
+            list.map((m) => {
+              if (frame.readBy === 'parent' && m.sender === ChatMessageSenderEnum.TEACHER && !m.readAt) {
+                return { ...m, readAt: frame.readAt };
+              }
+              if (frame.readBy === 'teacher' && !active.childId && myUserId && m.senderId === myUserId && !m.readAt) {
+                return { ...m, readAt: frame.readAt };
+              }
+              return m;
+            }),
           );
-        } else if (frame.readBy === 'teacher') {
+        }
+        if (frame.readBy === 'teacher') {
           this.threads.update((list) => list.map((t) => (t.id === frame.threadId ? { ...t, unread: 0 } : t)));
         }
         break;
+      }
 
       case 'status':
         // R4's `status` frame, which both parties hear. It updates this list and nothing else —
@@ -533,6 +545,9 @@ export class ChatService {
     // The echo of a message this client sent, identified by its own `clientId`. It settles the
     // optimistic bubble even when the thread it created is younger than the thread list.
     const isOwnEcho = clientId !== undefined && this.messages().some((m) => m.clientId === clientId);
+    const isFromOther = this.auth.user()?.id
+      ? message.senderId !== this.auth.user()?.id
+      : message.sender === ChatMessageSenderEnum.PARENT;
 
     if (isCurrentThread || isOwnEcho) {
       this.messages.update((list) => {
@@ -552,8 +567,8 @@ export class ChatService {
         return [...list, message];
       });
 
-      // If message is from parent in active view, mark read immediately
-      if (message.sender === ChatMessageSenderEnum.PARENT && activeKey) {
+      // If message is from the peer in active view, mark read immediately
+      if (isFromOther && activeKey) {
         this.markRead(activeKey);
       }
     }
@@ -569,7 +584,7 @@ export class ChatService {
         return threadsList;
       }
       const existing = threadsList[idx]!;
-      const isUnreadInc = message.sender === ChatMessageSenderEnum.PARENT && !isCurrentThread;
+      const isUnreadInc = isFromOther && !isCurrentThread;
       const updated: ChatThread = {
         ...existing,
         lastMessage: message,

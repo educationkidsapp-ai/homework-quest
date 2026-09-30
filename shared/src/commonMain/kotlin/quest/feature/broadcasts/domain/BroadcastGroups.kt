@@ -4,6 +4,7 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.minus
+import kotlinx.datetime.plus
 import quest.api.dto.BroadcastKind
 import quest.api.dto.BroadcastView
 
@@ -20,10 +21,9 @@ import quest.api.dto.BroadcastView
  *
  * **The rule is the same; the input is not.** The server snaps a date the composer typed, with no zone in it at all,
  * while the caller here passes `Today.date()`, which is the *device's* zone (`TimeZone.currentSystemDefault()`).
- * `shared/` has no notion of the school's zone, so a parent whose device sits west of the school can be on Saturday
- * while the school is on Sunday, and this week's plan then falls into [BroadcastGroups.earlierPlans] instead of the
- * pinned card. It is a limitation to record, not something this function can fix: fixing it needs the school's zone
- * on the wire. Expiry is unaffected — that comparison is in epoch millis and carries no zone.
+ * On Saturday, if next week's plan is already published (or the device sits in a timezone west of the school on
+ * Saturday night), [groupBroadcasts] pins next week's plan if present, falling back to this week's plan. Expiry is
+ * unaffected — that comparison is in epoch millis and carries no zone.
  */
 fun weekStartOf(date: LocalDate): LocalDate = date.minus(date.dayOfWeek.isoDayNumber % 7, DateTimeUnit.DAY)
 
@@ -45,8 +45,10 @@ data class BroadcastGroups(
 fun groupBroadcasts(items: List<BroadcastView>, today: LocalDate, nowMillis: Long): BroadcastGroups {
     val live = items.filter { row -> row.expiresAt?.let { it > nowMillis } ?: true }
     val thisWeek = weekStartOf(today).toString()
+    val nextWeek = weekStartOf(today.plus(7, DateTimeUnit.DAY)).toString()
     val plans = live.filter { it.kind == BroadcastKind.WEEKLY_PLAN }
-    val pinned = plans.firstOrNull { it.weekStart == thisWeek }
+    val pinned = (if (today.dayOfWeek.isoDayNumber == 6) plans.firstOrNull { it.weekStart == nextWeek } else null)
+        ?: plans.firstOrNull { it.weekStart == thisWeek }
     return BroadcastGroups(
         weeklyPlan = pinned,
         announcements = live.filter { it.kind == BroadcastKind.ANNOUNCEMENT },

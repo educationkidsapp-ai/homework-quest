@@ -18,11 +18,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
 import quest.api.dto.ChatMessage;
 import quest.api.dto.ChatReadReceipt;
 import quest.api.dto.ChatThread;
 import quest.api.dto.SendChatMessageRequest;
 import quest.server.auth.Principals;
+import quest.server.teacher.TeacherDto;
 import quest.server.config.ApiException;
 import quest.server.coordinator.CoordinatorDto;
 import quest.server.config.Json;
@@ -102,6 +104,21 @@ public class ChatController {
 
     // ---------------------------------------------------------------- the teacher (dashboard)
 
+    @GetMapping(value = "/teacher/coordinators", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.chat')")
+    public List<TeacherDto.TeacherCoordinator> teacherCoordinators(@AuthenticationPrincipal Principals.User caller) {
+        return chat.teacherCoordinators(caller);
+    }
+
+    @PostMapping(value = "/teacher/chat/threads", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.chat')")
+    @ResponseStatus(HttpStatus.CREATED)
+    @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatThread.class)))
+    public String teacherStaffThread(@AuthenticationPrincipal Principals.User caller,
+                                     @RequestBody @Valid TeacherDto.TeacherStaffThreadRequest body) {
+        return json.encodeShared(chat.teacherStaffThread(caller, body.coordinatorUserId()), ChatThread.Companion.serializer());
+    }
+
     @GetMapping(value = "/teacher/chat/threads", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('teacher.chat')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatThread.class))))
@@ -112,7 +129,7 @@ public class ChatController {
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatMessage.class))))
     public String teacherChatMessages(@AuthenticationPrincipal Principals.User caller, @PathVariable String childId,
                                       @RequestParam(required = false) String before, @RequestParam(required = false) String since, @RequestParam(required = false) Integer limit) {
-        return messages(chat.teacherMessages(caller, childId, before, since, limit));
+        return messages(chat.teacherMessagesOrStaff(caller, childId, before, since, limit));
     }
 
     @PostMapping(value = "/teacher/chat/threads/{childId}/messages", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -122,13 +139,15 @@ public class ChatController {
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
     public String teacherSendChatMessage(@AuthenticationPrincipal Principals.User caller, @PathVariable String childId, @RequestBody String body) {
         var req = decode(body);
-        return message(chat.teacherSend(caller, childId, req.getBody(), req.getClientId()));
+        return message(chat.teacherSendOrStaff(caller, childId, req.getBody(), req.getClientId()));
     }
 
     @PostMapping(value = "/teacher/chat/threads/{childId}/read", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('teacher.chat')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatReadReceipt.class)))
-    public String teacherMarkChatRead(@AuthenticationPrincipal Principals.User caller, @PathVariable String childId) { return receipt(chat.teacherRead(caller, childId)); }
+    public String teacherMarkChatRead(@AuthenticationPrincipal Principals.User caller, @PathVariable String childId) {
+        return receipt(chat.teacherReadOrStaff(caller, childId));
+    }
 
     // ---------------------------------------------------------------- the teacher's staff threads (MG1, DR5)
 
