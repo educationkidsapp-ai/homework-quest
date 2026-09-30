@@ -753,7 +753,7 @@ interface DashboardApi {
      * department: the list a `managerUserId` for her staff thread has to come from. `coordinator.chat`, behind the
      * `chat` flag with the rest of her inbox.
      */
-    suspend fun coordinatorManagers(): List<CoordinatorManager>
+    suspend fun coordinatorManagers(): List<StaffContact>
 
     // ---- R3: the teacher's numbers, read through her scope (DR2)
     //
@@ -979,14 +979,33 @@ interface DashboardApi {
     // ---- MG1 (DR5): the teacher's staff threads with the manager(s) of the departments she teaches in.
     // Behind the `chat` flag and `teacher.chat`, keyed by thread because a staff thread has no child on it.
 
-    /** `GET /teacher/managers` — whom `createTeacherStaffThread` will accept, each with her department. */
-    suspend fun teacherManagers(): List<CoordinatorManager>
+    /**
+     * `GET /teacher/managers` — whom `createTeacherStaffThread` will accept, each with her department, her contact
+     * details and her job in parts (T1).
+     */
+    suspend fun teacherManagers(): List<StaffContact>
+
+    /**
+     * T1 `GET /teacher/coordinators` — the coordinators whose scope covers a (subject, track) pair this teacher
+     * actually teaches, each with the grades of hers that put the coordinator on the list, **one
+     * [StaffJobParts] per track**. `teacher.chat`, behind the `chat` flag with the rest of her inbox.
+     */
+    suspend fun teacherCoordinators(): List<StaffContact>
 
     /** `GET /teacher/chat/staff-threads` — her conversations with those managers, unread first then newest. */
     suspend fun teacherStaffThreads(): List<quest.api.dto.ChatThread>
 
-    /** `POST /teacher/chat/staff-threads` — `{"managerUserId": …}`; the same row whichever side opens it. */
-    suspend fun createTeacherStaffThread(managerUserId: String): quest.api.dto.ChatThread
+    /**
+     * `POST /teacher/chat/staff-threads` — **exactly one** of `managerUserId` and `coordinatorUserId` (T1b), the same
+     * row whichever side opens it. A coordinator of a subject she teaches is the "direct message" on her Coordinator
+     * page, and the coordinator reads and answers it through her own `/coordinator/chat` routes (a Kotlin block comment
+     * nests, so the wildcard is left off on purpose). 400 for both or neither,
+     * 404 for anyone the matching directory page does not list.
+     */
+    suspend fun createTeacherStaffThread(
+        managerUserId: String? = null,
+        coordinatorUserId: String? = null,
+    ): quest.api.dto.ChatThread
 
     /** `GET /teacher/chat/staff-threads/{id}/messages?before&since&limit` — a page, oldest first. */
     suspend fun teacherStaffMessages(threadId: String, before: String? = null, since: String? = null,

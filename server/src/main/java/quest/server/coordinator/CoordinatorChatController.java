@@ -49,27 +49,26 @@ import quest.server.flags.FlagKeys;
 @FeatureFlag(FlagKeys.CHAT)
 @Tag(name = "Coordinator chat", description = "A coordinator's threads with parents and her manager, and her Complaints inbox")
 public class CoordinatorChatController {
-    private final ChatService chat; private final Json json; private final quest.server.chat.ChatPeers peers;
+    private final ChatService chat; private final Json json; private final quest.server.chat.StaffDirectory directory;
 
-    public CoordinatorChatController(ChatService chat, Json json, quest.server.chat.ChatPeers peers) {
-        this.chat = chat; this.json = json; this.peers = peers;
+    public CoordinatorChatController(ChatService chat, Json json, quest.server.chat.StaffDirectory directory) {
+        this.chat = chat; this.json = json; this.directory = directory;
     }
 
     /**
      * `GET /coordinator/managers` (RM1 addendum): who `POST /coordinator/chat/threads` will accept — the managers whose
-     * department intersects her scope, each with that department. A record rather than the kotlinx codec, because there
-     * is no `Stop` in it and springdoc needs a real schema for the generated client.
+     * department intersects her scope, each with that department and — T1 — her address, her phone and her job in
+     * parts, which is her Manager page. A record rather than the kotlinx codec, because there is no `Stop` in it and
+     * springdoc needs a real schema for the generated client.
      *
      * <p>It resolves her scope through {@link quest.server.tenancy.CoordinatorScope#scopesOf}, inside
-     * {@code ChatPeers.managerOptionsFor}, so `CoordinatorScopeArchitectureTest` is satisfied by the same call the
-     * thread-opening write already makes.
+     * {@code StaffDirectory.managersForCoordinator}, so `CoordinatorScopeArchitectureTest` is satisfied by the same
+     * call the thread-opening write already makes.
      */
     @GetMapping(value = "/coordinator/managers", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('coordinator.chat')")
-    public List<CoordinatorDto.CoordinatorManager> coordinatorManagers(@AuthenticationPrincipal Principals.User caller) {
-        return peers.managerOptionsFor(quest.server.tenancy.CoordinatorScope.require(caller)).stream()
-                .map(m -> new CoordinatorDto.CoordinatorManager(m.user().getId(), ChatService.name(m.user()), m.curriculum()))
-                .toList();
+    public List<quest.server.chat.StaffDto.StaffContact> coordinatorManagers(@AuthenticationPrincipal Principals.User caller) {
+        return directory.managersForCoordinator(caller);
     }
 
     @GetMapping(value = "/coordinator/chat/threads", produces = MediaType.APPLICATION_JSON_VALUE)

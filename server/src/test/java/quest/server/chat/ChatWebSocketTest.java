@@ -44,6 +44,11 @@ class ChatWebSocketTest extends ChatTestSupport {
     @Autowired quest.server.notifications.NotificationService notifications;
     @Autowired quest.server.notifications.NotificationRepository notificationRows;
     @Autowired quest.server.tenancy.StaffScopeRepository staffScopes;
+    @Autowired ChatPresence presence;
+    @Autowired ChatBus bus;
+    @Autowired quest.server.auth.AuthService auth;
+    @Autowired quest.server.auth.RefreshTokenService refreshTokens;
+    @Autowired quest.server.auth.RefreshTokenRepository tokenRows;
 
     private String maya;
     private final List<WebSocketSession> open = Collections.synchronizedList(new ArrayList<>());
@@ -57,6 +62,7 @@ class ChatWebSocketTest extends ChatTestSupport {
         open.forEach(s -> { try { s.close(); } catch (Exception ignored) { } });
         notificationRows.deleteAll(notificationRows.findAll().stream().filter(n -> n.getSchoolId().startsWith(prefix())).toList());
         staffScopes.deleteAll(staffScopes.findAll().stream().filter(r -> r.getSchoolId().startsWith(prefix())).toList());
+        tokenRows.deleteAll(tokenRows.findAll().stream().filter(t -> t.getUserId().startsWith(prefix())).toList());
         removeSeed();
     }
 
@@ -134,8 +140,9 @@ class ChatWebSocketTest extends ChatTestSupport {
         assertThat(ack.get("clientId").asText()).as("the sender's copy is the ack").isEqualTo("c-42");
         assertThat(ack.get("message").get("body").asText()).isEqualTo("Hello from the app");
         assertThat(ack.get("message").get("sender").asText()).isEqualTo("parent");
-        var delivered = teacher.next();
-        assertThat(delivered.get("type").asText()).isEqualTo("message");
+        // T1: the parent's message also writes the teacher a `chat.message` bell row, which arrives first
+        assertThat(frameOfType(teacher, "notification").get("notification").get("kind").asText()).isEqualTo("chat.message");
+        var delivered = frameOfType(teacher, "message");
         assertThat(delivered.get("message").get("id").asText()).isEqualTo(ack.get("message").get("id").asText());
         assertThat(delivered.has("clientId")).as("nobody else's clientId is echoed").isFalse();
         // it was committed before it was published: REST already has it
@@ -147,22 +154,21 @@ class ChatWebSocketTest extends ChatTestSupport {
         assertThat(parent.next().get("message").get("body").asText()).isEqualTo("Hello back");
         assertThat(teacher.next().get("clientId").asText()).isEqualTo("d-1");
         parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("and via REST", "r-1"));
-        assertThat(teacher.next().get("message").get("body").asText()).isEqualTo("and via REST");
+        assertThat(frameOfType(teacher, "message").get("message").get("body").asText()).isEqualTo("and via REST");
         var own = parent.next();
         assertThat(own.get("message").get("body").asText()).isEqualTo("and via REST");
         assertThat(own.get("clientId").asText()).isEqualTo("r-1");
 
         // typing fans out to the other side only; read is announced to both
         parentSession.sendMessage(new TextMessage("{\"type\":\"typing\",\"childId\":\"" + maya + "\",\"teacherId\":\"" + SARA + "\"}"));
-        var typing = teacher.next();
-        assertThat(typing.get("type").asText()).isEqualTo("typing");
+        var typing = frameOfType(teacher, "typing");
         assertThat(typing.get("threadId").asText()).isEqualTo(threadId);
         assertThat(typing.get("from").asText()).isEqualTo("parent");
         open.get(0).sendMessage(new TextMessage("{\"type\":\"read\",\"childId\":\"" + maya + "\"}"));
         var read = parent.next();
         assertThat(read.get("type").asText()).isEqualTo("read");
         assertThat(read.get("readBy").asText()).isEqualTo("teacher");
-        assertThat(teacher.next().get("type").asText()).isEqualTo("read");
+        assertThat(frameOfType(teacher, "read")).isNotNull();
         assertThat(parent.received).as("the parent never saw her own typing").noneMatch(f -> f.contains("\"typing\""));
     }
 
@@ -186,25 +192,28 @@ class ChatWebSocketTest extends ChatTestSupport {
         connect(managerToken, true, management);
 
         teacherSession.sendMessage(new TextMessage("{\"type\":\"message\",\"threadId\":\"" + threadId + "\",\"body\":\"The plan is in.\",\"clientId\":\"s-1\"}"));
-        var ack = teacher.next();
-        assertThat(ack.get("type").asText()).isEqualTo("message");
+        // T1: the manager connecting told the teacher she is online, so the ack is not the first frame any more
+        var online = frameOfType(teacher, "presence");
+        assertThat(online.get("online").asBoolean()).isTrue();
+        assertThat(online.get("userId").asText()).isEqualTo(managerId);
+        var ack = frameOfType(teacher, "message");
         assertThat(ack.get("clientId").asText()).as("the sender's copy is the ack").isEqualTo("s-1");
-        var delivered = management.next();
+        // T1: and the message rings her bell as well as landing on her socket — the owner's reported gap
+        assertThat(frameOfType(management, "notification").get("notification").get("title").asText()).isEqualTo("Message from Ms Sara");
+        var delivered = frameOfType(management, "message");
         assertThat(delivered.get("message").get("body").asText()).isEqualTo("The plan is in.");
         assertThat(delivered.get("message").get("threadId").asText()).isEqualTo(threadId);
 
         teacherSession.sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + threadId + "\"}"));
-        var typing = management.next();
-        assertThat(typing.get("type").asText()).isEqualTo("typing");
-        assertThat(typing.get("threadId").asText()).isEqualTo(threadId);
+        assertThat(frameOfType(management, "typing").get("threadId").asText()).isEqualTo(threadId);
 
         teacherSession.sendMessage(new TextMessage("{\"type\":\"read\",\"threadId\":\"" + threadId + "\"}"));
-        assertThat(management.next().get("type").asText()).isEqualTo("read");
-        assertThat(teacher.next().get("type").asText()).as("a read is announced to both sides").isEqualTo("read");
+        assertThat(frameOfType(management, "read")).isNotNull();
+        assertThat(frameOfType(teacher, "read")).as("a read is announced to both sides").isNotNull();
 
         // A thread that is not hers is refused by the very check the REST route applies; nothing is published.
         teacherSession.sendMessage(new TextMessage("{\"type\":\"read\",\"threadId\":\"not-a-thread-of-hers\"}"));
-        assertThat(teacher.next().get("code").asText()).isEqualTo("not_found");
+        assertThat(frameOfType(teacher, "error").get("code").asText()).isEqualTo("not_found");
     }
 
     /** A MANAGERIAL account of school A with the British department — a `staff_scopes` row with no subject (DR5). */
@@ -247,6 +256,90 @@ class ChatWebSocketTest extends ChatTestSupport {
         assertThat(parent.closed.getCode()).isEqualTo(CloseStatus.TOO_BIG_TO_PROCESS.getCode());
     }
 
+    // ---------------------------------------------------------------- presence (T1)
+
+    /**
+     * T1: the parent shares a thread with Sara, so Sara coming online and going offline is the parent's business —
+     * and nobody else's. The frame names her `userId`, and {@link ChatPresence} agrees with it both ways.
+     */
+    @Test void a_teacher_coming_online_and_going_offline_reaches_the_parent_she_shares_a_thread_with() throws Exception {
+        var parent = new Frames();
+        var parentSession = connect(PARENT.substring("Bearer ".length()), false, parent);
+        parentSession.sendMessage(new TextMessage("{\"type\":\"message\",\"childId\":\"" + maya + "\",\"teacherId\":\"" + SARA + "\",\"body\":\"hello\"}"));
+        assertThat(frameOfType(parent, "message")).isNotNull();
+
+        var teacher = new Frames();
+        var teacherSession = connect(sara, true, teacher);
+        var arrived = frameOfType(parent, "presence");
+        assertThat(arrived.get("online").asBoolean()).isTrue();
+        assertThat(arrived.get("userId").asText()).isEqualTo(SARA);
+        assertThat(arrived.has("parentId")).as("a dashboard user is named by userId alone").isFalse();
+        assertThat(presence.userOnline(SARA)).isTrue();
+
+        teacherSession.close();
+        var left = frameOfType(parent, "presence");
+        assertThat(left.get("online").asBoolean()).isFalse();
+        assertThat(left.get("userId").asText()).isEqualTo(SARA);
+        await(() -> !presence.userOnline(SARA));
+        assertThat(presence.userOnline(SARA)).as("the last socket of hers has gone").isFalse();
+
+        // and the other way round: the parent leaving reaches the teacher, named by `parentId`. A parent carries no
+        // school at all, so this is also the schoolless fan-out — a school-matched write would reach nobody.
+        var back = new Frames();
+        connect(sara, true, back);
+        assertThat(frameOfType(parent, "presence").get("online").asBoolean()).isTrue();
+        parentSession.close();
+        var gone = frameOfType(back, "presence");
+        assertThat(gone.get("online").asBoolean()).isFalse();
+        assertThat(gone.has("userId")).as("a parent is named by parentId alone").isFalse();
+        assertThat(gone.get("parentId").asText()).isNotBlank();
+    }
+
+    /**
+     * T1, the owner's second bug: a logged-out manager must not go on showing "Live". Revoking her refresh token —
+     * what `POST /auth/sign-out` does — closes every socket of hers, which is what ends her presence even when the
+     * dashboard never got the chance to close it itself.
+     */
+    @Test void signing_out_closes_her_socket_and_ends_her_presence() throws Exception {
+        var teacher = new Frames();
+        connect(sara, true, teacher);
+        assertThat(presence.userOnline(SARA)).isTrue();
+
+        auth.signOut(refreshTokens.issue(SARA));
+        assertThat(teacher.closed(5)).as("the socket is closed, not left open on a dead session").isNotNull();
+        assertThat(teacher.closed.getReason()).isEqualTo("signed out");
+        await(() -> !presence.userOnline(SARA));
+        assertThat(presence.userOnline(SARA)).isFalse();
+    }
+
+    /**
+     * T1 (review): the revocation travels. Her sockets live on whichever instance took each handshake, and that is not
+     * the one that served `POST /auth/sign-out` — so the close rides the bus like every other event, and an event
+     * published as another instance would have published it closes the socket held here.
+     */
+    @Test void a_revocation_published_by_another_instance_closes_the_socket_held_here() throws Exception {
+        var teacher = new Frames();
+        connect(sara, true, teacher);
+        assertThat(presence.userOnline(SARA)).isTrue();
+
+        bus.publish(ChatEvent.signedOut("user:" + SARA, System.currentTimeMillis()));
+        assertThat(teacher.closed(5)).as("the socket this instance holds is closed by the other instance's event").isNotNull();
+        assertThat(teacher.closed.getReason()).isEqualTo("signed out");
+        await(() -> !presence.userOnline(SARA));
+        assertThat(presence.userOnline(SARA)).isFalse();
+    }
+
+    /** The first frame of a kind, skipping the ones a live socket also carries (a `read`, a `message`). */
+    private static JsonNode frameOfType(Frames frames, String type) throws Exception {
+        for (int i = 0; i < 10; i++) { var frame = frames.next(); if (type.equals(frame.get("type").asText())) return frame; }
+        throw new AssertionError("no " + type + " frame arrived");
+    }
+
+    /** Presence is settled on the bus thread, so the assertion polls rather than reads once. */
+    private static void await(java.util.function.BooleanSupplier done) throws InterruptedException {
+        for (int i = 0; i < 100 && !done.getAsBoolean(); i++) Thread.sleep(50);
+    }
+
     // ---------------------------------------------------------------- performance
 
     /** Send → deliver across the in-memory bus, 200 messages; the number is the PR body's p95. */
@@ -259,7 +352,7 @@ class ChatWebSocketTest extends ChatTestSupport {
             String body = "p" + i;
             SENT.put(body, System.nanoTime());
             parentSession.sendMessage(new TextMessage("{\"type\":\"message\",\"childId\":\"" + maya + "\",\"teacherId\":\"" + SARA + "\",\"body\":\"" + body + "\"}"));
-            teacher.next();                                                     // one at a time: latency, not throughput
+            frameOfType(teacher, "message");                                    // one at a time: latency, not throughput
         }
         var latencies = new ArrayList<Long>(teacher.receivedAt.values());
         assertThat(latencies).hasSize(n);

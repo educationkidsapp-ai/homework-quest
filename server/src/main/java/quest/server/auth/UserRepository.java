@@ -39,4 +39,12 @@ public interface UserRepository extends JpaRepository<Entities.UserEntity, Strin
      */
     @Query(value = "SELECT id FROM users WHERE role = 'ADMIN' AND status = 'active' ORDER BY lower(coalesce(display_name, email))", nativeQuery = true)
     List<String> findActiveAdminIds();
+
+    /**
+     * T1: which dashboard a notification's link belongs to. Native and unfiltered for the reason above: an ADMIN row
+     * carries no `school_id`, so a scoped lookup cannot see her at all and her bell would be linked to the teacher's
+     * screens. It answers a role and nothing else, so no row of another school leaves the query.
+     */
+    @Query(value = "SELECT role FROM users WHERE id = :id", nativeQuery = true)
+    Optional<String> findRoleAcrossSchools(@Param("id") String id);
 }

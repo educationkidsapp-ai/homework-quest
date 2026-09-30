@@ -9,6 +9,7 @@ import java.util.Base64;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import quest.server.config.ApiException;
 import quest.server.config.QuestProperties;
@@ -23,9 +24,9 @@ public class RefreshTokenService {
     private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private final RefreshTokenRepository tokens; private final Duration ttl;
-    public RefreshTokenService(RefreshTokenRepository tokens, QuestProperties props) {
-        this.tokens = tokens;
+    private final RefreshTokenRepository tokens; private final Duration ttl; private final ApplicationEventPublisher events;
+    public RefreshTokenService(RefreshTokenRepository tokens, QuestProperties props, ApplicationEventPublisher events) {
+        this.tokens = tokens; this.events = events;
         long days = props.auth().refreshDays() <= 0 ? 30 : props.auth().refreshDays();
         this.ttl = Duration.ofDays(days);
     }
@@ -57,10 +58,20 @@ public class RefreshTokenService {
 
     public record Rotated(String userId, String refreshToken) {}
 
-    /** Sign-out: a token that is unknown or already revoked is not an error (the session is gone either way). */
-    public void revoke(String presented) { tokens.findByTokenHash(hash(presented)).filter(r -> r.getRevokedAt() == null).ifPresent(this::revoke); }
+    /**
+     * Sign-out: a token that is unknown or already revoked is not an error (the session is gone either way). T1: it
+     * also announces {@link SessionsRevoked}, so her `/ws/chat` sockets close and she stops showing as online.
+     */
+    public void revoke(String presented) {
+        tokens.findByTokenHash(hash(presented)).filter(r -> r.getRevokedAt() == null)
+                .ifPresent(row -> { revoke(row); events.publishEvent(new SessionsRevoked(row.getUserId())); });
+    }
 
-    public void revokeAll(String userId) { tokens.findByUserIdAndRevokedAtIsNull(userId).forEach(this::revoke); }
+    /** The whole family — a password change, a reset, a replayed token. Her sockets go with it (T1). */
+    public void revokeAll(String userId) {
+        tokens.findByUserIdAndRevokedAtIsNull(userId).forEach(this::revoke);
+        events.publishEvent(new SessionsRevoked(userId));
+    }
 
     private void revoke(Entities.RefreshTokenEntity row) { row.setRevokedAt(Instant.now()); tokens.save(row); }
 

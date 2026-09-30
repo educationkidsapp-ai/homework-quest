@@ -96,8 +96,14 @@ class TeacherCalendarTest extends TeacherTestSupport {
         assertThat(month.get("gaps").asInt()).isEqualTo(SCHOOL_DAYS_IN_APRIL);
     }
 
+    /**
+     * Two months out, not one: the service reads "today" in the <em>school's</em> zone (`LocalDate.now(week.zone())`,
+     * Asia/Dubai on the fixture) while the test reads the runner's, so on the last day of a month the two disagree
+     * about which month is next and its first school day is already past — a red build for four hours a month
+     * (run 36781572540). Two months ahead is in the future whatever the offset, and is the same assertion.
+     */
     @Test void a_school_day_still_in_the_future_is_not_yet_a_gap() throws Exception {
-        var next = LocalDate.now().plusMonths(1);
+        var next = LocalDate.now().plusMonths(2);
         var month = json(mvc.perform(as(get("/teacher/classes/" + CLASS_A2 + "/calendar?year=" + next.getYear()
                 + "&month=" + next.getMonthValue()), teacherToken)).andExpect(status().isOk()).andReturn());
         assertThat(month.get("gaps").asInt()).as("a month that has not happened yet is not a month of failures").isZero();

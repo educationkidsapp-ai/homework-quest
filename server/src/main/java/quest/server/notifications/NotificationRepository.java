@@ -36,6 +36,32 @@ public interface NotificationRepository extends JpaRepository<Entities.Notificat
     int markAllRead(@Param("userId") String userId, @Param("at") Instant at);
 
     /**
+     * T1's throttle: the one unread row this user already has about that entity, if any. `chat.message` writes at most
+     * one unread row per thread per recipient — a second message she has not looked at yet updates the row rather than
+     * adding to a bell she would then have to clear twice.
+     */
+    @Query("select n from NotificationEntity n where n.userId = :userId and n.kind = :kind and n.lessonId = :entityId"
+            + " and n.readAt is null order by n.createdAt desc")
+    List<Entities.NotificationEntity> unreadAbout(@Param("userId") String userId, @Param("kind") String kind, @Param("entityId") String entityId);
+
+    /**
+     * T1 (review): the upsert's first half — the unread row's new body and time, in one statement. `int` is the whole
+     * answer: 0 means she has none unread and the caller inserts, 1 means the row was refreshed. No read, so two
+     * senders racing on one thread cannot both decide to insert on the strength of a stale count.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true) @Transactional
+    @Query("update NotificationEntity n set n.title = :title, n.body = :body, n.createdAt = :at"
+            + " where n.userId = :userId and n.kind = :kind and n.lessonId = :entityId and n.readAt is null")
+    int refreshUnread(@Param("userId") String userId, @Param("kind") String kind, @Param("entityId") String entityId,
+                      @Param("title") String title, @Param("body") String body, @Param("at") Instant at);
+
+    /** T1: reading the thread clears its bell entry, whichever message put it there. */
+    @Modifying @Transactional
+    @Query("update NotificationEntity n set n.readAt = :at where n.userId = :userId and n.kind = :kind"
+            + " and n.lessonId = :entityId and n.readAt is null")
+    int markAboutRead(@Param("userId") String userId, @Param("kind") String kind, @Param("entityId") String entityId, @Param("at") Instant at);
+
+    /**
      * Every row about one entity, whoever it belongs to — RM2's weekly plan, replaced by a re-post. It is the one
      * query here that does not start from a `userId`, because the thing being withdrawn is the *subject* of the
      * notification rather than anyone's bell; the `school` filter still applies, as it does to every read above.

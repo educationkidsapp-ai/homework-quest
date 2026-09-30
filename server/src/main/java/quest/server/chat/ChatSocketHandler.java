@@ -28,10 +28,11 @@ public class ChatSocketHandler extends TextWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(ChatSocketHandler.class);
     static final int MAX_FRAME_BYTES = 8 * 1024;
 
-    private final ChatService chat; private final ChatSessions sessions; private final ChatHub hub; private final TenantContext tenant; private final Json json;
+    private final ChatService chat; private final ChatSessions sessions; private final ChatHub hub; private final TenantContext tenant;
+    private final Json json; private final ChatPresence presence;
 
-    public ChatSocketHandler(ChatService chat, ChatSessions sessions, ChatHub hub, TenantContext tenant, Json json) {
-        this.chat = chat; this.sessions = sessions; this.hub = hub; this.tenant = tenant; this.json = json;
+    public ChatSocketHandler(ChatService chat, ChatSessions sessions, ChatHub hub, TenantContext tenant, Json json, ChatPresence presence) {
+        this.chat = chat; this.sessions = sessions; this.hub = hub; this.tenant = tenant; this.json = json; this.presence = presence;
     }
 
     @Override public void afterConnectionEstablished(WebSocketSession session) {
@@ -39,12 +40,15 @@ public class ChatSocketHandler extends TextWebSocketHandler {
         var peer = (ChatSessions.Peer) session.getAttributes().get(ChatHandshake.PEER);
         if (peer == null) { close(session, CloseStatus.POLICY_VIOLATION); return; }
         sessions.register(session, peer);
+        presence.arrived(peer);
     }
 
     @Override protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         sessions.touch(session);
         var live = sessions.of(session);
         if (live == null) return;
+        // T1 (review): the `pong` that keeps the socket alive also renews her presence lease on the other instances.
+        presence.refresh(live.peer());
         ChatCommand command;
         try { command = json.decodeShared(message.getPayload(), ChatCommand.Companion.serializer()); }
         catch (RuntimeException e) { live.offer(hub.encode(new ChatFrame.Error("bad_request", "Unreadable frame.", null)), false); return; }
@@ -114,7 +118,16 @@ public class ChatSocketHandler extends TextWebSocketHandler {
         return value;
     }
 
-    @Override public void afterConnectionClosed(WebSocketSession session, CloseStatus status) { sessions.remove(session); }
+    /**
+     * T1: the peer comes off the attributes rather than out of {@link ChatSessions}, because a socket closed by the
+     * sweep or by a sign-out was already forgotten there — and this is the one path every close runs through, so it
+     * is where "she went offline" has to be decided.
+     */
+    @Override public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        sessions.remove(session);
+        var peer = (ChatSessions.Peer) session.getAttributes().get(ChatHandshake.PEER);
+        if (peer != null) presence.left(peer);
+    }
 
     @Override public void handleTransportError(WebSocketSession session, Throwable exception) {
         log.debug("chat: transport error on {}: {}", session.getId(), exception.toString());

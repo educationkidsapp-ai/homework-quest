@@ -1,6 +1,7 @@
 package quest.api.dashboard
 
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import quest.api.dto.Curriculum
 import quest.api.dto.Subject
@@ -122,14 +123,55 @@ data class CoordinatorCalendar(
     val days: List<CoordinatorCalendarDay> = emptyList(),
 )
 
+/** T1: which kind of job [StaffJobParts] describes, so the client picks the sentence rather than parsing one. */
+@Serializable
+enum class StaffJobKind { @SerialName("coordinator") COORDINATOR, @SerialName("manager") MANAGER }
+
 /**
- * `GET /coordinator/managers` (RM1 addendum): a manager she may open a thread with, and the department that put her on
- * the list, so the chooser can say "Nour · British" without a second request. The list is her own scope's: a
- * coordinator of both tracks is offered both managers, one of a single track exactly one, and the platform ADMIN
- * reading her area is offered nobody — a staff thread is the coordinator's own conversation.
+ * T1 (owner's list, 2026-10-01): a job title **in parts**, so the dashboard writes it in the reader's own language
+ * instead of translating an English sentence. A coordinator's parts are the ones that put her on *this* caller's
+ * list — the grades of the caller's own sections she covers, the subject and the track — so "Coordinator · Grade 1 ·
+ * Math · British"; a manager's are her department alone, so "British department manager". [grades] is empty on a
+ * manager's row and carries every grade of the caller's that the coordinator covers **in [curriculum]**, ascending.
+ *
+ * One of these per track, never flattened across them ([StaffContact.jobParts] is a list): a coordinator who covers
+ * British grade 1 and American grade 3 of one teacher's is two entries, because "Grades 1, 3" of either track would
+ * name a grade she does not coordinate for her.
  */
 @Serializable
-data class CoordinatorManager(val userId: String, val displayName: String, val curriculum: Curriculum)
+data class StaffJobParts(
+    val kind: StaffJobKind,
+    val grades: List<Int> = emptyList(),
+    val subject: String? = null,
+    val curriculum: Curriculum? = null,
+)
+
+/**
+ * T1: one person in the staff directory — `GET /teacher/coordinators`, `GET /teacher/managers` and
+ * `GET /coordinator/managers` all answer this shape, because they are one screen ("who may I write to, and who is
+ * she?") asked from two roles. It is RM1's `CoordinatorManager` grown the contact details the owner asked for:
+ * [userId], [displayName] and [curriculum] are the fields that chooser already carried, so a client written against
+ * it reads this row unchanged.
+ *
+ * [job] is the English sentence to fall back on; [jobParts] is the same thing localisable, **one entry per track**,
+ * and [job] joins their sentences with "; ". [curriculum] is the first of those tracks and [subjects] the union across
+ * them, kept for the RM1 client that reads one word of each. [online] is presence (T1): true while she holds at least
+ * one live `/ws/chat` socket, the same signal [quest.api.dto.ChatThread.peerOnline] carries on a thread row, and it
+ * goes stale only until the next `presence` frame.
+ */
+@Serializable
+data class StaffContact(
+    val userId: String,
+    val displayName: String,
+    val email: String,
+    val role: String,
+    val job: String,
+    val jobParts: List<StaffJobParts> = emptyList(),
+    val phone: String? = null,
+    val curriculum: Curriculum? = null,
+    val subjects: String? = null,
+    val online: Boolean = false,
+)
 
 // ---------------------------------------------------------------------------------------------------------------
 // Admin: creating a coordinator and changing what she coordinates (`/admin/coordinators/` routes, ADMIN only)

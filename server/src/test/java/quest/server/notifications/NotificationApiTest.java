@@ -115,6 +115,42 @@ class NotificationApiTest extends GradingTestSupport {
         return json(mvc.perform(as(get("/me/notifications/unread-count"), token)).andExpect(status().isOk()).andReturn()).get("count").asInt();
     }
 
+    /**
+     * T1 (review): the `chat.message` throttle is the database's rule, not a read followed by an insert. Eight threads
+     * write to one thread at the same moment and she ends with **one** unread row, carrying one of the bodies — before
+     * V26 both halves of a racing pair read "none unread" and both inserted.
+     */
+    @Test void concurrent_messages_on_one_thread_leave_exactly_one_unread_row() throws Exception {
+        String thread = "nt-thread-1";
+        int writers = 8;
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var done = new java.util.concurrent.CountDownLatch(writers);
+        var failures = new java.util.concurrent.CopyOnWriteArrayList<Throwable>();
+        for (int i = 0; i < writers; i++) {
+            int n = i;
+            Thread.startVirtualThread(() -> {
+                try { start.await(); notifications.chatMessage(SCHOOL, MINE, thread, "Maya", "line " + n); }
+                catch (Throwable t) { failures.add(t); }
+                finally { done.countDown(); }
+            });
+        }
+        start.countDown();
+        assertThat(done.await(20, java.util.concurrent.TimeUnit.SECONDS)).as("every writer finished").isTrue();
+        assertThat(failures).as("a losing insert is recovered, never thrown").isEmpty();
+
+        var unread = rows.unreadAbout(MINE, "chat.message", thread);
+        assertThat(unread).as("one unread row per thread per recipient, whoever wrote first").hasSize(1);
+        assertThat(unread.get(0).getBody()).startsWith("line ");
+        assertThat(unread.get(0).getLink()).isEqualTo("/teacher/chat?thread=" + thread);
+
+        // reading it lets the next message ring again: the index only constrains the unread row
+        notifications.markThreadRead(MINE, thread);
+        notifications.chatMessage(SCHOOL, MINE, thread, "Maya", "and again");
+        assertThat(rows.unreadAbout(MINE, "chat.message", thread)).hasSize(1);
+        assertThat(rows.newest(MINE, org.springframework.data.domain.PageRequest.of(0, 20)).stream()
+                .filter(r -> "chat.message".equals(r.getKind())).count()).as("two rows in all: the read one and the new one").isEqualTo(2);
+    }
+
     /** A hand-written lesson of hers with nothing in it yet — `generate-from-text` is the shortest whole pipeline. */
     private String draft(String id) {
         var l = lessons.findById(id).orElseGet(LessonEntity::new);

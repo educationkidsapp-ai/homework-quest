@@ -79,6 +79,16 @@ data class ChatThread(
      * teacher typed on the roster, and absent on a staff-to-staff thread, which has no parent on it at all.
      */
     val parentName: String? = null,
+    /**
+     * T1: whether the person on the other end is **online right now** — she holds at least one live `/ws/chat`
+     * socket. It is a snapshot taken when the row was built; the [ChatFrame.Presence] frame keeps it current while
+     * the list is open, and a client that ignores both simply never shows a presence dot.
+     *
+     * Nullable, and therefore optional on the wire, because "nobody to be online about" is a real answer and not the
+     * same as offline: the Admin's read-only support list is about the thread rather than about a conversation of
+     * hers, and it carries no presence at all. Treat absent as "do not show a dot".
+     */
+    val peerOnline: Boolean? = null,
 )
 
 /**
@@ -104,6 +114,9 @@ data class ChatReadReceipt(val threadId: String, val readBy: ChatSender, val rea
  * - [Notification]: D26 — a dashboard notification for the signed-in user. The socket is the dashboard's event
  *   channel, not only its chat: this frame reaches ADMIN, MANAGERIAL and TEACHER whether or not the school has the
  *   `chat` flag on, and never a parent. The same row is readable over `/me/notifications`.
+ * - [Presence]: T1 — somebody who shares a thread with the caller came online or went offline. It is fanned out on
+ *   connect and disconnect, so a manager who signs out (or whose tab crashed and missed the heartbeat) stops showing
+ *   as "Live" within about a minute rather than forever.
  * - [Status]: R4 — the staff side moved a thread between `open` and `resolved`. Both parties receive it, so the
  *   parent's app can show that her complaint was answered without refetching the list.
  * - [Ping]: sent every 30 s; answer with a `pong` command (any command counts) or the session is closed as idle
@@ -118,6 +131,8 @@ sealed class ChatFrame {
     @Serializable @SerialName("typing") data class Typing(val threadId: String, val from: ChatSender) : ChatFrame()
     @Serializable @SerialName("notification") data class Notification(val notification: NotificationView) : ChatFrame()
     @Serializable @SerialName("status") data class Status(val threadId: String, val status: ChatThreadStatus, val at: Long) : ChatFrame()
+    /** T1: exactly one of [userId] (a dashboard user) and [parentId] (a parent in the app) names who moved. */
+    @Serializable @SerialName("presence") data class Presence(val online: Boolean, val userId: String? = null, val parentId: String? = null) : ChatFrame()
     @Serializable @SerialName("ping") data object Ping : ChatFrame()
     @Serializable @SerialName("pong") data object Pong : ChatFrame()
     @Serializable @SerialName("error") data class Error(val code: String, val message: String, val clientId: String? = null) : ChatFrame()

@@ -85,15 +85,18 @@ public class ChatService {
     private final CoordinatorScope coordinatorScope; private final ManagerScope managerScope; private final ChatPeers peers;
     private final FeatureFlags flags; private final Clock clock; private final Json json;
     private final quest.server.auth.ParentRepository parents;
+    private final ChatPresence presence; private final quest.server.notifications.NotificationService bells;
+    private final StaffDirectory directory;
 
     public ChatService(ChatThreadRepository threads, ChatMessageRepository messages, ChatThreads threadRows, ChatRateLimiter limiter, ChatBus bus,
                        ChildService childService, ChildRepository children, ClassRepository classes, UserRepository users, TeacherScope scope,
                        TenantContext tenant, CoordinatorScope coordinatorScope, ManagerScope managerScope,
-                       ChatPeers peers, FeatureFlags flags, Clock clock, Json json, quest.server.auth.ParentRepository parents) {
+                       ChatPeers peers, FeatureFlags flags, Clock clock, Json json, quest.server.auth.ParentRepository parents,
+                       ChatPresence presence, quest.server.notifications.NotificationService bells, StaffDirectory directory) {
         this.threads = threads; this.messages = messages; this.threadRows = threadRows; this.limiter = limiter; this.bus = bus;
         this.childService = childService; this.children = children; this.classes = classes; this.users = users; this.scope = scope;
         this.tenant = tenant; this.coordinatorScope = coordinatorScope; this.managerScope = managerScope; this.peers = peers; this.flags = flags; this.clock = clock;
-        this.json = json; this.parents = parents;
+        this.json = json; this.parents = parents; this.presence = presence; this.bells = bells; this.directory = directory;
     }
 
     /**
@@ -135,11 +138,13 @@ public class ChatService {
         for (String teacherId : teacherIds) {
             var t = byStaff.get(teacherId);
             rows.add(row(t, child.getId(), child.getName(), teacherId, name(staff.get(teacherId)), section,
-                    subjects.get(teacherId), t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), ROLE_TEACHER, parentName));
+                    subjects.get(teacherId), t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), ROLE_TEACHER, parentName,
+                    key(USER, teacherId)));
         }
         for (var t : staffThreads)
             rows.add(row(t, child.getId(), child.getName(), t.getTeacherId(), name(staff.get(t.getTeacherId())), section,
-                    coordinatorSubjects.get(t.getTeacherId()), t.getParentUnread(), last.get(t.getId()), t.getStaffRole(), parentName));
+                    coordinatorSubjects.get(t.getTeacherId()), t.getParentUnread(), last.get(t.getId()), t.getStaffRole(), parentName,
+                    key(USER, t.getTeacherId())));
         rows.sort(order());
         return rows;
     }
@@ -160,7 +165,8 @@ public class ChatService {
         for (var coordinator : peers.coordinatorsOn(child.getSchoolId(), section)) {
             var t = byStaff.get(coordinator.user().getId());
             rows.add(row(t, child.getId(), child.getName(), coordinator.user().getId(), name(coordinator.user()), section.getName(),
-                    coordinator.subjects(), t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), COORDINATOR, parentName));
+                    coordinator.subjects(), t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), COORDINATOR, parentName,
+                    key(USER, coordinator.user().getId())));
         }
         rows.sort(order());
         return rows;
@@ -183,7 +189,8 @@ public class ChatService {
         for (var manager : peers.managersOn(child.getSchoolId(), section)) {
             var t = byStaff.get(manager.getId());
             rows.add(row(t, child.getId(), child.getName(), manager.getId(), name(manager), section.getName(),
-                    null, t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), MANAGERIAL, parentName));
+                    null, t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), MANAGERIAL, parentName,
+                    key(USER, manager.getId())));
         }
         rows.sort(order());
         return rows;
@@ -246,7 +253,7 @@ public class ChatService {
         return live.stream().map(t -> { var c = kids.get(t.getChildId()); var k = sections.get(c.getClassId());
             return row(t, c.getId(), c.getName(), teacher.userId(), teacherName, k == null ? null : k.getName(),
                     subjects.get(c.getClassId()), t.getTeacherUnread(), last.get(t.getId()), ROLE_TEACHER,
-                    parentNames.get(c.getId())); }).toList();
+                    parentNames.get(c.getId()), c.getParentId() == null ? null : key(PARENT, c.getParentId())); }).toList();
     }
 
     public List<ChatMessage> teacherMessages(Principals.User caller, String childId, String before, String since, Integer limit) {
@@ -289,25 +296,34 @@ public class ChatService {
     public List<ChatThread> teacherStaffThreads(Principals.User caller) {
         var me = TeacherScope.require(caller);
         requireOn(tenant.writeSchoolId());
-        var allowed = managerIdsOf(me);
+        var allowed = supervisorsOf(me);
         return threads.findForStaff(me.userId()).stream().filter(t -> staffThreadOf(t, me.userId(), allowed))
                 .map(t -> one(t, me.userId())).toList();
     }
 
     /**
-     * `POST /teacher/chat/staff-threads`: her thread with one manager of a department she teaches in. A manager of
-     * the other department is 404 through {@link ChatPeers#managersForTeacher} — she is not told which managers exist
-     * outside her own, any more than a parent is told which teachers exist outside her child's.
+     * `POST /teacher/chat/staff-threads`: her thread with **one manager of a department she teaches in, or (T1b) one
+     * coordinator of a subject she teaches** — exactly one of the two ids, because the two are different people and a
+     * request that named both would be asking for a thread that does not exist. Anyone outside her own reach is 404
+     * through the directory that offered her the list: she is not told which staff exist beyond it, any more than a
+     * parent is told which teachers exist outside her child's section.
      */
     @Transactional
-    public ChatThread teacherStaffThread(Principals.User caller, String managerUserId) {
+    public ChatThread teacherStaffThread(Principals.User caller, String managerUserId, String coordinatorUserId) {
         var me = TeacherScope.require(caller);
         String schoolId = tenant.writeSchoolId();
         requireOn(schoolId);
-        if (managerUserId == null || managerUserId.isBlank()) throw ApiException.badRequest("managerUserId is required");
+        boolean manager = named(managerUserId), coordinator = named(coordinatorUserId);
+        if (manager == coordinator) throw ApiException.badRequest("Send exactly one of managerUserId and coordinatorUserId.");
+        if (coordinator) {
+            if (!directory.coordinatorIdsForTeacher(me).contains(coordinatorUserId)) throw ApiException.notFound("coordinator");
+            return one(threadRows.getOrCreateStaff(schoolId, me.userId(), coordinatorUserId, COORDINATOR), me.userId());
+        }
         if (!managerIdsOf(me).contains(managerUserId)) throw ApiException.notFound("manager");
         return one(threadRows.getOrCreateStaff(schoolId, me.userId(), managerUserId), me.userId());
     }
+
+    private static boolean named(String id) { return id != null && !id.isBlank(); }
 
     public List<ChatMessage> teacherStaffMessages(Principals.User caller, String threadId, String before, String since, Integer limit) {
         return page(ownTeacherThread(TeacherScope.require(caller), threadId).getId(), before, since, limit);
@@ -342,7 +358,9 @@ public class ChatService {
         String schoolId = tenant.writeSchoolId();
         if (!flags.isOn(schoolId, FlagKeys.CHAT)) return null;
         var t = threadRows.getOrCreateStaff(schoolId, caller.userId(), managerUserId);
-        send(t, null, TEACHER, caller.userId(), body, null);
+        // No `chat.message` bell here: `TeacherMessageService` already writes the manager a `teacher.message` row for
+        // this very sentence (MG1), and two bell entries for one note would be noise rather than news.
+        send(t, null, TEACHER, caller.userId(), body, null, false);
         return t.getId();
     }
 
@@ -354,16 +372,27 @@ public class ChatService {
         return peers.managersForTeacher(teacher).stream().map(m -> m.user().getId()).collect(Collectors.toSet());
     }
 
-    /** Her side of a staff thread: no child, she is the `teacher_id`, and the peer is still a manager of hers. */
-    private static boolean staffThreadOf(ChatThreadEntity t, String meId, Set<String> managers) {
-        return t.getChildId() == null && meId.equals(t.getTeacherId()) && managers.contains(t.getPeerUserId());
+    /**
+     * T1b: everyone above her she may hold a staff thread with — the managers of her departments and the coordinators
+     * of her subjects, which is exactly what her two directory pages offer. One set, so the list, the reads and the
+     * writes cannot disagree about who her peers are.
+     */
+    private Set<String> supervisorsOf(Principals.User teacher) {
+        var out = new java.util.LinkedHashSet<>(managerIdsOf(teacher));
+        out.addAll(directory.coordinatorIdsForTeacher(teacher));
+        return out;
+    }
+
+    /** Her side of a staff thread: no child, she is the `teacher_id`, and the peer is still a supervisor of hers. */
+    private static boolean staffThreadOf(ChatThreadEntity t, String meId, Set<String> supervisors) {
+        return t.getChildId() == null && meId.equals(t.getTeacherId()) && supervisors.contains(t.getPeerUserId());
     }
 
     /** One staff thread of hers: 404 for another school's (the filter), another person's, or another department's. */
     private ChatThreadEntity ownTeacherThread(Principals.User me, String threadId) {
         requireOn(tenant.writeSchoolId());
         var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
-        if (!staffThreadOf(t, me.userId(), managerIdsOf(me))) throw ApiException.notFound("thread");
+        if (!staffThreadOf(t, me.userId(), supervisorsOf(me))) throw ApiException.notFound("thread");
         return t;
     }
 
@@ -380,7 +409,7 @@ public class ChatService {
         return all.stream().map(t -> { var c = kids.get(t.getChildId()); var k = c == null || c.getClassId() == null ? null : sections.get(c.getClassId());
             return row(t, t.getChildId() == null ? "" : t.getChildId(), c == null ? "" : c.getName(), t.getTeacherId(), name(teachers.get(t.getTeacherId())),
                     k == null ? null : k.getName(), null, t.getParentUnread() + t.getTeacherUnread(), last.get(t.getId()), t.getStaffRole(),
-                    c == null ? null : parentNames.get(c.getId())); }).toList();
+                    c == null ? null : parentNames.get(c.getId()), null); }).toList();
     }
 
     public List<ChatMessage> supportMessages(String threadId, String before, String since, Integer limit) {
@@ -426,7 +455,7 @@ public class ChatService {
             String person = named(t, meId);
             rows.add(row(t, child == null ? "" : child.getId(), child == null ? "" : child.getName(), person, name(people.get(person)),
                     section == null ? null : section.getName(), null, unreadFor(t, meId), last.get(t.getId()), t.getStaffRole(),
-                    child == null ? null : parentNames.get(child.getId())));
+                    child == null ? null : parentNames.get(child.getId()), peerKey(child, person)));
         }
         return List.copyOf(rows);
     }
@@ -671,8 +700,14 @@ public class ChatService {
         requireOn(tenant.writeSchoolId());
         var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
         if (!me.userId().equals(t.getTeacherId()) && !me.userId().equals(t.getPeerUserId())) throw ApiException.notFound("thread");
-        if (t.getChildId() != null) coordinatorScope.requireChild(me, t.getChildId());
-        else if (peers.managersFor(me).stream().noneMatch(u -> u.getId().equals(named(t, me.userId())))) throw ApiException.notFound("thread");
+        if (t.getChildId() != null) { coordinatorScope.requireChild(me, t.getChildId()); return t; }
+        String other = named(t, me.userId());
+        // Her staff threads are of two kinds since T1b: the one she opened with her manager, and the one a teacher of
+        // her subjects opened with her. `findForStaff` already lists both, so refusing the second here would leave a
+        // row in her inbox she could not open.
+        boolean hers = peers.managersFor(me).stream().anyMatch(u -> u.getId().equals(other))
+                || (me.userId().equals(t.getPeerUserId()) && directory.coversTeacher(me, other));
+        if (!hers) throw ApiException.notFound("thread");
         return t;
     }
 
@@ -687,6 +722,11 @@ public class ChatService {
     private static String named(ChatThreadEntity t, String meId) {
         if (t.getPeerUserId() == null) return t.getTeacherId();
         return t.getTeacherId().equals(meId) ? t.getPeerUserId() : t.getTeacherId();
+    }
+
+    /** T1: whose presence a staff caller's row shows — the child's parent, or the colleague on a staff thread. */
+    private static String peerKey(ChildEntity child, String person) {
+        return child != null && child.getParentId() != null ? key(PARENT, child.getParentId()) : key(USER, person);
     }
 
     /** `teacher` for the thread's own staff peer, `peer` for the second staff member of a staff thread. */
@@ -708,7 +748,7 @@ public class ChatService {
         return row(t, child == null ? "" : child.getId(), child == null ? "" : child.getName(), person,
                 users.findById(person).map(ChatService::name).orElse(""), section == null ? null : section.getName(),
                 null, unreadFor(t, meId), lastMessages(List.of(t)).get(t.getId()), t.getStaffRole(),
-                child == null ? null : parentNames(List.of(child)).get(child.getId()));
+                child == null ? null : parentNames(List.of(child)).get(child.getId()), peerKey(child, person));
     }
 
     // ---------------------------------------------------------------- the four things
@@ -719,6 +759,10 @@ public class ChatService {
      * the child's parent or the manager on the other end of a staff thread.
      */
     private ChatMessage send(ChatThreadEntity thread, String parentId, String role, String senderId, String rawBody, String clientId) {
+        return send(thread, parentId, role, senderId, rawBody, clientId, true);
+    }
+
+    private ChatMessage send(ChatThreadEntity thread, String parentId, String role, String senderId, String rawBody, String clientId, boolean bell) {
         String body = clean(rawBody);
         limiter.record(key(role, senderId));
         var m = new ChatMessageEntity();
@@ -727,15 +771,37 @@ public class ChatService {
         messages.save(m);
         if (TEACHER.equals(role)) threads.bumpParentUnread(thread.getId(), m.getCreatedAt()); else threads.bumpTeacherUnread(thread.getId(), m.getCreatedAt());
         var dto = dto(m);
+        if (bell) bell(thread, role, senderId, body);
         publish(ChatEvent.message(thread.getSchoolId(), thread.getId(), thread.getChildId(), thread.getTeacherId(), parentId, thread.getPeerUserId(),
                 key(role, senderId), clientId, dto.getId(), json.encodeShared(dto, ChatMessage.Companion.serializer())));
         return dto;
+    }
+
+    /**
+     * T1 (the owner's bug: "no notification when a teacher messages a manager"). Until now a message was announced on
+     * the socket and nowhere else, so a recipient whose dashboard was closed — or simply on another screen — had only
+     * the thread's unread counter, and the bell said nothing at all. Every message now writes the recipient a
+     * `chat.message` row as well, throttled to one unread row per thread, which the same socket delivers as a
+     * `notification` frame.
+     *
+     * <p>The recipient is whoever is <em>not</em> the sender, when she is a dashboard user: the staff peer when a
+     * parent wrote, the second staff member on a staff thread, and <strong>nobody</strong> when a staff member wrote
+     * to a parent — parents have no bell, they have the app.
+     */
+    private void bell(ChatThreadEntity thread, String role, String senderId, String body) {
+        String recipient = PARENT.equals(role) || PEER.equals(role) ? thread.getTeacherId() : thread.getPeerUserId();
+        if (recipient == null || recipient.equals(senderId)) return;
+        String from = PARENT.equals(role) ? parents.findById(senderId).map(ChatService::name).orElse(null)
+                : users.findById(senderId).map(ChatService::name).orElse(null);
+        bells.chatMessage(thread.getSchoolId(), recipient, thread.getId(), from, body);
     }
 
     private ChatReadReceipt read(ChatThreadEntity thread, String parentId, String role, String readerId) {
         Instant now = clock.instant();
         messages.markRead(thread.getId(), counterpart(thread, role), now);
         if (TEACHER.equals(role)) threads.clearTeacherUnread(thread.getId()); else threads.clearParentUnread(thread.getId());
+        // T1: she has read the thread, so its bell entry is read too — a parent has none to clear.
+        if (!PARENT.equals(role)) bells.markThreadRead(readerId, thread.getId());
         publish(ChatEvent.read(thread.getSchoolId(), thread.getId(), thread.getChildId(), thread.getTeacherId(), parentId, thread.getPeerUserId(),
                 key(role, readerId), role, now.toEpochMilli()));
         return new ChatReadReceipt(thread.getId(), sender(role), now.toEpochMilli());
@@ -842,27 +908,24 @@ public class ChatService {
     static ChatSender sender(String role) { return PARENT.equals(role) ? ChatSender.PARENT : ChatSender.TEACHER; }
 
     /**
-     * One list row. V20's four fields come off the thread, or take their C1 defaults when there is no thread yet —
-     * a coordinator a parent has not written to is `question` / `open` like the teacher rows beside her.
-     */
-    private static ChatThread row(ChatThreadEntity t, String childId, String childName, String staffId, String staffName,
-                                  String className, String subject, int unread, ChatMessage last, String staffRole) {
-        return row(t, childId, childName, staffId, staffName, className, subject, unread, last, staffRole, null);
-    }
-
-    /**
-     * The same row with the parent named (RM1 addendum): the Complaints inbox shows who wrote, and a thread row
-     * otherwise carries the child's name and the staff peer's only. Null on a staff-to-staff thread, which has no
+     * One list row. V20's four fields come off the thread, or take their C1 defaults when there is no thread yet — a
+     * coordinator a parent has not written to is `question` / `open` like the teacher rows beside her. `parentName`
+     * (RM1 addendum) lets the Complaints inbox name who wrote, and is null on a staff-to-staff thread, which has no
      * parent on it at all, and on a roster child nobody has claimed yet.
+     *
+     * <p>`peerKey` (T1) is the session key of the person on the *other* end — the parent on a parent thread, the
+     * colleague on a staff one — and settles `peerOnline`; null on a row where presence means nothing (the Admin's
+     * support list, which is about the thread rather than about a conversation of hers), and `peerOnline` is then
+     * absent rather than false.
      */
-    private static ChatThread row(ChatThreadEntity t, String childId, String childName, String staffId, String staffName,
-                                  String className, String subject, int unread, ChatMessage last, String staffRole,
-                                  String parentName) {
+    private ChatThread row(ChatThreadEntity t, String childId, String childName, String staffId, String staffName,
+                           String className, String subject, int unread, ChatMessage last, String staffRole,
+                           String parentName, String peerKey) {
         return new ChatThread(t == null ? null : t.getId(), childId, childName, staffId, staffName, className, subject, unread, last,
                 staffRole(t == null ? staffRole : t.getStaffRole()), topic(t == null ? QUESTION : t.getTopic()),
                 status(t == null ? OPEN : t.getStatus()),
                 t == null || t.getResolvedAt() == null ? null : t.getResolvedAt().toEpochMilli(),
-                parentName == null || parentName.isBlank() ? null : parentName);
+                parentName == null || parentName.isBlank() ? null : parentName, peerKey == null ? null : presence.online(peerKey));
     }
 
     /**
@@ -896,6 +959,11 @@ public class ChatService {
 
     /** The name a chooser or a thread row shows: her display name, or her address until she has set one. */
     public static String name(UserEntity u) { return u == null ? "" : u.getDisplayName() == null || u.getDisplayName().isBlank() ? u.getEmail() : u.getDisplayName(); }
+
+    /** The same rule for a parent (T1): the name the Admin typed, or her registered address until there is one. */
+    static String name(quest.server.auth.Entities.ParentEntity p) {
+        return p == null ? "" : p.getDisplayName() == null || p.getDisplayName().isBlank() ? p.getEmail() : p.getDisplayName();
+    }
 
     private Map<String, ChatMessage> lastMessages(java.util.Collection<ChatThreadEntity> ts) {
         var ids = ts.stream().map(ChatThreadEntity::getId).toList();

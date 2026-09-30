@@ -164,6 +164,9 @@ public class ChatPeers {
         return List.copyOf(out);
     }
 
+    /** T1: the same two-statement read of `staff_scopes` for {@link StaffDirectory}, so the reach has one owner. */
+    java.util.Map<String, List<StaffScopeEntity>> scopeRowsOf(String schoolId, List<UserEntity> staff) { return rowsOf(schoolId, staff); }
+
     private java.util.Map<String, List<StaffScopeEntity>> rowsOf(String schoolId, List<UserEntity> staff) {
         var out = new LinkedHashMap<String, List<StaffScopeEntity>>();
         for (var row : scopes.findBySchoolIdAndUserIdInOrderBySubjectAscCurriculumAsc(schoolId, staff.stream().map(UserEntity::getId).toList()))

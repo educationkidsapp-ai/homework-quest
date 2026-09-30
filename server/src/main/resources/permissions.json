@@ -360,6 +360,7 @@
     { "method": "POST", "path": "/children/{id}/chat/threads/{teacherId}/messages", "permission": "child.chat" },
     { "method": "POST", "path": "/children/{id}/chat/threads/{teacherId}/read", "permission": "child.chat" },
     { "method": "GET", "path": "/teacher/managers", "permission": "teacher.chat" },
+    { "method": "GET", "path": "/teacher/coordinators", "permission": "teacher.chat" },
     { "method": "GET", "path": "/teacher/chat/staff-threads", "permission": "teacher.chat" },
     { "method": "POST", "path": "/teacher/chat/staff-threads", "permission": "teacher.chat" },
     { "method": "GET", "path": "/teacher/chat/staff-threads/{id}/messages", "permission": "teacher.chat" },
