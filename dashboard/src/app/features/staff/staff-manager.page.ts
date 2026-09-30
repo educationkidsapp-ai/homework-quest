@@ -29,18 +29,14 @@ import { type StaffContact, type StaffContactRow, contactRow } from './staff-con
  *
  * **One component, two namespaces**, the way Announcements and Messages are: `StaffAreaService`
  * says which of `GET /teacher/managers` and `GET /coordinator/managers` to read, and the same
- * choice picks which `staff-threads` route opens the conversation. Both answer the same shape,
- * both are idempotent, and a second copy of a directory card would drift within a phase.
+ * choice picks which `staff-threads` route opens the conversation.
  *
- * **The card is the screen.** A department has one manager, or two while a handover is in
- * progress; a table of one row with six columns of nothing is what this screen must not be. The
- * phone is a `tel:` and the address a `mailto:` because she is reading this beside her phone,
- * which is item (a) in as many words.
+ * Cards rather than a table: a department has one manager, two during a handover, and a table of
+ * one row with six empty columns is what this screen must not be.
  *
  * **Message is a navigation, not a composer** — `StaffThreadService`'s reasoning, one area over:
  * the route answers the thread that exists or opens one, so she lands on her own Messages screen
- * with everything already said on it, which is the context the message she is about to write
- * depends on.
+ * with everything already said on it.
  */
 @Component({
   selector: 'hq-staff-manager-page',

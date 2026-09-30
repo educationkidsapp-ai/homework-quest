@@ -48,14 +48,12 @@ export interface StaffContactRow {
  * the wire: every word of it is a value the dashboard already translates (`subject.*`,
  * `curriculum.*`), and a sentence assembled on the server would be assembled in one language.
  *
- * A manager reads differently from everybody else on purpose. "Department manager · American" is
- * a list of two facts; "American department manager" is what she is called, and she is called it
- * in both languages (`staff.job.manager` carries the curriculum as a parameter, so Arabic can put
- * it where Arabic puts it).
+ * A manager reads differently on purpose: "Department manager · American" is a list of two facts,
+ * "American department manager" is what she is called — and `staff.job.manager` carries the
+ * curriculum as a parameter so Arabic puts it where Arabic puts it.
  *
- * With **no** `jobParts` — which is every row until T1 lands — the row's own `curriculum` is read
- * as a manager's single part, so the screen says the same thing before and after the contract
- * widens instead of saying nothing.
+ * With **no** `jobParts` — every row until T1 lands — the row's own `curriculum` is read as a
+ * manager's single part, so the screen says the same thing before and after the contract widens.
  */
 export function jobLabel(transloco: TranslocoService, contact: StaffContact): readonly string[] {
   const parts = contact.jobParts?.length
