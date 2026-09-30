@@ -8,6 +8,7 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { filter } from 'rxjs';
 import { ClassesApi, TeachersApi, apiErrorOf, type TeacherAccount } from '../../api';
 import { BandService } from '../../core/band/band.service';
+import { MAX_PHONE_LENGTH, phoneErrorKey } from '../../core/forms/phone';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
 import { PermissionService } from '../../core/permissions/permission.service';
@@ -91,7 +92,9 @@ export class TeachersPage {
 
   // ---- EduManage KPI Metrics ----
   protected readonly totalTeachers = computed(() => this.staff.value().length);
-  protected readonly activeTeachers = computed(() => this.staff.value().filter((t) => t.status !== 'disabled').length);
+  protected readonly activeTeachers = computed(
+    () => this.staff.value().filter((t) => t.status !== 'disabled').length,
+  );
   protected readonly totalAssignments = computed(() =>
     this.staff.value().reduce((acc, t) => acc + (t.assignments?.length ?? 0), 0),
   );
@@ -118,7 +121,8 @@ export class TeachersPage {
         (teacher) =>
           !query ||
           teacherLabel(teacher).toLowerCase().includes(query) ||
-          (teacher.email ?? '').toLowerCase().includes(query),
+          (teacher.email ?? '').toLowerCase().includes(query) ||
+          (teacher.phone ?? '').includes(query),
       )
       .map((teacher) => this.toRow(teacher));
   });
@@ -128,6 +132,7 @@ export class TeachersPage {
     return [
       { key: 'fullName', header: this.t('admin.teachers.table.name'), width: '20%' },
       { key: 'email', header: this.t('admin.teachers.table.email') },
+      { key: 'phone', header: this.t('admin.people.table.phone'), width: '14%' },
       { key: 'subjects', header: this.t('admin.teachers.table.subjects') },
       { key: 'curriculum', header: this.t('admin.teachers.table.curriculum') },
       { key: 'assignments', header: this.t('admin.teachers.table.assignments'), width: '24%' },
@@ -177,6 +182,7 @@ export class TeachersPage {
   protected readonly fullName = signal('');
   protected readonly email = signal('');
   protected readonly curriculum = signal<Curriculum | ''>('');
+  protected readonly phone = signal('');
   protected readonly photoUrl = signal('');
   protected readonly subjects = signal<ReadonlySet<Subject>>(new Set());
 
@@ -194,11 +200,21 @@ export class TeachersPage {
     );
   });
 
+  /** Why this number will not do, or `null` — `core/forms/phone.ts`, the server's own rule. */
+  protected readonly phoneError = computed(() => {
+    this.lang();
+    const key = phoneErrorKey(this.phone());
+    return key === null ? null : this.t(key);
+  });
+
+  protected readonly maxPhone = MAX_PHONE_LENGTH;
+
   protected readonly canSave = computed(
     () =>
       this.fullName().trim().length > 0 &&
       (this.formMode() === 'edit' || this.email().trim().length > 0) &&
-      this.subjects().size > 0,
+      this.subjects().size > 0 &&
+      this.phoneError() === null,
   );
 
   protected hasSubject(subject: Subject): boolean {
@@ -228,6 +244,11 @@ export class TeachersPage {
     this.curriculum.set(val === 'american' || val === 'british' ? val : '');
   }
 
+  protected setPhone(val: string): void {
+    this.formError.set(null);
+    this.phone.set(val);
+  }
+
   protected setPhotoUrl(val: string): void {
     this.formError.set(null);
     this.photoUrl.set(val);
@@ -239,6 +260,7 @@ export class TeachersPage {
     this.editing.set(null);
     this.fullName.set('');
     this.email.set('');
+    this.phone.set('');
     this.curriculum.set('');
     this.photoUrl.set('');
     this.subjects.set(new Set());
@@ -252,6 +274,7 @@ export class TeachersPage {
     this.editing.set(teacher);
     this.fullName.set(teacher.fullName ?? '');
     this.email.set(teacher.email ?? '');
+    this.phone.set(teacher.phone ?? '');
     this.curriculum.set(isCurriculum(teacher.curriculum) ? teacher.curriculum : '');
     this.photoUrl.set(teacher.photoUrl ?? '');
     this.subjects.set(new Set(SUBJECTS.filter((subject) => (teacher.subjects ?? []).includes(subject))));
@@ -263,6 +286,7 @@ export class TeachersPage {
     const body = {
       fullName: this.fullName().trim(),
       subjects: [...this.subjects()],
+      phone: this.phone().trim(),
       curriculum: this.curriculum() || undefined,
       photoUrl: this.photoUrl().trim() || undefined,
     };
@@ -426,6 +450,7 @@ export class TeachersPage {
       id: teacher.userId ?? '',
       fullName: teacherLabel(teacher),
       email: teacher.email ?? '',
+      phone: teacher.phone ?? '',
       subjects: (teacher.subjects ?? []).map((subject) => this.subjectWord(subject)).join(' · '),
       curriculum: isCurriculum(teacher.curriculum) ? this.t(`curriculum.${teacher.curriculum}`) : '',
       assignments: (teacher.assignments ?? []).map(

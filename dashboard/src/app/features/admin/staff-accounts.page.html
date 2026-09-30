@@ -1,0 +1,299 @@
+<hq-page [title]="title()" [subtitle]="subtitle()">
+  <div class="staff">
+    <hq-one-time-password
+      [value]="passwordValue()"
+      [title]="passwordTitle()"
+      (dismissed)="dismissPassword()"
+    />
+
+    @if (pendingDisable()) {
+      <hq-band
+        variant="confirm"
+        [open]="true"
+        [title]="confirmTitle()"
+        [confirmLabel]="confirmLabel()"
+        (confirmed)="confirmPending()"
+        (dismissed)="cancelPending()"
+      >
+        {{ confirmMessage() }}
+      </hq-band>
+    }
+
+    <div data-hq-search class="staff__search">
+      <hq-input
+        type="search"
+        keycap="/"
+        [label]="'admin.people.filter.label' | transloco"
+        [placeholder]="'admin.people.filter.placeholder' | transloco"
+        [value]="filterText()"
+        (valueChange)="filterText.set($event)"
+      />
+    </div>
+
+    @if (staff.isLoading()) {
+      <hq-skeleton [loading]="true" [lines]="6" height="var(--hq-size-row-height)" [label]="loadingLabel()" />
+    } @else if (staff.error()) {
+      <hq-card>
+        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+          {{ 'band.unreachable' | transloco }}
+        </hq-band>
+        <div class="staff__retry">
+          <hq-button variant="secondary" (pressed)="staff.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+        </div>
+      </hq-card>
+    } @else {
+      <hq-card [flush]="true">
+        <hq-table
+          [rows]="rows()"
+          [columns]="columns()"
+          [cellTemplate]="cell"
+          [overflowTemplate]="overflow"
+          [trackBy]="trackRow"
+          [label]="title()"
+        >
+          <hq-empty-state
+            table-empty
+            [message]="emptyMessage()"
+            [actionLabel]="createLabel()"
+            (action)="openCreate()"
+          />
+        </hq-table>
+      </hq-card>
+    }
+  </div>
+
+  <ng-template #cell let-row let-column="column">
+    @switch (column.key) {
+      @case ('fullName') {
+        {{ row.fullName }}
+      }
+      @case ('email') {
+        {{ row.email }}
+      }
+      @case ('phone') {
+        @if (row.phone) {
+          <a [href]="'tel:' + row.phone" dir="ltr">{{ row.phone }}</a>
+        } @else {
+          <span class="hq-muted">—</span>
+        }
+      }
+      @case ('scopes') {
+        {{ row.scopes || '—' }}
+      }
+      @case ('active') {
+        <span class="hq-badge" [class.hq-badge--success]="row.active" [class.hq-badge--error]="!row.active">
+          {{ (row.active ? 'admin.people.active' : 'admin.people.inactive') | transloco }}
+        </span>
+      }
+    }
+  </ng-template>
+
+  <ng-template #overflow let-row>
+    <button
+      type="button"
+      class="staff__overflow"
+      [cdkMenuTriggerFor]="rowMenu"
+      (click)="menuRow.set(row)"
+      [attr.aria-label]="'admin.people.rowActions' | transloco: { name: row.fullName }"
+    >
+      ⋮
+    </button>
+  </ng-template>
+
+  <ng-template #rowMenu>
+    <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
+      <button
+        type="button"
+        cdkMenuItem
+        class="hq-menu__item"
+        *hqCan="manageKey"
+        (cdkMenuItemTriggered)="openEdit(menuRow()?.source ?? null)"
+      >
+        {{ 'admin.people.editAction' | transloco }}
+      </button>
+      <button
+        type="button"
+        cdkMenuItem
+        class="hq-menu__item"
+        *hqCan="manageKey"
+        (cdkMenuItemTriggered)="openScopes(menuRow()?.source ?? null)"
+      >
+        {{ scopesHeader() }}
+      </button>
+      <button
+        type="button"
+        cdkMenuItem
+        class="hq-menu__item"
+        *hqCan="manageKey"
+        (cdkMenuItemTriggered)="resetPassword(menuRow()?.source ?? null)"
+      >
+        {{ 'admin.people.password.reset' | transloco }}
+      </button>
+      @if (menuRow()?.active) {
+        <button
+          type="button"
+          cdkMenuItem
+          class="hq-menu__item hq-menu__item--danger"
+          *hqCan="manageKey"
+          (cdkMenuItemTriggered)="requestDisable(menuRow())"
+        >
+          {{ 'admin.people.disable' | transloco }}
+        </button>
+      } @else {
+        <button
+          type="button"
+          cdkMenuItem
+          class="hq-menu__item"
+          *hqCan="manageKey"
+          (cdkMenuItemTriggered)="setActive(menuRow()!, true)"
+        >
+          {{ 'admin.people.enable' | transloco }}
+        </button>
+      }
+    </div>
+  </ng-template>
+
+  <!-- The coordinator's (subject, track) rows and the manager's departments. One editor, used by
+       the create dialog and by the Scopes dialog, so the two cannot drift. -->
+  <ng-template #scopesEditor>
+    @if (isManager) {
+      <fieldset class="staff__fieldset">
+        <legend class="staff__legend">{{ 'admin.managers.table.scopes' | transloco }}</legend>
+        @for (curriculum of allCurricula; track curriculum) {
+          <hq-checkbox
+            [label]="'curriculum.' + curriculum | transloco"
+            [checked]="hasCurriculum(curriculum)"
+            (checkedChange)="toggleCurriculum(curriculum, $event)"
+          />
+        }
+      </fieldset>
+    } @else {
+      <fieldset class="staff__fieldset">
+        <legend class="staff__legend">{{ 'admin.coordinators.table.scopes' | transloco }}</legend>
+        @for (row of scopeRows(); track $index) {
+          <div class="staff__scope-row">
+            <hq-select
+              [label]="'admin.coordinators.scopes.subject' | transloco"
+              [placeholder]="'admin.coordinators.scopes.subjectPlaceholder' | transloco"
+              [options]="subjectOptions()"
+              [value]="row.subject"
+              (valueChange)="setScopeSubject($index, $event)"
+            />
+            <hq-select
+              [label]="'admin.coordinators.scopes.track' | transloco"
+              [placeholder]="'admin.coordinators.scopes.anyTrack' | transloco"
+              [markOptional]="true"
+              [options]="curriculumOptions()"
+              [value]="row.curriculum"
+              (valueChange)="setScopeCurriculum($index, $event)"
+            />
+            <hq-button
+              variant="secondary"
+              [disabled]="scopeRows().length === 1"
+              (pressed)="removeScopeRow($index)"
+            >
+              {{ 'admin.coordinators.scopes.remove' | transloco }}
+            </hq-button>
+          </div>
+        }
+        @if (duplicateScope(); as duplicate) {
+          <p class="staff__scope-error" role="alert">{{ duplicate }}</p>
+        }
+        <hq-button variant="secondary" (pressed)="addScopeRow()">
+          {{ 'admin.coordinators.scopes.add' | transloco }}
+        </hq-button>
+      </fieldset>
+    }
+  </ng-template>
+
+  <hq-dialog
+    [(open)]="formOpen"
+    [title]="formTitle()"
+    [confirmLabel]="'ui.save' | transloco"
+    [confirmDisabled]="!canSave()"
+    [confirmReason]="canSave() ? null : formReason()"
+    [loading]="saving()"
+    (confirmed)="save()"
+  >
+    @if (formError(); as err) {
+      <hq-band
+        variant="error"
+        [open]="true"
+        [title]="'band.failed' | transloco"
+        (dismissed)="formError.set(null)"
+      >
+        {{ err }}
+      </hq-band>
+    }
+    <hq-input
+      [label]="'admin.people.form.fullName' | transloco"
+      [value]="fullName()"
+      [required]="true"
+      (valueChange)="setFullName($event)"
+    />
+    @if (formMode() === 'create') {
+      <hq-input
+        [label]="'admin.people.form.email' | transloco"
+        type="email"
+        autocomplete="off"
+        [value]="email()"
+        [required]="true"
+        (valueChange)="setEmail($event)"
+      />
+    }
+    <hq-input
+      [label]="'admin.people.form.phone' | transloco"
+      type="tel"
+      autocomplete="off"
+      [value]="phone()"
+      [maxLength]="maxPhone"
+      [error]="phoneError()"
+      [hint]="'form.phone.hint' | transloco"
+      (valueChange)="setPhone($event)"
+    />
+    @if (formOpen() && formMode() === 'create') {
+      @if (isManager) {
+        <hq-select
+          [label]="'admin.managers.form.department' | transloco"
+          [placeholder]="'admin.managers.form.departmentPlaceholder' | transloco"
+          [options]="curriculumOptions()"
+          [required]="true"
+          [hint]="'admin.managers.form.departmentHint' | transloco"
+          [value]="createCurriculum()"
+          (valueChange)="setCreateCurriculum($event)"
+        />
+      } @else {
+        <ng-container [ngTemplateOutlet]="scopesEditor" />
+      }
+    } @else {
+      <hq-checkbox
+        [label]="'admin.people.form.enabled' | transloco"
+        [checked]="active()"
+        (checkedChange)="active.set($event)"
+      />
+    }
+  </hq-dialog>
+
+  <!-- Created only while it is open, like the Teachers page's assignment picker: `hq-dialog`
+       projects its content into the DOM whether or not the dialog is showing, and a second copy of
+       the scopes editor sitting there invisible is a second set of controls a screen reader and
+       every `getByLabelText` would find. -->
+  @if (scopesFor()) {
+    <hq-dialog
+      [(open)]="scopesOpen"
+      [title]="scopesTitle()"
+      [confirmLabel]="'ui.save' | transloco"
+      [confirmDisabled]="!canSaveScopes()"
+      [loading]="scopesSaving()"
+      (confirmed)="saveScopes()"
+    >
+      <ng-container [ngTemplateOutlet]="scopesEditor" />
+    </hq-dialog>
+  }
+
+  <div page-footer>
+    <hq-button *hqCan="manageKey" variant="primary" (pressed)="openCreate()">
+      {{ createAction() }}
+    </hq-button>
+  </div>
+</hq-page>

@@ -74,7 +74,7 @@
       "rowActions": "Actions for {{name}}",
       "filter": {
         "label": "Find a teacher",
-        "placeholder": "Name or email"
+        "placeholder": "Name, email or number"
       },
       "table": {
         "name": "Name",
@@ -121,6 +121,195 @@
       "undo": {
         "activated": "{{name}} can sign in again",
         "deactivated": "{{name}} disabled"
+      }
+    },
+    "people": {
+      "active": "Active",
+      "inactive": "Disabled",
+      "disable": "Disable account",
+      "enable": "Enable account",
+      "editAction": "Edit",
+      "rowActions": "Actions for {{name}}",
+      "table": {
+        "name": "Name",
+        "email": "Email",
+        "phone": "Mobile",
+        "status": "Status"
+      },
+      "filter": {
+        "label": "Find someone",
+        "placeholder": "Name, email or number"
+      },
+      "form": {
+        "fullName": "Full name",
+        "email": "Email",
+        "phone": "Mobile",
+        "enabled": "Can sign in"
+      },
+      "password": {
+        "title": "One-time password for {{name}}",
+        "note": "Copy it now and hand it over. It is shown once and cannot be read again — use Reset password to issue a new one.",
+        "copy": "Copy password",
+        "copied": "Copied",
+        "reset": "Reset password"
+      },
+      "disableConfirm": {
+        "title": "Disable this account?",
+        "message": "{{name}} can no longer sign in, and a session she already has open ends with it. Nothing else changes.",
+        "confirm": "Disable"
+      },
+      "undo": {
+        "enabled": "{{name}} can sign in again",
+        "disabled": "{{name}} disabled"
+      }
+    },
+    "coordinators": {
+      "title": "Coordinators",
+      "subtitle": "Who supervises each subject, and the track she supervises it on.",
+      "loading": "Loading coordinators",
+      "empty": "No coordinators yet. Add the first one.",
+      "createAction": "Add coordinator",
+      "createTitle": "Add a coordinator",
+      "editTitle": "Edit coordinator",
+      "formReason": "A full name, an email and at least one subject.",
+      "table": {
+        "scopes": "Subjects"
+      },
+      "scopes": {
+        "title": "What {{name}} supervises",
+        "subject": "Subject",
+        "subjectPlaceholder": "Choose a subject",
+        "track": "Track",
+        "anyTrack": "Both tracks",
+        "add": "Add a subject",
+        "remove": "Remove",
+        "duplicate": "{{scope}} is named twice. Remove one of them.",
+        "bothTracksOf": "{{subject}} (both tracks)"
+      }
+    },
+    "managers": {
+      "title": "Managers",
+      "subtitle": "Who runs each department, and which curriculum it is.",
+      "loading": "Loading managers",
+      "empty": "No managers yet. Add the first one.",
+      "createAction": "Add manager",
+      "createTitle": "Add a manager",
+      "editTitle": "Edit manager",
+      "formReason": "A full name, an email and a department.",
+      "table": {
+        "scopes": "Departments"
+      },
+      "scopes": {
+        "title": "{{name}}'s departments"
+      },
+      "form": {
+        "department": "Department",
+        "departmentPlaceholder": "Choose a curriculum",
+        "departmentHint": "A second department can be added afterwards from Departments."
+      }
+    },
+    "workers": {
+      "title": "Workers",
+      "subtitle": "The staff who do not teach — the office, the nurse, the drivers. No sign-in is created.",
+      "loading": "Loading workers",
+      "empty": "No workers yet. Add the first one.",
+      "createAction": "Add worker",
+      "createTitle": "Add a worker",
+      "editTitle": "Edit worker",
+      "formReason": "A full name and a job.",
+      "working": "Working",
+      "retired": "Retired",
+      "retire": "Retire",
+      "reinstate": "Bring back",
+      "filter": {
+        "label": "Find a worker",
+        "placeholder": "Name, job or number"
+      },
+      "table": {
+        "job": "Job"
+      },
+      "form": {
+        "job": "Job",
+        "jobHint": "In your own words — nurse, driver, receptionist.",
+        "working": "Still working here"
+      },
+      "retireConfirm": {
+        "title": "Retire this worker?",
+        "message": "{{name}} is marked as no longer working here. Nothing is deleted and you can bring her back.",
+        "confirm": "Retire"
+      },
+      "undo": {
+        "retired": "{{name}} retired"
+      }
+    },
+    "children": {
+      "title": "Children & parents",
+      "subtitle": "Admit a child and create the sign-in her parent uses.",
+      "rosterElsewhere": "Attaching a child the school already has, moving one between sections and the join code stay on the Classes page.",
+      "loading": "Loading children",
+      "empty": "No children yet. Admit the first one.",
+      "noMatch": "Nobody matches that.",
+      "createAction": "Admit a child",
+      "createTitle": "Admit a child",
+      "admitAction": "Admit",
+      "editTitle": "Edit {{name}}",
+      "formReason": "A name, a section, the parent's name and email, and a password of at least eight characters.",
+      "page": "{{first}}–{{last}} of {{total}}",
+      "filter": {
+        "label": "Find a child or a parent",
+        "placeholder": "Child, parent, email or number"
+      },
+      "table": {
+        "child": "Child",
+        "class": "Class",
+        "grade": "Grade",
+        "curriculum": "Curriculum",
+        "parent": "Parent",
+        "parentEmail": "Parent's email"
+      },
+      "form": {
+        "name": "Child's name",
+        "curriculum": "Curriculum",
+        "curriculumPlaceholder": "Choose a curriculum",
+        "grade": "Grade",
+        "gradePlaceholder": "Choose a grade",
+        "class": "Class",
+        "classPlaceholder": "Choose a class",
+        "classWaiting": "Choose a curriculum and a grade first.",
+        "classNone": "No active class in that curriculum and grade yet.",
+        "classFollowsGrade": "The grade and the curriculum are the class's own.",
+        "parentName": "Parent's name",
+        "parentEmail": "Parent's email",
+        "parentEmailHint": "This is what she signs in with. An address the school already has is reused.",
+        "parentPhone": "Parent's mobile",
+        "password": "Password for the parent",
+        "passwordHint": "At least eight characters. Read it out to her — it is stored nowhere.",
+        "passwordShort": "At least {{min}} characters.",
+        "passwordIsEmail": "Not her email address.",
+        "reveal": "Show",
+        "hide": "Hide",
+        "strength": {
+          "weak": "Weak, but allowed.",
+          "fair": "Fair.",
+          "strong": "Strong."
+        }
+      },
+      "admitted": {
+        "title": "{{name}} is admitted",
+        "parentCreated": "A new parent account was created for her family.",
+        "parentReused": "Her family already had an account here, and this child was added to it.",
+        "passwordApplied": "The password you typed is the one that now works.",
+        "passwordKept": "That account already existed, so it keeps the password its owner chose — the one you typed was not applied. Use Reset parent password if she cannot sign in."
+      },
+      "notConfigured": {
+        "title": "Parent accounts are not available",
+        "message": "Parent accounts are not configured on this server. Nothing was created. Ask whoever runs the deployment to configure them, then try again."
+      },
+      "reset": {
+        "action": "Reset parent password",
+        "title": "Reset this parent's password?",
+        "message": "A new one-time password is issued for {{name}} and her current one stops working at once.",
+        "confirm": "Reset password"
       }
     }
   },
@@ -588,7 +777,11 @@
       "playedYesterday": "Played yesterday",
       "needsReview": "Waiting for review",
       "activeFamilies": "Active families",
-      "teachers": "Teachers"
+      "teachers": "Teachers",
+      "managers": "Managers",
+      "coordinators": "Coordinators",
+      "classes": "Classes",
+      "workers": "Workers"
     },
     "needs": {
       "lesson": {
@@ -1173,7 +1366,10 @@
     "staffAttendance": "Staff attendance",
     "weeklyPlans": "Weekly plans",
     "announcements": "Announcements",
-    "children": "Children"
+    "children": "Children",
+    "managers": "Managers",
+    "workers": "Workers",
+    "childrenParents": "Children & parents"
   },
   "notifications": {
     "title": "Notifications",
@@ -1763,7 +1959,8 @@
     "close": "Close",
     "actions": "Actions",
     "table": {
-      "actions": "Actions"
+      "actions": "Actions",
+      "pages": "Pages"
     },
     "step": {
       "pending": "pending",
@@ -2204,5 +2401,11 @@
   },
   "announcements": {
     "subtitle": "The announcements and the events of your school."
+  },
+  "form": {
+    "phone": {
+      "invalid": "Between 7 and 15 digits, with an optional + at the front.",
+      "hint": "Optional. Digits, spaces, dashes and brackets; a + for a country code."
+    }
   }
 }

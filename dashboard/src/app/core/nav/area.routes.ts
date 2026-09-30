@@ -39,7 +39,12 @@ export function areaRoutes(role: Role): Routes {
                 // R5: `data.readOnly` is how the row's read-only flag reaches the component. The
                 // key is always present so a page reading it never has to tell "false" from
                 // "this route forgot to say".
-                data: { readOnly: screen.readOnly === true },
+                //
+                // MA2: `screenId` for the same reason — one component serving two rows (the
+                // Admin's Coordinators and Managers) needs to know which row opened it, and the
+                // route is what the rail already agrees with. An `input()` would have been a
+                // second declaration of "this URL is the managers one".
+                data: { readOnly: screen.readOnly === true, screenId: screen.id },
                 loadComponent: () => componentFor(screen, role),
               }
             : { path: screen.path, pathMatch: 'full' as const, redirectTo: screen.redirectTo },
@@ -92,6 +97,19 @@ function componentFor(screen: Screen, role: Role) {
   if (screen.id === 'class') return import('../../features/classes/class.page').then((m) => m.ClassPage);
   if (screen.id === 'teachers' && role === 'ADMIN') {
     return import('../../features/admin/teachers.page').then((m) => m.TeachersPage);
+  }
+  // MA2. Coordinators and Managers are **one** chunk: the same list, create, edit, reset and
+  // scopes editor, told which account it is by `data.screenId`. A coordinator holds (subject,
+  // track) pairs and a manager holds whole curricula, and that is the only branch inside.
+  if (screen.id === 'coordinators' || screen.id === 'managers') {
+    return import('../../features/admin/staff-accounts.page').then((m) => m.StaffAccountsPage);
+  }
+  if (screen.id === 'workers') return import('../../features/admin/workers.page').then((m) => m.WorkersPage);
+  // The Admin's Children & parents — admission, and the parent login it mints. The *manager's*
+  // `children` row is her department's read-only directory and never reaches here
+  // (`supervisorComponentFor` takes MANAGERIAL first).
+  if (screen.id === 'children' && role === 'ADMIN') {
+    return import('../../features/admin/children.page').then((m) => m.ChildrenPage);
   }
   // `chat` is the teacher's door to it, `messages` the manager's (R7): one screen, and for her
   // one fed by the socket alone, because R4 added no thread list a manager may read.

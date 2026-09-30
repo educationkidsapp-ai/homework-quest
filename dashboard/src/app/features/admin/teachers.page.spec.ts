@@ -31,6 +31,7 @@ const SARA = {
   userId: 'u-sara',
   email: 'sara@alnoor.test',
   fullName: 'Sara',
+  phone: '0501112233',
   status: 'active',
   subjects: ['math'],
   curriculum: 'british',
@@ -75,6 +76,24 @@ describe('Teachers', () => {
 
     expect(screen.getByRole('cell', { name: 'Sara' })).toBeInTheDocument();
     expect(screen.getByText('1A · Math')).toBeInTheDocument();
+  });
+
+  /** MA2 item 2: MH1 gave a teacher a telephone number; this is where the school types it in. */
+  it('shows her number as something that can be rung, and sends it on the edit', async () => {
+    const { rendered, backend } = await renderSignedIn();
+
+    expect(screen.getByRole('link', { name: '0501112233' })).toHaveAttribute('href', 'tel:0501112233');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Sara' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    await settle(rendered);
+    await userEvent.clear(screen.getByLabelText(/^Mobile/));
+    await userEvent.type(screen.getByLabelText(/^Mobile/), '0509998877');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const patch = backend.expectOne('/admin/teachers/u-sara');
+    expect(patch.request.method).toBe('PATCH');
+    expect(patch.request.body).toMatchObject({ phone: '0509998877' });
   });
 
   it('shows the temporary password once, and says it will not be shown again', async () => {

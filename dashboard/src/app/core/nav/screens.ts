@@ -115,6 +115,30 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       // MANAGERIAL account gets both screens and none of their actions.
       { id: 'classes', path: 'classes', labelKey: 'nav.classes', permission: 'section.read' },
       { id: 'teachers', path: 'teachers', labelKey: 'nav.teachers', permission: 'teacher.read' },
+      // MA2 (the owner's admin list, 2026-09-30, items 3–5): the four people screens that were
+      // missing. Their order is the order she reads them in — the three staff lists that carry a
+      // login, then the staff who have none, then the families.
+      //
+      // Coordinators and Managers are **one component** (`admin/staff-accounts.page.ts`), told
+      // which it is by `data.screenId`. Neither carries a flag, for the reason Teachers does not:
+      // a school with classes has the people who run them, and `FlagKeys` has no key for either.
+      {
+        id: 'coordinators',
+        path: 'coordinators',
+        labelKey: 'nav.coordinators',
+        permission: 'coordinator.manage',
+      },
+      { id: 'managers', path: 'managers', labelKey: 'nav.managers', permission: 'manager.manage' },
+      // `worker.read` and not `worker.write`, the way Teachers reads with `teacher.read`: the key on
+      // the row has to be the one the GET carries, or a read-only "View as" session would be shown
+      // no list at all rather than a list with no buttons. Every action inside is `worker.write`.
+      { id: 'workers', path: 'workers', labelKey: 'nav.workers', permission: 'worker.read' },
+      {
+        id: 'children',
+        path: 'children',
+        labelKey: 'nav.childrenParents',
+        permission: 'admin.children.read',
+      },
       // D13: while `multiSchool` is off there is one school, it is the Admin's own, and these
       // three screens have nothing to show — the rail hides them and the router refuses them,
       // rather than offering a list of one and a switcher that switches to itself.

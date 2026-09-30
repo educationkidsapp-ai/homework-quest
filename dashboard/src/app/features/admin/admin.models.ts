@@ -40,6 +40,8 @@ export interface TeacherRow {
   readonly id: string;
   readonly fullName: string;
   readonly email: string;
+  /** MH1/MA2: the number a parent or the office rings. Empty when she has not given one. */
+  readonly phone: string;
   readonly subjects: string;
   readonly curriculum: string;
   readonly assignments: readonly string[];

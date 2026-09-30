@@ -172,6 +172,13 @@
       @case ('email') {
         {{ row.email }}
       }
+      @case ('phone') {
+        @if (row.phone) {
+          <a [href]="'tel:' + row.phone" dir="ltr">{{ row.phone }}</a>
+        } @else {
+          <span class="hq-muted">—</span>
+        }
+      }
       @case ('subjects') {
         {{ row.subjects }}
       }
@@ -300,6 +307,16 @@
       [disabled]="formMode() === 'edit'"
       [hint]="formMode() === 'edit' ? ('admin.teachers.form.emailFixed' | transloco) : null"
       (valueChange)="setEmail($event)"
+    />
+    <hq-input
+      [label]="'admin.people.form.phone' | transloco"
+      type="tel"
+      autocomplete="off"
+      [value]="phone()"
+      [maxLength]="maxPhone"
+      [error]="phoneError()"
+      [hint]="'form.phone.hint' | transloco"
+      (valueChange)="setPhone($event)"
     />
     <fieldset class="teachers__subjects">
       <legend class="teachers__legend">{{ 'admin.teachers.form.subjects' | transloco }}</legend>

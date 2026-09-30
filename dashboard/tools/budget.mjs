@@ -55,6 +55,11 @@ const ROUTES = {
   'my classes': ['hq-shell', 'hq-my-classes-page'],
   'class page': ['hq-shell', 'hq-class-page'],
   teachers: ['hq-shell', 'hq-teachers-page'],
+  // MA2: the Admin's people screens. Coordinators and Managers are one component, so they are one
+  // row — the second would measure the same chunk twice.
+  'admin staff accounts': ['hq-shell', 'hq-staff-accounts-page'],
+  'admin workers': ['hq-shell', 'hq-workers-page'],
+  'admin children': ['hq-shell', 'hq-children-page'],
   'new lesson': ['hq-shell', 'hq-new-lesson-page'],
   lesson: ['hq-shell', 'hq-lesson-page'],
   // N4.4. The exam editor is `lesson` above — an exam is a lesson — so the only two rows added
