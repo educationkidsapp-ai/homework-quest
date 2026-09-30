@@ -19,6 +19,11 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * has never heard of. It drops the fields and delivers the frame rather than logging "unreadable notification" and
  * losing the message — which is what every future component added here depends on.
  *
+ * <p>T1 added `presence`, the second event that names a person rather than a thread: {@code senderKey} is the
+ * session key that came online or went offline (`user:<id>` / `parent:<id>`) and {@code online} says which way. It
+ * carries no thread, because presence is about the person; {@link ChatPresence} resolves whom to tell on each
+ * instance.
+ *
  * <p>R4 added {@code peerUserId}: the second staff member of a coordinator-to-manager thread, so {@link ChatHub}
  * reaches both of them without a lookup, and null on every thread that has a parent on it instead.
  *
@@ -29,26 +34,33 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ChatEvent(String kind, String schoolId, String threadId, String childId, String teacherId, String parentId,
                         String senderKey, String clientId, String messageId, String messageJson, String sender, Long at,
-                        String userId, String notificationJson, String peerUserId, String status) {
-    public static final String MESSAGE = "message", READ = "read", TYPING = "typing", NOTIFICATION = "notification", STATUS = "status";
+                        String userId, String notificationJson, String peerUserId, String status, Boolean online) {
+    public static final String MESSAGE = "message", READ = "read", TYPING = "typing", NOTIFICATION = "notification", STATUS = "status", PRESENCE = "presence";
 
     public static ChatEvent message(String schoolId, String threadId, String childId, String teacherId, String parentId, String peerUserId,
                                     String senderKey, String clientId, String messageId, String messageJson) {
-        return new ChatEvent(MESSAGE, schoolId, threadId, childId, teacherId, parentId, senderKey, clientId, messageId, messageJson, null, null, null, null, peerUserId, null);
+        return new ChatEvent(MESSAGE, schoolId, threadId, childId, teacherId, parentId, senderKey, clientId, messageId, messageJson, null, null, null, null, peerUserId, null, null);
     }
     public static ChatEvent read(String schoolId, String threadId, String childId, String teacherId, String parentId, String peerUserId, String senderKey, String readBy, long at) {
-        return new ChatEvent(READ, schoolId, threadId, childId, teacherId, parentId, senderKey, null, null, null, readBy, at, null, null, peerUserId, null);
+        return new ChatEvent(READ, schoolId, threadId, childId, teacherId, parentId, senderKey, null, null, null, readBy, at, null, null, peerUserId, null, null);
     }
     public static ChatEvent typing(String schoolId, String threadId, String childId, String teacherId, String parentId, String peerUserId, String senderKey, String from) {
-        return new ChatEvent(TYPING, schoolId, threadId, childId, teacherId, parentId, senderKey, null, null, null, from, null, null, null, peerUserId, null);
+        return new ChatEvent(TYPING, schoolId, threadId, childId, teacherId, parentId, senderKey, null, null, null, from, null, null, null, peerUserId, null, null);
     }
     /** E2: one dashboard user's bell. `frameJson` is the encoded `ChatFrame.Notification`; `schoolId` is the row's. */
     public static ChatEvent notification(String schoolId, String userId, String frameJson) {
-        return new ChatEvent(NOTIFICATION, schoolId, null, null, null, null, null, null, null, null, null, null, userId, frameJson, null, null);
+        return new ChatEvent(NOTIFICATION, schoolId, null, null, null, null, null, null, null, null, null, null, userId, frameJson, null, null, null);
     }
     /** R4: the staff side moved a thread between `open` and `resolved`; both parties are told. */
     public static ChatEvent status(String schoolId, String threadId, String childId, String teacherId, String parentId, String peerUserId, String status, long at) {
-        return new ChatEvent(STATUS, schoolId, threadId, childId, teacherId, parentId, null, null, null, null, null, at, null, null, peerUserId, status);
+        return new ChatEvent(STATUS, schoolId, threadId, childId, teacherId, parentId, null, null, null, null, null, at, null, null, peerUserId, status, null);
     }
-    public ChatEvent withoutMessageJson() { return new ChatEvent(kind, schoolId, threadId, childId, teacherId, parentId, senderKey, clientId, messageId, null, sender, at, userId, notificationJson, peerUserId, status); }
+    /**
+     * T1: {@code key} came online or went offline on some instance. No thread and no school-wide meaning of its own —
+     * {@code schoolId} is only there so the frame is written to the sessions of that school, as a notification is.
+     */
+    public static ChatEvent presence(String schoolId, String key, boolean online, long at) {
+        return new ChatEvent(PRESENCE, schoolId, null, null, null, null, key, null, null, null, null, at, null, null, null, null, online);
+    }
+    public ChatEvent withoutMessageJson() { return new ChatEvent(kind, schoolId, threadId, childId, teacherId, parentId, senderKey, clientId, messageId, null, sender, at, userId, notificationJson, peerUserId, status, online); }
 }

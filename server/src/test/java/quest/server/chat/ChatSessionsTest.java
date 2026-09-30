@@ -39,7 +39,7 @@ class ChatSessionsTest {
     }
 
     @Test void typing_is_dropped_while_a_send_is_stuck_but_a_message_is_queued() throws Exception {
-        var sessions = new ChatSessions(clock, 1024, 10, 600);
+        var sessions = new ChatSessions(clock, 1024, 10, 600, 600);
         var stuck = session("s1");
         var writing = new CountDownLatch(1); var release = new CountDownLatch(1);
         doAnswer(inv -> { writing.countDown(); release.await(5, TimeUnit.SECONDS); return null; }).when(stuck).sendMessage(any());
@@ -57,7 +57,7 @@ class ChatSessionsTest {
     }
 
     @Test void a_socket_whose_queue_passes_the_limit_is_closed_not_starved() throws Exception {
-        var sessions = new ChatSessions(clock, 100, 10, 600);
+        var sessions = new ChatSessions(clock, 100, 10, 600, 600);
         var stuck = session("s2");
         var release = new CountDownLatch(1);
         doAnswer(inv -> { release.await(5, TimeUnit.SECONDS); return null; }).when(stuck).sendMessage(any());
@@ -71,7 +71,7 @@ class ChatSessionsTest {
     }
 
     @Test void the_sweep_closes_the_idle_and_pings_the_rest() throws Exception {
-        var sessions = new ChatSessions(clock, 65536, 10, 600);
+        var sessions = new ChatSessions(clock, 65536, 10, 600, 600);
         var idle = session("idle"); var live = session("live");
         sessions.register(idle, peer);
         sessions.register(live, new ChatSessions.Peer("user:t1", "teacher", "t1", "school", null, true));
@@ -82,7 +82,7 @@ class ChatSessionsTest {
         verify(live, timeout(2000)).close(ChatSessions.IDLE);
 
         // a registry whose clock reads T0 + 5 min: a socket registered now is four minutes old at T0 + 9 and is pinged, not closed
-        var later = new ChatSessions(Clock.fixed(T0.plus(Duration.ofMinutes(5)), ZoneOffset.UTC), 65536, 10, 600);
+        var later = new ChatSessions(Clock.fixed(T0.plus(Duration.ofMinutes(5)), ZoneOffset.UTC), 65536, 10, 600, 600);
         var fresh = session("fresh");
         var stillThere = later.register(fresh, peer);
         assertThat(later.sweep(T0.plus(Duration.ofMinutes(9)))).isZero();
@@ -91,8 +91,27 @@ class ChatSessionsTest {
         verify(fresh, never()).close(any(CloseStatus.class));
     }
 
+    /**
+     * T1: the pong deadline. A tab that crashed answers nothing, and presence must not keep it "online" for the ten
+     * minutes the idle rule allows a socket that is alive but quiet — so two heartbeats of silence end it.
+     */
+    @Test void a_socket_that_answers_no_pong_for_two_heartbeats_is_closed_as_unresponsive() throws Exception {
+        var sessions = new ChatSessions(clock, 65536, 10, 600, 75);
+        var crashed = session("crashed"); var answering = session("answering");
+        sessions.register(crashed, peer);
+        sessions.register(answering, new ChatSessions.Peer("user:t1", "teacher", "t1", "school", null, true));
+        var now = T0.plus(Duration.ofSeconds(80));
+        // the well-behaved one pong'd a moment ago; the crashed one has been silent since T0
+        var answered = sessions.of(answering); answered.lastInbound = T0.plus(Duration.ofSeconds(70));
+        assertThat(sessions.sweep(now)).isEqualTo(1);
+        verify(crashed, timeout(2000)).close(ChatSessions.UNRESPONSIVE);
+        verify(answering, never()).close(any(CloseStatus.class));
+        assertThat(sessions.holds("user:t1")).isTrue();
+        assertThat(sessions.holds("parent:p1")).as("presence sees it go as soon as the sweep closes it").isFalse();
+    }
+
     @Test void a_write_that_outlives_the_send_timeout_closes_the_socket() throws Exception {
-        var sessions = new ChatSessions(clock, 65536, 10, 600);
+        var sessions = new ChatSessions(clock, 65536, 10, 600, 600);
         var slow = session("slow");
         var writing = new CountDownLatch(1); var release = new CountDownLatch(1);
         doAnswer(inv -> { writing.countDown(); release.await(5, TimeUnit.SECONDS); return null; }).when(slow).sendMessage(any());

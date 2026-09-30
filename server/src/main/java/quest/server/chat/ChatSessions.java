@@ -39,14 +39,19 @@ import org.springframework.web.socket.WebSocketSession;
  * </ul>
  *
  * <p>The sweep runs every {@code heartbeatSeconds}: it sends `{"type":"ping"}` to every socket and closes 1000
- * "idle" the ones that sent nothing — not even a `pong` — for {@code idleSeconds}. Per instance, like every other
- * sweep here; the sockets are per instance too.
+ * "idle" the ones that sent nothing — not even a `pong` — for {@code idleSeconds}, or 1000 "unresponsive" after
+ * {@code pongTimeoutSeconds} (T1: two heartbeats, so a crashed tab stops being "online" within about a minute
+ * instead of ten). Per instance, like every other sweep here; the sockets are per instance too.
  */
 @Component
 public class ChatSessions {
     private static final Logger log = LoggerFactory.getLogger(ChatSessions.class);
     static final String PING = "{\"type\":\"ping\"}";
     static final CloseStatus IDLE = CloseStatus.NORMAL.withReason("idle");
+    /** T1: two heartbeats went by with no `pong` and no command — the tab is gone, and presence has to say so. */
+    static final CloseStatus UNRESPONSIVE = CloseStatus.NORMAL.withReason("unresponsive");
+    /** T1: her refresh token was revoked (`POST /auth/sign-out`, a password change), so the socket goes with it. */
+    static final CloseStatus SIGNED_OUT = CloseStatus.NORMAL.withReason("signed out");
     static final CloseStatus STUCK = CloseStatus.SESSION_NOT_RELIABLE.withReason("send buffer over limit");
 
     /**
@@ -59,11 +64,13 @@ public class ChatSessions {
 
     private final Map<String, Set<Live>> byKey = new ConcurrentHashMap<>();
     private final Map<String, Live> byId = new ConcurrentHashMap<>();
-    private final Clock clock; private final long bufferLimit; private final Duration sendTimeout, idle;
+    private final Clock clock; private final long bufferLimit; private final Duration sendTimeout, idle, pongTimeout;
 
     public ChatSessions(Clock clock, @Value("${quest.chat.send-buffer-bytes:65536}") long bufferLimit,
-                        @Value("${quest.chat.send-timeout-seconds:10}") long sendTimeoutSeconds, @Value("${quest.chat.idle-seconds:600}") long idleSeconds) {
-        this.clock = clock; this.bufferLimit = bufferLimit; this.sendTimeout = Duration.ofSeconds(sendTimeoutSeconds); this.idle = Duration.ofSeconds(idleSeconds);
+                        @Value("${quest.chat.send-timeout-seconds:10}") long sendTimeoutSeconds, @Value("${quest.chat.idle-seconds:600}") long idleSeconds,
+                        @Value("${quest.chat.pong-timeout-seconds:75}") long pongTimeoutSeconds) {
+        this.clock = clock; this.bufferLimit = bufferLimit; this.sendTimeout = Duration.ofSeconds(sendTimeoutSeconds);
+        this.idle = Duration.ofSeconds(idleSeconds); this.pongTimeout = Duration.ofSeconds(pongTimeoutSeconds);
     }
 
     public Live register(WebSocketSession session, Peer peer) {
@@ -97,6 +104,15 @@ public class ChatSessions {
 
     public int count() { return byId.size(); }
 
+    /** T1: whether this instance holds a socket for that session key at all — half of "is she online". */
+    public boolean holds(String key) { return byKey.containsKey(key); }
+
+    /** How many sockets of one person this instance holds; 1 right after a register is her first. */
+    public int countFor(String key) { var set = byKey.get(key); return set == null ? 0 : set.size(); }
+
+    /** T1: every socket of one person, closed — what a revoked refresh token means for a live connection. */
+    public void closeAll(String key, CloseStatus status) { for (var live : sessions(key)) live.terminate(status); }
+
     @Scheduled(fixedDelayString = "${quest.chat.heartbeat-seconds:30}s", initialDelayString = "${quest.chat.heartbeat-seconds:30}s")
     public void heartbeat() { sweep(clock.instant()); }
 
@@ -105,8 +121,12 @@ public class ChatSessions {
         int closed = 0;
         for (var live : new ArrayList<>(byId.values())) {
             long inflight = live.inflightSince;
+            Duration quiet = Duration.between(live.lastInbound, now);
             if (inflight != 0 && now.toEpochMilli() - inflight > sendTimeout.toMillis()) { live.terminate(STUCK); closed++; }
-            else if (Duration.between(live.lastInbound, now).compareTo(idle) > 0) { live.terminate(IDLE); closed++; }
+            else if (quiet.compareTo(idle) > 0) { live.terminate(IDLE); closed++; }
+            // T1: a tab that crashed answers no `pong`, so two heartbeats of silence end it — presence must not
+            // keep a dead socket "online" for the ten minutes the idle rule allows a live but quiet one.
+            else if (quiet.compareTo(pongTimeout) > 0) { live.terminate(UNRESPONSIVE); closed++; }
             else live.offer(PING, true);
         }
         return closed;

@@ -50,6 +50,8 @@ public class NotificationService {
      * `TeacherDto.CoordinatorMessageRequest` is validated against this very number.
      */
     public static final int TITLE_MAX = 120, BODY_MAX = 500;
+    /** T1: a `chat.message` body is the first 120 characters of what was written — the bell is a cue, not the thread. */
+    public static final int CHAT_BODY_MAX = 120;
     private static final int DEFAULT_LIMIT = 20, MAX_LIMIT = 100;
 
     private final NotificationRepository rows; private final UserRepository users; private final ChatBus bus; private final Json json; private final Clock clock;
@@ -96,14 +98,14 @@ public class NotificationService {
             case LESSON_NEEDS_SKILLS -> "Skills to confirm";
             case LESSON_READY -> "Questions ready";
             case LESSON_FAILED -> "Generation stopped";
-            case TEACHER_MESSAGE, BROADCAST_POSTED -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
+            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
         String body = switch (kind) {
             case LESSON_NEEDS_SKILLS -> name + " has been analysed. Confirm the skills to start writing the questions.";
             case LESSON_READY -> name + " is ready to review.";
             case LESSON_FAILED -> lesson.getErrorMessage() == null || lesson.getErrorMessage().isBlank() ? name + " stopped before it finished." : lesson.getErrorMessage();
-            case TEACHER_MESSAGE, BROADCAST_POSTED -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
+            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         try {
             notify(lesson.getSchoolId(), recipient, kind, title, body, link(roleOf(recipient), lesson.getId()), lesson.getId());
@@ -111,6 +113,47 @@ public class NotificationService {
             // never fail the pipeline over the bell: the lesson's own status write is what matters here
             log.warn("notifications: could not write {} for lesson {}: {}", key(kind), lesson.getId(), e.toString());
         }
+    }
+
+    /**
+     * T1 (owner's list: "no notification when a teacher messages a manager"). One row per **thread** per recipient,
+     * not one per message: the recipient's unread `chat.message` row for that thread is updated in place — new body,
+     * new time, the same id — and only written fresh when she has none unread. So a conversation of twenty messages is
+     * one bell entry that always shows the latest line, and {@link #markThreadRead} clears it when she opens the
+     * thread.
+     *
+     * <p>The row's `lessonId` is the **thread's** id, the field's general meaning ("the row this is about"), which is
+     * what both the throttle and the read-clear key on. `link` is the recipient's own Messages screen: a coordinator
+     * sent to `/management/messages` reaches a screen she has no route to.
+     *
+     * <p>Never fails the send: a bell that could not be written is logged, and the message itself is committed and
+     * delivered on the socket exactly as before.
+     */
+    @Transactional
+    public void chatMessage(String schoolId, String userId, String threadId, String from, String body) {
+        if (userId == null || threadId == null) return;
+        String title = "Message from " + (from == null || from.isBlank() ? "your school" : from);
+        String line = clip(body, CHAT_BODY_MAX);
+        try {
+            var existing = rows.unreadAbout(userId, key(NotificationKind.CHAT_MESSAGE), threadId);
+            if (existing.isEmpty()) {
+                notify(schoolId, userId, NotificationKind.CHAT_MESSAGE, title, line, messagesLink(roleOf(userId), threadId), threadId);
+                return;
+            }
+            var row = existing.get(0);
+            row.setTitle(clip(title, TITLE_MAX)); row.setBody(line); row.setCreatedAt(clock.instant());
+            rows.save(row);
+            publishAfterCommit(schoolId, userId, view(row));
+        } catch (RuntimeException e) {
+            log.warn("notifications: could not write chat.message for thread {}: {}", threadId, e.toString());
+        }
+    }
+
+    /** T1: she opened the thread, so its bell entry is read too — one statement, whatever put the row there. */
+    @Transactional
+    public void markThreadRead(String userId, String threadId) {
+        if (userId == null || threadId == null) return;
+        rows.markAboutRead(userId, key(NotificationKind.CHAT_MESSAGE), threadId, clock.instant());
     }
 
     /**
@@ -177,8 +220,8 @@ public class NotificationService {
         return users.findIdByEmailAcrossSchools(email).orElse(null);
     }
 
-    /** Which dashboard the link belongs to. An Admin's row is not readable under a school filter; she gets the teacher path then, which is the common case anyway. */
-    private String roleOf(String userId) { return users.findById(userId).map(quest.server.auth.Entities.UserEntity::getRole).orElse("TEACHER"); }
+    /** Which dashboard the link belongs to. Unfiltered (T1), so an ADMIN — who carries no school — is not read as a teacher. */
+    private String roleOf(String userId) { return users.findRoleAcrossSchools(userId).orElse("TEACHER"); }
 
     static String link(String role, String lessonId) { return ("ADMIN".equals(role) ? "/admin/lessons/" : "/teacher/lessons/") + lessonId; }
 
@@ -197,6 +240,21 @@ public class NotificationService {
 
     /** `broadcast.posted`: the recipient's own feed, opened on the row itself. */
     public static String broadcastLink(String role, String broadcastId) { return "/" + area(role) + "/broadcasts?open=" + broadcastId; }
+
+    /**
+     * T1 `chat.message`: the **recipient's own** Messages screen, opened on the thread the message landed in. The four
+     * dashboards do not agree on the path — a teacher's inbox is `/teacher/chat`, everyone else's is `…/messages` —
+     * and the link has to be the one the recipient's router has, not a pattern.
+     */
+    public static String messagesLink(String role, String threadId) {
+        String screen = switch (role == null ? "" : role) {
+            case "ADMIN" -> "/admin/messages";
+            case "COORDINATOR" -> "/coordinator/messages";
+            case "MANAGERIAL" -> "/management/messages";
+            default -> "/teacher/chat";
+        };
+        return threadId == null || threadId.isBlank() ? screen : screen + "?thread=" + threadId;
+    }
 
     /** `teacher.message`: the manager's Messages screen, on the thread the message was appended to (MG1). */
     public static String threadLink(String threadId) {

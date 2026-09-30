@@ -1270,6 +1270,34 @@ teaches in (a `staff_scopes` row with no subject whose `curriculum` is one of he
 department. A manager of another department is **404** from either end — she may not open one, and
 `POST /management/chat/threads {teacherUserId}` refuses a teacher outside the manager's own department.
 
+**The staff directory (T1).** The owner's list of 2026-10-01: *"teachers get Coordinator and Manager pages — name,
+phone, email, job, direct message; coordinators get a Manager page."* Three routes answer one shape, `StaffContact`
+(`shared-api/src/commonMain/kotlin/quest/api/dashboard/Coordinator.kt`), because they are one screen asked from two
+roles — and it is RM1's `CoordinatorManager` grown up, so `userId`, `displayName` and `curriculum` still read the same:
+
+| Route | Permission | What |
+|---|---|---|
+| `GET /teacher/coordinators` | `teacher.chat` | T1: the coordinators whose `staff_scopes` cover a (subject, track) pair **she teaches**, name order. |
+| `GET /teacher/managers` | `teacher.chat` | The managers of the departments she teaches in — MG1's chooser, now with the contact details. |
+| `GET /coordinator/managers` | `coordinator.chat` | The managers whose department intersects her scope (RM1 addendum), likewise. |
+
+A row is `{userId, displayName, email, role, job, jobParts, phone?, curriculum?, subjects?, online}`. **`job` is the
+English fallback; `jobParts` is the same thing localisable** — `{kind: "coordinator" | "manager", grades: [1], subject,
+curriculum}` — so the dashboard writes the sentence in the reader's language instead of translating one. A coordinator's
+parts are the ones that put her on *this* caller's list: Maya teaches grade 1 maths in the British track, so Lina reads
+"Coordinator · Grade 1 · Math · British", and a coordinator who covers two of Maya's grades is named with both
+(`grades: [1, 2]`, "Coordinator · Grades 1, 2 · …"). A manager's are her department alone — "British department
+manager", `grades` empty. `online` is presence (below).
+
+**Matched per section, never crossed.** The teacher's own assignments become (subject, track, grade) triples and each
+triple is matched whole against a coordinator's scope rows, so a teacher of British maths and American drama is never
+handed the British drama coordinator. The reach is the chat reach — `ChatPeers.managersForTeacher`,
+`managerOptionsFor`, `coordinatorsOn`'s rule read backwards — so the directory can never offer somebody the
+"direct message" button would then refuse. No new permission key: the lists exist so she can write to them, and
+`teacher.chat` / `coordinator.chat` are the keys her Messages screen already holds. **Still open:** a teacher can open
+a staff thread with a *manager* only (`POST /teacher/chat/staff-threads {managerUserId}`); "direct message" from a
+Coordinator page has no route yet.
+
 **Which end of a staff thread is which.** On every staff-to-staff thread the *subordinate* holds `chat_threads.teacher_id`
 and the *supervisor* holds `peer_user_id`, and `staff_role` is `MANAGERIAL` — it names the peer. So: teacher → manager,
 coordinator → manager, manager → admin. One rule means `findForStaff` finds a person's threads whichever pair she is
@@ -1334,6 +1362,7 @@ Server → client (`ChatFrame`, the DTOs REST uses):
 {"type":"typing","threadId":"…","from":"parent"}
 {"type":"notification","notification":{NotificationView}}       // E2, dashboard only
 {"type":"status","threadId":"…","status":"resolved","at":1758450000000}   // R4, both parties
+{"type":"presence","online":true,"userId":"…"}                  // T1; `parentId` instead for a parent
 {"type":"ping"}   {"type":"pong"}
 {"type":"error","code":"child_not_placed","message":"…","clientId":"7f3a…"}
 ```
@@ -1349,7 +1378,9 @@ is slow. `read` goes to both parties (so the reader's other devices clear their 
 
 **Heartbeat and idle.** The server sends `{"type":"ping"}` every 30 s (`quest.chat.heartbeat-seconds`); answer
 with `{"type":"pong"}` — any command counts. A socket that sends nothing for 10 minutes (`idle-seconds`) is closed
-`1000 idle`. A client that hears no ping for ~90 s should treat the socket as dead and reconnect. A client may send
+`1000 idle`, and — **T1** — one that has sent nothing for 75 s (`quest.chat.pong-timeout-seconds`, two heartbeats) is
+closed `1000 unresponsive`: a crashed tab answers no `pong`, and presence must not go on calling it "Live" for the ten
+minutes the idle rule allows a socket that is alive but quiet. Both clients already pong, so neither is affected. A client that hears no ping for ~90 s should treat the socket as dead and reconnect. A client may send
 `ping` itself and gets `pong`.
 
 **Backpressure.** Frames to one socket are written by one thread, in order. A `typing` or `ping` is skipped while
@@ -1373,6 +1404,33 @@ forces one, `auto` (the default) picks by the datasource's product name. If a li
 SQL restart) it reconnects after a second and logs `chat: listener connection lost`; nothing published in between
 is replayed — the client's `?since=` refetch is the recovery. `Tests: PostgresChatBusTest` (Testcontainers tag
 `postgres`) proves two buses on one database hear each other.
+
+### Presence (T1)
+
+**Who is online, and how anyone knows.** A person is online iff she holds at least one live `/ws/chat` socket. It is
+read in three places and they are all one source (`ChatPresence`):
+
+- **`ChatThread.peerOnline`** on every thread row — the *other* end of that conversation: the child's parent on a parent
+  thread, the colleague on a staff one. Null-safe by construction: a row with nobody to be online about is `false`.
+- **`StaffContact.online`** on the three directory routes above.
+- **the `presence` frame** `{"type":"presence","online":true,"userId":"…"}` (or `parentId` for a parent), fanned out on
+  **connect and disconnect** to the people who share a thread with her — and to nobody else, because presence is not a
+  staff register. Her own sessions are not told; they know.
+
+**Not a table.** Presence is worth exactly as much as the socket it describes, so nothing is stored: a connect and a
+disconnect publish a `presence` event on the same `chat_events` bus as everything else, and each instance keeps what it
+heard in memory. Across instances an entry expires after `quest.chat.presence-ttl-seconds` (2 h) in case an instance
+dies without saying goodbye — safe because Cloud Run ends every socket at the request timeout (1 h), so a connection
+that is genuinely alive re-publishes long before its entry fades. Nothing is replayed: on (re)connect, the thread list
+and the directory carry the current truth, and the frames keep them fresh while the screen is open.
+
+**Going offline actually happens** — the owner's second bug was a signed-out manager still shown as "Live". Four things
+end a session and all four run through `ChatSessions`: the socket closing (the tab, a navigation, the hourly Cloud Run
+cut), the heartbeat sweep closing one that answered no `pong` for 75 s, the dashboard closing its own socket on logout,
+and **a revoked refresh token** — `POST /auth/sign-out`, a password change, a password reset, a replayed token. The last
+one is server-side: `RefreshTokenService` publishes `SessionsRevoked` and `ChatPresence` closes every socket of that
+user with `1000 signed out`, which publishes the offline event through the ordinary close path. So signing out ends
+presence even when the client never gets the chance to.
 
 **Reading it on QA.**
 
@@ -1403,7 +1461,8 @@ methods behind a key (`pnpm gen:permissions`): a single key covering the GETs an
 bell a write and take it off the screen during View-as.
 
 A row is `{id, kind, title, body, link, lessonId, readAt, createdAt}`. `kind` is `lesson.needs_skills`,
-`lesson.ready`, `lesson.failed`, `teacher.message` or — RM2 — `broadcast.posted` — **localise from `kind`**; `title` and `body` are English server strings to fall
+`lesson.ready`, `lesson.failed`, `teacher.message`, `broadcast.posted` (RM2) or `chat.message` (T1) — **localise from
+`kind`**; `title` and `body` are English server strings to fall
 back on. `link` is a dashboard *path*, never a URL, and since MG1 **every row carries one, correct for the recipient's own
 role** — a coordinator sent to `/teacher/…` reaches a screen she has no route to:
 
@@ -1412,9 +1471,26 @@ role** — a coordinator sent to `/teacher/…` reaches a screen she has no rout
 | `lesson.needs_skills`, `lesson.ready`, `lesson.failed` | `/teacher/lessons/{lessonId}`, or `/admin/lessons/{lessonId}` for an ADMIN recipient |
 | `broadcast.posted` | `/<area>/broadcasts?open=<broadcastId>`, `<area>` = `teacher` \| `coordinator` \| `management` by the **recipient's** role |
 | `teacher.message` | `/management/messages?thread=<threadId>`, or `/management/messages` for a manager who holds no department of the sender's |
+| `chat.message` | the recipient's own inbox on that thread: `/teacher/chat?thread=…`, `/coordinator/messages?thread=…`, `/management/messages?thread=…`, `/admin/messages?thread=…` — the four dashboards do not agree on the path, so the link is the one the **recipient's** router has |
 
-The entity id the link points at is also on the row: `lessonId` for the three lesson kinds and the broadcast id for
-`broadcast.posted` (which is how a replaced weekly plan's bell entries are withdrawn with it).
+The entity id the link points at is also on the row: `lessonId` for the three lesson kinds, the broadcast id for
+`broadcast.posted` (which is how a replaced weekly plan's bell entries are withdrawn with it) and — T1 — the **thread**
+id for `chat.message` (which is what its throttle and its read-clear key on).
+
+**`chat.message` (T1).** The owner's reported gap was *"no notification when a teacher messages a manager"*, and it was
+exact: until T1 a message was published on the socket and nowhere else, so the recipient had the thread's unread counter
+and a live `message` frame if her tab happened to be open, and the bell said nothing at all — a manager whose dashboard
+was closed, or who was on another screen, learned nothing. Now **every** message on a staff thread (teacher ↔ manager,
+coordinator ↔ manager, manager ↔ admin) or a parent thread writes the recipient a `chat.message` row, delivered live on
+the existing `notification` frame. The recipient is whoever is not the sender; a staff member writing **to a parent**
+notifies nobody, because parents have no bell — they have the app. `title` is "Message from &lt;name&gt;" and `body` the
+first 120 characters of what was written.
+
+**One row per thread, not per message.** At most one *unread* `chat.message` row per thread per recipient: a second
+message she has not looked at yet updates the row she already has — new body, new time, the same id — so a conversation
+of twenty messages is one bell entry showing the latest line rather than twenty she has to clear. Reading the thread
+(`POST …/read`, over REST or the socket) marks that row read, and the next message after that rings again. A bell that
+cannot be written is logged and never fails the send.
 
 **Who gets one, and when.** Only the lesson's creator (`lessons.created_by`, resolved to a `users` row; a lesson
 created by the seed notifies nobody), and only on a real status *transition* written by `LessonState`:

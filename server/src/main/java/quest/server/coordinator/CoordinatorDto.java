@@ -63,14 +63,6 @@ public final class CoordinatorDto {
     // ---------------------------------------------------------------- communication (R4, DR3/DR4)
 
     /**
-     * `GET /coordinator/managers` (RM1 addendum): a manager she may open a thread with, and the department that put her
-     * on the list — the chooser can say "Nour · British" without a second request. `ChatPeers.managerOptionsFor` builds
-     * it from `staff_scopes`, so a coordinator of both tracks is offered both managers and an ADMIN reading her area is
-     * offered nobody (a staff thread is the coordinator's own conversation).
-     */
-    public record CoordinatorManager(String userId, String displayName, String curriculum) {}
-
-    /**
      * `POST /coordinator/chat/threads` and — MG1 — `POST /teacher/chat/staff-threads`: the manager the caller wants to
      * talk to, validated against her own department either way.
      *

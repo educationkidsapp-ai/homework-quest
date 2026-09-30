@@ -11,6 +11,7 @@
   { "$ref": "#/$defs/typing" },
   { "$ref": "#/$defs/notification" },
   { "$ref": "#/$defs/status" },
+  { "$ref": "#/$defs/presence" },
   { "$ref": "#/$defs/ping" },
   { "$ref": "#/$defs/pong" },
   { "$ref": "#/$defs/error" }
@@ -69,7 +70,7 @@
    "required": ["id", "kind", "title", "createdAt"],
    "properties": {
     "id": { "type": "string", "minLength": 1 },
-    "kind": { "type": "string", "enum": ["lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted"] },
+    "kind": { "type": "string", "enum": ["lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message"] },
     "title": { "type": "string", "minLength": 1 },
     "body": { "type": ["string", "null"] },
     "link": { "type": ["string", "null"] },
@@ -96,6 +97,18 @@
     "threadId": { "type": "string", "minLength": 1 },
     "status": { "$ref": "#/$defs/threadStatus" },
     "at": { "type": "integer" }
+   }
+  },
+  "presence": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["type", "online"],
+   "description": "T1: somebody who shares a thread with the receiver came online or went offline. Exactly one of userId and parentId is set.",
+   "properties": {
+    "type": { "const": "presence" },
+    "online": { "type": "boolean" },
+    "userId": { "type": ["string", "null"] },
+    "parentId": { "type": ["string", "null"] }
    }
   },
   "ping": { "type": "object", "additionalProperties": false, "required": ["type"], "properties": { "type": { "const": "ping" } } },

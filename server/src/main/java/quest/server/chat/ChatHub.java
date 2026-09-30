@@ -17,10 +17,10 @@ import quest.server.config.Json;
 @Component
 public class ChatHub {
     private static final Logger log = LoggerFactory.getLogger(ChatHub.class);
-    private final ChatSessions sessions; private final ChatMessageRepository messages; private final Json json;
+    private final ChatSessions sessions; private final ChatMessageRepository messages; private final Json json; private final ChatPresence presence;
 
-    public ChatHub(ChatBus bus, ChatSessions sessions, ChatMessageRepository messages, Json json) {
-        this.sessions = sessions; this.messages = messages; this.json = json;
+    public ChatHub(ChatBus bus, ChatSessions sessions, ChatMessageRepository messages, Json json, ChatPresence presence) {
+        this.sessions = sessions; this.messages = messages; this.json = json; this.presence = presence;
         bus.subscribe(this::deliver);
     }
 
@@ -50,6 +50,9 @@ public class ChatHub {
             }
             // E2: not a thread at all — one dashboard user's bell, already encoded, and only on her school's sessions.
             case ChatEvent.NOTIFICATION -> sessions.sendToSchool(ChatService.key(ChatService.USER, e.userId()), e.schoolId(), e.notificationJson());
+            // T1: not a thread either — one person came online or went offline, and the people she shares a thread
+            // with are told. Which people that is depends on this instance's sockets, so the hub delegates.
+            case ChatEvent.PRESENCE -> presence.heard(e);
             default -> log.warn("chat: unknown event kind {}", e.kind());
         }
     }

@@ -36,6 +36,15 @@ enum class NotificationKind {
      * replaces. Parents have no bell and read `GET /children/{id}/broadcasts` instead.
      */
     @SerialName("broadcast.posted") BROADCAST_POSTED,
+    /**
+     * T1: a message landed in one of this user's chat threads — a parent's, or a staff thread with a teacher, a
+     * coordinator, a manager or the Admin. [NotificationView.title] is "Message from &lt;name&gt;",
+     * [NotificationView.body] the first 120 characters of what was written and [NotificationView.link] her own
+     * Messages screen opened on that thread. **At most one unread row per thread per recipient**: a second message
+     * she has not read yet updates the row she already has rather than adding another, and reading the thread marks
+     * it read. [NotificationView.lessonId] carries the **thread's** id on these rows.
+     */
+    @SerialName("chat.message") CHAT_MESSAGE,
 }
 
 /**

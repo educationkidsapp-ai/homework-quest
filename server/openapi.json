@@ -733,6 +733,9 @@
           "parentName" : {
             "type" : "string"
           },
+          "peerOnline" : {
+            "type" : "boolean"
+          },
           "resolvedAt" : {
             "format" : "int64",
             "type" : "integer"
@@ -763,7 +766,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "childId", "childName", "staffRole", "status", "teacherId", "teacherName", "topic", "unread" ],
+        "required" : [ "childId", "childName", "peerOnline", "staffRole", "status", "teacherId", "teacherName", "topic", "unread" ],
         "type" : "object"
       },
       "Child" : {
@@ -1606,20 +1609,6 @@
           "total" : {
             "format" : "int32",
             "type" : "integer"
-          }
-        },
-        "type" : "object"
-      },
-      "CoordinatorManager" : {
-        "properties" : {
-          "curriculum" : {
-            "type" : "string"
-          },
-          "displayName" : {
-            "type" : "string"
-          },
-          "userId" : {
-            "type" : "string"
           }
         },
         "type" : "object"
@@ -4106,7 +4095,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -5876,6 +5865,62 @@
             "type" : "integer"
           },
           "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StaffContact" : {
+        "properties" : {
+          "curriculum" : {
+            "type" : "string"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "job" : {
+            "type" : "string"
+          },
+          "jobParts" : {
+            "$ref" : "#/components/schemas/StaffJobParts"
+          },
+          "online" : {
+            "type" : "boolean"
+          },
+          "phone" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "subjects" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StaffJobParts" : {
+        "properties" : {
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grades" : {
+            "items" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "type" : "array"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "subject" : {
             "type" : "string"
           }
         },
@@ -12455,7 +12500,7 @@
               "application/json" : {
                 "schema" : {
                   "items" : {
-                    "$ref" : "#/components/schemas/CoordinatorManager"
+                    "$ref" : "#/components/schemas/StaffContact"
                   },
                   "type" : "array"
                 }
@@ -15185,6 +15230,27 @@
         "tags" : [ "Teacher" ]
       }
     },
+    "/teacher/coordinators" : {
+      "get" : {
+        "operationId" : "teacherCoordinators",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/StaffContact"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
     "/teacher/exams/{id}" : {
       "get" : {
         "operationId" : "exam",
@@ -16328,7 +16394,7 @@
               "application/json" : {
                 "schema" : {
                   "items" : {
-                    "$ref" : "#/components/schemas/CoordinatorManager"
+                    "$ref" : "#/components/schemas/StaffContact"
                   },
                   "type" : "array"
                 }

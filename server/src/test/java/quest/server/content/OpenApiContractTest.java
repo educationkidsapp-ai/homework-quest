@@ -130,7 +130,7 @@ class OpenApiContractTest extends ApiTestSupport {
             "/children/{id}/chat/threads", "/children/{id}/chat/threads/{teacherId}/messages", "/children/{id}/chat/threads/{teacherId}/read",
             "/children/{id}/coordinators",
             "/teacher/chat/threads", "/teacher/chat/threads/{childId}/messages", "/teacher/chat/threads/{childId}/read",
-            "/teacher/managers", "/teacher/chat/staff-threads", "/teacher/chat/staff-threads/{id}/messages",
+            "/teacher/managers", "/teacher/coordinators", "/teacher/chat/staff-threads", "/teacher/chat/staff-threads/{id}/messages",
             "/teacher/chat/staff-threads/{id}/read",
             "/admin/chat/threads", "/admin/chat/threads/{threadId}/messages", "/admin/chat/threads/{threadId}/read",
             "/children/{id}/managers");

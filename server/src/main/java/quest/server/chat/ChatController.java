@@ -41,8 +41,8 @@ import quest.server.flags.FlagKeys;
 @FeatureFlag(FlagKeys.CHAT)
 @Tag(name = "Chat", description = "Parent and teacher chat: threads, message pages, sending and read receipts")
 public class ChatController {
-    private final ChatService chat; private final Json json; private final ChatPeers peers;
-    public ChatController(ChatService chat, Json json, ChatPeers peers) { this.chat = chat; this.json = json; this.peers = peers; }
+    private final ChatService chat; private final Json json; private final StaffDirectory directory;
+    public ChatController(ChatService chat, Json json, StaffDirectory directory) { this.chat = chat; this.json = json; this.directory = directory; }
 
     // ---------------------------------------------------------------- the parent (app)
 
@@ -133,15 +133,26 @@ public class ChatController {
     // ---------------------------------------------------------------- the teacher's staff threads (MG1, DR5)
 
     /**
-     * `GET /teacher/managers`: the managers of the departments she teaches in — whom the write below will accept.
-     * It answers `CoordinatorDto.CoordinatorManager`, the shape `GET /coordinator/managers` already answers, because
-     * it is the same chooser one role over and a second record with the same fields could only drift from the first.
+     * `GET /teacher/managers`: the managers of the departments she teaches in — whom the write below will accept — with
+     * the contact details and the job in parts the owner asked for (T1). It answers `StaffDto.StaffContact`, the shape
+     * `GET /coordinator/managers` and `GET /teacher/coordinators` answer, because it is one directory asked from two
+     * roles and a second record with the same fields could only drift from the first.
      */
     @GetMapping(value = "/teacher/managers", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('teacher.chat')")
-    public List<CoordinatorDto.CoordinatorManager> teacherManagers(@AuthenticationPrincipal Principals.User caller) {
-        return peers.managersForTeacher(quest.server.tenancy.TeacherScope.require(caller)).stream()
-                .map(m -> new CoordinatorDto.CoordinatorManager(m.user().getId(), ChatService.name(m.user()), m.curriculum())).toList();
+    public List<StaffDto.StaffContact> teacherManagers(@AuthenticationPrincipal Principals.User caller) {
+        return directory.managersForTeacher(caller);
+    }
+
+    /**
+     * T1 `GET /teacher/coordinators`: her Coordinator page — the coordinators whose scope covers a (subject, track)
+     * pair she teaches, each named with the grades of hers they cover ("Coordinator · Grade 1 · Math · British").
+     * `teacher.chat`, the key her Messages screen already holds, because the list exists so that she can write to them.
+     */
+    @GetMapping(value = "/teacher/coordinators", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('teacher.chat')")
+    public List<StaffDto.StaffContact> teacherCoordinators(@AuthenticationPrincipal Principals.User caller) {
+        return directory.coordinatorsForTeacher(caller);
     }
 
     /**
