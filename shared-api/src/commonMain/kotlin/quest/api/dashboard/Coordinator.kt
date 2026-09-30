@@ -132,7 +132,11 @@ enum class StaffJobKind { @SerialName("coordinator") COORDINATOR, @SerialName("m
  * instead of translating an English sentence. A coordinator's parts are the ones that put her on *this* caller's
  * list — the grades of the caller's own sections she covers, the subject and the track — so "Coordinator · Grade 1 ·
  * Math · British"; a manager's are her department alone, so "British department manager". [grades] is empty on a
- * manager's row and carries every grade of the caller's that the coordinator covers, ascending, on a coordinator's.
+ * manager's row and carries every grade of the caller's that the coordinator covers **in [curriculum]**, ascending.
+ *
+ * One of these per track, never flattened across them ([StaffContact.jobParts] is a list): a coordinator who covers
+ * British grade 1 and American grade 3 of one teacher's is two entries, because "Grades 1, 3" of either track would
+ * name a grade she does not coordinate for her.
  */
 @Serializable
 data class StaffJobParts(
@@ -149,9 +153,11 @@ data class StaffJobParts(
  * [userId], [displayName] and [curriculum] are the fields that chooser already carried, so a client written against
  * it reads this row unchanged.
  *
- * [job] is the English sentence to fall back on; [jobParts] is the same thing localisable. [online] is presence
- * (T1): true while she holds at least one live `/ws/chat` socket, the same signal [quest.api.dto.ChatThread.peerOnline]
- * carries on a thread row, and it goes stale only until the next `presence` frame.
+ * [job] is the English sentence to fall back on; [jobParts] is the same thing localisable, **one entry per track**,
+ * and [job] joins their sentences with "; ". [curriculum] is the first of those tracks and [subjects] the union across
+ * them, kept for the RM1 client that reads one word of each. [online] is presence (T1): true while she holds at least
+ * one live `/ws/chat` socket, the same signal [quest.api.dto.ChatThread.peerOnline] carries on a thread row, and it
+ * goes stale only until the next `presence` frame.
  */
 @Serializable
 data class StaffContact(
@@ -160,7 +166,7 @@ data class StaffContact(
     val email: String,
     val role: String,
     val job: String,
-    val jobParts: StaffJobParts,
+    val jobParts: List<StaffJobParts> = emptyList(),
     val phone: String? = null,
     val curriculum: Curriculum? = null,
     val subjects: String? = null,

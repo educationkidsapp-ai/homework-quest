@@ -5896,7 +5896,10 @@
             "type" : "string"
           },
           "jobParts" : {
-            "$ref" : "#/components/schemas/StaffJobParts"
+            "items" : {
+              "$ref" : "#/components/schemas/StaffJobParts"
+            },
+            "type" : "array"
           },
           "online" : {
             "type" : "boolean"

@@ -26,16 +26,23 @@ import quest.server.config.Json;
  * <p><strong>Why an event and not a table.</strong> Presence is worth exactly as much as the socket it describes and
  * nothing is replayed after a missed frame, which is the rule the whole socket keeps; a row in PostgreSQL would
  * outlive the connection it claimed and be wrong in the one direction that matters (the owner's bug: a manager who
- * signed out still shown as "Live"). So a connect and a disconnect publish, every instance keeps what it heard in
- * memory, and the entry expires after {@code presence-ttl-seconds} in case an instance dies without saying goodbye.
- * Two hours is a safe default because Cloud Run ends every socket at the request timeout (one hour): a connection
- * that is genuinely alive re-publishes long before its entry fades.
+ * signed out still shown as "Live"). So a connect and a disconnect publish, and every instance keeps what it heard
+ * in memory.
+ *
+ * <p><strong>The lease is short, and a live socket renews it</strong> (review). An entry expires after
+ * {@code presence-ttl-seconds} — 120 s by default, the 75 s pong deadline plus a grace — so an instance that dies
+ * without saying goodbye stops making its peers look online within about two minutes rather than hours. Nothing is
+ * lost by being that strict, because the socket already proves itself twice a minute: {@link #refresh} re-publishes
+ * for a peer whose last announcement is older than a third of the lease, on the `pong` the heartbeat asks for (or on
+ * any command, which counts as one). A frame goes out only when the state actually changes, so a renewal is bus
+ * traffic and nothing more.
  *
  * <p><strong>Going offline actually happens.</strong> Three things end a session, and all three run through
  * {@link ChatSessions}: the socket closing (the tab, a navigation, the hourly Cloud Run cut), the heartbeat sweep
  * closing one that answered no `pong` for two intervals, and — {@link #signedOut} — a revoked refresh token, which
- * is `POST /auth/sign-out` and a password change. The dashboard closing its socket on logout is the fast path; this
- * is the one that holds when it does not.
+ * is `POST /auth/sign-out` and a password change. The last one rides the bus rather than the local registry, because
+ * her tabs are spread over the instances and only one of them served the sign-out. The dashboard closing its socket on
+ * logout is the fast path; this is the one that holds when it does not.
  */
 @Component
 public class ChatPresence {
@@ -44,9 +51,11 @@ public class ChatPresence {
 
     /** What another instance told us, and until when. Keys are session keys, as {@link ChatService#key} builds them. */
     private final Map<String, Instant> elsewhere = new ConcurrentHashMap<>();
+    /** When this instance last announced one of its own peers, so a renewal costs one event per key per third of a lease. */
+    private final Map<String, Instant> announced = new ConcurrentHashMap<>();
 
     public ChatPresence(ChatSessions sessions, ChatThreadRepository threads, ChildRepository children, ChatBus bus, Json json,
-                        Clock clock, @Value("${quest.chat.presence-ttl-seconds:7200}") long ttlSeconds) {
+                        Clock clock, @Value("${quest.chat.presence-ttl-seconds:120}") long ttlSeconds) {
         this.sessions = sessions; this.threads = threads; this.children = children; this.bus = bus; this.json = json;
         this.clock = clock; this.ttl = Duration.ofSeconds(ttlSeconds);
     }
@@ -67,7 +76,20 @@ public class ChatPresence {
     public void arrived(ChatSessions.Peer peer) { if (sessions.countFor(peer.key()) == 1) publish(peer, true); }
 
     /** Her last socket here has gone: offline, unless another instance still holds one (its own event says so). */
-    public void left(ChatSessions.Peer peer) { if (!sessions.holds(peer.key())) publish(peer, false); }
+    public void left(ChatSessions.Peer peer) { announced.remove(peer.key()); if (!sessions.holds(peer.key())) publish(peer, false); }
+
+    /**
+     * T1 (review): a live socket renews its own lease. Called on every inbound frame — the `pong` the heartbeat asks
+     * for every 30 s, or any command, which counts as one — and it publishes at most once per third of the lease, so
+     * the other instances' entries never expire under a connection that is answering, while the traffic stays a
+     * handful of events a minute. No frame is written anywhere: {@link #heard} fans out a change and nothing else.
+     */
+    public void refresh(ChatSessions.Peer peer) {
+        if (peer == null) return;
+        Instant now = clock.instant(), last = announced.get(peer.key());
+        if (last != null && last.plus(ttl.dividedBy(3)).isAfter(now)) return;
+        publish(peer, true);
+    }
 
     /**
      * `POST /auth/sign-out` and every other revocation of a whole token family: her sockets are closed, which makes
@@ -76,7 +98,18 @@ public class ChatPresence {
      */
     @EventListener
     public void signedOut(SessionsRevoked revoked) {
-        sessions.closeAll(ChatService.key(ChatService.USER, revoked.userId()), ChatSessions.SIGNED_OUT);
+        bus.publish(ChatEvent.signedOut(ChatService.key(ChatService.USER, revoked.userId()), clock.instant().toEpochMilli()));
+    }
+
+    /**
+     * The revocation as every instance hears it. Her sockets live on whichever instance took each handshake, which is
+     * not the one that served the sign-out, so the close has to travel: the instance that revoked publishes and every
+     * instance — itself included, as with every other event here — closes whatever it holds. Each close then publishes
+     * the offline event through the ordinary path, so presence needs no second rule.
+     */
+    void heardSignOut(ChatEvent e) {
+        if (e.senderKey() == null) return;
+        sessions.closeAll(e.senderKey(), ChatSessions.SIGNED_OUT);
     }
 
     /**
@@ -99,6 +132,7 @@ public class ChatPresence {
     }
 
     private void publish(ChatSessions.Peer peer, boolean online) {
+        if (online) announced.put(peer.key(), clock.instant()); else announced.remove(peer.key());
         bus.publish(ChatEvent.presence(peer.schoolId(), peer.key(), online, clock.instant().toEpochMilli()));
     }
 

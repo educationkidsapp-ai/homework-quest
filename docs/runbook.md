@@ -1282,12 +1282,16 @@ roles — and it is RM1's `CoordinatorManager` grown up, so `userId`, `displayNa
 | `GET /coordinator/managers` | `coordinator.chat` | The managers whose department intersects her scope (RM1 addendum), likewise. |
 
 A row is `{userId, displayName, email, role, job, jobParts, phone?, curriculum?, subjects?, online}`. **`job` is the
-English fallback; `jobParts` is the same thing localisable** — `{kind: "coordinator" | "manager", grades: [1], subject,
-curriculum}` — so the dashboard writes the sentence in the reader's language instead of translating one. A coordinator's
-parts are the ones that put her on *this* caller's list: Maya teaches grade 1 maths in the British track, so Lina reads
-"Coordinator · Grade 1 · Math · British", and a coordinator who covers two of Maya's grades is named with both
-(`grades: [1, 2]`, "Coordinator · Grades 1, 2 · …"). A manager's are her department alone — "British department
-manager", `grades` empty. `online` is presence (below).
+English fallback; `jobParts` is the same thing localisable** — a **list** of `{kind: "coordinator" | "manager", grades:
+[1], subject, curriculum}` — so the dashboard writes the sentence in the reader's language instead of translating one. A
+coordinator's parts are the ones that put her on *this* caller's list: Maya teaches grade 1 maths in the British track,
+so Lina reads "Coordinator · Grade 1 · Math · British", and a coordinator who covers two of Maya's grades *in one track*
+is named with both (`grades: [1, 2]`, "Coordinator · Grades 1, 2 · …"). **One entry per track, and grades are never
+flattened across tracks**: a coordinator of both tracks who covers Zaid's British grade 1 and his American grade 3 is
+two entries, because "Grades 1, 3" of either would name a grade she does not coordinate for him; `job` joins the
+sentences with "; ", and `curriculum` / `subjects` carry the first track and the union for the RM1 client that reads one
+word of each. A manager's parts are her department alone — "British department manager", `grades` empty, one entry.
+`online` is presence (below).
 
 **Matched per section, never crossed.** The teacher's own assignments become (subject, track, grade) triples and each
 triple is matched whole against a coordinator's scope rows, so a teacher of British maths and American drama is never
@@ -1387,7 +1391,8 @@ is slow. `read` goes to both parties (so the reader's other devices clear their 
 with `{"type":"pong"}` — any command counts. A socket that sends nothing for 10 minutes (`idle-seconds`) is closed
 `1000 idle`, and — **T1** — one that has sent nothing for 75 s (`quest.chat.pong-timeout-seconds`, two heartbeats) is
 closed `1000 unresponsive`: a crashed tab answers no `pong`, and presence must not go on calling it "Live" for the ten
-minutes the idle rule allows a socket that is alive but quiet. Both clients already pong, so neither is affected. A client that hears no ping for ~90 s should treat the socket as dead and reconnect. A client may send
+minutes the idle rule allows a socket that is alive but quiet. Both clients already pong, so neither is affected — and
+the same `pong` renews the presence lease (below), which is why the two numbers are set together. A client that hears no ping for ~90 s should treat the socket as dead and reconnect. A client may send
 `ping` itself and gets `pong`.
 
 **Backpressure.** Frames to one socket are written by one thread, in order. A `typing` or `ping` is skipped while
@@ -1426,18 +1431,25 @@ read in three places and they are all one source (`ChatPresence`):
 
 **Not a table.** Presence is worth exactly as much as the socket it describes, so nothing is stored: a connect and a
 disconnect publish a `presence` event on the same `chat_events` bus as everything else, and each instance keeps what it
-heard in memory. Across instances an entry expires after `quest.chat.presence-ttl-seconds` (2 h) in case an instance
-dies without saying goodbye — safe because Cloud Run ends every socket at the request timeout (1 h), so a connection
-that is genuinely alive re-publishes long before its entry fades. Nothing is replayed: on (re)connect, the thread list
-and the directory carry the current truth, and the frames keep them fresh while the screen is open.
+heard in memory. Nothing is replayed: on (re)connect, the thread list and the directory carry the current truth, and the
+frames keep them fresh while the screen is open.
+
+**The lease is short and renewed.** An entry another instance wrote expires after `quest.chat.presence-ttl-seconds`
+(**120 s** — the 75 s pong deadline plus a grace), so an instance that dies without saying goodbye stops making its
+peers look online within about two minutes. A live socket renews its own lease: the server re-publishes `presence` for
+a peer whose last announcement is older than a third of the lease, on the `pong` the heartbeat asks for every 30 s (any
+command counts). A `presence` **frame** still goes out only when the state actually changes, so a renewal is bus traffic
+and nothing the clients see.
 
 **Going offline actually happens** — the owner's second bug was a signed-out manager still shown as "Live". Four things
 end a session and all four run through `ChatSessions`: the socket closing (the tab, a navigation, the hourly Cloud Run
 cut), the heartbeat sweep closing one that answered no `pong` for 75 s, the dashboard closing its own socket on logout,
 and **a revoked refresh token** — `POST /auth/sign-out`, a password change, a password reset, a replayed token. The last
-one is server-side: `RefreshTokenService` publishes `SessionsRevoked` and `ChatPresence` closes every socket of that
-user with `1000 signed out`, which publishes the offline event through the ordinary close path. So signing out ends
-presence even when the client never gets the chance to.
+one is server-side and **crosses the bus**: `RefreshTokenService` publishes a `SessionsRevoked` application event,
+`ChatPresence` turns it into a `signout` event on `chat_events`, and *every* instance closes whatever sockets of hers it
+holds with `1000 signed out` — her tabs are spread over the instances and only one of them served the sign-out. Each
+close then publishes the offline event through the ordinary path. So signing out ends presence even when the client never
+gets the chance to, and wherever it was connected.
 
 **Reading it on QA.**
 
@@ -1493,8 +1505,12 @@ the existing `notification` frame. The recipient is whoever is not the sender; a
 notifies nobody, because parents have no bell — they have the app. `title` is "Message from &lt;name&gt;" and `body` the
 first 120 characters of what was written.
 
-**One row per thread, not per message.** At most one *unread* `chat.message` row per thread per recipient: a second
-message she has not looked at yet updates the row she already has — new body, new time, the same id — so a conversation
+**One row per thread, not per message — and the database says so.** At most one *unread* `chat.message` row per thread
+per recipient, enforced by **V26**'s unique index over the unread `chat.message` rows (a partial index on PostgreSQL,
+an indexed computed column on H2, which has no partial index; the pair lives in `db/vendor/{vendor}` for that reason,
+and only `chat.message` is constrained because the lesson kinds legitimately hold two unread rows for one lesson). The
+write is an upsert in a transaction of its own, so two messages landing at the same moment cannot both decide she has
+none unread. A second message she has not looked at yet updates the row she already has — new body, new time, the same id — so a conversation
 of twenty messages is one bell entry showing the latest line rather than twenty she has to clear. Reading the thread
 (`POST …/read`, over REST or the socket) marks that row read, and the next message after that rings again. A bell that
 cannot be written is logged and never fails the send. One exception, so that one note does not ring twice:

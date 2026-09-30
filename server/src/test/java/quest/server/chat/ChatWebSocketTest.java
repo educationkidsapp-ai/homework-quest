@@ -45,6 +45,7 @@ class ChatWebSocketTest extends ChatTestSupport {
     @Autowired quest.server.notifications.NotificationRepository notificationRows;
     @Autowired quest.server.tenancy.StaffScopeRepository staffScopes;
     @Autowired ChatPresence presence;
+    @Autowired ChatBus bus;
     @Autowired quest.server.auth.AuthService auth;
     @Autowired quest.server.auth.RefreshTokenService refreshTokens;
     @Autowired quest.server.auth.RefreshTokenRepository tokenRows;
@@ -306,6 +307,23 @@ class ChatWebSocketTest extends ChatTestSupport {
 
         auth.signOut(refreshTokens.issue(SARA));
         assertThat(teacher.closed(5)).as("the socket is closed, not left open on a dead session").isNotNull();
+        assertThat(teacher.closed.getReason()).isEqualTo("signed out");
+        await(() -> !presence.userOnline(SARA));
+        assertThat(presence.userOnline(SARA)).isFalse();
+    }
+
+    /**
+     * T1 (review): the revocation travels. Her sockets live on whichever instance took each handshake, and that is not
+     * the one that served `POST /auth/sign-out` — so the close rides the bus like every other event, and an event
+     * published as another instance would have published it closes the socket held here.
+     */
+    @Test void a_revocation_published_by_another_instance_closes_the_socket_held_here() throws Exception {
+        var teacher = new Frames();
+        connect(sara, true, teacher);
+        assertThat(presence.userOnline(SARA)).isTrue();
+
+        bus.publish(ChatEvent.signedOut("user:" + SARA, System.currentTimeMillis()));
+        assertThat(teacher.closed(5)).as("the socket this instance holds is closed by the other instance's event").isNotNull();
         assertThat(teacher.closed.getReason()).isEqualTo("signed out");
         await(() -> !presence.userOnline(SARA));
         assertThat(presence.userOnline(SARA)).isFalse();

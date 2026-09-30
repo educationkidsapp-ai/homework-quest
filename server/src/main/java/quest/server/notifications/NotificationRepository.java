@@ -44,6 +44,17 @@ public interface NotificationRepository extends JpaRepository<Entities.Notificat
             + " and n.readAt is null order by n.createdAt desc")
     List<Entities.NotificationEntity> unreadAbout(@Param("userId") String userId, @Param("kind") String kind, @Param("entityId") String entityId);
 
+    /**
+     * T1 (review): the upsert's first half — the unread row's new body and time, in one statement. `int` is the whole
+     * answer: 0 means she has none unread and the caller inserts, 1 means the row was refreshed. No read, so two
+     * senders racing on one thread cannot both decide to insert on the strength of a stale count.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true) @Transactional
+    @Query("update NotificationEntity n set n.title = :title, n.body = :body, n.createdAt = :at"
+            + " where n.userId = :userId and n.kind = :kind and n.lessonId = :entityId and n.readAt is null")
+    int refreshUnread(@Param("userId") String userId, @Param("kind") String kind, @Param("entityId") String entityId,
+                      @Param("title") String title, @Param("body") String body, @Param("at") Instant at);
+
     /** T1: reading the thread clears its bell entry, whichever message put it there. */
     @Modifying @Transactional
     @Query("update NotificationEntity n set n.readAt = :at where n.userId = :userId and n.kind = :kind"

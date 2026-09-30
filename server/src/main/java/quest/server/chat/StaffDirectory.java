@@ -6,6 +6,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
@@ -15,6 +17,8 @@ import quest.server.auth.UserRepository;
 import quest.server.tenancy.CoordinatorScope;
 import quest.server.tenancy.Entities.ClassEntity;
 import quest.server.tenancy.Entities.StaffScopeEntity;
+import quest.server.tenancy.Entities.TeachingAssignmentEntity;
+import quest.server.tenancy.ClassRepository;
 import quest.server.tenancy.TeacherScope;
 import quest.server.tenancy.TenantContext;
 
@@ -43,12 +47,13 @@ public class StaffDirectory {
     static final String COORDINATOR = "coordinator", MANAGER = "manager";
 
     private final ChatPeers peers; private final TeacherScope teachers; private final CoordinatorScope coordinators;
-    private final UserRepository users; private final TenantContext tenant; private final ChatPresence presence;
+    private final UserRepository users; private final ClassRepository classes; private final TenantContext tenant;
+    private final ChatPresence presence;
 
     public StaffDirectory(ChatPeers peers, TeacherScope teachers, CoordinatorScope coordinators, UserRepository users,
-                          TenantContext tenant, ChatPresence presence) {
+                          ClassRepository classes, TenantContext tenant, ChatPresence presence) {
         this.peers = peers; this.teachers = teachers; this.coordinators = coordinators; this.users = users;
-        this.tenant = tenant; this.presence = presence;
+        this.classes = classes; this.tenant = tenant; this.presence = presence;
     }
 
     /** One (subject, track, grade) this teacher actually teaches — the unit a coordinator's scope is matched against. */
@@ -99,19 +104,35 @@ public class StaffDirectory {
         var rows = peers.scopeRowsOf(schoolId, staff);
         var out = new ArrayList<StaffDto.StaffContact>();
         for (var person : staff) {
-            var grades = new TreeSet<Integer>(); var subjects = new LinkedHashSet<String>(); var tracks = new LinkedHashSet<String>();
+            // Grouped by track, and never flattened across tracks (review): a coordinator who covers British grade 1
+            // and American grade 3 of this teacher's is "Grade 1 · British" and "Grade 3 · American", two entries —
+            // not the cross product "Grades 1, 3" of either, which names grades she does not coordinate for her.
+            var byTrack = new TreeMap<String, Matched>();
             for (StaffScopeEntity row : rows.getOrDefault(person.getId(), List.of()))
                 for (Taught t : mine)
-                    if (covers(row.getSubject(), row.getCurriculum(), t)) {
-                        grades.add(t.grade()); subjects.add(t.subject()); tracks.add(t.curriculum());
-                    }
-            if (grades.isEmpty()) continue;
-            String subject = String.join(", ", subjects), track = tracks.iterator().next();
-            var job = new StaffDto.StaffJobParts(COORDINATOR, List.copyOf(grades), subject, track);
-            out.add(contact(person, job, coordinatorJob(grades, subject, track), track, subject));
+                    if (covers(row.getSubject(), row.getCurriculum(), t))
+                        byTrack.computeIfAbsent(t.curriculum(), k -> new Matched()).add(t);
+            if (byTrack.isEmpty()) continue;
+            var parts = new ArrayList<StaffDto.StaffJobParts>(byTrack.size());
+            var sentences = new ArrayList<String>(byTrack.size());
+            var subjects = new LinkedHashSet<String>();
+            for (var group : byTrack.entrySet()) {
+                String track = group.getKey(), subject = String.join(", ", group.getValue().subjects);
+                parts.add(new StaffDto.StaffJobParts(COORDINATOR, List.copyOf(group.getValue().grades), subject, track));
+                sentences.add(coordinatorJob(group.getValue().grades, subject, track));
+                subjects.addAll(group.getValue().subjects);
+            }
+            out.add(contact(person, parts, String.join("; ", sentences), byTrack.firstKey(), String.join(", ", subjects)));
         }
         out.sort(java.util.Comparator.comparing(StaffDto.StaffContact::displayName));
         return List.copyOf(out);
+    }
+
+    /** The grades and subjects of one track that one coordinator covers for this teacher — one `jobParts` entry. */
+    private static final class Matched {
+        private final TreeSet<Integer> grades = new TreeSet<>();
+        private final LinkedHashSet<String> subjects = new LinkedHashSet<>();
+        void add(Taught t) { grades.add(t.grade()); subjects.add(t.subject()); }
     }
 
     /** `GET /teacher/managers`: the managers of the departments she teaches in, as contacts (MG1's chooser grown up). */
@@ -127,7 +148,7 @@ public class StaffDirectory {
     private List<StaffDto.StaffContact> managers(List<ChatPeers.Manager> found) {
         return found.stream().map(m -> {
             var job = new StaffDto.StaffJobParts(MANAGER, List.of(), null, m.curriculum());
-            return contact(m.user(), job, title(m.curriculum()) + " department manager", m.curriculum(), null);
+            return contact(m.user(), List.of(job), title(m.curriculum()) + " department manager", m.curriculum(), null);
         }).toList();
     }
 
@@ -139,13 +160,7 @@ public class StaffDirectory {
         var me = TeacherScope.require(caller);
         var sections = new LinkedHashMap<String, ClassEntity>();
         for (var section : teachers.classesOf(me)) sections.put(section.getId(), section);
-        var out = new LinkedHashSet<Taught>();
-        for (var assignment : teachers.assignmentsOf(me)) {
-            var section = sections.get(assignment.getClassId());
-            if (section != null && assignment.getSubject() != null)
-                out.add(new Taught(normalise(assignment.getSubject()), normalise(section.getCurriculum()), section.getGrade()));
-        }
-        return List.copyOf(out);
+        return triples(teachers.assignmentsOf(me), sections);
     }
 
     /**
@@ -154,22 +169,41 @@ public class StaffDirectory {
      * a section that has been deleted since the assignment was written is skipped rather than guessed at.
      */
     private List<Taught> taughtByUser(String teacherId) {
+        var assignments = teachers.assignmentsOf(teacherId);
+        if (assignments.isEmpty()) return List.of();
+        var sections = new LinkedHashMap<String, ClassEntity>();
+        for (var section : classes.findAllById(assignments.stream().map(TeachingAssignmentEntity::getClassId).distinct().toList()))
+            if (section.isSection()) sections.put(section.getId(), section);
+        return triples(assignments, sections);
+    }
+
+    /**
+     * The triples of a set of assignments against the sections they name, whoever the teacher is. A row pointing at a
+     * section that no longer exists — or at a pre-V7 class, which is not a section — contributes nothing, and that is
+     * the <em>only</em> thing skipped: a failing statement is not caught here, because a database error that read as
+     * "she coordinates nothing" would turn an outage into a silent 404 (review).
+     */
+    private static List<Taught> triples(List<TeachingAssignmentEntity> assignments, Map<String, ClassEntity> sections) {
         var out = new LinkedHashSet<Taught>();
-        for (var assignment : teachers.assignmentsOf(teacherId)) {
-            if (assignment.getSubject() == null) continue;
-            ClassEntity section;
-            try { section = teachers.section(assignment.getClassId()); } catch (RuntimeException gone) { continue; }
-            out.add(new Taught(normalise(assignment.getSubject()), normalise(section.getCurriculum()), section.getGrade()));
+        for (var assignment : assignments) {
+            var section = sections.get(assignment.getClassId());
+            if (section != null && assignment.getSubject() != null)
+                out.add(new Taught(normalise(assignment.getSubject()), normalise(section.getCurriculum()), section.getGrade()));
         }
         return List.copyOf(out);
     }
 
-    private StaffDto.StaffContact contact(UserEntity person, StaffDto.StaffJobParts job, String sentence, String curriculum, String subjects) {
+    private StaffDto.StaffContact contact(UserEntity person, List<StaffDto.StaffJobParts> job, String sentence,
+                                          String curriculum, String subjects) {
         return new StaffDto.StaffContact(person.getId(), ChatService.name(person), person.getEmail(), person.getRole(), sentence,
-                job, person.getPhone(), curriculum, subjects, presence.userOnline(person.getId()));
+                List.copyOf(job), person.getPhone(), curriculum, subjects == null || subjects.isBlank() ? null : subjects,
+                presence.userOnline(person.getId()));
     }
 
-    /** "Coordinator · Grade 1 · Math · British", or "Coordinator · Grades 1, 2 · Math · British" for two of hers. */
+    /**
+     * "Coordinator · Grade 1 · Math · British", or "Coordinator · Grades 1, 2 · Math · British" for two of hers *in
+     * that track*. One sentence per track, joined with "; " when a coordinator covers this teacher in both.
+     */
     private static String coordinatorJob(TreeSet<Integer> grades, String subject, String curriculum) {
         String which = grades.size() == 1 ? "Grade " + grades.first()
                 : "Grades " + String.join(", ", grades.stream().map(String::valueOf).toList());

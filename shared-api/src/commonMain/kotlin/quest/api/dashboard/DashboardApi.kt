@@ -987,8 +987,8 @@ interface DashboardApi {
 
     /**
      * T1 `GET /teacher/coordinators` — the coordinators whose scope covers a (subject, track) pair this teacher
-     * actually teaches, each with the grades of hers that put the coordinator on the list. `teacher.chat`, behind the
-     * `chat` flag with the rest of her inbox.
+     * actually teaches, each with the grades of hers that put the coordinator on the list, **one
+     * [StaffJobParts] per track**. `teacher.chat`, behind the `chat` flag with the rest of her inbox.
      */
     suspend fun teacherCoordinators(): List<StaffContact>
 

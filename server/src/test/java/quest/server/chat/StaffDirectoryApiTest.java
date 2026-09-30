@@ -23,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.socket.WebSocketSession;
 import quest.server.ApiTestSupport;
+import quest.server.ClassFixtures;
 import quest.server.auth.AdminJwtService;
 import quest.server.auth.Entities.UserEntity;
 import quest.server.auth.TeacherRepository;
@@ -72,11 +73,21 @@ class StaffDirectoryApiTest extends ApiTestSupport {
     @Autowired AdminJwtService jwt;
 
     private String lina, omar, nour, sami, maya, rami, staffThread;
+    private static final String DANA = "sd-dana", ZAID = "sd-zaid";
+    private String dana, zaid;
 
     @BeforeAll void loadTheSchool() throws Exception {
         school();
         seed.load(SCHOOL, STAFF_PASSWORD, false, DIR);
         lina = idOf(LINA); omar = idOf(OMAR); nour = idOf(NOUR); sami = idOf(SAMI); maya = idOf(MAYA); rami = idOf(RAMI);
+        // Review's fixture: a coordinator of maths in *both* tracks (`curriculum` NULL), and a teacher with one grade
+        // in each — the only shape in which "flattened across tracks" and "grouped by track" differ at all.
+        staff(DANA, "Dana", "COORDINATOR");
+        scopeRow("sd-scope-dana-math", DANA, "math", null);
+        staff(ZAID, "Zaid", "TEACHER");
+        dana = DANA; zaid = ZAID;
+        ClassFixtures.section(classes, assignments, SCHOOL + ":british:1:math-z", SCHOOL, "british", 1, "math", ZAID);
+        ClassFixtures.section(classes, assignments, SCHOOL + ":american:3:math", SCHOOL, "american", 3, "math", ZAID);
         flag(FlagKeys.CHAT, true);
     }
 
@@ -96,15 +107,17 @@ class StaffDirectoryApiTest extends ApiTestSupport {
 
     @Test @Order(1) void maya_reads_lina_as_her_grade_one_math_coordinator_and_nour_as_her_manager() throws Exception {
         var coordinators = staffGet(maya, "TEACHER", "/teacher/coordinators");
-        assertThat(names(coordinators, "displayName")).containsExactly("Lina");
-        var hers = coordinators.get(0);
+        // Dana coordinates maths in both tracks, so she covers Maya's British maths too; name order, as the route sorts
+        assertThat(names(coordinators, "displayName")).containsExactly("Dana", "Lina");
+        var hers = rowWith(coordinators, "userId", lina);
         assertThat(hers.get("userId").asText()).isEqualTo(lina);
         assertThat(hers.get("job").asText()).isEqualTo("Coordinator · Grade 1 · Math · British");
         assertThat(hers.get("email").asText()).isEqualTo(LINA);
         assertThat(hers.get("phone").asText()).isEqualTo("+971501000301");
         assertThat(hers.get("role").asText()).isEqualTo("COORDINATOR");
         assertThat(hers.get("subjects").asText()).isEqualTo("math");
-        var parts = hers.get("jobParts");
+        assertThat(hers.get("jobParts")).as("one entry per track").hasSize(1);
+        var parts = hers.get("jobParts").get(0);
         assertThat(parts.get("kind").asText()).isEqualTo("coordinator");
         assertThat(parts.get("subject").asText()).isEqualTo("math");
         assertThat(parts.get("curriculum").asText()).isEqualTo("british");
@@ -114,12 +127,12 @@ class StaffDirectoryApiTest extends ApiTestSupport {
         assertThat(names(managers, "displayName")).containsExactly("Nour");
         assertThat(managers.get(0).get("job").asText()).isEqualTo("British department manager");
         assertThat(managers.get(0).get("phone").asText()).isEqualTo("+971501000201");
-        assertThat(managers.get(0).get("jobParts").get("kind").asText()).isEqualTo("manager");
-        assertThat(managers.get(0).get("jobParts").get("curriculum").asText()).isEqualTo("british");
-        assertThat(managers.get(0).get("jobParts").get("grades")).as("a department is not a grade").isEmpty();
+        assertThat(managers.get(0).get("jobParts").get(0).get("kind").asText()).isEqualTo("manager");
+        assertThat(managers.get(0).get("jobParts").get(0).get("curriculum").asText()).isEqualTo("british");
+        assertThat(managers.get(0).get("jobParts").get(0).get("grades")).as("a department is not a grade").isEmpty();
     }
 
-    @Test @Order(2) void rami_reads_the_american_pair_and_lina_reads_her_own_manager() throws Exception {
+    @Test @Order(4) void rami_reads_the_american_pair_and_lina_reads_her_own_manager() throws Exception {
         assertThat(names(staffGet(rami, "TEACHER", "/teacher/coordinators"), "userId")).containsExactly(omar);
         assertThat(staffGet(rami, "TEACHER", "/teacher/coordinators").get(0).get("job").asText())
                 .isEqualTo("Coordinator · Grade 1 · English · American");
@@ -134,7 +147,7 @@ class StaffDirectoryApiTest extends ApiTestSupport {
 
     // ---------------------------------------------------------------- the bell
 
-    @Test @Order(3) void a_message_to_the_manager_rings_her_bell_once_per_thread() throws Exception {
+    @Test @Order(5) void a_message_to_the_manager_rings_her_bell_once_per_thread() throws Exception {
         staffThread = created(maya, "TEACHER", "/teacher/chat/staff-threads", "{\"managerUserId\":\"" + nour + "\"}").get("id").asText();
         send(maya, "Could we move the maths test?");
         var first = chatRows(nour);
@@ -153,12 +166,34 @@ class StaffDirectoryApiTest extends ApiTestSupport {
         assertThat(again.get(0).get("body").asText()).isEqualTo("Thursday would suit us better.");
     }
 
-    @Test @Order(4) void reading_the_thread_clears_the_row_and_the_next_message_rings_again() throws Exception {
+    @Test @Order(6) void reading_the_thread_clears_the_row_and_the_next_message_rings_again() throws Exception {
         mvc.perform(as(post("/management/chat/threads/" + staffThread + "/read"), token(nour, "MANAGERIAL"))).andExpect(status().isOk());
         assertThat(chatRows(nour)).isEmpty();
         send(maya, "Thank you.");
         assertThat(chatRows(nour)).hasSize(1);
         assertThat(chatRows(nour).get(0).get("body").asText()).isEqualTo("Thank you.");
+    }
+
+    /**
+     * T1 (review): the label is computed per track and grades are never flattened across them. Dana coordinates maths
+     * in <em>both</em> tracks, and Zaid teaches British grade 1 and American grade 3 — so she is two entries, "Grade 1
+     * · British" and "Grade 3 · American", and never "Grades 1, 3" of either, which would name a grade she does not
+     * coordinate for him.
+     */
+    @Test @Order(3) void a_coordinator_of_both_tracks_is_labelled_per_track_and_not_across_them() throws Exception {
+        var both = rowWith(staffGet(zaid, "TEACHER", "/teacher/coordinators"), "userId", dana);
+        var parts = both.get("jobParts");
+        assertThat(parts).as("one entry per track, not one flattened entry").hasSize(2);
+        var american = rowWith(parts, "curriculum", "american");
+        var british = rowWith(parts, "curriculum", "british");
+        assertThat(ints(british.get("grades"))).containsExactly(1);
+        assertThat(ints(american.get("grades"))).containsExactly(3);
+        assertThat(both.get("job").asText())
+                .isEqualTo("Coordinator · Grade 3 · Math · American; Coordinator · Grade 1 · Math · British");
+        // Lina coordinates British maths only, so Zaid reads her with his British grade and nothing of his American one
+        var lina1 = rowWith(staffGet(zaid, "TEACHER", "/teacher/coordinators"), "userId", lina);
+        assertThat(lina1.get("jobParts")).hasSize(1);
+        assertThat(lina1.get("job").asText()).isEqualTo("Coordinator · Grade 1 · Math · British");
     }
 
     // ---------------------------------------------------------------- T1b: the direct message to a coordinator
@@ -169,7 +204,7 @@ class StaffDirectoryApiTest extends ApiTestSupport {
      * linked to her own screen. The reach is the directory's, so Omar — the American english coordinator — is 404 to
      * her, and naming both a manager and a coordinator is 400.
      */
-    @Test @Order(6) void maya_opens_a_thread_with_lina_and_lina_answers_it_from_her_own_inbox() throws Exception {
+    @Test @Order(7) void maya_opens_a_thread_with_lina_and_lina_answers_it_from_her_own_inbox() throws Exception {
         var opened = created(maya, "TEACHER", "/teacher/chat/staff-threads", "{\"coordinatorUserId\":\"" + lina + "\"}");
         String thread = opened.get("id").asText();
         assertThat(opened.get("staffRole").asText()).as("staff_role names the peer").isEqualTo("COORDINATOR");
@@ -200,7 +235,7 @@ class StaffDirectoryApiTest extends ApiTestSupport {
         assertThat(mayasBell.get(0).get("link").asText()).as("the teacher's inbox is /teacher/chat").isEqualTo("/teacher/chat?thread=" + thread);
     }
 
-    @Test @Order(7) void a_coordinator_of_another_subject_is_not_hers_and_naming_two_peers_is_a_bad_request() throws Exception {
+    @Test @Order(8) void a_coordinator_of_another_subject_is_not_hers_and_naming_two_peers_is_a_bad_request() throws Exception {
         // Omar coordinates english in the American track; Maya teaches British maths, so he is not on her page at all
         mvc.perform(as(post("/teacher/chat/staff-threads").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"coordinatorUserId\":\"" + omar + "\"}"), token(maya, "TEACHER")))
@@ -218,7 +253,7 @@ class StaffDirectoryApiTest extends ApiTestSupport {
 
     // ---------------------------------------------------------------- presence
 
-    @Test @Order(5) void a_socket_of_the_managers_makes_her_online_on_the_directory_and_on_the_thread_row() throws Exception {
+    @Test @Order(9) void a_socket_of_the_managers_makes_her_online_on_the_directory_and_on_the_thread_row() throws Exception {
         assertThat(staffGet(maya, "TEACHER", "/teacher/managers").get(0).get("online").asBoolean())
                 .as("nobody is connected in a MockMvc test until we say so").isFalse();
         assertThat(rowOf(staffGet(maya, "TEACHER", "/teacher/chat/staff-threads"), staffThread).get("peerOnline").asBoolean()).isFalse();
@@ -258,6 +293,27 @@ class StaffDirectoryApiTest extends ApiTestSupport {
     private static JsonNode rowOf(JsonNode rows, String threadId) {
         for (var row : rows) if (row.get("id") != null && threadId.equals(row.get("id").asText())) return row;
         throw new AssertionError("no thread " + threadId + " in " + rows);
+    }
+
+    private void staff(String id, String displayName, String role) {
+        var u = users.findById(id).orElseGet(quest.server.auth.Entities.UserEntity::new);
+        u.setId(id); u.setSchoolId(SCHOOL); u.setEmail(id + "@seed.test"); u.setPasswordHash("x");
+        u.setRole(role); u.setStatus("active"); u.setDisplayName(displayName);
+        if (u.getCreatedAt() == null) u.setCreatedAt(Instant.now());
+        u.setUpdatedAt(Instant.now());
+        users.save(u);
+    }
+
+    private void scopeRow(String id, String userId, String subject, String curriculum) {
+        var row = staffScopes.findById(id).orElseGet(quest.server.tenancy.Entities.StaffScopeEntity::new);
+        row.setId(id); row.setSchoolId(SCHOOL); row.setUserId(userId); row.setSubject(subject); row.setCurriculum(curriculum);
+        if (row.getCreatedAt() == null) row.setCreatedAt(Instant.now());
+        staffScopes.save(row);
+    }
+
+    private static JsonNode rowWith(JsonNode rows, String field, String value) {
+        for (var row : rows) if (row.get(field) != null && value.equals(row.get(field).asText())) return row;
+        throw new AssertionError("no row with " + field + " = " + value + " in " + rows);
     }
 
     private String token(String userId, String role) { return jwt.issue(userId, userId + "@seed.test", role, SCHOOL).token(); }
@@ -304,6 +360,12 @@ class StaffDirectoryApiTest extends ApiTestSupport {
         row.setEnabled(enabled); row.setUpdatedBy("test"); row.setUpdatedAt(Instant.now());
         schoolFlags.save(row);
         featureFlags.invalidate(SCHOOL);
+    }
+
+    /** A seeded section by the name the CSV gave it, which is how the fixture names the two grade-1 British rooms. */
+    private String sectionId(String name) {
+        return classes.findAll().stream().filter(k -> SCHOOL.equals(k.getSchoolId())
+                        && name.equalsIgnoreCase(k.getName())).findFirst().orElseThrow().getId();
     }
 
     private String idOf(String email) {

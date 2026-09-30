@@ -54,10 +54,12 @@ public class NotificationService {
     public static final int CHAT_BODY_MAX = 120;
     private static final int DEFAULT_LIMIT = 20, MAX_LIMIT = 100;
 
-    private final NotificationRepository rows; private final UserRepository users; private final ChatBus bus; private final Json json; private final Clock clock;
+    private final NotificationRepository rows; private final UserRepository users; private final ChatBus bus;
+    private final Json json; private final Clock clock; private final NotificationRows upserts;
 
-    public NotificationService(NotificationRepository rows, UserRepository users, ChatBus bus, Json json, Clock clock) {
-        this.rows = rows; this.users = users; this.bus = bus; this.json = json; this.clock = clock;
+    public NotificationService(NotificationRepository rows, UserRepository users, ChatBus bus, Json json, Clock clock,
+                              NotificationRows upserts) {
+        this.rows = rows; this.users = users; this.bus = bus; this.json = json; this.clock = clock; this.upserts = upserts;
     }
 
     // ---------------------------------------------------------------- writing
@@ -126,23 +128,18 @@ public class NotificationService {
      * what both the throttle and the read-clear key on. `link` is the recipient's own Messages screen: a coordinator
      * sent to `/management/messages` reaches a screen she has no route to.
      *
-     * <p>Never fails the send: a bell that could not be written is logged, and the message itself is committed and
-     * delivered on the socket exactly as before.
+     * <p><strong>One statement, not a read and then an insert</strong> (review): the "one unread row" rule is enforced
+     * by V26's unique index and applied by {@link NotificationRows#upsertUnread}, in a transaction of its own, so two
+     * messages landing on one thread at the same moment cannot both decide that she has none unread. Never fails the
+     * send either way: a bell that could not be written is logged, and the message itself is committed and delivered
+     * on the socket exactly as before.
      */
-    @Transactional
     public void chatMessage(String schoolId, String userId, String threadId, String from, String body) {
         if (userId == null || threadId == null) return;
-        String title = "Message from " + (from == null || from.isBlank() ? "your school" : from);
-        String line = clip(body, CHAT_BODY_MAX);
+        String title = clip("Message from " + (from == null || from.isBlank() ? "your school" : from), TITLE_MAX);
         try {
-            var existing = rows.unreadAbout(userId, key(NotificationKind.CHAT_MESSAGE), threadId);
-            if (existing.isEmpty()) {
-                notify(schoolId, userId, NotificationKind.CHAT_MESSAGE, title, line, messagesLink(roleOf(userId), threadId), threadId);
-                return;
-            }
-            var row = existing.get(0);
-            row.setTitle(clip(title, TITLE_MAX)); row.setBody(line); row.setCreatedAt(clock.instant());
-            rows.save(row);
+            var row = upserts.upsertUnread(schoolId, userId, key(NotificationKind.CHAT_MESSAGE), threadId,
+                    title, clip(body, CHAT_BODY_MAX), messagesLink(roleOf(userId), threadId));
             publishAfterCommit(schoolId, userId, view(row));
         } catch (RuntimeException e) {
             log.warn("notifications: could not write chat.message for thread {}: {}", threadId, e.toString());

@@ -23,7 +23,9 @@ public final class StaffDto {
      * One person in the directory — `GET /teacher/coordinators`, `GET /teacher/managers` and `GET /coordinator/managers`
      * all answer this, because they are one screen asked from two roles. `userId`, `displayName` and `curriculum` are
      * the fields RM1's chooser already carried, so a client written against it reads this row unchanged; `job` is the
-     * English sentence to fall back on and `jobParts` the same thing localisable. `online` is presence (T1).
+     * English sentence to fall back on and `jobParts` the same thing localisable — **a list**, one entry per track
+     * (review), and `job` joins its sentences with "; ". `curriculum` is the first of those tracks and `subjects` the
+     * union across them, both for the RM1 client that reads one word. `online` is presence (T1).
      */
     /**
      * T1b `POST /teacher/chat/staff-threads`: whom the teacher wants to talk to — **exactly one** of the two ids, and
@@ -36,5 +38,5 @@ public final class StaffDto {
 
     @Schema(name = "StaffContact")
     public record StaffContact(String userId, String displayName, String email, String role, String job,
-                               StaffJobParts jobParts, String phone, String curriculum, String subjects, boolean online) {}
+                               List<StaffJobParts> jobParts, String phone, String curriculum, String subjects, boolean online) {}
 }

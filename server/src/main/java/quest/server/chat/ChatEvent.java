@@ -19,7 +19,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * has never heard of. It drops the fields and delivers the frame rather than logging "unreadable notification" and
  * losing the message — which is what every future component added here depends on.
  *
- * <p>T1 added `presence`, the second event that names a person rather than a thread: {@code senderKey} is the
+ * <p>T1 added `presence` and `signout`, the second and third events that names a person rather than a thread: {@code senderKey} is the
  * session key that came online or went offline (`user:<id>` / `parent:<id>`) and {@code online} says which way. It
  * carries no thread, because presence is about the person; {@link ChatPresence} resolves whom to tell on each
  * instance.
@@ -35,7 +35,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public record ChatEvent(String kind, String schoolId, String threadId, String childId, String teacherId, String parentId,
                         String senderKey, String clientId, String messageId, String messageJson, String sender, Long at,
                         String userId, String notificationJson, String peerUserId, String status, Boolean online) {
-    public static final String MESSAGE = "message", READ = "read", TYPING = "typing", NOTIFICATION = "notification", STATUS = "status", PRESENCE = "presence";
+    public static final String MESSAGE = "message", READ = "read", TYPING = "typing", NOTIFICATION = "notification", STATUS = "status", PRESENCE = "presence", SIGN_OUT = "signout";
 
     public static ChatEvent message(String schoolId, String threadId, String childId, String teacherId, String parentId, String peerUserId,
                                     String senderKey, String clientId, String messageId, String messageJson) {
@@ -61,6 +61,14 @@ public record ChatEvent(String kind, String schoolId, String threadId, String ch
      */
     public static ChatEvent presence(String schoolId, String key, boolean online, long at) {
         return new ChatEvent(PRESENCE, schoolId, null, null, null, null, key, null, null, null, null, at, null, null, null, null, online);
+    }
+    /**
+     * T1 (review): every refresh token of {@code key}'s user has been revoked. It crosses the bus because a socket
+     * lives on whichever instance took its handshake, which is not the one that served `POST /auth/sign-out` — so the
+     * instance that revoked cannot be the only one that closes.
+     */
+    public static ChatEvent signedOut(String key, long at) {
+        return new ChatEvent(SIGN_OUT, null, null, null, null, null, key, null, null, null, null, at, null, null, null, null, null);
     }
     public ChatEvent withoutMessageJson() { return new ChatEvent(kind, schoolId, threadId, childId, teacherId, parentId, senderKey, clientId, messageId, null, sender, at, userId, notificationJson, peerUserId, status, online); }
 }

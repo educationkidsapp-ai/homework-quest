@@ -47,6 +47,8 @@ public class ChatSocketHandler extends TextWebSocketHandler {
         sessions.touch(session);
         var live = sessions.of(session);
         if (live == null) return;
+        // T1 (review): the `pong` that keeps the socket alive also renews her presence lease on the other instances.
+        presence.refresh(live.peer());
         ChatCommand command;
         try { command = json.decodeShared(message.getPayload(), ChatCommand.Companion.serializer()); }
         catch (RuntimeException e) { live.offer(hub.encode(new ChatFrame.Error("bad_request", "Unreadable frame.", null)), false); return; }

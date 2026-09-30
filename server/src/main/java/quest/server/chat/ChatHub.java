@@ -53,6 +53,9 @@ public class ChatHub {
             // T1: not a thread either — one person came online or went offline, and the people she shares a thread
             // with are told. Which people that is depends on this instance's sockets, so the hub delegates.
             case ChatEvent.PRESENCE -> presence.heard(e);
+            // T1 (review): a revoked refresh token, heard on every instance — her sockets are spread over them and
+            // only one served the sign-out, so the close cannot be that instance's alone.
+            case ChatEvent.SIGN_OUT -> presence.heardSignOut(e);
             default -> log.warn("chat: unknown event kind {}", e.kind());
         }
     }
