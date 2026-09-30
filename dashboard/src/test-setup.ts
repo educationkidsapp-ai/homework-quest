@@ -1,4 +1,13 @@
 import '@testing-library/jest-dom/vitest';
+import { installStubIntersectionObserver } from './testing/intersection';
+
+/**
+ * jsdom has no `IntersectionObserver`, and MH2's plan images load when their row is near the
+ * viewport. The stub reports nothing until a spec scrolls an element into view, so the default in
+ * every spec is "nothing is on screen" — which is what makes an off-screen row's *absence* of a
+ * request assertable rather than invisible.
+ */
+installStubIntersectionObserver();
 
 /**
  * jsdom has no layout engine and no Web Animations API, and several components measure

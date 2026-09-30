@@ -17,7 +17,11 @@ import { AttachmentImageDirective, CardComponent, DialogComponent } from '../../
  * dialog, which is the only way to read a photographed A4 sheet at 200 px wide.
  *
  * Every picture is fetched with the bearer through `AttachmentImageDirective` — `[src]` pointed at
- * `attachment.url` answers 401, which is the whole reason that directive exists.
+ * `attachment.url` answers 401, which is the whole reason that directive exists — and **only once
+ * the row is near the viewport**: twelve weeks of a six-grade department is seventy-odd full-size
+ * scans, and arriving on the screen must not ask for all of them. Until the bytes are there the row
+ * draws its grade and week in the picture's own box, so the grid is readable and does not reflow
+ * when the image lands.
  */
 @Component({
   selector: 'hq-plan-weeks',
@@ -36,7 +40,22 @@ import { AttachmentImageDirective, CardComponent, DialogComponent } from '../../
                 [class.is-named]="row.id === open()"
                 (click)="enlarged.set(row)"
               >
-                <img class="pw__thumb" [hqAttachmentImage]="row.attachmentId" [alt]="altOf(row)" />
+                <span class="pw__box">
+                  <img
+                    #thumb="hqAttachmentImage"
+                    class="pw__thumb"
+                    [hqAttachmentImage]="row.attachmentId"
+                    [alt]="altOf(row)"
+                  />
+                  @if (thumb.state() !== 'ready') {
+                    <!-- Not a spinner: the two things she is looking for in a twelve-week list are
+                         the grade and the week, and they are known before any byte arrives. -->
+                    <span class="pw__placeholder" aria-hidden="true">
+                      <span class="pw__placeholder-grade">{{ gradeLabel(row) }}</span>
+                      <span>{{ weekLabel(row.weekStart) }}</span>
+                    </span>
+                  }
+                </span>
                 <span class="pw__meta">
                   @if (row.readBy !== null) {
                     <span>{{ 'plans.readBy' | transloco: { count: row.readBy } }}</span>
@@ -94,10 +113,34 @@ import { AttachmentImageDirective, CardComponent, DialogComponent } from '../../
       outline-offset: var(--hq-space-1);
     }
 
+    .pw__box {
+      position: relative;
+      display: block;
+      width: 100%;
+    }
+
     .pw__thumb {
+      display: block;
       width: 100%;
       aspect-ratio: 4 / 3;
       object-fit: cover;
+    }
+
+    .pw__placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--hq-space-1);
+      border: var(--hq-rule) solid var(--hq-ink);
+      font-size: var(--hq-font-meta-size);
+      text-align: center;
+    }
+
+    .pw__placeholder-grade {
+      font-weight: var(--hq-font-label-weight);
     }
 
     .pw__meta {

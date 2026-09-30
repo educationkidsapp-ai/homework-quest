@@ -3,6 +3,7 @@ import { Observable, throwError } from 'rxjs';
 import { catchError, shareReplay, switchMap, tap } from 'rxjs/operators';
 import { MediaApi } from '../../api';
 import { silentErrors } from '../http/error.interceptor';
+import { MediaQueue } from './media-queue.service';
 
 /**
  * How much {@link MediaService} may hold.
@@ -11,8 +12,14 @@ import { silentErrors } from '../http/error.interceptor';
  * one can be several megabytes and a `data:` URL carries it a third larger again. A dozen
  * entries would otherwise be tens of megabytes of live string in a tab that stays open all day.
  *
+ * **Raised from 16 MB / 16 entries by MH2.** A weekly plan is a full-size scan of up to 5 MB,
+ * which is ~6.8 MB as a `data:` URL, so the old ceiling held **two** of them: every change of the
+ * archive's grade filter evicted what was on screen and fetched it again, which is the opposite of
+ * what a cache is for. 40 MB is a ceiling rather than a working set — the pictures are only fetched
+ * as they scroll into view — and it is what makes re-filtering free.
+ *
  * A token rather than two constants so a spec can set them to two and three bytes and watch the
- * eviction happen, instead of allocating sixteen megabytes to prove it.
+ * eviction happen, instead of allocating forty megabytes to prove it.
  */
 export interface MediaCacheLimits {
   readonly entries: number;
@@ -21,7 +28,7 @@ export interface MediaCacheLimits {
 
 export const MEDIA_CACHE_LIMITS = new InjectionToken<MediaCacheLimits>('hq.media.cacheLimits', {
   providedIn: 'root',
-  factory: (): MediaCacheLimits => ({ entries: 16, bytes: 16 * 1024 * 1024 }),
+  factory: (): MediaCacheLimits => ({ entries: 32, bytes: 40 * 1024 * 1024 }),
 });
 
 interface Entry {
@@ -64,6 +71,7 @@ interface Entry {
 @Injectable({ providedIn: 'root' })
 export class MediaService {
   private readonly media = inject(MediaApi);
+  private readonly queue = inject(MediaQueue);
   private readonly limits = inject(MEDIA_CACHE_LIMITS);
   private readonly cache = new Map<string, Entry>();
   private held = 0;
@@ -105,7 +113,7 @@ export class MediaService {
    */
   attachmentImage(id: string): Observable<string> {
     return this.remember(`att:${id}`, (key) =>
-      this.read(key, this.media.attachment(id, 'body', false, { context: silentErrors() })),
+      this.read(key, this.media.attachment(id, 'body', false, { context: silentErrors() }), true),
     );
   }
 
@@ -124,13 +132,22 @@ export class MediaService {
   }
 
   /**
-   * Say which lesson the crops being asked for belong to. A different one empties the cache;
-   * `null` is "no lesson on screen", which also empties it.
+   * Say which lesson the crops being asked for belong to. A different one drops that lesson's
+   * crops; `null` is "no lesson on screen", which drops them too.
+   *
+   * **Attachments survive it** (MH2). A crop belongs to a lesson and is never asked for again once
+   * it is closed, which is the whole reason this method exists; a weekly plan belongs to no lesson
+   * at all, and throwing one away because somebody opened a lesson page in between would be a
+   * re-download of a five-megabyte scan for nothing.
    */
   scopeTo(lessonId: string | null): void {
     if (lessonId === this.scope) return;
     this.scope = lessonId;
-    this.clear();
+    for (const [key, entry] of this.cache) {
+      if (key.startsWith('att:')) continue;
+      this.held -= entry.size;
+      this.cache.delete(key);
+    }
   }
 
   /** Forget every crop. Called on sign-out — see the class comment. */
@@ -144,11 +161,16 @@ export class MediaService {
     return this.held;
   }
 
-  private read(key: string, request: Observable<string>): Observable<string> {
+  /**
+   * `bounded` puts the read behind {@link MediaQueue}: at most three of these are in flight at
+   * once. MH2 turned it on for the attachments, which are full-size scans an archive draws many of;
+   * a page crop is asked for one lesson at a time and does not need the gate.
+   */
+  private read(key: string, request: Observable<string>, bounded = false): Observable<string> {
     // The generated signature says `string` because the contract's response is `*/*`; the
     // generator picks `responseType: 'blob'` for it, so what actually arrives is a Blob.
-    return (request as unknown as Observable<Blob>).pipe(
-      switchMap((blob) => dataUrlOf(blob)),
+    const bytes = (request as unknown as Observable<Blob>).pipe(switchMap((blob) => dataUrlOf(blob)));
+    return (bounded ? this.queue.run(() => bytes) : bytes).pipe(
       tap((dataUrl) => this.account(key, dataUrl.length)),
       catchError((error: unknown) => {
         this.cache.delete(key);

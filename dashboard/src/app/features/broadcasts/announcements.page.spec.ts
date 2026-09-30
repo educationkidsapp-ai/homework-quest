@@ -7,6 +7,7 @@ import { screen } from '@testing-library/angular';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { COORDINATOR_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
+import { scrollIntoView } from '../../../testing/intersection';
 import { BASE_PATH } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
@@ -369,17 +370,35 @@ describe('the announcements screen', () => {
     await settle();
 
     // The alt text is what a plan *says* now — "Weekly plan · Grade N · Week of …".
-    const alts = [...document.querySelectorAll('img.pw__thumb')].map((node) => node.getAttribute('alt'));
+    const thumbs = [...document.querySelectorAll('img.pw__thumb')];
+    const alts = thumbs.map((node) => node.getAttribute('alt'));
     expect(alts.some((alt) => alt?.includes('Grade 1'))).toBe(true);
     expect(alts.some((alt) => alt?.includes('Grade 3'))).toBe(true);
-    // And every one of them is fetched with the bearer, never pointed at the DTO's absolute url.
-    const bytes = backend.match((request) => request.url.startsWith('/media/attachments/'));
-    expect(bytes.map((request) => request.request.url).sort()).toEqual([
-      '/media/attachments/att-1',
-      '/media/attachments/att-old',
-    ]);
-    bytes.forEach((request) => request.flush(new Blob(['x'], { type: 'image/png' })));
+
+    /*
+     * **Nothing is fetched by arriving on the tab.** Twelve weeks of a six-grade department is
+     * seventy-odd full-size scans of up to 5 MB, and the review's blocker was that opening the
+     * screen asked for every one of them. Until a row is near the viewport it draws its grade and
+     * its week and asks for nothing.
+     */
+    expect(backend.match((request) => request.url.startsWith('/media/attachments/'))).toEqual([]);
+    expect(document.body.textContent).toContain('Week of');
+    expect(document.querySelectorAll('.pw__placeholder')).toHaveLength(2);
+
+    // Scrolling to one row fetches that row's picture, with the bearer, by id — and only that one.
+    scrollIntoView(thumbs[0]!);
     await settle();
+    const bytes = backend.match((request) => request.url.startsWith('/media/attachments/'));
+    expect(bytes.map((request) => request.request.url)).toEqual(['/media/attachments/att-1']);
+    bytes.forEach((request) => request.flush(new Blob(['x'], { type: 'image/png' })));
+    // A real wait, not a microtask one: the bytes become a `data:` URL through `FileReader`, which
+    // resolves on the task queue rather than in a promise.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    TestBed.tick();
+    // The row that loaded drops its placeholder; the one still below the fold keeps hers.
+    expect(document.querySelectorAll('.pw__placeholder')).toHaveLength(1);
+    expect(thumbs[0]!.getAttribute('data-hq-media')).toBe('ready');
+
     // `readBy` is the manager's own archive; a reader's rows carry none, so nothing says it here.
     expect(document.body.textContent).not.toContain('Read by');
   });
