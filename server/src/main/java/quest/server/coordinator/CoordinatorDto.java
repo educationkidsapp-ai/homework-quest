@@ -71,11 +71,16 @@ public final class CoordinatorDto {
     public record CoordinatorManager(String userId, String displayName, String curriculum) {}
 
     /**
-     * `POST /coordinator/chat/threads` and — MG1 — `POST /teacher/chat/staff-threads`: the manager or teacher the caller
-     * wants to talk to, validated against her scope.
+     * `POST /coordinator/chat/threads` and — MG1 — `POST /teacher/chat/staff-threads`: the manager the caller wants to
+     * talk to, validated against her own department either way.
+     *
+     * <p><strong>Named for the document.</strong> springdoc keys a schema by the record's simple name, and
+     * `ManagementChatController.StaffThreadRequest` is a different shape with the same one — so the generated client
+     * got whichever of the two springdoc happened to resolve last. The manager's keeps `StaffThreadRequest`, the name
+     * `server/openapi.json` already carries, and this one says whose door it opens.
      */
     @io.swagger.v3.oas.annotations.media.Schema(name = "OpenManagerThreadRequest")
-    public record StaffThreadRequest(String managerUserId, String teacherUserId) {}
+    public record StaffThreadRequest(@NotBlank String managerUserId) {}
 
     /** `PATCH /coordinator/chat/threads/{id}/status`: `open` or `resolved`, the two words the column holds. */
     public record ThreadStatusRequest(@NotBlank String status) {}

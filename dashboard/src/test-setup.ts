@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom/vitest';
-import { beforeEach } from 'vitest';
 
 /**
  * jsdom has no layout engine and no Web Animations API, and several components measure
@@ -55,12 +54,3 @@ if (typeof globalThis.matchMedia !== 'function') {
     dispatchEvent: () => false,
   });
 }
-
-beforeEach(() => {
-  localStorage.clear();
-  if (typeof document !== 'undefined' && document.documentElement) {
-    document.documentElement.dir = 'ltr';
-    document.documentElement.lang = 'en';
-  }
-});
-

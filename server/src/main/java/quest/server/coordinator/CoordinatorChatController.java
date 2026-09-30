@@ -122,8 +122,8 @@ public class CoordinatorChatController {
     @ResponseStatus(HttpStatus.CREATED)
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatThread.class)))
     public String coordinatorStaffThread(@AuthenticationPrincipal Principals.User caller,
-                                         @RequestBody CoordinatorDto.StaffThreadRequest body) {
-        return json.encodeShared(chat.coordinatorStaffThread(caller, body.managerUserId(), body.teacherUserId()), ChatThread.Companion.serializer());
+                                         @RequestBody @Valid CoordinatorDto.StaffThreadRequest body) {
+        return json.encodeShared(chat.coordinatorStaffThread(caller, body.managerUserId()), ChatThread.Companion.serializer());
     }
 
     /** `open` / `resolved` on a complaint. The parent is told over her own socket with a `status` frame. */

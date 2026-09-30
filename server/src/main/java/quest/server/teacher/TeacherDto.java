@@ -186,10 +186,6 @@ public final class TeacherDto {
     /** How many of the school's coordinators it reached — the screen says "sent" on one or more. */
     public record CoordinatorMessageResult(int delivered) {}
 
-    // ---------------------------------------------------------------- staff chat with coordinators
-    public record TeacherCoordinator(String userId, String displayName, String subjects) {}
-    public record TeacherStaffThreadRequest(@NotBlank String coordinatorUserId) {}
-
     // The app side (`TeacherQuestionPlay`, `TeacherAnswerUpload`, `ParentAnnouncement`) has no mirror here: those
     // routes hang off `/children/**` and are encoded with the shared kotlinx codec like every other `ContentApi`
     // route, because a teacher's question is a list of `Stop`s and only that codec can write one.

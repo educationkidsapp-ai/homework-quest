@@ -1229,8 +1229,6 @@
     "offline": "Offline",
     "parent": "Parent of {{child}}",
     "parentTyping": "Parent is typing...",
-    "typing": "Typing...",
-    "isTyping": "is typing...",
     "writeMessage": "Write a message...",
     "send": "Send",
     "you": "You",

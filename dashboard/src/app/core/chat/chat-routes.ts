@@ -54,8 +54,8 @@ export interface ChatTransport {
   owns(thread: ChatThread): boolean;
   /** The id `{id}`/`{childId}` in this role's routes, and the id a thread row is tracked by. */
   keyOf(thread: ChatThread): string;
-  /** What a socket `ChatCommand` names this thread by: `childId` for a teacher, `threadId` for staff/coordinator. */
-  commandKey(key: string, isStaff?: boolean): ChatCommandKey;
+  /** What a socket `ChatCommand` names this thread by: `childId` for a teacher, `threadId` for her. */
+  commandKey(key: string): ChatCommandKey;
   threads(): Observable<ChatThread[]>;
   messages(key: string, since?: string): Observable<ChatMessage[]>;
   send(key: string, body: string): Observable<ChatMessage>;
