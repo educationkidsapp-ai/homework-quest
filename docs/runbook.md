@@ -443,14 +443,21 @@ curl -s -X POST "$API/admin/children" -H "Authorization: Bearer $ADMIN" -H "X-Sc
   -H 'Content-Type: application/json' -d '{"name":"Hala Ahmed","classId":"…","grade":1,"curriculum":"british",
        "parentName":"Ahmed Ali","parentPhone":"0501002030","parentEmail":"ahmed@example.com",
        "parentInitialPassword":"…"}'
-# 201 { childId, parentId, parentCreated }
+# 201 { childId, parentId, parentCreated, passwordApplied }
 ```
 
 `grade` and `curriculum` are the section's own and may be sent for confirmation only — a disagreement is a 400, because
 a Grade 1 British child in a Grade 1 American class would be shown lessons for a syllabus she is not taught. The
-password is **at least eight characters**, is the Admin's to read out in the room, and is stored nowhere on the server:
-not in the audit row, not in a log line, not in a mail. An address the school already has is **reused** (a second child
-of one family is one account, `parentCreated: false`); an address whose family belongs to **another school** is a 409.
+password is **at least eight characters**, is never the address itself, is trimmed once (the trimmed value is what the
+provider is handed), is the Admin's to read out in the room, and is stored nowhere on the server: not in the audit row,
+not in a log line, not in a mail. An address the school already has is **reused** (a second child of one family is one
+account, `parentCreated: false`); an address whose family belongs to **another school** is a 409.
+
+**`passwordApplied` is the field the screen must read out loud.** It is true only when *this* call minted the login. A
+login that already exists keeps the password its owner chose — overwriting a stranger's password is not this route's job
+— so `passwordApplied: false` means "she already has an account; her existing password still works", and the paper the
+Admin has just written the typed password on is worthless. `parentCreated` answers a different question (the local
+`parents` row), which is why there are two flags and not one.
 A Firebase account that exists but has no `parents` row — a parent who signed up in the app before the school typed her
 in — keeps its uid and its own password; `POST /admin/children/{id}/parent/reset-password` is the only route that
 changes one.

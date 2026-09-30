@@ -141,7 +141,8 @@ data class UpdateRosterChildRequest(
  *
  * The parent's account does not live in this database — she signs in to the app with Firebase email/password — so the
  * server creates it there first and then writes the local `parents` row. [parentInitialPassword] is the Admin's to
- * choose and to read out in the room; at least eight characters, and it is stored nowhere on the server.
+ * choose and to read out in the room; at least eight characters, never the address itself, trimmed once and stored
+ * nowhere on the server. It is applied **only** when this call mints the login — see [ChildAdmission.passwordApplied].
  *
  * [grade] and [curriculum] are the section's own and may be sent for confirmation only: a disagreement is a 400,
  * because a Grade 1 British child in a Grade 1 American class would be shown lessons for a syllabus she is not taught.
@@ -161,9 +162,23 @@ data class AdmitChildRequest(
     val parentPhone: String? = null,
 )
 
-/** 201 from [AdmitChildRequest]: [parentCreated] is false when the address already had a parent row at this school. */
+/**
+ * 201 from [AdmitChildRequest]. [parentCreated] is false when the address already had a `parents` row;
+ * [passwordApplied] is true **only** when this call minted the Firebase login with the [AdmitChildRequest.parentInitialPassword]
+ * that was typed.
+ *
+ * A login that already exists keeps the password its owner chose — overwriting a stranger's password is not this
+ * route's to do — so the two flags answer two different questions and **the screen must say which happened in words**:
+ * `passwordApplied == false` means "she already has an account; her existing password still works", and the paper the
+ * Admin just wrote the typed password on is worthless.
+ */
 @Serializable
-data class ChildAdmission(val childId: String, val parentId: String, val parentCreated: Boolean)
+data class ChildAdmission(
+    val childId: String,
+    val parentId: String,
+    val parentCreated: Boolean,
+    val passwordApplied: Boolean = false,
+)
 
 /**
  * One line of the Children &amp; parents page. [parentName] is null for a parent the app created on first sight of her

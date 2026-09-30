@@ -37,11 +37,22 @@ import quest.server.tenancy.TenantContext;
  * The initial password is the Admin's to choose and read out in the room; it is never stored here, never logged and
  * never in the audit row, exactly as a teacher's one-time password is not.
  *
+ * <p><strong>Reuse, and what the Admin must be told.</strong> When the login already exists the typed
+ * `parentInitialPassword` is <em>not</em> applied — overwriting a password a stranger chose is not this route's to do —
+ * and the answer says so in a field of its own: `passwordApplied` is true only when this call minted the login.
+ * `parentCreated` is about the local `parents` row and is a different question, so the dashboard has both and can put
+ * "she already has an account; her existing password still works" on the screen in words.
+ *
  * <p><strong>Reuse, and the refusal.</strong> An address the school already has is reused — a second child of the same
  * family is one parent account, and `parentCreated` is false — but an address whose family belongs to <em>another</em>
  * school is a 409, because linking her would hand that school's parent a child of this one. The question only has an
  * answer across schools, which is why {@link ChildRepository#findSchoolIdsOfParentAcrossSchools} is native: a
  * Hibernate filter would make it answer "no other school" every time.
+ *
+ * <p><strong>Known, and deliberately not fixed here:</strong> the provider round trip in {@link #admit} runs inside the
+ * transaction, so a pooled connection is held across a network call. This is an Admin typing one family into a form —
+ * one call at a time, at human pace — and moving it out is not a reordering but a second transaction plus something to
+ * undo the login if the roster write then fails. The day this page gains a bulk import is the day to do that properly.
  *
  * <p><strong>Nothing takes a school from the request.</strong> The section goes through {@link TeacherScope} and the
  * page is read with {@link TenantContext#writeSchoolId()}, so another school's class is a 404 and another school's
@@ -82,12 +93,14 @@ public class ChildAdmissionService {
         String email = AuthService.normalise(request.parentEmail());
         if (!email.contains("@")) throw ApiException.badRequest("That is not an email address.");
         String phone = Phones.normalise(request.parentPhone(), "parentPhone");
-        String password = password(request.parentInitialPassword());
+        String password = password(request.parentInitialPassword(), email);
 
         var parent = parents.findFirstByEmailIgnoreCase(email).orElse(null);
-        boolean created = false;
+        boolean created = false, passwordApplied = false;
         if (parent == null) {
-            var account = accounts.byEmail(email).orElseGet(() -> accounts.create(email, password, parentName));
+            var found = accounts.byEmail(email);
+            var account = found.orElseGet(() -> accounts.create(email, password, parentName));
+            passwordApplied = found.isEmpty();                                   // true only when *this* call minted it
             // `firebase_uid` is unique, and a row carrying this uid under another address is the same person (she
             // changed her address in the app): reuse it, rather than meeting the constraint with a second insert.
             parent = parents.findByFirebaseUid(account.uid()).orElse(null);
@@ -97,8 +110,8 @@ public class ChildAdmissionService {
         var child = rosters.admit(caller, section, childName, email, parent.getId());
         // The password is deliberately not in the audit details: the row is readable by every Admin, for ever.
         audit.record(caller.userId(), "child.parentAccount", "child", child.getId(), section.getSchoolId(),
-                Map.of("parentCreated", created));
-        return new ClassDto.ChildAdmission(child.getId(), parent.getId(), created);
+                Map.of("parentCreated", created, "passwordApplied", passwordApplied));
+        return new ClassDto.ChildAdmission(child.getId(), parent.getId(), created, passwordApplied);
     }
 
     /**
@@ -185,11 +198,20 @@ public class ChildAdmissionService {
 
     // ---------------------------------------------------------------- helpers
 
-    private static String password(String value) {
-        String raw = value == null ? "" : value;
-        if (raw.trim().length() < MIN_PASSWORD)
+    /**
+     * The password as it will actually be sent to the provider. <strong>Trimmed once, and the trimmed value is what is
+     * both checked and used</strong> — the first cut counted the length of `trim()` and handed the provider the
+     * untrimmed string, so "        abc" passed an eight-character test and became a password nobody could re-type.
+     * Edge whitespace on a value an Admin reads out in a room is a typo, not a secret.
+     */
+    private static String password(String value, String email) {
+        String cleaned = value == null ? "" : value.trim();
+        if (cleaned.length() < MIN_PASSWORD)
             throw ApiException.badRequest("parentInitialPassword needs at least " + MIN_PASSWORD + " characters.");
-        return raw;
+        // Her own address is the first thing anybody guesses, and it is the one string this request is certain to know.
+        if (cleaned.equalsIgnoreCase(email))
+            throw ApiException.badRequest("parentInitialPassword must not be the address itself.");
+        return cleaned;
     }
 
     private static String text(String value, String field, int max) {

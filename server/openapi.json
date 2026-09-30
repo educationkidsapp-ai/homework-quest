@@ -808,6 +808,9 @@
           },
           "parentId" : {
             "type" : "string"
+          },
+          "passwordApplied" : {
+            "type" : "boolean"
           }
         },
         "type" : "object"

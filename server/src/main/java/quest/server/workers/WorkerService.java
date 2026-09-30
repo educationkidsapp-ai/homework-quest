@@ -79,7 +79,11 @@ public class WorkerService {
 
     // ---------------------------------------------------------------- helpers
 
-    /** A worker of the caller's scope. The repository is filtered, so another school's is simply not found. */
+    /**
+     * A worker of the caller's scope. The `school` filter is <em>not</em> what does it: `findById` is `em.find`, which
+     * Hibernate filters never touch, so the explicit comparison below is the scope — the same reason
+     * `ChildRepository.findOneById` exists as a query rather than a `findById`.
+     */
     private WorkerEntity worker(String id) {
         return workers.findById(id).filter(w -> Objects.equals(tenant.writeSchoolId(), w.getSchoolId()))
                 .orElseThrow(() -> ApiException.notFound("worker"));

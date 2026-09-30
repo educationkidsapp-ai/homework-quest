@@ -193,6 +193,7 @@ class AdminPeopleApiTest extends ApiTestSupport {
                         .content(admission("Hala Ahmed", CLASS_A, 1, "british", "Ahmed Ali", email, "0501002030", "read-it-out")), admin, SCHOOL))
                 .andExpect(status().isCreated()).andReturn());
         assertThat(admitted.get("parentCreated").asBoolean()).isTrue();
+        assertThat(admitted.get("passwordApplied").asBoolean()).isTrue();         // this call minted the login
         String childId = admitted.get("childId").asText(), parentId = admitted.get("parentId").asText();
 
         // The placement is the roster's, read by the route the Admin's class screen reads.
@@ -219,6 +220,8 @@ class AdminPeopleApiTest extends ApiTestSupport {
                         .content(admission("Omar Ahmed", CLASS_B, 2, "american", "Ahmed Ali", email, null, "read-it-out")), admin, SCHOOL))
                 .andExpect(status().isCreated()).andReturn());
         assertThat(sibling.get("parentCreated").asBoolean()).isFalse();
+        // …and her existing password is kept, which the answer says rather than leaving the Admin to infer it.
+        assertThat(sibling.get("passwordApplied").asBoolean()).isFalse();
         assertThat(sibling.get("parentId").asText()).isEqualTo(parentId);
 
         // The parent's password is replaced through the port, answered once.
@@ -248,6 +251,15 @@ class AdminPeopleApiTest extends ApiTestSupport {
         mvc.perform(scoped(post("/admin/children").contentType(MediaType.APPLICATION_JSON)
                         .content(admission("Short Password", CLASS_A, 1, "british", "P", "short." + email, null, "1234567")), admin, SCHOOL))
                 .andExpect(status().isBadRequest());
+        // Eight characters of whitespace is not a password: the length is checked on the trimmed value, which is also
+        // the value the provider is handed.
+        mvc.perform(scoped(post("/admin/children").contentType(MediaType.APPLICATION_JSON)
+                        .content(admission("Padded", CLASS_A, 1, "british", "P", "pad." + email, null, "   abc   ")), admin, SCHOOL))
+                .andExpect(status().isBadRequest());
+        // …and her own address is the first thing anybody guesses.
+        mvc.perform(scoped(post("/admin/children").contentType(MediaType.APPLICATION_JSON)
+                        .content(admission("Own Address", CLASS_A, 1, "british", "P", "self." + email, null, "self." + email)), admin, SCHOOL))
+                .andExpect(status().isBadRequest());
         mvc.perform(scoped(post("/admin/children").contentType(MediaType.APPLICATION_JSON)
                         .content(admission("Wrong Grade", CLASS_A, 5, "british", "P", "grade." + email, null, "read-it-out")), admin, SCHOOL))
                 .andExpect(status().isBadRequest());
@@ -276,6 +288,7 @@ class AdminPeopleApiTest extends ApiTestSupport {
                 .andExpect(status().isCreated()).andReturn());
         assertThat(admitted.get("parentId").asText()).isEqualTo(existing.getId());
         assertThat(admitted.get("parentCreated").asBoolean()).isFalse();
+        assertThat(admitted.get("passwordApplied").asBoolean()).isFalse();
         var reloaded = parents.findById(existing.getId()).orElseThrow();
         assertThat(reloaded.getFirebaseUid()).isEqualTo("fake-token-" + email);       // the app's uid, untouched
         assertThat(reloaded.getDisplayName()).isEqualTo("App Parent");                // V25's column, filled in
