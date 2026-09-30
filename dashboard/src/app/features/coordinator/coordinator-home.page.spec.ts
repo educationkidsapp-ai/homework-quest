@@ -60,8 +60,22 @@ const CLASSES = [
   },
 ];
 
-const NEEDS_REVIEW = [{ id: 'l-1', title: 'Adding to ten', className: '1A', status: 'needs_review' }];
-const FAILED = [{ id: 'l-2', title: 'Taking away', className: '1B', status: 'error' }];
+/**
+ * A fortnight of her subject, as `GET /coordinator/lessons` answers it with no `status` at all.
+ *
+ * MH0: the endpoint narrows by `draft|ready|published` alone, so the two statuses this list is
+ * about could not be asked for — `needs_review` was a 400. The rows come back whole and the
+ * screen keeps the ones that need somebody, which is why a published lesson is in this fixture.
+ */
+const RECENT_LESSONS = [
+  { id: 'l-1', title: 'Adding to ten', className: '1A', status: 'needs_review' },
+  { id: 'l-2', title: 'Taking away', className: '1B', status: 'error' },
+  // Neither of these is anybody's problem, and neither may reach the list.
+  { id: 'l-3', title: 'Counting on', className: '1A', status: 'published' },
+  { id: 'l-4', title: 'Shapes', className: '1A', status: 'draft' },
+  // A pipeline that stopped short of a lesson reads as "Failed", like an error does.
+  { id: 'l-5', title: 'Doubling', className: '1B', status: 'paused' },
+];
 
 /**
  * R5's Home (`docs/coordinator-flow.md` §2).
@@ -96,8 +110,11 @@ describe('the coordinator Home', () => {
     backend.expectOne('/coordinator/me').flush(ME);
     backend.expectOne('/coordinator/teachers').flush(TEACHERS);
     backend.expectOne('/coordinator/classes').flush(CLASSES);
-    backend.expectOne('/coordinator/lessons?status=needs_review').flush(NEEDS_REVIEW);
-    backend.expectOne('/coordinator/lessons?status=error').flush(FAILED);
+    // One read, and `status` is never on it: the query cannot express what this list is about.
+    const lessons = backend.expectOne((request) => request.url === '/coordinator/lessons');
+    expect(lessons.request.params.has('status')).toBe(false);
+    expect(lessons.request.params.get('from')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    lessons.flush(RECENT_LESSONS);
     await Promise.resolve();
     TestBed.tick();
     await Promise.resolve();
@@ -116,19 +133,25 @@ describe('the coordinator Home', () => {
     expect(screen.getByText('Children')).toBeTruthy();
   });
 
-  it('puts the failed lesson first, then the review, then the class with nothing on today', async () => {
+  it('puts the failed lessons first, then the review, then the class with nothing on today', async () => {
     await renderHome();
 
     const card = document.querySelectorAll('hq-card')[0]!;
     const rows = [...card.querySelectorAll('li')].map((row) => row.textContent ?? '');
 
-    expect(rows.length).toBe(3);
+    // Four of the five lessons the read answered are not hers to chase; the published and the
+    // draft one never reach the list, and the paused one reads as a failure.
+    expect(rows.length).toBe(4);
     expect(rows[0]).toContain('Taking away');
     expect(rows[0]).toContain('Failed');
-    expect(rows[1]).toContain('Adding to ten');
-    expect(rows[1]).toContain('Needs review');
-    expect(rows[2]).toContain('Nothing on today');
-    expect(rows[2]).toContain('1B');
+    expect(rows[1]).toContain('Doubling');
+    expect(rows[1]).toContain('Failed');
+    expect(rows[2]).toContain('Adding to ten');
+    expect(rows[2]).toContain('Needs review');
+    expect(rows[3]).toContain('Nothing on today');
+    expect(rows[3]).toContain('1B');
+    expect(rows.join(' ')).not.toContain('Counting on');
+    expect(rows.join(' ')).not.toContain('Shapes');
 
     // Each lesson line is a way *in*, in her own namespace — she changes nothing from here (DR2).
     expect(

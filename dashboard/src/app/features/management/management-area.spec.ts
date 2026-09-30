@@ -1,7 +1,8 @@
+import { Component } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, RouterOutlet, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ADMIN_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
@@ -273,8 +274,6 @@ describe('RM3a — the management area', () => {
       backend.expectOne('/management/me').flush(ME);
       backend.expectOne('/management/teachers').flush([]);
       backend.expectOne('/management/classes').flush([]);
-      backend.expectOne('/management/lessons?status=needs_review').flush([]);
-      backend.expectOne('/management/lessons?status=error').flush([]);
       backend.expectOne((request) => request.url === '/management/stats').flush(STATS);
       await Promise.resolve();
       TestBed.tick();
@@ -312,6 +311,103 @@ describe('RM3a — the management area', () => {
     it('draws nothing at all rather than an empty total row when the window answered nothing', () => {
       expect(statsRows(undefined)).toEqual([]);
       expect(quietTeachers(undefined)).toEqual([]);
+    });
+  });
+
+  /**
+   * MH0 — the two bugs the owner hit on every open of her Home.
+   *
+   * They were one fault with two faces. `GET /management/lessons` narrows by
+   * `draft|ready|published`, so the "what needs you" ask for `needs_review` came back 400 —
+   * the red band, verbatim — and an errored resource's `value()` *throws*, so the computed that
+   * read it threw inside her template: change detection died on the way out of the skeleton and
+   * only a full reload, which renders in a different order, ever got past it.
+   */
+  describe('her Home on the second visit', () => {
+    @Component({ selector: 'hq-mg-elsewhere', template: '<p>Elsewhere</p>' })
+    class ElsewherePage {}
+
+    @Component({ selector: 'hq-mg-shell', imports: [RouterOutlet], template: '<router-outlet />' })
+    class ShellComponent {}
+
+    async function settle() {
+      await Promise.resolve();
+      TestBed.tick();
+      await Promise.resolve();
+      TestBed.tick();
+    }
+
+    /** Answers everything outstanding the way the live server would, and says what was asked. */
+    function serve(backend: HttpTestingController): string[] {
+      const asked: string[] = [];
+      for (const request of backend.match(() => true)) {
+        const url = request.request.urlWithParams;
+        asked.push(url);
+        if (request.cancelled) continue;
+        if (url === '/management/me') request.flush(ME);
+        else if (url.startsWith('/management/stats')) request.flush(STATS);
+        else if (url.startsWith('/management/lessons')) {
+          // The 400 the owner saw. Reaching this line at all is the bug.
+          request.flush(
+            { message: 'Status is draft, ready or published' },
+            { status: 400, statusText: 'Bad Request' },
+          );
+        } else request.flush([]);
+      }
+      return asked;
+    }
+
+    it('draws the department again when she clicks Home in the rail, and never asks for lessons', async () => {
+      const rendered = await renderHq(ShellComponent, {
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([
+            { path: 'management', component: ManagementHomePage },
+            { path: 'management/elsewhere', component: ElsewherePage },
+          ]),
+          { provide: BASE_PATH, useValue: '' },
+        ],
+      });
+      const backend = TestBed.inject(HttpTestingController);
+      const router = TestBed.inject(Router);
+      TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+      TestBed.inject(AuthService).loadMe().subscribe();
+      backend.expectOne('/me').flush(MANAGERIAL_USER);
+      await settle();
+
+      await router.navigateByUrl('/management');
+      await settle();
+      const first = serve(backend);
+      await settle();
+      const second = serve(backend);
+      await settle();
+      expect(document.body.textContent).toContain('Whole department');
+
+      // Away to another of her screens, then back — no reload anywhere in between.
+      await router.navigateByUrl('/management/elsewhere');
+      await settle();
+      serve(backend);
+      expect(document.body.textContent).toContain('Elsewhere');
+
+      await router.navigateByUrl('/management');
+      await settle();
+      const third = serve(backend);
+      await settle();
+      serve(backend);
+      await settle();
+
+      // The bug: her Home came back as the skeleton and stayed there until a force-refresh.
+      expect(document.body.textContent).not.toContain('Loading your home');
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Huda Salem');
+      expect(document.body.textContent).toContain('How the department is doing');
+      expect(document.body.textContent).toContain('Whole department');
+      // Her "what needs you" is the sections with nothing on today; no lesson read on any visit.
+      expect([...first, ...second, ...third].filter((url) => url.startsWith('/management/lessons'))).toEqual(
+        [],
+      );
+      backend.verify();
+      rendered.fixture.destroy();
     });
   });
 

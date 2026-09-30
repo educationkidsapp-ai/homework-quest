@@ -1,6 +1,6 @@
 import { Injectable, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { catchError, forkJoin, map, of } from 'rxjs';
+import { catchError, map, of } from 'rxjs';
 import {
   type ChatThread,
   type CoordinatorTeacher,
@@ -10,8 +10,31 @@ import {
   ManagementApi,
 } from '../../api';
 import { StaffAreaService } from '../../core/auth/staff-area';
+import { PlatformService } from '../../core/platform/platform.service';
 import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { type CellStatus, normaliseStatus } from '../week/week.models';
+
+/**
+ * How far back a coordinator's "What needs you" looks for a lesson.
+ *
+ * A fortnight, because the list is what she would act on this week: a lesson that stalled in
+ * March is a conversation she has already had, and an unbounded read is every lesson her subject
+ * has ever had in six grades.
+ */
+const ATTENTION_WINDOW_DAYS = 14;
+
+/**
+ * The fine-grained statuses that put a lesson on her list.
+ *
+ * `paused` sits with `error` rather than with `needs_review`: both are a pipeline that stopped
+ * short of a lesson, which is the thing she would ask the teacher about, while `needs_review` is
+ * a lesson that got all the way there and wants eyes.
+ */
+const ATTENTION_STATUSES: ReadonlySet<AdminLessonStatusEnum> = new Set([
+  AdminLessonStatusEnum.NEEDS_REVIEW,
+  AdminLessonStatusEnum.ERROR,
+  AdminLessonStatusEnum.PAUSED,
+]);
 
 /** Nobody signed in, or nobody with a scope: zeros and no chips, never a half-drawn header. */
 const EMPTY_SCOPE: ScopeView = {
@@ -71,14 +94,8 @@ export interface StaffNeed {
   readonly kind: 'complaint' | 'needs_review' | 'error' | 'no_lesson';
   readonly title: string;
   readonly className: string;
-  /**
-   * `{base}/lessons/{id}`, or the Classes screen when there is no lesson to open.
-   *
-   * `null` for a manager's lesson lines since MG2a: All lessons and the read-only lesson page
-   * left her rail, so the line still tells her which lesson needs somebody — that is the whole
-   * point of the list — but it is not a link to a screen she no longer has.
-   */
-  readonly link: readonly string[] | null;
+  /** `{base}/lessons/{id}`, or the list screen when there is no one lesson to open. */
+  readonly link: readonly string[];
 }
 
 /**
@@ -107,6 +124,7 @@ export class StaffScopeService {
   private readonly management = inject(ManagementApi);
   private readonly chatApi = inject(CoordinatorChatApi);
   private readonly staff = inject(StaffAreaService);
+  private readonly platform = inject(PlatformService);
   private readonly flags = inject(FlagService);
 
   readonly area = this.staff.area;
@@ -184,20 +202,46 @@ export class StaffScopeService {
     defaultValue: [],
   });
 
+  /** A fortnight back, counted in the school's days rather than the laptop's. */
+  private readonly attentionFrom = computed(() => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: this.platform.timezone() }).format(new Date());
+    const from = new Date(`${today}T00:00:00Z`);
+    from.setUTCDate(from.getUTCDate() - ATTENTION_WINDOW_DAYS);
+    return from.toISOString().slice(0, 10);
+  });
+
   /**
-   * The two lesson statuses Home's "What needs you" is about, in one resource.
+   * The lessons of her subject that need somebody, for a coordinator's "What needs you".
    *
-   * Both namespaces narrow by a single status, so this asks twice and joins. One resource rather
-   * than two, because a half-loaded list would draw a shorter "needs you" than the truth and then
-   * grow under her.
+   * **Unfiltered, and narrowed here.** `GET /coordinator/lessons` and `GET /management/lessons`
+   * take `status` as `draft|ready|published` alone (`CoordinatorService.coarse`, which folds
+   * `REVIEW` into `ready` and everything else into `draft`), so the two statuses this list is
+   * actually about cannot be asked for: `needs_review` was a 400 on every open of a Home (MH0),
+   * and `error` is not expressible server-side at all. Both halves of that mattered — the band
+   * read "Status is draft, ready or published", and an errored resource's `value()` *throws*,
+   * which took `needs` below, and with it the whole screen, down inside change detection.
+   *
+   * So the read asks for a fortnight of her subject with no `status` at all and keeps the rows
+   * whose fine-grained status is one of {@link ATTENTION_STATUSES}. The list body carries that
+   * fine status (`LessonState.status` reads the stored value; `coarse` only ever narrowed the
+   * *query*), which is the same field her All lessons badge reads.
+   *
+   * A manager is **idle** here: MG2a took All lessons and the read-only lesson page off her rail,
+   * so her Home has no lesson line left to draw and asks for none. `catchError` for the reason
+   * the complaints below have one — a read that did not answer contributes no line, and never an
+   * exception in a template.
+   *
+   * `from` moves once on a cold load, when `/platform-settings` lands and "today" becomes the
+   * school's own day rather than UTC's; the second read is the correct one, and a fortnight is
+   * wide enough that the first is never wrong by more than its edge.
    */
   private readonly attentionRes = rxResource({
-    params: () => this.readingArea(),
-    stream: ({ params: area }) =>
-      forkJoin([
-        this.lessonsOf(area, AdminLessonStatusEnum.NEEDS_REVIEW),
-        this.lessonsOf(area, AdminLessonStatusEnum.ERROR),
-      ]).pipe(map(([review, failed]) => [...review, ...failed])),
+    params: () => (this.area() === 'coordinator' ? this.attentionFrom() : undefined),
+    stream: ({ params: from }) =>
+      this.api.coordinatorLessons(undefined, undefined, from).pipe(
+        map((rows) => rows.filter((lesson) => ATTENTION_STATUSES.has(lesson.status))),
+        catchError(() => of([])),
+      ),
     defaultValue: [],
   });
 
@@ -315,15 +359,16 @@ export class StaffScopeService {
       className: thread.className ?? '',
       link: [`${base}/complaints`],
     }));
-    // MG2a: a manager has no lesson page and no Classes screen any more, so her two lesson
-    // kinds are lines rather than links, and a class with nothing on today sends her to
-    // Teachers — the screen that says whether today has happened in a teacher's sections.
+    // MG2a: a manager has no All lessons, no lesson page and no Classes screen any more, so she
+    // has no lesson lines at all, and a class with nothing on today sends her to Teachers — the
+    // screen that says whether today has happened in a teacher's sections.
     const manager = this.area() === 'management';
     const lessons = this.attentionRes.value().map((lesson) => ({
-      kind: lesson.status === AdminLessonStatusEnum.ERROR ? ('error' as const) : ('needs_review' as const),
+      kind:
+        lesson.status === AdminLessonStatusEnum.NEEDS_REVIEW ? ('needs_review' as const) : ('error' as const),
       title: (lesson.title ?? '').trim(),
       className: lesson.className ?? '',
-      link: manager ? null : [`${base}/lessons`, lesson.id],
+      link: [`${base}/lessons`, lesson.id],
     }));
     const quiet = this.classes()
       .filter((row) => row.todayLessonId === null)
@@ -348,11 +393,5 @@ export class StaffScopeService {
     this.classesRes.reload();
     this.attentionRes.reload();
     this.complaintsRes.reload();
-  }
-
-  private lessonsOf(area: 'coordinator' | 'management', status: AdminLessonStatusEnum) {
-    return area === 'management'
-      ? this.management.managementLessons(undefined, status)
-      : this.api.coordinatorLessons(undefined, status);
   }
 }
