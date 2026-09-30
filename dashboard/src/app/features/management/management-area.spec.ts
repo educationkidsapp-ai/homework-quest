@@ -851,6 +851,9 @@ describe('RM3a — the management area', () => {
       TestBed.tick();
     }
 
+    /** The two `weekly-plans` reads the screen opens with, url and params, for the tests to assert. */
+    let weeklyReads: string[] = [];
+
     async function openScreen(weeks: unknown[]) {
       await renderHq(WeeklyPlansPage, {
         providers: [
@@ -875,10 +878,11 @@ describe('RM3a — the management area', () => {
       backend.match('/management/classes').forEach((request) => request.flush(CLASSES));
       backend.match('/management/teachers').forEach((request) => request.flush([]));
       await settle();
-      // Two reads: this week on its own (the cards) and the window (the archive). The cards may
-      // never be built from the filtered one — see the test below.
+      // Two reads: the five weeks she can post for (the cards and the replace warning) and the
+      // window (the archive). The cards may never be built from the filtered one — see below.
       const reads = backend.match((request) => request.url === '/management/weekly-plans');
       expect(reads.length).toBe(2);
+      weeklyReads = reads.map((request) => request.request.urlWithParams);
       reads.forEach((request) => request.flush({ from: '2026-07-12', to: '2026-09-27', weeks }));
       await settle();
       return backend;
@@ -1015,6 +1019,38 @@ describe('RM3a — the management area', () => {
 
       expect(document.body.textContent).toContain('This replaces the plan that is already there');
       expect(screen.getAllByRole('button', { name: 'Replace plan' }).length).toBeGreaterThan(1);
+    });
+
+    /**
+     * Review blocker 2: the week select offers five Sundays, and the confirm used to know only about
+     * this one. She posts next week's plan on Thursday and a corrected image on Friday — the second
+     * one deletes the first, its read marks and its bell rows, so it has to say so.
+     */
+    it('asks for every week the select offers, and confirms a replacement in a future one', async () => {
+      const nextWeek = '2026-10-04';
+      await openScreen([
+        { weekStart: nextWeek, items: [{ plan: { ...PLAN, id: 'b-next', weekStart: nextWeek } }] },
+      ]);
+
+      // The cards' own read spans the five Sundays the select offers, not only this one.
+      const cards = weeklyReads.find((url) => !url.includes('2026-07-12'));
+      expect(cards).toContain('from=2026-09-27');
+      expect(cards).toContain('to=2026-10-25');
+
+      // This week has no plan of its own, so grade 1's card offers a first one — the wider read
+      // must not draw next week's plan on it.
+      expect(screen.queryByRole('button', { name: 'Replace plan' })).toBeNull();
+      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      await settle();
+
+      // Picking next week turns the sheet into a replacement, wording and red band together.
+      const week = document.querySelectorAll('hq-dialog select')[1] as HTMLSelectElement;
+      week.value = nextWeek;
+      week.dispatchEvent(new Event('change', { bubbles: true }));
+      await settle();
+
+      expect(document.body.textContent).toContain('This replaces the plan that is already there');
+      expect(screen.queryByRole('button', { name: 'Post' })).toBeNull();
     });
   });
 

@@ -8,7 +8,7 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { HttpEventType } from '@angular/common/http';
 import { catchError, of, switchMap, tap } from 'rxjs';
 import { BroadcastsApi, MediaApi } from '../../api';
-import { sundayOf } from '../../core/broadcasts/broadcast.rules';
+import { sundayOf, weekOptions } from '../../core/broadcasts/broadcast.rules';
 import {
   type PlanContext,
   type PlanDraft,
@@ -126,10 +126,10 @@ interface GlanceCard {
           <p class="hq-muted">{{ weekLabel(thisWeek()) }}</p>
           <!-- Until this week's own read has landed, no card may say "no plan yet": that sentence
                with a button beside it is an offer to replace a plan nobody has seen. -->
-          @if (thisWeekPlans.isLoading()) {
+          @if (upcomingPlans.isLoading()) {
             <hq-skeleton [loading]="true" [lines]="2" [label]="'ui.loading' | transloco" />
-          } @else if (thisWeekPlans.error()) {
-            <hq-coordinator-read-failed (retry)="thisWeekPlans.reload()" />
+          } @else if (upcomingPlans.error()) {
+            <hq-coordinator-read-failed (retry)="upcomingPlans.reload()" />
           } @else if (glance().length === 0) {
             <hq-empty-state [message]="'plans.noGrades' | transloco" />
           } @else {
@@ -290,26 +290,45 @@ export class WeeklyPlansPage {
 
   protected readonly backwards = computed(() => this.from() !== '' && this.from() > this.to());
 
+  /** The Sundays the composer offers — this week and the next four (`weekOptions`). */
+  private readonly composableWeeks = computed(() => weekOptions(this.today()));
+
   /**
-   * **This week, unfiltered** — the read the cards are built from, and nothing else.
+   * **The weeks she can post for, unfiltered** — the read the cards and the replace warning are
+   * built from, and nothing else.
    *
    * The glance used to be a slice of the filtered archive, so picking grade 1 or an end date in the
    * past made every card outside the filter say "No plan yet" for a week that already had a plan —
    * and "Add plan" on that card is a *replace* (`BroadcastService.replacePlan` deletes the previous
    * row, its read marks and its bell rows). A screen may not offer a destructive action because of a
-   * filter she set to look at something else, so this week has its own request.
+   * filter she set to look at something else, so these weeks have their own request.
+   *
+   * **It covers every selectable week, not only this one** (review blocker 2). The week select
+   * offers five Sundays, so a plan already posted for one of the four future ones has to be known
+   * here too — otherwise posting a corrected image for next week says "Post" with no red band and
+   * deletes the row anyway.
    */
-  protected readonly thisWeekPlans = rxResource({
-    params: () => (this.enabled() ? { week: this.thisWeek() } : undefined),
-    stream: ({ params }) => this.api.managementWeeklyPlans(params.week, params.week, undefined),
+  protected readonly upcomingPlans = rxResource({
+    params: () => {
+      if (!this.enabled()) return undefined;
+      const weeks = this.composableWeeks();
+      return { from: weeks[0] ?? this.thisWeek(), to: weeks.at(-1) ?? this.thisWeek() };
+    },
+    stream: ({ params }) => this.api.managementWeeklyPlans(params.from, params.to, undefined),
   });
 
-  /** The plans posted for this week, whatever the archive below is filtered to. */
-  private readonly postedThisWeek = computed<readonly PlanRow[]>(() => {
-    const week = this.thisWeek();
-    const weeks = planWeeks(this.thisWeekPlans.value());
-    return weeks.find((row) => row.weekStart === week)?.rows ?? weeks[0]?.rows ?? [];
-  });
+  private readonly upcomingWeeks = computed(() => planWeeks(this.upcomingPlans.value()));
+
+  /**
+   * The plans posted for **this** week, whatever the archive below is filtered to.
+   *
+   * Strictly the week that matches: the read now spans five of them, so falling back to the first
+   * week in the answer — which it used to, when `from` and `to` were the same Sunday — would draw
+   * next week's plans on this week's cards.
+   */
+  private readonly postedThisWeek = computed<readonly PlanRow[]>(
+    () => this.upcomingWeeks().find((week) => week.weekStart === this.thisWeek())?.rows ?? [],
+  );
 
   /**
    * The archive.
@@ -371,9 +390,15 @@ export class WeeklyPlansPage {
     }));
   });
 
-  /** The grade/week pairs that already have a plan — what makes the sheet say "Replace". */
+  /**
+   * The grade/week pairs that already have a plan — what makes the sheet say "Replace".
+   *
+   * Every week the select offers, not only this one: she posts next week's plan on Thursday and a
+   * corrected image on Friday, and the second one must confirm what it is about to delete.
+   */
   protected readonly taken = computed<readonly string[]>(() =>
-    this.postedThisWeek()
+    this.upcomingWeeks()
+      .flatMap((week) => week.rows)
       .filter((row) => row.grade !== null)
       .map((row) => `${row.grade}|${row.weekStart}`),
   );
@@ -432,7 +457,7 @@ export class WeeklyPlansPage {
           this.composing.set(false);
           this.posted.set(true);
           this.archive.reload();
-          this.thisWeekPlans.reload();
+          this.upcomingPlans.reload();
         }),
         catchError(() => {
           this.posting.set(false);
