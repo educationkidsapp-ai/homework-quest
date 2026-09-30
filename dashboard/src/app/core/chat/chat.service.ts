@@ -20,10 +20,11 @@ import {
   type ChatServerFrame,
   type LocalMessage,
   peerIdsOf,
-  rowPeerOnline,
 } from './chat.models';
 
 const MAX_RECONNECT_DELAY_MS = 30_000;
+/** `ChatSessions.SIGNED_OUT` — `CloseStatus.NORMAL.withReason("signed out")` (T1). */
+const SIGNED_OUT_REASON = 'signed out';
 const TYPING_TIMEOUT_MS = 3_000;
 const TYPING_THROTTLE_MS = 2_000;
 
@@ -75,12 +76,29 @@ export class ChatService {
     const thread = this.activeThread();
     if (!thread) return undefined;
     const heard = this.presence();
-    for (const id of peerIdsOf(thread, this.auth.user()?.id ?? null)) {
+    for (const id of this.activePeerIds(thread)) {
       const state = heard.get(id);
       if (state !== undefined) return state;
     }
-    return rowPeerOnline(thread);
+    // T1's `peerOnline` on the row: what the last `GET …/threads` said, which is the only answer
+    // for a parent whose conversation is still empty (there is no parent id anywhere else).
+    return thread.peerOnline;
   });
+
+  /**
+   * Whose presence would be *this* conversation's.
+   *
+   * The row names the staff side; a parent is named nowhere on the contract, so her own messages
+   * are the source — `senderId` on anything she sent. That is not a guess: it is the parent of this
+   * thread by construction, because a thread has exactly one parent on it.
+   */
+  private activePeerIds(thread: ChatThread): readonly string[] {
+    const fromRow = peerIdsOf(thread, this.auth.user()?.id ?? null);
+    const parent = this.messages().find(
+      (message) => message.sender === ChatMessageSenderEnum.PARENT && (message.senderId ?? '') !== '',
+    )?.senderId;
+    return parent === undefined ? fromRow : [...fromRow, parent];
+  }
 
   /**
    * Whether this account may write at all.
@@ -450,14 +468,22 @@ export class ChatService {
         }
       };
 
-      this.socket.onclose = () => {
+      this.socket.onclose = (event: CloseEvent) => {
         this.notifications.onSocketClosed();
-        if (!this.intentionalDisconnect) {
-          this.connectionStatus.set('reconnecting');
-          this.scheduleReconnect();
-        } else {
+        // T1 closes every socket of an account that signs out, `1000 signed out`. Reconnecting on
+        // that is a loop with nothing at the end of it: the refresh token is revoked, so each
+        // attempt refreshes, fails, backs off and tries again for as long as the tab is open. A
+        // `1000 idle` close is the opposite — she stopped typing, and coming back is right — so it
+        // is the reason, not the code, that decides.
+        const deliberate = this.intentionalDisconnect || event.reason === SIGNED_OUT_REASON;
+        if (deliberate) {
+          this.intentionalDisconnect = true;
           this.connectionStatus.set('disconnected');
+          this.presence.set(new Map());
+          return;
         }
+        this.connectionStatus.set('reconnecting');
+        this.scheduleReconnect();
       };
 
       this.socket.onerror = () => {

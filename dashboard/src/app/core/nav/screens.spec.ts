@@ -160,13 +160,14 @@ describe('the screen table', () => {
    * thread the department manager started was invisible unless she happened to open the screen from
    * the header's chat icon. Behind `chat`, like every other door onto the threads.
    */
-  it('gives a teacher This week, My classes, Announcements, Messages and Manager in the rail', () => {
+  it('gives a teacher This week, My classes, Announcements, Messages and the two directories', () => {
     expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual([
       'week',
       'classes',
       'announcements',
       'chat',
-      // T2 (the owner's list, 2026-10-01): who she reports to, with the phone number on it.
+      // T2 (the owner's list, 2026-10-01): who she reports to, with the phone numbers on it.
+      'coordinators',
       'manager',
     ]);
     expect(navScreens('TEACHER').map(({ link }) => link)).toEqual([
@@ -174,11 +175,15 @@ describe('the screen table', () => {
       '/teacher/classes',
       '/teacher/announcements',
       '/teacher/chat',
+      '/teacher/coordinators',
       '/teacher/manager',
     ]);
-    const manager = AREAS.TEACHER.screens.find((screen) => screen.id === 'manager');
-    expect(manager?.flag).toBe('chat');
-    expect(manager?.permission).toBe('teacher.chat');
+    // Both are the chooser for a conversation, so both carry what the chat routes carry.
+    for (const id of ['coordinators', 'manager']) {
+      const row = AREAS.TEACHER.screens.find((screen) => screen.id === id);
+      expect(row?.flag).toBe('chat');
+      expect(row?.permission).toBe('teacher.chat');
+    }
     const chat = AREAS.TEACHER.screens.find((screen) => screen.id === 'chat');
     expect(chat?.flag).toBe('chat');
     expect(chat?.permission).toBe('teacher.chat');

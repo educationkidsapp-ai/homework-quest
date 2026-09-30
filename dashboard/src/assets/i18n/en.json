@@ -2438,7 +2438,13 @@
         "manager": "Department manager",
         "coordinator": "Coordinator",
         "teacher": "Teacher"
-      }
+      },
+      "grades": "Grades {{grades}}"
+    },
+    "coordinators": {
+      "subtitle": "The coordinators of the subjects you teach, and the conversations you share.",
+      "empty": "No coordinator for your subjects yet",
+      "emptyHint": "No coordinator covers a subject you teach. Your department manager can help in the meantime."
     }
   }
 }

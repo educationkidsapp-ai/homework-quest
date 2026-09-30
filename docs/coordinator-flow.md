@@ -42,9 +42,11 @@ exists or opens one — one row per pair however many times either side asks —
 `/coordinator/messages?thread=<id>` with the conversation already on screen.
 
 It is **the teacher's screen**, one namespace over (`features/staff/staff-manager.page.ts`,
-`docs/teacher-flow.md` step 13): `StaffAreaService` decides which of `GET /teacher/managers` and
-`GET /coordinator/managers` to read and which thread route to open, the way Announcements and
-Messages are one component for three roles.
+`docs/teacher-flow.md` step 13): the route's `screenId` says which directory it is and
+`StaffAreaService` which of `GET /teacher/managers` and `GET /coordinator/managers` to read it
+through, the way Announcements and Messages are one component for three roles. She has no
+Coordinators row of her own — her supervisor is the manager, and the teacher's Coordinators row is
+what that screen is for.
 
 ## Her records (R6)
 

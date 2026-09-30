@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { TranslocoService } from '@jsverse/transloco';
 import { type RenderResult, screen } from '@testing-library/angular';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -37,7 +37,10 @@ describe('StaffManagerPage', () => {
    * Renders the screen as `user`, with the `chat` flag on — the screen carries it, so with the
    * stub answering `false` there would be nothing on the page to assert about.
    */
-  async function setUp(user: typeof TEACHER_USER): Promise<RenderResult<StaffManagerPage>> {
+  async function setUp(
+    user: typeof TEACHER_USER,
+    screenId: 'manager' | 'coordinators' = 'manager',
+  ): Promise<RenderResult<StaffManagerPage>> {
     localStorage.clear();
     const rendered = await renderHq(StaffManagerPage, {
       providers: [
@@ -46,6 +49,8 @@ describe('StaffManagerPage', () => {
         provideRouter([]),
         { provide: BASE_PATH, useValue: '' },
         { provide: FlagService, useValue: { isOn: () => true } },
+        // Which directory this is — `area.routes.ts` puts the row's id on the route.
+        { provide: ActivatedRoute, useValue: { snapshot: { data: { screenId } } } },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -127,7 +132,7 @@ describe('StaffManagerPage', () => {
       const nour = {
         userId: 'u-nour',
         displayName: 'Nour Fahmy',
-        jobParts: [{ kind: 'coordinator', grade: '1', subject: 'arabic', curriculum: 'british' }],
+        jobParts: [{ kind: 'coordinator', grades: [1], subject: 'arabic', curriculum: 'british' }],
       };
       expect(jobLabel(transloco, nour)).toEqual(['Coordinator · Grade 1 · Arabic · British']);
     });
@@ -136,6 +141,57 @@ describe('StaffManagerPage', () => {
       expect(jobLabel(transloco, { userId: 'u-x', curriculum: 'british' })).toEqual([
         'British department manager',
       ]);
+    });
+  });
+
+  /**
+   * T2 item (a)'s other half, which needed T1's `GET /teacher/coordinators`. The same component: the
+   * route's `screenId` is the only thing that differs, which is the whole reason it is one screen.
+   */
+  describe("the teacher's coordinators", () => {
+    const NOUR = {
+      userId: 'u-nour',
+      displayName: 'Nour Fahmy',
+      email: 'nour@school.test',
+      phone: '+201000000002',
+      role: 'COORDINATOR',
+      jobParts: [
+        { kind: 'coordinator', grades: [1, 2], subject: 'arabic', curriculum: 'british' },
+        { kind: 'coordinator', grades: [1], subject: 'arabic', curriculum: 'american' },
+      ],
+    };
+
+    it('reads her coordinators and gives each post its own line', async () => {
+      await setUp(TEACHER_USER, 'coordinators');
+      http.expectOne('/teacher/coordinators').flush([NOUR]);
+
+      expect(await screen.findByText('Nour Fahmy')).toBeTruthy();
+      // One line per `jobParts` entry: T1 keeps one per track and never flattens grades across
+      // them, because "Grades 1, 2 · British and American" would claim four posts for two.
+      expect(screen.getByText('Coordinator · Grades 1, 2 · Arabic · British')).toBeTruthy();
+      expect(screen.getByText('Coordinator · Grade 1 · Arabic · American')).toBeTruthy();
+    });
+
+    it('opens the staff thread with coordinatorUserId, and never both ids', async () => {
+      await setUp(TEACHER_USER, 'coordinators');
+      http.expectOne('/teacher/coordinators').flush([NOUR]);
+
+      (await screen.findByRole('button', { name: 'Message' })).click();
+
+      const opened = http.expectOne('/teacher/chat/staff-threads');
+      // `OpenStaffThreadRequest` takes one or the other; T1 refuses both or neither.
+      expect(opened.request.body).toEqual({ coordinatorUserId: 'u-nour' });
+      opened.flush({ id: 'th-4' });
+
+      expect(navigate).toHaveBeenCalledWith(['/teacher/chat'], { queryParams: { thread: 'th-4' } });
+    });
+
+    it('says so when no coordinator covers a subject she teaches', async () => {
+      await setUp(TEACHER_USER, 'coordinators');
+      http.expectOne('/teacher/coordinators').flush([]);
+
+      expect(await screen.findByText('No coordinator for your subjects yet')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Message' })).toBeNull();
     });
   });
 });

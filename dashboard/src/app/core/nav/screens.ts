@@ -257,11 +257,18 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.chat,
         permission: 'teacher.chat',
       },
-      // T2 (the owner's list, 2026-10-01): **who she reports to, and how to reach her.** `chat` and
-      // `teacher.chat` are what `GET /teacher/managers` and `POST …/staff-threads` carry — the
-      // directory is the chooser for a conversation, so a school without chat has neither. Her
-      // **Coordinators** row belongs beside this one and is not here yet: no route lists the
-      // coordinators of her sections until T1 adds `GET /teacher/coordinators`.
+      // T2 (the owner's list, 2026-10-01): **who she reports to, and how to reach them.** Both rows
+      // carry `chat` and `teacher.chat`, which is what `GET /teacher/coordinators`,
+      // `GET /teacher/managers` and `POST /teacher/chat/staff-threads` carry — the directory is the
+      // chooser for a conversation, so a school without chat has neither. Coordinators first: it is
+      // the one she reaches for, and her manager is a step further up.
+      {
+        id: 'coordinators',
+        path: 'coordinators',
+        labelKey: 'nav.coordinators',
+        flag: FLAGS.chat,
+        permission: 'teacher.chat',
+      },
       {
         id: 'manager',
         path: 'manager',

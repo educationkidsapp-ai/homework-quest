@@ -18,28 +18,46 @@ import { api, schoolOfSara, staff, withFlags } from './n4-api';
  * `chat` is off in the seed (V15 seeds it off), so the file turns it on and puts it back: the row
  * carries the flag, and `teacher-flow.spec.ts` asserts the flag-off rail.
  */
-interface Manager {
+interface JobPart {
+  readonly kind?: string;
+  readonly subject?: string;
+  readonly curriculum?: string;
+  readonly grades?: readonly number[];
+}
+
+interface Contact {
   readonly userId: string;
   readonly displayName: string;
   readonly email?: string;
   readonly phone?: string;
   readonly curriculum?: string;
+  readonly jobParts?: readonly JobPart[];
 }
 
 let context: APIRequestContext;
 let restoreFlags: (() => Promise<void>) | null = null;
-let managers: readonly Manager[] = [];
+let managers: readonly Contact[] = [];
+let coordinators: readonly Contact[] = [];
+
+async function directory(path: string): Promise<readonly Contact[]> {
+  const listed = await context.get(path, { headers: await staff(SARA) });
+  expect(listed.ok(), `GET ${path}: HTTP ${listed.status()}`).toBeTruthy();
+  return (await listed.json()) as Contact[];
+}
 
 test.beforeAll(async () => {
   context = await api();
   restoreFlags = await withFlags(context, await schoolOfSara(context), ['chat']);
 
-  const listed = await context.get('/teacher/managers', { headers: await staff(SARA) });
-  expect(listed.ok(), `GET /teacher/managers: HTTP ${listed.status()}`).toBeTruthy();
-  managers = (await listed.json()) as Manager[];
+  managers = await directory('/teacher/managers');
+  coordinators = await directory('/teacher/coordinators');
   expect(
     managers.length,
     'Sara should report to at least one department manager (seed/managers.csv)',
+  ).toBeGreaterThan(0);
+  expect(
+    coordinators.length,
+    'Sara teaches Math in 1A British, so a Math coordinator should cover her (seed/coordinators.csv)',
   ).toBeGreaterThan(0);
 });
 
@@ -70,6 +88,38 @@ test('a teacher finds her department manager, with the job, the phone and the ad
       await expect(card.locator(`a[href="mailto:${manager.email}"]`)).toBeVisible();
     }
   }
+});
+
+test('a teacher finds the coordinators of the subjects she teaches', async ({ page }) => {
+  await signIn(page, SARA);
+
+  await page.getByRole('link', { name: 'Coordinators' }).click();
+  await expect(page).toHaveURL(/\/teacher\/coordinators$/);
+
+  for (const person of coordinators) {
+    const card = page.getByRole('listitem').filter({ hasText: person.displayName });
+    await expect(card).toBeVisible();
+    // One line per `jobParts` entry, each naming the subject it is for. The subject is the word the
+    // dashboard translates, so it is matched case-insensitively rather than against the raw value.
+    for (const part of person.jobParts ?? []) {
+      if (part.subject) await expect(card).toContainText(new RegExp(part.subject, 'i'));
+    }
+    if (person.phone) await expect(card.locator(`a[href="tel:${person.phone}"]`)).toBeVisible();
+  }
+});
+
+test('Message opens the conversation she shares with her coordinator', async ({ page }) => {
+  const coordinator = coordinators[0]!;
+  await signIn(page, SARA);
+  await page.goto('/teacher/coordinators');
+
+  const card = page.getByRole('listitem').filter({ hasText: coordinator.displayName });
+  await card.getByRole('button', { name: 'Message' }).click();
+
+  // `POST /teacher/chat/staff-threads {coordinatorUserId}` — one row per pair, whichever side asks.
+  await expect(page).toHaveURL(/\/teacher\/chat\?thread=/);
+  await expect(page.getByRole('heading', { name: coordinator.displayName })).toBeVisible();
+  await expect(page.getByPlaceholder('Write a message...')).toBeVisible();
 });
 
 test('Message opens the conversation she shares with her manager', async ({ page }) => {

@@ -48,39 +48,28 @@ export type ChatServerFrame =
   // `userId` (a staff peer) or `parentId` (a parent) names whose presence this is. The dashboard
   // has never known this and used to answer the question with its *own* connection state, which
   // is why a manager who signed out still read as "Live" in the teacher's tab.
-  | { type: 'presence'; userId?: string; parentId?: string; online: boolean }
+  // `null` as well as absent: the schema declares both `userId` and `parentId` nullable and sends
+  // whichever one this presence is not.
+  | { type: 'presence'; userId?: string | null; parentId?: string | null; online: boolean }
   | { type: 'ping' }
   | { type: 'pong' }
   | { type: 'error'; code: string; message: string; clientId?: string };
 
 /**
- * **Who is on the other end of this thread, and are they connected?**
+ * **The ids a thread row names for the person on the other end of it.**
  *
- * T1 puts `peerOnline` on a thread row and, for a parent thread, the parent's id; both are read
- * here through one narrow widening rather than at every call site, so the day the generator
- * catches up these two functions lose their casts and nothing else moves.
+ * The peer is found by elimination: a row names the staff side by `teacherId` — the subordinate on
+ * a staff thread, the teacher on a parent one — and one of those is the viewer. Dropping her own id
+ * leaves the peer, which is why this needs no branch on her role.
  *
- * The peer is found by elimination: a row names two people by id — `teacherId` (the subordinate
- * on a staff thread, the teacher on a parent one) and `peerUserId` / `parentId` — and one of them
- * is the viewer. Dropping her own id leaves the peer, whichever side of the pair she is on, which
- * is why this needs no branch on her role.
+ * T1 puts `peerOnline` on the row but **no parent id**, so a parent thread's peer cannot be named
+ * from the row at all. `ChatService` adds the `senderId` of the parent's own messages for that
+ * case, and falls back to `peerOnline` while the conversation is still empty.
  */
-interface PeerFields {
-  readonly peerUserId?: string;
-  readonly parentId?: string;
-  readonly peerOnline?: boolean;
-}
-
 export function peerIdsOf(thread: ChatThread, ownUserId: string | null): readonly string[] {
-  const extra = thread as ChatThread & PeerFields;
-  return [thread.teacherId, extra.peerUserId, extra.parentId].filter(
+  return [thread.teacherId].filter(
     (id): id is string => typeof id === 'string' && id !== '' && id !== ownUserId,
   );
-}
-
-/** What the last `GET …/threads` said about the peer, or `undefined` when it said nothing. */
-export function rowPeerOnline(thread: ChatThread): boolean | undefined {
-  return (thread as ChatThread & PeerFields).peerOnline;
 }
 
 export interface LocalMessage extends ChatMessage {
