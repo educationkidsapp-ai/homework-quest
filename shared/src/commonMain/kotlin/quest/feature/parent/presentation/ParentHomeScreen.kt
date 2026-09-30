@@ -38,6 +38,7 @@ import quest.core.mvi.MviViewModel
 import quest.core.platform.Today
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.domain.CalendarDay
+import quest.feature.broadcasts.domain.unreadAnnouncements
 import quest.feature.parent.domain.CalendarUseCase
 import quest.feature.school.domain.FlagStore
 import quest.feature.school.domain.Flags
@@ -61,8 +62,10 @@ object ParentHomeContract {
         /** Child id → the section the child was placed in, when the parent added her with a class join code (§2). */
         val sections: Map<String, String> = emptyMap(),
         val attendance: ChildAttendanceRecord? = null,
-        /** RM4: what the school has sent that this parent has not read yet — the badge on the School news button. */
+        /** MH3: unread announcements and events, the badge on the Announcements button. Plans are counted apart. */
         val unreadBroadcasts: Int = 0,
+        /** MH3: unread weekly plans in the archive window, the badge on the Weekly plan button. */
+        val unreadPlans: Int = 0,
     ) : MviState
     sealed interface Intent : MviIntent {
         data object Load : Intent
@@ -96,13 +99,17 @@ class ParentHomeViewModel(
                 val today = Today.date()
                 val days = runCatching { calendar(current, today.year, today.monthNumber, today) }.getOrDefault(emptyList()).filter { it.date == today }
                 val att = runCatching { api.todayAttendance(current.id) }.getOrNull()
-                // A parent has no bell (runbook "Broadcasts"), so the count comes with the home load — but only when
+                // A parent has no bell (runbook "Broadcasts"), so the counts come with the home load — but only when
                 // the school has the flag. `announcements` is off in `DEFAULT_FLAGS`, so asking first and swallowing
                 // the 404 would mean every school paid a refused request on every home load and every child switch.
-                val unread = if (flags.isEnabled(Flags.ANNOUNCEMENTS)) {
-                    runCatching { api.childBroadcasts(current.id).unread }.getOrDefault(0)
-                } else 0
-                reduce { copy(loading = false, children = list, current = current, today = days, sections = sections, attendance = att, unreadBroadcasts = unread) }
+                //
+                // MH3: two counts, because there are two pages. The feed's own `unread` counts the weekly plans it still
+                // carries, so the announcements badge is made from the rows; the plans badge is the archive's `unread`.
+                val enabled = flags.isEnabled(Flags.ANNOUNCEMENTS)
+                val feed = if (enabled) runCatching { api.childBroadcasts(current.id) }.getOrNull() else null
+                val unread = feed?.let { unreadAnnouncements(it.items, Today.epochMillis()) } ?: 0
+                val plans = if (enabled) runCatching { api.childWeeklyPlans(current.id).unread }.getOrDefault(0) else 0
+                reduce { copy(loading = false, children = list, current = current, today = days, sections = sections, attendance = att, unreadBroadcasts = unread, unreadPlans = plans) }
             }
             is ParentHomeContract.Intent.Select -> {
                 children.select(intent.id)
@@ -129,6 +136,7 @@ fun ParentHomeRoute(
     onExit: () -> Unit,
     onMessages: () -> Unit = {},
     onBroadcasts: () -> Unit = {},
+    onWeeklyPlan: () -> Unit = {},
 ) {
     val vm: ParentHomeViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -156,7 +164,7 @@ fun ParentHomeRoute(
     ) { s ->
         ParentHomeScreen(
             state, s, vm::dispatch, onAddChild, onEditChild, onCalendar,
-            onProgress, onSettings, onLessonPanel, onMessages, onBroadcasts,
+            onProgress, onSettings, onLessonPanel, onMessages, onBroadcasts, onWeeklyPlan,
         )
     }
 }
@@ -174,6 +182,7 @@ fun ParentHomeScreen(
     onLessonPanel: (String) -> Unit,
     onMessages: () -> Unit = {},
     onBroadcasts: () -> Unit = {},
+    onWeeklyPlan: () -> Unit = {},
 ) {
     Column(
         Modifier
@@ -318,9 +327,12 @@ fun ParentHomeScreen(
             ParentButton(s.progress, onProgress, Modifier.weight(1f), primary = false, icon = "📈")
         }
         Spacer(Modifier.height(10.dp))
+        // MH3: RM4's one School news button is two, each with its own unread count. The count rides on the label — a
+        // quick-action button has no badge slot, and "Weekly plan · 1" is what a screen reader says anyway.
         FeatureGate(Flags.ANNOUNCEMENTS) {
-            val label = if (state.unreadBroadcasts > 0) "${s.broadcasts} · ${state.unreadBroadcasts}" else s.broadcasts
-            ParentButton(label, onBroadcasts, primary = false, icon = "📣")
+            ParentButton(badged(s.weeklyPlan, state.unreadPlans), onWeeklyPlan, primary = false, icon = "🗓️")
+            Spacer(Modifier.height(10.dp))
+            ParentButton(badged(s.announcements, state.unreadBroadcasts), onBroadcasts, primary = false, icon = "📣")
             Spacer(Modifier.height(10.dp))
         }
         FeatureGate(Flags.CHAT) {
@@ -333,3 +345,6 @@ fun ParentHomeScreen(
         Spacer(Modifier.height(24.dp))
     }
 }
+
+/** "Announcements · 3" while something is unread, the plain word otherwise. */
+private fun badged(label: String, unread: Int) = if (unread > 0) "$label · $unread" else label

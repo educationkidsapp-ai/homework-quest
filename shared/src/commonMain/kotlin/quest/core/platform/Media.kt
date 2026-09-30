@@ -12,4 +12,10 @@ expect object MediaFiles {
     fun save(name: String, bytes: ByteArray): String
     fun read(path: String): ByteArray?
     fun delete(path: String)
+
+    /**
+     * MH3: the path a [save] of [name] writes to, without writing anything. A cached download has to be found again
+     * after a restart, and only the platform knows where its private directory is.
+     */
+    fun pathOf(name: String): String
 }

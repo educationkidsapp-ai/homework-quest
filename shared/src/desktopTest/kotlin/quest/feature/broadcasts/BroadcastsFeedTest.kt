@@ -8,6 +8,7 @@ import quest.api.dto.ChatStaffRole
 import quest.api.dto.Curriculum
 import quest.feature.broadcasts.domain.broadcastBody
 import quest.feature.broadcasts.domain.groupBroadcasts
+import quest.feature.broadcasts.domain.unreadAnnouncements
 import quest.feature.broadcasts.domain.weekStartOf
 import quest.feature.broadcasts.presentation.authorLine
 import quest.feature.broadcasts.presentation.broadcastDescription
@@ -15,12 +16,11 @@ import quest.feature.broadcasts.presentation.weekLabel
 import quest.feature.parent.presentation.Strings
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * RM4: everything about the feed that is a function rather than a screen — which card is pinned, which rows are hidden,
- * what the author line says, and which body the parent reads.
+ * RM4, narrowed by MH3: everything about the **Announcements** feed that is a function rather than a screen — which
+ * rows are hidden, what the author line says, and which body the parent reads. The plans are [WeeklyPlansTest]'s.
  */
 class BroadcastsFeedTest {
 
@@ -53,9 +53,9 @@ class BroadcastsFeedTest {
         assertEquals(LocalDate(2026, 10, 4), weekStartOf(LocalDate(2026, 10, 4)))
     }
 
-    // ---- 2. grouping by kind, with this week's plan pinned and last week's kept apart
+    // ---- 2. MH3: grouping by kind, and the plans the server still sends are not this page's
 
-    @Test fun thisWeeksPlanIsPinnedAndTheOthersAreGroupedByKind() {
+    @Test fun everyWeeklyPlanIsDroppedAndTheRestIsGroupedByKind() {
         val groups = groupBroadcasts(
             listOf(
                 row("plan-now", BroadcastKind.WEEKLY_PLAN, weekStart = "2026-09-27"),
@@ -63,43 +63,36 @@ class BroadcastsFeedTest {
                 row("ann", BroadcastKind.ANNOUNCEMENT),
                 row("evt", BroadcastKind.EVENT),
             ),
-            today = monday, nowMillis = now,
+            nowMillis = now,
         )
-        assertEquals("plan-now", groups.weeklyPlan?.id)
-        assertEquals(listOf("plan-old"), groups.earlierPlans.map { it.id })
         assertEquals(listOf("ann"), groups.announcements.map { it.id })
         assertEquals(listOf("evt"), groups.events.map { it.id })
         assertTrue(!groups.isEmpty)
     }
 
-    @Test fun aPlanFromAnotherWeekIsNotThisWeeksPlan() {
-        val groups = groupBroadcasts(listOf(row("p", BroadcastKind.WEEKLY_PLAN, weekStart = "2026-09-20")), monday, now)
-        assertNull(groups.weeklyPlan)
-        assertEquals(listOf("p"), groups.earlierPlans.map { it.id })
+    /** A feed of nothing but plans is an empty Announcements page, not a page with a plan on it. */
+    @Test fun aFeedOfPlansOnlyIsEmpty() {
+        assertTrue(groupBroadcasts(listOf(row("p", BroadcastKind.WEEKLY_PLAN, weekStart = "2026-09-27")), now).isEmpty)
     }
 
     @Test fun anEmptyFeedIsEmpty() {
-        assertTrue(groupBroadcasts(emptyList(), monday, now).isEmpty)
+        assertTrue(groupBroadcasts(emptyList(), now).isEmpty)
     }
 
-    @Test fun onSaturdayUpcomingWeeksPlanIsPinnedWhenAvailable() {
-        val saturday = LocalDate(2026, 9, 26)
-        val groupsWithUpcoming = groupBroadcasts(
-            listOf(
-                row("plan-next", BroadcastKind.WEEKLY_PLAN, weekStart = "2026-09-27"),
-                row("plan-old", BroadcastKind.WEEKLY_PLAN, weekStart = "2026-09-20"),
-            ),
-            today = saturday, nowMillis = now,
+    /**
+     * The badge beside *Announcements* on the parent home. `BroadcastFeed.unread` counts the plans too — those are the
+     * Weekly plan badge's — and an expired row is nobody's.
+     */
+    @Test fun theAnnouncementsBadgeCountsNeitherPlansNorExpiredRowsNorReadOnes() {
+        val items = listOf(
+            row("plan", BroadcastKind.WEEKLY_PLAN, weekStart = "2026-09-27"),
+            row("ann", BroadcastKind.ANNOUNCEMENT),
+            row("evt", BroadcastKind.EVENT),
+            row("gone", BroadcastKind.EVENT, expiresAt = now - 1),
+            row("seen", BroadcastKind.ANNOUNCEMENT, read = true),
         )
-        assertEquals("plan-next", groupsWithUpcoming.weeklyPlan?.id)
-        assertEquals(listOf("plan-old"), groupsWithUpcoming.earlierPlans.map { it.id })
-
-        val groupsWithoutUpcoming = groupBroadcasts(
-            listOf(row("plan-old", BroadcastKind.WEEKLY_PLAN, weekStart = "2026-09-20")),
-            today = saturday, nowMillis = now,
-        )
-        assertEquals("plan-old", groupsWithoutUpcoming.weeklyPlan?.id)
-        assertTrue(groupsWithoutUpcoming.earlierPlans.isEmpty())
+        assertEquals(2, unreadAnnouncements(items, now))
+        assertEquals(0, unreadAnnouncements(emptyList(), now))
     }
 
     // ---- 3. expiry: the server drops expired rows, and the app drops them again against its own clock
@@ -111,18 +104,9 @@ class BroadcastsFeedTest {
                 row("live", BroadcastKind.EVENT, expiresAt = now + 1),
                 row("forever", BroadcastKind.EVENT, expiresAt = null),
             ),
-            monday, now,
+            now,
         )
         assertEquals(listOf("live", "forever"), groups.events.map { it.id })
-    }
-
-    @Test fun aPlanThatExpiredIsNotPinned() {
-        val groups = groupBroadcasts(
-            listOf(row("p", BroadcastKind.WEEKLY_PLAN, weekStart = "2026-09-27", expiresAt = now - 1)),
-            monday, now,
-        )
-        assertNull(groups.weeklyPlan)
-        assertTrue(groups.isEmpty)
     }
 
     // ---- 4. the author line: a coordinator speaks for a subject, a manager for a department

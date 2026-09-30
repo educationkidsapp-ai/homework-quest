@@ -43,6 +43,7 @@ import quest.api.dto.Stop
 import quest.api.dto.StopCategory
 import quest.api.dto.UpdateChildRequest
 import quest.api.dto.WorldPalette
+import kotlinx.datetime.minus
 import quest.feature.broadcasts.domain.weekStartOf
 import quest.feature.content.domain.SchoolApi
 import quest.feature.content.domain.ThemeFetch
@@ -270,18 +271,50 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
     // ---- RM4: the parent's broadcasts feed, so the screen has something to draw without a server.
     private val fakeReads = mutableSetOf<String>()
 
+    /**
+     * MH1's shape: a plan is one grade's week as an image, so the fake carries an `attachments` reference with a type.
+     * No `FakeAttachmentImages` serves the bytes — there is no image to invent — so the page draws its Try again state,
+     * which is the honest offline answer and the one worth seeing without a server.
+     */
+    private fun fakePlan(week: String, grade: Int, read: Boolean) = BroadcastView(
+        id = "bc-plan-$week", kind = BroadcastKind.WEEKLY_PLAN, authorId = "mg-nour", authorName = "Ms. Nour",
+        authorRole = ChatStaffRole.MANAGERIAL, title = "Weekly plan · Grade $grade · week of $week", weekStart = week,
+        bodyEn = "Weekly plan · Grade $grade · week of $week",
+        curriculum = Curriculum.BRITISH, grade = grade,
+        attachment = BroadcastAttachment("/media/attachments/att-$week", "week-plan.png", "att-$week", "image/png"),
+        createdAt = 1_758_500_000_000L, read = read,
+    )
+
+    /**
+     * MH3 `GET /children/{id}/weekly-plans` — this week and the two before it, so the page has a pinned plan and an
+     * archive to collapse without a server.
+     */
+    override suspend fun childWeeklyPlans(childId: String, from: String?, to: String?): quest.api.dto.WeeklyPlanArchive {
+        net()
+        val weeks = (0..2).map { back -> weekStartOf(today()).minus(back * 7, kotlinx.datetime.DateTimeUnit.DAY).toString() }
+        val plans = weeks.map { fakePlan(it, grade = 1, read = "bc-plan-$it" in fakeReads) }
+        return quest.api.dto.WeeklyPlanArchive(
+            from = weeks.last(), to = weeks.first(), unread = plans.count { !it.read },
+            weeks = plans.map { quest.api.dto.WeeklyPlanWeek(it.weekStart!!, listOf(quest.api.dto.WeeklyPlanEntry(it))) },
+        )
+    }
+
+    /** MH1 `GET|PATCH /parent/me` — one profile for the fake's single signed-in parent. */
+    private var fakePhone: String? = "+971501234567"
+
+    override suspend fun parentProfile(): quest.api.dashboard.ParentProfile {
+        net()
+        return quest.api.dashboard.ParentProfile("p-fake", "parent@example.com", fakePhone)
+    }
+
+    override suspend fun updateParentProfile(phone: String?): quest.api.dashboard.ParentProfile {
+        net()
+        fakePhone = phone?.takeIf { it.isNotBlank() }
+        return quest.api.dashboard.ParentProfile("p-fake", "parent@example.com", fakePhone)
+    }
+
     private fun fakeBroadcasts(): List<BroadcastView> {
-        val week = weekStartOf(today()).toString()
         return listOf(
-            BroadcastView(
-                id = "bc-plan", kind = BroadcastKind.WEEKLY_PLAN, authorId = "mg-nour", authorName = "Ms. Nour",
-                authorRole = ChatStaffRole.MANAGERIAL, title = "Week of subtraction", weekStart = week,
-                bodyEn = "Subtraction all week; swimming on Thursday. Please send a towel.",
-                bodyAr = "الطرح طوال الأسبوع؛ السباحة يوم الخميس. يرجى إرسال منشفة.",
-                curriculum = Curriculum.BRITISH,
-                attachment = BroadcastAttachment("/media/pages/week-plan.pdf", "week-plan.pdf"),
-                createdAt = 1_758_500_000_000L, read = "bc-plan" in fakeReads,
-            ),
             BroadcastView(
                 id = "bc-ann", kind = BroadcastKind.ANNOUNCEMENT, authorId = "co-lina", authorName = "Ms. Lina",
                 authorRole = ChatStaffRole.COORDINATOR, title = "New number lines",
@@ -307,6 +340,8 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
     override suspend fun markBroadcastRead(childId: String, broadcastId: String): BroadcastView {
         net()
         fakeReads += broadcastId
+        val week = broadcastId.removePrefix("bc-plan-")
+        if (week != broadcastId) return fakePlan(week, grade = 1, read = true)
         return fakeBroadcasts().firstOrNull { it.id == broadcastId }
             ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No such broadcast."))
     }

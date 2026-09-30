@@ -129,6 +129,25 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
     override suspend fun markBroadcastRead(childId: String, broadcastId: String): BroadcastView =
         call { client.post("$baseUrl/children/$childId/broadcasts/$broadcastId/read") { authed() } }
 
+    // ---- MH1/MH3: the weekly-plan archive and the parent's own account
+    override suspend fun childWeeklyPlans(childId: String, from: String?, to: String?): quest.api.dto.WeeklyPlanArchive =
+        call {
+            client.get("$baseUrl/children/$childId/weekly-plans") {
+                authed()
+                if (!from.isNullOrBlank()) parameter("from", from)
+                if (!to.isNullOrBlank()) parameter("to", to)
+            }
+        }
+
+    override suspend fun parentProfile(): quest.api.dashboard.ParentProfile = call { client.get("$baseUrl/parent/me") { authed() } }
+
+    override suspend fun updateParentProfile(phone: String?): quest.api.dashboard.ParentProfile =
+        call {
+            client.patch("$baseUrl/parent/me") {
+                authed(); contentType(ContentType.Application.Json); setBody(quest.api.dashboard.UpdateParentRequest(phone))
+            }
+        }
+
     override suspend fun chatMessages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> =
         call {
             client.get("$baseUrl/children/$childId/chat/threads/$teacherId/messages") {

@@ -43,6 +43,9 @@ import quest.feature.broadcasts.domain.BroadcastGroups
 import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.broadcasts.domain.broadcastBody
 import quest.feature.broadcasts.domain.groupBroadcasts
+import quest.feature.broadcasts.domain.isImage
+import quest.feature.broadcasts.domain.isWebUrl
+import quest.feature.broadcasts.domain.unreadAnnouncements
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.presentation.Chip
 import quest.feature.parent.presentation.ParentCard
@@ -56,13 +59,16 @@ import quest.ui.design.Dimens
 import quest.ui.design.Palette
 
 /**
- * RM4 (DR4, DR6): the one place a parent reads what the school sent — the department's **weekly plan** pinned at the
- * top, then announcements and events, newest first.
+ * RM4, narrowed by MH3: the **Announcements** page — what the coordinator or the manager told the parents of this
+ * child's section, and what is happening, newest first.
  *
- * It replaces the legacy `ParentAnnouncement` list the app never drew: `GET /children/{id}/broadcasts` already carries
- * a coordinator's announcements (the composer mirrors into both), so one screen is the whole story. The flag is
- * `announcements` — the key the superseded feature carried — and the server answers 404 while it is off, which is the
- * "not enabled" state rather than an error.
+ * **The weekly plans are gone from here.** MH1 made a plan one grade's week as an image with an archive of its own, so
+ * it has a page of its own too ([WeeklyPlanScreen]) and its own badge. `BroadcastService.forChild` still answers them
+ * on this feed, so `announcementRows` drops them client-side; the same reason the badge is counted from the rows rather
+ * than taken from `BroadcastFeed.unread`, which counts plans too.
+ *
+ * The flag is `announcements` — the key the superseded feature carried — and the server answers 404 while it is off,
+ * which is the "not enabled" state rather than an error.
  */
 object BroadcastsContract {
     data class State(
@@ -82,7 +88,7 @@ object BroadcastsContract {
         data class Open(val id: String) : Intent
     }
 
-    /** Nothing here is one-shot: an attachment is opened by the platform's viewer straight from the card. */
+    /** Nothing here is one-shot: an image attachment is drawn in the card and opened full-screen from there. */
     sealed interface Effect : MviEffect
 }
 
@@ -111,7 +117,8 @@ class BroadcastsViewModel(
             reduce {
                 copy(
                     loading = false, refreshing = false, notEnabled = false, childNotPlaced = false, errorMessage = null,
-                    unread = feed.unread, groups = groupBroadcasts(feed.items, Today.date(), Today.epochMillis()),
+                    unread = unreadAnnouncements(feed.items, Today.epochMillis()),
+                    groups = groupBroadcasts(feed.items, Today.epochMillis()),
                 )
             }
         } catch (e: ApiException) {
@@ -140,17 +147,12 @@ class BroadcastsViewModel(
             copy(
                 unread = (unread - 1).coerceAtLeast(0),
                 groups = groups.copy(
-                    weeklyPlan = weeklyPlan(groups.weeklyPlan, updated),
                     announcements = groups.announcements.map { if (it.id == id) updated else it },
                     events = groups.events.map { if (it.id == id) updated else it },
-                    earlierPlans = groups.earlierPlans.map { if (it.id == id) updated else it },
                 ),
             )
         }
     }
-
-    private fun weeklyPlan(current: BroadcastView?, updated: BroadcastView) =
-        if (current?.id == updated.id) updated else current
 }
 
 @Composable
@@ -168,7 +170,7 @@ fun BroadcastsRoute(
     FeatureGate(Flags.ANNOUNCEMENTS) {
         LaunchedEffect(vm) { vm.dispatch(BroadcastsContract.Intent.Load) }
         ParentShell(
-            title = { it.broadcasts },
+            title = { it.announcements },
             onBack = onBack,
             currentTab = quest.ui.design.DashboardTab.NOTIFICATION,
             onTabSelected = { tab ->
@@ -224,13 +226,8 @@ fun BroadcastsScreen(
                 return@Column
             }
 
-            state.groups.weeklyPlan?.let { plan ->
-                SectionTitle(strings.thisWeeksPlan)
-                BroadcastCard(plan, strings, pinned = true, onOpen = { onOpen(plan) })
-            }
             BroadcastGroupSection(strings.announcementsGroup, state.groups.announcements, strings, onOpen)
             BroadcastGroupSection(strings.eventsGroup, state.groups.events, strings, onOpen)
-            BroadcastGroupSection(strings.earlierPlans, state.groups.earlierPlans, strings, onOpen)
             Spacer(Modifier.height(Dimens.s24))
         }
     }
@@ -245,7 +242,7 @@ private fun BroadcastGroupSection(
 ) {
     if (rows.isEmpty()) return
     SectionTitle(title)
-    rows.forEach { row -> BroadcastCard(row, strings, false, { onOpen(row) }) }
+    rows.forEach { row -> BroadcastCard(row, strings) { onOpen(row) } }
 }
 
 /**
@@ -287,13 +284,10 @@ fun broadcastDescription(view: BroadcastView, strings: Strings): String = buildL
     add(authorLine(view, strings))
     add(broadcastBody(view, strings.isRtl))
     view.attachment?.let { attachment ->
-        val isWebUrl = attachment.url.startsWith("http://", ignoreCase = true) ||
-            attachment.url.startsWith("https://", ignoreCase = true)
-        if (isWebUrl) {
-            add(attachment.name ?: strings.attachment)
-        } else {
-            add("${attachment.name ?: strings.attachment}, ${strings.attachmentOnDashboard}")
-        }
+        val name = attachment.name ?: strings.attachment
+        // An image is drawn and an external link is tappable, so both are just named; only the one the app can neither
+        // render nor open has to say where it can be.
+        add(if (attachment.isImage || attachment.isWebUrl) name else "$name, ${strings.attachmentOnDashboard}")
     }
 }.joinToString(", ")
 
@@ -301,7 +295,6 @@ fun broadcastDescription(view: BroadcastView, strings: Strings): String = buildL
 fun BroadcastCard(
     view: BroadcastView,
     strings: Strings,
-    pinned: Boolean = false,
     onOpen: () -> Unit = {},
 ) {
     val uriHandler = LocalUriHandler.current
@@ -327,23 +320,18 @@ fun BroadcastCard(
         Spacer(Modifier.height(Dimens.s4))
         Text(authorLine(view, strings), style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
 
-        val week = view.weekStart
-        if (pinned && week != null) {
-            Spacer(Modifier.height(Dimens.s4))
-            Text(weekLabel(week, strings), style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
-        }
-
         Spacer(Modifier.height(Dimens.s8))
         Text(broadcastBody(view, strings.isRtl), style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk)
 
-        // RM2 stores a reference to bytes that already exist. If it's a web/external URL (http/https),
-        // parents can tap to open it via the system browser/viewer. Otherwise (e.g. internal /media/** path
-        // which requires session credentials), display that it is available on the dashboard.
+        // MH3: an image is drawn here, off `GET /media/attachments/{id}` with the parent's bearer — the route is
+        // authenticated, so the system viewer would land on a 401 and the bytes come through the app's own client.
+        // #171's external link is unchanged below it: an `http(s)` URL the composer typed is somebody else's page and
+        // the platform opens it. Anything else the app can neither render nor open says where it can be.
         view.attachment?.let { attachment ->
             Spacer(Modifier.height(Dimens.s8))
-            val isWebUrl = attachment.url.startsWith("http://", ignoreCase = true) ||
-                attachment.url.startsWith("https://", ignoreCase = true)
-            if (isWebUrl) {
+            if (attachment.isImage) {
+                AttachmentImage(attachment, attachment.name ?: strings.attachment, strings)
+            } else if (attachment.isWebUrl) {
                 Chip(
                     text = "📎 ${attachment.name ?: strings.attachment} ↗",
                     color = MaterialTheme.colorScheme.primaryContainer,
