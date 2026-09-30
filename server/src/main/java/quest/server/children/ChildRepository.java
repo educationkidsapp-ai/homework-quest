@@ -78,6 +78,43 @@ public interface ChildRepository extends JpaRepository<Entities.ChildEntity, Str
             + " or exists (select 1 from ParentEntity p where p.id = c.parentId and lower(p.email) like :q escape '\\'))")
     long countDirectory(@Param("classIds") java.util.Collection<String> classIds, @Param("q") String q);
 
+    // -------------------------------------------------------------- the Admin's Children & parents page (MA1)
+
+    /**
+     * A page of the school's children with everything the owner's item 5 prints, matched on the child's name, either
+     * address the school holds, or the parent's own name and telephone number. The school is named explicitly *and*
+     * the `school` filter is on, as {@link #findBySchoolIdAndDeletedAtIsNullOrderByNameAsc} names it: the value comes
+     * from {@link quest.server.tenancy.TenantContext}, never from a request parameter.
+     *
+     * <p>The `escape '\'` on every `like` is what makes the search box literal text — `100%` is four characters to
+     * look for, not "anything at all" — and `PeopleDirectoryService.pattern` is the one place that escapes `%`, `_`
+     * and the backslash itself. The telephone number is matched without one because the stored form holds no
+     * wildcard: it is `+` and digits ({@link quest.server.platform.Phones}).
+     */
+    @Query("select c from ChildEntity c where c.schoolId = :schoolId and c.deletedAt is null and ("
+            + "lower(c.name) like :q escape '\\' or lower(coalesce(c.parentEmail, '')) like :q escape '\\'"
+            + " or exists (select 1 from ParentEntity p where p.id = c.parentId and ("
+            + "lower(p.email) like :q escape '\\' or lower(coalesce(p.displayName, '')) like :q escape '\\'"
+            + " or coalesce(p.phone, '') like :q)))")
+    List<Entities.ChildEntity> findSchoolDirectory(@Param("schoolId") String schoolId, @Param("q") String q,
+                                                  org.springframework.data.domain.Pageable page);
+
+    /** How many rows that same filter matches, for the page's `total` — the same predicate, counted. */
+    @Query("select count(c) from ChildEntity c where c.schoolId = :schoolId and c.deletedAt is null and ("
+            + "lower(c.name) like :q escape '\\' or lower(coalesce(c.parentEmail, '')) like :q escape '\\'"
+            + " or exists (select 1 from ParentEntity p where p.id = c.parentId and ("
+            + "lower(p.email) like :q escape '\\' or lower(coalesce(p.displayName, '')) like :q escape '\\'"
+            + " or coalesce(p.phone, '') like :q)))")
+    long countSchoolDirectory(@Param("schoolId") String schoolId, @Param("q") String q);
+
+    /**
+     * Which schools this parent already has a live child in. Native on purpose: a Hibernate filter does not touch a
+     * native statement, and the question only has an answer when it is asked across every school — reusing an address
+     * that belongs to another school's family is what `POST /admin/children` refuses with a 409.
+     */
+    @Query(value = "SELECT DISTINCT school_id FROM children WHERE parent_id = :parentId AND deleted_at IS NULL", nativeQuery = true)
+    List<String> findSchoolIdsOfParentAcrossSchools(@Param("parentId") String parentId);
+
     /**
      * Look a child up through a query, not `em.find`: Hibernate filters do not apply to `find`, so a `findById` would
      * hand a scoped caller a child of another school — and with her every attempt, completion, sticker and recording,

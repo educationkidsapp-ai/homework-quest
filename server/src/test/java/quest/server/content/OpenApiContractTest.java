@@ -106,9 +106,14 @@ class OpenApiContractTest extends ApiTestSupport {
             "/admin/classes/{id}/join-card.pdf", "/admin/classes/{id}/assignments",
             "/admin/classes/{id}/children", "/admin/classes/{id}/children/unassigned",
             "/admin/classes/{id}/children/import", "/admin/children", "/admin/children/{id}",
+            // MA1: the Children & parents page — a child created with her parent's Firebase account, the paged
+            // directory beside the roster list, and a new password for that parent.
+            "/admin/children/search", "/admin/children/{id}/parent/reset-password",
             "/admin/classes/{id}/roster/attach", "/admin/classes/{id}/roster/{childId}",
             "/admin/teachers", "/admin/teachers/{id}", "/admin/teachers/{id}/reset-password",
             "/admin/teachers/{id}/assignments",
+            // MA1: the school's non-teaching staff. No account behind a row, so no reset-password twin.
+            "/admin/workers", "/admin/workers/{id}",
             "/teacher/classes/{classId}/children", "/teacher/classes/{classId}/children/unassigned",
             "/teacher/classes/{classId}/children/{childId}",
             "/teacher/classes/{classId}/roster/attach", "/teacher/classes/{classId}/roster/{childId}");
@@ -161,7 +166,8 @@ class OpenApiContractTest extends ApiTestSupport {
             "/coordinator/chat/threads", "/coordinator/chat/threads/{id}/messages", "/coordinator/chat/threads/{id}/read",
             "/coordinator/chat/threads/{id}/status", "/coordinator/complaints", "/coordinator/managers",
             "/coordinator/announcements", "/coordinator/broadcasts",
-            "/admin/coordinators", "/admin/coordinators/{id}/scopes");
+            "/admin/coordinators", "/admin/coordinators/{id}",
+            "/admin/coordinators/{id}/reset-password", "/admin/coordinators/{id}/scopes");
 
     /**
      * RM1: the department manager's read-only area and the Admin routes that create one
@@ -179,7 +185,8 @@ class OpenApiContractTest extends ApiTestSupport {
             "/management/classes/{id}/attendance", "/management/classes/{id}/results",
             "/management/lessons/{id}/results", "/management/children/{id}",
             "/management/classes/{id}/exams", "/management/exams/{id}/results",
-            "/admin/managers", "/admin/managers/{id}/scopes",
+            "/admin/managers", "/admin/managers/{id}", "/admin/managers/{id}/reset-password",
+            "/admin/managers/{id}/scopes",
             // RM5 (DR7): the staff register — the area's one write — and the department's people directory.
             "/management/staff-attendance", "/management/staff-attendance/summary", "/management/staff-attendance/{userId}",
             "/management/people/children", "/management/people/teachers", "/management/people/coordinators");

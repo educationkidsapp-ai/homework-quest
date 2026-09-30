@@ -347,6 +347,9 @@ each of them would refuse the one it had not heard of.
 | `PATCH /admin/users/{id} {phone}` | the Admin, on anybody's — the only update route a coordinator's or a manager's account has |
 | `POST /admin/teachers`, `PATCH /admin/teachers/{id}` | with the teacher's account |
 | `POST /admin/coordinators`, `POST /admin/managers`, `POST /admin/schools/{id}/users` | with the account |
+| `PATCH /admin/coordinators/{id}`, `PATCH /admin/managers/{id}` | the Admin, on either account (MA1) |
+| `POST /admin/workers`, `PATCH /admin/workers/{id}` | a worker's own number — she has no account to carry one (MA1) |
+| `POST /admin/children`, `PATCH /admin/children/{id} {parentPhone}` | the parent's, from the Children & parents page (MA1) |
 | `seed/teachers.csv`, `managers.csv`, `coordinators.csv` | an **optional trailing `phone` column** — a file without it loads exactly as before |
 | `PATCH /parent/me {phone}` | the parent, hers and only hers (`parent.me.write`) |
 
@@ -404,6 +407,83 @@ the school, and the teacher rows are the ones she manages (`ManagerScope.teacher
 shown the American department's plays or the other track's teachers beside her own. Key `management.read`, no flag,
 five grouped statements, and the window is `Reports.window`'s: both bounds absent is the last 30 days, capped at 400.
 The dashboard's manager screen should call this instead of `/school/usage`, which stays the whole-school answer.
+
+### The Admin's people pages (MA1, V25)
+
+The owner's admin-role list of 2026-09-30 is one area in five screens: **Home** leads with her counts, **Teachers**,
+**Coordinators** and **Managers** are the same page three times, **Workers** is the staff who do not teach, and
+**Children & parents** is the one that creates a login the server does not own.
+
+**Home (item 1).** `GET /me/home` for an ADMIN now answers **eight** cards, hers first: `managers`, `coordinators`,
+`teachers`, `children`, `classes`, `workers`, then P3.0's `schools` and `lessonsThisWeek`. No new route — the Home is
+what the dashboard already reads, and a key the catalogue has no string for renders as nothing rather than as the raw
+id, so the server may add one before the dashboard has wording for it. The five new figures are **one** statement of
+five scalar subqueries (`HomeService.people`), which is what keeps `HomeQueryCountTest` true. A head count is
+`status <> 'disabled'`: an account created this morning that nobody has signed in to yet is still a teacher the school
+has. With no `X-School-Id` the counts span every school, as this Home's other cards do.
+
+**Coordinators and Managers (item 3).** Both pages now have the Teachers page's two edits:
+`PATCH /admin/coordinators/{id}` and `PATCH /admin/managers/{id}` (`fullName`, `phone`, `active`), and
+`POST …/{id}/reset-password`, which answers a one-time password **once**. Disabling revokes the account's refresh
+tokens, so a session already open dies with it, and nobody may disable her own account
+(`quest.server.classes.StaffAccounts`, shared by both). Her scope and her departments stay on the `PUT …/scopes` routes
+they were already on. Keys unchanged: `coordinator.manage` and `manager.manage`, ADMIN only.
+
+**Workers (item 4).** `GET|POST /admin/workers`, `PATCH /admin/workers/{id}`, `DELETE /admin/workers/{id}` — full name,
+job (free text), mobile, and `active`. **No account comes into being:** no `users` row, no password, no role, because
+an account nobody uses is an account nobody rotates. The DELETE **retires** her (`active = false`) and deletes nothing.
+`worker.read` is ADMIN + MANAGERIAL (one filtered statement, and the department manager's directory wants it beside her
+teachers); `worker.write` is ADMIN.
+
+**Children & parents (item 5).** `POST /admin/children` writes three things in one request: the Firebase login, the
+`parents` row, and the child on the section's roster.
+
+```bash
+curl -s -X POST "$API/admin/children" -H "Authorization: Bearer $ADMIN" -H "X-School-Id: $SCHOOL" \
+  -H 'Content-Type: application/json' -d '{"name":"Hala Ahmed","classId":"…","grade":1,"curriculum":"british",
+       "parentName":"Ahmed Ali","parentPhone":"0501002030","parentEmail":"ahmed@example.com",
+       "parentInitialPassword":"…"}'
+# 201 { childId, parentId, parentCreated }
+```
+
+`grade` and `curriculum` are the section's own and may be sent for confirmation only — a disagreement is a 400, because
+a Grade 1 British child in a Grade 1 American class would be shown lessons for a syllabus she is not taught. The
+password is **at least eight characters**, is the Admin's to read out in the room, and is stored nowhere on the server:
+not in the audit row, not in a log line, not in a mail. An address the school already has is **reused** (a second child
+of one family is one account, `parentCreated: false`); an address whose family belongs to **another school** is a 409.
+A Firebase account that exists but has no `parents` row — a parent who signed up in the app before the school typed her
+in — keeps its uid and its own password; `POST /admin/children/{id}/parent/reset-password` is the only route that
+changes one.
+
+The page is `GET /admin/children/search?q&page&size` → `{page, size, total, rows}`, matched on the child's name, either
+address the school holds, or the parent's name and telephone number. **Not** `GET /admin/children`, which has answered a
+flat array of roster rows since §3 and is what the attach picker reads with `?unassigned=true`. The edit stays on
+`PATCH /admin/children/{id}`, which MA1 widens by `parentPhone`. Keys `admin.children.read` / `admin.children.write`,
+ADMIN only.
+
+#### What QA and production need configured for parent accounts
+
+A parent's login lives in **Firebase Auth**, not in this database, so `POST /admin/children` and the parent
+reset-password route call Firebase Admin — `getUserByEmail`, `createUser`, `updateUser`. They go through the
+`quest.server.auth.ParentAccounts` port, and which implementation runs is decided by the one setting that already
+decides whether a parent's *token* is real:
+
+| `quest.auth.fake` | Implementation | Where |
+|---|---|---|
+| `true` | in-memory stand-in, no network | the `test` and `h2` profiles, local development, and the seed — **the seed never needs Firebase** |
+| `false` | Firebase Admin | `qa`, `prod` |
+
+**What QA has:** `FIREBASE_CREDENTIALS` (Secret Manager, the service-account JSON or a path to it), used today by
+`FirebaseTokenFilter` to *verify* parent ID tokens. **What must be added:** nothing new, *if* that service account also
+carries user-management rights — token verification needs only the project's public keys, while creating a user and
+setting a password need the Identity Toolkit. The credential to check is the one behind `FIREBASE_CREDENTIALS`: a
+service account with the **Firebase Authentication Admin** role (or `identitytoolkit.*` on the project) can do both. If
+it cannot, add a second service account with that role and point `FIREBASE_CREDENTIALS` at it — the same variable, a
+different value, and no code change. Never put the value in a file in this repository; the name is what travels.
+
+A deployment with `quest.auth.fake=false` and no usable Firebase app answers **503
+`Parent accounts are not configured`** on those two routes and nothing else changes: the rest of the Admin's People area
+is local rows and keeps working, which is the same way token verification already degrades.
 
 ### The matrix
 

@@ -113,4 +113,12 @@ public final class CoordinatorDto {
 
     /** `PUT /admin/coordinators/{id}/scopes`: the complete set she should hold afterwards. */
     public record ScopesRequest(@NotEmpty @Valid List<Scope> scopes) {}
+
+    /**
+     * `PATCH /admin/coordinators/{id}` (MA1): only the fields that are present are written — the contract
+     * `UpdateTeacherRequest` has, narrowed to what a coordinator holds. Her scope is the other route's.
+     */
+    public record UpdateCoordinatorRequest(@Size(max = 80) String fullName,
+                                           @Size(max = quest.server.auth.DashboardDto.PHONE) String phone,
+                                           Boolean active) {}
 }

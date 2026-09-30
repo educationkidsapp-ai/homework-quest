@@ -134,6 +134,18 @@ data class CreateManagerRequest(val fullName: String, val email: String, val pho
 @Serializable
 data class ManagerCreated(val manager: ManagerAccount, val temporaryPassword: String)
 
+/**
+ * `PATCH /admin/managers/{id}` (MA1, the owner's item 3 — "managers page like the teachers page"):
+ * [UpdateCoordinatorRequest]'s mirror, with the same two rules (disabling revokes her sessions; nobody disables her
+ * own account). `POST /admin/managers/{id}/reset-password` answers a [TemporaryPassword] once.
+ */
+@Serializable
+data class UpdateManagerRequest(
+    val fullName: String? = null,
+    val phone: String? = null,
+    val active: Boolean? = null,
+)
+
 /** `PUT /admin/managers/{id}/scopes`: the complete set of departments she should hold afterwards. */
 @Serializable
 data class ManagerDepartmentsRequest(val curricula: List<Curriculum> = emptyList())

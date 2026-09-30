@@ -25,7 +25,8 @@ import java.util.Map;
  * <table>
  *   <caption>Home cards</caption>
  *   <tr><th>role</th><th>key</th><th>value</th></tr>
- *   <tr><td>ADMIN</td><td>{@code schools}, {@code children}, {@code lessonsThisWeek}</td><td>the count</td></tr>
+ *   <tr><td>ADMIN</td><td>{@code managers}, {@code coordinators}, {@code teachers}, {@code children},
+ *       {@code classes}, {@code workers}, {@code schools}, {@code lessonsThisWeek}</td><td>the count</td></tr>
  *   <tr><td>TEACHER</td><td>{@code playedYesterday}, {@code lessonsThisWeek}, {@code needsReview}</td><td>the count</td></tr>
  *   <tr><td>MANAGERIAL</td><td>{@code children}, {@code activeFamilies}, {@code teachers}</td><td>the count</td></tr>
  * </table>
@@ -49,7 +50,8 @@ public final class HomeDto {
     private HomeDto() {}
 
     /**
-     * One of the three big numbers the Home counts up on load. `key` is the message id; `value` is the number, typed
+     * One of the big numbers the Home counts up on load — three for a teacher and a manager, and since MA1 eight for
+     * the Admin, whose six leading keys are the owner's own list. `key` is the message id; `value` is the number, typed
      * rather than pre-formatted because the count-up animation has to interpolate it and Arabic digits are the
      * browser's business.
      */

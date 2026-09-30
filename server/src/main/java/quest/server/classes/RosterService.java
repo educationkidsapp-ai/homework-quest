@@ -42,14 +42,16 @@ public class RosterService {
     private final AuditService audit; private final quest.server.children.ChildMediaRepository media;
     private final quest.server.teacher.TeacherQuestionAnswerRepository answers; private final quest.server.files.FileStore files;
     private final quest.server.chat.ChatThreadRepository chatThreads; private final quest.server.chat.ChatMessageRepository chatMessages;
+    private final quest.server.auth.ParentRepository parents;
 
     public RosterService(ChildRepository children, TeacherScope scope, RosterImport reader, AuditService audit,
                          quest.server.children.ChildMediaRepository media,
                          quest.server.teacher.TeacherQuestionAnswerRepository answers, quest.server.files.FileStore files,
-                         quest.server.chat.ChatThreadRepository chatThreads, quest.server.chat.ChatMessageRepository chatMessages) {
+                         quest.server.chat.ChatThreadRepository chatThreads, quest.server.chat.ChatMessageRepository chatMessages,
+                         quest.server.auth.ParentRepository parents) {
         this.children = children; this.scope = scope; this.reader = reader; this.audit = audit;
         this.media = media; this.answers = answers; this.files = files;
-        this.chatThreads = chatThreads; this.chatMessages = chatMessages;
+        this.chatThreads = chatThreads; this.chatMessages = chatMessages; this.parents = parents;
     }
 
     /**
@@ -127,6 +129,7 @@ public class RosterService {
         if (request.parentEmail() != null) child.setParentEmail(request.parentEmail().isBlank() ? null : email(request.parentEmail()));
         if (request.photoUrl() != null) child.setPhotoUrl(request.photoUrl().isBlank() ? null : photo(request.photoUrl()));
         if (request.active() != null) child.setActive(request.active());
+        if (request.parentPhone() != null) parentPhone(child, request.parentPhone());
         if (request.classId() != null && !request.classId().equals(child.getClassId())) {
             var target = writable(caller, request.classId());                   // the destination has to be hers too
             child.setClassId(target.getId()); child.setCurriculum(target.getCurriculum()); child.setGrade(target.getGrade());
@@ -270,6 +273,37 @@ public class RosterService {
         if ("MANAGERIAL".equals(caller.role()))
             throw ApiException.forbidden("Managerial accounts can read this school's rosters but not change them.");
         return section;
+    }
+
+    /**
+     * MA1: the roster row `POST /admin/children` writes — {@link #add}'s insert, plus the link to the parent account
+     * {@link ChildAdmissionService} has just created or found. Every write of a `children` row stays in this class, so
+     * the duplicate-name rule and the avatar colour are applied here too and not a second time somewhere else.
+     */
+    @Transactional
+    ChildEntity admit(Principals.User caller, ClassEntity section, String name, String parentEmail, String parentId) {
+        String cleaned = name(name);
+        var roster = children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(section.getId());
+        if (roster.stream().anyMatch(c -> normalise(c.getName()).equals(normalise(cleaned))))
+            throw ApiException.conflict(cleaned + " is already on this class's roster.");
+        var child = insert(section, cleaned, parentEmail, null, roster.size());
+        child.setParentId(parentId);
+        children.save(child);
+        audit.record(caller.userId(), "child.admit", "child", child.getId(), section.getSchoolId(),
+                Map.of("classId", section.getId(), "parentId", parentId));
+        return child;
+    }
+
+    /**
+     * MH1's `parents.phone`, changed from the Admin's Children & parents page. It is the parent <em>account's</em>
+     * number and not a column on the roster row, so a child nobody has registered yet has nowhere to put one: that is
+     * a 400 naming the reason rather than a silently dropped field.
+     */
+    private void parentPhone(ChildEntity child, String raw) {
+        if (child.getParentId() == null) throw ApiException.badRequest("No parent account is linked to " + child.getName() + " yet.");
+        var parent = parents.findById(child.getParentId()).orElseThrow(() -> ApiException.notFound("parent"));
+        parent.setPhone(quest.server.platform.Phones.normalise(raw, "parentPhone"));
+        parents.save(parent);
     }
 
     private ChildEntity insert(ClassEntity section, String name, String parentEmail, String photoUrl, int position) {

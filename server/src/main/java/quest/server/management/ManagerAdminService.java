@@ -53,11 +53,13 @@ public class ManagerAdminService {
 
     private final UserRepository users; private final StaffScopeRepository scopes; private final TemporaryPasswords passwords;
     private final PasswordEncoder encoder; private final TenantContext tenant; private final AuditService audit;
+    private final quest.server.auth.RefreshTokenService refreshTokens;
 
     public ManagerAdminService(UserRepository users, StaffScopeRepository scopes, TemporaryPasswords passwords,
-                               PasswordEncoder encoder, TenantContext tenant, AuditService audit) {
+                               PasswordEncoder encoder, TenantContext tenant, AuditService audit,
+                               quest.server.auth.RefreshTokenService refreshTokens) {
         this.users = users; this.scopes = scopes; this.passwords = passwords; this.encoder = encoder;
-        this.tenant = tenant; this.audit = audit;
+        this.tenant = tenant; this.audit = audit; this.refreshTokens = refreshTokens;
     }
 
     /** Every manager of the school with her departments: two statements, never one per person. */
@@ -99,6 +101,30 @@ public class ManagerAdminService {
         return new ManagementDto.ManagerCreated(account(user, wanted), temporary);
     }
 
+    /**
+     * `PATCH /admin/managers/{id}` (MA1, the owner's item 3): `CoordinatorAdminService.update`'s mirror, so the
+     * Managers page edits a person exactly as the Teachers and Coordinators pages do. The rules that matter are
+     * {@link quest.server.classes.StaffAccounts}'.
+     */
+    @Transactional
+    public ManagementDto.ManagerAccount update(Principals.User caller, String userId, ManagementDto.UpdateManagerRequest request) {
+        var user = manager(userId);
+        quest.server.classes.StaffAccounts.apply(caller, user, request.fullName(), request.phone(), request.active(), refreshTokens);
+        users.save(user);
+        audit.record(caller.userId(), "manager.update", "user", user.getId(), user.getSchoolId(), Map.of("status", user.getStatus()));
+        return account(user, mine(user.getSchoolId(), user.getId()));
+    }
+
+    /** A new one-time password for an account that already exists; the old one stops working immediately. */
+    @Transactional
+    public quest.server.classes.ClassDto.TemporaryPassword resetPassword(Principals.User caller, String userId) {
+        var user = manager(userId);
+        String temporary = quest.server.classes.StaffAccounts.reset(user, encoder, passwords, refreshTokens);
+        users.save(user);
+        audit.record(caller.userId(), "manager.resetPassword", "user", user.getId(), user.getSchoolId(), Map.of());
+        return new quest.server.classes.ClassDto.TemporaryPassword(temporary);
+    }
+
     /** The complete set of departments she should hold afterwards — the contract her coordinator siblings have. */
     @Transactional
     public ManagementDto.ManagerAccount setDepartments(Principals.User caller, String userId, ManagementDto.DepartmentsRequest request) {
@@ -136,6 +162,13 @@ public class ManagerAdminService {
             row.setSubject(null); row.setCurriculum(curriculum); row.setCreatedAt(Instant.now());
             scopes.save(row);
         }
+    }
+
+    /** Her departments as they stand, for a route that did not change them. */
+    private List<String> mine(String schoolId, String userId) {
+        return scopes.findBySchoolIdAndUserIdOrderBySubjectAscCurriculumAsc(schoolId, userId).stream()
+                .filter(r -> (r.getSubject() == null || r.getSubject().isBlank()) && r.getCurriculum() != null)
+                .map(r -> ManagerScope.normalise(r.getCurriculum())).toList();
     }
 
     /** A MANAGERIAL user of the caller's scope. `users` is filtered, so another school's is simply not found. */

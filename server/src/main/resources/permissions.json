@@ -120,7 +120,12 @@
     "management.people": ["ADMIN", "MANAGERIAL"],
     "management.broadcast": ["ADMIN", "MANAGERIAL"],
     "management.chat": ["ADMIN", "MANAGERIAL"],
-    "manager.manage": ["ADMIN"]
+    "manager.manage": ["ADMIN"],
+
+    "admin.children.read": ["ADMIN"],
+    "admin.children.write": ["ADMIN"],
+    "worker.read": ["ADMIN", "MANAGERIAL"],
+    "worker.write": ["ADMIN"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -239,6 +244,13 @@
     { "method": "GET", "path": "/admin/children", "permission": "roster.read" },
     { "method": "PATCH", "path": "/admin/children/{id}", "permission": "roster.write" },
     { "method": "DELETE", "path": "/admin/children/{id}", "permission": "roster.write" },
+    { "method": "GET", "path": "/admin/children/search", "permission": "admin.children.read" },
+    { "method": "POST", "path": "/admin/children", "permission": "admin.children.write" },
+    { "method": "POST", "path": "/admin/children/{id}/parent/reset-password", "permission": "admin.children.write" },
+    { "method": "GET", "path": "/admin/workers", "permission": "worker.read" },
+    { "method": "POST", "path": "/admin/workers", "permission": "worker.write" },
+    { "method": "PATCH", "path": "/admin/workers/{id}", "permission": "worker.write" },
+    { "method": "DELETE", "path": "/admin/workers/{id}", "permission": "worker.write" },
 
     { "method": "GET", "path": "/admin/teachers", "permission": "teacher.read" },
     { "method": "POST", "path": "/admin/teachers", "permission": "teacher.manage" },
@@ -402,6 +414,8 @@
     { "method": "GET", "path": "/coordinator/exams/{id}/results", "permission": "coordinator.exams.read" },
     { "method": "GET", "path": "/admin/coordinators", "permission": "coordinator.manage" },
     { "method": "POST", "path": "/admin/coordinators", "permission": "coordinator.manage" },
+    { "method": "PATCH", "path": "/admin/coordinators/{id}", "permission": "coordinator.manage" },
+    { "method": "POST", "path": "/admin/coordinators/{id}/reset-password", "permission": "coordinator.manage" },
     { "method": "PUT", "path": "/admin/coordinators/{id}/scopes", "permission": "coordinator.manage" },
     { "method": "GET", "path": "/management/me", "permission": "management.read" },
     { "method": "GET", "path": "/management/coordinators", "permission": "management.read" },
@@ -437,6 +451,8 @@
     { "method": "GET", "path": "/management/admins", "permission": "management.chat" },
     { "method": "GET", "path": "/admin/managers", "permission": "manager.manage" },
     { "method": "POST", "path": "/admin/managers", "permission": "manager.manage" },
+    { "method": "PATCH", "path": "/admin/managers/{id}", "permission": "manager.manage" },
+    { "method": "POST", "path": "/admin/managers/{id}/reset-password", "permission": "manager.manage" },
     { "method": "PUT", "path": "/admin/managers/{id}/scopes", "permission": "manager.manage" }
   ]
 }

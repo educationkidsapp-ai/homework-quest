@@ -107,6 +107,7 @@ public class HomeService {
         long schoolCount = schoolId != null ? 1 : one("SELECT COUNT(*) FROM schools", scope);
         long childCount = one("SELECT COUNT(*) FROM children WHERE deleted_at IS NULL" + schoolClause, scope);
         long publishedThisWeek = one("SELECT COUNT(*) FROM lessons WHERE status = 'published' AND published_at >= :weekStart" + schoolClause, scope);
+        var people = people(scope, schoolClause);
 
         var needsYou = new ArrayList<HomeDto.NeedsYouItem>();
         for (var row : Reports.rows(Reports.bind(em,
@@ -135,12 +136,42 @@ public class HomeService {
                             "days", String.valueOf(STALE_INVITE_DAYS)),
                     "/admin/users?status=invited"));
 
+        // MA1 (the owner's item 1) leads with her six, then the two P3.0 cards this Home has always had. A key the
+        // dashboard has no string for renders as nothing (see HomeDto), so the order is what decides what she reads
+        // first.
         var cards = List.of(
-                new HomeDto.HomeCard("schools", schoolCount),
+                new HomeDto.HomeCard("managers", people[0]),
+                new HomeDto.HomeCard("coordinators", people[1]),
+                new HomeDto.HomeCard("teachers", people[2]),
                 new HomeDto.HomeCard("children", childCount),
+                new HomeDto.HomeCard("classes", people[3]),
+                new HomeDto.HomeCard("workers", people[4]),
+                new HomeDto.HomeCard("schools", schoolCount),
                 new HomeDto.HomeCard("lessonsThisWeek", publishedThisWeek));
         return new HomeDto.HomeResponse("ADMIN", displayName, schoolId, schoolName, logoUrl, platformName,
                 cards, List.copyOf(needsYou), null, null);
+    }
+
+    /**
+     * MA1, the owner's item 1: managers, coordinators, teachers, classes and other workers, as <strong>one</strong>
+     * statement of five scalar subqueries rather than five round trips — `HomeQueryCountTest` is what holds that, and
+     * a Home is the route `/` sends every Admin to.
+     *
+     * <p>A head count is `status <> 'disabled'`, not `status = 'active'`: an account the Admin created this morning and
+     * nobody has signed in to yet is still a teacher the school has. A retired worker (`active = false`) is not.
+     * With no `X-School-Id` the counts span every school, which is the same thing this Home's other cards do.
+     */
+    private long[] people(Map<String, Object> scope, String schoolClause) {
+        String staff = " AND status <> 'disabled'" + schoolClause;
+        var row = Reports.rows(Reports.bind(em, "SELECT "
+                + "(SELECT COUNT(*) FROM users WHERE role = 'MANAGERIAL'" + staff + "), "
+                + "(SELECT COUNT(*) FROM users WHERE role = 'COORDINATOR'" + staff + "), "
+                + "(SELECT COUNT(*) FROM users WHERE role = 'TEACHER'" + staff + "), "
+                + "(SELECT COUNT(*) FROM classes WHERE 1 = 1" + schoolClause + "), "
+                + "(SELECT COUNT(*) FROM workers WHERE active = TRUE" + schoolClause + ")", scope)).get(0);
+        var out = new long[row.length];
+        for (int i = 0; i < row.length; i++) out[i] = Reports.number(row[i]);
+        return out;
     }
 
     // ---------------------------------------------------------------- TEACHER

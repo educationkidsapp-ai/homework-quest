@@ -19,11 +19,18 @@ public final class Entities {
         @Column(nullable = false) private String email;
         /** MH1: how the manager reaches her (owner's item 5). Null until the parent types one into the app. */
         @Column(length = 20) private String phone;
+        /**
+         * MA1 (V25): her name, as the Admin typed it when she created the family. Null on every row
+         * {@link FirebaseTokenFilter} wrote on first sight of a token — it has a uid and an address and no name —
+         * so the directory prints the address for those.
+         */
+        @Column(name = "display_name", length = 80) private String displayName;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getFirebaseUid() { return firebaseUid; } public void setFirebaseUid(String v) { firebaseUid = v; }
         public String getEmail() { return email; } public void setEmail(String v) { email = v; }
         public String getPhone() { return phone; } public void setPhone(String v) { phone = v; }
+        public String getDisplayName() { return displayName; } public void setDisplayName(String v) { displayName = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }
 

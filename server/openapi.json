@@ -167,6 +167,42 @@
         "required" : [ "generatedAt", "id", "level", "play", "promptVersion", "variant" ],
         "type" : "object"
       },
+      "AdmitChildRequest" : {
+        "properties" : {
+          "classId" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "parentEmail" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "parentInitialPassword" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "parentName" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "parentPhone" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "classId", "name", "parentEmail", "parentInitialPassword", "parentName" ],
+        "type" : "object"
+      },
       "AnalysedEvent" : {
         "properties" : {
           "id" : {
@@ -760,6 +796,20 @@
           }
         },
         "required" : [ "avatarColor", "curriculum", "grade", "id", "languages", "name", "schoolId" ],
+        "type" : "object"
+      },
+      "ChildAdmission" : {
+        "properties" : {
+          "childId" : {
+            "type" : "string"
+          },
+          "parentCreated" : {
+            "type" : "boolean"
+          },
+          "parentId" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "ChildAttendanceRecord" : {
@@ -2129,6 +2179,23 @@
         "required" : [ "email", "password", "role" ],
         "type" : "object"
       },
+      "CreateWorkerRequest" : {
+        "properties" : {
+          "fullName" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "job" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "fullName", "job" ],
+        "type" : "object"
+      },
       "DashboardUser" : {
         "properties" : {
           "assignments" : {
@@ -2719,6 +2786,68 @@
           }
         },
         "required" : [ "falseTwin", "id", "trueStatement" ],
+        "type" : "object"
+      },
+      "FamilyPage" : {
+        "properties" : {
+          "page" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FamilyRow"
+            },
+            "type" : "array"
+          },
+          "size" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "FamilyRow" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "childId" : {
+            "type" : "string"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "parentEmail" : {
+            "type" : "string"
+          },
+          "parentId" : {
+            "type" : "string"
+          },
+          "parentName" : {
+            "type" : "string"
+          },
+          "parentPhone" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "FeatureFlagDefinition" : {
@@ -6843,6 +6972,24 @@
         },
         "type" : "object"
       },
+      "UpdateCoordinatorRequest" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "fullName" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "phone" : {
+            "maxLength" : 30,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "UpdateExamRequest" : {
         "properties" : {
           "closesAt" : {
@@ -6880,6 +7027,24 @@
           }
         },
         "required" : [ "enabled" ],
+        "type" : "object"
+      },
+      "UpdateManagerRequest" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "fullName" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "phone" : {
+            "maxLength" : 30,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "UpdateMeRequest" : {
@@ -6966,6 +7131,9 @@
             "type" : "string"
           },
           "parentEmail" : {
+            "type" : "string"
+          },
+          "parentPhone" : {
             "type" : "string"
           },
           "photoUrl" : {
@@ -7120,6 +7288,23 @@
             "type" : "string"
           },
           "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateWorkerRequest" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "job" : {
+            "type" : "string"
+          },
+          "phone" : {
             "type" : "string"
           }
         },
@@ -7449,6 +7634,30 @@
           }
         },
         "required" : [ "answer", "prompt", "steps" ],
+        "type" : "object"
+      },
+      "Worker" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "job" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "WorldPalette" : {
@@ -7786,6 +7995,76 @@
           }
         },
         "tags" : [ "Classes" ]
+      },
+      "post" : {
+        "operationId" : "admitChild",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdmitChildRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildAdmission"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Children and parents" ]
+      }
+    },
+    "/admin/children/search" : {
+      "get" : {
+        "operationId" : "families",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FamilyPage"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Children and parents" ]
       }
     },
     "/admin/children/{id}" : {
@@ -7839,6 +8118,32 @@
           }
         },
         "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/children/{id}/parent/reset-password" : {
+      "post" : {
+        "operationId" : "resetParentPassword",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemporaryPassword"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Children and parents" ]
       }
     },
     "/admin/classes" : {
@@ -8275,6 +8580,68 @@
               }
             },
             "description" : "Created"
+          }
+        },
+        "tags" : [ "Coordinators" ]
+      }
+    },
+    "/admin/coordinators/{id}" : {
+      "patch" : {
+        "operationId" : "updateCoordinator",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateCoordinatorRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoordinatorAccount"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinators" ]
+      }
+    },
+    "/admin/coordinators/{id}/reset-password" : {
+      "post" : {
+        "operationId" : "resetCoordinatorPassword",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemporaryPassword"
+                }
+              }
+            },
+            "description" : "OK"
           }
         },
         "tags" : [ "Coordinators" ]
@@ -9142,6 +9509,68 @@
               }
             },
             "description" : "Created"
+          }
+        },
+        "tags" : [ "Managers" ]
+      }
+    },
+    "/admin/managers/{id}" : {
+      "patch" : {
+        "operationId" : "updateManager",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateManagerRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ManagerAccount"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Managers" ]
+      }
+    },
+    "/admin/managers/{id}/reset-password" : {
+      "post" : {
+        "operationId" : "resetManagerPassword",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemporaryPassword"
+                }
+              }
+            },
+            "description" : "OK"
           }
         },
         "tags" : [ "Managers" ]
@@ -10314,6 +10743,106 @@
           }
         },
         "tags" : [ "Teacher" ]
+      }
+    },
+    "/admin/workers" : {
+      "get" : {
+        "operationId" : "workers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/Worker"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Workers" ]
+      },
+      "post" : {
+        "operationId" : "createWorker",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateWorkerRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Worker"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Workers" ]
+      }
+    },
+    "/admin/workers/{id}" : {
+      "delete" : {
+        "operationId" : "retireWorker",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "Workers" ]
+      },
+      "patch" : {
+        "operationId" : "updateWorker",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateWorkerRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Worker"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Workers" ]
       }
     },
     "/auth/change-password" : {
@@ -16345,6 +16874,9 @@
     }
   },
   "tags" : [ {
+    "description" : "Children created together with their parents' accounts",
+    "name" : "Children and parents"
+  }, {
     "description" : "Teacher class attendance taking and parent attendance reflection",
     "name" : "Attendance"
   }, {
@@ -16413,6 +16945,9 @@
   }, {
     "description" : "Sections, join codes and class rosters",
     "name" : "Classes"
+  }, {
+    "description" : "The school's non-teaching staff (no accounts)",
+    "name" : "Workers"
   }, {
     "description" : "Questions a teacher sends to her students, and the answers",
     "name" : "Teacher questions"

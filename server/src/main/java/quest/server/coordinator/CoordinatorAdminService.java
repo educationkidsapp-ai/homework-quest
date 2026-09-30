@@ -54,11 +54,13 @@ public class CoordinatorAdminService {
 
     private final UserRepository users; private final StaffScopeRepository scopes; private final TemporaryPasswords passwords;
     private final PasswordEncoder encoder; private final TenantContext tenant; private final AuditService audit;
+    private final quest.server.auth.RefreshTokenService refreshTokens;
 
     public CoordinatorAdminService(UserRepository users, StaffScopeRepository scopes, TemporaryPasswords passwords,
-                                   PasswordEncoder encoder, TenantContext tenant, AuditService audit) {
+                                   PasswordEncoder encoder, TenantContext tenant, AuditService audit,
+                                   quest.server.auth.RefreshTokenService refreshTokens) {
         this.users = users; this.scopes = scopes; this.passwords = passwords; this.encoder = encoder;
-        this.tenant = tenant; this.audit = audit;
+        this.tenant = tenant; this.audit = audit; this.refreshTokens = refreshTokens;
     }
 
     /** Every coordinator of the school with her whole scope: two statements, never one per person. */
@@ -97,6 +99,31 @@ public class CoordinatorAdminService {
         audit.record(caller.userId(), "coordinator.create", "user", user.getId(), schoolId,
                 Map.of("email", email, "scopes", wanted.size()));
         return new CoordinatorDto.CoordinatorCreated(account(user, wanted.stream().map(CoordinatorAdminService::scope).toList()), temporary);
+    }
+
+    /**
+     * `PATCH /admin/coordinators/{id}` (MA1, the owner's item 3): the Teachers page's edit, for a coordinator. The
+     * rules that matter are {@link quest.server.classes.StaffAccounts}' — disabling revokes her refresh tokens, and
+     * nobody disables her own account.
+     */
+    @Transactional
+    public CoordinatorDto.CoordinatorAccount update(Principals.User caller, String userId,
+                                                    CoordinatorDto.UpdateCoordinatorRequest request) {
+        var user = coordinator(userId);
+        quest.server.classes.StaffAccounts.apply(caller, user, request.fullName(), request.phone(), request.active(), refreshTokens);
+        users.save(user);
+        audit.record(caller.userId(), "coordinator.update", "user", user.getId(), user.getSchoolId(), Map.of("status", user.getStatus()));
+        return account(user, mine(user.getSchoolId(), user.getId()));
+    }
+
+    /** A new one-time password for an account that already exists; the old one stops working immediately. */
+    @Transactional
+    public quest.server.classes.ClassDto.TemporaryPassword resetPassword(Principals.User caller, String userId) {
+        var user = coordinator(userId);
+        String temporary = quest.server.classes.StaffAccounts.reset(user, encoder, passwords, refreshTokens);
+        users.save(user);
+        audit.record(caller.userId(), "coordinator.resetPassword", "user", user.getId(), user.getSchoolId(), Map.of());
+        return new quest.server.classes.ClassDto.TemporaryPassword(temporary);
     }
 
     /** The complete set she should hold afterwards — the contract `PUT /admin/teachers/{id}/assignments` has. */
@@ -144,6 +171,12 @@ public class CoordinatorAdminService {
             row.setCreatedAt(Instant.now());
             scopes.save(row);
         }
+    }
+
+    /** Her scope as it stands, for a route that did not change it. */
+    private List<CoordinatorDto.Scope> mine(String schoolId, String userId) {
+        return scopes.findBySchoolIdAndUserIdOrderBySubjectAscCurriculumAsc(schoolId, userId).stream()
+                .filter(r -> r.getSubject() != null).map(CoordinatorAdminService::scope).toList();
     }
 
     /** A COORDINATOR of the caller's scope. `users` is filtered, so another school's is simply not found. */
