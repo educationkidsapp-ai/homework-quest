@@ -38,11 +38,24 @@ enum class BroadcastAudience {
 }
 
 /**
- * Bytes that already exist somewhere the recipient can read: a `/media/…` path or an absolute URL. RM2 adds no
- * upload route of its own — the composer attaches something it has already uploaded.
+ * What is attached. MH1 makes it a **reference**: [id] is an `attachments` row uploaded through
+ * `POST /media/attachments`, [url] is then `/media/attachments/{id}` — so a client that only knows how to render a URL
+ * needs no change — and [type] is the stored media type (`image/jpeg`, `image/png`, `image/webp`; the server sniffs it
+ * from the bytes rather than trusting the upload's header). A row written before MH1 has a [url] the composer typed and
+ * no [id].
  */
 @Serializable
-data class BroadcastAttachment(val url: String, val name: String? = null)
+data class BroadcastAttachment(
+    val url: String,
+    val name: String? = null,
+    /** MH1: the `attachments` row, absent on a row written before MH1 (whose [url] the composer typed by hand). */
+    val id: String? = null,
+    val type: String? = null,
+)
+
+/** MH1: what `POST /media/attachments` answers — the id a composer then sends as [CreateBroadcastRequest.attachmentId]. */
+@Serializable
+data class AttachmentRef(val id: String, val name: String, val type: String, val sizeBytes: Long = 0)
 
 /**
  * One row of a feed or of a composer's own list. [sectionIds] is empty when the row is the whole department's.
@@ -85,11 +98,17 @@ data class BroadcastFeed(val unread: Int = 0, val items: List<BroadcastView> = e
  * the other two kinds; posting the same (week, department, [grade]) again replaces the plan that was there.
  * [grade] narrows the row to one grade of the author's department and may not be combined with [sectionIds], which
  * already say which sections are meant; `null` is every grade.
+ *
+ * **MH1: a manager's `WEEKLY_PLAN` requires [grade] and [attachmentId].** The owner's plan is "the week and an uploaded
+ * image": a plan with no grade (the department-wide plan RM2 allowed) and a plan with no image are both 400, [audience]
+ * is ignored — it is always the parents, teachers and coordinators of that grade — and [bodyEn]/[title] are optional,
+ * the server writing "Weekly plan · Grade N · week of <date>" when they are absent.
  */
 @Serializable
 data class CreateBroadcastRequest(
     val kind: BroadcastKind,
-    val bodyEn: String,
+    /** Required for an `ANNOUNCEMENT` or an `EVENT`; optional for a `WEEKLY_PLAN`, where the server writes it. */
+    val bodyEn: String? = null,
     val title: String? = null,
     val bodyAr: String? = null,
     val weekStart: String? = null,
@@ -97,6 +116,8 @@ data class CreateBroadcastRequest(
     val audience: List<BroadcastAudience> = emptyList(),
     val sectionIds: List<String> = emptyList(),
     val attachment: BroadcastAttachment? = null,
+    /** MH1: an [AttachmentRef.id] from `POST /media/attachments`, and the author's own upload — anybody else's is 400. */
+    val attachmentId: String? = null,
     val expiresAt: Long? = null,
 )
 
@@ -120,4 +141,10 @@ data class WeeklyPlanWeek(val weekStart: String, val items: List<WeeklyPlanEntry
  * absent parameters mean the last twelve weeks ending this one.
  */
 @Serializable
-data class WeeklyPlanArchive(val from: String, val to: String, val weeks: List<WeeklyPlanWeek> = emptyList())
+data class WeeklyPlanArchive(
+    val from: String,
+    val to: String,
+    /** MH1: the caller's own unread plans inside the window. A parent has no bell, so this *is* her notification. */
+    val unread: Int = 0,
+    val weeks: List<WeeklyPlanWeek> = emptyList(),
+)

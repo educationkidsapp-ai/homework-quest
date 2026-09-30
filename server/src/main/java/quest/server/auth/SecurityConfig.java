@@ -58,7 +58,9 @@ public class SecurityConfig {
                 // a COORDINATOR is stopped here rather than by a permission. What she may read inside is the
                 // `@PreAuthorize` on each route, as everywhere else.
                 .requestMatchers("/management/**").hasAnyRole("ADMIN", "MANAGERIAL")
-                .requestMatchers("/children/**", "/lessons/**").hasRole("PARENT")
+                // MH1: the parent's own account (`/parent/me`), the parent-side sibling of `/me` above. Her role and
+                // nobody else's: a dashboard user has `/me` and no business in a `parents` row.
+                .requestMatchers("/children/**", "/lessons/**", "/parent/**").hasRole("PARENT")
                 .requestMatchers("/media/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
                 .anyRequest().authenticated())
             .addFilterBefore(firebase, UsernamePasswordAuthenticationFilter.class)

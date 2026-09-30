@@ -51,6 +51,28 @@ public interface BroadcastRepository extends JpaRepository<Entities.BroadcastEnt
     List<Entities.BroadcastEntity> plansBetween(@Param("schoolId") String schoolId, @Param("from") LocalDate from,
                                                 @Param("to") LocalDate to, Pageable page);
 
+    /**
+     * MH1: the rows of one school that carry one attachment — how `/media/attachments/{id}` decides whether the caller
+     * may see those bytes. Expiry is not named: an expired plan drops out of the feeds and the archive still shows it,
+     * so its image has to stay readable. The school is a parameter as well as a filter, because a parent runs with no
+     * filter at all and hers is her child's.
+     */
+    @Query("select b from BroadcastEntity b where b.schoolId = :schoolId and b.attachmentId = :attachmentId")
+    List<Entities.BroadcastEntity> byAttachment(@Param("schoolId") String schoolId, @Param("attachmentId") String attachmentId);
+
+    /**
+     * Every attachment id any broadcast still points at — the whole set in one statement, which is what
+     * {@code UploadRetention.sweep} needs to tell an orphan from a live image. It runs from the scheduler, where no
+     * Hibernate filter is enabled, so the answer is the platform's and not one school's: an attachment is an orphan
+     * only when <em>nobody</em> references it.
+     */
+    @Query("select distinct b.attachmentId from BroadcastEntity b where b.attachmentId is not null")
+    java.util.Set<String> referencedAttachmentIds();
+
+    /** How many broadcasts point at one attachment — 0 is what makes deleting its bytes safe. */
+    @Query("select count(b) from BroadcastEntity b where b.attachmentId = :id")
+    long countByAttachment(@Param("id") String id);
+
     /** Filters do not apply to `em.find`, so the scoped lookup goes through a query (see `ClassRepository.findOneById`). */
     @Query("select b from BroadcastEntity b where b.id = :id")
     Optional<Entities.BroadcastEntity> findOneById(@Param("id") String id);

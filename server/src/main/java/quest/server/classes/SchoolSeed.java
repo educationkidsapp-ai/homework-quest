@@ -204,16 +204,18 @@ public class SchoolSeed implements CommandLineRunner {
         var known = new LinkedHashMap<String, String>();                        // email -> user id
         for (var t : staff.list()) known.put(t.email().toLowerCase(Locale.ROOT), t.userId());
         int created = 0, signable = 0;
-        for (var row : rows(dir, "teachers.csv", 4)) {
+        for (var row : rows(dir, "teachers.csv", 4, 5)) {
             String fullName = row.at(0), email = row.at(1).toLowerCase(Locale.ROOT), curriculum = row.at(3);
+            String phone = quest.server.platform.Phones.normalise(row.optional(4), "phone");
             var subjects = Arrays.stream(row.at(2).split(";")).map(String::strip).filter(s -> !s.isEmpty()).toList();
             String userId = known.get(email);
             if (userId == null) {
-                var made = row.attempt(() -> staff.create(caller, new ClassDto.CreateTeacherRequest(fullName, email, subjects, curriculum, null)));
+                var made = row.attempt(() -> staff.create(caller, new ClassDto.CreateTeacherRequest(fullName, email, subjects, curriculum, null, phone)));
                 userId = made.teacher().userId();                               // the one-time password is dropped here, unlogged
                 known.put(email, userId);
                 created++;
             }
+            phone(userId, phone);
             if (hash == null) continue;
             signInReady(userId, hash);
             signable++;
@@ -267,8 +269,9 @@ public class SchoolSeed implements CommandLineRunner {
         var known = new LinkedHashMap<String, UserEntity>();                     // email -> the account this school has
         for (var u : users.findBySchoolId(schoolId)) known.put(u.getEmail().toLowerCase(Locale.ROOT), u);
         int created = 0, total = 0, scoped = 0;
-        for (var row : rows(dir, file, coordinator ? 4 : 3)) {
+        for (var row : rows(dir, file, coordinator ? 4 : 3, coordinator ? 5 : 4)) {
             String displayName = row.at(0), email = row.at(1).toLowerCase(Locale.ROOT);
+            String phone = quest.server.platform.Phones.normalise(row.optional(coordinator ? 4 : 3), "phone");
             String subject = coordinator ? row.at(2).toLowerCase(Locale.ROOT) : null;
             String curriculum = blankToNull(row.at(coordinator ? 3 : 2).toLowerCase(Locale.ROOT));
             if (coordinator && (subject == null || subject.isBlank())) throw row.bad("a coordinator needs a subject");
@@ -287,6 +290,7 @@ public class SchoolSeed implements CommandLineRunner {
                 created++;
             }
             total++;
+            phone(existing.getId(), phone);
             if (scope(schoolId, existing.getId(), subject, curriculum)) scoped++;
             if (hash != null) signInReady(existing.getId(), hash);
         }
@@ -308,6 +312,17 @@ public class SchoolSeed implements CommandLineRunner {
         user.setPasswordHash(encoder.encode(passwords.generate()));
         user.setCreatedAt(Instant.now()); user.setUpdatedAt(Instant.now());
         return users.save(user);
+    }
+
+    /**
+     * MH1: the number the staff file carries, written on every run — the seed owns what it names, exactly as it owns
+     * the shared password. A file with no `phone` column leaves whatever she has typed for herself alone.
+     */
+    private void phone(String userId, String phone) {
+        if (phone == null) return;
+        users.findById(userId).filter(u -> !phone.equals(u.getPhone())).ifPresent(u -> {
+            u.setPhone(phone); u.setUpdatedAt(Instant.now()); users.save(u);
+        });
     }
 
     /** Her `staff_scopes` row, written once: a second run finds the same pair and answers false. */
@@ -333,7 +348,7 @@ public class SchoolSeed implements CommandLineRunner {
      */
     private int assignments(Principals.User caller, Map<String, String> classIds, String dir) {
         var seeded = new LinkedHashSet<String>();
-        for (var row : rows(dir, "teachers.csv", 4)) seeded.add(row.at(1).toLowerCase(Locale.ROOT));
+        for (var row : rows(dir, "teachers.csv", 4, 5)) seeded.add(row.at(1).toLowerCase(Locale.ROOT));
         var names = new LinkedHashMap<String, String>();                        // class id -> the name the files call it
         classIds.forEach((name, id) -> names.put(id, name));
         var wanted = new LinkedHashMap<String, LinkedHashSet<String>>();        // email -> the slots the file gives her
@@ -428,6 +443,8 @@ public class SchoolSeed implements CommandLineRunner {
     /** A data row and where it came from, so every refusal below names the file and the line an editor shows. */
     record Row(String file, int line, List<String> values) {
         String at(int column) { return values.get(column); }
+        /** MH1: a column a file may or may not have — `phone` was added to the staff files after QA had loaded them. */
+        String optional(int column) { return column < values.size() ? values.get(column) : ""; }
         int number(int column) {
             try { return Integer.parseInt(at(column)); } catch (NumberFormatException e) { throw bad(at(column) + " is not a number"); }
         }
@@ -438,14 +455,22 @@ public class SchoolSeed implements CommandLineRunner {
         }
     }
 
-    private static List<Row> rows(String dir, String file, int columns) {
+    private static List<Row> rows(String dir, String file, int columns) { return rows(dir, file, columns, columns); }
+
+    private static List<Row> rows(String dir, String file, int columns, int most) {
         try (InputStream in = new ClassPathResource(dir + file).getInputStream()) {
-            return parse(dir + file, new String(in.readAllBytes(), StandardCharsets.UTF_8), columns);
+            return parse(dir + file, new String(in.readAllBytes(), StandardCharsets.UTF_8), columns, most);
         } catch (IOException e) { throw ApiException.badRequest("seed/" + file + " cannot be read: " + e.getMessage()); }
     }
 
-    /** Line 1 is the header; a row with the wrong number of columns, or a blank first column, stops the load. */
-    static List<Row> parse(String file, String text, int columns) {
+    static List<Row> parse(String file, String text, int columns) { return parse(file, text, columns, columns); }
+
+    /**
+     * Line 1 is the header; a row with the wrong number of columns, or a blank first column, stops the load.
+     * `most` above `columns` is MH1's optional trailing `phone`: a file written before it loads unchanged, and one
+     * with the column loads with it, so QA's fixtures need no edit to keep working.
+     */
+    static List<Row> parse(String file, String text, int columns, int most) {
         var out = new ArrayList<Row>();
         var lines = text.split("\n", -1);
         for (int i = 1; i < lines.length; i++) {
@@ -454,7 +479,8 @@ public class SchoolSeed implements CommandLineRunner {
             var cells = new ArrayList<String>();
             for (String cell : line.split(",", -1)) cells.add(cell.strip());
             var row = new Row(file, i + 1, List.copyOf(cells));
-            if (cells.size() != columns) throw row.bad(columns + " columns expected, " + cells.size() + " found");
+            if (cells.size() < columns || cells.size() > most)
+                throw row.bad((columns == most ? String.valueOf(columns) : columns + "–" + most) + " columns expected, " + cells.size() + " found");
             if (cells.getFirst().isEmpty()) throw row.bad("the first column is empty");
             out.add(row);
         }

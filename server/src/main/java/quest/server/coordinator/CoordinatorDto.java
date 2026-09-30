@@ -31,9 +31,21 @@ public final class CoordinatorDto {
     /** One (section, subject) a teacher holds inside her scope. */
     public record AssignmentRef(String classId, String className, String subject) {}
 
-    /** `GET /coordinator/teachers`: read-only — nothing under `/coordinator` edits a teacher. */
-    public record CoordinatorTeacher(String userId, String email, String displayName, String photoUrl,
-                                     List<String> subjects, List<AssignmentRef> sections) {}
+    /**
+     * MH1 (owner's item 4): a coordinator whose scope covers one of this teacher's (section, subject) slots, and the
+     * subject that put her there — so the Teachers screen can say "maths · Lina" and open a thread with her without a
+     * second request. Answered on `/management/teachers` and the manager's people directory only; `/coordinator/teachers`
+     * leaves it empty, because a coordinator looking at her own teachers is the person on this list.
+     */
+    public record TeacherCoordinator(String userId, String displayName, String subject) {}
+
+    /**
+     * `GET /coordinator/teachers`: read-only — nothing under `/coordinator` edits a teacher. MH1 adds `phone` (the
+     * mobile number the owner asked for beside every name) and `coordinators`.
+     */
+    public record CoordinatorTeacher(String userId, String email, String displayName, String photoUrl, String phone,
+                                     List<String> subjects, List<AssignmentRef> sections,
+                                     List<TeacherCoordinator> coordinators) {}
 
     /** `GET /coordinator/classes`: {@link quest.server.teacher.TeacherDto.TeacherClassCard} plus the teacher's name. */
     public record CoordinatorClass(String classId, String className, String curriculum, int grade, String subject,
@@ -90,11 +102,11 @@ public final class CoordinatorDto {
 
     // ---------------------------------------------------------------- admin (`/admin/coordinators/**`)
 
-    public record CoordinatorAccount(String userId, String email, String fullName, String status, List<Scope> scopes) {}
+    public record CoordinatorAccount(String userId, String email, String fullName, String phone, String status, List<Scope> scopes) {}
 
     /** `POST /admin/coordinators`: at least one scope — a coordinator of nothing could see nothing. */
     public record CreateCoordinatorRequest(@NotBlank @Size(max = 80) String fullName, @NotBlank String email,
-                                           @NotEmpty @Valid List<Scope> scopes) {}
+                                           @Size(max = quest.server.auth.DashboardDto.PHONE) String phone, @NotEmpty @Valid List<Scope> scopes) {}
 
     /** 201, with the one and only sight of the password — the contract `TeacherCreated` has. */
     public record CoordinatorCreated(CoordinatorAccount coordinator, String temporaryPassword) {}

@@ -45,11 +45,16 @@ class UploadRetentionTest {
         assertThat(fresh.getDeletedAt()).isNull();
     }
 
+    /** MH1 added the attachment half; this suite is the slides half, so both new collaborators answer "nothing". */
     private UploadRetention retention(FileStore store, List<SourceFileEntity> rows) {
         var repo = Mockito.mock(SourceFileRepository.class);
         Mockito.when(repo.findAll()).thenReturn(rows);
         Mockito.when(repo.save(Mockito.any())).thenAnswer(i -> i.getArgument(0));
-        return new UploadRetention(repo, store);
+        var attachments = Mockito.mock(AttachmentRepository.class);
+        Mockito.when(attachments.findAll()).thenReturn(List.of());
+        var broadcasts = Mockito.mock(quest.server.broadcasts.BroadcastRepository.class);
+        Mockito.when(broadcasts.referencedAttachmentIds()).thenReturn(java.util.Set.of());
+        return new UploadRetention(repo, store, attachments, broadcasts);
     }
 
     private static SourceFileEntity file(String id, Instant createdAt) {

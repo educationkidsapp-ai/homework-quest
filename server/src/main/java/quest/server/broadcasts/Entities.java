@@ -39,6 +39,9 @@ public final class Entities {
         @Column(name = "body_ar") private String bodyAr;
         @Column(name = "attachment_url") private String attachmentUrl;
         @Column(name = "attachment_name") private String attachmentName;
+        /** V24 (MH1): an `attachments.id` — the reference V22's free-text `attachmentUrl` could not be. */
+        @Column(name = "attachment_id") private String attachmentId;
+        @Column(name = "attachment_type") private String attachmentType;
         @Column(name = "audience_roles", nullable = false) private String audienceRoles;
         @Column private String curriculum;
         @Column private Integer grade;
@@ -57,6 +60,8 @@ public final class Entities {
         public String getBodyAr() { return bodyAr; } public void setBodyAr(String v) { bodyAr = v; }
         public String getAttachmentUrl() { return attachmentUrl; } public void setAttachmentUrl(String v) { attachmentUrl = v; }
         public String getAttachmentName() { return attachmentName; } public void setAttachmentName(String v) { attachmentName = v; }
+        public String getAttachmentId() { return attachmentId; } public void setAttachmentId(String v) { attachmentId = v; }
+        public String getAttachmentType() { return attachmentType; } public void setAttachmentType(String v) { attachmentType = v; }
         public String getAudienceRoles() { return audienceRoles; } public void setAudienceRoles(String v) { audienceRoles = v; }
         public String getCurriculum() { return curriculum; } public void setCurriculum(String v) { curriculum = v; }
         public Integer getGrade() { return grade; } public void setGrade(Integer v) { grade = v; }

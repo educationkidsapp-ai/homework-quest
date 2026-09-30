@@ -88,6 +88,7 @@ public class ManagerAdminService {
         user.setId(UUID.randomUUID().toString()); user.setSchoolId(schoolId); user.setEmail(email);
         user.setRole(ManagerScope.ROLE); user.setStatus("active"); user.setMustChangePassword(true);
         user.setDisplayName(fullName); user.setPasswordHash(encoder.encode(temporary));
+        user.setPhone(quest.server.platform.Phones.normalise(request.phone(), "phone"));
         user.setCreatedAt(Instant.now()); user.setUpdatedAt(Instant.now());
         users.save(user);
         write(schoolId, user.getId(), wanted);
@@ -146,7 +147,7 @@ public class ManagerAdminService {
 
     private static ManagementDto.ManagerAccount account(UserEntity user, List<String> departments) {
         return new ManagementDto.ManagerAccount(user.getId(), user.getEmail(), SectionService.displayName(user),
-                user.getStatus(), departments);
+                user.getPhone(), user.getStatus(), departments);
     }
 
     private static String text(String value) {

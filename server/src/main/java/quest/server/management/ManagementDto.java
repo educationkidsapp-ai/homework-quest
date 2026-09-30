@@ -29,7 +29,7 @@ public final class ManagementDto {
      * `GET /management/coordinators`: one of the people she manages. `curricula` carries a `null` entry when a
      * coordinator's row names no track, which DR5 reads as both of them.
      */
-    public record ManagerCoordinator(String userId, String email, String displayName, String photoUrl,
+    public record ManagerCoordinator(String userId, String email, String displayName, String photoUrl, String phone,
                                      List<String> subjects, List<String> curricula, int sections) {}
 
     /** `GET /management/classes`: the department's grades, each with its section cards. */
@@ -105,13 +105,15 @@ public final class ManagementDto {
      * `GET /management/people/children`: a child of the department with the contact the school has for her.
      *
      * <p>Two addresses, because the school has two: `parentEmail` is the account a parent actually signed up with
-     * (null until she does) and `rosterEmail` is what `children.parent_email` carries from the imported roster. No
-     * telephone number is returned because no table holds one — neither `children` nor `users` has the column.
-     * `placedAt` is the roster row's own creation, which is when the child joined the section — epoch millis, the
-     * form every other timestamp in the dashboard contract takes.
+     * (null until she does) and `rosterEmail` is what `children.parent_email` carries from the imported roster. MH1
+     * adds `parentPhone` (`parents.phone`, hers to set in the app) and `parentId`, which is null exactly when no
+     * parent has registered for this child — the one flag the "message the parent" button needs, and the case
+     * `POST /management/chat/threads {childId}` answers 404 `no_parent` to. `placedAt` is the roster row's own
+     * creation, which is when the child joined the section — epoch millis, the form every other timestamp takes.
      */
     public record DirectoryChild(String childId, String name, String classId, String className, int grade,
-                                 String curriculum, String parentEmail, String rosterEmail, long placedAt) {}
+                                 String curriculum, String parentEmail, String rosterEmail, String parentId,
+                                 String parentPhone, long placedAt) {}
 
     /** `GET /management/people/children?classId&q&page&size`. `total` is every match, not the page. */
     public record ChildDirectory(int page, int size, int total, List<DirectoryChild> rows) {}
@@ -129,11 +131,11 @@ public final class ManagementDto {
     // ---------------------------------------------------------------- admin (`/admin/managers/**`)
 
     /** A manager as the Admin's screen sees her, with every department she holds. */
-    public record ManagerAccount(String userId, String email, String fullName, String status, List<String> departments) {}
+    public record ManagerAccount(String userId, String email, String fullName, String phone, String status, List<String> departments) {}
 
     /** `POST /admin/managers`: one department to start with, the shape `managers.csv` has. */
     public record CreateManagerRequest(@NotBlank @Size(max = 80) String fullName, @NotBlank String email,
-                                       @NotBlank String curriculum) {}
+                                       @Size(max = quest.server.auth.DashboardDto.PHONE) String phone, @NotBlank String curriculum) {}
 
     /** 201, with the one and only sight of the password — the contract `CoordinatorCreated` has. */
     public record ManagerCreated(ManagerAccount manager, String temporaryPassword) {}

@@ -53,10 +53,11 @@ public class ManagementChatController {
     public record StaffPerson(String userId, String displayName) {}
 
     /**
-     * `POST /management/chat/threads`: one of the three ids — a teacher of her department (MG1), a coordinator of it,
-     * or a platform admin. `teacherUserId` wins when more than one is sent, and the body must name at least one.
+     * `POST /management/chat/threads`: one of four ids — a child of her department, whose registered parent she wants
+     * to write to (MH1, owner's item 5), a teacher of it (MG1), a coordinator of it, or a platform admin. They are
+     * read in that order when more than one is sent, and the body must name at least one.
      */
-    public record StaffThreadRequest(String coordinatorUserId, String adminUserId, String teacherUserId) {}
+    public record StaffThreadRequest(String childId, String coordinatorUserId, String adminUserId, String teacherUserId) {}
 
     private final ChatService chat; private final Json json;
     public ManagementChatController(ChatService chat, Json json) { this.chat = chat; this.json = json; }
@@ -96,13 +97,16 @@ public class ManagementChatController {
         return json.encodeShared(chat.managerRead(caller, id), ChatReadReceipt.Companion.serializer());
     }
 
-    /** Her thread with a teacher or a coordinator of her department, or with an admin; one row whichever side opens it. */
+    /**
+     * Her thread with the parent of a child of her department, with a teacher or a coordinator of it, or with an admin;
+     * one row whichever side opens it.
+     */
     @PostMapping(value = "/management/chat/threads", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('management.chat')")
     @ResponseStatus(HttpStatus.CREATED)
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatThread.class)))
     public String managementStaffThread(@AuthenticationPrincipal Principals.User caller, @RequestBody StaffThreadRequest body) {
-        return json.encodeShared(chat.managerStaffThread(caller, body.coordinatorUserId(), body.adminUserId(), body.teacherUserId()),
+        return json.encodeShared(chat.managerStaffThread(caller, body.childId(), body.coordinatorUserId(), body.adminUserId(), body.teacherUserId()),
                 ChatThread.Companion.serializer());
     }
 

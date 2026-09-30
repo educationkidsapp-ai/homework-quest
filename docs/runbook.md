@@ -317,7 +317,7 @@ allow-list (RM5's staff register is on that list with the argument for it; RM2's
   person's marked days, capped at 62. The directory is `GET /management/people/children?classId&q`, `…/teachers` and
   `…/coordinators`, all department-scoped and paged (`page`, `size` ≤ 100, with a `total`), `q` matching a name or an
   address. A child's row carries **two** addresses — the account her parent signed up with and the roster's own
-  `children.parent_email` — and **no telephone number, because no table holds one**. Keys:
+  `children.parent_email` — plus, since MH1, `parentPhone` and `parentId` (see "Telephone numbers" below). Keys:
   `management.staff.attendance` (the read and the write share one) and `management.people`, both ADMIN + MANAGERIAL.
   `PUT /management/staff-attendance` is the only write in the whole namespace and is named in
   `ManagerScopeArchitectureTest.ALLOWED_WRITES`; `ManagementPeopleController` joins the two INFRASTRUCTURE names below
@@ -327,6 +327,57 @@ allow-list (RM5's staff register is on that list with the argument for it; RM2's
   register included. `ManagementController` and `ManagerAdminController` are in
   `FeatureFlagCoverageTest.INFRASTRUCTURE` for the coordinator pair's reason; the flagged half is
   `ManagementReadsController`, where every handler names `gradebook` or `exams`.
+
+### Telephone numbers (MH1, V24)
+
+The owner's second manager list opens with a number beside every name: her coordinators (item 3), her teachers (item 4)
+and her children's parents (item 5), each with a direct message. Until V24 no table held one at all, which is why RM5's
+directory said so in its own contract.
+
+`users.phone` and `parents.phone` are nullable and 20 characters — E.164's own maximum, `+` and at most fifteen digits.
+**What is stored is the normalised number, never what was typed:** `quest.server.platform.Phones` drops the separators a
+person uses (spaces, dashes, brackets, dots), reads a leading `00` as `+`, and refuses anything else — 7 to 15 digits, a
+400 otherwise. An **empty string clears** the number; `null` means "not in this request", as it does for every other
+field of a PATCH. Nothing here knows which countries exist: the school types half a dozen formats and a server that knew
+each of them would refuse the one it had not heard of.
+
+| Where a number is set | Who |
+|---|---|
+| `PATCH /me {phone}` | any dashboard user, her own (`me.update`) |
+| `PATCH /admin/users/{id} {phone}` | the Admin, on anybody's — the only update route a coordinator's or a manager's account has |
+| `POST /admin/teachers`, `PATCH /admin/teachers/{id}` | with the teacher's account |
+| `POST /admin/coordinators`, `POST /admin/managers`, `POST /admin/schools/{id}/users` | with the account |
+| `seed/teachers.csv`, `managers.csv`, `coordinators.csv` | an **optional trailing `phone` column** — a file without it loads exactly as before |
+| `PATCH /parent/me {phone}` | the parent, hers and only hers (`parent.me.write`) |
+
+**The seed owns the numbers it names.** `SchoolSeed` re-applies the `phone` column on **every boot**, exactly as it
+re-applies `SEED_STAFF_PASSWORD`, so a staff number edited on QA is put back to the fixture value on the next deploy.
+That is deliberate — the acceptance seed is the owner's known-good starting point and a half-edited fixture is worse
+than a restored one — and the way out is the same as for every other seeded field: a file with **no** `phone` column
+touches nobody's number, so drop the column from the three CSVs when QA's own numbers are the ones that matter.
+
+`GET`/`PATCH /parent/me` is new: a parent had no route of her own, because she is a Firebase identity with a `parents`
+row rather than a `users` row and `/me` is dashboard roles only. It answers `{parentId, email, phone}` and `phone` is
+the one field she may change — the address is her sign-in identity. `SecurityConfig` gives `/parent/**` to `PARENT`
+alone.
+
+Read back on `GET /management/coordinators`, `/management/teachers`, `/coordinator/teachers` (each `+phone`) and
+`GET /management/people/children` (`parentPhone`, and `parentId` — **absent exactly when nobody has registered for that
+child**, which is the one flag the "message the parent" button needs). `/management/teachers` also gains
+`coordinators: [{userId, displayName, subject}]`: the coordinator(s) above that teacher, matched slot by slot — a
+coordinator covers a (section, subject) when her `staff_scopes` row names that subject and either the section's track or
+no track at all. It costs no extra statement and is empty on `/coordinator/teachers`, where the reader is the person the
+list would name.
+
+**The manager writes to a parent** with `POST /management/chat/threads {childId}` (MH1, item 5) — the fourth id that
+body may carry, beside `teacherUserId`, `coordinatorUserId` and `adminUserId`, read in the order child, teacher,
+coordinator, admin. It is the same `chat_threads` row the parent's own first message creates (`staff_role MANAGERIAL`,
+`child_id` the child), so it appears in her app list beside her coordinator threads and in `GET /management/chat/threads`
+beside everything else of hers. A child of the other department is the usual 403; a child no parent has registered for
+is **404 `no_parent`**.
+
+The roster CSV (`POST /admin/classes/{id}/roster`) still carries `name, parentEmail` and **no phone**: a roster column
+would mean a third place a number lives, and the parent's own account is the one the app keeps current.
 
 **`GET /management/stats?from&to` — DR5's statistics.** A row per grade and the department's own total (that row carries
 `grade` 0 and no `curriculum`): children, sections, attendance rate, lessons published and played, the number of exams
@@ -1323,17 +1374,19 @@ it supersedes already carries — so a school with it off answers 404 to compose
 
 | Route | Permission | What |
 |---|---|---|
-| `POST /management/broadcasts` | `management.broadcast` | `kind` `weekly_plan` \| `announcement` \| `event`, `audience` a non-empty subset of `parents` / `teachers` / `coordinators`, `sectionIds` empty = the whole department, `grade` (MG1) = one grade of it. 201 `BroadcastView`. |
+| `POST /management/broadcasts` | `management.broadcast` | `kind` `weekly_plan` \| `announcement` \| `event`, `audience` a non-empty subset of `parents` / `teachers` / `coordinators`, `sectionIds` empty = the whole department, `grade` (MG1) = one grade of it. A `weekly_plan` **requires `grade` and `attachmentId`** (MH1). 201 `BroadcastView`. |
 | `GET /management/broadcasts` | `management.broadcast` | What she posted, newest first, expired rows included. |
 | `GET /management/weekly-plans?from=&to=&grade=` | `management.broadcast` | MG1: the archive of her department(s) — `WeeklyPlanArchive`, newest week first, each entry with `readBy`. |
 | `GET /me/weekly-plans?from=&to=` | `broadcast.read` | The same archive for a teacher, coordinator or manager: the plans whose audience includes her. |
-| `GET /children/{id}/weekly-plans?from=&to=` | `child.broadcast.read` | The app's archive for that child's section. |
+| `GET /children/{id}/weekly-plans?from=&to=` | `child.broadcast.read` | The app's archive for that child's section, with her own `unread` (MH1). |
 | `POST /coordinator/broadcasts` | `coordinator.broadcast` | `announcement` or `event` for the parents of the classes she coordinates; `weekly_plan` is 400 (the plan is the department's). |
 | `GET /coordinator/broadcasts` | `coordinator.broadcast` | Hers, newest first. |
 | `GET /me/broadcasts` | `broadcast.read` | `BroadcastFeed` — what this teacher, coordinator or manager is an audience of, with her own `unread`. |
 | `POST /me/broadcasts/{id}/read` | `broadcast.write` | Marks one row read; 404 for a row she is not an audience of. |
 | `GET /children/{id}/broadcasts` | `child.broadcast.read` | The app's feed for that child, with the child's `unread`. |
 | `POST /children/{id}/broadcasts/{broadcastId}/read` | `child.broadcast.write` | The parent's read mark. |
+| `POST /media/attachments` | `media.attachment.write` | MH1: one image (JPEG/PNG/WebP, ≤ 5 MB) as `multipart/form-data` under `file`. 201 `{id, name, type, sizeBytes}`. |
+| `GET /media/attachments/{id}` | `media.attachment.read` | The bytes, to whoever may read a broadcast carrying them — or to the uploader. 404, never 403. |
 
 Each feed has **two keys**, as the bell does: the GET is `broadcast.read` / `child.broadcast.read` and the read mark
 `broadcast.write` / `child.broadcast.write`, so a read-only "View as" session still sees the feed instead of losing it
@@ -1355,7 +1408,7 @@ row is for `parents` and names her child's section, or her child's track and gra
 
 **`grade` (MG1, V23).** A manager's department-wide row may name one grade: `{"grade": 3}` means the sections of grade 3
 in her department and nobody else, and `grade` absent (the pre-V23 meaning of every existing row) means every grade of
-it. It may **not** be sent with `sectionIds` — those already say which grade is meant — and a grade she manages no class
+it — which an announcement or an event may still be, and a weekly plan may not (MH1). It may **not** be sent with `sectionIds` — those already say which grade is meant — and a grade she manages no class
 in is 400 rather than a broadcast with no audience. One predicate decides all of it, so the bell can never announce a
 plan the feed will not show.
 
@@ -1371,9 +1424,11 @@ and a `parents` id in the app.
 
 **The weekly plan** is `kind=weekly_plan` with `weekStart` — any date in the week; the server snaps it back to the
 Sunday. There is **one per week per department and grade** (V23): posting the same `(weekStart, department, grade)`
-again deletes the previous row, its read marks and its bell entries, so the replacement arrives unread — while a
-grade's plan and the department's all-grades plan for the same week are two rows that coexist. `weekStart` is required
-for a plan and refused on the other two kinds.
+again deletes the previous row, its read marks and its bell entries, so the replacement arrives unread — while two
+grades' plans for the same week are two rows that coexist. `weekStart` is required for a plan and refused on the other
+two kinds. Since MH1 a plan **always** names a grade, so the all-grades plan V23 allowed beside them is gone (see "the
+weekly plan is one grade's week as an image" below); rows QA wrote before MH1 keep their null `grade` and go on meaning
+every grade of the department.
 
 **The archive (MG1, owner's "see all weekly plans").** The three `weekly-plans` routes above answer
 `WeeklyPlanArchive`: `weeks[]` **newest week first**, each with its `items[]` sorted all-grades first then by grade,
@@ -1384,13 +1439,52 @@ the feeds drop an expired row and the archive is the screen that must not. `read
 answered on the manager's archive only, from one grouped statement; there is **no `audienceSize`** beside it, because
 an audience is resolved per reader out of `staff_scopes` and counting one would be a statement per plan.
 
-**Attachments** are a reference, not an upload: `{"attachment":{"url":"/media/pages/…","name":"plan.pdf"}}`, pointing at
-bytes that already exist. RM2 adds no upload route.
+**Attachments are an upload now (MH1, V24).** RM2 could only point at bytes that already existed, so nothing could say
+whether the recipient was allowed to read them. `POST /media/attachments` takes one image as `multipart/form-data` under
+`file` — **JPEG, PNG or WebP, at most 5 MB** — stores it in the `FileStore` under the school and answers
+`{id, name, type, sizeBytes}`. The media type is **sniffed from the bytes' own magic number**, never the `Content-Type`
+the client sent: a PDF announced as a PNG would otherwise be served back to a whole department as one. Keys:
+`media.attachment.write` (ADMIN, TEACHER, MANAGERIAL, COORDINATOR) and `media.attachment.read` (those four and PARENT).
+
+A composer then sends `attachmentId` on `POST /management/broadcasts` or `POST /coordinator/broadcasts`, and **only her
+own upload**: anybody else's id is a 400, the same answer an id that never existed gets. The row keeps
+`attachment_id`, `attachment_name` and `attachment_type` beside `attachment_url`, which becomes
+`/media/attachments/{id}`, so `attachment` reads `{id, url, name, type}` and a client that only knows how to render a URL
+needs no change. V22's free-text `attachment` still works, which is what the rows QA already has carry.
+
+`GET /media/attachments/{id}` serves the bytes to **whoever may read a broadcast that carries them** — the very
+predicate the feeds, the archives and the bell share, so a plan's image can never reach somebody the plan does not —
+plus the uploader herself, who has to see it in the composer before she posts. Everything else is **404, never 403**,
+`MediaAccess`'s rule for every id-addressed route: an id in another department must look exactly like one that never
+existed. The response carries `X-Content-Type-Options: nosniff` and `Content-Disposition: inline` with the stored name
+reduced to `[a-z0-9._-]`. Chat attachments are **not** in MH1: `chat_messages` has no attachment column.
+
+**An attachment nothing points at is reclaimed.** Two places, because a re-posted weekly plan is the common case and a
+sweep is the safety net. `BroadcastService.replacePlan` deletes the superseded plan's image — row **and** bytes —
+**immediately**, unless the replacement names the same `attachmentId` or another broadcast still points at it.
+`UploadRetention.sweep()` (hourly) then drops every `attachments` row that no broadcast references and that is more than
+**24 hours** old: the grace period is what protects an upload a composer is still holding, and the reference set is read
+across the whole platform (the sweep runs from the scheduler with no `school` filter enabled, so one school can never
+decide another's image is an orphan).
+
+**The weekly plan is one grade's week as an image (MH1, the owner's item 6).** `POST /management/broadcasts` with
+`kind=weekly_plan` now **requires `grade`** — an all-grades plan is a 400, so RM2's department-wide plan is gone — and
+**requires `attachmentId`**. `title` and `bodyEn` are optional there and the server writes
+`Weekly plan · Grade N · week of <date>` into both when they are absent (`broadcasts.body_en` is NOT NULL and the bell
+needs a headline), and `audience` is **ignored**: a plan always goes to the parents, the teachers and the coordinators
+of that grade. Everything else is unchanged — the replace key is still (school, week, department, grade), and the
+read-time predicate is still `touches`. An **announcement** or an **event** from a manager still takes `grade` for one
+grade of her department or none for the whole of it, and a coordinator's is still her own classes.
+
+**A parent has no bell, so a feed's `unread` is her notification.** `GET /children/{id}/broadcasts` already carried one;
+MH1 adds `unread` to `WeeklyPlanArchive`, so `GET /children/{id}/weekly-plans` (and the two staff archives) say how many
+plans in the window the caller has not opened. Dashboard recipients keep the `broadcast.posted` row and the
+`?open=` link into their own area, unchanged.
 
 ```bash
+ATT=$(curl -s -X POST "$API/media/attachments" -H "Authorization: Bearer $MANAGER" -F file=@plan.png | jq -r .id)
 curl -X POST "$API/management/broadcasts" -H "Authorization: Bearer $MANAGER" -H 'Content-Type: application/json' \
-  -d '{"kind":"weekly_plan","weekStart":"2026-09-27","title":"Week of subtraction",
-       "bodyEn":"Subtraction all week; swimming on Thursday.","audience":["parents","teachers","coordinators"]}'
+  -d "{\"kind\":\"weekly_plan\",\"weekStart\":\"2026-09-27\",\"grade\":3,\"attachmentId\":\"$ATT\"}"
 curl "$API/me/broadcasts" -H "Authorization: Bearer $TEACHER"
 ```
 

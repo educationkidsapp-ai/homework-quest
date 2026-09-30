@@ -24,12 +24,12 @@ import quest.server.platform.ThemeService;
 public class AuthController {
     private final AuthService auth; private final Permissions permissions; private final ThemeService themes;
     private final quest.server.schools.SchoolService schools; private final quest.server.classes.SectionService sections;
-    private final quest.server.tenancy.ManagerScope managers;
+    private final quest.server.tenancy.ManagerScope managers; private final ParentRepository parents;
     public AuthController(AuthService auth, Permissions permissions, ThemeService themes,
                           quest.server.schools.SchoolService schools, quest.server.classes.SectionService sections,
-                          quest.server.tenancy.ManagerScope managers) {
+                          quest.server.tenancy.ManagerScope managers, ParentRepository parents) {
         this.auth = auth; this.permissions = permissions; this.themes = themes; this.schools = schools;
-        this.sections = sections; this.managers = managers;
+        this.sections = sections; this.managers = managers; this.parents = parents;
     }
 
     @PostMapping(value = "/auth/sign-in", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -97,6 +97,39 @@ public class AuthController {
         String schoolName = user.getSchoolId() == null ? null
                 : schools.namesOf(java.util.List.of(user.getSchoolId())).get(user.getSchoolId());
         return DashboardDto.of(user, principal.impersonatedBy(), themes.displayName(user.getSchoolId()), schoolName);
+    }
+
+    /**
+     * MH1 (owner's item 5): the parent's own account, which until now had no route of its own — she is a `parents` row
+     * made from her Firebase identity rather than a `users` row, so `/me` (dashboard roles only, `SecurityConfig`) was
+     * never hers. It sits here because it is the same job one screen over: the account the caller is signed in as.
+     */
+    @GetMapping(value = "/parent/me", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('parent.me.read')")
+    public DashboardDto.ParentProfile parentMe(@AuthenticationPrincipal Principals.Parent parent) {
+        return profile(parentRow(parent));
+    }
+
+    /**
+     * Her mobile number, and nothing else: the address is her Firebase identity and changing it here would put the
+     * account out of step with the token she signs in with. An empty string clears the number.
+     */
+    @PatchMapping(value = "/parent/me", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('parent.me.write')")
+    public DashboardDto.ParentProfile updateParentMe(@AuthenticationPrincipal Principals.Parent parent,
+                                                     @RequestBody @Valid DashboardDto.UpdateParentRequest body) {
+        var row = parentRow(parent);
+        if (body.phone() != null) row.setPhone(quest.server.platform.Phones.normalise(body.phone(), "phone"));
+        return profile(parents.save(row));
+    }
+
+    private Entities.ParentEntity parentRow(Principals.Parent parent) {
+        if (parent == null) throw ApiException.unauthorized("Sign in first.");
+        return parents.findById(parent.parentId()).orElseThrow(() -> ApiException.notFound("parent"));
+    }
+
+    private static DashboardDto.ParentProfile profile(Entities.ParentEntity row) {
+        return new DashboardDto.ParentProfile(row.getId(), row.getEmail(), row.getPhone());
     }
 
     /** The keys of `permissions.json` the caller's role holds; the dashboard hides what the server would refuse. */

@@ -10,8 +10,13 @@ import quest.server.auth.DashboardDto;
 public final class UserDto {
     private UserDto() {}
 
-    /** `PATCH /admin/users/{id}`: disable/enable, rename, or move to another role inside the same school. */
-    public record UpdateUserRequest(String status, @Size(max = 120) String displayName, String role) {}
+    /**
+     * `PATCH /admin/users/{id}`: disable/enable, rename, or move to another role inside the same school — and, since
+     * MH1, `phone`. This is the one update route a coordinator's or a manager's account has (there is no
+     * `/admin/coordinators/{id}` beyond her scopes), so it is where the Admin corrects a mobile number.
+     */
+    public record UpdateUserRequest(String status, @Size(max = 120) String displayName, String role,
+                                    @Size(max = DashboardDto.PHONE) String phone) {}
 
     /** The teacher half of an invite, saved the moment the invite goes out so the account is complete when accepted. */
     public record TeacherProfileInput(@Size(max = 120) String displayName, String photoUrl, List<String> subjects,
@@ -23,7 +28,8 @@ public final class UserDto {
      */
     public record CreateUserRequest(@NotBlank @Email String email, @NotBlank String role,
                                     @NotBlank @Size(min = DashboardDto.MIN_PASSWORD) String password,
-                                    @Size(max = 120) String displayName, TeacherProfileInput teacherProfile) {}
+                                    @Size(max = 120) String displayName, @Size(max = DashboardDto.PHONE) String phone,
+                                    TeacherProfileInput teacherProfile) {}
 
     public record CreateInviteRequest(@NotBlank @Email String email, @NotBlank String role, TeacherProfileInput teacherProfile) {}
 

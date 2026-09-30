@@ -101,8 +101,8 @@ public class CoordinatorService {
         var rows = new ArrayList<CoordinatorDto.CoordinatorTeacher>(refs.size());
         for (var user : sortedByName(refs.keySet()))
             rows.add(new CoordinatorDto.CoordinatorTeacher(user.getId(), user.getEmail(), SectionService.displayName(user),
-                    user.getPhotoUrl(), List.copyOf(subjects.getOrDefault(user.getId(), new LinkedHashSet<>())),
-                    List.copyOf(refs.getOrDefault(user.getId(), List.of()))));
+                    user.getPhotoUrl(), user.getPhone(), List.copyOf(subjects.getOrDefault(user.getId(), new LinkedHashSet<>())),
+                    List.copyOf(refs.getOrDefault(user.getId(), List.of())), List.of()));
         return List.copyOf(rows);
     }
 

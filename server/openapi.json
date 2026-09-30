@@ -320,16 +320,19 @@
         "required" : [ "childId" ],
         "type" : "object"
       },
-      "Attachment" : {
+      "AttachmentRef" : {
         "properties" : {
-          "name" : {
-            "maxLength" : 200,
-            "minLength" : 0,
+          "id" : {
             "type" : "string"
           },
-          "url" : {
-            "maxLength" : 500,
-            "minLength" : 0,
+          "name" : {
+            "type" : "string"
+          },
+          "sizeBytes" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "type" : {
             "type" : "string"
           }
         },
@@ -375,6 +378,27 @@
         "required" : [ "ar", "en" ],
         "type" : "object"
       },
+      "BroadcastAttachment" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "url" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "BroadcastFeed" : {
         "properties" : {
           "items" : {
@@ -393,7 +417,7 @@
       "BroadcastView" : {
         "properties" : {
           "attachment" : {
-            "$ref" : "#/components/schemas/Attachment"
+            "$ref" : "#/components/schemas/BroadcastAttachment"
           },
           "audience" : {
             "items" : {
@@ -1401,6 +1425,9 @@
           "fullName" : {
             "type" : "string"
           },
+          "phone" : {
+            "type" : "string"
+          },
           "scopes" : {
             "items" : {
               "$ref" : "#/components/schemas/Scope"
@@ -1598,10 +1625,19 @@
       },
       "CoordinatorTeacher" : {
         "properties" : {
+          "coordinators" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TeacherCoordinator"
+            },
+            "type" : "array"
+          },
           "displayName" : {
             "type" : "string"
           },
           "email" : {
+            "type" : "string"
+          },
+          "phone" : {
             "type" : "string"
           },
           "photoUrl" : {
@@ -1721,7 +1757,12 @@
       "CreateBroadcastRequest" : {
         "properties" : {
           "attachment" : {
-            "$ref" : "#/components/schemas/Attachment"
+            "$ref" : "#/components/schemas/BroadcastAttachment"
+          },
+          "attachmentId" : {
+            "maxLength" : 64,
+            "minLength" : 0,
+            "type" : "string"
           },
           "audience" : {
             "items" : {
@@ -1766,7 +1807,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "bodyEn", "kind" ],
+        "required" : [ "kind" ],
         "type" : "object"
       },
       "CreateClassRequest" : {
@@ -1798,6 +1839,11 @@
           },
           "fullName" : {
             "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "phone" : {
+            "maxLength" : 30,
             "minLength" : 0,
             "type" : "string"
           },
@@ -1886,6 +1932,11 @@
           },
           "fullName" : {
             "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "phone" : {
+            "maxLength" : 30,
             "minLength" : 0,
             "type" : "string"
           }
@@ -2030,6 +2081,9 @@
             "minLength" : 1,
             "type" : "string"
           },
+          "phone" : {
+            "type" : "string"
+          },
           "photoUrl" : {
             "type" : "string"
           },
@@ -2057,6 +2111,11 @@
           "password" : {
             "maxLength" : 2147483647,
             "minLength" : 10,
+            "type" : "string"
+          },
+          "phone" : {
+            "maxLength" : 30,
+            "minLength" : 0,
             "type" : "string"
           },
           "role" : {
@@ -2109,6 +2168,9 @@
           },
           "mustChangePassword" : {
             "type" : "boolean"
+          },
+          "phone" : {
+            "type" : "string"
           },
           "photoUrl" : {
             "type" : "string"
@@ -2179,6 +2241,12 @@
             "type" : "string"
           },
           "parentEmail" : {
+            "type" : "string"
+          },
+          "parentId" : {
+            "type" : "string"
+          },
+          "parentPhone" : {
             "type" : "string"
           },
           "placedAt" : {
@@ -3511,6 +3579,9 @@
           "fullName" : {
             "type" : "string"
           },
+          "phone" : {
+            "type" : "string"
+          },
           "status" : {
             "type" : "string"
           },
@@ -3532,6 +3603,9 @@
             "type" : "string"
           },
           "email" : {
+            "type" : "string"
+          },
+          "phone" : {
             "type" : "string"
           },
           "photoUrl" : {
@@ -4120,6 +4194,20 @@
           }
         },
         "required" : [ "challenge", "modelAnswers", "objectives", "stopTips", "supported" ],
+        "type" : "object"
+      },
+      "ParentProfile" : {
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "parentId" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "PictureOption" : {
@@ -5677,6 +5765,9 @@
           "adminUserId" : {
             "type" : "string"
           },
+          "childId" : {
+            "type" : "string"
+          },
           "coordinatorUserId" : {
             "type" : "string"
           },
@@ -5946,6 +6037,9 @@
           "fullName" : {
             "type" : "string"
           },
+          "phone" : {
+            "type" : "string"
+          },
           "photoUrl" : {
             "type" : "string"
           },
@@ -6046,6 +6140,20 @@
           "weeksWithALesson" : {
             "format" : "int32",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "TeacherCoordinator" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -6784,7 +6892,22 @@
           "language" : {
             "type" : "string"
           },
+          "phone" : {
+            "maxLength" : 30,
+            "minLength" : 0,
+            "type" : "string"
+          },
           "photoUrl" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateParentRequest" : {
+        "properties" : {
+          "phone" : {
+            "maxLength" : 30,
+            "minLength" : 0,
             "type" : "string"
           }
         },
@@ -6966,6 +7089,9 @@
           "fullName" : {
             "type" : "string"
           },
+          "phone" : {
+            "type" : "string"
+          },
           "photoUrl" : {
             "type" : "string"
           },
@@ -6982,6 +7108,11 @@
         "properties" : {
           "displayName" : {
             "maxLength" : 120,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "phone" : {
+            "maxLength" : 30,
             "minLength" : 0,
             "type" : "string"
           },
@@ -7188,6 +7319,10 @@
           },
           "to" : {
             "type" : "string"
+          },
+          "unread" : {
+            "format" : "int32",
+            "type" : "integer"
           },
           "weeks" : {
             "items" : {
@@ -13234,6 +13369,67 @@
         "tags" : [ "Broadcasts" ]
       }
     },
+    "/media/attachments" : {
+      "post" : {
+        "operationId" : "uploadAttachment",
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttachmentRef"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Media" ]
+      }
+    },
+    "/media/attachments/{id}" : {
+      "get" : {
+        "operationId" : "attachment",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Media" ]
+      }
+    },
     "/media/child/{id}" : {
       "get" : {
         "operationId" : "childMedia",
@@ -13286,6 +13482,50 @@
           }
         },
         "tags" : [ "Media" ]
+      }
+    },
+    "/parent/me" : {
+      "get" : {
+        "operationId" : "parentMe",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ParentProfile"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Auth" ]
+      },
+      "patch" : {
+        "operationId" : "updateParentMe",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateParentRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ParentProfile"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Auth" ]
       }
     },
     "/platform-settings" : {

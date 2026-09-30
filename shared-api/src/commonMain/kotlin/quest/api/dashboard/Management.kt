@@ -50,6 +50,8 @@ data class ManagerCoordinator(
     val email: String,
     val displayName: String,
     val photoUrl: String? = null,
+    /** MH1 (owner's item 3): her mobile number, beside the direct-message button. */
+    val phone: String? = null,
     val subjects: List<Subject> = emptyList(),
     val curricula: List<Curriculum?> = emptyList(),
     val sections: Int = 0,
@@ -119,13 +121,14 @@ data class ManagerAccount(
     val userId: String,
     val email: String,
     val fullName: String,
+    val phone: String? = null,
     val status: UserStatus = UserStatus.ACTIVE,
     val departments: List<Curriculum> = emptyList(),
 )
 
 /** `POST /admin/managers`: one department to start with, the shape `managers.csv` has. */
 @Serializable
-data class CreateManagerRequest(val fullName: String, val email: String, val curriculum: Curriculum)
+data class CreateManagerRequest(val fullName: String, val email: String, val phone: String? = null, val curriculum: Curriculum)
 
 /** 201, with the one and only sight of the password — the same contract [CoordinatorCreated] has. */
 @Serializable
@@ -247,9 +250,9 @@ data class StaffAttendanceHistory(
  * `GET /management/people/children`: a child of the department with the contact the school actually holds.
  *
  * Two addresses, because the school has two: [parentEmail] is the account a parent signed up with (absent until she
- * does) and [rosterEmail] is what the imported roster carries. **No telephone number is returned because no table
- * holds one** — neither the roster nor a staff account has the column. [placedAt] is when the child joined the section,
- * in epoch millis like every other timestamp here.
+ * does) and [rosterEmail] is what the imported roster carries. MH1 adds [parentPhone] and [parentId], the number and
+ * the account id of that registered parent. [placedAt] is when the child joined the section, in epoch millis like
+ * every other timestamp here.
  */
 @Serializable
 data class DirectoryChild(
@@ -261,6 +264,14 @@ data class DirectoryChild(
     val curriculum: Curriculum,
     val parentEmail: String? = null,
     val rosterEmail: String? = null,
+    /**
+     * MH1: the `parents` row id, absent exactly when nobody has registered for this child — the one flag the
+     * "message the parent" button needs. Opening that thread is `POST /management/chat/threads {childId}`, which
+     * answers 404 `no_parent` in exactly this case.
+     */
+    val parentId: String? = null,
+    /** MH1 (owner's item 5): the number she typed into the app, absent until she does. */
+    val parentPhone: String? = null,
     val placedAt: Long = 0,
 )
 

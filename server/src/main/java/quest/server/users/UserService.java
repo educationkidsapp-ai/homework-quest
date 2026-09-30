@@ -67,6 +67,7 @@ public class UserService {
                 : request.teacherProfile() == null ? null : request.teacherProfile().displayName();
         if (displayName != null && !displayName.isBlank()) user.setDisplayName(displayName.trim());
         if (request.teacherProfile() != null && request.teacherProfile().photoUrl() != null) user.setPhotoUrl(request.teacherProfile().photoUrl());
+        user.setPhone(quest.server.platform.Phones.normalise(request.phone(), "phone"));
         user.setCreatedAt(Instant.now()); user.setUpdatedAt(Instant.now());
         users.save(user);
         if ("TEACHER".equals(role)) profiles.save(user.getId(), request.teacherProfile());
@@ -114,6 +115,7 @@ public class UserService {
             if (user.getSchoolId() == null) throw ApiException.badRequest("The platform admin has no school role.");
             user.setRole(role);
         }
+        if (request.phone() != null) user.setPhone(quest.server.platform.Phones.normalise(request.phone(), "phone"));
         user.setUpdatedAt(Instant.now());
         users.save(user);
         audit.record(caller.userId(), "user.update", "user", user.getId(), user.getSchoolId(),
