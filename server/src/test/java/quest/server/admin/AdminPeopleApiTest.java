@@ -85,6 +85,32 @@ class AdminPeopleApiTest extends ApiTestSupport {
         assertThat(card(after, "children")).isNotNegative();
     }
 
+
+    /**
+     * The `classes` card counts what `GET /admin/classes` lists and nothing else. A row with no `name` is one V7
+     * backfilled from a pre-section `classes` row: it is not a section anybody can open, the page does not list it,
+     * and counting it made the card read higher than the page it sends her to — on `default`, which is the school QA
+     * runs on.
+     */
+    @Test void the_classes_card_excludes_a_row_v7_left_without_a_name() throws Exception {
+        String admin = adminToken();
+        long before = card(home(admin), "classes");
+        assertThat(json(mvc.perform(scoped(get("/admin/classes"), admin, SCHOOL)).andExpect(status().isOk()).andReturn()))
+                .hasSize((int) before);                                       // the card and the page agree to start with
+
+        var legacy = new quest.server.tenancy.Entities.ClassEntity();
+        legacy.setId("ma1-legacy"); legacy.setSchoolId(SCHOOL); legacy.setCurriculum("british"); legacy.setGrade(3);
+        legacy.setSubject("math"); legacy.setName(null); legacy.setActive(true); legacy.setJoinCodeEnabled(true);
+        legacy.setCreatedAt(Instant.now());
+        classes.save(legacy);
+        try {
+            assertThat(card(home(admin), "classes")).isEqualTo(before);
+            assertThat(json(mvc.perform(scoped(get("/admin/classes"), admin, SCHOOL)).andReturn())).hasSize((int) before);
+        } finally {
+            classes.deleteById(legacy.getId());
+        }
+    }
+
     // ---------------------------------------------------------------- the Workers page (item 4)
 
     @Test void a_worker_is_created_edited_retired_and_invisible_to_another_school() throws Exception {

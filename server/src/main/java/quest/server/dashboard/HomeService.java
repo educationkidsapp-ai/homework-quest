@@ -160,6 +160,13 @@ public class HomeService {
      * <p>A head count is `status <> 'disabled'`, not `status = 'active'`: an account the Admin created this morning and
      * nobody has signed in to yet is still a teacher the school has. A retired worker (`active = false`) is not.
      * With no `X-School-Id` the counts span every school, which is the same thing this Home's other cards do.
+     *
+     * <p><strong>`classes` counts what the Classes page lists, predicate for predicate</strong> — `name IS NOT NULL`,
+     * which is {@link quest.server.classes.SectionService#list}'s own filter. A section with no name is a row V7
+     * backfilled from a pre-section `classes` row and is not a section anybody can open, so counting it made the card
+     * read higher than the page it sends her to on exactly the school that has them (`default`, on QA). `active` is
+     * deliberately <em>not</em> in the predicate: that page lists a retired section too, and adding it here would make
+     * the card disagree with the page in the other direction.
      */
     private long[] people(Map<String, Object> scope, String schoolClause) {
         String staff = " AND status <> 'disabled'" + schoolClause;
@@ -167,7 +174,7 @@ public class HomeService {
                 + "(SELECT COUNT(*) FROM users WHERE role = 'MANAGERIAL'" + staff + "), "
                 + "(SELECT COUNT(*) FROM users WHERE role = 'COORDINATOR'" + staff + "), "
                 + "(SELECT COUNT(*) FROM users WHERE role = 'TEACHER'" + staff + "), "
-                + "(SELECT COUNT(*) FROM classes WHERE 1 = 1" + schoolClause + "), "
+                + "(SELECT COUNT(*) FROM classes WHERE name IS NOT NULL" + schoolClause + "), "
                 + "(SELECT COUNT(*) FROM workers WHERE active = TRUE" + schoolClause + ")", scope)).get(0);
         var out = new long[row.length];
         for (int i = 0; i < row.length; i++) out[i] = Reports.number(row[i]);
