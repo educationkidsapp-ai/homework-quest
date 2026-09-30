@@ -162,3 +162,19 @@ data class CoordinatorCreated(val coordinator: CoordinatorAccount, val temporary
 /** `PUT /admin/coordinators/{id}/scopes`: the complete set she should hold afterwards, as with her assignments. */
 @Serializable
 data class CoordinatorScopesRequest(val scopes: List<CoordinatorScopeRow> = emptyList())
+
+/**
+ * `PATCH /admin/coordinators/{id}` (MA1, the owner's item 3 — "coordinators page like the teachers page"): only the
+ * fields that are present are written. [UpdateTeacherRequest] narrowed to what a coordinator holds; her scope is
+ * [CoordinatorScopesRequest]'s.
+ *
+ * `active = false` disables the account *and* revokes its refresh tokens, so a session already open dies with it, and
+ * nobody may disable her own account. `POST /admin/coordinators/{id}/reset-password` answers a [TemporaryPassword]
+ * once, exactly as a teacher's does.
+ */
+@Serializable
+data class UpdateCoordinatorRequest(
+    val fullName: String? = null,
+    val phone: String? = null,
+    val active: Boolean? = null,
+)

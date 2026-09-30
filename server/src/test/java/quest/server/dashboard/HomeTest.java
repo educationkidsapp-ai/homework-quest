@@ -66,7 +66,9 @@ class HomeTest extends DashboardTestSupport {
         assertThat(home.get("schoolName").isNull()).isTrue();
         assertThat(home.get("schoolLogoUrl").isNull()).isTrue();
         assertThat(home.get("platformName").asText()).isNotBlank();
-        assertThat(cardKeys(home)).containsExactly("schools", "children", "lessonsThisWeek");
+        // MA1: the owner's six lead, P3.0's two follow.
+        assertThat(cardKeys(home)).containsExactly("managers", "coordinators", "teachers", "children", "classes",
+                "workers", "schools", "lessonsThisWeek");
         assertThat(home.toString()).as("§6: EN/AR switches without a reload, so no English crosses this boundary")
                 .doesNotContain("Lessons published").doesNotContain("waiting for review").doesNotContain("Invited as");
         assertThat(home.get("classes").isNull()).as("classes are a teacher's, not an admin's").isTrue();

@@ -7,6 +7,7 @@
  */
 export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'admin.chat',
+  'admin.children.write',
   'announcement.write',
   'attendance.write',
   'auth.changePassword',
@@ -63,4 +64,5 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'user.impersonate',
   'user.invite',
   'user.write',
+  'worker.write',
 ]);

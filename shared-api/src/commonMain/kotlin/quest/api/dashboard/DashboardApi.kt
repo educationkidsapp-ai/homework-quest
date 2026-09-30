@@ -404,6 +404,25 @@ interface DashboardApi {
     suspend fun schoolChildren(unassigned: Boolean = false): List<RosterChild>
     suspend fun updateRosterChild(childId: String, request: UpdateRosterChildRequest): RosterChild
 
+    // ---- MA1: the Children & parents page, and the school's non-teaching staff (the owner's items 4 and 5)
+
+    /** `GET /admin/children/search` — a page of children with the parent the school can reach beside each one. */
+    suspend fun families(q: String? = null, page: Int = 0, size: Int = 0): FamilyPage
+
+    /** `POST /admin/children` — the child, her placement and her parent's Firebase login, from one form. */
+    suspend fun admitChild(request: AdmitChildRequest): ChildAdmission
+
+    /** `POST /admin/children/{id}/parent/reset-password` — a new password for that parent's login, answered once. */
+    suspend fun resetParentPassword(childId: String): TemporaryPassword
+
+    /** `GET /admin/workers` — the school's non-teaching staff, retired rows included (`worker.read`). */
+    suspend fun workers(): List<Worker>
+
+    /** The three writes of that page; the delete retires her rather than removing the row (`worker.write`). */
+    suspend fun createWorker(request: CreateWorkerRequest): Worker
+    suspend fun updateWorker(workerId: String, request: UpdateWorkerRequest): Worker
+    suspend fun retireWorker(workerId: String)
+
     /** Puts an app-registered child on a section's roster, and takes her off it again; both answer the child. */
     suspend fun attachChildToClass(classId: String, request: AttachChildRequest): RosterChild
     suspend fun detachChildFromClass(classId: String, childId: String): RosterChild
@@ -794,6 +813,10 @@ interface DashboardApi {
     /** `PUT /admin/coordinators/{id}/scopes` — the complete set she should hold afterwards. */
     suspend fun setCoordinatorScopes(userId: String, request: CoordinatorScopesRequest): CoordinatorAccount
 
+    /** MA1: the Teachers page's two edits, for a coordinator (`PATCH`, and a new one-time password). */
+    suspend fun updateCoordinator(userId: String, request: UpdateCoordinatorRequest): CoordinatorAccount
+    suspend fun resetCoordinatorPassword(userId: String): TemporaryPassword
+
     // ---------------------------------------------------------------- RM1: the manager's area (DR5)
     //
     // The department manager's mirror of the block above, one axis over: wide in subject, narrow in track. Every
@@ -1001,6 +1024,10 @@ interface DashboardApi {
 
     /** `PUT /admin/managers/{id}/scopes` — the complete set of departments she should hold afterwards. */
     suspend fun setManagerDepartments(userId: String, request: ManagerDepartmentsRequest): ManagerAccount
+
+    /** MA1: the same two edits one axis over (`PATCH /admin/managers/{id}`, and a new one-time password). */
+    suspend fun updateManager(userId: String, request: UpdateManagerRequest): ManagerAccount
+    suspend fun resetManagerPassword(userId: String): TemporaryPassword
 }
 
 /** `PUT /admin/platform-settings` (§A): only the fields that are present are written. */
@@ -1021,15 +1048,20 @@ data class UpdatePlatformSettingsRequest(
 // ---------------------------------------------------------------------------------------------------------------
 
 /**
- * One of the three big numbers a Home counts up on load (§6 screen 2).
+ * One of the big numbers a Home counts up on load (§6 screen 2) — three for a teacher and a manager, eight for the
+ * Admin since MA1.
  *
  * **No prose crosses this boundary.** §6 requires EN/AR to switch without a reload and the server has no
  * `Accept-Language` — so [key] is a message id the dashboard's catalogue resolves (`home.card.<key>`) and [value] is
  * the number, typed rather than pre-formatted because the count-up animation interpolates it and the digits are the
  * browser's business.
  *
- * Keys by role: ADMIN `schools`, `children`, `lessonsThisWeek`; TEACHER `playedYesterday`, `lessonsThisWeek`,
- * `needsReview`; MANAGERIAL `children`, `activeFamilies`, `teachers`.
+ * Keys by role: ADMIN `managers`, `coordinators`, `teachers`, `children`, `classes`, `workers`, `schools`,
+ * `lessonsThisWeek` (MA1 puts the owner's own six first and leaves P3.0's two behind them); TEACHER
+ * `playedYesterday`, `lessonsThisWeek`, `needsReview`; MANAGERIAL `children`, `activeFamilies`, `teachers`.
+ *
+ * A key the catalogue has no string for renders as nothing rather than as the raw id, which is what lets the server
+ * add one before the dashboard has wording for it.
  */
 @Serializable
 data class HomeCard(val key: String, val value: Long)

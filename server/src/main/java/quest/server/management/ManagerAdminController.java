@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -48,6 +49,20 @@ public class ManagerAdminController {
     public ManagementDto.ManagerCreated createManager(@AuthenticationPrincipal Principals.User caller,
                                                      @RequestBody @Valid ManagementDto.CreateManagerRequest body) {
         return managers.create(ManagerScope.require(caller), body);
+    }
+
+    @PatchMapping(value = "/admin/managers/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('manager.manage')")
+    public ManagementDto.ManagerAccount updateManager(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
+                                                      @RequestBody @Valid ManagementDto.UpdateManagerRequest body) {
+        return managers.update(ManagerScope.require(caller), id, body);
+    }
+
+    @PostMapping(value = "/admin/managers/{id}/reset-password", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('manager.manage')")
+    public quest.server.classes.ClassDto.TemporaryPassword resetManagerPassword(@AuthenticationPrincipal Principals.User caller,
+                                                                                @PathVariable String id) {
+        return managers.resetPassword(ManagerScope.require(caller), id);
     }
 
     /** Replaces her whole set of departments; a track named twice is a 400 and nothing is written. */

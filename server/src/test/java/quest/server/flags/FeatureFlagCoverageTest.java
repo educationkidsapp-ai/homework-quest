@@ -100,7 +100,13 @@ class FeatureFlagCoverageTest {
             "ClassAdminController", "TeacherAdminController", "TeacherLessonController",
             "AttendanceController", "NotificationController",
             "CoordinatorController", "CoordinatorAdminController",
-            "ManagementController", "ManagerAdminController", "ManagementPeopleController");
+            "ManagementController", "ManagerAdminController", "ManagementPeopleController",
+            // MA1: the other two pages of the Admin's People area. `ChildAdmissionController` is how a family — the
+            // child *and* her parent's login — comes to exist and how a parent locked out of it is given a new
+            // password, {@code TeacherAdminController}'s argument exactly. `WorkerController` is the same screen
+            // family one step further: a flag that could switch it off would leave an Admin able to create a teacher
+            // but not to record the caretaker, and nobody could turn it back on without a database session.
+            "ChildAdmissionController", "WorkerController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

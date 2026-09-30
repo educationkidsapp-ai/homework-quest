@@ -142,4 +142,12 @@ public final class ManagementDto {
 
     /** `PUT /admin/managers/{id}/scopes`: the complete set of departments she should hold afterwards. */
     public record DepartmentsRequest(@NotEmpty List<@NotBlank String> curricula) {}
+
+    /**
+     * `PATCH /admin/managers/{id}` (MA1): only the fields that are present are written — `UpdateCoordinatorRequest`'s
+     * mirror, and `UpdateTeacherRequest`'s narrowed to what a manager holds. Her departments are the other route's.
+     */
+    public record UpdateManagerRequest(@Size(max = 80) String fullName,
+                                       @Size(max = quest.server.auth.DashboardDto.PHONE) String phone,
+                                       Boolean active) {}
 }

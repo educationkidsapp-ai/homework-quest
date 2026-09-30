@@ -59,7 +59,32 @@ public final class ClassDto {
     public record CreateRosterChildRequest(@NotBlank String name, String parentEmail, String photoUrl) {}
 
     public record UpdateRosterChildRequest(String name, String parentEmail, String photoUrl, Boolean active,
-                                           String classId) {}
+                                           String classId, String parentPhone) {}
+
+    // ------------------------------------------------------------------ MA1: children and their parents' accounts
+
+    /**
+     * `POST /admin/children` (the owner's item 5): a child and the parent account that goes with her, typed in one
+     * form. `grade` and `curriculum` are the section's own and may be sent for confirmation only — a disagreement is
+     * a 400 rather than a child placed in a class written for another syllabus.
+     */
+    public record AdmitChildRequest(@NotBlank String name, Integer grade, String curriculum, @NotBlank String classId,
+                                    @NotBlank String parentName, String parentPhone, @NotBlank String parentEmail,
+                                    @NotBlank String parentInitialPassword) {}
+
+    /**
+     * What was written. `parentCreated` is false when the address already had a parent row; `passwordApplied` is true
+     * only when this call minted the Firebase login with the `parentInitialPassword` that was typed — a login that
+     * already existed keeps the password its owner chose, and the screen has to say so.
+     */
+    public record ChildAdmission(String childId, String parentId, boolean parentCreated, boolean passwordApplied) {}
+
+    /** One line of the Children & parents page: the child, her class, and the parent the school can reach. */
+    public record FamilyRow(String childId, String name, int grade, String curriculum, String classId, String className,
+                            String parentId, String parentName, String parentEmail, String parentPhone, boolean active) {}
+
+    /** A page of {@link FamilyRow}; `total` is every row the search matches, not the ones on this page. */
+    public record FamilyPage(int page, int size, int total, List<FamilyRow> rows) {}
 
     /** `POST …/classes/{classId}/roster/attach`: a child who already exists, put onto this section's roster. */
     public record AttachChildRequest(@NotBlank String childId) {}

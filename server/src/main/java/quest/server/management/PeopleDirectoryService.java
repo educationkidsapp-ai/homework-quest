@@ -107,13 +107,20 @@ public class PeopleDirectoryService {
         return from >= all.size() ? List.of() : List.copyOf(all.subList(from, Math.min(all.size(), from + rows)));
     }
 
-    /** `size=0` (the default nobody set) is {@link #DEFAULT_SIZE}; anything above {@link #MAX_SIZE} is refused. */
-    private static int size(int size) {
+    /**
+     * `size=0` (the default nobody set) is {@link #DEFAULT_SIZE}; anything above {@link #MAX_SIZE} is refused.
+     *
+     * <p>Public, with {@link #page} and {@link #pattern}, because MA1's Admin Children &amp; parents page is the same
+     * kind of list one role wider ({@code ChildAdmissionService.search}) and the escaping rule in particular has to be
+     * the identical one: two directories that disagree about what `%` means are two search boxes that disagree about
+     * what they searched.
+     */
+    public static int size(int size) {
         if (size < 0 || size > MAX_SIZE) throw ApiException.badRequest("`size` is between 1 and " + MAX_SIZE + ".");
         return size == 0 ? DEFAULT_SIZE : size;
     }
 
-    private static int page(int page) {
+    public static int page(int page) {
         if (page < 0) throw ApiException.badRequest("`page` counts from 0.");
         return page;
     }
@@ -127,7 +134,7 @@ public class PeopleDirectoryService {
      * {@link ChildRepository} declare {@code escape '\'}. Without this, `%` matches every child of the department
      * and `_` matches any single character — a search that quietly widens rather than narrows.
      */
-    static String pattern(String q) {
+    public static String pattern(String q) {
         if (q == null || q.isBlank()) return "%";
         var out = new StringBuilder("%");
         for (char c : q.trim().toLowerCase(Locale.ROOT).toCharArray()) {

@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -51,6 +52,20 @@ public class CoordinatorAdminController {
     public CoordinatorDto.CoordinatorCreated createCoordinator(@AuthenticationPrincipal Principals.User caller,
                                                                @RequestBody @Valid CoordinatorDto.CreateCoordinatorRequest body) {
         return coordinators.create(CoordinatorScope.require(caller), body);
+    }
+
+    @PatchMapping(value = "/admin/coordinators/{id}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('coordinator.manage')")
+    public CoordinatorDto.CoordinatorAccount updateCoordinator(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
+                                                               @RequestBody @Valid CoordinatorDto.UpdateCoordinatorRequest body) {
+        return coordinators.update(CoordinatorScope.require(caller), id, body);
+    }
+
+    @PostMapping(value = "/admin/coordinators/{id}/reset-password", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('coordinator.manage')")
+    public quest.server.classes.ClassDto.TemporaryPassword resetCoordinatorPassword(@AuthenticationPrincipal Principals.User caller,
+                                                                                    @PathVariable String id) {
+        return coordinators.resetPassword(CoordinatorScope.require(caller), id);
     }
 
     /** Replaces her whole set; a subject named twice for the same track is a 400 and nothing is written. */

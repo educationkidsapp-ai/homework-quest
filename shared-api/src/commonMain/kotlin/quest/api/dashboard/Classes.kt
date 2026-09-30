@@ -115,7 +115,13 @@ data class RosterChild(
 @Serializable
 data class CreateRosterChildRequest(val name: String, val parentEmail: String? = null, val photoUrl: String? = null)
 
-/** `PATCH /admin/children/{id}`; [classId] moves her to another section of the same school. */
+/**
+ * `PATCH /admin/children/{id}`; [classId] moves her to another section of the same school and her grade follows it.
+ *
+ * MA1 adds [parentPhone] (the owner's item 5): it is the *parent account's* number (MH1's `parents.phone`), not a
+ * column on the roster row, so sending one for a child no parent has registered yet is a 400 naming the reason rather
+ * than a silently dropped field.
+ */
 @Serializable
 data class UpdateRosterChildRequest(
     val name: String? = null,
@@ -123,7 +129,87 @@ data class UpdateRosterChildRequest(
     val photoUrl: String? = null,
     val active: Boolean? = null,
     val classId: String? = null,
+    val parentPhone: String? = null,
 )
+
+// ---------------------------------------------------------------------------------------------------------------
+// MA1: the Admin's Children & parents page (the owner's item 5)
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * `POST /admin/children`: a child, her section and **her parent's login**, from one form.
+ *
+ * The parent's account does not live in this database — she signs in to the app with Firebase email/password — so the
+ * server creates it there first and then writes the local `parents` row. [parentInitialPassword] is the Admin's to
+ * choose and to read out in the room; at least eight characters, never the address itself, trimmed once and stored
+ * nowhere on the server. It is applied **only** when this call mints the login — see [ChildAdmission.passwordApplied].
+ *
+ * [grade] and [curriculum] are the section's own and may be sent for confirmation only: a disagreement is a 400,
+ * because a Grade 1 British child in a Grade 1 American class would be shown lessons for a syllabus she is not taught.
+ *
+ * An address the school already has is **reused** — a second child of one family is one account — while an address
+ * whose family belongs to another school is a 409.
+ */
+@Serializable
+data class AdmitChildRequest(
+    val name: String,
+    val classId: String,
+    val parentName: String,
+    val parentEmail: String,
+    val parentInitialPassword: String,
+    val grade: Int? = null,
+    val curriculum: Curriculum? = null,
+    val parentPhone: String? = null,
+)
+
+/**
+ * 201 from [AdmitChildRequest]. [parentCreated] is false when the address already had a `parents` row;
+ * [passwordApplied] is true **only** when this call minted the Firebase login with the [AdmitChildRequest.parentInitialPassword]
+ * that was typed.
+ *
+ * A login that already exists keeps the password its owner chose — overwriting a stranger's password is not this
+ * route's to do — so the two flags answer two different questions and **the screen must say which happened in words**:
+ * `passwordApplied == false` means "she already has an account; her existing password still works", and the paper the
+ * Admin just wrote the typed password on is worthless.
+ */
+@Serializable
+data class ChildAdmission(
+    val childId: String,
+    val parentId: String,
+    val parentCreated: Boolean,
+    val passwordApplied: Boolean = false,
+)
+
+/**
+ * One line of the Children &amp; parents page. [parentName] is null for a parent the app created on first sight of her
+ * token (V25 gave `parents` a name and did not backfill one), and [parentEmail] then falls back to the address the
+ * roster itself holds.
+ */
+@Serializable
+data class FamilyRow(
+    val childId: String,
+    val name: String,
+    val grade: Int,
+    val curriculum: Curriculum? = null,
+    val classId: String? = null,
+    val className: String? = null,
+    val parentId: String? = null,
+    val parentName: String? = null,
+    val parentEmail: String? = null,
+    val parentPhone: String? = null,
+    val active: Boolean = true,
+)
+
+/**
+ * `GET /admin/children/search?q&page&size`: a page of [FamilyRow], matched on the child's name, either address the
+ * school holds, or the parent's name and telephone number. [total] is every row the search matches.
+ *
+ * The path is not `/admin/children`, which has answered a flat `List<RosterChild>` since §3 and is what the attach
+ * picker reads with `?unassigned=true`; a page envelope with parent columns is a different answer to the same
+ * question, so it got a route of its own rather than breaking that one.
+ */
+@Serializable
+data class FamilyPage(val page: Int = 0, val size: Int = 0, val total: Int = 0, val rows: List<FamilyRow> = emptyList())
 
 /**
  * `POST /admin/classes/{id}/roster/attach` and its teacher twin: a child who already has an account — one a parent
