@@ -137,6 +137,8 @@ data class Strings(
     val phoneHint: String = "For the school to reach you, e.g. +971501234567",
     val phoneInvalid: String = "A mobile number is 7 to 15 digits, with an optional leading +.",
     val phoneSaved: String = "Saved",
+    /** Not her mistake: the number is still in the field and the button is still there. */
+    val phoneSaveFailed: String = "Could not save just now. Check your connection and try again.",
     /** `{subject}` and `{curriculum}` are replaced with the words the feed named. */
     val fromCoordinator: String = "From your {subject} coordinator",
     val fromManager: String = "From the {curriculum} department manager",
@@ -284,6 +286,7 @@ data class Strings(
             phoneHint = "لتتمكن المدرسة من التواصل معك، مثال: ‎+971501234567",
             phoneInvalid = "رقم الجوال من 7 إلى 15 رقمًا، ويمكن أن يبدأ بعلامة +.",
             phoneSaved = "تم الحفظ",
+            phoneSaveFailed = "تعذّر الحفظ الآن. تحقق من الاتصال وحاول مرة أخرى.",
             fromCoordinator = "من منسّق {subject}",
             fromManager = "من مدير قسم {curriculum}",
             fromAuthor = "من {name}",

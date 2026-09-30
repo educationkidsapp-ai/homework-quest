@@ -25,7 +25,9 @@ import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
+import quest.api.ApiException
 import quest.api.ContentApi
+import quest.api.dto.ApiError
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.domain.ParentRepository
 import quest.feature.parent.domain.ParentSettings
@@ -43,7 +45,10 @@ object SettingsContract {
         val phone: String = "",
         val phoneKnown: Boolean = false,
         val phoneSaved: Boolean = false,
+        /** The shape is wrong — hers to fix, and the only state that marks the field itself. */
         val phoneInvalid: Boolean = false,
+        /** The shape was fine and the save did not reach the server. Her number stays in the field to try again. */
+        val phoneSaveFailed: Boolean = false,
     ) : MviState
     sealed interface Intent : MviIntent {
         data object Load : Intent
@@ -66,14 +71,30 @@ class SettingsViewModel(private val parent: ParentRepository, private val childr
                 reduce { copy(phone = me.phone.orEmpty(), phoneKnown = true) }
             }
             is SettingsContract.Intent.Language -> { parent.setLanguage(intent.code); reduce { copy(settings = settings.copy(language = intent.code)) } }
-            is SettingsContract.Intent.Phone -> reduce { copy(phone = intent.value, phoneSaved = false, phoneInvalid = false) }
+            is SettingsContract.Intent.Phone ->
+                reduce { copy(phone = intent.value, phoneSaved = false, phoneInvalid = false, phoneSaveFailed = false) }
             SettingsContract.Intent.SavePhone -> {
                 // Validated with the server's own rule (`Phones`) before the request: she is told what is wrong without
                 // a round trip, and what is sent is the normalised number the server would have stored anyway.
                 val normalised = Phones.normalise(current.phone)
-                if (normalised == null) { reduce { copy(phoneInvalid = true, phoneSaved = false) }; return }
-                val saved = runCatching { api.updateParentProfile(normalised) }.getOrNull()
-                reduce { copy(phone = saved?.phone.orEmpty(), phoneSaved = saved != null, phoneInvalid = saved == null) }
+                if (normalised == null) {
+                    reduce { copy(phoneInvalid = true, phoneSaved = false, phoneSaveFailed = false) }
+                    return
+                }
+                // Three outcomes, not two. A number she typed on a bad connection must stay in the field — wiping it
+                // and calling it the wrong shape is two lies at once — and only the server refusing it marks it
+                // invalid, which after the check above means a rule this mirror does not have.
+                val result = runCatching { api.updateParentProfile(normalised) }
+                val saved = result.getOrNull()
+                val rejected = (result.exceptionOrNull() as? ApiException)?.error?.code == ApiError.BAD_REQUEST
+                reduce {
+                    copy(
+                        phone = saved?.phone.orEmpty().takeIf { saved != null } ?: phone,
+                        phoneSaved = saved != null,
+                        phoneInvalid = rejected,
+                        phoneSaveFailed = saved == null && !rejected,
+                    )
+                }
             }
         }
     }
@@ -131,6 +152,7 @@ fun SettingsScreen(state: SettingsContract.State, s: Strings, dispatch: (Setting
             )
             val note = when {
                 state.phoneInvalid -> s.phoneInvalid
+                state.phoneSaveFailed -> s.phoneSaveFailed
                 state.phoneSaved -> s.phoneSaved
                 else -> null
             }
