@@ -116,12 +116,22 @@ while she is still typing, has a Show/Hide toggle, and carries a weak/fair/stron
 and never a gate: a screen refusing a password the server accepts would leave her arguing with a
 strength meter in front of a parent.
 
-**The success sheet reads two flags out loud, and they answer different questions.**
+**The result reads two flags out loud, and they answer different questions.**
 `parentCreated: false` means a family the school already holds got a second child.
 `passwordApplied: false` means the login already existed and keeps the password its owner chose — so
-the paper the Admin has just written the typed password on is worthless, and the sheet says so in the
-accent colour with "Use Reset parent password if she cannot sign in". That sentence is why the sheet
-exists rather than a green tick.
+the paper the Admin has just written the typed password on is worthless, and the band says so in the
+accent colour with "Use Reset parent password if she cannot sign in". That sentence is why there is a
+result to read at all rather than a green tick.
+
+**Why it is a band on the page and not a sheet.** Two dialogs were built and both were wrong, and the
+end-to-end spec is what caught each. A dialog of its own means closing one `<dialog>` while opening
+another in the same tick, which is a race over the top layer: the result came up on one admission and
+not on the next. Keeping the *same* dialog open and swapping its body fails differently —
+`hq-dialog` is a `<form method="dialog">` and the platform closes the dialog on submit, so the result
+rendered into a panel that was already shut (`toBeVisible` saw the right text, `hidden`). A band is
+what this system uses for everything else that has to be read rather than answered, it is announced
+by `role="status"` when it appears, and it survives the dialog closing because it was never inside
+it.
 
 A **503** (`code: unavailable`, `ParentAccountsConfig`) is not a red band on the form: there is
 nothing in it for her to correct. It draws its own band — "Parent accounts are not configured on this
@@ -132,7 +142,8 @@ need Firebase and never meet it.
 Admission and the edit are **one** dialog, not two: `hq-dialog` projects its content into the DOM
 whether or not the `<dialog>` is showing, so two dialogs asking for the child's name, curriculum,
 grade and section would have put two sets of those controls in the accessibility tree with only one
-on screen. The edit takes `name`, `classId` and `parentPhone` — **not** a grade, although the form
+on screen. (The same is true of the staff screen's scopes editor, which is created only while its
+dialog is open.) The edit takes `name`, `classId` and `parentPhone` — **not** a grade, although the form
 asks for one: `PATCH /admin/children/{id}` takes the section, and a section carries its own grade and
 curriculum, so the two selects above the class are how she *finds* it. Moving a child to another
 grade is choosing a section in it.
@@ -148,8 +159,13 @@ and a second set of roster tools is a second set to keep in step.
 Full local seed (`SEED_SCHOOL=true`), signed in as the Admin:
 
 ```
-pnpm build --configuration=production && pnpm e2e:local -- admin-people.spec.ts
+pnpm build --configuration=production
+pnpm exec playwright test --config=playwright.local.config.ts admin-people
 ```
+
+Five tests: the rail's four new rows, a worker with no account anywhere, a coordinator whose one-time
+password is shown once and is gone after she navigates away, a child admitted with a new parent
+login, and a second child of the same family whose typed password is **not** applied.
 
 ## Messages (RM3b, DR5)
 

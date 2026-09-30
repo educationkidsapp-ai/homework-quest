@@ -428,10 +428,6 @@ export class ChildrenPage implements OnDestroy {
 
   protected readonly passwordApplied = computed(() => this.admitted()?.admission.passwordApplied === true);
 
-  protected closeAdmitted(): void {
-    this.admitted.set(null);
-  }
-
   // ---- edit -------------------------------------------------------------------------------------
 
   protected readonly menuRow = signal<FamilyView | null>(null);

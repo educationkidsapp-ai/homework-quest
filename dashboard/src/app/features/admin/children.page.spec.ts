@@ -196,6 +196,9 @@ describe('Children & parents', () => {
 
     expect(screen.getByText(/already had an account here/)).toBeInTheDocument();
     expect(screen.getByText(/the one you typed was not applied/)).toBeInTheDocument();
+    // The band outlives the dialog the admission was typed into: the platform closes a
+    // `<form method="dialog">` on submit, so a result rendered inside it would never be seen.
+    expect(screen.getByText(/already had an account here/).closest('dialog')).toBeNull();
   });
 
   it('says plainly when the server has no parent accounts configured', async () => {

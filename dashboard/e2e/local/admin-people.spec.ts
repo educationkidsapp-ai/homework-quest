@@ -25,6 +25,14 @@ const PARENT_EMAIL = `ahmed.${RUN.toLowerCase()}@example.com`;
 /** Eight characters is the server's floor; this is comfortably over it and not the address. */
 const PARENT_PASSWORD = `Sunflower-${RUN}`;
 
+/**
+ * A field that is **not** required has "optional" in its accessible name (`hq-input` appends it),
+ * so an optional field is matched by substring rather than by its label alone.
+ */
+function optionalField(page: Page, label: string) {
+  return page.getByLabel(label, { exact: false });
+}
+
 async function open(page: Page, item: string): Promise<void> {
   await page.getByRole('navigation').getByRole('link', { name: item, exact: true }).click();
 }
@@ -47,10 +55,10 @@ test.describe('the Admin’s people pages', () => {
     await page.getByRole('button', { name: 'Add worker' }).last().click();
     await page.getByLabel('Full name').fill(WORKER);
     await page.getByLabel('Job').fill('Nurse');
-    await page.getByLabel(/^Mobile/).fill('0501234567');
+    await optionalField(page, 'Mobile').fill('0501234567');
     await page.getByRole('button', { name: 'Save' }).click();
 
-    await expect(page.getByRole('cell', { name: WORKER })).toBeVisible();
+    await expect(page.getByRole('cell', { name: WORKER, exact: true })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'Nurse' }).first()).toBeVisible();
     // Nothing was minted, so nothing is shown once: no password band anywhere on the screen.
     await expect(page.locator('[data-hq-temp-password]')).toHaveCount(0);
@@ -70,7 +78,7 @@ test.describe('the Admin’s people pages', () => {
     await expect(password).toBeVisible();
     await expect(password).not.toBeEmpty();
     await expect(page.getByText(/shown once and cannot be read again/)).toBeVisible();
-    await expect(page.getByRole('cell', { name: COORDINATOR })).toBeVisible();
+    await expect(page.getByRole('cell', { name: COORDINATOR, exact: true })).toBeVisible();
 
     // Leaving the screen loses it: "shown once" has to mean once.
     await open(page, 'Home');
@@ -93,7 +101,7 @@ test.describe('the Admin’s people pages', () => {
 
     await page.getByLabel("Parent's name").fill(`Ahmed ${RUN}`);
     await page.getByLabel("Parent's email").fill(PARENT_EMAIL);
-    await page.getByLabel(/^Parent's mobile/).fill('0501002030');
+    await optionalField(page, "Parent's mobile").fill('0501002030');
     await page.getByLabel('Password for the parent').fill(PARENT_PASSWORD);
     await page.getByRole('button', { name: 'Admit', exact: true }).click();
 
@@ -104,10 +112,11 @@ test.describe('the Admin’s people pages', () => {
     await expect(verdict).toHaveText('The password you typed is the one that now works.');
     await expect(page.getByText('A new parent account was created for her family.')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Close' }).first().click();
-    await page.getByLabel(/^Find a child or a parent/).fill(CHILD);
-    await expect(page.getByRole('cell', { name: CHILD })).toBeVisible();
-    await expect(page.getByRole('cell', { name: PARENT_EMAIL })).toBeVisible();
+    const search = optionalField(page, 'Find a child or a parent');
+    await search.fill(CHILD);
+    await expect(search).toHaveValue(CHILD);
+    await expect(page.getByRole('cell', { name: CHILD, exact: true })).toBeVisible();
+    await expect(page.getByRole('cell', { name: PARENT_EMAIL, exact: true })).toBeVisible();
   });
 
   /**

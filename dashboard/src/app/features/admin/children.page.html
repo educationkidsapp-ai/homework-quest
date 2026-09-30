@@ -14,6 +14,22 @@
       </hq-band>
     }
 
+    <!-- What the server actually did, in two sentences: the family, and the password. A band on the
+         page rather than a sheet of its own — see `admitted` in the component for why. -->
+    @if (admitted()) {
+      <hq-band variant="notice" [open]="true" [title]="admittedTitle()" (dismissed)="admitted.set(null)">
+        <p>{{ parentLine() }}</p>
+        <p
+          class="families__verdict"
+          [class.families__verdict--warn]="!passwordApplied()"
+          role="status"
+          data-hq-password-applied
+        >
+          {{ passwordLine() }}
+        </p>
+      </hq-band>
+    }
+
     <hq-one-time-password
       [value]="passwordValue()"
       [title]="passwordTitle()"
@@ -160,7 +176,10 @@
     </div>
   </ng-template>
 
-  <!-- One dialog: admission, and the edit of a child already admitted. -->
+  <!-- One dialog for the admission and for the edit of a child already admitted. `hq-dialog`
+       projects its content into the DOM whether or not the `<dialog>` is showing, so two dialogs
+       asking for the child’s name, her curriculum, her grade and her section would have put two
+       sets of those controls in the accessibility tree with only one of them on screen. -->
   <hq-dialog
     [(open)]="formOpen"
     [sheet]="!isEdit()"
@@ -262,27 +281,6 @@
       </div>
     }
   </hq-dialog>
-
-  <!-- What the server actually did, in two sentences: the family, and the password. Created only
-       while it is showing, so its text is not read out from behind the form. -->
-  @if (admitted()) {
-    <hq-dialog
-      [open]="true"
-      [title]="admittedTitle()"
-      [cancelLabel]="'ui.close' | transloco"
-      (closeRequested)="closeAdmitted()"
-    >
-      <p>{{ parentLine() }}</p>
-      <p
-        class="families__verdict"
-        [class.families__verdict--warn]="!passwordApplied()"
-        role="status"
-        data-hq-password-applied
-      >
-        {{ passwordLine() }}
-      </p>
-    </hq-dialog>
-  }
 
   <div page-footer>
     <hq-button *hqCan="'admin.children.write'" variant="primary" (pressed)="openCreate()">
