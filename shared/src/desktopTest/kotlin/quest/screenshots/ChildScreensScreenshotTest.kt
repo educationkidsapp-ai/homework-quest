@@ -30,6 +30,7 @@ import quest.feature.journey.presentation.PlayerContract
 import quest.feature.journey.presentation.StopPlayerScreen
 import quest.feature.map.presentation.MapContract
 import quest.feature.map.presentation.WorldMapScreen
+import quest.feature.parent.presentation.Strings
 import quest.feature.rewards.domain.Sticker
 import quest.feature.rewards.presentation.RewardsContract
 import quest.feature.rewards.presentation.StickerBookScreen
@@ -101,6 +102,19 @@ class ChildScreensScreenshotTest {
             Island("c", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.WAITING, "Shakespeare & Sonnets", Subject.ENGLISH, "l3", 1, listOf(1)),
             Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Grammaire Française", Subject.FRENCH),
         )), {}, {}, {}, {})
+    }
+
+    /**
+     * MH4: the same student home in Arabic. Everything the screen writes comes from [Strings], and `AcademicTheme`
+     * takes the layout direction with it — the avatar, the streak pill and the Open button all mirror.
+     */
+    @Test fun worldMapFormalArabic() = shot("02e-world-map-formal-ar") {
+        WorldMapScreen(MapContract.State(loading = false, child = child.copy(name = "نور"), streakDays = 3, islands = listOf(
+            Island("a", IslandKind.LESSON, LocalDate(2026, 9, 11), IslandState.DONE, "صوت الشين", Subject.ENGLISH, "l1", 1, listOf(1, 2), listOf(1), 18, 21),
+            Island("b", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "العدّ بالاثنينات", Subject.MATH, "l2", 1, listOf(1)),
+            Island("c", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.WAITING, "حساء ساخن لأمي", Subject.ENGLISH, "l3", 1, listOf(1)),
+            Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "ما زال نائماً"),
+        )), {}, {}, {}, {}, strings = Strings.ar)
     }
 
     @Test fun journey() = shot("03-journey") {

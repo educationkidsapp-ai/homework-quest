@@ -143,6 +143,30 @@ data class Strings(
     val fromCoordinator: String = "From your {subject} coordinator",
     val fromManager: String = "From the {curriculum} department manager",
     val fromAuthor: String = "From {name}",
+
+    // MH4: the student home (`FormalStudentScreen`). §7 keeps percentages and timers off it, but the copy itself is
+    // read by the same parent who set the language — an Arabic school got an English, left-to-right child screen.
+    val allSubjects: String = "All Subjects",
+    val student: String = "Student",
+    /** `{n}` is the streak in days — a count of days, not a countdown (§7 allows the streak, not a timer). */
+    val dayStreakShort: String = "{n}d streak",
+    val loadingCoursework: String = "Loading your coursework…",
+    val noCourseworkToday: String = "No coursework scheduled today",
+    val noCourseworkForSubject: String = "No assignments found for this subject",
+    val checkBackSoon: String = "Check back soon for new lessons and tasks.",
+    val lessonLocked: String = "Locked",
+    val lessonCompleted: String = "Completed",
+    val lessonReview: String = "Review",
+    val lessonAssignedToday: String = "Assigned Today",
+    val lessonAvailable: String = "Available",
+    val lessonUnlockHint: String = "Complete prior lessons to unlock",
+    val lessonReinforce: String = "Reinforce concepts",
+    val lessonStandard: String = "Standard curriculum lesson",
+    val startLesson: String = "Start Lesson",
+    val openLesson: String = "Open",
+    val parentPortal: String = "Parent Portal",
+    /** `{earned}` / `{total}` stars. A fraction, never a percentage (§7). */
+    val lessonScore: String = "Score: {earned}/{total}",
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -290,6 +314,25 @@ data class Strings(
             fromCoordinator = "من منسّق {subject}",
             fromManager = "من مدير قسم {curriculum}",
             fromAuthor = "من {name}",
+            allSubjects = "كل المواد",
+            student = "الطالب",
+            dayStreakShort = "{n} يوم متتابع",
+            loadingCoursework = "جارٍ تحميل دروسك…",
+            noCourseworkToday = "لا توجد دروس مجدولة اليوم",
+            noCourseworkForSubject = "لا توجد دروس في هذه المادة",
+            checkBackSoon = "عُد قريباً لدروس ومهام جديدة.",
+            lessonLocked = "مقفل",
+            lessonCompleted = "مكتمل",
+            lessonReview = "مراجعة",
+            lessonAssignedToday = "درس اليوم",
+            lessonAvailable = "متاح",
+            lessonUnlockHint = "أكمل الدروس السابقة لفتحه",
+            lessonReinforce = "ترسيخ المفاهيم",
+            lessonStandard = "درس من المنهج",
+            startLesson = "ابدأ الدرس",
+            openLesson = "افتح",
+            parentPortal = "بوابة ولي الأمر",
+            lessonScore = "النتيجة: {earned}/{total}",
         )
 
         fun forLanguage(code: String) = if (code == "ar") ar else en
