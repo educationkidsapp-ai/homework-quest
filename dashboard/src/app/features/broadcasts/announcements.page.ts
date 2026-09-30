@@ -1,6 +1,6 @@
 /* hq-flag: announcements — the whole feature, composer and feed alike, is behind the key the
    `announcements` feature it supersedes already carried (RM2). `screens.ts` puts the flag on
-   every `broadcasts` row; `*hqFeature` and `notEnabled` below are the answer to a bookmark. */
+   every `announcements` row; `*hqFeature` and `notEnabled` below are the answer to a bookmark. */
 import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -13,7 +13,7 @@ import {
   untracked,
 } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { catchError, of, tap } from 'rxjs';
 import {
@@ -48,8 +48,8 @@ import { StaffScopeService } from '../coordinator/staff-scope.service';
 type Panel = 'received' | 'posted' | 'plans';
 
 /**
- * Broadcasts (RM3b, DR6): the weekly plan, the announcements and the events of a school, on one
- * screen for all three staff roles.
+ * **Announcements** (RM3b, DR6; renamed and narrowed by MH2 item 5): the announcements and the
+ * events of a school, on one screen for all three staff roles.
  *
  * **One component, three areas**, the way every shared screen in this dashboard works
  * (`core/auth/staff-area.ts`). The *feed* is the same call for everyone — `GET /me/broadcasts`
@@ -58,12 +58,18 @@ type Panel = 'received' | 'posted' | 'plans';
  * coordinator and a manager also write, and the sheet that lets them is the only thing on the
  * screen keyed by role (`core/broadcasts/broadcast.rules.ts` holds the rules the server enforces).
  *
- * The week's plan is **pinned and opened**: it is the one row a teacher comes here for, it is
- * replaced rather than added to each week, and a replacement arrives unread — so it is also the
- * row most likely to be the reason the bell rang.
+ * **A weekly plan is not on this feed.** It is a grade, a week and a picture now, and it has a
+ * screen of its own: the manager writes it on Weekly plans, and a teacher and a coordinator read
+ * it on the tab here. So `weekly_plan` rows are filtered out of the list and out of the composer's
+ * kinds — the one screen that showed all three kinds showed none of them well, and a plan drawn as
+ * a title with an expanding body was a picture nobody could see.
+ *
+ * `?open=` still arrives for a plan, because `NotificationService.broadcastLink` writes one link
+ * for every kind and `NotificationView` carries no kind to tell them apart. {@link forwardPlan} is
+ * where that is sorted out, from the row itself.
  */
 @Component({
-  selector: 'hq-broadcasts-page',
+  selector: 'hq-announcements-page',
   imports: [
     BandComponent,
     BroadcastComposeComponent,
@@ -82,7 +88,7 @@ type Panel = 'received' | 'posted' | 'plans';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hq-page [title]="'nav.broadcasts' | transloco" [subtitle]="'broadcasts.subtitle' | transloco">
+    <hq-page [title]="'nav.announcements' | transloco" [subtitle]="'announcements.subtitle' | transloco">
       @if (!enabled()) {
         <hq-empty-state
           [message]="'broadcasts.notEnabled' | transloco"
@@ -107,8 +113,8 @@ type Panel = 'received' | 'posted' | 'plans';
         }
 
         @if (panel() === 'plans') {
-          <!-- MG2b item 2: the read-only archive, from GET /me/weekly-plans — past weeks and
-               expired plans included, which the feed above deliberately drops. -->
+          <!-- MG2b item 2, MH2 item 4: the read-only archive, from GET /me/weekly-plans — past
+               weeks and expired plans included, each plan the picture the manager uploaded. -->
           @if (plans.isLoading()) {
             <hq-skeleton [loading]="true" [lines]="4" [label]="'ui.loading' | transloco" />
           } @else if (planWeeks().length === 0) {
@@ -117,7 +123,7 @@ type Panel = 'received' | 'posted' | 'plans';
               [detail]="'plans.emptyReaderHint' | transloco"
             />
           } @else {
-            <hq-plan-weeks [weeks]="planWeeks()" />
+            <hq-plan-weeks [weeks]="planWeeks()" [open]="openPlan()" />
           }
         } @else if (loading()) {
           <hq-skeleton [loading]="true" [lines]="4" [label]="'ui.loading' | transloco" />
@@ -244,8 +250,9 @@ type Panel = 'received' | 'posted' | 'plans';
     }
   `,
 })
-export class BroadcastsPage {
+export class AnnouncementsPage {
   private readonly api = inject(BroadcastsApi);
+  private readonly router = inject(Router);
   private readonly flags = inject(FlagService);
   private readonly transloco = inject(TranslocoService);
   private readonly platform = inject(PlatformService);
@@ -325,6 +332,9 @@ export class BroadcastsPage {
 
   protected readonly planWeeks = computed(() => weeksOf(this.plans.value()));
 
+  /** The plan a `broadcast.posted` notification named, so the tab draws it open. */
+  protected readonly openPlan = signal('');
+
   protected readonly loading = computed(() =>
     this.panel() === 'posted' ? this.posts.isLoading() : this.feed.isLoading(),
   );
@@ -332,10 +342,10 @@ export class BroadcastsPage {
   /**
    * Received, Weekly plans, and — for the two roles that write — what she posted.
    *
-   * MG2b item 2 put the plan archive here rather than on a rail row of its own: a teacher opens
-   * Broadcasts for the week's plan already (it is the pinned row), and "the weeks before this one"
-   * is the same screen one tab over. A manager has her own screen, which also composes, so hers
-   * is the only rail row the feature adds.
+   * MG2b item 2 put the plan archive here rather than on a rail row of its own, and MH2 kept it
+   * there: a teacher's plan is a picture she looks at on Sunday, one tab from the notes she was
+   * sent. A manager has her own screen, which also composes, so hers is the only rail row the
+   * feature adds.
    */
   protected readonly tabs = computed<readonly Tab<Panel>[]>(() => [
     {
@@ -350,18 +360,18 @@ export class BroadcastsPage {
   ]);
 
   /**
-   * The feed, with the week's plan first.
+   * The feed and her own posts, **announcements and events only**, in the server's order.
    *
-   * There is one plan per week per department, so "the pinned row" is the newest `weekly_plan`
-   * and the rest keep the server's order (newest first). Sorting the whole list by kind would
-   * have buried this morning's event under a plan posted on Sunday.
+   * MH2 item 5: a weekly plan is a picture, and this list draws a title with an expanding body. It
+   * used to be pinned at the top of the feed with its attachment as a link nobody could open (the
+   * route wants a bearer); it is now the Weekly plans tab beside this one, where it is drawn as the
+   * thing it is.
    */
-  protected readonly rows = computed<readonly BroadcastView[]>(() => {
-    if (this.panel() === 'posted') return this.posts.value();
-    const items = this.feed.value().items ?? [];
-    const plan = items.find((row) => row.kind === 'weekly_plan');
-    return plan === undefined ? items : [plan, ...items.filter((row) => row !== plan)];
-  });
+  protected readonly rows = computed<readonly BroadcastView[]>(() =>
+    (this.panel() === 'posted' ? this.posts.value() : (this.feed.value().items ?? [])).filter(
+      (row) => row.kind !== 'weekly_plan',
+    ),
+  );
 
   protected readonly departments = computed<readonly string[]>(() =>
     this.scope
@@ -383,34 +393,17 @@ export class BroadcastsPage {
 
   constructor() {
     /*
-     * The week's plan is drawn **open**, so arriving on the screen *is* opening it: the first time
-     * it comes back it joins `opened` and is marked read like any row she had clicked.
-     *
-     * The review found the two halves of that out of step — the row was pinned open by its kind,
-     * so it could never be collapsed either, and the unread badge went on counting a plan she was
-     * already looking at behind a header that appeared to do nothing.
-     */
-    effect(() => {
-      const plan = (this.feed.value().items ?? []).find((row) => row.kind === 'weekly_plan');
-      untracked(() => {
-        const id = plan?.id ?? '';
-        // `autoOpened` and not `opened()`: once, per plan. Reading the open rows here would have
-        // made collapsing the plan re-open it, since the effect would run again on its own write.
-        if (id === '' || this.autoOpened.has(id)) return;
-        this.autoOpened.add(id);
-        this.opened.update((ids) => [...ids, id]);
-        if (plan?.read === false) this.markRead(id);
-      });
-    });
-
-    /*
      * MG2a: `?open=<id>` — where a `broadcast.posted` notification sends her
      * (`core/notifications/notification-target.ts`). The row is drawn open, marked read like any
      * row she had clicked, and scrolled to, because a twelve-row feed that merely *contains* the
      * one she was told about has not answered the click she made on the bell.
      *
-     * A row that is not in her feed is left alone rather than reported: a weekly plan replaced
-     * while the bell sat unread is exactly that case, and the feed above it is still the answer.
+     * MH2 item 6: a **weekly plan** arrives here too, because the server writes one link for every
+     * kind and the notification carries no kind to tell them apart. The row itself does, so a plan
+     * is forwarded rather than opened here — see {@link forwardPlan}.
+     *
+     * A row that is not in her feed at all is left alone rather than reported: a weekly plan
+     * replaced while the bell sat unread is exactly that case, and the feed is still the answer.
      */
     effect(() => {
       const wanted = this.query().get('open') ?? '';
@@ -420,6 +413,11 @@ export class BroadcastsPage {
         const row = rows.find((candidate) => candidate.id === wanted);
         if (row === undefined) return;
         this.autoOpened.add(wanted);
+        if (row.kind === 'weekly_plan') {
+          this.forwardPlan(wanted);
+          if (row.read === false) this.markRead(wanted);
+          return;
+        }
         this.panel.set('received');
         this.opened.update((ids) => (ids.includes(wanted) ? ids : [...ids, wanted]));
         if (row.read === false) this.markRead(wanted);
@@ -427,6 +425,22 @@ export class BroadcastsPage {
         setTimeout(() => this.doc.getElementById(`bc-${wanted}`)?.scrollIntoView({ block: 'start' }));
       });
     });
+  }
+
+  /**
+   * A `broadcast.posted` that turned out to be a weekly plan (MH2 item 6).
+   *
+   * The manager has a screen for it, so she goes there with the id; a teacher and a coordinator
+   * have the tab beside this one, so the tab opens on that plan. Either way the click on the bell
+   * ends at the picture rather than at a feed the plan is not even in.
+   */
+  private forwardPlan(id: string): void {
+    if (this.composer() === 'manager') {
+      void this.router.navigate(['/management/weekly-plans'], { queryParams: { open: id } });
+      return;
+    }
+    this.openPlan.set(id);
+    this.panel.set('plans');
   }
 
   /** The anchor `?open=` scrolls to. */

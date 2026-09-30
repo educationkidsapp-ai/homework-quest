@@ -1,50 +1,61 @@
-import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, signal, untracked } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { type PlanRow, type PlanWeek, readerBodies } from '../../core/broadcasts/plan-archive';
-import { activeLang } from '../../core/i18n/active-lang';
-import { CardComponent } from '../../ui';
+import { type PlanRow, type PlanWeek } from '../../core/broadcasts/plan-archive';
+import { AttachmentImageDirective, CardComponent, DialogComponent } from '../../ui';
 
 /**
- * **The archive, drawn**: weeks newest first, each plan a row that expands (MG2b).
+ * **The archive, drawn**: weeks newest first, each plan its picture (MG2b, reworked by MH2 item 4).
  *
  * One component for both readers of `WeeklyPlanArchive` — the manager's Weekly plans screen, where
- * `readBy` is answered and the list is exportable, and the read-only tab a teacher and a
- * coordinator get on Broadcasts. `readBy` is simply absent on theirs (`null`), so there is no flag
- * to pass and no second template to keep in step.
+ * `readBy` is answered and the list is exportable, and the read-only tab a teacher and a coordinator
+ * get on Announcements. `readBy` is simply absent on theirs (`null`), so there is no flag to pass and
+ * no second template to keep in step.
  *
- * Collapsed by default, including the current week: an archive is a list she is looking *for*
- * something in, and twelve weeks of open bodies is a page she has to scroll past to search.
+ * MH1 made a plan an image, so a row is a **thumbnail with its grade**, not a title with an
+ * expanding body: the expanding row was there because a plan was words, and a picture that has to be
+ * unfolded before it can be seen is a picture behind a door. Pressing one opens it full size in a
+ * dialog, which is the only way to read a photographed A4 sheet at 200 px wide.
+ *
+ * Every picture is fetched with the bearer through `AttachmentImageDirective` — `[src]` pointed at
+ * `attachment.url` answers 401, which is the whole reason that directive exists.
  */
 @Component({
   selector: 'hq-plan-weeks',
-  imports: [CardComponent, TranslocoPipe],
+  imports: [AttachmentImageDirective, CardComponent, DialogComponent, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (week of weeks(); track week.weekStart) {
       <section class="pw__week">
         <h3 class="pw__heading">{{ weekLabel(week.weekStart) }}</h3>
-        @for (row of week.rows; track row.id) {
-          <hq-card [eyebrow]="gradeLabel(row)">
-            <button type="button" class="pw__head" [attr.aria-expanded]="isOpen(row)" (click)="toggle(row)">
-              <span class="pw__title">{{ row.title || ('broadcasts.untitled' | transloco) }}</span>
-              @if (row.readBy !== null) {
-                <span class="pw__read">{{ 'plans.readBy' | transloco: { count: row.readBy } }}</span>
-              }
-            </button>
-            @if (isOpen(row)) {
-              @for (body of bodiesOf(row); track body.dir) {
-                <p class="pw__body" [dir]="body.dir">{{ body.text }}</p>
-              }
-              <p class="hq-muted">{{ authorOf(row) }}</p>
-              @if (row.plan.attachment; as file) {
-                <a class="pw__file" [href]="file.url" target="_blank" rel="noopener">
-                  {{ file.name || ('broadcasts.attachment' | transloco) }}
-                </a>
-              }
-            }
-          </hq-card>
-        }
+        <div class="pw__grid">
+          @for (row of week.rows; track row.id) {
+            <hq-card [eyebrow]="gradeLabel(row)">
+              <button
+                type="button"
+                class="pw__open"
+                [class.is-named]="row.id === open()"
+                (click)="enlarged.set(row)"
+              >
+                <img class="pw__thumb" [hqAttachmentImage]="row.attachmentId" [alt]="altOf(row)" />
+                <span class="pw__meta">
+                  @if (row.readBy !== null) {
+                    <span>{{ 'plans.readBy' | transloco: { count: row.readBy } }}</span>
+                  }
+                  <span class="hq-muted">{{ authorOf(row) }}</span>
+                </span>
+              </button>
+            </hq-card>
+          }
+        </div>
       </section>
+    }
+
+    @if (enlarged(); as row) {
+      <!-- guarded: the @if above is what removes this dialog, so Esc, the backdrop and Close all
+           have to come back here rather than closing an element the template would draw again. -->
+      <hq-dialog [open]="true" [guarded]="true" [title]="altOf(row)" (closeRequested)="enlarged.set(null)">
+        <img class="pw__full" [hqAttachmentImage]="row.attachmentId" [alt]="altOf(row)" />
+      </hq-dialog>
     }
   `,
   styles: `
@@ -58,10 +69,15 @@ import { CardComponent } from '../../ui';
       font-weight: var(--hq-font-label-weight);
     }
 
-    .pw__head {
+    .pw__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: var(--hq-space-3);
+    }
+
+    .pw__open {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
       gap: var(--hq-space-2);
       width: 100%;
       padding: 0;
@@ -73,49 +89,78 @@ import { CardComponent } from '../../ui';
       cursor: pointer;
     }
 
-    .pw__title {
-      font-weight: var(--hq-font-label-weight);
+    .pw__open.is-named .pw__thumb {
+      outline: var(--hq-rule) solid var(--hq-accent);
+      outline-offset: var(--hq-space-1);
     }
 
-    .pw__read {
+    .pw__thumb {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+    }
+
+    .pw__meta {
+      display: flex;
+      flex-direction: column;
       font-size: var(--hq-font-meta-size);
     }
 
-    .pw__body {
-      white-space: pre-wrap;
-    }
-
-    .pw__file {
-      color: var(--hq-accent);
+    .pw__full {
+      max-width: 100%;
+      max-height: 70vh;
+      object-fit: contain;
     }
   `,
 })
 export class PlanWeeksComponent {
   private readonly transloco = inject(TranslocoService);
-  private readonly lang = activeLang();
 
   readonly weeks = input.required<readonly PlanWeek[]>();
+  /**
+   * The plan a notification named (MH2 item 6): its thumbnail is outlined and it opens full size, so
+   * a click on the bell ends at the picture rather than in a list that merely contains it.
+   */
+  readonly open = input<string>('');
 
-  private readonly opened = signal<readonly string[]>([]);
+  protected readonly enlarged = signal<PlanRow | null>(null);
 
-  protected isOpen(row: PlanRow): boolean {
-    return this.opened().includes(row.id);
-  }
+  /** The ids this visit has already enlarged on its own: once per plan, never again after a close. */
+  private readonly shown = new Set<string>();
 
-  protected toggle(row: PlanRow): void {
-    this.opened.update((ids) =>
-      ids.includes(row.id) ? ids.filter((other) => other !== row.id) : [...ids, row.id],
-    );
-  }
-
-  protected bodiesOf(row: PlanRow) {
-    return readerBodies(row.plan, this.lang());
+  constructor() {
+    /*
+     * The row a notification named, enlarged as soon as it is in the list.
+     *
+     * An effect rather than a `computed`, because `enlarged` is also written by a click — and
+     * `shown` rather than reading `enlarged()` here, so closing the dialog does not immediately
+     * re-open it on the effect's own re-run.
+     */
+    effect(() => {
+      const wanted = this.open();
+      const rows = this.weeks().flatMap((week) => week.rows);
+      untracked(() => {
+        if (wanted === '' || this.shown.has(wanted)) return;
+        const row = rows.find((candidate) => candidate.id === wanted);
+        if (row === undefined) return;
+        this.shown.add(wanted);
+        this.enlarged.set(row);
+      });
+    });
   }
 
   protected gradeLabel(row: PlanRow): string {
     return row.grade === null
-      ? this.transloco.translate<string>('broadcasts.gradeAll')
+      ? this.transloco.translate<string>('plans.department')
       : this.transloco.translate<string>('broadcasts.gradeN', { grade: row.grade });
+  }
+
+  /** A11y: "Weekly plan · Grade 3 · Week of 12 Oct 2026" — what the picture is, in words. */
+  protected altOf(row: PlanRow): string {
+    return this.transloco.translate<string>('plans.imageAlt', {
+      grade: row.grade ?? '',
+      week: this.weekLabel(row.weekStart),
+    });
   }
 
   protected authorOf(row: PlanRow): string {

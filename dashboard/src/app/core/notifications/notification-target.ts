@@ -39,12 +39,33 @@ const MESSAGES: Readonly<Record<Role, string>> = {
  * they went — or one a role-blind sender still writes — would resolve to a redirect back to her
  * Home, which reads as a click that did nothing; the resolver answers from the kind instead.
  */
+/**
+ * MH2 item 5: the paths that were renamed, mapped where the server still writes the old one.
+ *
+ * `NotificationService.broadcastLink` says `/<area>/broadcasts?open=…` for every kind, and that is
+ * a redirect row now (`core/nav/screens.ts`) — which resolves, but drops the query on the way, so
+ * the row the bell named would not open. The link is rewritten here instead, which also means a
+ * notification written before this deploy keeps working with no second one.
+ *
+ * The **kind** of a broadcast is not on `NotificationView`, so this cannot tell a weekly plan from
+ * an announcement: both land on Announcements, and that screen forwards a plan on once it has read
+ * the row (`features/broadcasts/announcements.page.ts`).
+ */
+const RENAMED: Readonly<Record<string, string>> = {
+  '/teacher/broadcasts': '/teacher/announcements',
+  '/coordinator/broadcasts': '/coordinator/announcements',
+  '/management/broadcasts': '/management/announcements',
+  '/management/people': '/management/children',
+};
+
 const RETIRED_FOR_MANAGER = [
   '/management/lessons',
   '/management/classes',
   '/management/gradebook',
   '/management/exams',
-  '/management/children',
+  // A trailing slash: `/management/children` is a **live** screen since MH2 (the department's
+  // children), while `/management/children/{id}` is the child report MG2a retired.
+  '/management/children/',
 ];
 
 /**
@@ -93,7 +114,7 @@ export function notificationTarget(item: NotificationView, role: Role | null): N
     case NotificationViewKindEnum.BROADCAST_POSTED:
       return area === null || area === '/admin'
         ? INBOX
-        : { path: `${area}/broadcasts`, queryParams: entityId === '' ? null : { open: entityId } };
+        : { path: `${area}/announcements`, queryParams: entityId === '' ? null : { open: entityId } };
     // A teacher's message is read by whoever handles the school's messages — her coordinator, her
     // manager, the admin — and, since MG1 files it in her staff thread, by the teacher who wrote it
     // when the manager answers. Whoever is looking goes to her own threads list; without a thread id
@@ -136,13 +157,15 @@ function inOwnArea(link: string, area: string): boolean {
 }
 
 function retired(link: string, role: Role | null): boolean {
-  return (
-    role === 'MANAGERIAL' && RETIRED_FOR_MANAGER.some((path) => link === path || link.startsWith(`${path}/`))
+  if (role !== 'MANAGERIAL') return false;
+  return RETIRED_FOR_MANAGER.some((path) =>
+    path.endsWith('/') ? link.startsWith(path) : link === path || link.startsWith(`${path}/`),
   );
 }
 
 function split(link: string): NotificationTarget {
   const [path = '', query = ''] = link.split('?', 2);
-  if (query === '') return { path, queryParams: null };
-  return { path, queryParams: Object.fromEntries(new URLSearchParams(query)) };
+  const renamed = RENAMED[path] ?? path;
+  if (query === '') return { path: renamed, queryParams: null };
+  return { path: renamed, queryParams: Object.fromEntries(new URLSearchParams(query)) };
 }

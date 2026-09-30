@@ -101,8 +101,8 @@ function componentFor(screen: Screen, role: Role) {
   // the two that hold a `*.broadcast` key. A fifth entry in `SHARED_WITH_TEACHER` rather than a
   // second copy under `supervisorComponentFor`, because the screen reads the same route for
   // everyone — the namespace it does *not* vary by is the whole reason it is one component.
-  if (screen.id === 'broadcasts')
-    return import('../../features/broadcasts/broadcasts.page').then((m) => m.BroadcastsPage);
+  if (screen.id === 'announcements')
+    return import('../../features/broadcasts/announcements.page').then((m) => m.AnnouncementsPage);
   return import('../../features/stub/stub.page').then((m) => m.StubPage);
 }
 
@@ -114,7 +114,7 @@ function componentFor(screen: Screen, role: Role) {
  * a phase. They draw themselves read-only from `data.readOnly` and from the permissions she does
  * not hold, and they read her namespace rather than the teacher's.
  */
-const SHARED_WITH_TEACHER = new Set(['lesson', 'results', 'child', 'exam-results', 'broadcasts']);
+const SHARED_WITH_TEACHER = new Set(['lesson', 'results', 'child', 'exam-results', 'announcements']);
 
 /**
  * The two read-only areas, one lazy chunk per screen so a Home never carries the calendar or the
@@ -138,8 +138,10 @@ function supervisorComponentFor(screen: Screen, role: Role) {
       return import('../../features/management/management-coordinators.page').then(
         (m) => m.ManagementCoordinatorsPage,
       );
-    if (screen.id === 'people')
-      return import('../../features/management/management-people.page').then((m) => m.ManagementPeoplePage);
+    if (screen.id === 'children')
+      return import('../../features/management/management-children.page').then(
+        (m) => m.ManagementChildrenPage,
+      );
     if (screen.id === 'staff-attendance')
       return import('../../features/management/staff-attendance.page').then((m) => m.StaffAttendancePage);
     // MG2b: the weekly plan per grade, with the archive (`GET /management/weekly-plans`).

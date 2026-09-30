@@ -95,6 +95,20 @@ export class MediaService {
     );
   }
 
+  /**
+   * An uploaded attachment — MH1's weekly-plan image — as a `data:` URL.
+   *
+   * `GET /media/attachments/{id}` is behind the bearer like the other two media routes, so the
+   * `url` the DTO carries cannot go in an `<img src>`: it would answer 401 and draw a broken-image
+   * glyph on every card of the Weekly plans screen. Keyed `att:` for the reason `child:` is keyed
+   * apart — three id spaces, three tables, and a collision would serve a page crop for a plan.
+   */
+  attachmentImage(id: string): Observable<string> {
+    return this.remember(`att:${id}`, (key) =>
+      this.read(key, this.media.attachment(id, 'body', false, { context: silentErrors() })),
+    );
+  }
+
   private remember(key: string, read: (key: string) => Observable<string>): Observable<string> {
     const cached = this.cache.get(key);
     if (cached) {

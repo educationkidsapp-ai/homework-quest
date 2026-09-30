@@ -33,18 +33,40 @@ describe('MG2a — where a notification sends its reader', () => {
   /**
    * `lessonId` is E2's entity id rather than a lesson's alone: `BroadcastService` puts the
    * broadcast's id there, which is how a superseded weekly plan's bell rows are found. That is
-   * where `?open=` comes from, and the Broadcasts page reads it.
+   * where `?open=` comes from, and the Announcements page reads it.
    */
   it('opens a broadcast in the reader own feed, scrolled to the row it names', () => {
     const item = row(NotificationViewKindEnum.BROADCAST_POSTED, { lessonId: 'b-9' });
-    expect(target(item, 'TEACHER')).toBe('/teacher/broadcasts?open=b-9');
-    expect(target(item, 'COORDINATOR')).toBe('/coordinator/broadcasts?open=b-9');
-    expect(target(item, 'MANAGERIAL')).toBe('/management/broadcasts?open=b-9');
+    expect(target(item, 'TEACHER')).toBe('/teacher/announcements?open=b-9');
+    expect(target(item, 'COORDINATOR')).toBe('/coordinator/announcements?open=b-9');
+    expect(target(item, 'MANAGERIAL')).toBe('/management/announcements?open=b-9');
     // An Admin has no feed of her own; the row itself is all there is to show her.
     expect(target(item, 'ADMIN')).toBe('/notifications');
     // Without an id the feed is still the right screen — just not one row of it.
     expect(target(row(NotificationViewKindEnum.BROADCAST_POSTED), 'MANAGERIAL')).toBe(
-      '/management/broadcasts',
+      '/management/announcements',
+    );
+  });
+
+  /**
+   * MH2 item 5: the server still writes `/<area>/broadcasts?open=…` (`broadcastLink`), and that path
+   * is a redirect row now — which resolves, but drops the query on the way, so the row the bell named
+   * would not open. The rename is applied here, which also keeps every notification written before
+   * this deploy working.
+   */
+  it('rewrites the paths MH2 renamed, keeping the query', () => {
+    const withLink = (link: string) =>
+      row(NotificationViewKindEnum.BROADCAST_POSTED, { link, lessonId: 'b-9' });
+    expect(target(withLink('/teacher/broadcasts?open=b-2'), 'TEACHER')).toBe(
+      '/teacher/announcements?open=b-2',
+    );
+    expect(target(withLink('/coordinator/broadcasts'), 'COORDINATOR')).toBe('/coordinator/announcements');
+    expect(target(withLink('/management/people'), 'MANAGERIAL')).toBe('/management/children');
+    // And `/management/children` itself is a live screen again, not one of MG2a's retired rows —
+    // only the child report under it is.
+    expect(target(withLink('/management/children'), 'MANAGERIAL')).toBe('/management/children');
+    expect(target(withLink('/management/children/ch-1'), 'MANAGERIAL')).toBe(
+      '/management/announcements?open=b-9',
     );
   });
 
@@ -92,11 +114,13 @@ describe('MG2a — where a notification sends its reader', () => {
     const withLink = (link: string, kind = NotificationViewKindEnum.BROADCAST_POSTED) =>
       row(kind, { link, lessonId: 'b-9' });
 
-    expect(target(withLink('/management/broadcasts?open=b-2'), 'MANAGERIAL')).toBe(
-      '/management/broadcasts?open=b-2',
+    expect(target(withLink('/management/announcements?open=b-2'), 'MANAGERIAL')).toBe(
+      '/management/announcements?open=b-2',
     );
     // Another role's area: the kind decides instead.
-    expect(target(withLink('/teacher/broadcasts'), 'MANAGERIAL')).toBe('/management/broadcasts?open=b-9');
+    expect(target(withLink('/teacher/announcements'), 'MANAGERIAL')).toBe(
+      '/management/announcements?open=b-9',
+    );
     // A screen she no longer has: likewise.
     expect(
       target(withLink('/management/lessons/l-1', NotificationViewKindEnum.LESSON_FAILED), 'MANAGERIAL'),
@@ -106,10 +130,12 @@ describe('MG2a — where a notification sends its reader', () => {
       target(withLink('/coordinator/lessons/l-1', NotificationViewKindEnum.LESSON_FAILED), 'COORDINATOR'),
     ).toBe('/coordinator/lessons/l-1');
     // Not a path of her area, however it is spelled.
-    expect(target(withLink('https://evil.example/management/broadcasts'), 'MANAGERIAL')).toBe(
-      '/management/broadcasts?open=b-9',
+    expect(target(withLink('https://evil.example/management/announcements'), 'MANAGERIAL')).toBe(
+      '/management/announcements?open=b-9',
     );
-    expect(target(withLink('/managementx/broadcasts'), 'MANAGERIAL')).toBe('/management/broadcasts?open=b-9');
+    expect(target(withLink('/managementx/announcements'), 'MANAGERIAL')).toBe(
+      '/management/announcements?open=b-9',
+    );
   });
 
   it('falls back to the notifications page before /me has landed', () => {

@@ -12,8 +12,8 @@ import { csvOf } from '../../core/download/csv';
 import { saveFile } from '../../core/download/download';
 import { StaffAreaService } from '../../core/auth/staff-area';
 import { activeLang } from '../../core/i18n/active-lang';
+import { CanDirective } from '../../core/permissions/can.directive';
 import {
-  type Tab,
   type TableColumn,
   BandComponent,
   ButtonComponent,
@@ -22,27 +22,33 @@ import {
   PageComponent,
   SkeletonComponent,
   TableComponent,
-  TabsComponent,
 } from '../../ui';
 import { CoordinatorReadFailedComponent } from '../coordinator/read-failed.component';
-import { translateOr } from '../coordinator/coordinator.labels';
+import { StaffThreadService } from './staff-thread.service';
 
-type PeopleTab = 'children' | 'teachers' | 'coordinators';
-
-/** A page of one tab: the rows on screen and how many there are in all. */
-interface PeoplePage {
+/** A page of the list: the rows on screen and how many there are in all. */
+interface ChildPage {
   readonly total: number;
-  readonly rows: readonly PersonRow[];
+  readonly rows: readonly ChildRow[];
 }
 
-/** One line of the directory, whichever tab it came from — the columns differ, the row does not. */
-interface PersonRow {
-  readonly id: string;
+/** One child of the department, with the parent a manager would ring or write to. */
+interface ChildRow {
+  readonly childId: string;
   readonly name: string;
-  readonly email: string;
-  /** A child's class, a teacher's subjects, a coordinator's tracks. */
-  readonly detail: string;
+  readonly className: string;
   readonly grade: string;
+  readonly parentEmail: string;
+  readonly parentPhone: string;
+  /**
+   * `null` ⇔ no registered parent (MH1).
+   *
+   * The whole reason the action can be disabled: `POST /management/chat/threads {childId}` opens
+   * the thread with *the child's parent*, and a roster row whose parent has never signed up has
+   * nobody on the other end — the server answers 404 `no_parent`. A button that posts that is a
+   * button that fails, so it is disabled with the reason on it instead.
+   */
+  readonly parentId: string | null;
 }
 
 /** The server caps `size` at 100; 25 is a page a person reads rather than scrolls past. */
@@ -59,7 +65,7 @@ const PAGE_SIZE = 25;
 const DEBOUNCE_MS = 250;
 
 /**
- * The export reads the tab in pages of the server's own maximum, four at a time, and stops.
+ * The export reads the list in pages of the server's own maximum, four at a time, and stops.
  *
  * `mergeMap` with a ceiling rather than a `forkJoin` over every page: a six-hundred-child
  * department is six requests and a five-thousand-child one was fifty, all in flight at once,
@@ -87,58 +93,65 @@ export function exportPlan(total: number): { readonly pages: number; readonly tr
   return { pages, truncated: pages < wanted };
 }
 
-const EMPTY_PAGE: PeoplePage = { total: 0, rows: [] };
+const EMPTY_PAGE: ChildPage = { total: 0, rows: [] };
 
 /**
- * People (RM3a, RM5): everyone in her department, in three tabs.
+ * **Children** (RM5, renamed and narrowed by MH2 item 3).
  *
- * **Children** carry their parent's address — two of them, in fact, the account her parent
- * signed up with and the roster's own, which are often different and are exactly what a manager
- * is on this screen to reconcile — plus the class and the grade. **Teachers** and
- * **Coordinators** are the same two lists her other screens draw, paged and searchable, because
- * a directory is a different question from a supervision list: "what is Omar's address" rather
- * than "has 3B been taught today".
+ * RM5 built this as "People", three tabs: children, teachers, coordinators. Two of those three had
+ * since grown screens of their own — Coordinators and Teachers are rail rows with phone numbers, a
+ * supervision column and a Message action — so the tabs were the same two lists, worse, one click
+ * further away. What is left is the one list nothing else draws: every child of her department,
+ * with the class, the grade and **the parent's email and phone**, which is what a manager is on
+ * this screen to find.
+ *
+ * `/management/people` still resolves: a bookmark and the runbook's own URL redirect to
+ * `/management/children` (`core/nav/screens.ts`).
  *
  * Paging is the server's (`page`, `size`, `total`), not a slice of a list that was read whole:
  * a department is hundreds of children and a screen that downloads all of them to show
  * twenty-five is a screen that gets slower every September.
  *
- * **Export** is the whole tab, not the page on screen — a CSV of twenty-five rows out of six
- * hundred is a file somebody will mistake for the roster. It re-reads the tab in pages of 100
- * (the server's own cap) and builds the file in the browser, because neither read-only namespace
+ * **Export** is the whole list, not the page on screen — a CSV of twenty-five rows out of six
+ * hundred is a file somebody will mistake for the roster. It re-reads in pages of 100 (the
+ * server's own cap) and builds the file in the browser, because neither read-only namespace
  * publishes a `.csv`.
  */
 @Component({
-  selector: 'hq-management-people-page',
+  selector: 'hq-management-children-page',
   imports: [
     BandComponent,
     ButtonComponent,
+    CanDirective,
     CoordinatorReadFailedComponent,
     EmptyStateComponent,
     InputComponent,
     PageComponent,
     SkeletonComponent,
     TableComponent,
-    TabsComponent,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hq-page [title]="'nav.people' | transloco" [subtitle]="'management.people.subtitle' | transloco">
-      <hq-tabs
-        [tabs]="tabs()"
-        [selected]="tab()"
-        [label]="'management.people.tabsLabel' | transloco"
-        (selectedChange)="onTab($event)"
-      />
+    <hq-page [title]="'nav.children' | transloco" [subtitle]="'management.children.subtitle' | transloco">
+      @if (threads.failed()) {
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          (dismissed)="threads.failed.set(false)"
+        >
+          {{ 'management.message.failed' | transloco }}
+        </hq-band>
+      }
 
       <div class="mg-filters">
         <div data-hq-search class="mg-filters__search">
           <hq-input
             type="search"
             keycap="/"
-            [label]="'management.people.search' | transloco"
-            [placeholder]="'management.people.search' | transloco"
+            [label]="'management.children.search' | transloco"
+            [placeholder]="'management.children.search' | transloco"
             [value]="search()"
             (valueChange)="onSearch($event)"
           />
@@ -171,7 +184,7 @@ const EMPTY_PAGE: PeoplePage = { total: 0, rows: [] };
           [columns]="columns()"
           [cellTemplate]="cell"
           [trackBy]="trackRow"
-          [label]="'nav.people' | transloco"
+          [label]="'nav.children' | transloco"
         >
           <hq-empty-state table-empty [message]="'management.people.empty' | transloco" />
         </hq-table>
@@ -192,14 +205,33 @@ const EMPTY_PAGE: PeoplePage = { total: 0, rows: [] };
           @case ('name') {
             {{ row.name }}
           }
-          @case ('email') {
-            {{ row.email }}
-          }
-          @case ('detail') {
-            {{ row.detail }}
+          @case ('className') {
+            {{ row.className }}
           }
           @case ('grade') {
             {{ row.grade }}
+          }
+          @case ('parentEmail') {
+            {{ row.parentEmail || '—' }}
+          }
+          @case ('parentPhone') {
+            @if (row.parentPhone) {
+              <a [href]="'tel:' + row.parentPhone" dir="ltr">{{ row.parentPhone }}</a>
+            } @else {
+              <span class="hq-muted">—</span>
+            }
+          }
+          @case ('actions') {
+            <hq-button
+              *hqCan="'management.chat'"
+              variant="secondary"
+              [disabled]="row.parentId === null"
+              [reason]="row.parentId === null ? ('management.message.noParent' | transloco) : null"
+              [loading]="threads.pending() === row.childId"
+              (pressed)="message(row)"
+            >
+              {{ 'management.message.parent' | transloco }}
+            </hq-button>
           }
         }
       </ng-template>
@@ -226,13 +258,13 @@ const EMPTY_PAGE: PeoplePage = { total: 0, rows: [] };
     }
   `,
 })
-export class ManagementPeoplePage implements OnDestroy {
+export class ManagementChildrenPage implements OnDestroy {
   private readonly api = inject(ManagementPeopleApi);
   private readonly staff = inject(StaffAreaService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
+  protected readonly threads = inject(StaffThreadService);
 
-  protected readonly tab = signal<PeopleTab>('children');
   /** What the box shows, on every keystroke, so typing is never laggy. */
   protected readonly search = signal('');
   /** What is actually asked for: trimmed, and 250 ms behind the keyboard. */
@@ -245,51 +277,23 @@ export class ManagementPeoplePage implements OnDestroy {
   protected readonly directory = rxResource({
     params: () => {
       if (this.staff.area() !== 'management') return undefined;
-      return { tab: this.tab(), q: this.needle(), page: this.page() };
+      return { q: this.needle(), page: this.page() };
     },
-    stream: ({ params }) => this.read(params.tab, params.q, params.page, PAGE_SIZE),
+    stream: ({ params }) => this.read(params.q, params.page, PAGE_SIZE),
     defaultValue: EMPTY_PAGE,
   });
 
-  protected readonly tabs = computed<readonly Tab<PeopleTab>[]>(() => {
+  protected readonly rows = computed<readonly ChildRow[]>(() => this.directory.value().rows);
+
+  protected readonly columns = computed<readonly TableColumn<ChildRow>[]>(() => {
     this.lang();
     return [
-      { id: 'children', label: this.t('management.people.children') },
-      { id: 'teachers', label: this.t('nav.teachers') },
-      { id: 'coordinators', label: this.t('nav.coordinators') },
-    ];
-  });
-
-  protected readonly rows = computed<readonly PersonRow[]>(() => this.directory.value().rows);
-
-  /**
-   * Four columns whatever the tab, with two of the headers naming what the tab put in them: a
-   * child's parent address and class, a teacher's own address and subjects, a coordinator's
-   * tracks. Four tables of three columns each would have been four empty states, four pagers and
-   * four exports to keep in step.
-   */
-  protected readonly columns = computed<readonly TableColumn<PersonRow>[]>(() => {
-    this.lang();
-    const tab = this.tab();
-    const email =
-      tab === 'children' ? 'management.people.columns.parentEmail' : 'coordinator.teachers.columns.email';
-    const detail =
-      tab === 'children'
-        ? 'management.people.columns.class'
-        : tab === 'teachers'
-          ? 'coordinator.teachers.columns.subjects'
-          : 'management.coordinators.columns.tracks';
-    const trailing =
-      tab === 'children'
-        ? 'management.people.columns.grade'
-        : tab === 'teachers'
-          ? 'coordinator.teachers.columns.sections'
-          : 'management.people.columns.sectionCount';
-    return [
-      { key: 'name', header: this.t('management.people.columns.name'), width: '26%' },
-      { key: 'email', header: this.t(email), width: '28%' },
-      { key: 'detail', header: this.t(detail) },
-      { key: 'grade', header: this.t(trailing), width: '16%' },
+      { key: 'name', header: this.t('management.people.columns.name'), width: '20%' },
+      { key: 'className', header: this.t('management.people.columns.class'), width: '12%' },
+      { key: 'grade', header: this.t('management.people.columns.grade'), width: '12%' },
+      { key: 'parentEmail', header: this.t('management.people.columns.parentEmail') },
+      { key: 'parentPhone', header: this.t('management.columns.parentPhone'), width: '16%' },
+      { key: 'actions', header: this.t('ui.actions'), width: '16%' },
     ];
   });
 
@@ -308,21 +312,14 @@ export class ManagementPeoplePage implements OnDestroy {
     });
   });
 
-  protected readonly trackRow = (row: PersonRow): string => row.id;
+  protected readonly trackRow = (row: ChildRow): string => row.childId;
 
   /** Named in the sentence the band says, so the copy cannot drift from the cap. */
   protected readonly maxExportRows = EXPORT_MAX_ROWS;
 
-  /**
-   * A new tab is a new list, from the first page and with no needle.
-   *
-   * The search is cleared as well as the page: a name typed to find a child is not a name that
-   * means anything among the coordinators, and a tab that opened on "no coordinator matches that
-   * search" would read as a department with no coordinators in it.
-   */
-  protected onTab(tab: PeopleTab): void {
-    this.tab.set(tab);
-    this.onSearch('');
+  protected message(row: ChildRow): void {
+    if (row.parentId === null) return;
+    this.threads.open(row.childId, { childId: row.childId });
   }
 
   /**
@@ -357,26 +354,32 @@ export class ManagementPeoplePage implements OnDestroy {
   }
 
   /**
-   * The whole tab as a file, not the page on screen: twenty-five rows out of six hundred is a
+   * The whole list as a file, not the page on screen: twenty-five rows out of six hundred is a
    * file somebody will mistake for the roster.
    */
   protected exportCsv(): void {
     this.exporting.set(true);
-    const tab = this.tab();
     const q = this.needle();
     const { pages, truncated } = exportPlan(this.directory.value().total);
     this.exportTruncated.set(truncated);
     from(Array.from({ length: pages }, (_unused, index) => index))
       .pipe(
-        mergeMap((page) => this.read(tab, q, page, EXPORT_PAGE_SIZE), EXPORT_CONCURRENCY),
+        mergeMap((page) => this.read(q, page, EXPORT_PAGE_SIZE), EXPORT_CONCURRENCY),
         toArray(),
         map((parts) => parts.flatMap((part) => part.rows)),
       )
       .subscribe({
         next: (rows) => {
-          const headers = this.columns().map((column) => column.header);
-          const body = rows.map((row) => [row.name, row.email, row.detail, row.grade]);
-          saveFile(csvOf(headers, body), `${tab}.csv`, 'text/csv;charset=utf-8');
+          // The columns she is looking at, minus the one that holds a button rather than a value.
+          const columns = this.columns().filter((column) => column.key !== 'actions');
+          saveFile(
+            csvOf(
+              columns.map((column) => column.header),
+              rows.map((row) => [row.name, row.className, row.grade, row.parentEmail, row.parentPhone]),
+            ),
+            'children.csv',
+            'text/csv;charset=utf-8',
+          );
           this.exporting.set(false);
         },
         // The error interceptor has already put the refusal in the red band; this only puts the
@@ -386,55 +389,25 @@ export class ManagementPeoplePage implements OnDestroy {
       });
   }
 
-  private read(tab: PeopleTab, q: string, page: number, size: number): Observable<PeoplePage> {
+  private read(q: string, page: number, size: number): Observable<ChildPage> {
     const needle = q === '' ? undefined : q;
-    if (tab === 'teachers') {
-      return this.api.directoryTeachers(needle, page, size).pipe(
-        map((body) => ({
-          total: body.total ?? 0,
-          rows: (body.rows ?? []).map((person) => ({
-            id: person.userId ?? '',
-            name: person.displayName ?? '',
-            email: person.email ?? '',
-            detail: (person.subjects ?? [])
-              .map((subject) => translateOr(this.transloco, `subject.${subject}`, subject))
-              .join(' · '),
-            grade: (person.sections ?? []).map((section) => section.className ?? '').join(' · '),
-          })),
-        })),
-      );
-    }
-    if (tab === 'coordinators') {
-      return this.api.directoryCoordinators(needle, page, size).pipe(
-        map((body) => ({
-          total: body.total ?? 0,
-          rows: (body.rows ?? []).map((person) => ({
-            id: person.userId ?? '',
-            name: person.displayName ?? '',
-            email: person.email ?? '',
-            detail: (person.curricula ?? [])
-              .map((track) => translateOr(this.transloco, `curriculum.${track}`, track))
-              .join(' · '),
-            grade: String(person.sections ?? 0),
-          })),
-        })),
-      );
-    }
     return this.api.directoryChildren(undefined, needle, page, size).pipe(
       map((body) => ({
         total: body.total ?? 0,
         rows: (body.rows ?? []).map((child) => ({
-          id: child.childId ?? '',
+          childId: child.childId ?? '',
           name: child.name ?? '',
-          // The account her parent signed up with, falling back to the roster's own address.
-          // Two columns would be two mostly identical ones; the roster's is the one that exists
-          // before a parent has ever opened the app, so it is the fallback rather than the head.
-          email: child.parentEmail ?? child.rosterEmail ?? '',
-          detail: child.className ?? '',
+          className: child.className ?? '',
           grade:
             child.grade === undefined
               ? ''
               : this.transloco.translate<string>('coordinator.classes.grade', { grade: child.grade }),
+          // The account her parent signed up with, falling back to the roster's own address.
+          // Two columns would be two mostly identical ones; the roster's is the one that exists
+          // before a parent has ever opened the app, so it is the fallback rather than the head.
+          parentEmail: child.parentEmail ?? child.rosterEmail ?? '',
+          parentPhone: child.parentPhone ?? '',
+          parentId: child.parentId ?? null,
         })),
       })),
     );

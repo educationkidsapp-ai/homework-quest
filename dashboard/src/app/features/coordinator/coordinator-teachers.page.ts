@@ -4,14 +4,18 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { activeLang } from '../../core/i18n/active-lang';
+import { CanDirective } from '../../core/permissions/can.directive';
 import {
   type TableColumn,
+  BandComponent,
+  ButtonComponent,
   EmptyStateComponent,
   InputComponent,
   PageComponent,
   SkeletonComponent,
   TableComponent,
 } from '../../ui';
+import { StaffThreadService } from '../management/staff-thread.service';
 import { CoordinatorReadFailedComponent } from './read-failed.component';
 import { StaffScopeService } from './staff-scope.service';
 import { translateOr } from './coordinator.labels';
@@ -20,8 +24,11 @@ interface TeacherRow {
   readonly userId: string;
   readonly name: string;
   readonly email: string;
+  readonly phone: string;
   readonly subjects: string;
   readonly sections: string;
+  /** Who supervises her, and in which subject — MH1 put it on both `teachers` rows. */
+  readonly coordinators: string;
   /** How many of her sections have today's lesson, out of how many she teaches in scope. */
   readonly todayDone: number;
   readonly todayTotal: number;
@@ -31,9 +38,17 @@ interface TeacherRow {
  * Teachers (R5, `docs/coordinator-flow.md` §3): who teaches her subject, and whether today has
  * happened yet in each of their sections.
  *
- * Read-only in the strongest sense available: there is no overflow menu, no row action and no
- * permission on this screen that could grow one. Her half of a problem here is a message, and
- * that is R7's Messages screen rather than a button on this table.
+ * **One component, two areas**: a coordinator reads `GET /coordinator/teachers`, a department
+ * manager `GET /management/teachers`, and both answer the same `CoordinatorTeacher` — which since
+ * MH1 carries `phone` and the `coordinators` who supervise each teacher. Both columns are drawn for
+ * both readers: "who else supervises Sara" is a question a coordinator of one subject has about a
+ * teacher who also takes another.
+ *
+ * **The manager's row has one action** (MH2 item 2): Message, which opens the thread with that
+ * teacher on RM2's `POST /management/chat/threads` and shows it. A coordinator's row still has
+ * none — her own screen for a conversation is R7's Messages, and RM2 gave her no route that opens a
+ * staff thread — so the button is behind `management.chat`, a key she does not hold, as well as
+ * behind the area check that keeps it out of her table entirely.
  *
  * "Today" is computed from `GET /coordinator/classes` rather than asked for separately — that
  * response already carries `todayStatus` per section, and a second endpoint answering the same
@@ -42,6 +57,9 @@ interface TeacherRow {
 @Component({
   selector: 'hq-coordinator-teachers-page',
   imports: [
+    BandComponent,
+    ButtonComponent,
+    CanDirective,
     CoordinatorReadFailedComponent,
     EmptyStateComponent,
     InputComponent,
@@ -53,6 +71,17 @@ interface TeacherRow {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-page [title]="'nav.teachers' | transloco" [subtitle]="co.scoped('teachers.subtitle') | transloco">
+      @if (threads.failed()) {
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          (dismissed)="threads.failed.set(false)"
+        >
+          {{ 'management.message.failed' | transloco }}
+        </hq-band>
+      }
+
       @if (co.loading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'ui.loading' | transloco" />
       } @else if (co.failed()) {
@@ -93,8 +122,28 @@ interface TeacherRow {
           @case ('subjects') {
             {{ row.subjects }}
           }
+          @case ('phone') {
+            @if (row.phone) {
+              <a [href]="'tel:' + row.phone" dir="ltr">{{ row.phone }}</a>
+            } @else {
+              <span class="hq-muted">—</span>
+            }
+          }
           @case ('sections') {
             {{ row.sections }}
+          }
+          @case ('coordinators') {
+            {{ row.coordinators || '—' }}
+          }
+          @case ('actions') {
+            <hq-button
+              *hqCan="'management.chat'"
+              variant="secondary"
+              [loading]="threads.pending() === row.userId"
+              (pressed)="message(row)"
+            >
+              {{ 'management.message.action' | transloco }}
+            </hq-button>
           }
           @case ('today') {
             <span
@@ -114,17 +163,21 @@ export class CoordinatorTeachersPage {
   protected readonly co = inject(StaffScopeService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
+  protected readonly threads = inject(StaffThreadService);
 
   protected readonly search = signal('');
 
   protected readonly columns = computed<readonly TableColumn<TeacherRow>[]>(() => {
     this.lang();
     return [
-      { key: 'name', header: this.t('coordinator.teachers.columns.name'), width: '22%' },
-      { key: 'email', header: this.t('coordinator.teachers.columns.email'), width: '24%' },
-      { key: 'subjects', header: this.t('coordinator.teachers.columns.subjects'), width: '16%' },
+      { key: 'name', header: this.t('coordinator.teachers.columns.name'), width: '16%' },
+      { key: 'email', header: this.t('coordinator.teachers.columns.email'), width: '18%' },
+      { key: 'phone', header: this.t('management.columns.phone'), width: '12%' },
+      { key: 'subjects', header: this.t('coordinator.teachers.columns.subjects'), width: '12%' },
       { key: 'sections', header: this.t('coordinator.teachers.columns.sections') },
-      { key: 'today', header: this.t('coordinator.teachers.columns.today'), width: '16%' },
+      { key: 'coordinators', header: this.t('management.columns.coordinators'), width: '16%' },
+      { key: 'today', header: this.t('coordinator.teachers.columns.today'), width: '10%' },
+      ...(this.co.isManager() ? [{ key: 'actions', header: this.t('ui.actions'), width: '12%' }] : []),
     ];
   });
 
@@ -144,10 +197,21 @@ export class CoordinatorTeachersPage {
           userId: teacher.userId ?? '',
           name: teacher.displayName ?? '',
           email: teacher.email ?? '',
+          phone: teacher.phone ?? '',
           subjects: (teacher.subjects ?? [])
             .map((subject) => translateOr(this.transloco, `subject.${subject}`, subject))
             .join(' · '),
           sections: mine.map((row) => row.className).join(' · '),
+          // The name and the subject together: a teacher of two subjects has two supervisors, and
+          // "Rasha Kamal" alone would not say which of them to go to about which lesson.
+          coordinators: (teacher.coordinators ?? [])
+            .map((who) =>
+              this.t2('management.columns.coordinatorOf', {
+                who: who.displayName ?? '',
+                subject: translateOr(this.transloco, `subject.${who.subject}`, who.subject ?? ''),
+              }),
+            )
+            .join(' · '),
           todayDone: mine.filter((row) => row.todayLessonId !== null).length,
           todayTotal: mine.length,
         };
@@ -157,6 +221,7 @@ export class CoordinatorTeachersPage {
           needle === '' ||
           row.name.toLowerCase().includes(needle) ||
           row.email.toLowerCase().includes(needle) ||
+          row.phone.includes(needle) ||
           row.sections.toLowerCase().includes(needle),
       )
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -164,7 +229,15 @@ export class CoordinatorTeachersPage {
 
   protected readonly trackRow = (row: TeacherRow): string => row.userId;
 
+  protected message(row: TeacherRow): void {
+    this.threads.open(row.userId, { teacherUserId: row.userId });
+  }
+
   private t(key: string): string {
     return this.transloco.translate<string>(key);
+  }
+
+  private t2(key: string, params: Record<string, string>): string {
+    return this.transloco.translate<string>(key, params);
   }
 }

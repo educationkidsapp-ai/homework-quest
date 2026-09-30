@@ -16,8 +16,15 @@ export type AudienceRole = 'parents' | 'teachers' | 'coordinators';
 /** Which composer this is: the two have different kinds, different audiences and one scope each. */
 export type ComposerRole = 'coordinator' | 'manager';
 
-export const MANAGER_KINDS: readonly BroadcastKind[] = ['weekly_plan', 'announcement', 'event'];
-/** DR6: the weekly plan is the department's, so `weekly_plan` is 400 on her route. */
+/**
+ * MH2 item 5: **neither composer writes a plan here any more.**
+ *
+ * A weekly plan is a grade, a week and an image (`plan-rules.ts`), which shares no field with the
+ * title-and-body sheet this file validates; the manager writes it on her Weekly plans screen, and
+ * `weekly_plan` is 400 on a coordinator's route anyway (DR6). `BroadcastKind` keeps the value
+ * because `BroadcastView.kind` still answers it.
+ */
+export const MANAGER_KINDS: readonly BroadcastKind[] = ['announcement', 'event'];
 export const COORDINATOR_KINDS: readonly BroadcastKind[] = ['announcement', 'event'];
 export const AUDIENCE_ROLES: readonly AudienceRole[] = ['parents', 'teachers', 'coordinators'];
 
@@ -26,8 +33,6 @@ export const MAX_BODY = 1000;
 
 export interface BroadcastDraft {
   readonly kind: BroadcastKind;
-  /** `YYYY-MM-DD`, a Sunday, and only for a plan. */
-  readonly weekStart: string;
   readonly title: string;
   readonly bodyEn: string;
   readonly bodyAr: string;
@@ -71,7 +76,6 @@ export interface ComposeContext {
 
 /** One translation key per field, or `null` while that field is fine. */
 export interface ComposeErrors {
-  readonly weekStart: string | null;
   readonly title: string | null;
   readonly bodyEn: string | null;
   readonly bodyAr: string | null;
@@ -83,7 +87,6 @@ export interface ComposeErrors {
 
 export const EMPTY_DRAFT: BroadcastDraft = {
   kind: 'announcement',
-  weekStart: '',
   title: '',
   bodyEn: '',
   bodyAr: '',
@@ -196,18 +199,10 @@ export function canChooseGrade(ctx: ComposeContext): boolean {
 }
 
 export function composeErrors(draft: BroadcastDraft, ctx: ComposeContext): ComposeErrors {
-  const plan = draft.kind === 'weekly_plan';
   const title = draft.title.trim();
   const bodyEn = draft.bodyEn.trim();
   const department = departmentOf(draft, ctx);
   return {
-    weekStart: !plan
-      ? null
-      : draft.weekStart === ''
-        ? 'broadcasts.errors.weekRequired'
-        : isSunday(draft.weekStart)
-          ? null
-          : 'broadcasts.errors.weekNotSunday',
     title:
       title === ''
         ? 'broadcasts.errors.titleRequired'
@@ -254,7 +249,6 @@ export function canPost(draft: BroadcastDraft, ctx: ComposeContext): boolean {
  * empty `sectionIds` as "no section at all" rather than as "every one of mine".
  */
 export function requestOf(draft: BroadcastDraft, ctx: ComposeContext): CreateBroadcastRequest {
-  const plan = draft.kind === 'weekly_plan';
   const bodyAr = draft.bodyAr.trim();
   const expiresAt = draft.expires === '' ? NaN : endOfDayIn(draft.expires, ctx.zone);
   const sectionIds = sectionsOf(draft, ctx);
@@ -263,9 +257,6 @@ export function requestOf(draft: BroadcastDraft, ctx: ComposeContext): CreateBro
     title: draft.title.trim(),
     bodyEn: draft.bodyEn.trim(),
     ...(bodyAr === '' ? {} : { bodyAr }),
-    // `weekStart` belongs to a plan and is 400 on the other two kinds, so it is dropped rather
-    // than sent empty when the writer changes her mind about the kind with a week still picked.
-    ...(plan ? { weekStart: draft.weekStart } : {}),
     // A coordinator's audience is the parents of her classes and the server does not read the
     // field at all; sending one would be a promise the screen cannot keep.
     ...(ctx.role === 'manager' ? { audience: [...draft.audience] } : {}),

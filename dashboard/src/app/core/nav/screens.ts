@@ -210,16 +210,17 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       // parent's key would hide the item from every teacher.
       { id: 'students', path: 'students', phase: 4 },
       { id: 'questions', path: 'questions', flag: FLAGS.teacherQuestions, phase: 4 },
-      // RM3b: the department's weekly plan, announcements and events, which is what the
-      // `announcements` stub was standing in for. A rail item of her own: the plan is the one
-      // thing she reads here every Sunday, and the bell's `broadcast.posted` links straight at it.
+      // RM3b: the department's announcements and events, which is what the `announcements` stub
+      // was standing in for — and, on its Weekly plans tab, the plan she reads every Sunday. MH2
+      // item 5 gave the row the name the app has always used for what is on it.
       {
-        id: 'broadcasts',
-        path: 'broadcasts',
-        labelKey: 'nav.broadcasts',
+        id: 'announcements',
+        path: 'announcements',
+        labelKey: 'nav.announcements',
         flag: FLAGS.announcements,
         permission: 'broadcast.read',
       },
+      { id: 'broadcasts', path: 'broadcasts', redirectTo: 'announcements' },
       // MG2b: **a rail row of her own.** It had none — she reached the screen from a roster row's
       // "Message parent" (a *parent* conversation, by `?childId=`) and from the header's chat icon —
       // so a thread the department manager started was invisible unless she happened to look. The
@@ -266,7 +267,12 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       // RM5's two, and neither carries a flag: `ManagementPeopleController` is in the server's
       // own `FeatureFlagCoverageTest.INFRASTRUCTURE` list, because taking the staff register is
       // not an optional feature of a school and `FlagKeys` has no key for it.
-      { id: 'people', path: 'people', labelKey: 'nav.people', permission: 'management.people' },
+      //
+      // MH2 item 3: **Children**, not People. Its teachers and coordinators tabs were the two
+      // lists the rows above already draw with a phone number and a Message action, so what is
+      // left is the one list nothing else has — and the row says so.
+      { id: 'children', path: 'children', labelKey: 'nav.children', permission: 'management.people' },
+      { id: 'people', path: 'people', redirectTo: 'children' },
       {
         id: 'staff-attendance',
         path: 'staff-attendance',
@@ -283,15 +289,17 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.announcements,
         permission: 'management.broadcast',
       },
-      // RM3b: the feed she reads and the composer only she has — the weekly plan is the
-      // department's (DR6), so `weekly_plan` is 400 on every other route.
+      // MH2 item 5: **Announcements**. RM3b called the screen Broadcasts because it carried three
+      // kinds; the weekly plan now has the row above it entirely, so what is left is the
+      // announcements and the events — which is the word the app has always used for them.
       {
-        id: 'broadcasts',
-        path: 'broadcasts',
-        labelKey: 'nav.broadcasts',
+        id: 'announcements',
+        path: 'announcements',
+        labelKey: 'nav.announcements',
         flag: FLAGS.announcements,
         permission: 'broadcast.read',
       },
+      { id: 'broadcasts', path: 'broadcasts', redirectTo: 'announcements' },
       // RM3b: her real inbox, on RM2's `GET /management/chat/threads` — parents of her
       // department, her coordinators and the admin.
       {
@@ -405,18 +413,17 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       },
       // RM3b: her announcements *are* broadcasts now — `POST /coordinator/broadcasts` writes the
       // `announcements` rows the app's shipped screen reads as a side effect, so one screen with
-      // a kind and a title replaces two that would have posted the same note to two tables.
+      // a kind and a title replaces two that would have posted the same note to two tables. MH2
+      // item 5 put the rail item she learned in R7 back on the door: `announcements` is the row
+      // and `broadcasts`, which RM3b made the path, is now the redirect.
       {
-        id: 'broadcasts',
-        path: 'broadcasts',
-        labelKey: 'nav.broadcasts',
+        id: 'announcements',
+        path: 'announcements',
+        labelKey: 'nav.announcements',
         flag: FLAGS.announcements,
         permission: 'broadcast.read',
       },
-      // The rail item she learned in R7. A redirect rather than a deleted row: a bookmark and
-      // the runbook's own URL both still have to land somewhere, and where they land is the
-      // screen that took the job over.
-      { id: 'announcements', path: 'announcements', redirectTo: 'broadcasts' },
+      { id: 'broadcasts', path: 'broadcasts', redirectTo: 'announcements' },
     ],
   },
 };

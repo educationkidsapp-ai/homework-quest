@@ -26,7 +26,6 @@ import {
   gradeOptions,
   kindsFor,
   requestOf,
-  weekOptions,
 } from '../../core/broadcasts/broadcast.rules';
 import {
   CheckboxComponent,
@@ -43,12 +42,19 @@ export interface ComposeSection extends ComposableSection {
 }
 
 /**
- * **The one compose sheet** for everything a supervisor broadcasts (MG2b).
+ * **The compose sheet for an announcement and an event** (RM3b; narrowed by MH2 item 5).
  *
- * RM3b built it inside the Broadcasts screen. MG2b gave the manager a second screen that writes
- * the same thing — Weekly plans, where the kind is fixed and the week and the grade arrive from
- * the card she pressed "Add plan" on — so the sheet moved here rather than being copied. The rules
- * it validates against are still `core/broadcasts/broadcast.rules.ts`; this component is the
+ * It used to write the weekly plan too. A plan is now a grade, a week and an image, which shares no
+ * field with a title and two bodies, so it has its own sheet on its own screen
+ * (`features/management/plan-compose.component.ts`) and this one is the two kinds that *are* a note
+ * somebody reads.
+ *
+ * **The manager's audience is a grade or the whole department** (MH2 item 5), which is the one
+ * question she was actually answering with a grade select and a list of class checkboxes beside it.
+ * A coordinator still picks classes, because hers *are* the audience — the server sends her rows to
+ * the parents of the sections she names.
+ *
+ * The rules it validates against are `core/broadcasts/broadcast.rules.ts`; this component is the
  * fields, and `submitted` hands the caller the body those rules built. Who posts it stays with the
  * caller, because `POST /management/broadcasts` and `POST /coordinator/broadcasts` are two routes
  * and only the screen knows which one it holds.
@@ -81,18 +87,6 @@ export interface ComposeSection extends ComposableSection {
           [options]="kindOptions()"
           [value]="draft().kind"
           (valueChange)="setKind($event)"
-        />
-      }
-
-      @if (draft().kind === 'weekly_plan') {
-        <hq-select
-          [label]="'broadcasts.week' | transloco"
-          [hint]="replacesHint() | transloco"
-          [placeholder]="'broadcasts.weekPick' | transloco"
-          [options]="weekChoices()"
-          [value]="draft().weekStart"
-          [error]="errorFor('weekStart')"
-          (valueChange)="patch({ weekStart: $event })"
         />
       }
 
@@ -155,8 +149,8 @@ export interface ComposeSection extends ComposableSection {
           <p class="hq-muted">{{ 'broadcasts.gradeTwoDepartments' | transloco }}</p>
         } @else {
           <hq-select
-            [label]="'broadcasts.grade' | transloco"
-            [hint]="'broadcasts.gradeHint' | transloco"
+            [label]="'broadcasts.audienceScope' | transloco"
+            [hint]="'broadcasts.audienceScopeHint' | transloco"
             [options]="gradeChoices()"
             [value]="gradeValue()"
             [error]="errorFor('grade')"
@@ -167,7 +161,9 @@ export interface ComposeSection extends ComposableSection {
         <p class="hq-muted">{{ 'broadcasts.audienceFixed' | transloco }}</p>
       }
 
-      @if (draft().grade === null) {
+      <!-- A coordinator's classes *are* her audience; the manager answers the same question one
+           level up, with the grade select above. -->
+      @if (!isManager() && draft().grade === null) {
         <fieldset class="bc__set">
           <legend>{{ 'broadcasts.classes' | transloco }}</legend>
           <p class="hq-muted">{{ 'broadcasts.classesHint' | transloco }}</p>
@@ -220,9 +216,7 @@ export class BroadcastComposeComponent {
   readonly ctx = input.required<ComposeContext>();
   readonly sections = input<readonly ComposeSection[]>([]);
   readonly posting = input<boolean>(false);
-  /** Narrower than the role's own kinds — the Weekly plans screen writes plans and nothing else. */
-  readonly kinds = input<readonly BroadcastKind[] | null>(null);
-  /** The draft the sheet opens on: a blank one, or the week and grade of the card she pressed. */
+  /** The draft the sheet opens on. Blank here; a caller may prefill the grade it was opened from. */
   readonly initial = input<BroadcastDraft>(EMPTY_DRAFT);
   readonly title = input<string>('broadcasts.compose');
 
@@ -231,9 +225,9 @@ export class BroadcastComposeComponent {
   /**
    * The draft, reset by the prefill the caller hands in.
    *
-   * `linkedSignal` rather than an effect: "Add plan" on the grade-3 card and "Add plan" on the
-   * all-grades card are two different `initial()`s, and the sheet has to be looking at the second
-   * one the moment it reopens — while everything she types between them survives.
+   * `linkedSignal` rather than an effect: two different `initial()`s are two different sheets, and
+   * it has to be looking at the second one the moment it reopens — while everything she typed
+   * between them survives.
    */
   protected readonly draft = linkedSignal<BroadcastDraft, BroadcastDraft>({
     source: () => this.initial(),
@@ -245,14 +239,10 @@ export class BroadcastComposeComponent {
   protected readonly valid = computed(() => canPost(this.draft(), this.ctx()));
 
   protected readonly kindOptions = computed<readonly SelectOption[]>(() =>
-    (this.kinds() ?? kindsFor(this.ctx().role)).map((kind) => ({
+    kindsFor(this.ctx().role).map((kind) => ({
       value: kind,
       label: this.transloco.translate<string>(`broadcasts.kinds.${kind}`),
     })),
-  );
-
-  protected readonly weekChoices = computed<readonly SelectOption[]>(() =>
-    weekOptions(this.ctx().today).map((week) => ({ value: week, label: this.weekLabel(week) })),
   );
 
   protected readonly departmentOptions = computed<readonly SelectOption[]>(() =>
@@ -262,9 +252,9 @@ export class BroadcastComposeComponent {
     })),
   );
 
-  /** "All grades" first — the department's own plan, which is what `grade` absent means. */
+  /** The whole department first — which is what a row with no `grade` and no `sectionIds` is. */
   protected readonly gradeChoices = computed<readonly SelectOption[]>(() => [
-    { value: '', label: this.transloco.translate<string>('broadcasts.gradeAll') },
+    { value: '', label: this.transloco.translate<string>('broadcasts.wholeDepartment') },
     ...(canChooseGrade(this.ctx()) ? gradeOptions(this.draft(), this.ctx()) : []).map((grade) => ({
       value: String(grade),
       label: this.transloco.translate<string>('broadcasts.gradeN', { grade }),
@@ -282,11 +272,6 @@ export class BroadcastComposeComponent {
     return this.sections().filter((row) => chosen === '' || row.curriculum === chosen);
   });
 
-  /** A plan replaces this week's for this grade; the other two kinds replace nothing. */
-  protected readonly replacesHint = computed(() =>
-    this.draft().grade === null ? 'broadcasts.weekReplaces' : 'broadcasts.weekReplacesGrade',
-  );
-
   protected errorFor(field: keyof ReturnType<typeof composeErrors>): string | null {
     const key = composeErrors(this.draft(), this.ctx())[field];
     return key === null ? null : this.transloco.translate<string>(key);
@@ -294,7 +279,7 @@ export class BroadcastComposeComponent {
 
   /** A `<select>` answers a string; the kinds it was built from are the only ones it can answer. */
   protected setKind(kind: string): void {
-    this.patch({ kind: kind as BroadcastKind, ...(kind === 'weekly_plan' ? {} : { weekStart: '' }) });
+    this.patch({ kind: kind as BroadcastKind });
   }
 
   protected setGrade(grade: string): void {
@@ -322,15 +307,5 @@ export class BroadcastComposeComponent {
   protected submit(): void {
     if (!this.valid()) return;
     this.submitted.emit(requestOf(this.draft(), this.ctx()));
-  }
-
-  private weekLabel(week: string): string {
-    return this.transloco.translate<string>('broadcasts.weekOf', {
-      date: new Date(`${week}T00:00:00Z`).toLocaleDateString(undefined, {
-        timeZone: 'UTC',
-        day: 'numeric',
-        month: 'short',
-      }),
-    });
   }
 }

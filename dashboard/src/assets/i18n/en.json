@@ -1170,10 +1170,10 @@
     "exams": "Exams",
     "messages": "Messages",
     "coordinators": "Coordinators",
-    "people": "People",
     "staffAttendance": "Staff attendance",
-    "broadcasts": "Broadcasts",
-    "weeklyPlans": "Weekly plans"
+    "weeklyPlans": "Weekly plans",
+    "announcements": "Announcements",
+    "children": "Children"
   },
   "notifications": {
     "title": "Notifications",
@@ -1990,13 +1990,11 @@
     },
     "people": {
       "subtitle": "Everyone in your department: the children and their parents' addresses, the teachers and the coordinators.",
-      "tabsLabel": "Who to list",
       "search": "Search by name or email",
       "export": "Export CSV",
       "empty": "Nobody matches that search.",
       "page": "{{first}}–{{last}} of {{total}}",
       "pagerLabel": "Pages",
-      "children": "Children",
       "columns": {
         "name": "Name",
         "parentEmail": "Parent's email",
@@ -2078,26 +2076,42 @@
         "last": "Last published"
       },
       "scopeDepartment": "Your department — over the window you pick"
+    },
+    "columns": {
+      "phone": "Phone",
+      "parentPhone": "Parent's phone",
+      "coordinators": "Coordinator(s)",
+      "coordinatorOf": "{{who}} ({{subject}})"
+    },
+    "message": {
+      "action": "Message",
+      "parent": "Message parent",
+      "noParent": "No parent has registered for this child yet.",
+      "failed": "That conversation could not be opened. Nothing was sent."
+    },
+    "children": {
+      "subtitle": "Every child of your department, with the class, the grade and the parent you would ring.",
+      "search": "Search by name or email"
     }
   },
   "broadcasts": {
-    "subtitle": "The weekly plan, the announcements and the events of your school.",
-    "notEnabled": "Broadcasts are not enabled for this school yet",
-    "notEnabledHint": "An admin can switch them on, and the plan and the announcements appear here.",
+    "subtitle": "The announcements and the events of your school.",
+    "notEnabled": "Announcements are not enabled for this school yet",
+    "notEnabledHint": "An admin can switch them on, and the announcements and the plan appear here.",
     "empty": "Nothing has been posted to you yet",
-    "emptyHint": "The week’s plan, an announcement or an event will show up here.",
+    "emptyHint": "An announcement or an event will show up here.",
     "noPosts": "You have not posted anything yet",
     "noPostsHint": "What you post shows here, including the rows that have expired.",
     "received": "For you",
     "posted_": "You posted",
-    "panels": "Broadcasts you read, and broadcasts you wrote",
+    "panels": "What you read, and what you wrote",
     "new": "New",
     "untitled": "Untitled",
     "attachment": "Attachment",
     "by": "From {{who}} {{scope}}",
     "until": "Until {{date}}",
     "weekOf": "Week of {{date}}",
-    "compose": "Write a broadcast",
+    "compose": "Write an announcement",
     "post": "Post",
     "posted": "Posted.",
     "postFailed": "That could not be posted. Nothing was sent.",
@@ -2107,9 +2121,6 @@
       "announcement": "Announcement",
       "event": "Event"
     },
-    "week": "Week",
-    "weekPick": "Pick a week",
-    "weekReplaces": "Posting this replaces the current plan for that week, and it arrives unread.",
     "titleLabel": "Title",
     "bodyEn": "Message (English)",
     "bodyAr": "Message (Arabic)",
@@ -2138,20 +2149,20 @@
       "audienceRequired": "Choose at least one group to read this.",
       "departmentRequired": "Choose which of your departments this is for.",
       "expiredAlready": "Pick today or a later day.",
-      "gradeManagerOnly": "Only the department manager posts a plan for a grade.",
       "gradeWithSections": "Choose a grade or choose classes, not both.",
       "gradeOneDepartment": "A grade can only be named by a manager of one department.",
       "gradeUnmanaged": "You manage no class in that grade."
     },
     "grade": "Which grade",
-    "gradeHint": "One grade of your department, or all of them.",
-    "gradeAll": "All grades",
     "gradeN": "Grade {{grade}}",
-    "gradeTwoDepartments": "You manage two departments, so this row names the department’s classes. A plan for one grade needs an account with a single department.",
-    "weekReplacesGrade": "Posting this replaces that week’s plan for that grade, and it arrives unread."
+    "week": "Week",
+    "weekPick": "Pick a week",
+    "audienceScope": "Who should read this",
+    "audienceScopeHint": "One grade of your department, or the whole department.",
+    "wholeDepartment": "The whole department"
   },
   "plans": {
-    "subtitle": "The week your department is teaching, grade by grade.",
+    "subtitle": "The week your department is teaching, one image per grade.",
     "tab": "Weekly plans",
     "thisWeek": "This week at a glance",
     "archive": "Every weekly plan",
@@ -2160,17 +2171,38 @@
     "replace": "Replace plan",
     "readBy": "Read by {{count}}",
     "gradeFilter": "Grade",
-    "gradeAny": "Every grade",
     "export": "Export CSV",
     "empty": "No weekly plan in this window",
     "emptyHint": "Pick a wider window, or post this week’s plan above.",
-    "emptyReaderHint": "The plans your department posts show up here, this week’s and the weeks before it.",
     "csv": {
-      "title": "Title",
       "week": "Week",
       "grade": "Grade",
-      "readBy": "Read by"
+      "readBy": "Read by",
+      "image": "Image"
     },
-    "backwards": "That window ends before it starts."
+    "backwards": "That window ends before it starts.",
+    "emptyReaderHint": "The plans your department posts show up here, this week’s and the weeks before it.",
+    "image": "The plan, as an image",
+    "imageHint": "Drag a photo or a scan in, or choose a file. JPEG, PNG or WebP, up to 5 MB.",
+    "imageAlt": "Weekly plan · Grade {{grade}} · {{week}}",
+    "gradePick": "Pick a grade",
+    "uploading": "Uploading the image",
+    "noGrades": "You manage no class yet, so there is no grade to plan for.",
+    "department": "The department",
+    "replacesTitle": "This replaces the plan that is already there",
+    "replacesBody": "The grade’s plan for that week is deleted, and the new one arrives unread for everybody.",
+    "blocked": "A plan needs a single department",
+    "blockedHint": "You manage more than one, and a weekly plan belongs to one of them. Ask an admin for an account per department.",
+    "postFailed": "That plan could not be posted. Nothing was sent, and the plan that was there is untouched.",
+    "errors": {
+      "imageRequired": "Add the plan as an image.",
+      "imageType": "A plan has to be a JPEG, a PNG or a WebP.",
+      "imageTooBig": "That image is over 5 MB. Export it smaller, or photograph it again.",
+      "gradeRequired": "Pick the grade this plan is for."
+    },
+    "gradeAny": "Every grade"
+  },
+  "announcements": {
+    "subtitle": "The announcements and the events of your school."
   }
 }
