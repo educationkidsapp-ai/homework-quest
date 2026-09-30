@@ -130,8 +130,34 @@ PR's: the task fails the same way standalone, and `:shared:compileKotlinIosSimul
 ONLY_ACTIVE_ARCH=NO` builds it. **Worth checking whether CI's iOS job passes an arch**, and worth a line in the runbook
 if it does not.
 
+## Review round (PR #175, `quality-performance`)
+
+Three blockers, one commit each on top of `918e046`.
+
+1. **`4a1c2c3` — the decoded-bitmap cache was unbounded and decoded at full size for the card.** `LruCache`
+   (`quest/core`, unit-tested) holds **three** entries — the pinned plan, the one earlier week she has open, and the
+   viewer's copy — keyed by attachment *and* decode bound. `decodeBoundedImage` is a new `expect`/`actual`: Android
+   downsamples inside the decoder with `inSampleSize`, desktop and iOS share one skiko actual in a new `skikoMain`
+   source set. The card asks for 1440 px on the longer edge (more than a 420 dp card can draw); only the viewer asks
+   for the whole image, and it decodes bytes the disk cache already holds rather than downloading again.
+2. **`c03943b` — a pre-MH1 external image lost #171's tappable chip.** `isImage` now also requires `id != null` — an
+   image is one this app can *fetch*, not one whose name ends in `.png` — and the card tests `isWebUrl` first.
+3. **`ad0bc7f` — the phone save collapsed three outcomes into one.** The mirror refusing the shape marks the field
+   invalid with no request; the server answering `bad_request` (a rule the mirror lacks) also marks it invalid;
+   anything else keeps her number in the field under a new *Could not save just now* line (EN/AR). `SettingsPhoneTest`
+   covers all three plus load and the clear-on-typing.
+
+Not taken, and the reviewer agreed each is non-blocking: the `require(url.startsWith("/"))` hardening in `absolute()`
+(the server only ever writes a root-relative URL beside an id, `BroadcastService.java:442`); clearing the archive key
+and the cached images on **sign-out**, which needs either a prefix delete on `SettingsStore` or a listing on
+`MediaFiles` and is a follow-up of its own; and `isOffline()` treating a deserialization failure of a 200 as offline,
+which is `RemoteContentApi` decoding outside its `try` rather than anything here.
+
 ## Left for the planner
 
+0. **Sign-out leaves the archive key and the cached plan images on the device** — a privacy follow-up the reviewer
+   raised and agreed was not a blocker. It needs a prefix delete on `SettingsStore` or a listing on `MediaFiles`, so it
+   is its own small package rather than a line in this one.
 1. **`~700` non-test lines against the brief's `~450`**, the same overrun RM4 reported for the same reason: a screen
    from scratch (about a third KDoc in house style), a full-screen image viewer, a platform `expect`/`actual`, and four
    deliverables in one package. Nothing the brief asked for was cut. The archive cache (~35 lines) was added after the
