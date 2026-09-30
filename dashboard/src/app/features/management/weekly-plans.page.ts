@@ -138,11 +138,7 @@ interface GlanceCard {
                 <div class="wp__card">
                   <p class="wp__grade">{{ card.label }}</p>
                   @if (card.plan; as plan) {
-                    <img
-                      class="wp__thumb"
-                      [hqAttachmentImage]="plan.plan.attachment?.id"
-                      [alt]="altOf(plan)"
-                    />
+                    <img class="wp__thumb" [hqAttachmentImage]="plan.attachmentId" [alt]="altOf(plan)" />
                     <hq-button *hqCan="'management.broadcast'" variant="secondary" (pressed)="add(card)">
                       {{ 'plans.replace' | transloco }}
                     </hq-button>
