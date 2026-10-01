@@ -27,10 +27,10 @@ import quest.server.config.ApiException;
 @Tag(name = "Schools", description = "Tenants: cards, creation and settings")
 public class SchoolController {
     private final SchoolService schools; private final SchoolWizardService wizard; private final SignInRateLimiter limiter;
-    private final quest.server.classes.SectionService sections;
+    private final quest.server.classes.SectionService sections; private final SchoolLogoService logos;
     public SchoolController(SchoolService schools, SchoolWizardService wizard, SignInRateLimiter limiter,
-                            quest.server.classes.SectionService sections) {
-        this.schools = schools; this.wizard = wizard; this.limiter = limiter; this.sections = sections;
+                            quest.server.classes.SectionService sections, SchoolLogoService logos) {
+        this.schools = schools; this.wizard = wizard; this.limiter = limiter; this.sections = sections; this.logos = logos;
     }
 
     /** An Admin gets every card; a Teacher or Managerial user gets the one school their token belongs to. */
@@ -53,6 +53,38 @@ public class SchoolController {
     @PreAuthorize("@permit.has('school.write')")
     public SchoolDto.School updateSchool(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @RequestBody @Valid SchoolDto.UpdateSchoolRequest body) {
         return schools.update(caller == null ? null : caller.userId(), id, body);
+    }
+
+    /**
+     * S1 (owner's list of 2026-10-01): the school's logo as an upload — one JPEG, PNG or WebP of at most 1 MB under
+     * `file`, sniffed from its bytes. It replaces the logo there was and becomes the theme's `logoUrl` everywhere.
+     */
+    @org.springframework.web.bind.annotation.PutMapping(value = "/admin/schools/{id}/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('school.write')")
+    public SchoolDto.SchoolLogo uploadSchoolLogo(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
+                                                 @org.springframework.web.bind.annotation.RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+        return logos.upload(require(caller), id, file);
+    }
+
+    /** The upload and any typed `logoUrl` are both cleared: the school has no logo afterwards. */
+    @org.springframework.web.bind.annotation.DeleteMapping("/admin/schools/{id}/logo")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("@permit.has('school.write')")
+    public void deleteSchoolLogo(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) { logos.delete(require(caller), id); }
+
+    /**
+     * Public and cacheable: the bytes of the uploaded logo, addressed by the school's id and nothing else — it is
+     * what the sign-in page shows before there is a token. Images only (the stored type is one of three sniffed
+     * ones), `nosniff`, and 404 for a school without an upload. The theme's `logoUrl` carries `?v=`, so a day in a
+     * shared cache never serves a replaced logo to a page that read the new theme.
+     */
+    @GetMapping("/schools/{id}/logo")
+    @PreAuthorize("permitAll")
+    public ResponseEntity<byte[]> schoolLogoImage(@PathVariable String id) {
+        var blob = logos.read(id);
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.maxAge(1, java.util.concurrent.TimeUnit.DAYS).cachePublic())
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(MediaType.parseMediaType(blob.mimeType())).body(blob.bytes());
     }
 
     /**

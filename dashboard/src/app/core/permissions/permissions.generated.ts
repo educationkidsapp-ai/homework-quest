@@ -36,6 +36,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'lesson.write',
   'management.broadcast',
   'management.chat',
+  'management.complaints',
   'management.staff.attendance',
   'manager.manage',
   'me.update',

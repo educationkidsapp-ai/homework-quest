@@ -21,13 +21,19 @@ import quest.server.tenancy.TenantContext;
  * webp, at most {@value #MAX_BYTES} bytes. The type is taken from the bytes' own magic number rather than from the
  * `Content-Type` the client sent — a header is whatever the uploader typed, and a `.pdf` announced as `image/png`
  * would be served back to every parent of the department as one.
+ *
+ * <p>S1 (owner's list of 2026-10-01): a weekly plan may also be a <strong>PDF</strong>, at most {@value #MAX_PDF_BYTES}
+ * bytes and recognised the same way, by its `%PDF-` signature. `BroadcastService` keeps it to weekly plans.
  */
 @Service
 public class AttachmentService {
     /** 5 MB: a page photographed on a phone, not a scan of the year. */
     public static final long MAX_BYTES = 5L * 1024 * 1024;
-    /** The three the app and the dashboard both render inline. */
-    private static final List<String> TYPES = List.of("image/jpeg", "image/png", "image/webp");
+    /** 10 MB: a week's plan exported from a document. */
+    public static final long MAX_PDF_BYTES = 10L * 1024 * 1024;
+    public static final String PDF = "application/pdf";
+    /** The three the app and the dashboard both render inline, and the one they link to. */
+    private static final List<String> TYPES = List.of("image/jpeg", "image/png", "image/webp", PDF);
 
     private final FileStore files; private final AttachmentRepository rows; private final TenantContext tenant;
     private final Clock clock;
@@ -40,12 +46,14 @@ public class AttachmentService {
     @Transactional
     public Entities.AttachmentEntity upload(Principals.User caller, MultipartFile file) {
         String schoolId = tenant.writeSchoolId();
-        if (file == null || file.isEmpty()) throw ApiException.badRequest("Send the image as `file`.");
-        if (file.getSize() > MAX_BYTES)
-            throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "too_large", "An image must be under 5 MB.");
+        if (file == null || file.isEmpty()) throw ApiException.badRequest("Send the image or the PDF as `file`.");
+        if (file.getSize() > MAX_PDF_BYTES)
+            throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "too_large", "A PDF must be under 10 MB and an image under 5 MB.");
         byte[] bytes;
         try { bytes = file.getBytes(); } catch (java.io.IOException e) { throw ApiException.badRequest("That file could not be read."); }
         String mime = sniff(bytes);
+        if (!PDF.equals(mime) && bytes.length > MAX_BYTES)
+            throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "too_large", "An image must be under 5 MB.");
         String id = UUID.randomUUID().toString();
         var stored = files.put("attachments/" + schoolId + "/" + id, bytes, mime);
         var row = new Entities.AttachmentEntity();
@@ -56,23 +64,34 @@ public class AttachmentService {
     }
 
     /**
-     * What the bytes actually are. Three signatures, because three types are allowed: JPEG starts `FF D8 FF`, PNG
-     * `89 P N G`, and WebP is a RIFF container whose fourth word is `WEBP`.
+     * What the bytes actually are. Three image signatures — JPEG starts `FF D8 FF`, PNG `89 P N G`, and WebP is a
+     * RIFF container whose fourth word is `WEBP` — and a PDF's `%PDF-`.
      */
     private static String sniff(byte[] b) {
+        String image = imageType(b);
+        if (image != null) return image;
+        if (b.length > 4 && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F' && b[4] == '-') return PDF;
+        throw ApiException.badRequest("An attachment is a JPEG, PNG or WebP image, or a PDF.");
+    }
+
+    /** The image type the bytes are, or null; shared with the school logo upload, which takes images only. */
+    public static String imageType(byte[] b) {
         if (b.length > 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8 && (b[2] & 0xFF) == 0xFF) return "image/jpeg";
         if (b.length > 7 && (b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G') return "image/png";
         if (b.length > 11 && b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F'
                 && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P') return "image/webp";
-        throw ApiException.badRequest("An attachment is a JPEG, PNG or WebP image.");
+        return null;
     }
+
+    /** `image.png`, `file.pdf`: the name a file with none of its own is given, and the download falls back to. */
+    public static String defaultName(String mime) { return PDF.equals(mime) ? "file.pdf" : "image." + mime.substring("image/".length()); }
 
     /** The file name as a label, safe to print: the caller's own if it has one, else the type's own extension. */
     private static String name(String original, String mime) {
         String cleaned = original == null ? "" : original.replace('\\', '/');
         cleaned = cleaned.substring(cleaned.lastIndexOf('/') + 1).trim();
         String safe = SafeText.plainText(cleaned, "name", 200);
-        return safe == null || safe.isBlank() ? "image." + mime.substring("image/".length()) : safe.toLowerCase(Locale.ROOT);
+        return safe == null || safe.isBlank() ? defaultName(mime) : safe.toLowerCase(Locale.ROOT);
     }
 
     /** The only allowed media types, for the runbook and the refusal message above. */

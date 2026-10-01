@@ -130,13 +130,17 @@ public class RosterService {
         if (request.photoUrl() != null) child.setPhotoUrl(request.photoUrl().isBlank() ? null : photo(request.photoUrl()));
         if (request.active() != null) child.setActive(request.active());
         if (request.parentPhone() != null) parentPhone(child, request.parentPhone());
+        if (request.parentName() != null) parentName(child, request.parentName());
         if (request.classId() != null && !request.classId().equals(child.getClassId())) {
             var target = writable(caller, request.classId());                   // the destination has to be hers too
             child.setClassId(target.getId()); child.setCurriculum(target.getCurriculum()); child.setGrade(target.getGrade());
         }
         children.save(child);
         audit.record(caller.userId(), "child.update", "child", child.getId(), child.getSchoolId(), Map.of("classId", child.getClassId()));
-        return dto(child);
+        String parentName = child.getParentId() == null ? null
+                : parents.findById(child.getParentId()).map(quest.server.auth.Entities.ParentEntity::getDisplayName).orElse(null);
+        return new ClassDto.RosterChild(child.getId(), child.getClassId(), child.getName(), child.getParentEmail(), child.getPhotoUrl(),
+                child.isActive(), child.getParentId() != null, parentName);
     }
 
     /**
@@ -299,6 +303,16 @@ public class RosterService {
      * number and not a column on the roster row, so a child nobody has registered yet has nowhere to put one: that is
      * a 400 naming the reason rather than a silently dropped field.
      */
+    /** S1: V25's `parents.display_name`, by the same rule — the account's name, so it needs an account. */
+    private void parentName(ChildEntity child, String raw) {
+        if (child.getParentId() == null) throw ApiException.badRequest("No parent account is linked to " + child.getName() + " yet.");
+        String cleaned = raw.trim();
+        if (cleaned.isEmpty() || cleaned.length() > 80) throw ApiException.badRequest("parentName is 1–80 characters.");
+        var parent = parents.findById(child.getParentId()).orElseThrow(() -> ApiException.notFound("parent"));
+        parent.setDisplayName(cleaned);
+        parents.save(parent);
+    }
+
     private void parentPhone(ChildEntity child, String raw) {
         if (child.getParentId() == null) throw ApiException.badRequest("No parent account is linked to " + child.getName() + " yet.");
         var parent = parents.findById(child.getParentId()).orElseThrow(() -> ApiException.notFound("parent"));
@@ -350,6 +364,6 @@ public class RosterService {
 
     static ClassDto.RosterChild dto(ChildEntity c) {
         return new ClassDto.RosterChild(c.getId(), c.getClassId(), c.getName(), c.getParentEmail(), c.getPhotoUrl(),
-                c.isActive(), c.getParentId() != null);
+                c.isActive(), c.getParentId() != null, null);
     }
 }

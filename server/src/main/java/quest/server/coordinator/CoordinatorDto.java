@@ -64,7 +64,7 @@ public final class CoordinatorDto {
 
     /**
      * `POST /coordinator/chat/threads`: the manager the coordinator wants to talk to, validated against her own
-     * department. The teacher's route sends `StaffDto.OpenStaffThreadRequest` instead since T1b — hers may name a
+     * department, or (S1) a teacher of her subjects — exactly one of the two, checked by the service. The teacher's route sends `StaffDto.OpenStaffThreadRequest` instead since T1b — hers may name a
      * coordinator as well, and required-ness is then a rule about the pair rather than about one field.
      *
      * <p><strong>Named for the document.</strong> springdoc keys a schema by the record's simple name, and
@@ -73,7 +73,7 @@ public final class CoordinatorDto {
      * `server/openapi.json` already carries, and this one says whose door it opens.
      */
     @io.swagger.v3.oas.annotations.media.Schema(name = "OpenManagerThreadRequest")
-    public record StaffThreadRequest(@NotBlank String managerUserId) {}
+    public record StaffThreadRequest(String managerUserId, String teacherUserId) {}
 
     /** `PATCH /coordinator/chat/threads/{id}/status`: `open` or `resolved`, the two words the column holds. */
     public record ThreadStatusRequest(@NotBlank String status) {}

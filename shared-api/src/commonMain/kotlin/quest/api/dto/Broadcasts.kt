@@ -40,7 +40,7 @@ enum class BroadcastAudience {
 /**
  * What is attached. MH1 makes it a **reference**: [id] is an `attachments` row uploaded through
  * `POST /media/attachments`, [url] is then `/media/attachments/{id}` — so a client that only knows how to render a URL
- * needs no change — and [type] is the stored media type (`image/jpeg`, `image/png`, `image/webp`; the server sniffs it
+ * needs no change — and [type] is the stored media type (`image/jpeg`, `image/png`, `image/webp` or — S1, weekly plans only — `application/pdf`; the server sniffs it
  * from the bytes rather than trusting the upload's header). A row written before MH1 has a [url] the composer typed and
  * no [id].
  */

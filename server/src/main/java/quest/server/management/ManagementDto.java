@@ -110,10 +110,11 @@ public final class ManagementDto {
      * parent has registered for this child — the one flag the "message the parent" button needs, and the case
      * `POST /management/chat/threads {childId}` answers 404 `no_parent` to. `placedAt` is the roster row's own
      * creation, which is when the child joined the section — epoch millis, the form every other timestamp takes.
+     * S1 adds `parentName` (V25's `parents.display_name`), which `q` matches too.
      */
     public record DirectoryChild(String childId, String name, String classId, String className, int grade,
                                  String curriculum, String parentEmail, String rosterEmail, String parentId,
-                                 String parentPhone, long placedAt) {}
+                                 String parentPhone, long placedAt, String parentName) {}
 
     /** `GET /management/people/children?classId&q&page&size`. `total` is every match, not the page. */
     public record ChildDirectory(int page, int size, int total, List<DirectoryChild> rows) {}

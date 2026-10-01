@@ -122,7 +122,7 @@ public class BroadcastService {
         if (plan && grade == null)
             throw ApiException.badRequest("A weekly plan is for one grade: name the grade it is for.");
         if (plan && blank(request.attachmentId()))
-            throw ApiException.badRequest("A weekly plan is an image: upload it to /media/attachments first and send attachmentId.");
+            throw ApiException.badRequest("A weekly plan is an image or a PDF: upload it to /media/attachments first and send attachmentId.");
         // Her plan goes to the whole grade whatever she ticked: DR6 gives the plan one audience and the owner's list
         // names it — the parents, the teachers and the coordinators of that grade.
         var audience = plan ? List.of(PARENTS, TEACHERS, COORDINATORS) : audience(request.audience());
@@ -439,6 +439,9 @@ public class BroadcastService {
             var file = attachments.findOneById(id)
                     .filter(a -> schoolId.equals(a.getSchoolId()) && authorId.equals(a.getUploadedBy()))
                     .orElseThrow(() -> ApiException.badRequest("Upload the image to /media/attachments first — that attachmentId is not one of yours."));
+            // S1: a PDF is a weekly plan's alone — an announcement's attachment is drawn as an image by both clients.
+            if (quest.server.files.AttachmentService.PDF.equals(file.getMimeType()) && !WEEKLY_PLAN.equals(row.getKind()))
+                throw ApiException.badRequest("Only a weekly plan can carry a PDF; attach an image here.");
             row.setAttachmentId(file.getId()); row.setAttachmentUrl("/media/attachments/" + file.getId());
             row.setAttachmentName(file.getName()); row.setAttachmentType(file.getMimeType());
             return;

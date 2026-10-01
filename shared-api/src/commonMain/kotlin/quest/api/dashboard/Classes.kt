@@ -110,6 +110,8 @@ data class RosterChild(
     val photoUrl: String? = null,
     val active: Boolean = true,
     val hasParent: Boolean = false,
+    /** S1: the registered parent's name, on the answer to [UpdateRosterChildRequest] only; lists read [FamilyRow.parentName]. */
+    val parentName: String? = null,
 )
 
 @Serializable
@@ -130,6 +132,8 @@ data class UpdateRosterChildRequest(
     val active: Boolean? = null,
     val classId: String? = null,
     val parentPhone: String? = null,
+    /** S1: the parent account's name, 1–80 characters; like [parentPhone], a 400 while no parent is linked. */
+    val parentName: String? = null,
 )
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -178,6 +182,8 @@ data class ChildAdmission(
     val parentId: String,
     val parentCreated: Boolean,
     val passwordApplied: Boolean = false,
+    /** S1: the name the account now carries — the one typed, or the one a reused account already had. */
+    val parentName: String? = null,
 )
 
 /**

@@ -285,6 +285,8 @@ data class DirectoryChild(
     /** MH1 (owner's item 5): the number she typed into the app, absent until she does. */
     val parentPhone: String? = null,
     val placedAt: Long = 0,
+    /** S1: the registered parent's name (`parents.display_name`); `q` matches it too. */
+    val parentName: String? = null,
 )
 
 /** One page of a directory list. [total] is every match, not the page; `size` 0 asks for the default of 25. */

@@ -26,6 +26,9 @@ enum class ChatSender { @SerialName("parent") PARENT, @SerialName("teacher") TEA
  * R4 (DR3): which staff member holds the dashboard side of a thread. `TEACHER` is what every thread written before
  * R4 carries, so a client that ignores this field reads the C1 contract unchanged. `MANAGERIAL` is the staff-to-staff
  * shape — a coordinator and the manager of her department, with no child on it.
+ *
+ * S1: a thread the platform admin holds is `MANAGERIAL` on the wire too — a released app decodes this enum strictly,
+ * so a fourth word would break its thread list — and [ChatThread.withAdmin] is what tells it apart.
  */
 @Serializable
 enum class ChatStaffRole { @SerialName("TEACHER") TEACHER, @SerialName("COORDINATOR") COORDINATOR, @SerialName("MANAGERIAL") MANAGERIAL }
@@ -74,9 +77,9 @@ data class ChatThread(
     val status: ChatThreadStatus = ChatThreadStatus.OPEN,
     val resolvedAt: Long? = null,
     /**
-     * RM1 addendum: who wrote, so a Complaints inbox can name the parent rather than only the child. A parent signs in
-     * through Firebase and carries no display name, so this is her registered address — falling back to the one a
-     * teacher typed on the roster, and absent on a staff-to-staff thread, which has no parent on it at all.
+     * RM1 addendum: who wrote, so a Complaints inbox can name the parent rather than only the child: the name the
+     * Admin typed for her (S1, `parents.display_name`), else her registered address, else the one a teacher typed on
+     * the roster; absent on a staff-to-staff thread, which has no parent on it at all.
      */
     val parentName: String? = null,
     /**
@@ -89,6 +92,13 @@ data class ChatThread(
      * hers, and it carries no presence at all. Treat absent as "do not show a dot".
      */
     val peerOnline: Boolean? = null,
+    /**
+     * S1: the platform admin is on this thread. On a parent's row she is the staff side — [teacherName] is then
+     * "School administration", to be localised — and on a teacher's, a coordinator's or a manager's row she is the
+     * colleague [teacherId] names. `true` or absent, never `false` — as [peerOnline], it is omitted when there is
+     * nothing to say, so a client written before S1 reads the row unchanged.
+     */
+    val withAdmin: Boolean? = null,
 )
 
 /**

@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -68,6 +69,24 @@ public class ManagementChatController {
     public String managementChatThreads(@AuthenticationPrincipal Principals.User caller,
                                         @RequestParam(required = false) String status) {
         return json.encodeShared(chat.managerThreads(caller, status), BuiltinSerializersKt.ListSerializer(ChatThread.Companion.serializer()));
+    }
+
+    /** S1: her Complaints inbox — the `complaint` threads parents opened with her, `?status=open` while she works. */
+    @GetMapping(value = "/management/complaints", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('management.complaints')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatThread.class))))
+    public String managementComplaints(@AuthenticationPrincipal Principals.User caller,
+                                       @RequestParam(required = false) String status) {
+        return json.encodeShared(chat.managerComplaints(caller, status), BuiltinSerializersKt.ListSerializer(ChatThread.Companion.serializer()));
+    }
+
+    /** S1: `open` / `resolved` on a complaint of hers, the coordinator's write one scope over. */
+    @PatchMapping(value = "/management/chat/threads/{id}/status", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('management.complaints')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatThread.class)))
+    public String managementThreadStatus(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
+                                         @RequestBody @jakarta.validation.Valid quest.server.coordinator.CoordinatorDto.ThreadStatusRequest body) {
+        return json.encodeShared(chat.managerStatus(caller, id, body.status()), ChatThread.Companion.serializer());
     }
 
     @GetMapping(value = "/management/chat/threads/{id}/messages", produces = MediaType.APPLICATION_JSON_VALUE)

@@ -47,6 +47,7 @@ class ManagementPeopleApiTest extends GradingTestSupport {
 
     @Override public String prefix() { return P; }
 
+    @Autowired quest.server.auth.ParentRepository parentAccounts;
     @Autowired StaffScopeRepository staffScopes;
     @Autowired StaffAttendanceRepository register;
     @Autowired SchoolCalendar calendar;
@@ -250,6 +251,14 @@ class ManagementPeopleApiTest extends GradingTestSupport {
         String account = hana.get("parentEmail").asText();
         assertThat(account).isNotBlank().isNotEqualTo("guardian@british.test");
         assertThat(field(get("/management/people/children?q=" + account), nour, "name")).contains("Hana");
+
+        // S1: the name the Admin typed for that account is on the row, and `q` reaches it.
+        var parent = parentAccounts.findFirstByEmailIgnoreCase(account).orElseThrow();
+        parent.setDisplayName("Huda Rahman"); parentAccounts.save(parent);
+        var named = json(mvc.perform(as(get("/management/people/children?q=rahman"), nour)).andExpect(status().isOk()).andReturn()).get("rows");
+        assertThat(ids(named, "name")).contains("Hana");
+        for (var row : named) assertThat(row.get("parentName").asText()).isEqualTo("Huda Rahman");
+        assertThat(field(get("/management/people/children?q=nobody-by-that-name"), nour, "name")).isEmpty();
     }
 
     @Test void a_second_mark_of_the_same_day_overwrites_the_row_the_first_one_wrote() throws Exception {

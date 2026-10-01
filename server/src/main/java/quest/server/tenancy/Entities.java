@@ -26,7 +26,14 @@ public final class Entities {
         /** V7, N2.1: this school's own teaching days and timezone, or null to follow the platform's (§A). */
         @Column(name = "school_week_json") private String schoolWeekJson;
         @Column private String timezone;
+        /** V27 (S1): the uploaded logo — its `FileStore` key, sniffed image type and version; all null without one. */
+        @Column(name = "logo_path") private String logoPath;
+        @Column(name = "logo_type") private String logoType;
+        @Column(name = "logo_updated_at") private Instant logoUpdatedAt;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
+        public String getLogoPath() { return logoPath; } public void setLogoPath(String v) { logoPath = v; }
+        public String getLogoType() { return logoType; } public void setLogoType(String v) { logoType = v; }
+        public Instant getLogoUpdatedAt() { return logoUpdatedAt; } public void setLogoUpdatedAt(Instant v) { logoUpdatedAt = v; }
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getName() { return name; } public void setName(String v) { name = v; }
         public String getCode() { return code; } public void setCode(String v) { code = v; }

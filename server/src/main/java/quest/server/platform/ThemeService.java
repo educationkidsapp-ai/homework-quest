@@ -26,10 +26,13 @@ import quest.server.tenancy.SchoolRepository;
 @Service
 public class ThemeService {
     private final SchoolRepository schools; private final PlatformSettingsService platform; private final DesignTokens tokens;
-    private final Json json; private final AuditService audit;
+    private final Json json; private final AuditService audit; private final String publicUrl;
 
-    public ThemeService(SchoolRepository schools, PlatformSettingsService platform, DesignTokens tokens, Json json, AuditService audit) {
+    public ThemeService(SchoolRepository schools, PlatformSettingsService platform, DesignTokens tokens, Json json, AuditService audit,
+                        quest.server.config.QuestProperties props) {
         this.schools = schools; this.platform = platform; this.tokens = tokens; this.json = json; this.audit = audit;
+        String base = props.publicUrl() == null ? "" : props.publicUrl().strip();
+        this.publicUrl = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     /** The theme of a school, or a 404 when there is no such school. */
@@ -37,9 +40,28 @@ public class ThemeService {
 
     /** The theme of a school that has already been loaded (the join-by-code lookup hands its row straight in). */
     public ThemeDto.SchoolTheme themeOf(SchoolEntity school) {
-        if (school.getThemeJson() != null && !school.getThemeJson().isBlank())
-            return json.read(school.getThemeJson(), ThemeDto.SchoolTheme.class);
-        return platformDefault();
+        var theme = school.getThemeJson() != null && !school.getThemeJson().isBlank()
+                ? json.read(school.getThemeJson(), ThemeDto.SchoolTheme.class) : platformDefault();
+        // S1: an uploaded logo wins over a typed URL, on every read of the theme — the public one, the sign-in
+        // page's `POST /schools/logo`, the join lookup and `/me/home.schoolLogoUrl` all come through here.
+        String uploaded = uploadedLogoUrl(school);
+        return uploaded == null ? theme : theme.withLogoUrl(uploaded);
+    }
+
+    /**
+     * S1: where the uploaded logo is served — the public `GET /schools/{id}/logo`, absolute so the app can load it,
+     * with the upload's time as `?v=` so a replaced logo is a new URL to every cache. Null without an upload.
+     */
+    public String uploadedLogoUrl(SchoolEntity school) {
+        if (school.getLogoPath() == null) return null;
+        long version = school.getLogoUpdatedAt() == null ? 0 : school.getLogoUpdatedAt().toEpochMilli();
+        return publicUrl + "/schools/" + school.getId() + "/logo?v=" + version;
+    }
+
+    /** S1 `DELETE /admin/schools/{id}/logo`: the typed URL goes with the upload, so the school has no logo at all. */
+    public void clearTypedLogo(SchoolEntity school) {
+        if (school.getThemeJson() == null || school.getThemeJson().isBlank()) return;
+        school.setThemeJson(json.write(json.read(school.getThemeJson(), ThemeDto.SchoolTheme.class).withLogoUrl(null)));
     }
 
     /** The platform-wide default: the Admin's, or the design tokens' when they have not set one. */
@@ -52,9 +74,15 @@ public class ThemeService {
     @Transactional
     public ThemeDto.SchoolTheme save(Principals.User actor, String schoolId, ThemeDto.SchoolTheme requested) {
         var school = require(schoolId);
+        // S1: the editor sends back the theme it read, and what it read was the uploaded logo's own URL — which is
+        // derived on every read, is not always https (local) and must not be frozen into `theme_json`.
+        String own = "/schools/" + school.getId() + "/logo";
+        if (requested != null && requested.logoUrl() != null && school.getLogoPath() != null && requested.logoUrl().contains(own))
+            requested = requested.withLogoUrl(null);
         var theme = validated(requested);
         school.setThemeJson(json.write(theme));
         schools.save(school);
+        theme = themeOf(school);
         audit.record(actor == null ? null : actor.userId(), "school.theme", "school", school.getId(), school.getId(),
                 Map.of("appName", theme.appName() == null ? "" : theme.appName()));
         return theme;

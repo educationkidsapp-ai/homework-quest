@@ -53,13 +53,14 @@ public final class ClassDto {
     /** The complete set the teacher should hold afterwards, not a delta. */
     public record AssignmentsRequest(List<AssignmentInput> assignments) {}
 
+    /** `parentName` (S1) is filled on the PATCH's own answer; the list that shows it is {@link FamilyRow}'s. */
     public record RosterChild(String id, String classId, String name, String parentEmail, String photoUrl,
-                              boolean active, boolean hasParent) {}
+                              boolean active, boolean hasParent, String parentName) {}
 
     public record CreateRosterChildRequest(@NotBlank String name, String parentEmail, String photoUrl) {}
 
     public record UpdateRosterChildRequest(String name, String parentEmail, String photoUrl, Boolean active,
-                                           String classId, String parentPhone) {}
+                                           String classId, String parentPhone, String parentName) {}
 
     // ------------------------------------------------------------------ MA1: children and their parents' accounts
 
@@ -77,7 +78,8 @@ public final class ClassDto {
      * only when this call minted the Firebase login with the `parentInitialPassword` that was typed — a login that
      * already existed keeps the password its owner chose, and the screen has to say so.
      */
-    public record ChildAdmission(String childId, String parentId, boolean parentCreated, boolean passwordApplied) {}
+    public record ChildAdmission(String childId, String parentId, boolean parentCreated, boolean passwordApplied,
+                                 String parentName) {}
 
     /** One line of the Children & parents page: the child, her class, and the parent the school can reach. */
     public record FamilyRow(String childId, String name, int grade, String curriculum, String classId, String className,

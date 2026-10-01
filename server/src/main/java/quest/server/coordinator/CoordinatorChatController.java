@@ -115,14 +115,14 @@ public class CoordinatorChatController {
         return json.encodeShared(chat.coordinatorRead(caller, id), ChatReadReceipt.Companion.serializer());
     }
 
-    /** Her thread with one manager of her own department (DR5); the same thread whichever of the two opens it. */
+    /** Her thread with one manager of her department (DR5) or — S1 — one teacher of her subjects; exactly one id. */
     @PostMapping(value = "/coordinator/chat/threads", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('coordinator.chat')")
     @ResponseStatus(HttpStatus.CREATED)
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatThread.class)))
     public String coordinatorStaffThread(@AuthenticationPrincipal Principals.User caller,
                                          @RequestBody @Valid CoordinatorDto.StaffThreadRequest body) {
-        return json.encodeShared(chat.coordinatorStaffThread(caller, body.managerUserId()), ChatThread.Companion.serializer());
+        return json.encodeShared(chat.coordinatorStaffThread(caller, body.managerUserId(), body.teacherUserId()), ChatThread.Companion.serializer());
     }
 
     /** `open` / `resolved` on a complaint. The parent is told over her own socket with a `status` frame. */

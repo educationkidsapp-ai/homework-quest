@@ -82,6 +82,7 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
     @Autowired ChatSessions sessions;
     @Autowired ChatBus bus;
     @Autowired AdminJwtService jwt;
+    @Autowired quest.server.notifications.NotificationRepository notificationRows;
     @Autowired quest.server.teacher.AnnouncementRepository announcementRows;
     @Autowired quest.server.flags.SchoolFlagRepository schoolFlags;
     @Autowired quest.server.flags.FeatureFlags featureFlags;
@@ -104,6 +105,7 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
     }
 
     @AfterAll void takeItBackOut() {
+        notificationRows.deleteAll(notificationRows.findAll().stream().filter(n -> n.getSchoolId() != null && n.getSchoolId().startsWith("comms-")).toList());
         messageRows.deleteAll(messageRows.findAll().stream().filter(m -> m.getSchoolId().startsWith("comms-")).toList());
         threadRows.deleteAll(threadRows.findAll().stream().filter(t -> t.getSchoolId().startsWith("comms-")).toList());
         announcementRows.deleteAll(announcementRows.findAll().stream().filter(a -> a.getSchoolId().startsWith("comms-")).toList());
@@ -202,23 +204,42 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
     }
 
     /**
-     * A complaint on a teacher's thread would be a label nobody's inbox lists, so it is refused at the edge rather
-     * than stored: `/coordinator/complaints` only lists the threads the coordinator is the staff peer of.
+     * S1 (owner's list of 2026-10-01): a parent complains to the teacher, the coordinator <em>and</em> the manager.
+     * R4 refused the teacher's (`400 complaint_needs_coordinator`); it is now a thread like the other two, and one
+     * that already exists as a question becomes an open complaint — one row per pair means that is the usual case.
      */
-    @Test @Order(5) void a_complaint_aimed_at_a_teacher_is_refused_and_writes_nothing() throws Exception {
+    @Test @Order(5) void a_complaint_reaches_the_teacher_and_the_manager_too() throws Exception {
         String maya = idOf("maya@test.com");
-        var refused = json(mvc.perform(post("/children/" + childBritishA + "/chat/threads/" + maya + "/messages")
-                        .header("Authorization", bearer(BRITISH_A_PARENT)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"body\":\"This is a complaint.\",\"topic\":\"complaint\"}"))
-                .andExpect(status().isBadRequest()).andReturn());
-        assertThat(refused.get("code").asText()).isEqualTo("complaint_needs_coordinator");
-        assertThat(threadRows.findByChildIdAndTeacherId(childBritishA, maya)).as("nothing was written").isEmpty();
+        String path = "/children/" + childBritishA + "/chat/threads/";
+        var asked = parentPostJson(BRITISH_A_PARENT, path + maya + "/messages", "{\"body\":\"Could you explain the homework?\"}");
+        String teacherThread = asked.get("threadId").asText();
+        assertThat(rowWith(parentJson(BRITISH_A_PARENT, "/children/" + childBritishA + "/chat/threads"), "id", teacherThread)
+                .get("topic").asText()).isEqualTo("question");
+        parentPostJson(BRITISH_A_PARENT, path + maya + "/messages", "{\"body\":\"This is a complaint.\",\"topic\":\"complaint\"}");
+        var hers = rowWith(json(mvc.perform(as(get("/teacher/chat/threads"), token(maya, "TEACHER", SCHOOL))).andExpect(status().isOk()).andReturn()),
+                "id", teacherThread);
+        assertThat(hers.get("topic").asText()).as("the teacher's Messages row carries the badge").isEqualTo("complaint");
+        assertThat(hers.get("status").asText()).isEqualTo("open");
+        // …and a later plain message does not take it back out of anybody's inbox.
+        parentPostJson(BRITISH_A_PARENT, path + maya + "/messages", "{\"body\":\"Thank you.\",\"topic\":\"question\"}");
+        assertThat(threadRows.findByChildIdAndTeacherId(childBritishA, maya).orElseThrow().getTopic()).isEqualTo("complaint");
 
-        // The same thread as a question is fine, and stays a question.
-        var asked = parentPostJson(BRITISH_A_PARENT, "/children/" + childBritishA + "/chat/threads/" + maya + "/messages",
-                "{\"body\":\"Could you explain the homework?\"}");
-        assertThat(rowWith(parentJson(BRITISH_A_PARENT, "/children/" + childBritishA + "/chat/threads"), "id",
-                asked.get("threadId").asText()).get("topic").asText()).isEqualTo("question");
+        // The manager's: listed by `/management/complaints`, resolved by her own status write.
+        String manager = token(nour, "MANAGERIAL", SCHOOL);
+        String managerThread = parentPostJson(BRITISH_A_PARENT, path + nour + "/messages",
+                "{\"body\":\"Nobody answers the coordinator.\",\"topic\":\"complaint\"}").get("threadId").asText();
+        var inbox = json(mvc.perform(as(get("/management/complaints?status=open"), manager)).andExpect(status().isOk()).andReturn());
+        var complaint = rowWith(inbox, "id", managerThread);
+        assertThat(complaint.get("childName").asText()).isEqualTo("Lila");
+        assertThat(complaint.get("unread").asInt()).isEqualTo(1);
+        assertThat(json(mvc.perform(as(patch("/management/chat/threads/" + managerThread + "/status").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"resolved\"}"), manager)).andExpect(status().isOk()).andReturn()).get("status").asText()).isEqualTo("resolved");
+        assertThat(names(json(mvc.perform(as(get("/management/complaints?status=open"), manager)).andReturn()), "id")).doesNotContain(managerThread);
+        assertThat(names(json(mvc.perform(as(get("/management/complaints"), manager)).andReturn()), "id")).containsExactly(managerThread);
+        // The other department's manager and a teacher reach neither the inbox nor the write.
+        mvc.perform(as(patch("/management/chat/threads/" + managerThread + "/status").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"open\"}"), token(sami, "MANAGERIAL", SCHOOL))).andExpect(status().isNotFound());
+        mvc.perform(as(get("/management/complaints"), token(maya, "TEACHER", SCHOOL))).andExpect(status().isForbidden());
     }
 
     // ---------------------------------------------------------------- coordinator ↔ manager
@@ -312,12 +333,122 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
             mvc.perform(as(get(path), teacher)).andExpect(status().isForbidden());
     }
 
+    // ---------------------------------------------------------------- S1: direct threads
+
+    @Test @Order(10) void lina_opens_the_thread_a_teacher_of_her_subject_would_open_with_her() throws Exception {
+        String maya = idOf("maya@test.com"), rami = idOf("rami@test.com");
+        var opened = staffPostJson(lina, "/coordinator/chat/threads", "{\"teacherUserId\":\"" + maya + "\"}");
+        String thread = opened.get("id").asText();
+        assertThat(opened.get("teacherId").asText()).as("the row names the other person").isEqualTo(maya);
+        assertThat(opened.get("staffRole").asText()).isEqualTo("COORDINATOR");
+        var row = threadRows.findById(thread).orElseThrow();
+        assertThat(row.getTeacherId()).as("T1b's shape: the teacher is the subordinate").isEqualTo(maya);
+        assertThat(row.getPeerUserId()).isEqualTo(lina);
+        // One row whichever side opens it, and each answers through her own routes.
+        assertThat(json(mvc.perform(as(post("/teacher/chat/staff-threads").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"coordinatorUserId\":\"" + lina + "\"}"), token(maya, "TEACHER", SCHOOL))).andExpect(status().isCreated()).andReturn())
+                .get("id").asText()).isEqualTo(thread);
+        staffPostJson(lina, "/coordinator/chat/threads/" + thread + "/messages", "{\"body\":\"Unit 3 moves to next week.\"}");
+        assertThat(rowWith(json(mvc.perform(as(get("/teacher/chat/staff-threads"), token(maya, "TEACHER", SCHOOL))).andReturn()), "id", thread)
+                .get("unread").asInt()).isEqualTo(1);
+        // Rami teaches American maths, outside her British scope; and the body names exactly one person.
+        for (var refused : List.of(new String[] {"{\"teacherUserId\":\"" + rami + "\"}", "404"}, new String[] {"{}", "400"},
+                new String[] {"{\"teacherUserId\":\"" + maya + "\",\"managerUserId\":\"" + nour + "\"}", "400"}))
+            mvc.perform(as(post("/coordinator/chat/threads").contentType(MediaType.APPLICATION_JSON).content(refused[0]), token(lina, "COORDINATOR", SCHOOL)))
+                    .andExpect(status().is(Integer.parseInt(refused[1])));
+    }
+
+    @Test @Order(11) void the_admin_writes_to_a_teacher_a_coordinator_and_a_parent_and_each_answers_from_her_own_inbox() throws Exception {
+        String admin = adminToken(), adminId = users.findByEmailIgnoreCase("admin@test.local").orElseThrow().getId();
+        String maya = idOf("maya@test.com"), mayaToken = token(maya, "TEACHER", SCHOOL);
+
+        // a teacher: subordinate on `teacher_id`, the admin on `peer_user_id`, `staff_role` ADMIN
+        var toTeacher = adminPost(admin, "/admin/chat/threads", "{\"teacherUserId\":\"" + maya + "\"}");
+        String teacherThread = toTeacher.get("id").asText();
+        assertThat(toTeacher.get("withAdmin").asBoolean()).isTrue();
+        assertThat(toTeacher.get("teacherId").asText()).isEqualTo(maya);
+        var stored = threadRows.findById(teacherThread).orElseThrow();
+        assertThat(List.of(stored.getTeacherId(), stored.getPeerUserId(), stored.getStaffRole())).containsExactly(maya, adminId, "ADMIN");
+        adminPost(admin, "/admin/chat/threads/" + teacherThread + "/messages", "{\"body\":\"Please come by the office.\"}");
+        var mayas = rowWith(json(mvc.perform(as(get("/teacher/chat/staff-threads"), mayaToken)).andReturn()), "id", teacherThread);
+        assertThat(mayas.get("teacherId").asText()).isEqualTo(adminId);
+        assertThat(mayas.get("withAdmin").asBoolean()).isTrue();
+        assertThat(mayas.get("unread").asInt()).isEqualTo(1);
+        assertThat(links(mayaToken, null)).contains("/teacher/chat?thread=" + teacherThread);
+        mvc.perform(as(post("/teacher/chat/staff-threads/" + teacherThread + "/messages").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"body\":\"On my way.\"}"), mayaToken)).andExpect(status().isCreated());
+        assertThat(links(admin, SCHOOL)).contains("/admin/messages?thread=" + teacherThread);
+
+        // a coordinator, through `/coordinator/chat/**`
+        String coordinatorThread = adminPost(admin, "/admin/chat/threads", "{\"coordinatorUserId\":\"" + lina + "\"}").get("id").asText();
+        adminPost(admin, "/admin/chat/threads/" + coordinatorThread + "/messages", "{\"body\":\"The maths plan, please.\"}");
+        assertThat(rowWith(staffJson(lina, "/coordinator/chat/threads"), "id", coordinatorThread).get("withAdmin").asBoolean()).isTrue();
+        staffPostJson(lina, "/coordinator/chat/threads/" + coordinatorThread + "/messages", "{\"body\":\"Sent.\"}");
+
+        // a parent, by her child: the app's own list carries the thread as "School administration"
+        var toParent = adminPost(admin, "/admin/chat/threads", "{\"childId\":\"" + childBritishB + "\"}");
+        String parentThread = toParent.get("id").asText();
+        assertThat(toParent.get("childName").asText()).isEqualTo("Bilal");
+        adminPost(admin, "/admin/chat/threads/" + parentThread + "/messages", "{\"body\":\"Bilal's form is ready.\"}");
+        var parents = rowWith(parentJson(BRITISH_B_PARENT, "/children/" + childBritishB + "/chat/threads"), "id", parentThread);
+        assertThat(parents.get("teacherName").asText()).isEqualTo("School administration");
+        assertThat(parents.get("withAdmin").asBoolean()).isTrue();
+        assertThat(parents.get("unread").asInt()).isEqualTo(1);
+        parentPostJson(BRITISH_B_PARENT, "/children/" + childBritishB + "/chat/threads/" + adminId + "/messages", "{\"body\":\"Thank you!\"}");
+
+        // her own inbox: the three threads, each with her own unread count, and the same row when asked again
+        var mine = json(mvc.perform(as(get("/admin/chat/threads?mine=true"), admin).header("X-School-Id", SCHOOL)).andExpect(status().isOk()).andReturn());
+        assertThat(names(mine, "id")).containsExactlyInAnyOrder(teacherThread, coordinatorThread, parentThread);
+        for (var row : mine) assertThat(row.get("unread").asInt()).as("thread %s", row.get("id")).isEqualTo(1);
+        assertThat(adminPost(admin, "/admin/chat/threads", "{\"teacherUserId\":\"" + maya + "\"}").get("id").asText()).isEqualTo(teacherThread);
+
+        // exactly one id, of this school; and a parent the admin never wrote to cannot start the thread herself
+        for (var refused : List.of(new String[] {"{}", "400"}, new String[] {"{\"teacherUserId\":\"" + maya + "\",\"childId\":\"" + childBritishB + "\"}", "400"},
+                new String[] {"{\"coordinatorUserId\":\"" + otherSchoolCoordinator() + "\"}", "404"}, new String[] {"{\"teacherUserId\":\"" + lina + "\"}", "404"}))
+            mvc.perform(as(post("/admin/chat/threads").contentType(MediaType.APPLICATION_JSON).content(refused[0]), admin).header("X-School-Id", SCHOOL))
+                    .andExpect(status().is(Integer.parseInt(refused[1])));
+        mvc.perform(post("/children/" + childBritishA + "/chat/threads/" + adminId + "/messages").header("Authorization", bearer(BRITISH_A_PARENT))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Hello?\"}")).andExpect(status().isNotFound());
+    }
+
+    /** The owner's "Message opens chat but not the person's thread": the server answers the thread's id in all four cases. */
+    @Test @Order(12) void the_manager_gets_the_thread_id_for_a_coordinator_a_teacher_a_parent_and_the_admin() throws Exception {
+        String manager = token(nour, "MANAGERIAL", SCHOOL), adminId = users.findByEmailIgnoreCase("admin@test.local").orElseThrow().getId();
+        var listed = new ArrayList<String>();
+        for (String body : List.of("{\"coordinatorUserId\":\"" + lina + "\"}", "{\"teacherUserId\":\"" + idOf("maya@test.com") + "\"}",
+                "{\"childId\":\"" + childBritishB + "\"}", "{\"adminUserId\":\"" + adminId + "\"}")) {
+            var first = json(mvc.perform(as(post("/management/chat/threads").contentType(MediaType.APPLICATION_JSON).content(body), manager))
+                    .andExpect(status().isCreated()).andReturn());
+            assertThat(first.hasNonNull("id")).as("an id for %s", body).isTrue();
+            assertThat(json(mvc.perform(as(post("/management/chat/threads").contentType(MediaType.APPLICATION_JSON).content(body), manager))
+                    .andExpect(status().isCreated()).andReturn()).get("id").asText()).as("the same row when asked again").isEqualTo(first.get("id").asText());
+            listed.add(first.get("id").asText());
+        }
+        assertThat(listed).doesNotHaveDuplicates();
+        assertThat(names(json(mvc.perform(as(get("/management/chat/threads"), manager)).andExpect(status().isOk()).andReturn()), "id")).containsAll(listed);
+    }
+
     // ---------------------------------------------------------------- fixture helpers
 
     private String token(String userId, String role, String schoolId) { return jwt.issue(userId, userId + "@seed.test", role, schoolId).token(); }
 
     private MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder builder, String token) {
         return builder.header("Authorization", "Bearer " + token);
+    }
+
+    private JsonNode adminPost(String admin, String path, String body) throws Exception {
+        return json(mvc.perform(as(post(path).contentType(MediaType.APPLICATION_JSON).content(body), admin).header("X-School-Id", SCHOOL))
+                .andExpect(status().isCreated()).andReturn());
+    }
+
+    /** The links of her unread `chat.message` rows — "each side is sent to its own inbox". */
+    private List<String> links(String token, String schoolId) throws Exception {
+        var request = as(get("/me/notifications?unread=true"), token);
+        if (schoolId != null) request = request.header("X-School-Id", schoolId);
+        var out = new ArrayList<String>();
+        for (var row : json(mvc.perform(request).andExpect(status().isOk()).andReturn()))
+            if ("chat.message".equals(row.get("kind").asText())) out.add(row.get("link").asText());
+        return out;
     }
 
     private static String bearer(String parentUid) { return "Bearer fake-token-" + parentUid; }

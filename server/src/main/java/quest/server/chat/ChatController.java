@@ -204,11 +204,16 @@ public class ChatController {
 
     // ---------------------------------------------------------------- support (Admin, read-only)
 
-    /** Every thread of the school named by `X-School-Id`, newest first; `unread` is both sides' counts together. */
+    /**
+     * Every thread of the school named by `X-School-Id`, newest first; `unread` is both sides' counts together.
+     * S1: `?mine=true` is the admin's own inbox instead — only the threads she is on, with her own unread count.
+     */
     @GetMapping(value = "/admin/chat/threads", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('chat.support')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatThread.class))))
-    public String supportChatThreads() { return threads(chat.supportThreads()); }
+    public String supportChatThreads(@AuthenticationPrincipal Principals.User caller, @RequestParam(defaultValue = "false") boolean mine) {
+        return threads(mine ? chat.adminThreads(caller) : chat.supportThreads());
+    }
 
     @GetMapping(value = "/admin/chat/threads/{threadId}/messages", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('chat.support')")
@@ -219,19 +224,20 @@ public class ChatController {
     }
 
     /**
-     * RM2 (DR5): the admin's own thread with one manager of the school she named — "the manager reports to and chats
-     * with the admin". The same row `POST /management/chat/threads` creates from the other side.
+     * RM2 (DR5): the admin's own thread with one manager of the school she named. S1 widens it to exactly one of a
+     * manager, a coordinator, a teacher or a child's registered parent; see {@link ChatService#adminThread}.
      */
     @PostMapping(value = "/admin/chat/threads", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('admin.chat')")
     @ResponseStatus(HttpStatus.CREATED)
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatThread.class)))
     public String supportManagerThread(@AuthenticationPrincipal Principals.User caller, @RequestBody ManagerThreadRequest body) {
-        return json.encodeShared(chat.adminManagerThread(caller, body.managerUserId()), ChatThread.Companion.serializer());
+        return json.encodeShared(chat.adminThread(caller, body.managerUserId(), body.coordinatorUserId(), body.teacherUserId(), body.childId()),
+                ChatThread.Companion.serializer());
     }
 
-    /** `POST /admin/chat/threads` — a manager of the school in `X-School-Id`. */
-    public record ManagerThreadRequest(String managerUserId) {}
+    /** `POST /admin/chat/threads` — exactly one of the four, in the school named by `X-School-Id`. */
+    public record ManagerThreadRequest(String managerUserId, String coordinatorUserId, String teacherUserId, String childId) {}
 
     /** Into her own thread only: support reads every thread of a school, and writes into none but hers. */
     @PostMapping(value = "/admin/chat/threads/{threadId}/messages", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)

@@ -56,7 +56,7 @@ public class MediaController {
         for (char c : row.getName().toCharArray())
             if (c == '.' || c == '_' || c == '-' || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) out.append(c);
         String safe = out.toString();
-        return safe.length() < 3 || safe.startsWith(".") ? "image." + row.getMimeType().substring("image/".length()) : safe;
+        return safe.length() < 3 || safe.startsWith(".") ? AttachmentService.defaultName(row.getMimeType()) : safe;
     }
 
     private final FileStore files; private final PageImageRepository pageImages; private final ChildMediaRepository childMedia; private final MediaAccess access;
@@ -98,8 +98,8 @@ public class MediaController {
         access.requireAttachment(row, parent, user);
         var blob = files.get(row.getStoragePath()).orElseThrow(() -> ApiException.notFound("media file"));
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePrivate())
-                // `nosniff` and an explicit `inline` disposition: only the three sniffed image types can ever be the
-                // content type, so neither is load-bearing — they are the belt beside the braces, and one line each.
+                // `nosniff` and an explicit `inline` disposition: only the sniffed types — three images and, S1, a
+                // PDF — can ever be the content type, so a browser shows the plan rather than guessing at it.
                 .header("X-Content-Type-Options", "nosniff")
                 .header("Content-Disposition", "inline; filename=\"" + downloadName(row) + "\"")
                 .contentType(MediaType.parseMediaType(blob.mimeType())).body(blob.bytes());
