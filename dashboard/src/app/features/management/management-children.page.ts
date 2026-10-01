@@ -180,6 +180,7 @@ const EMPTY_PAGE: ChildPage = { total: 0, rows: [] };
         <hq-coordinator-read-failed (retry)="directory.reload()" />
       } @else {
         <hq-table
+          [bordered]="true"
           [rows]="rows()"
           [columns]="columns()"
           [cellTemplate]="cell"
@@ -243,7 +244,8 @@ const EMPTY_PAGE: ChildPage = { total: 0, rows: [] };
       flex-wrap: wrap;
       align-items: flex-end;
       gap: var(--hq-space-16);
-      margin-block: var(--hq-space-16);
+      // 20 px between the search row and the list, as on the other management lists.
+      margin-block: var(--hq-space-16) calc(var(--hq-space-16) + var(--hq-space-4));
     }
 
     .mg-filters__search {

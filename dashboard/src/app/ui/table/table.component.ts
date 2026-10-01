@@ -50,7 +50,7 @@ export interface TableGroup {
   imports: [NgTemplateOutlet, TranslocoPipe, ListStaggerDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="table__scroll">
+    <div class="table__scroll" [class.table__scroll--bordered]="bordered()">
       <table class="table" [class.table--wrap-headers]="wrapHeaders()" [attr.aria-label]="label()">
         <thead class="table__head">
           @if (groups().length > 0) {
@@ -141,6 +141,15 @@ export interface TableGroup {
       overflow-x: auto;
       overflow-y: auto;
       max-block-size: 100%;
+    }
+
+    // A frame of its own for a table that stands on the page rather than inside a card: the rule
+    // token and the card radius, and the scroll box is what clips the header and the last row to
+    // it. The table still scrolls sideways inside the frame on a phone — it never becomes cards,
+    // so there is no second border to meet.
+    .table__scroll--bordered {
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      border-radius: var(--hq-radius-card);
     }
 
     .table {
@@ -247,6 +256,8 @@ export class TableComponent<Row> {
   /** Optional trailing cell — the row's overflow menu. */
   /** Let a many-columned table's headers wrap rather than force the table past its card. */
   readonly wrapHeaders = input(false);
+  /** Draws a bordered, rounded frame around the table. For a list that is not already inside a card. */
+  readonly bordered = input(false);
 
   readonly overflowTemplate = input<TemplateRef<{ $implicit: Row }> | null>(null);
   /**
