@@ -9,7 +9,7 @@
  * Allowed in `*.spec.ts` (a test may assert on the seeded value) and in
  * `src/assets/i18n/**` (translations hold whatever the platform is called).
  */
-const FORBIDDEN = ['Homework Quest', 'Schools Dashboard'];
+const FORBIDDEN = ['Homework Quest', 'Schools Dashboard', 'MySchool', 'مدرستي'];
 
 /** @type {import('eslint').Rule.RuleModule} */
 export const noProductNameLiteral = {

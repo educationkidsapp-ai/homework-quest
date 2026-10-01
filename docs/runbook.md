@@ -961,9 +961,13 @@ unknown code is a 404 and shows *"We couldn't find that school code."* A parent 
 §A: the product's own name, short name and logo are a row in `platform_settings` (id `default`, seeded
 `Schools Dashboard` / `Schools` by `V5__flags_themes.sql`), not a constant and not an env var.
 
+**The product is named MySchool (Arabic مدرستي) since N1, 2026-10-02.** `V28__product_name_myschool.sql` renames the
+row to `MySchool` / `MySchool` only where it still holds the seeded defaults (a name an Admin set by hand is kept).
+Repository, package, Cloud Run service, database and bundle identifiers keep their old names on purpose.
+
 ```bash
 curl -s "$API/platform-settings"
-# {"name":"Schools Dashboard","shortName":"Schools","logoUrl":null,"supportEmail":null,"defaultTheme":null}
+# {"name":"MySchool","shortName":"MySchool","logoUrl":null,"supportEmail":null,"defaultTheme":null}
 
 curl -s "$API/admin/platform-settings" -H "Authorization: Bearer $TOKEN"      # platform.manage; every field
 curl -s -X PUT "$API/admin/platform-settings" -H "Authorization: Bearer $TOKEN" \
@@ -980,8 +984,8 @@ the migration. `GET /me` answers the resolved `platformName`, the app resolves t
 mail subjects take the platform name. Verified locally: `GET /platform-settings` answered `Schools Dashboard` and
 `GET /me.platformName` answered the same for an ADMIN, who has no school.
 
-`ProductNameTest` fails the build if the literal `Homework Quest` or `Schools Dashboard` appears anywhere under
-`server/src/main` — including a comment or a model prompt — outside `V5__flags_themes.sql`. That migration is where the
+`ProductNameTest` fails the build if the literal `Homework Quest`, `Schools Dashboard` or `MySchool` appears anywhere under
+`server/src/main` — including a comment or a model prompt — outside `db/migration`. `V5__flags_themes.sql` is where the
 name enters the system; everything else asks `PlatformSettingsService`.
 
 **There is no `PLATFORM_NAME` any more.** P2.1 deleted the `quest.platform-name` property: an env var that silently

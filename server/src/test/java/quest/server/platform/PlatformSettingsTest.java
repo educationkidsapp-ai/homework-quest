@@ -19,8 +19,8 @@ import quest.server.mail.PlatformName;
  * `theme.appName` wins inside that school — the resolution order `GET /me.platformName` answers with.
  */
 class PlatformSettingsTest extends ApiTestSupport {
-    private static final String SEEDED_NAME = "Schools Dashboard";
-    private static final String SEEDED_SHORT_NAME = "Schools";
+    private static final String SEEDED_NAME = "MySchool";
+    private static final String SEEDED_SHORT_NAME = "MySchool";
     private static final String PASSWORD = "handed-over-1234";
 
     @Autowired PlatformSettingsService settings;

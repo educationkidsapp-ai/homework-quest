@@ -22,6 +22,7 @@ function lint(code: string, rule: string, filename = 'file.ts'): Linter.LintMess
 // Assembled at runtime so these specs do not themselves contain the banned literal.
 const PRODUCT = ['Schools', 'Dashboard'].join(' ');
 const OTHER_PRODUCT = ['Homework', 'Quest'].join(' ');
+const CURRENT_PRODUCT = ['My', 'School'].join('');
 
 describe('hq/no-product-name-literal', () => {
   it('fails on the product name in a string literal', () => {
@@ -33,6 +34,12 @@ describe('hq/no-product-name-literal', () => {
 
   it('fails on the product name inside a template literal', () => {
     const messages = lint(`const t = \`Welcome to ${OTHER_PRODUCT}\`;`, 'no-product-name-literal');
+
+    expect(messages).toHaveLength(1);
+  });
+
+  it('fails on the current product name too (N1): it is still data', () => {
+    const messages = lint(`const title = '${CURRENT_PRODUCT}';`, 'no-product-name-literal');
 
     expect(messages).toHaveLength(1);
   });
