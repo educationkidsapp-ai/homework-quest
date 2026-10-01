@@ -1,5 +1,7 @@
 package quest.core.platform
 
+import androidx.core.content.FileProvider
+import android.content.Intent
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -74,4 +76,19 @@ actual fun rememberStopMedia(): StopMedia {
             override fun stopPlayback() { runCatching { player?.stop(); player?.release() }; player = null }
         }
     }
+}
+
+actual object DocumentViewer {
+    /**
+     * The file goes under `cache/documents/`, the one directory `quest_file_paths.xml` lets the `FileProvider` share,
+     * and the viewer is granted read access to that one URI. A device with no PDF viewer throws
+     * `ActivityNotFoundException`; that is a `false`, never a crash.
+     */
+    actual fun open(name: String, bytes: ByteArray, mimeType: String): Boolean = runCatching {
+        val file = File(File(appContext.cacheDir, "documents").apply { mkdirs() }, name).also { it.writeBytes(bytes) }
+        val uri = FileProvider.getUriForFile(appContext, "${appContext.packageName}.quest.fileprovider", file)
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mimeType)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        appContext.startActivity(intent)
+    }.isSuccess
 }

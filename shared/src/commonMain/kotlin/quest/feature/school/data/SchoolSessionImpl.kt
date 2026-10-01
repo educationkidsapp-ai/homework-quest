@@ -7,8 +7,6 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import quest.api.ContentApi
 import quest.api.DEFAULT_FLAGS
-import quest.api.dashboard.ClassLookup
-import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.SchoolTheme
 import quest.core.db.QuestJson
 import quest.core.db.SettingsStore
@@ -34,9 +32,6 @@ class SchoolSessionImpl(
     private val _schoolId = MutableStateFlow<String?>(null)
     override val schoolId: StateFlow<String?> = _schoolId.asStateFlow()
 
-    private val _joinedCode = MutableStateFlow<String?>(null)
-    override val joinedCode: StateFlow<String?> = _joinedCode.asStateFlow()
-
     private val _theme = MutableStateFlow<SchoolTheme?>(null)
     override val theme: StateFlow<SchoolTheme?> = _theme.asStateFlow()
 
@@ -45,12 +40,6 @@ class SchoolSessionImpl(
 
     private val _branding = MutableStateFlow(SchoolBranding())
     override val branding: StateFlow<SchoolBranding> = _branding.asStateFlow()
-
-    /** The school the parent confirmed in Add child, kept until the created child tells us its id. */
-    private var confirmed: JoinSchoolInfo? = null
-
-    /** The code that found [confirmed]; stored beside the school id so Add child never asks for it twice. */
-    private var confirmedCode: String? = null
 
     /**
      * The school whose **flags** apply — which is not always the school we theme as.
@@ -64,9 +53,6 @@ class SchoolSessionImpl(
 
     override suspend fun restore() {
         _branding.value = SchoolBranding(appName = settings.get(KEY_PLATFORM_NAME) ?: SchoolBranding.DEFAULT_APP_NAME)
-        // Read before the school id, because a parent can have joined with a code and still have no themed school:
-        // the **default** school is a real school somebody joined, it simply has no theme of its own.
-        _joinedCode.value = settings.get(KEY_CURRENT_CODE)?.takeIf { it.isNotBlank() }
         // Flags first, and on their own key: a child of the default school has flags to restore and no theme, so an
         // offline launch keeps her features instead of falling back to the platform defaults.
         settings.get(KEY_CURRENT_FLAGS)?.takeIf { it.isNotBlank() }?.let {
@@ -78,40 +64,7 @@ class SchoolSessionImpl(
         readCache(id)
     }
 
-    override suspend fun lookUp(code: String): JoinSchoolInfo = schools.schoolByCode(code.trim().uppercase())
-
-    override suspend fun lookUpClass(code: String): ClassLookup = schools.classByJoinCode(code.trim().uppercase())
-
-    override suspend fun confirm(code: String, info: JoinSchoolInfo) {
-        info.theme?.let { _theme.value = it }
-        // The id is not known until the child is created, so the name and the code are held here and written in [use].
-        confirmed = info
-        confirmedCode = code
-        _branding.value = brandingFor(info.theme, info.logoUrl, info.name)
-    }
-
-    /**
-     * The parent backed out: either out of a join they had not saved, or out of one they had, by asking for a
-     * different code. Both mean the stored code goes — it is the one thing Add child would otherwise keep reusing.
-     */
-    override suspend fun cancelJoin() {
-        confirmed = null
-        confirmedCode = null
-        _joinedCode.value = null
-        settings.set(KEY_CURRENT_CODE, null)
-        val id = _schoolId.value
-        if (id == null) forget() else readCache(id)
-    }
-
     override suspend fun use(schoolId: String) {
-        // The code is written first and unconditionally. A code that resolves to the **default** school still joined
-        // one — that is exactly what QA's acceptance school is — and dropping it there was why Add child kept asking
-        // for a code the parent had already given (F6). The theme and the flags are a separate question below.
-        confirmedCode?.let { code ->
-            settings.set(KEY_CURRENT_CODE, code)
-            _joinedCode.value = code
-            confirmedCode = null
-        }
         // Her flags come from the school she is actually in, `default` included — see [flagsSchoolId].
         useFlagsOf(schoolId.takeIf { it.isNotBlank() })
 
@@ -123,12 +76,6 @@ class SchoolSessionImpl(
                 _schoolId.value = id
                 settings.set(KEY_CURRENT, id)
                 readCache(id)
-            }
-            // The name only ever arrives with the join lookup; without it a relaunch would lose the header logo.
-            confirmed?.let { info ->
-                settings.set(nameKey(id), info.name)
-                _branding.value = brandingFor(info.theme ?: _theme.value, info.logoUrl, info.name)
-                confirmed = null
             }
         }
         sync()
@@ -146,8 +93,8 @@ class SchoolSessionImpl(
     }
 
     override suspend fun sync() {
-        // The platform's own name is fetched even with no school joined: it is what the sign-in screen and parent mode
-        // call the app before anyone has typed a code (§A).
+        // The platform's own name is fetched even before a child is known: it is what the sign-in screen calls the
+        // app (§A).
         refreshPlatformName()
         // The flags of her own school — the default one has them too — and the theme only of a school that has one.
         flagsSchoolId?.let { refreshFlags(it) }
@@ -183,19 +130,8 @@ class SchoolSessionImpl(
         if (_theme.value?.appName.isNullOrBlank()) _branding.value = _branding.value.copy(appName = name)
     }
 
-    /**
-     * Back to the unthemed app: a child in the default school gets the design's own colours and the platform name.
-     * The joined **code** is not touched — the default school has no theme, but it is still the school the parent
-     * typed a code for, and the next child must reach it without being asked again. [cancelJoin] is what drops it.
-     */
-    private suspend fun forget() {
-        forgetTheme()
-        useFlagsOf(null)
-    }
-
-    /** The theme half of [forget]: the design's own colours and the platform name, with the flag store untouched. */
+    /** Back to the design's own colours and the platform name — a child of the default school — flags untouched. */
     private suspend fun forgetTheme() {
-        confirmed = null
         _schoolId.value = null
         _theme.value = null
         _branding.value = SchoolBranding(appName = settings.get(KEY_PLATFORM_NAME)?.takeIf { it.isNotBlank() } ?: SchoolBranding.DEFAULT_APP_NAME)
@@ -233,7 +169,7 @@ class SchoolSessionImpl(
     companion object {
         private val FLAGS = MapSerializer(String.serializer(), Boolean.serializer())
 
-        /** `Child.schoolId` for a child who joined no school; the app is then unthemed. */
+        /** `Child.schoolId` for a child of the default school; the app is then unthemed. */
         const val DEFAULT_SCHOOL = "default"
 
         const val KEY_CURRENT = "school.current"
@@ -241,8 +177,6 @@ class SchoolSessionImpl(
         /** The school whose flags apply; written even for `default`, which [KEY_CURRENT] never holds. */
         const val KEY_CURRENT_FLAGS = "school.current.flags"
 
-        /** The code the parent joined with (D16 slice 2); one per device, because one parent signs in on it. */
-        const val KEY_CURRENT_CODE = "school.current.code"
         const val KEY_PLATFORM_NAME = "platform.name"
         fun nameKey(schoolId: String) = "school.name.$schoolId"
         fun themeKey(schoolId: String) = "school.theme.$schoolId"

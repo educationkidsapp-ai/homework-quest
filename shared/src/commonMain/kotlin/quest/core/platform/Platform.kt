@@ -9,15 +9,18 @@ import org.koin.core.module.Module
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-/** Text-to-speech. Rate 0.82, pitch 1.15, en-GB where available; a new utterance cancels the current one. */
+/**
+ * Text-to-speech. Rate 0.82, pitch 1.15; a new utterance cancels the current one. [language] picks the voice — see
+ * [SpeechLanguages] — and a platform that has no such voice installed falls back to its English one rather than fail.
+ */
 interface Speaker {
-    fun speak(text: String)
+    fun speak(text: String, language: SpeechLanguage = SpeechLanguages.of(null, text))
     fun stop()
     fun shutdown() {}
 }
 
 object SilentSpeaker : Speaker {
-    override fun speak(text: String) {}
+    override fun speak(text: String, language: SpeechLanguage) {}
     override fun stop() {}
 }
 

@@ -82,10 +82,10 @@ enum class NodeState { DONE, CURRENT, LOCKED }
 
 /**
  * The steps of a lesson as a list of cards — number, title, kind, and the stars of a finished step. A locked step is
- * drawn but not tappable. [showStars] is off in an exam, where §8 keeps every result off the student's screen.
+ * drawn but not tappable.
  */
 @Composable
-fun StepList(stops: List<Stop>, states: List<NodeState>, stars: List<Int?>, onTap: (Int) -> Unit, modifier: Modifier = Modifier, showStars: Boolean = true) {
+fun StepList(stops: List<Stop>, states: List<NodeState>, stars: List<Int?>, onTap: (Int) -> Unit, modifier: Modifier = Modifier) {
     val labels = LocalJourneyLabels.current
     Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), verticalArrangement = Arrangement.spacedBy(Dimens.s8)) {
         stops.forEachIndexed { i, stop ->
@@ -118,7 +118,7 @@ fun StepList(stops: List<Stop>, states: List<NodeState>, stars: List<Int?>, onTa
                     }
                     val earned = stars.getOrNull(i)
                     when {
-                        earned != null && showStars -> StarRow(3, earned, starSize = 16.dp)
+                        earned != null -> StarRow(3, earned, starSize = 16.dp)
                         state == NodeState.DONE -> DashboardPill(labels.completed, variant = DashboardPillVariant.SUCCESS)
                         state == NodeState.CURRENT -> DashboardPill(labels.current, variant = DashboardPillVariant.INFO)
                     }

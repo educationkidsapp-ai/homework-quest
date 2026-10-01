@@ -28,9 +28,6 @@ import quest.api.ApiException
 import quest.api.AuthProvider
 import quest.api.ContentApi
 import quest.api.UploadFile
-import quest.api.dashboard.ClassLookup
-import quest.api.dashboard.ClassLookupRequest
-import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
@@ -87,12 +84,6 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
 
     // ---- §2 join school, §3 theme, §4 flags, §A platform settings. All four routes are public: no bearer token,
     // because the parent types a school code before the child (and sometimes before the account) exists.
-    override suspend fun schoolByCode(code: String): JoinSchoolInfo =
-        call { client.get("$baseUrl/schools/by-code/${code.trim().uppercase()}") }
-
-    override suspend fun classByJoinCode(code: String): ClassLookup =
-        call { client.post("$baseUrl/classes/lookup") { contentType(ContentType.Application.Json); setBody(ClassLookupRequest(code.trim().uppercase())) } }
-
     override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> = call { client.get("$baseUrl/schools/$schoolId/flags") }
 
     override suspend fun schoolTheme(schoolId: String): SchoolTheme = call { client.get("$baseUrl/schools/$schoolId/theme") }

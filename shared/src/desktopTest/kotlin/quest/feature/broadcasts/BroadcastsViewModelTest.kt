@@ -18,9 +18,7 @@ import quest.api.dto.BroadcastView
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
 import quest.api.dto.Child
-import quest.api.dto.CreateChildRequest
 import quest.api.dto.Curriculum
-import quest.api.dto.UpdateChildRequest
 import quest.api.dto.WeeklyPlanArchive
 import quest.api.dto.WeeklyPlanEntry
 import quest.api.dto.WeeklyPlanWeek
@@ -72,13 +70,8 @@ class BroadcastsViewModelTest {
         override val currentChild: StateFlow<Child?> = MutableStateFlow(child)
         override suspend fun refresh(): List<Child> = listOfNotNull(child)
         override suspend fun children(): List<Child> = listOfNotNull(child)
-        override suspend fun create(request: CreateChildRequest): Child = error("not used")
-        override suspend fun update(id: String, request: UpdateChildRequest): Child = error("not used")
-        override suspend fun delete(id: String) {}
         override suspend fun select(id: String) {}
         override suspend fun clear() {}
-        override suspend fun sectionName(childId: String): String? = "1A British"
-        override suspend fun rememberSection(childId: String, name: String?) {}
     }
 
     private class FakeBroadcasts(
@@ -100,10 +93,11 @@ class BroadcastsViewModelTest {
     private class FakePeers(
         var coordinators: Result<List<ChatThread>> = Result.success(emptyList()),
         var managers: Result<List<ChatThread>> = Result.success(emptyList()),
+        var threads: Result<List<ChatThread>> = Result.success(emptyList()),
     ) : ChatRepository {
         override val connectionState = MutableStateFlow(ChatConnectionState.CONNECTED) as StateFlow<ChatConnectionState>
         override val incomingFrames = kotlinx.coroutines.flow.MutableSharedFlow<quest.api.dto.ChatFrame>()
-        override suspend fun threads(childId: String): List<ChatThread> = emptyList()
+        override suspend fun threads(childId: String): List<ChatThread> = threads.getOrThrow()
         override suspend fun coordinators(childId: String): List<ChatThread> = coordinators.getOrThrow()
         override suspend fun managers(childId: String): List<ChatThread> = managers.getOrThrow()
         override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?) = emptyList<quest.api.dto.ChatMessage>()
@@ -361,6 +355,27 @@ class BroadcastsViewModelTest {
         settle(vm.state) { !it.loading }
         assertTrue(vm.state.value.childNotPlaced)
         assertEquals(null, vm.state.value.errorMessage)
+    }
+
+    /** M1: New message lists the child's teachers too, and only the teachers out of the thread list. */
+    @Test fun newMessageOffersTeachersCoordinatorsAndTheManager() = runBlocking {
+        val chat = FakePeers(
+            threads = Result.success(listOf(row(null, "Ms. Sara", ChatStaffRole.TEACHER, "math"), row("th-2", "Ms. Lina", ChatStaffRole.COORDINATOR, "math"))),
+            coordinators = Result.success(listOf(row("th-2", "Ms. Lina", ChatStaffRole.COORDINATOR, "math"))),
+            managers = Result.success(listOf(row(null, "Ms. Nour", ChatStaffRole.MANAGERIAL))),
+        )
+        val vm = pickerViewModel(FakeChildren(maya), chat)
+        vm.dispatch(CoordinatorPickerContract.Intent.Load)
+        settle(vm.state) { !it.loading }
+        assertEquals(listOf("Ms. Sara"), vm.state.value.teachers.map { it.teacherName })
+        assertEquals(listOf("Ms. Lina"), vm.state.value.coordinators.map { it.teacherName })
+        assertEquals(listOf("Ms. Nour"), vm.state.value.managers.map { it.teacherName })
+        assertEquals("c1", vm.state.value.childId)
+        assertEquals(listOf(maya), vm.state.value.children)
+
+        assertFalse(vm.state.value.complaint, "a new message is a question until the parent says otherwise")
+        vm.dispatch(CoordinatorPickerContract.Intent.SetComplaint(true))
+        settle(vm.state) { it.complaint }
     }
 
     // ---- 4. the parent home only asks for the count when the school bought the feature

@@ -20,7 +20,7 @@ actual val platformName: String = "desktop"
 
 /** Desktop has no TTS in v1: it logs the utterance so the read-aloud path is still exercised. */
 class LoggingSpeaker : Speaker {
-    override fun speak(text: String) { println("[speak] $text") }
+    override fun speak(text: String, language: SpeechLanguage) { println("[speak ${language.tag}] $text") }
     override fun stop() {}
 }
 

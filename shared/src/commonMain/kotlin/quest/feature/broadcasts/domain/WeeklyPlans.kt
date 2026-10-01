@@ -72,6 +72,16 @@ val BroadcastAttachment.isImage: Boolean
         )
 
 /**
+ * M1: whether an attachment is a PDF **this app can fetch** — the same two halves as [isImage]: the stored content type
+ * (or, for a row without one, the extension) says it is a PDF, and the id says the bytes are ours to ask for.
+ */
+val BroadcastAttachment.isPdf: Boolean
+    get() = id?.isNotBlank() == true && (
+        type?.substringBefore(';')?.trim()?.equals("application/pdf", ignoreCase = true) == true ||
+            (type == null && name?.endsWith(".pdf", ignoreCase = true) == true)
+        )
+
+/**
  * Whether an attachment is somebody else's page rather than ours: #171 lets the platform open an `http(s)` URL a
  * composer typed, and only those — `/media/attachments/{id}` is authenticated, so the system viewer would send no
  * token and land on a 401.
@@ -80,7 +90,8 @@ val BroadcastAttachment.isWebUrl: Boolean
     get() = url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)
 
 /**
- * The bytes of an image attachment, downloaded with the parent's bearer and kept on the device. Implemented in `data`
+ * The bytes of an attachment the app fetches itself — an image or, since M1, a PDF — downloaded with the parent's
+ * bearer and kept on the device. Implemented in `data`
  * over the app's Ktor client; [NoAttachmentImages] under tests, screenshots and previews, so nothing is ever fetched
  * off-app from a composition.
  */

@@ -1,6 +1,6 @@
 import XCTest
 
-/// The full student cycle on iOS with the seeded fake API: sign in → add a child → home → Hot Soup Level 1, all nine
+/// The full student cycle on iOS with the seeded fake API: sign in → pick a child the school linked → home → Hot Soup Level 1, all nine
 /// steps → the result and its certificate → parent mode. Every step is a real tap on the accessibility tree, so a crash anywhere fails the test.
 ///
 ///   xcodebuild test -project iosApp/iosApp.xcodeproj -scheme iosApp -destination 'platform=iOS Simulator,name=iPhone 15' -only-testing:iosAppUITests/JourneyUITests
@@ -23,8 +23,8 @@ final class JourneyUITests: XCTestCase {
 
     func testHotSoupLevelOneCycle() {
         signInIfNeeded()
-        addChildIfNeeded()
-        XCTAssertTrue(el("Noor").waitForExistence(timeout: 15), "the student home should show the child")
+        tap("Maya", timeout: 20)                                     // the fake API links Maya and Omar to every parent
+        XCTAssertTrue(el("Grade 1").waitForExistence(timeout: 15), "the student home should show the child")
 
         tapContaining("Hot Soup")                                    // the lesson card opens the overview
         tap("Start lesson")                                          // → step 1
@@ -83,11 +83,6 @@ final class JourneyUITests: XCTestCase {
         tapPoint(200, 457); app.typeText("secret12\n")
         let button = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Sign in'")).element(boundBy: 1)
         if button.waitForExistence(timeout: 5) { button.tap() }
-    }
-    private func addChildIfNeeded() {
-        guard el("Add a child").waitForExistence(timeout: 10), el("Child's name").exists else { return }
-        tapPoint(200, 183); app.typeText("Noor")
-        tap("British"); tap("Save")
     }
     private func enterPin(_ digits: String) {
         for d in digits { tap(String(d)) }

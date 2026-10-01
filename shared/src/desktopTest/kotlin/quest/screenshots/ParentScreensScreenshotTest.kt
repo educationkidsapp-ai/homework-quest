@@ -10,10 +10,8 @@ import quest.api.progress.Band
 import quest.api.samples.HotSoupSeed
 import quest.feature.auth.presentation.SignInContract
 import quest.feature.auth.presentation.SignInScreen
-import quest.feature.children.presentation.AddChildContract
-import quest.feature.children.presentation.AddChildScreen
+import quest.feature.children.presentation.ChildrenContract
 import quest.feature.children.presentation.ChildPickerScreen
-import quest.feature.content.data.FakeContentApi
 import quest.feature.parent.domain.CalendarDay
 import quest.feature.parent.domain.ParentSettings
 import quest.feature.parent.domain.SkillReport
@@ -33,7 +31,6 @@ import quest.feature.parent.presentation.Strings
 import quest.ui.design.LocalThemeOverrides
 import quest.ui.design.ParentTheme
 import quest.ui.design.ThemeOverrides
-import quest.api.dashboard.ClassLookup
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatSender
 import quest.api.dto.ChatStaffRole
@@ -60,7 +57,6 @@ import quest.feature.broadcasts.presentation.WeeklyPlanContract
 import quest.feature.broadcasts.presentation.WeeklyPlanScreen
 import quest.ui.design.DashboardBottomNavigation
 import quest.ui.design.DashboardTab
-import quest.ui.design.schoolThemeOverrides
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -79,27 +75,14 @@ class ParentScreensScreenshotTest {
     }
 
     @Test fun signIn() = shot("40-sign-in") { s -> SignInScreen(SignInContract.State(email = "parent@example.com"), s, {}) }
-    @Test fun addChild() = shot("41-add-child") { s -> AddChildScreen(AddChildContract.State(name = "Maya", avatar = "sun", loaded = true), s, {}) }
-    /** §2: the code typed, the school found and confirmed, the form already in Al Noor's colours. */
-    @Test fun addChildJoinedSchool() = shot("41b-add-child-school", overrides = schoolThemeOverrides(FakeContentApi.alNoorTheme)) { s ->
-        AddChildScreen(
-            AddChildContract.State(
-                name = "Maya", avatar = "sun", loaded = true, grade = 2,
-                schoolCode = FakeContentApi.AL_NOOR_CODE, school = FakeContentApi.alNoor, joinStep = AddChildContract.JoinStep.CONFIRMED,
-            ),
-            s, {},
-        )
-    }
-
-    /** The red band a code no school has produces. */
-    @Test fun addChildUnknownSchoolCode() = shot("41c-add-child-bad-code") { s ->
-        AddChildScreen(AddChildContract.State(name = "Maya", avatar = "sun", loaded = true, schoolCode = "ZZZ999", schoolNotFound = true), s, {})
-    }
-
-    @Test fun childPicker() = shot("42-child-picker") { s -> ChildPickerScreen(listOf(maya, omar), s, {}, {}) }
+    /** M1: after sign-in — every child the school linked to the parent. */
+    @Test fun childPicker() = shot("42-child-picker") { s -> ChildPickerScreen(ChildrenContract.State(loading = false, children = listOf(maya, omar), currentId = "c1"), s) {} }
+    /** M1: nobody linked yet. The admin adds children; the app can only say so. */
+    @Test fun childPickerEmpty() = shot("42b-child-picker-empty") { s -> ChildPickerScreen(ChildrenContract.State(loading = false), s) {} }
+    @Test fun childPickerArabic() = shot("42c-child-picker-ar", Strings.ar) { s -> ChildPickerScreen(ChildrenContract.State(loading = false, children = listOf(maya, omar), currentId = "c1"), s) {} }
     @Test fun pin() = shot("43-pin") { s -> PinScreen(PinContract.State(PinContract.Mode.ENTER, "12"), {}, s) }
-    @Test fun home() = shot("44-parent-home") { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya, omar), maya, listOf(CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), listOf("l2")))), s, {}, {}, {}, {}, {}, {}, {}) }
-    @Test fun homeArabic() = shot("44b-parent-home-ar", Strings.ar) { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya), maya, listOf(CalendarDay(today, listOf(Subject.ENGLISH), listOf("l2"), listOf("l2")))), s, {}, {}, {}, {}, {}, {}, {}) }
+    @Test fun home() = shot("44-parent-home") { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya, omar), maya, listOf(CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), listOf("l2")))), s, {}, {}, {}, {}, {}) }
+    @Test fun homeArabic() = shot("44b-parent-home-ar", Strings.ar) { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya), maya, listOf(CalendarDay(today, listOf(Subject.ENGLISH), listOf("l2"), listOf("l2")))), s, {}, {}, {}, {}, {}) }
     @Test fun calendar() = shot("45-calendar") { s -> CalendarScreen(CalendarContract.State(2026, 9, today, today, mapOf(today to CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), listOf("l2")), LocalDate(2026, 9, 11) to CalendarDay(LocalDate(2026, 9, 11), listOf(Subject.ENGLISH), listOf("l0"), listOf("l0")))), s, {}, {}) }
     @Test fun progress() = shot("46-progress") { s -> ProgressScreen(ProgressContract.State(false, listOf(
         SkillReport("s1", "Counting by 2s", Subject.MATH, Band.GOING_WELL, "most of the time", 14, null),
@@ -121,21 +104,9 @@ class ParentScreensScreenshotTest {
         )
     }
 
-    /** D16 slice 3: the class card behind a join code, which takes the course choosers off the form. */
-    @Test fun addChildWithClassCode() = shot("41d-add-child-class-code") { s ->
-        AddChildScreen(
-            AddChildContract.State(
-                name = "Maya", avatar = "sun", loaded = true,
-                classCode = "CLASS1",
-                section = ClassLookup("default:british:1:1a british", "1A British", 1, Curriculum.BRITISH, "Default school"),
-            ),
-            s, {},
-        )
-    }
-
     /** MH3: the Mobile number section appears once `GET /parent/me` has answered, which is what `phoneKnown` says. */
-    @Test fun settings() = shot("47-settings") { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("en"), "Maya", "c1", phone = "+971501234567", phoneKnown = true), s, {}, {}, {}) }
-    @Test fun settingsArabic() = shot("47b-settings-ar", Strings.ar) { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("ar"), "مايا", "c1", phone = "+971501234567", phoneKnown = true), s, {}, {}, {}) }
+    @Test fun settings() = shot("47-settings") { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("en"), phone = "+971501234567", phoneKnown = true), s, {}, {}) }
+    @Test fun settingsArabic() = shot("47b-settings-ar", Strings.ar) { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("ar"), phone = "+971501234567", phoneKnown = true), s, {}, {}) }
     @Test fun lessonPanel() = shot("48-lesson-panel") { s -> LessonPanelScreen(HotSoupSeed.lesson, s) }
     @Test fun lessonPanelArabic() = shot("48b-lesson-panel-ar", Strings.ar) { s -> LessonPanelScreen(HotSoupSeed.lesson, s) }
 
@@ -394,5 +365,26 @@ class ParentScreensScreenshotTest {
 
     @Test fun bottomNavArabic() = shot("56b-bottom-nav-ar", Strings.ar) { s ->
         DashboardBottomNavigation(DashboardTab.MESSAGES, {}, isRtl = s.isRtl, unreadMessages = 2)
+    }
+
+    /** M1: New message — the child, question or complaint, then a teacher, a coordinator or the manager. */
+    private fun newMessageState(complaint: Boolean) = CoordinatorPickerContract.State(
+        loading = false, children = listOf(maya, omar), childId = "c1", complaint = complaint,
+        teachers = listOf(
+            ChatThread(null, "c1", "Maya", "t1", "Ms. Sara", "1A British", "Math", 0, null, ChatStaffRole.TEACHER),
+            ChatThread("th9", "c1", "Maya", "t2", "Mr. Adam", "1A British", "English", 0, null, ChatStaffRole.TEACHER, quest.api.dto.ChatTopic.COMPLAINT),
+        ),
+        coordinators = listOf(ChatThread(null, "c1", "Maya", "co1", "Ms. Lina", "1A British", "Math", 0, null, ChatStaffRole.COORDINATOR)),
+        managers = listOf(ChatThread(null, "c1", "Maya", "mg1", "Ms. Nour", "1A British", null, 0, null, ChatStaffRole.MANAGERIAL)),
+        curriculum = Curriculum.BRITISH,
+    )
+    @Test fun newMessage() = shot("57-new-message") { s -> CoordinatorPickerScreen(newMessageState(false), s, {}) }
+    @Test fun newMessageComplaint() = shot("57b-new-message-complaint") { s -> CoordinatorPickerScreen(newMessageState(true), s, {}) }
+    @Test fun newMessageComplaintArabic() = shot("57c-new-message-complaint-ar", Strings.ar) { s -> CoordinatorPickerScreen(newMessageState(true), s, {}) }
+
+    /** M1: a weekly plan uploaded as a PDF — the file's name and an Open button instead of an image. */
+    @Test fun weeklyPlanPdf() = shot("56d-weekly-plan-pdf") { s ->
+        val pdf = plan("2026-09-27").copy(attachment = BroadcastAttachment("/media/attachments/att-pdf", "Grade 1 weekly plan.pdf", "att-pdf", "application/pdf"))
+        WeeklyPlanScreen(state = planState().let { it.copy(plans = it.plans.copy(current = pdf)) }, strings = s)
     }
 }

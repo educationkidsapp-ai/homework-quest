@@ -45,6 +45,7 @@ import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.broadcasts.domain.broadcastBody
 import quest.feature.broadcasts.domain.groupBroadcasts
 import quest.feature.broadcasts.domain.isImage
+import quest.feature.broadcasts.domain.isPdf
 import quest.feature.broadcasts.domain.isWebUrl
 import quest.feature.broadcasts.domain.unreadAnnouncements
 import quest.feature.children.domain.ChildrenRepository
@@ -343,6 +344,8 @@ fun BroadcastCard(
                 )
             } else if (attachment.isImage) {
                 AttachmentImage(attachment, attachment.name ?: strings.attachment, strings)
+            } else if (attachment.isPdf) {
+                AttachmentDocument(attachment, strings)
             } else {
                 Text(
                     text = "📎 ${attachment.name ?: strings.attachment} · ${strings.attachmentOnDashboard}",

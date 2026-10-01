@@ -1,5 +1,7 @@
 package quest.feature.auth.presentation
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.dp
 import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -32,7 +34,6 @@ import quest.feature.parent.presentation.ParentShell
 import quest.feature.parent.presentation.Strings
 import quest.feature.school.presentation.LocalSchoolBranding
 import quest.feature.school.presentation.SchoolLogo
-import androidx.compose.ui.unit.dp
 import quest.ui.design.Dimens
 
 object SignInContract {

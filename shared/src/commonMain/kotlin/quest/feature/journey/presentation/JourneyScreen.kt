@@ -30,6 +30,7 @@ import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 import quest.core.platform.Speaker
+import quest.core.platform.SpeechLanguages
 import quest.feature.journey.presentation.JourneyContract.Effect
 import quest.feature.journey.presentation.JourneyContract.Intent
 import quest.feature.journey.presentation.JourneyContract.State
@@ -57,7 +58,7 @@ fun JourneyRoute(lessonId: String, level: Int, variant: Int, onOpenStop: (String
         vm.dispatch(Intent.Load)
         vm.effects.collect { e ->
             when (e) {
-                is Effect.Speak -> speaker.speak(e.text)
+                is Effect.Speak -> speaker.speak(e.text, SpeechLanguages.of(vm.state.value.lesson?.subject, e.text))
                 is Effect.OpenStop -> onOpenStop(e.lessonId, e.level, e.variant, e.index)
                 is Effect.OpenComplete -> onComplete(e.lessonId, e.level, e.variant)
             }

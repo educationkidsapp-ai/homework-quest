@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -27,13 +26,14 @@ import quest.api.AuthProvider
 import quest.api.ContentApi
 import quest.api.dto.Child
 import quest.api.dto.ChildAttendanceRecord
-import quest.api.dto.Curriculum
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
 import quest.core.platform.Today
 import quest.feature.children.domain.ChildrenRepository
+import quest.feature.children.presentation.ChildRow
+import quest.feature.children.presentation.NoChildrenLinked
 import quest.feature.parent.domain.CalendarDay
 import quest.feature.broadcasts.domain.unreadAnnouncements
 import quest.feature.parent.domain.CalendarUseCase
@@ -41,7 +41,6 @@ import quest.feature.school.domain.FlagStore
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.ui.design.DashboardPill
-import quest.ui.design.StudentAvatar
 import quest.ui.design.DashboardPillVariant
 import quest.ui.design.DashboardTab
 import quest.ui.design.DashboardTokens
@@ -53,8 +52,6 @@ object ParentHomeContract {
         val children: List<Child> = emptyList(),
         val current: Child? = null,
         val today: List<CalendarDay> = emptyList(),
-        /** Child id → the section the child was placed in, when the parent added her with a class join code (§2). */
-        val sections: Map<String, String> = emptyMap(),
         val attendance: ChildAttendanceRecord? = null,
         /** MH3: unread announcements and events, the badge on the Announcements button. Plans are counted apart. */
         val unreadBroadcasts: Int = 0,
@@ -66,10 +63,7 @@ object ParentHomeContract {
         data class Select(val id: String) : Intent
         data object SignOut : Intent
     }
-    sealed interface Effect : MviEffect {
-        data object NeedsChild : Effect
-        data object SignedOut : Effect
-    }
+    sealed interface Effect : MviEffect { data object SignedOut : Effect }
 }
 
 class ParentHomeViewModel(
@@ -83,11 +77,11 @@ class ParentHomeViewModel(
         when (intent) {
             ParentHomeContract.Intent.Load -> {
                 val list = children.refresh()
-                val sections = list.mapNotNull { c -> children.sectionName(c.id)?.let { c.id to it } }.toMap()
                 val current = children.currentChild.value
+                // Nobody linked yet (or the school unlinked the last child): the home says so instead of asking the
+                // parent to add one — only the admin can.
                 if (current == null) {
-                    reduce { copy(loading = false, children = list, sections = sections) }
-                    effect(ParentHomeContract.Effect.NeedsChild)
+                    reduce { copy(loading = false, children = list, current = null, today = emptyList(), attendance = null, unreadBroadcasts = 0, unreadPlans = 0) }
                     return
                 }
                 val today = Today.date()
@@ -103,7 +97,7 @@ class ParentHomeViewModel(
                 val feed = if (enabled) runCatching { api.childBroadcasts(current.id) }.getOrNull() else null
                 val unread = feed?.let { unreadAnnouncements(it.items, Today.epochMillis()) } ?: 0
                 val plans = if (enabled) runCatching { api.childWeeklyPlans(current.id).unread }.getOrDefault(0) else 0
-                reduce { copy(loading = false, children = list, current = current, today = days, sections = sections, attendance = att, unreadBroadcasts = unread, unreadPlans = plans) }
+                reduce { copy(loading = false, children = list, current = current, today = days, attendance = att, unreadBroadcasts = unread, unreadPlans = plans) }
             }
             is ParentHomeContract.Intent.Select -> {
                 children.select(intent.id)
@@ -120,8 +114,6 @@ class ParentHomeViewModel(
 
 @Composable
 fun ParentHomeRoute(
-    onAddChild: () -> Unit,
-    onEditChild: (String) -> Unit,
     onCalendar: () -> Unit,
     onProgress: () -> Unit,
     onSettings: () -> Unit,
@@ -138,7 +130,6 @@ fun ParentHomeRoute(
         vm.dispatch(ParentHomeContract.Intent.Load)
         vm.effects.collect {
             when (it) {
-                ParentHomeContract.Effect.NeedsChild -> onAddChild()
                 ParentHomeContract.Effect.SignedOut -> onSignedOut()
             }
         }
@@ -157,7 +148,7 @@ fun ParentHomeRoute(
         },
     ) { s ->
         ParentHomeScreen(
-            state, s, vm::dispatch, onAddChild, onEditChild, onCalendar,
+            state, s, vm::dispatch, onCalendar,
             onProgress, onSettings, onLessonPanel, onMessages, onBroadcasts, onWeeklyPlan,
         )
     }
@@ -168,8 +159,6 @@ fun ParentHomeScreen(
     state: ParentHomeContract.State,
     s: Strings,
     dispatch: (ParentHomeContract.Intent) -> Unit,
-    onAddChild: () -> Unit,
-    onEditChild: (String) -> Unit,
     onCalendar: () -> Unit,
     onProgress: () -> Unit,
     onSettings: () -> Unit,
@@ -186,38 +175,11 @@ fun ParentHomeScreen(
     ) {
         // ---- Children Section ------------------------------------------------
         SectionTitle(s.children)
+        // Every child the school linked to this account; the admin adds them, so there is nothing to add here.
+        if (state.children.isEmpty() && !state.loading) NoChildrenLinked(s) { dispatch(ParentHomeContract.Intent.Load) }
         state.children.forEach { c ->
-            val selected = c.id == state.current?.id
-            ParentCard(
-                modifier = Modifier.padding(bottom = 10.dp),
-                onClick = { if (selected) onEditChild(c.id) else dispatch(ParentHomeContract.Intent.Select(c.id)) },
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    StudentAvatar(c.name, size = 48.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = c.name,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = DashboardTokens.inkStrong,
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = state.sections[c.id] ?: "${if (c.curriculum == Curriculum.BRITISH) s.british else s.american} · ${s.grade} ${c.grade}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = DashboardTokens.inkSoft,
-                        )
-                    }
-                    if (selected) {
-                        DashboardPill(
-                            text = "✓",
-                            variant = DashboardPillVariant.SUCCESS,
-                        )
-                    }
-                }
-            }
+            ChildRow(c, s, selected = c.id == state.current?.id, onClick = { dispatch(ParentHomeContract.Intent.Select(c.id)) })
         }
-        ParentButton(s.addChild, onAddChild, primary = false, icon = "＋")
 
         // ---- Attendance Section ----------------------------------------------
         SectionTitle(s.todaysAttendance)
