@@ -137,7 +137,7 @@ describe('Classes', () => {
   it('offers a MANAGERIAL account no way to create a class, empty list or not', async () => {
     await renderSignedIn([], READ_ONLY_PERMISSIONS);
 
-    // The empty state still explains itself; only its button and the footer's are gone.
+    // The empty state still explains itself; only its button and the header's are gone.
     expect(screen.getByText('No classes yet. Create the first one.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create class' })).not.toBeInTheDocument();
   });
