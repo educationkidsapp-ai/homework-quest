@@ -115,7 +115,7 @@ fun SmallSpeakButton(text: String, onEvent: (StopEvent) -> Unit) {
         Modifier.size(Dimens.minTarget).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
             .clickable(role = Role.Button) { onEvent(StopEvent.Speak(text)) }.semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
-    ) { Icon(Icons.AutoMirrored.Filled.VolumeUp, null, tint = MaterialTheme.colorScheme.primary) }
+    ) { Icon(Icons.AutoMirrored.Filled.VolumeUp, null, tint = DashboardTokens.accentInk) }
 }
 
 @Composable

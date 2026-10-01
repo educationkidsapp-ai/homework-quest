@@ -1,5 +1,7 @@
 package quest.ui.design
 
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -64,7 +66,7 @@ fun DashboardCard(
     padding: PaddingValues = PaddingValues(16.dp),
     content: @Composable () -> Unit,
 ) {
-    val shape = RoundedCornerShape(DashboardTokens.radiusMd)
+    val shape = RoundedCornerShape(DashboardTokens.radiusLg)
     val interaction = remember { MutableInteractionSource() }
     val isPressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed && onClick != null) 0.985f else 1f, label = "card_scale")
@@ -73,7 +75,7 @@ fun DashboardCard(
         modifier = modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(1.dp, shape, spotColor = Color(0x0A101828), ambientColor = Color(0x05101828))
+            .shadow(1.dp, shape, spotColor = DashboardTokens.shadowSpot, ambientColor = DashboardTokens.shadowAmbient)
             .background(backgroundColor, shape)
             .border(DashboardTokens.cardBorderWidth, borderColor, shape)
             .clip(shape)
@@ -91,6 +93,16 @@ fun DashboardCard(
     ) {
         content()
     }
+}
+
+/**
+ * The hero card: the brand gradient with white text on it — the head of a lesson or an exam. One per screen at most;
+ * everything under it stays on plain surfaces, so the gradient leads without the page turning blue.
+ */
+@Composable
+fun DashboardHeroCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val shape = RoundedCornerShape(DashboardTokens.radiusLg)
+    Box(modifier.fillMaxWidth().background(brandGradient(forText = true), shape).clip(shape).padding(20.dp)) { content() }
 }
 
 /**
@@ -116,10 +128,11 @@ fun DashboardButton(
     val isPressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed && enabled) 0.98f else 1f, label = "btn_scale")
 
+    // A primary action wears the brand gradient (deep enough end to end for its label); the others are flat.
     val bg = when (variant) {
-        DashboardButtonVariant.PRIMARY -> MaterialTheme.colorScheme.primary
-        DashboardButtonVariant.SECONDARY -> MaterialTheme.colorScheme.surface
-        DashboardButtonVariant.DESTRUCTIVE -> DashboardTokens.errorBg
+        DashboardButtonVariant.PRIMARY -> brandGradient(forText = true)
+        DashboardButtonVariant.SECONDARY -> SolidColor(MaterialTheme.colorScheme.surface)
+        DashboardButtonVariant.DESTRUCTIVE -> SolidColor(DashboardTokens.errorBg)
     }
     val textColor = when (variant) {
         DashboardButtonVariant.PRIMARY -> MaterialTheme.colorScheme.onPrimary
@@ -174,7 +187,8 @@ fun DashboardButton(
  * Modern Status Badge / Pill:
  * Pill shape (CircleShape / 9999dp) with tinted background and high-contrast text.
  */
-enum class DashboardPillVariant { SUCCESS, WARNING, ERROR, INFO, NEUTRAL }
+/** [ACCENT] is the brand's magenta and [HIGHLIGHT] its orange — identity, not status: an exam, something new, a streak. */
+enum class DashboardPillVariant { SUCCESS, WARNING, ERROR, INFO, NEUTRAL, ACCENT, HIGHLIGHT }
 
 @Composable
 fun DashboardPill(
@@ -189,13 +203,17 @@ fun DashboardPill(
         DashboardPillVariant.ERROR -> DashboardTokens.errorBg
         DashboardPillVariant.INFO -> MaterialTheme.colorScheme.primaryContainer
         DashboardPillVariant.NEUTRAL -> DashboardTokens.bgSubtle
+        DashboardPillVariant.ACCENT -> DashboardTokens.secondarySoft
+        DashboardPillVariant.HIGHLIGHT -> DashboardTokens.tertiarySoft
     }
     val textColor = when (variant) {
         DashboardPillVariant.SUCCESS -> DashboardTokens.success
         DashboardPillVariant.WARNING -> DashboardTokens.warning
         DashboardPillVariant.ERROR -> DashboardTokens.error
-        DashboardPillVariant.INFO -> MaterialTheme.colorScheme.primary
+        DashboardPillVariant.INFO -> DashboardTokens.accentInk
         DashboardPillVariant.NEUTRAL -> DashboardTokens.inkSoft
+        DashboardPillVariant.ACCENT -> DashboardTokens.secondaryInk
+        DashboardPillVariant.HIGHLIGHT -> DashboardTokens.tertiaryInk
     }
     val borderColor = when (variant) {
         DashboardPillVariant.SUCCESS -> DashboardTokens.successBorder
@@ -203,6 +221,8 @@ fun DashboardPill(
         DashboardPillVariant.ERROR -> DashboardTokens.errorBorder
         DashboardPillVariant.INFO -> MaterialTheme.colorScheme.primaryContainer
         DashboardPillVariant.NEUTRAL -> DashboardTokens.rule
+        DashboardPillVariant.ACCENT -> DashboardTokens.secondarySoft
+        DashboardPillVariant.HIGHLIGHT -> DashboardTokens.tertiarySoft
     }
 
     Box(
@@ -243,7 +263,7 @@ fun DashboardFilterChip(
 ) {
     val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
     val border = if (selected) MaterialTheme.colorScheme.primary else DashboardTokens.ruleControl
-    val textColor = if (selected) MaterialTheme.colorScheme.primary else DashboardTokens.inkSoft
+    val textColor = if (selected) DashboardTokens.accentInk else DashboardTokens.inkSoft
 
     Box(
         modifier = modifier
@@ -312,16 +332,25 @@ fun DashboardSectionHeader(
 }
 
 /**
- * A student as the app draws one everywhere: the initial of the name on the soft accent — the avatar of the student
- * home, used wherever a child is listed.
+ * The brand gradient — the logo diamond's light-to-deep blue, or a school's own accent gradient when it has a theme —
+ * as a brush running from the top-left corner. [forText] starts it a step deeper for surfaces that carry a normal-size
+ * white label (a primary button, a hero header), where the logo's light end would fall below AA.
+ */
+@Composable
+fun brandGradient(forText: Boolean = false): Brush =
+    LocalDashboardPalette.current.let { Brush.linearGradient(if (forText) it.gradientText else it.gradient) }
+
+/**
+ * A student as the app draws one everywhere: the initial of the name on the brand gradient — the dashboard's avatar
+ * tile — used on the student home and wherever a child is listed.
  */
 @Composable
 fun StudentAvatar(name: String, modifier: Modifier = Modifier, size: Dp = 40.dp) {
-    Box(modifier.size(size).background(MaterialTheme.colorScheme.primaryContainer, CircleShape), contentAlignment = Alignment.Center) {
+    Box(modifier.size(size).background(brandGradient(), CircleShape), contentAlignment = Alignment.Center) {
         Text(
             name.trim().take(1).uppercase().ifEmpty { "–" },
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.primary,
+            color = DashboardTokens.onBrand,
         )
     }
 }
@@ -386,7 +415,7 @@ fun DashboardBottomNavigation(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(6.dp, spotColor = Color(0x10101828), ambientColor = Color(0x08101828)),
+            .shadow(6.dp, spotColor = DashboardTokens.shadowSpot, ambientColor = DashboardTokens.shadowAmbient),
         color = DashboardTokens.surface,
         border = BorderStroke(1.dp, DashboardTokens.rule),
     ) {
@@ -421,17 +450,24 @@ fun DashboardBottomNavigation(
                     verticalArrangement = Arrangement.Center,
                 ) {
                     Box(contentAlignment = Alignment.TopEnd) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = tab.label(isRtl),
-                            tint = if (isSelected) MaterialTheme.colorScheme.primary else DashboardTokens.inkSoft,
-                            modifier = Modifier.size(24.dp),
-                        )
+                        // The dashboard's active nav item: the brand gradient with a white glyph.
+                        Box(
+                            Modifier.size(width = 48.dp, height = 30.dp)
+                                .then(if (isSelected) Modifier.background(brandGradient(), RoundedCornerShape(DashboardTokens.radiusSm)) else Modifier),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = tab.label(isRtl),
+                                tint = if (isSelected) DashboardTokens.onBrand else DashboardTokens.inkSoft,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
                         if (badgeCount > 0) {
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
-                                    .background(DashboardTokens.error, CircleShape),
+                                    .background(DashboardTokens.secondary, CircleShape),
                             )
                         }
                     }
@@ -441,7 +477,7 @@ fun DashboardBottomNavigation(
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         ),
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else DashboardTokens.inkSoft,
+                        color = if (isSelected) DashboardTokens.accentInk else DashboardTokens.inkSoft,
                     )
                 }
             }

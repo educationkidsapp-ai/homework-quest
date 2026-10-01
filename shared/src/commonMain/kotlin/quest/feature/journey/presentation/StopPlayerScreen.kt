@@ -95,7 +95,7 @@ fun StopPlayerRoute(lessonId: String, level: Int, variant: Int, index: Int, onFi
 @Composable
 fun StopPlayerScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) {
     val s = LocalLessonStrings.current
-    Box(Modifier.fillMaxSize().background(DashboardTokens.bg)) {
+    Box(Modifier.fillMaxSize()) {
         when (state.phase) {
             Phase.LOADING -> LoadingView(s.loadingLesson)
             Phase.ERROR -> ErrorView(state.error ?: s.genericError, onBack)
@@ -126,7 +126,7 @@ private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
         LessonTopBar(onBack = onBack, onReadAloud = { dispatch(Intent.ReadAloud) }) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
                 Text(position, style = MaterialTheme.typography.labelLarge, color = DashboardTokens.inkSoft, modifier = Modifier.semantics { contentDescription = position })
-                if (state.exam) DashboardPill(s.exam, variant = DashboardPillVariant.WARNING)
+                if (state.exam) DashboardPill(s.exam, variant = DashboardPillVariant.ACCENT)
             }
             Spacer(Modifier.height(Dimens.s4))
             // How many steps are done, as a bar: no percentage and no clock (§7, §8).

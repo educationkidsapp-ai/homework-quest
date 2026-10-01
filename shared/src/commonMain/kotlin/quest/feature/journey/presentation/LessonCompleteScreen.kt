@@ -104,7 +104,7 @@ fun LessonCompleteRoute(lessonId: String, level: Int, variant: Int, onAgain: (St
 fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContract.Intent) -> Unit, onAgain: () -> Unit, onNextLevel: () -> Unit, onHome: () -> Unit) {
     val s = LocalLessonStrings.current
     val lesson = state.lesson ?: run { LoadingView(s.savingWork); return }
-    Column(Modifier.fillMaxSize().background(DashboardTokens.bg).safeDrawingPadding()) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         LessonTopBar(onBack = null, onReadAloud = { dispatch(CompleteContract.Intent.ReadAloud) })
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
             DashboardCard(padding = PaddingValues(Dimens.s24)) {

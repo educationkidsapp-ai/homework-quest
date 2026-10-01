@@ -1,5 +1,7 @@
 package quest.screenshots
 
+import quest.feature.parent.domain.Appearance
+import quest.ui.design.LocalDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import kotlinx.datetime.LocalDate
@@ -65,9 +67,9 @@ class ParentScreensScreenshotTest {
     private val maya = Child("c1", "Maya", "sun", Curriculum.BRITISH, 1)
     private val omar = Child("c2", "Omar", "mint", Curriculum.AMERICAN, 2)
 
-    private fun shot(name: String, strings: Strings = Strings.en, overrides: ThemeOverrides = ThemeOverrides(), content: @Composable (Strings) -> Unit) {
+    private fun shot(name: String, strings: Strings = Strings.en, overrides: ThemeOverrides = ThemeOverrides(), dark: Boolean = false, content: @Composable (Strings) -> Unit) {
         val f = Screenshots.render(name) {
-            CompositionLocalProvider(LocalThemeOverrides provides overrides) {
+            CompositionLocalProvider(LocalThemeOverrides provides overrides, LocalDarkTheme provides dark) {
                 ParentTheme(rtl = strings.isRtl) { CompositionLocalProvider(LocalStrings provides strings) { content(strings) } }
             }
         }
@@ -386,5 +388,20 @@ class ParentScreensScreenshotTest {
     @Test fun weeklyPlanPdf() = shot("56d-weekly-plan-pdf") { s ->
         val pdf = plan("2026-09-27").copy(attachment = BroadcastAttachment("/media/attachments/att-pdf", "Grade 1 weekly plan.pdf", "att-pdf", "application/pdf"))
         WeeklyPlanScreen(state = planState().let { it.copy(plans = it.plans.copy(current = pdf)) }, strings = s)
+    }
+
+    // ---- dark palette ----------------------------------------------------------------------------------------------
+    @Test fun signInDark() = shot("40b-sign-in-dark", dark = true) { s -> SignInScreen(SignInContract.State(email = "parent@example.com"), s, {}) }
+    @Test fun childPickerDark() = shot("42d-child-picker-dark", dark = true) { s -> ChildPickerScreen(ChildrenContract.State(loading = false, children = listOf(maya, omar), currentId = "c1"), s) {} }
+    @Test fun homeDark() = shot("44c-parent-home-dark", dark = true) { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya, omar), maya, listOf(CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), listOf("l2")))), s, {}, {}, {}, {}, {}) }
+    @Test fun settingsDark() = shot("47c-settings-dark", dark = true) { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("en"), Appearance.DARK, phone = "+971501234567", phoneKnown = true), s, {}, {}) }
+    @Test fun newMessageComplaintDark() = shot("57d-new-message-complaint-dark", dark = true) { s -> CoordinatorPickerScreen(newMessageState(true), s, {}) }
+    @Test fun weeklyPlanPdfDark() = shot("56e-weekly-plan-pdf-dark", dark = true) { s ->
+        val pdf = plan("2026-09-27").copy(attachment = BroadcastAttachment("/media/attachments/att-pdf", "Grade 1 weekly plan.pdf", "att-pdf", "application/pdf"))
+        WeeklyPlanScreen(state = planState().let { it.copy(plans = it.plans.copy(current = pdf)) }, strings = s)
+    }
+    /** The bottom bar: the active tab is the dashboard's gradient nav item. */
+    @Test fun bottomNavDark() = shot("56f-bottom-nav-dark", dark = true) { s ->
+        androidx.compose.foundation.layout.Column { androidx.compose.foundation.layout.Spacer(androidx.compose.ui.Modifier.weight(1f)); DashboardBottomNavigation(DashboardTab.MESSAGES, {}, unreadMessages = 2) }
     }
 }

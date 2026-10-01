@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -42,7 +43,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun ReadAloudButton(onClick: () -> Unit, modifier: Modifier = Modifier, contentDescription: String = "Read aloud") {
     FormalIconButton(onClick, contentDescription, modifier) {
-        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = DashboardTokens.accentInk, modifier = Modifier.size(28.dp))
     }
 }
 
@@ -115,7 +116,7 @@ fun BigButton(
     Box(
         modifier.heightIn(min = Dimens.minTarget).fillMaxWidth()
             .alpha(if (enabled) 1f else 0.5f)
-            .background(if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface, shape)
+            .background(if (primary) brandGradient(forText = true) else SolidColor(MaterialTheme.colorScheme.surface), shape)
             .then(if (primary) Modifier else Modifier.border(1.dp, DashboardTokens.ruleControl, shape))
             .clip(shape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
@@ -140,7 +141,7 @@ fun StarRow(total: Int, filled: Int, modifier: Modifier = Modifier, starSize: Dp
             Text(
                 if (on) "★" else "☆",
                 fontSize = (starSize.value).sp,
-                color = if (on) DashboardTokens.warning else DashboardTokens.inkLight,
+                color = if (on) DashboardTokens.tertiary else DashboardTokens.inkLight,
                 modifier = Modifier.semantics { contentDescription = if (on) "star earned" else "star" },
             )
         }

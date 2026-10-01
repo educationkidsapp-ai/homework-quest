@@ -1,5 +1,6 @@
 package quest.feature.school
 
+import quest.ui.design.DashboardPalette
 import quest.feature.content.data.FakeContentApi
 import quest.feature.school.presentation.unthemed
 import quest.ui.design.AvatarColors
@@ -17,9 +18,10 @@ import kotlin.test.assertNotEquals
  */
 class SchoolThemeHostTest {
 
-    @Test fun theUnthemedBaseIsExactlyWhatNoOverridesWouldProduce() {
-        val tokens = parentThemeScheme(ThemeOverrides())
-        val base = parentThemeScheme(unthemed)
+    @Test fun theUnthemedBaseIsExactlyWhatNoOverridesWouldProduce() = listOf(false, true).forEach { dark ->
+        val palette = if (dark) DashboardPalette.Dark else DashboardPalette.Light
+        val tokens = parentThemeScheme(ThemeOverrides(), palette)
+        val base = parentThemeScheme(unthemed(dark), palette)
         assertEquals(tokens.primary, base.primary)
         assertEquals(tokens.onPrimary, base.onPrimary)
         assertEquals(tokens.primaryContainer, base.primaryContainer)
@@ -36,19 +38,30 @@ class SchoolThemeHostTest {
     }
 
     @Test fun theUnthemedMascotIsPipsOwnBlue() {
-        assertEquals(AvatarColors.body("sky"), unthemed.mascotColor)
-        assertEquals(AvatarColors.body(AvatarColors.MASCOT, unthemed.mascotColor), unthemed.mascotColor)
+        assertEquals(AvatarColors.body("sky"), unthemed().mascotColor)
+        assertEquals(AvatarColors.body(AvatarColors.MASCOT, unthemed().mascotColor), unthemed().mascotColor)
     }
 
     /** And a real school does move every role, so the base is not being applied on top of the theme. */
     @Test fun aSchoolThemeReachesEveryRole() {
         val school = parentThemeScheme(schoolThemeOverrides(FakeContentApi.alNoorTheme))
-        val base = parentThemeScheme(unthemed)
+        val base = parentThemeScheme(unthemed())
         assertNotEquals(base.primary, school.primary)
         assertNotEquals(base.primaryContainer, school.primaryContainer)
         assertNotEquals(base.surface, school.surface)
         assertNotEquals(base.onSurface, school.onSurface)
         assertNotEquals(base.background, school.background)
         assertNotEquals(base.outline, school.outline)
+    }
+
+    /** Dark: a school keeps its accent, and its light surface, ink, ground and border give way to the dark palette. */
+    @Test fun inTheDarkPaletteASchoolKeepsOnlyItsAccent() {
+        val school = schoolThemeOverrides(FakeContentApi.alNoorTheme)
+        val dark = parentThemeScheme(school, DashboardPalette.Dark)
+        assertEquals(school.accent, dark.primary)
+        assertEquals(DashboardPalette.Dark.surface, dark.surface)
+        assertEquals(DashboardPalette.Dark.bg, dark.background)
+        assertEquals(DashboardPalette.Dark.ink, dark.onSurface)
+        assertEquals(DashboardPalette.Dark.rule, dark.outline)
     }
 }

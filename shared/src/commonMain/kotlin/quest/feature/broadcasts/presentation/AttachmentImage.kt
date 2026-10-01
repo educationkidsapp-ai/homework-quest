@@ -113,7 +113,7 @@ fun AttachmentImage(attachment: BroadcastAttachment, description: String, string
     ) {
         when (val state = load) {
             Load.Loading -> Box(Modifier.fillMaxWidth().aspectRatio(1.4f), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                CircularProgressIndicator(color = DashboardTokens.accentInk)
             }
             Load.Failed -> Box(Modifier.fillMaxWidth().aspectRatio(1.4f).padding(Dimens.s16), contentAlignment = Alignment.Center) {
                 ParentButton(strings.tryAgain, { attempt++ }, primary = false, icon = "↻")

@@ -1,12 +1,12 @@
 package quest.screenshots
 
+import quest.ui.design.LocalDarkTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import quest.ui.design.DashboardTokens
 import quest.ui.design.DashboardCard
 import quest.feature.journey.presentation.LessonTheme
 import quest.feature.journey.presentation.LessonStrings
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,15 +52,15 @@ class ChildScreensScreenshotTest {
     private val hot = HotSoupSeed.lesson
     private val child = Child("c", "Maya", "sun", Curriculum.BRITISH, 1)
 
-    private fun shot(name: String, overrides: ThemeOverrides = ThemeOverrides(), branding: SchoolBranding = SchoolBranding(), strings: LessonStrings = LessonStrings.en, content: @Composable () -> Unit) {
+    private fun shot(name: String, overrides: ThemeOverrides = ThemeOverrides(), branding: SchoolBranding = SchoolBranding(), strings: LessonStrings = LessonStrings.en, dark: Boolean = false, content: @Composable () -> Unit) {
         val f = Screenshots.render(name) {
-            CompositionLocalProvider(LocalThemeOverrides provides overrides, LocalSchoolBranding provides branding) { LessonTheme(strings, rtl = strings === LessonStrings.ar) { content() } }
+            CompositionLocalProvider(LocalThemeOverrides provides overrides, LocalSchoolBranding provides branding, LocalDarkTheme provides dark) { LessonTheme(strings, rtl = strings === LessonStrings.ar) { content() } }
         }
         assertTrue(f.length() > 1000, "screenshot $name is empty")
     }
 
     private fun stopShot(name: String, stop: Stop) = shot(name) {
-        Column(Modifier.fillMaxSize().background(DashboardTokens.bg).verticalScroll(rememberScrollState()).padding(top = Dimens.s24)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = Dimens.s24)) {
             DashboardCard(Modifier.padding(horizontal = Dimens.s16)) { Text(stop.speak, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.inkStrong) }
             Box(Modifier.padding(top = Dimens.s16)) { StopContent(stop, onEvent = {}) }
         }
@@ -177,5 +177,25 @@ class ChildScreensScreenshotTest {
             Island("d", IslandKind.LESSON, LocalDate(2026, 9, 12), IslandState.DONE, "Reading exam", Subject.ENGLISH, "l8", 1, listOf(1), listOf(1), 18, 21, examWindow = quest.api.dto.ExamWindow(opensAt = 0, closesAt = 1)),
             Island("b", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "Counting by 2s", Subject.MATH, "l2", 1, listOf(1)),
         )), {}, {})
+    }
+
+    // ---- dark palette: the same screens under `LocalDarkTheme` ----------------------------------------------------
+    @Test fun worldMapDark() = shot("02g-world-map-dark", dark = true) {
+        WorldMapScreen(MapContract.State(loading = false, child = child, streakDays = 2, islands = listOf(
+            Island("a", IslandKind.LESSON, LocalDate(2026, 9, 11), IslandState.DONE, "The sh sound", Subject.ENGLISH, "l1", 1, listOf(1, 2), listOf(1), 18, 21),
+            Island("e", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "Unit 1 exam", Subject.MATH, "l9", 1, listOf(1), examWindow = quest.api.dto.ExamWindow(opensAt = 0, closesAt = 1)),
+            Island("b", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "Counting by 2s", Subject.MATH, "l2", 1, listOf(1)),
+            Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Fractions"),
+        )), {}, {})
+    }
+    @Test fun journeyDark() = shot("03e-journey-dark", dark = true) {
+        JourneyScreen(JourneyContract.State(loading = false, lesson = hot, play = hot.plays[0], levelsUnlocked = listOf(1), stopStars = mapOf("hs1-move" to 3, "hs1-pieces" to 3), childName = "Maya"), {}, {})
+    }
+    @Test fun playerDark() = shot("26d-player-dark", dark = true) { StopPlayerScreen(playerState(PlayerContract.Phase.STOP).copy(index = 8), {}, {}) }
+    @Test fun hintSheetDark() = shot("27b-hint-sheet-dark", dark = true) { StopPlayerScreen(playerState(PlayerContract.Phase.HINT).copy(index = 8, numberLine = MathSeed.level1.stops.filterIsInstance<Stop.Sequence>().first().numberLine), {}, {}) }
+    @Test fun examSittingDark() = shot("26e-exam-sitting-dark", dark = true) { StopPlayerScreen(playerState(PlayerContract.Phase.STOP).copy(lesson = exam, exam = true, index = 8), {}, {}) }
+    @Test fun lessonCompleteDark() = shot("30b-lesson-complete-dark", dark = true) { LessonCompleteScreen(CompleteContract.State(loading = false, lesson = hot, stars = 24, starsTotal = 27, childName = "Maya", nextLevelUnlocked = true), {}, {}, {}, {}) }
+    @Test fun stopMatchDark() = shot("08b-stop-match-dark", dark = true) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = Dimens.s24)) { StopContent(l1[6], onEvent = {}) }
     }
 }

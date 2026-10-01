@@ -18,11 +18,15 @@ class SettingsStore(private val db: Db) {
     private val cache = mutableMapOf<String, String?>()
     private val _language = MutableStateFlow("en")
     val language: StateFlow<String> = _language
+    private val _appearance = MutableStateFlow(APPEARANCE_SYSTEM)
+    /** `system` | `light` | `dark` — which palette the app wears; `system` follows the device. */
+    val appearance: StateFlow<String> = _appearance
     private val _currentChildId = MutableStateFlow<String?>(null)
     val currentChildId: StateFlow<String?> = _currentChildId
 
     suspend fun load() {
         _language.value = get(KEY_LANGUAGE) ?: "en"
+        _appearance.value = get(KEY_APPEARANCE) ?: APPEARANCE_SYSTEM
         _currentChildId.value = get(KEY_CURRENT_CHILD)
     }
 
@@ -40,6 +44,7 @@ class SettingsStore(private val db: Db) {
         db.write { if (value == null) deleteSetting(key) else upsertSetting(key, value) }
         when (key) {
             KEY_LANGUAGE -> _language.value = value ?: "en"
+            KEY_APPEARANCE -> _appearance.value = value ?: APPEARANCE_SYSTEM
             KEY_CURRENT_CHILD -> _currentChildId.value = value
         }
     }
@@ -50,6 +55,8 @@ class SettingsStore(private val db: Db) {
 
     companion object {
         const val KEY_LANGUAGE = "language"
+        const val KEY_APPEARANCE = "appearance"
+        const val APPEARANCE_SYSTEM = "system"
         const val KEY_CURRENT_CHILD = "currentChild"
         const val KEY_PIN_HASH = "pinHash"
         const val KEY_FAKE_UID = "fakeAuthUid"

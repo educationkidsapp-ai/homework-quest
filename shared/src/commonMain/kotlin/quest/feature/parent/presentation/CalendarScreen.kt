@@ -208,7 +208,7 @@ fun CalendarScreen(state: CalendarContract.State, s: Strings, dispatch: (Calenda
                                     ),
                                     color = when {
                                         selected -> MaterialTheme.colorScheme.onPrimary
-                                        isToday -> MaterialTheme.colorScheme.primary
+                                        isToday -> DashboardTokens.accentInk
                                         else -> DashboardTokens.ink
                                     },
                                 )

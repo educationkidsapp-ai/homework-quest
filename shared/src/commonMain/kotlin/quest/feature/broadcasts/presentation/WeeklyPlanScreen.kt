@@ -186,7 +186,7 @@ fun WeeklyPlanScreen(
         ) {
             if (state.loading) {
                 Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    CircularProgressIndicator(color = DashboardTokens.accentInk)
                 }
                 return@Column
             }
@@ -243,7 +243,7 @@ private fun PlanCard(
                 fontWeight = if (plan.read) FontWeight.Normal else FontWeight.Bold,
                 modifier = Modifier.weight(1f),
             )
-            if (!plan.read) Chip(strings.newBadge, DashboardTokens.warningBg)
+            if (!plan.read) Chip(strings.newBadge, DashboardTokens.secondarySoft)
         }
         Spacer(Modifier.height(Dimens.s4))
         Text(authorLine(plan, strings), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)

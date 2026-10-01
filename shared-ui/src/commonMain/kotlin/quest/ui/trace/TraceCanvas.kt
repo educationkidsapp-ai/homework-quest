@@ -52,6 +52,8 @@ fun TraceCanvas(text: String, onFinished: (coverage: Float) -> Unit, modifier: M
     val drawn = remember(letter) { mutableStateListOf<List<Offset>>() }
     var currentStroke by remember(letter) { mutableStateOf<List<Offset>>(emptyList()) }
     val strokeColor = MaterialTheme.colorScheme.primary
+    val guideColor = DashboardTokens.inkSoft.copy(alpha = 0.55f)
+    val startColor = DashboardTokens.success
     val labels = quest.ui.stops.LocalStopLabels.current
     val dash = remember { PathEffect.dashPathEffect(floatArrayOf(2f, 22f), 0f) }
 
@@ -71,9 +73,9 @@ fun TraceCanvas(text: String, onFinished: (coverage: Float) -> Unit, modifier: M
             val guideWidth = 26.dp.toPx()
             strokes.forEach { s ->
                 val path = Path().apply { s.forEachIndexed { i, p -> if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) } }
-                drawPath(path, DashboardTokens.inkSoft.copy(alpha = 0.55f), style = Stroke(guideWidth, cap = StrokeCap.Round, join = StrokeJoin.Round, pathEffect = dash))
+                drawPath(path, guideColor, style = Stroke(guideWidth, cap = StrokeCap.Round, join = StrokeJoin.Round, pathEffect = dash))
                 // start dot
-                s.firstOrNull()?.let { drawCircle(DashboardTokens.successBg, 9.dp.toPx(), Offset(it.x, it.y)) }
+                s.firstOrNull()?.let { drawCircle(startColor, 9.dp.toPx(), Offset(it.x, it.y)) }
             }
             (drawn + listOf(currentStroke)).forEach { s ->
                 if (s.size < 2) return@forEach

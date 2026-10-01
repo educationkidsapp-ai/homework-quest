@@ -26,6 +26,7 @@ import quest.api.dto.NumberLine
 fun NumberLineView(line: NumberLine, modifier: Modifier = Modifier) {
     val measurer = rememberTextMeasurer()
     val accent = MaterialTheme.colorScheme.primary
+    val lineColor = DashboardTokens.inkSoft
     val markColor = MaterialTheme.colorScheme.primaryContainer
     val style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DashboardTokens.ink)
     Canvas(
@@ -37,13 +38,13 @@ fun NumberLineView(line: NumberLine, modifier: Modifier = Modifier) {
         val padding = 24.dp.toPx()
         val y = size.height * 0.65f
         val gap = (size.width - 2 * padding) / (count - 1)
-        drawLine(DashboardTokens.inkSoft, Offset(padding - 8.dp.toPx(), y), Offset(size.width - padding + 8.dp.toPx(), y), 4.dp.toPx(), StrokeCap.Round)
+        drawLine(lineColor, Offset(padding - 8.dp.toPx(), y), Offset(size.width - padding + 8.dp.toPx(), y), 4.dp.toPx(), StrokeCap.Round)
         val highlighted = line.highlight.toSet()
         for (i in 0 until count) {
             val v = line.from + i * line.step
             val x = padding + i * gap
             val on = v in highlighted
-            drawLine(DashboardTokens.inkSoft, Offset(x, y - 8.dp.toPx()), Offset(x, y + 8.dp.toPx()), 3.dp.toPx(), StrokeCap.Round)
+            drawLine(lineColor, Offset(x, y - 8.dp.toPx()), Offset(x, y + 8.dp.toPx()), 3.dp.toPx(), StrokeCap.Round)
             if (on) drawCircle(markColor, 10.dp.toPx(), Offset(x, y))
             val layout = measurer.measure(v.toString(), style)
             drawText(layout, topLeft = Offset(x - layout.size.width / 2f, y + 12.dp.toPx()))

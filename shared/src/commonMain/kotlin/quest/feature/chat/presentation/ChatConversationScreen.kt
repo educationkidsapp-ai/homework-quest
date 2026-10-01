@@ -540,7 +540,7 @@ fun ChatConversationScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(DashboardTokens.bg).safeDrawingPadding()) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         // Conversation Top Bar
         Row(
             modifier = Modifier.fillMaxWidth()

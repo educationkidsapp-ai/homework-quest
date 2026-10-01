@@ -29,7 +29,7 @@ interface SchoolThemeStore {
  */
 data class SchoolBranding(val appName: String = DEFAULT_APP_NAME, val logoUrl: String? = null, val schoolName: String? = null) {
     companion object {
-        const val DEFAULT_APP_NAME = "Homework Quest"
+        const val DEFAULT_APP_NAME = "MySchool"
     }
 }
 

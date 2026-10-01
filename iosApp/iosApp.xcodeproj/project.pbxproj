@@ -11,6 +11,8 @@
 		7555FF7E242A565900829871 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7555FF7B242A565900829871 /* ContentView.swift */; };
 		C1000001000000000000UT01 /* JourneyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000002000000000000UT01 /* JourneyUITests.swift */; };
 		C1000001000000000000UT02 /* RemoteDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000002000000000000UT02 /* RemoteDriver.swift */; };
+		M1000001000000000000LC01 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = M1000003000000000000LC01 /* InfoPlist.strings */; };
+		M1000001000000000000AS01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = M1000002000000000000AS01 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -33,6 +35,9 @@
 		C1000002000000000000UT02 /* RemoteDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteDriver.swift; sourceTree = "<group>"; };
 		C1000002000000000000UT03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C1000004000000000000UT01 /* iosAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		M1000002000000000000LC01 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		M1000002000000000000LC02 /* ar */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ar; path = ar.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		M1000002000000000000AS01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,6 +83,8 @@
 				7555FF7B242A565900829871 /* ContentView.swift */,
 				2152FB032600AC8F00CF470E /* iOSApp.swift */,
 				7555FF7D242A565900829871 /* Info.plist */,
+				M1000003000000000000LC01 /* InfoPlist.strings */,
+				M1000002000000000000AS01 /* Assets.xcassets */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
@@ -163,6 +170,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				ar,
 				Base,
 			);
 			mainGroup = 7555FF72242A565900829871;
@@ -181,10 +189,24 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				M1000001000000000000LC01 /* InfoPlist.strings in Resources */,
+				M1000001000000000000AS01 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		M1000003000000000000LC01 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				M1000002000000000000LC01 /* en */,
+				M1000002000000000000LC02 /* ar */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin PBXShellScriptBuildPhase section */
 		F36B1CEB2AD83DDC00BA08F2 /* Compile Kotlin Framework */ = {
@@ -295,6 +317,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -325,6 +348,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
