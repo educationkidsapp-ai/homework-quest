@@ -8,6 +8,7 @@ import en from '../../../assets/i18n/en.json';
 import { BASE_PATH } from '../../api';
 import { AuthService } from '../auth/auth.service';
 import { SchoolScopeStore } from '../auth/school-scope.store';
+import { NAV_CONFIG } from '../nav/nav-config';
 import { SessionStore } from '../auth/session.store';
 import { BandService } from '../band/band.service';
 import { ADMIN_USER, TEACHER_USER } from '../../../testing/fixtures';
@@ -42,6 +43,8 @@ describe('interceptors', () => {
         provideHttpClientTesting(),
         provideRouter([]),
         { provide: BASE_PATH, useValue: '' },
+        // The multi-school build: an Admin can pick a school, which is what the scope cases need.
+        { provide: NAV_CONFIG, useValue: { schoolSurfaces: true } },
       ],
     });
     http = TestBed.inject(HttpClient);

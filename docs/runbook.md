@@ -905,6 +905,14 @@ existing **`logoUrl`**, so the public theme, `POST /schools/logo` (the sign-in p
 image types — 404 for a school with no upload. A replacement is a new `?v=`; `DELETE` clears the upload **and** any
 typed `logoUrl`. A theme save that sends the derived URL back does not freeze it into `theme_json`.
 
+**In the dashboard (D1, list 3).** The Admin's Home carries a small **School** card
+(`features/admin/school-card.component.ts`): the logo, the school's name, **Upload logo** / **Replace logo** and —
+behind a red confirm band — **Remove logo**, all gated by `school.write`. A file that is not JPEG, PNG or WebP, or is
+over 1 MB, is refused in the card with the reason and never sent. After a write the card calls `ThemeService.reload()`
+— the shell's logo block reads the same signal, so the rail repaints with no page reload — and the sign-in page asks
+`POST /schools/logo` afresh each time an email is typed. The card is on the Home because the same list took Schools
+out of the rail (below) and Platform settings went with MA0: there is no settings screen left to reach.
+
 ### How the app applies it
 
 `SchoolSession` caches the theme JSON and its ETag per school and restores it **before the first frame**, so a themed
@@ -1816,6 +1824,52 @@ curl -X POST "$API/management/broadcasts" -H "Authorization: Bearer $MANAGER" -H
   -d "{\"kind\":\"weekly_plan\",\"weekStart\":\"2026-09-27\",\"grade\":3,\"attachmentId\":\"$ATT\"}"
 curl "$API/me/broadcasts" -H "Authorization: Bearer $TEACHER"
 ```
+
+### The dashboard: what a browser remembers, and the one-school Admin (D1, list 3)
+
+**The red "class not found" / "thread not found" on first open.** QA had been re-created as a new school and the
+owner moves between roles in one browser. Two things outlived the account that made them, and the next account's
+requests for those rows were answered with an honest 404 that the error interceptor painted as a band:
+
+- **`/sign-in?returnTo=…`** is written when a session dies under a screen — a reload after the database was
+  re-created is exactly that — and named the *previous* account's screen, typically a teacher's
+  `/teacher/classes/{classId}`. Whoever signed in next was sent to it; an Admin passes every `roleGuard`, so she
+  landed on a class page for a class that no longer exists. `returnTo` is now followed only by the account it was
+  kept for: `SessionStore.lastOwner()` (the tab's own record in `sessionStorage` under `hq.session.last`, else the
+  `hq.session.owner` stamp found at load) against the identity `/me` answers, exposed as
+  `AuthService.continuesLastSession`. Anybody else goes to her own Home.
+- **`ChatService` is a root singleton**, so the open conversation survived a sign-out and the next account's socket
+  `onopen` refetched it on *her* routes. Its state now ends with the account (D2 carries the same fix for the
+  coordinator, and the two are one implementation).
+
+The rule both follow: **a 404 for a remembered or defaulted id never raises the band** — the id is dropped and the
+screen falls back to its list — while a 404 for something she just clicked still does. So the teacher's class page
+makes its first request silently and, on a 404, replaces itself with My classes; nothing else on it (roster,
+register, gradebook, exams) is asked for until that first answer has confirmed the class is hers.
+`forgetRememberedState` (`core/auth/remembered-state.ts`) erases what an account left in storage — `hq.school`,
+`hq.flags.*`, staged chat attachments — on sign-out and whenever the session's owner changes. The language, the
+colour scheme and the rail's width are the browser's and stay; `hq.course.<userId>` is keyed by its user and holds
+no row id.
+
+**One switch for the multi-school surfaces.** `NAV_CONFIG.schoolSurfaces` (`core/nav/nav-config.ts`, default
+`false`) hides — in design only — the header's "All schools" switcher and the rail's **Schools** and **Users** rows.
+Their routes, guards and screens are untouched; turning the build back on is that one boolean. Because nobody can
+then *pick* a school, the Admin is **pinned to the only one there is**: `SchoolScopeStore.schoolId()` answers the
+single row of `GET /admin/schools` (resolved by `ChatRoutes`, never read from storage), so every Admin request carries
+`X-School-Id`, her flags are her school's rather than the platform defaults, the new-lesson wizard has its school and
+`/admin/chat/**` has its header. A stored `hq.school` is never read in this configuration and is erased at boot — an
+id from before the database was re-created answers `404 school not found` to `/me` itself. A deployment that answers
+more than one school leaves her unpinned, as before.
+
+**Message, from the Admin's people screens.** Teachers, Coordinators, Managers and Children & parents each carry a
+**Message** action in the row menu (shown with `chat` on and `admin.chat` held). It posts exactly one id —
+`{teacherUserId}`, `{coordinatorUserId}`, `{managerUserId}` or `{childId}` — to `POST /admin/chat/threads`, hands the
+answered row to `ChatService.adopt`, and opens `/admin/messages?thread=<id>` on that conversation. Admin Messages
+reads `GET /admin/chat/threads?mine=true`: her own inbox and her own unread, not the school's whole chat. Children &
+parents also edits the **parent's name** (`parentName` on `PATCH /admin/children/{id}`).
+
+**Gone from every account menu:** "Show me around" (the tour, its service, component and strings) and the Admin's
+"Show the raw JSON" (the view mode, the stop editor's Raw panel and the validator lines it showed).
 
 ## The app and the contract
 

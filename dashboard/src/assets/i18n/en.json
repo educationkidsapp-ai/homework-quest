@@ -161,7 +161,8 @@
       "undo": {
         "enabled": "{{name}} can sign in again",
         "disabled": "{{name}} disabled"
-      }
+      },
+      "message": "Message"
     },
     "coordinators": {
       "title": "Coordinators",
@@ -311,6 +312,19 @@
         "message": "A new one-time password is issued for {{name}} and her current one stops working at once.",
         "confirm": "Reset password"
       }
+    },
+    "school": {
+      "title": "School",
+      "logoAlt": "Logo of {{name}}",
+      "noLogo": "No logo yet",
+      "hint": "PNG, JPEG or WebP, up to 1 MB. It appears in the menu and on the sign-in page.",
+      "upload": "Upload logo",
+      "replace": "Replace logo",
+      "remove": "Remove logo",
+      "removeTitle": "Remove the logo?",
+      "removeMessage": "{{name}} goes back to the default logo everywhere it is shown. You can upload another at any time.",
+      "notImage": "Choose a PNG, JPEG or WebP image.",
+      "tooLarge": "That image is larger than 1 MB. Choose a smaller one."
     }
   },
   "auth": {
@@ -1144,14 +1158,10 @@
         "attach": "Attach a picture",
         "attached": "Picture uploaded — pick it above to show it on this stop.",
         "detach": "Detach",
-        "json": "The whole stop",
-        "jsonHint": "Checked against the schema the server uses. The id cannot change.",
         "save": "Save the stop",
         "delete": "Delete this stop",
         "noChanges": "Nothing has changed yet.",
         "fixFirst": "Fix what is listed below first.",
-        "idImmutable": "The id cannot change — the server addresses this stop by it.",
-        "unknownType": "\"type\" must be one of the twenty-two stop types.",
         "addStop": "+ Add stop",
         "generateTitle": "Generate the other levels",
         "generateLabel": "What this lesson is about",
@@ -1170,8 +1180,6 @@
           "fieldProblem": "{{field}} is empty or too long — fix it before saving.",
           "documentProblem": "One of the fields above is empty or too long — fix it before saving."
         },
-        "raw": "Raw JSON",
-        "rawErrors": "What the validator said about the last save",
         "group": {
           "information": "Information",
           "oneAnswer": "One answer",
@@ -1472,8 +1480,8 @@
       "teachers": "Teachers",
       "management": "Management"
     },
-    "supportSubtitle": "Your conversations with the management of this school, and every thread in it for support.",
-    "supportEmptyHint": "Pick a manager under New message to start one.",
+    "supportSubtitle": "Your conversations with the managers, coordinators, teachers and parents of this school.",
+    "supportEmptyHint": "Use Message on a person's row in Teachers, Coordinators, Managers or Children & parents — or pick a manager under New message.",
     "supportNoSchool": "Pick a school from the header first — chat is read one school at a time.",
     "threadGone": "That conversation is not in your list any more.",
     "away": "Away",
@@ -1650,7 +1658,6 @@
     "searchPlaceholder": "Search anything...",
     "searchLabel": "Search",
     "signOut": "Sign out",
-    "showMeAround": "Show me around",
     "viewingAs": "You are viewing as {{name}} — this view is read-only.",
     "language": {
       "en": "English",
@@ -1667,10 +1674,6 @@
     },
     "sidebar": {
       "toggle": "Show or hide the menu"
-    },
-    "viewMode": {
-      "teacher": "Show the raw JSON",
-      "debug": "Hide the raw JSON"
     },
     "searchClear": "Clear the search"
   },
@@ -1912,44 +1915,6 @@
     "science": "Science",
     "religion": "Religion",
     "arabic": "Arabic"
-  },
-  "tour": {
-    "step": "Step {{index}} of {{total}}",
-    "next": "Next",
-    "done": "Got it",
-    "skip": "Skip",
-    "profile": {
-      "title": "Your account lives here",
-      "body": "Switch between English and Arabic, sign out, or run this tour again from \"Show me around\"."
-    },
-    "admin": {
-      "nav": {
-        "title": "Everything, in one list",
-        "body": "Schools, users, feature flags, lessons and usage across the whole platform."
-      },
-      "switcher": {
-        "title": "One school at a time",
-        "body": "Pick a school here and every screen narrows to it. \"All schools\" puts it back."
-      },
-      "cards": {
-        "title": "The three numbers",
-        "body": "Schools, children and lessons published this week — for the platform, or for the school you picked."
-      }
-    },
-    "teacher": {
-      "nav": {
-        "title": "Your school only",
-        "body": "Your lessons, your students, and the questions you send them."
-      },
-      "cards": {
-        "title": "How yesterday went",
-        "body": "Who played, what you published this week, and what is still waiting for your review."
-      },
-      "classes": {
-        "title": "Your classes",
-        "body": "Each card shows whether today's lesson is published. One tap adds the missing one."
-      }
-    }
   },
   "ui": {
     "loading": "Loading",

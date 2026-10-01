@@ -11,6 +11,7 @@ import { ADMIN_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SchoolScopeStore } from '../../core/auth/school-scope.store';
+import { NAV_CONFIG } from '../../core/nav/nav-config';
 import { SessionStore } from '../../core/auth/session.store';
 import { LessonCreationService } from './lesson-creation.service';
 import { NewLessonPage } from './new-lesson.page';
@@ -20,6 +21,9 @@ const providers: (Provider | EnvironmentProviders)[] = [
   provideHttpClientTesting(),
   provideRouter([]),
   { provide: BASE_PATH, useValue: '' },
+  // The multi-school build, where an Admin picks her school in the header. With the switcher
+  // hidden (the default since D1) she is pinned to the only school — `school-scope.store.spec.ts`.
+  { provide: NAV_CONFIG, useValue: { schoolSurfaces: true } },
 ];
 
 const ALL_FLAGS_ON = {

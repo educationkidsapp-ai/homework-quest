@@ -18,6 +18,7 @@ import { AuthService, type Role } from '../auth/auth.service';
 import { SchoolScopeStore } from '../auth/school-scope.store';
 import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
+import { NAV_CONFIG } from '../nav/nav-config';
 import { ChatRoutes } from './chat-routes';
 import { ChatService } from './chat.service';
 
@@ -61,6 +62,8 @@ describe('ChatRoutes', () => {
   const role = signal<Role | null>('COORDINATOR');
   /** D13: with `multiSchool` off there is one school and no switcher to pick it with. */
   const multiSchool = signal(false);
+  /** D1's nav switch: whether the school switcher is on screen at all. */
+  let schoolSurfaces = true;
   const schools = signal<{ id: string; name: string }[]>([{ id: 's-1', name: 'Al Noor' }]);
 
   function setup(): { routes: ChatRoutes; chat: ChatService } {
@@ -101,6 +104,8 @@ describe('ChatRoutes', () => {
         { provide: CoordinatorChatApi, useValue: coordinatorApi },
         { provide: ManagementChatApi, useValue: managementApi },
         { provide: SchoolsApi, useValue: schoolsApi },
+        // The multi-school build; the switcher-hidden default has its own case below.
+        { provide: NAV_CONFIG, useValue: { schoolSurfaces } },
         {
           provide: AuthService,
           useValue: {
@@ -122,13 +127,14 @@ describe('ChatRoutes', () => {
     });
     // What `FlagService` does once the flag map has settled (D13), and what the store's mask —
     // and therefore `soleSchoolId` — depends on.
-    TestBed.inject(SchoolScopeStore).setMultiSchool(multiSchool());
+    TestBed.inject(SchoolScopeStore).setMultiSchool(multiSchool() && schoolSurfaces);
     return { routes: TestBed.inject(ChatRoutes), chat: TestBed.inject(ChatService) };
   }
 
   beforeEach(() => {
     role.set('COORDINATOR');
     multiSchool.set(false);
+    schoolSurfaces = true;
     schools.set([{ id: 's-1', name: 'Al Noor' }]);
     localStorage.clear();
     sessionStorage.clear();
@@ -269,7 +275,8 @@ describe('ChatRoutes', () => {
     expect(routes.transport()?.commandKey('th-2')).toEqual({ threadId: 'th-2' });
 
     chat.loadThreads();
-    expect(teacherApi.supportChatThreads).toHaveBeenCalled();
+    // S1: `mine=true` — her own inbox, not the whole school's chat.
+    expect(teacherApi.supportChatThreads).toHaveBeenCalledWith(true);
     expect(teacherApi.teacherChatThreads).not.toHaveBeenCalled();
     expect(managementApi.managementChatThreads).not.toHaveBeenCalled();
 
@@ -325,6 +332,27 @@ describe('ChatRoutes', () => {
     expect(routes.transport()).not.toBeNull();
     // The mask still holds: nothing was resolved, so there is no sole school to fall back on.
     expect(TestBed.inject(SchoolScopeStore).soleSchoolId()).toBeNull();
+  });
+
+  /**
+   * D1 (ADMIN item 5): the switcher is hidden in design, so even with `multiSchool` on nobody can
+   * pick — which is the position `multiSchool` off was already in. The one school is resolved from
+   * the server, and a scope this browser kept from before is not consulted at all.
+   */
+  it('resolves the one school for an admin when the switcher is hidden, whatever multiSchool says', () => {
+    role.set('ADMIN');
+    multiSchool.set(true);
+    schoolSurfaces = false;
+    localStorage.setItem('hq.school', JSON.stringify({ id: 's-gone', name: 'Re-created away' }));
+    const { routes } = setup();
+    TestBed.tick();
+
+    expect(schoolsApi.listSchools).toHaveBeenCalledTimes(1);
+    expect(routes.adminSchoolId()).toBe('s-1');
+    expect(routes.transport()).not.toBeNull();
+    // The store is told on the effect that follows the resource — which is what the interceptor reads.
+    TestBed.tick();
+    expect(TestBed.inject(SchoolScopeStore).soleSchoolId()).toBe('s-1');
   });
 
   /** A single-school deployment that answers two rows is disagreeing with itself: pick, don't guess. */

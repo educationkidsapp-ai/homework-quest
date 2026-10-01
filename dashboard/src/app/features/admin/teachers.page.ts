@@ -29,6 +29,7 @@ import {
   type SelectOption,
   type TableColumn,
 } from '../../ui';
+import { AdminThreadService } from './admin-thread.service';
 import { AssignmentPickerComponent } from './assignment-picker.component';
 import { CURRICULA, SUBJECTS, isCurriculum, type Curriculum, type Subject } from '../lessons/lessons.models';
 import { byCourseThenName, pairKey, teacherLabel, type AdminClass, type TeacherRow } from './admin.models';
@@ -80,6 +81,8 @@ export class TeachersPage {
   private readonly undo = inject(UndoService);
   private readonly permissions = inject(PermissionService);
   private readonly router = inject(Router);
+  /** D1: "Message" on a row — the Admin's direct thread with this teacher. */
+  protected readonly threads = inject(AdminThreadService);
   private readonly lang = activeLang();
 
   // ---- the list ---------------------------------------------------------------------------
@@ -379,6 +382,10 @@ export class TeachersPage {
   // ---- deactivate -----------------------------------------------------------------------------
 
   protected readonly menuRow = signal<TeacherRow | null>(null);
+
+  protected message(row: TeacherRow | null): void {
+    if (row) this.threads.open(row.id, { teacherUserId: row.id });
+  }
   protected readonly pendingDeactivate = signal<TeacherRow | null>(null);
 
   protected readonly confirmTitle = computed(() => {

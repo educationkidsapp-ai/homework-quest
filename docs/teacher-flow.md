@@ -75,8 +75,16 @@ A grid of her classes (rows) by the days of the school week (columns; default Su
 
 - **Calendar** — month view; each date shows lesson status and a results column.
 - **Children** — roster with stars this week, level band, weak skills; add/edit children if the `teacher.rosterEdit` flag is on.
+- **Attendance** — the day's roll call for the class.
 - **Gradebook** — see Step 9.
 - **Exams** — see Step 10.
+
+**One shell, five tabs (D1, the owner's list of 2026-10-01).** The class header, its two actions and the tab strip are one screen that stays put; only the tab body changes.
+
+- The tab is in the address — `/teacher/classes/{classId}?tab=children` — and the address is the only state. A link opens on its tab, a reload returns to it, and **Back** walks the tabs she visited before it leaves the class.
+- Changing tab does not reload anything above the tab body and does not ask for the class again. Each tab is built the first time she opens it and kept for the visit, so going back to a tab shows what she already loaded; a tab refetches only after its own changes (marking attendance, placing a child) or a reload of the page.
+- No full-page skeleton appears between tabs. The one skeleton is on arrival, while the class itself is being confirmed.
+- A class that is not hers — an old bookmark, or a class from before the school was re-created — is not an error she caused: the page goes back to **My classes** without a red band.
 
 ### Step 4 — Create a lesson
 

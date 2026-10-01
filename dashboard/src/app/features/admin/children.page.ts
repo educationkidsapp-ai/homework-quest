@@ -36,6 +36,7 @@ import {
 } from '../../ui';
 import { CURRICULA, GRADES, type Curriculum } from '../lessons/lessons.models';
 import { type AdminClass, byCourseThenName } from './admin.models';
+import { AdminThreadService } from './admin-thread.service';
 import { OneTimePasswordComponent } from './one-time-password.component';
 
 /** One family, as the table shows it. */
@@ -113,6 +114,8 @@ export class ChildrenPage implements OnDestroy {
   private readonly band = inject(BandService);
   private readonly permissions = inject(PermissionService);
   private readonly router = inject(Router);
+  /** D1: "Message" on a row — the Admin's thread with this child's parent. */
+  protected readonly threads = inject(AdminThreadService);
   private readonly lang = activeLang();
 
   // ---- the list ---------------------------------------------------------------------------
@@ -486,12 +489,23 @@ export class ChildrenPage implements OnDestroy {
     return this.t(this.isEdit() ? 'ui.save' : 'admin.children.admitAction');
   });
 
-  /** The edit takes a name and a section; the admission takes the parent and her password too. */
+  /**
+   * The edit takes the child's name, a section and the parent's name and number; the admission
+   * takes the parent's email and her password too.
+   */
   protected readonly canSave = computed(() =>
     this.isEdit()
-      ? this.name().trim() !== '' && this.classId() !== '' && this.phoneError() === null
+      ? this.name().trim() !== '' &&
+        this.classId() !== '' &&
+        this.parentName().trim() !== '' &&
+        this.phoneError() === null
       : this.canAdmit(),
   );
+
+  /** D1: the parent's thread is named by the child — `{childId}` — because a parent has no user id here. */
+  protected message(row: FamilyView | null): void {
+    if (row) this.threads.open(row.childId, { childId: row.childId });
+  }
 
   protected save(): void {
     if (this.isEdit()) this.saveEdit();
@@ -499,7 +513,7 @@ export class ChildrenPage implements OnDestroy {
   }
 
   /**
-   * Name, section and the parent's telephone number.
+   * Name, section, and the parent's name and telephone number (D1 added the name).
    *
    * **Not the grade**, although the form asks for one: `PATCH /admin/children/{id}` takes the
    * section and a section carries its own grade and curriculum, so the two selects above the class
@@ -519,6 +533,7 @@ export class ChildrenPage implements OnDestroy {
     );
     this.grade.set(typeof row.source.grade === 'number' ? row.source.grade : '');
     this.classId.set(row.classId);
+    this.parentName.set(row.parentName);
     this.parentPhone.set(row.parentPhone);
     this.formOpen.set(true);
   }
@@ -532,6 +547,7 @@ export class ChildrenPage implements OnDestroy {
         name: this.name().trim(),
         classId: this.classId(),
         parentPhone: this.parentPhone().trim(),
+        parentName: this.parentName().trim(),
       })
       .subscribe({
         next: () => {

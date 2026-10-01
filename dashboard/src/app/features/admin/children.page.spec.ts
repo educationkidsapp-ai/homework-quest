@@ -1,16 +1,17 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { EnvironmentProviders, Provider } from '@angular/core';
+import { EnvironmentProviders, Provider, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BASE_PATH } from '../../api';
 import { ADMIN_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
+import { AdminThreadService } from './admin-thread.service';
 import { ChildrenPage } from './children.page';
 
 const providers: (Provider | EnvironmentProviders)[] = [
@@ -87,6 +88,19 @@ async function fillAdmission(
   await userEvent.type(screen.getByLabelText(/^Parent's mobile/), '0501002030');
   await userEvent.type(screen.getByLabelText('Password for the parent'), password);
   await settle(rendered);
+}
+
+/**
+ * D1: the row's "Message" hands one id to `AdminThreadService` (its own spec covers the request
+ * and the landing). Faked here so the screen's part — *which* id, under *which* name — is what
+ * the test reads, without a flag map and a chat permission to stand up first.
+ */
+function fakeThreads(available = true) {
+  const open = vi.fn();
+  TestBed.overrideProvider(AdminThreadService, {
+    useValue: { available: signal(available), pending: signal(''), open },
+  });
+  return open;
 }
 
 describe('Children & parents', () => {
@@ -305,7 +319,49 @@ describe('Children & parents', () => {
       name: 'Hala Ahmed',
       classId: 'c-1a',
       parentPhone: '0509998877',
+      // D1: the parent's name rides along, unchanged here.
+      parentName: 'Ahmed Ali',
     });
+  });
+
+  /** D1 (ADMIN item 4): the parent's name is editable after admission, not only at it. */
+  it('edits the parent\u2019s name, and will not save it empty', async () => {
+    const { rendered, backend } = await renderSignedIn();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Hala Ahmed' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    await settle(rendered);
+
+    const parent: HTMLInputElement = screen.getByLabelText(/^Parent's name/);
+    expect(parent.value).toBe('Ahmed Ali');
+    await userEvent.clear(parent);
+    await settle(rendered);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    await userEvent.type(parent, 'Ahmed Ali Hassan');
+    await settle(rendered);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const patch = backend.expectOne('/admin/children/ch-hala');
+    expect(patch.request.method).toBe('PATCH');
+    expect(patch.request.body).toMatchObject({ parentName: 'Ahmed Ali Hassan' });
+  });
+
+  it('shows the parent\u2019s name in the table', async () => {
+    await renderSignedIn();
+
+    expect(screen.getByRole('columnheader', { name: 'Parent' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Ahmed Ali' })).toBeInTheDocument();
+  });
+
+  it('offers Message on a child, and opens the thread with her parent by child id', async () => {
+    const open = fakeThreads();
+    await renderSignedIn();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Hala Ahmed' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Message' }));
+
+    expect(open).toHaveBeenCalledWith('ch-hala', { childId: 'ch-hala' });
   });
 
   it('resets the parent password behind a confirm band and shows it once', async () => {

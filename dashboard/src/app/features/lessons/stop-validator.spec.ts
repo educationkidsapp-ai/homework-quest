@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SEED_STOPS, STOP_TYPES } from '../../ui/phone-preview';
-import { declaredStopType, validateStop } from './stop-validator';
+import { validateStopValue } from './stop-validator';
 import { STOP_VALIDATORS } from './stop-validators.generated';
 
 describe('pnpm schemas', () => {
@@ -28,16 +28,10 @@ describe('pnpm schemas', () => {
   });
 });
 
-describe('validateStop', () => {
+describe('validateStopValue', () => {
   it('accepts a stop that matches its own branch', async () => {
-    const result = await validateStop('choice', JSON.stringify(SEED_STOPS['choice']));
+    const result = await validateStopValue('choice', SEED_STOPS['choice']);
     expect(result).toEqual({ valid: true, errors: [] });
-  });
-
-  it('reports a JSON syntax error as the only error', async () => {
-    const result = await validateStop('choice', '{ "type": "choice", }');
-    expect(result.valid).toBe(false);
-    expect(result.errors).toHaveLength(1);
   });
 
   /**
@@ -48,7 +42,7 @@ describe('validateStop', () => {
   it('reports only the declared type branch errors', async () => {
     const { question, ...withoutQuestion } = SEED_STOPS['choice'] as unknown as Record<string, unknown>;
     expect(question).toBeDefined();
-    const result = await validateStop('choice', JSON.stringify(withoutQuestion));
+    const result = await validateStopValue('choice', withoutQuestion);
 
     expect(result.valid).toBe(false);
     expect(result.errors.join('\n')).toContain('question');
@@ -57,20 +51,8 @@ describe('validateStop', () => {
   });
 
   it('rejects a property no branch declares (additionalProperties: false)', async () => {
-    const result = await validateStop('trueFalse', JSON.stringify({ ...SEED_STOPS['trueFalse'], nonsense: 1 }));
+    const result = await validateStopValue('trueFalse', { ...SEED_STOPS['trueFalse'], nonsense: 1 });
     expect(result.valid).toBe(false);
     expect(result.errors.join('\n')).toContain('nonsense');
-  });
-});
-
-describe('declaredStopType', () => {
-  it('reads the discriminator out of a valid document', () => {
-    expect(declaredStopType('{"type":"match"}', STOP_TYPES)).toBe('match');
-  });
-
-  it('is null for unparseable text, a non-object, or an unknown type', () => {
-    expect(declaredStopType('{', STOP_TYPES)).toBeNull();
-    expect(declaredStopType('"choice"', STOP_TYPES)).toBeNull();
-    expect(declaredStopType('{"type":"invented"}', STOP_TYPES)).toBeNull();
   });
 });

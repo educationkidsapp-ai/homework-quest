@@ -39,6 +39,7 @@ import {
   TableComponent,
 } from '../../ui';
 import { CURRICULA, SUBJECTS, type Curriculum, type Subject } from '../lessons/lessons.models';
+import { AdminThreadService } from './admin-thread.service';
 import { OneTimePasswordComponent } from './one-time-password.component';
 
 /** Which of the two accounts this screen is. Set by the route's `screenId` (`area.routes.ts`). */
@@ -134,6 +135,8 @@ export class StaffAccountsPage {
   private readonly undo = inject(UndoService);
   private readonly permissions = inject(PermissionService);
   private readonly router = inject(Router);
+  /** D1: "Message" on a row — the Admin's direct thread with this coordinator or manager. */
+  protected readonly threads = inject(AdminThreadService);
   private readonly lang = activeLang();
 
   /**
@@ -548,6 +551,11 @@ export class StaffAccountsPage {
   // ---- disable / enable ------------------------------------------------------------------------
 
   protected readonly menuRow = signal<StaffRow | null>(null);
+
+  protected message(row: StaffRow | null): void {
+    if (!row) return;
+    this.threads.open(row.id, this.isManager ? { managerUserId: row.id } : { coordinatorUserId: row.id });
+  }
   protected readonly pendingDisable = signal<StaffRow | null>(null);
 
   protected readonly confirmTitle = computed(() => {

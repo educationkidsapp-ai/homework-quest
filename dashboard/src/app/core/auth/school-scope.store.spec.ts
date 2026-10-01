@@ -10,6 +10,7 @@ import { translocoTesting } from '../../../testing/render';
 import { ADMIN_USER } from '../../../testing/fixtures';
 import { FlagService } from '../flags/flag.service';
 import { authInterceptor } from '../http/auth.interceptor';
+import { NAV_CONFIG } from '../nav/nav-config';
 import { AuthService } from './auth.service';
 import { SchoolScopeStore } from './school-scope.store';
 import { SessionStore } from './session.store';
@@ -17,9 +18,14 @@ import { SessionStore } from './session.store';
 const SCOPE_KEY = 'hq.school';
 const STALE = { id: 'school-gone', name: 'A school that was reseeded away' };
 
-function configure() {
+/**
+ * `schoolSurfaces` is the nav switch (`core/nav/nav-config.ts`): on is the multi-school build these
+ * D13 cases are about; off — the default since D1 — is the last block of this file.
+ */
+function configure(schoolSurfaces = true) {
   TestBed.configureTestingModule({
     providers: [
+      { provide: NAV_CONFIG, useValue: { schoolSurfaces } },
       provideHttpClient(withInterceptors([authInterceptor])),
       provideHttpClientTesting(),
       provideRouter([]),
@@ -59,7 +65,12 @@ async function signInAdmin(flags: Record<string, boolean>): Promise<HttpTestingC
 }
 
 describe('the school scope, under multiSchool', () => {
-  beforeEach(() => localStorage.clear());
+  // `sessionStorage` too: the tab's own record of whose session it last held (D1) decides
+  // whether a stored scope is somebody else's leftovers.
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
 
   it('keeps a stored selection while multiSchool is on', async () => {
     localStorage.setItem(SCOPE_KEY, JSON.stringify(STALE));
@@ -89,5 +100,69 @@ describe('the school scope, under multiSchool', () => {
 
     TestBed.inject(HttpClient).get('/me/home').subscribe();
     expect(backend.expectOne('/me/home').request.headers.has('X-School-Id')).toBe(false);
+  });
+});
+
+/**
+ * D1 (the owner's list of 2026-10-01, ADMIN item 5 and "errors on first open"). With the switcher
+ * out of the design nobody can change a stored scope on screen — so it is never applied, whatever
+ * `multiSchool` says, and it is erased before the first request is sent: a school id from a
+ * re-created database answers `404 school not found` to `/me` itself.
+ */
+describe('the school scope, with the switcher hidden', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it('never reads a stored selection, and erases it, even while multiSchool is on', async () => {
+    localStorage.setItem(SCOPE_KEY, JSON.stringify(STALE));
+    configure(false);
+    const scope = TestBed.inject(SchoolScopeStore);
+
+    // Before anybody has signed in or a flag has loaded.
+    expect(scope.schoolId()).toBeNull();
+    expect(localStorage.getItem(SCOPE_KEY)).toBeNull();
+
+    const backend = await signInAdmin({ multiSchool: true });
+    expect(scope.schoolId()).toBeNull();
+
+    TestBed.inject(HttpClient).get('/me/home').subscribe();
+    expect(backend.expectOne('/me/home').request.headers.has('X-School-Id')).toBe(false);
+  });
+
+  /**
+   * No switcher means no way to pick — and an Admin with no school reads the platform's flag
+   * defaults instead of her school's, is asked to "pick a school" by the lesson wizard and gets
+   * `400 Send X-School-Id` from her own Messages. So she is pinned to the one school the server
+   * says there is, exactly as if she had chosen it.
+   */
+  it('pins an Admin to the only school, once the server has said which it is', async () => {
+    configure(false);
+    const scope = TestBed.inject(SchoolScopeStore);
+    const auth = TestBed.inject(AuthService);
+    const backend = await signInAdmin({ multiSchool: true });
+    expect(auth.effectiveSchoolId()).toBeNull();
+
+    scope.setSoleSchool('school-now');
+
+    expect(scope.schoolId()).toBe('school-now');
+    expect(auth.effectiveSchoolId()).toBe('school-now');
+    TestBed.inject(HttpClient).get('/admin/classes').subscribe();
+    expect(backend.expectOne('/admin/classes').request.headers.get('X-School-Id')).toBe('school-now');
+    // Resolved, never stored: a reload asks the server again.
+    expect(localStorage.getItem(SCOPE_KEY)).toBeNull();
+  });
+
+  it('pins nobody while the switcher is on screen: choosing is hers', async () => {
+    configure(true);
+    const scope = TestBed.inject(SchoolScopeStore);
+    await signInAdmin({ multiSchool: false });
+
+    scope.setSoleSchool('school-now');
+
+    expect(scope.schoolId()).toBeNull();
+    // …though the one-school routes still have their answer (D13).
+    expect(scope.soleSchoolId()).toBe('school-now');
   });
 });

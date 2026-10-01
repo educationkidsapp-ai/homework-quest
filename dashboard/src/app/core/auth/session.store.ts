@@ -14,6 +14,15 @@ export const REFRESH_KEY = 'hq.refresh';
 export const SESSION_OWNER_KEY = 'hq.session.owner';
 
 /**
+ * D1: `<userId>:<role>` of the session **this tab** last held, in `sessionStorage`.
+ *
+ * {@link SESSION_OWNER_KEY} says whose the stored session is now and is erased when it ends; this
+ * outlives the ending, per tab, so the sign-in that follows can tell "the same person coming
+ * back" from "somebody else on this browser" — see {@link SessionStore.lastOwner}.
+ */
+export const LAST_OWNER_KEY = 'hq.session.last';
+
+/**
  * Where the two tokens live.
  *
  * The **access** token is held in memory only. It is the token that grants access to every
@@ -40,6 +49,8 @@ export class SessionStore {
    * rotation by a tab of the same account. This survives the reload, so it can.
    */
   private readonly loadedOwner = signal<string | null>(this.read(SESSION_OWNER_KEY));
+  /** The stamp found at load, kept after `clear()` so a failed restore still knows whose it was. */
+  private readonly ownerAtLoad = this.read(SESSION_OWNER_KEY);
 
   readonly accessToken = this.access.asReadonly();
   readonly refreshToken = this.refresh.asReadonly();
@@ -74,6 +85,21 @@ export class SessionStore {
     this.owner.set(identity);
     this.loadedOwner.set(identity);
     this.write(SESSION_OWNER_KEY, identity);
+    this.writeLast(identity);
+  }
+
+  /**
+   * **Whose session this tab last held**, or null when it has never held one.
+   *
+   * What a remembered address is checked against (D1, the owner's list of 2026-10-01): a
+   * `returnTo`, a `?thread=` or a class id left behind by one account must not be followed by the
+   * next one to sign in here — to her it is a row she has never seen, and the server's honest 404
+   * for it was the red "class not found" on first open. The tab's own record first; failing that,
+   * the stamp that was in storage when the tab loaded, which is what a reload onto a dead session
+   * (a re-created database, a revoked token) still has after `clear()` erased the live one.
+   */
+  lastOwner(): string | null {
+    return this.readLast() ?? this.ownerAtLoad;
   }
 
   /**
@@ -134,6 +160,22 @@ export class SessionStore {
       return this.doc.defaultView?.localStorage ?? null;
     } catch {
       return null;
+    }
+  }
+
+  private readLast(): string | null {
+    try {
+      return this.doc.defaultView?.sessionStorage.getItem(LAST_OWNER_KEY) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private writeLast(identity: string): void {
+    try {
+      this.doc.defaultView?.sessionStorage.setItem(LAST_OWNER_KEY, identity);
+    } catch {
+      // Private browsing / a full quota: the tab just stops remembering, silently.
     }
   }
 }

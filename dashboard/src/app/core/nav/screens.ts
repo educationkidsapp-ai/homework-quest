@@ -39,6 +39,11 @@ export interface Screen {
    * knows which of them is the coordinator's.
    */
   readonly readOnly?: boolean;
+  /**
+   * A door to the multi-school build: in the rail only while `NAV_CONFIG.schoolSurfaces` is on
+   * (`core/nav/nav-config.ts`). The route is unaffected — hidden in design, not removed.
+   */
+  readonly schoolSurface?: boolean;
 }
 
 export interface Area {
@@ -149,6 +154,7 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.multiSchool,
         permission: 'school.read',
         phase: 3,
+        schoolSurface: true,
       },
       { id: 'school', path: 'schools/:id', flag: FLAGS.multiSchool, permission: 'school.read', phase: 3 },
       {
@@ -158,7 +164,14 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         permission: 'user.read',
         phase: 3,
       },
-      { id: 'users', path: 'users', labelKey: 'nav.users', permission: 'user.read', phase: 3 },
+      {
+        id: 'users',
+        path: 'users',
+        labelKey: 'nav.users',
+        permission: 'user.read',
+        phase: 3,
+        schoolSurface: true,
+      },
       // RM3b: her side of the manager ↔ admin threads. `chat.support` and not `admin.chat`,
       // because the key that opens the screen has to be the one the GET carries — `admin.chat`
       // is a write (it covers the send), and gating the route on it would take the inbox away

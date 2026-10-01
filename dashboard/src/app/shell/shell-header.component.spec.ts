@@ -9,9 +9,9 @@ import { BASE_PATH } from '../api';
 import { renderHq } from '../../testing/render';
 import { ADMIN_USER, TEACHER_USER } from '../../testing/fixtures';
 import { AuthService } from '../core/auth/auth.service';
+import { NAV_CONFIG } from '../core/nav/nav-config';
 import { SidebarService } from '../core/shell/sidebar.service';
 import { DarkModeService } from '../core/theme/dark-mode.service';
-import { ViewModeService } from '../core/view-mode/view-mode.service';
 import { ShellHeaderComponent } from './shell-header.component';
 
 const providers = [
@@ -47,6 +47,42 @@ describe('hq-shell-header', () => {
     expect(screen.getByRole('button', { name: 'Dark mode' })).toBeInTheDocument();
     // D13: one school, so no switcher — it is Admin-only *and* behind `multiSchool`.
     expect(screen.queryByRole('button', { name: 'School' })).not.toBeInTheDocument();
+  });
+
+  /**
+   * D1 (ADMIN item 5): the "All schools" switcher is out of the design. It is an Admin's and it is
+   * behind `multiSchool` — and with both true it is still not drawn until the nav switch says so.
+   */
+  describe('the school switcher', () => {
+    async function asAdminOfManySchools(schoolSurfaces?: boolean) {
+      const { fixture } = await renderHq(ShellHeaderComponent, {
+        providers:
+          schoolSurfaces === undefined
+            ? providers
+            : [...providers, { provide: NAV_CONFIG, useValue: { schoolSurfaces } }],
+      });
+      signIn(ADMIN_USER);
+      await Promise.resolve();
+      TestBed.tick();
+      TestBed.inject(HttpTestingController)
+        .expectOne((request) => request.url.endsWith('/admin/flags'))
+        .flush({ definitions: [{ key: 'multiSchool', defaultOn: true }] });
+      await Promise.resolve();
+      TestBed.tick();
+      fixture.detectChanges();
+    }
+
+    it('is hidden by default, even for an Admin with multiSchool on', async () => {
+      await asAdminOfManySchools();
+
+      expect(screen.queryByRole('button', { name: 'School' })).not.toBeInTheDocument();
+    });
+
+    it('comes back with the one nav switch', async () => {
+      await asAdminOfManySchools(true);
+
+      expect(screen.getByRole('button', { name: 'School' })).toBeInTheDocument();
+    });
   });
 
   it('keeps the scheme toggle a pressed button with the attribute the screenshots drive', async () => {
@@ -101,16 +137,16 @@ describe('hq-shell-header', () => {
     });
 
     /**
-     * CR5: the raw surfaces belong to the one role expected to read them, and the switch that
-     * opens them is in the same menu — not a URL a teacher could be sent, and not a preference
-     * that survives her tab.
+     * The owner's list of 2026-10-01, ADMIN item 2: "Show me around" and "Show the raw JSON" are
+     * gone from the account menu for every role — the tour and the view mode went with them.
      */
-    it('offers the raw-JSON switch to an Admin and not to a teacher', async () => {
+    it('offers neither the tour nor the raw-JSON switch, to a teacher or to an Admin', async () => {
       const teacher = await renderHq(ShellHeaderComponent, { providers });
       signIn();
       teacher.fixture.detectChanges();
       await userEvent.click(screen.getByRole('button', { name: /Ms Sara/ }));
       expect(screen.queryByRole('menuitem', { name: /raw JSON/i })).toBeNull();
+      expect(screen.queryByRole('menuitem', { name: /Show me around/i })).toBeNull();
       await userEvent.keyboard('{Escape}');
 
       TestBed.resetTestingModule();
@@ -119,12 +155,9 @@ describe('hq-shell-header', () => {
       admin.fixture.detectChanges();
       await userEvent.click(screen.getByRole('button', { name: /Platform Admin/ }));
 
-      const toggle = await screen.findByRole('menuitem', { name: 'Show the raw JSON' });
-      expect(toggle).toHaveAttribute('aria-pressed', 'false');
-      await userEvent.click(toggle);
-      admin.fixture.detectChanges();
-
-      expect(TestBed.inject(ViewModeService).debug()).toBe(true);
+      expect(
+        (await screen.findAllByRole('menuitem')).map((item) => item.textContent?.trim()),
+      ).toEqual(['Profile', 'Sign out']);
     });
 
     /**
@@ -133,9 +166,8 @@ describe('hq-shell-header', () => {
      * puts focus back on the trigger rather than dropping it on `<body>`.
      *
      * The arrow walk and Escape both need a layout engine to prove: JSDOM has none, so the
-     * CDK's interactivity checker finds nothing focusable and its overlay never sees the key —
-     * the same gap `tour.component.spec.ts` documents. `e2e/local/shell.spec.ts` drives both in
-     * a real browser.
+     * CDK's interactivity checker finds nothing focusable and its overlay never sees the key.
+     * `e2e/local/shell.spec.ts` drives both in a real browser.
      */
     it('is a roving tab stop, and hands focus back when it closes', async () => {
       const { fixture } = await renderHq(ShellHeaderComponent, { providers });

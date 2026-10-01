@@ -155,6 +155,18 @@
 
   <ng-template #rowMenu>
     <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
+      <!-- D1: her direct thread with this person, opened in Admin Messages. -->
+      @if (threads.available()) {
+        <button
+          type="button"
+          cdkMenuItem
+          class="hq-menu__item"
+          data-hq-message
+          (cdkMenuItemTriggered)="message(menuRow())"
+        >
+          {{ 'admin.people.message' | transloco }}
+        </button>
+      }
       <button
         type="button"
         cdkMenuItem
@@ -239,14 +251,15 @@
 
     <hr class="families__rule" />
 
+    <!-- D1: the parent's name is hers to correct after admission too, not only to set at it. -->
+    <hq-input
+      [label]="'admin.children.form.parentName' | transloco"
+      [value]="parentName()"
+      [required]="true"
+      [maxLength]="maxParentName"
+      (valueChange)="parentName.set($event)"
+    />
     @if (!isEdit()) {
-      <hq-input
-        [label]="'admin.children.form.parentName' | transloco"
-        [value]="parentName()"
-        [required]="true"
-        [maxLength]="maxParentName"
-        (valueChange)="parentName.set($event)"
-      />
       <hq-input
         [label]="'admin.children.form.parentEmail' | transloco"
         type="email"
