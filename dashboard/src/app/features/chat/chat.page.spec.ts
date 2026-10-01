@@ -13,6 +13,7 @@ import {
   ChatThreadStaffRoleEnum,
   ChatThreadStatusEnum,
   ChatThreadTopicEnum,
+  ManagersApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { LocalMessage } from '../../core/chat/chat.models';
@@ -84,7 +85,9 @@ describe('ChatPage', () => {
       // D2: "is this key a row of the list" is the service's own question now.
       activeGone: activeGoneSig,
       holds: (key: string) =>
-        (mockChatService.threads as () => ChatThread[])().some((thread) => (thread.childId || thread.id!) === key),
+        (mockChatService.threads as () => ChatThread[])().some(
+          (thread) => (thread.childId || thread.id!) === key,
+        ),
       canWrite: canWriteSig,
       sendMessage: vi.fn(),
       sendTyping: vi.fn(),
@@ -102,15 +105,23 @@ describe('ChatPage', () => {
     teacherStaffThread: vi.fn().mockReturnValue(of({ id: 'th-2' })),
   };
 
-  async function renderPage(query: BehaviorSubject<Record<string, string>> | null = null) {
+  async function renderPage(
+    query: BehaviorSubject<Record<string, string>> | null = null,
+    role: 'TEACHER' | 'ADMIN' = 'TEACHER',
+  ) {
     return renderHq(ChatPage, {
       providers: [
         provideRouter([]),
         { provide: ChatService, useValue: mockChatService },
         { provide: ChatApi, useValue: chatApi },
+        // N1: an Admin's label looks the other end up in the school's managers — the picker's own list.
+        {
+          provide: ManagersApi,
+          useValue: { managers: () => of([{ userId: 'u-mgr', fullName: 'Huda Manager' }]) },
+        },
         {
           provide: AuthService,
-          useValue: { role: signal('TEACHER' as const), user: signal({ id: 'u-sara' }) },
+          useValue: { role: signal(role), user: signal({ id: 'u-sara' }) },
         },
         { provide: FlagService, useValue: mockFlags },
         ...(query === null
@@ -265,12 +276,63 @@ describe('ChatPage', () => {
   /** D2 (list 3): S1 marks the admin's threads; a teacher reads the office, not a stranger's name. */
   it('labels a thread with the school admin "School administration"', async () => {
     (mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>).set([
-      { ...sampleThread, id: 'th-adm', childId: '', childName: '', teacherName: 'Omar Admin', withAdmin: true },
+      {
+        ...sampleThread,
+        id: 'th-adm',
+        childId: '',
+        childName: '',
+        teacherName: 'Omar Admin',
+        withAdmin: true,
+      },
     ]);
     await renderPage();
 
     expect(screen.getByText('School administration')).toBeTruthy();
     expect(screen.queryByText('Omar Admin')).toBeNull();
+  });
+
+  /** N1: the role under a staff thread's name is plain text on the name's edge, and it is the right role. */
+  it('names the other end of a staff thread in plain text, not in a pill', async () => {
+    (mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>).set([
+      { ...sampleThread, id: 'th-mgr', childId: '', childName: '', teacherName: 'Huda Manager' },
+    ]);
+    const { fixture } = await renderPage();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('.thread-card__role')?.textContent?.trim()).toBe('Management');
+    expect(host.querySelector('.thread-card__badge--staff')).toBeNull();
+  });
+
+  it('tells an Admin a manager is a manager, and guesses nothing about anyone else', async () => {
+    (mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>).set([
+      {
+        ...sampleThread,
+        id: 'th-1',
+        childId: '',
+        childName: '',
+        teacherId: 'u-mgr',
+        teacherName: 'Huda Manager',
+        withAdmin: true,
+      },
+      {
+        ...sampleThread,
+        id: 'th-2',
+        childId: '',
+        childName: '',
+        teacherId: 'u-t',
+        teacherName: 'Teacher G1 Arabic',
+        withAdmin: true,
+      },
+    ]);
+    const { fixture } = await renderPage(null, 'ADMIN');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const roles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.thread-card')].map(
+      (card) => card.querySelector('.thread-card__role')?.textContent?.trim() ?? null,
+    );
+
+    expect(roles).toEqual(['Manager', null]);
+    expect(screen.queryByText('Coordinators')).toBeNull();
   });
 
   /**
@@ -281,11 +343,19 @@ describe('ChatPage', () => {
   describe('a ?thread= the list does not hold yet', () => {
     const threadsSig = () => mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>;
     const loadingSig = () => mockChatService.loadingThreads as ReturnType<typeof signal<boolean>>;
-    const fresh: ChatThread = { ...sampleThread, id: 'th-new', childId: '', childName: '', teacherName: 'Nada Fahad' };
+    const fresh: ChatThread = {
+      ...sampleThread,
+      id: 'th-new',
+      childId: '',
+      childName: '',
+      teacherName: 'Nada Fahad',
+    };
 
     it('re-reads the list for a brand new thread and selects it when it arrives', async () => {
       // The re-read, as the real service does it: loading, then the list with the new row in it.
-      (mockChatService.loadThreads as ReturnType<typeof vi.fn>).mockImplementation(() => loadingSig().set(true));
+      (mockChatService.loadThreads as ReturnType<typeof vi.fn>).mockImplementation(() =>
+        loadingSig().set(true),
+      );
       await renderPage(new BehaviorSubject<Record<string, string>>({ thread: 'th-new' }));
       TestBed.tick();
 
