@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { PlatformService } from '../../core/platform/platform.service';
 
@@ -29,10 +29,10 @@ import { PlatformService } from '../../core/platform/platform.service';
       <main class="auth__panel">
         <div class="auth__logo">
           <ng-content select="[auth-logo]">
-            @if (platform.platformLogoUrl(); as logo) {
-              <img class="auth__logo-image" [src]="logo" alt="" />
+            @if (shownLogo(); as logo) {
+              <img class="auth__logo-image" [src]="logo" alt="" (error)="failedLogo.set(logo)" />
             } @else {
-              <!-- D3: no platform logo uploaded, so the product's own mark stands in. -->
+              <!-- D3: no platform logo uploaded — or one that would not load — so the product's own mark stands in. -->
               <img class="auth__logo-image auth__logo-image--mark" src="assets/brand/myschool-mark.svg" alt="" />
             }
           </ng-content>
@@ -222,4 +222,11 @@ export class AuthLayoutComponent {
   readonly title = input.required<string>();
 
   protected readonly footer = computed(() => this.platform.platformName());
+
+  /** A logo address that would not load is not drawn: the brand mark stands in. */
+  protected readonly failedLogo = signal<string | null>(null);
+  protected readonly shownLogo = computed(() => {
+    const logo = this.platform.platformLogoUrl();
+    return logo && logo !== this.failedLogo() ? logo : null;
+  });
 }

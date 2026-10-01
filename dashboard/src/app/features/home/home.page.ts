@@ -9,7 +9,6 @@ import { HomeApi, HomeResponse, NeedsYouItem, TeacherClassInfo } from '../../api
 import { AuthService } from '../../core/auth/auth.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PermissionService } from '../../core/permissions/permission.service';
-import { ThemeService } from '../../core/theme/theme.service';
 import { SchoolCardComponent } from '../admin/school-card.component';
 import { BandComponent, ButtonComponent, CountUpDirective, PageComponent, SkeletonComponent } from '../../ui';
 
@@ -68,10 +67,6 @@ interface QuickActionItem {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-page [title]="greeting()" [subtitle]="isTeacher() ? ('home.teacherSubtitle' | transloco) : (home.value()?.schoolName ?? null)">
-      @if (logoUrl(); as logo) {
-        <img page-actions class="home__logo" [src]="logo" alt="" />
-      }
-
       @if (home.isLoading()) {
         <hq-skeleton
           [loading]="true"
@@ -364,12 +359,6 @@ interface QuickActionItem {
   `,
   styles: `
     @use 'mixins' as m;
-
-    .home__logo {
-      inline-size: 32px;
-      block-size: 32px;
-      object-fit: contain;
-    }
 
     .home__error {
       display: flex;
@@ -706,7 +695,6 @@ interface QuickActionItem {
 export class HomePage {
   protected readonly auth = inject(AuthService);
   protected readonly transloco = inject(TranslocoService);
-  protected readonly theme = inject(ThemeService);
   private readonly api = inject(HomeApi);
   private readonly permissions = inject(PermissionService);
 
@@ -719,8 +707,6 @@ export class HomePage {
     params: () => (this.auth.signedIn() ? (this.auth.effectiveSchoolId() ?? 'all') : undefined),
     stream: () => this.api.home(),
   });
-
-  protected readonly logoUrl = computed(() => this.home.value()?.schoolLogoUrl || this.theme.logoUrl() || '');
 
   protected readonly cards = computed(() =>
     (this.home.value()?.cards ?? []).map((card) => ({ key: card.key ?? '', value: card.value ?? 0 })),

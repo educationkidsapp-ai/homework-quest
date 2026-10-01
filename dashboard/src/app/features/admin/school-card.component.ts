@@ -41,9 +41,9 @@ const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
   template: `
     @if (schoolId(); as id) {
       <section class="school" [attr.aria-label]="'admin.school.title' | transloco" data-hq-school-card>
-        <div class="school__logo" [class.school__logo--empty]="!logoUrl()">
-          @if (logoUrl(); as logo) {
-            <img class="school__image" [src]="logo" [alt]="'admin.school.logoAlt' | transloco: { name: name() }" />
+        <div class="school__logo" [class.school__logo--empty]="!shownLogo()">
+          @if (shownLogo(); as logo) {
+            <img class="school__image" [src]="logo" [alt]="'admin.school.logoAlt' | transloco: { name: name() }" (error)="failedLogo.set(logo)" />
           } @else {
             <span class="school__placeholder">{{ 'admin.school.noLogo' | transloco }}</span>
           }
@@ -249,6 +249,12 @@ export class SchoolCardComponent {
 
   /** What the shell shows too — the school's own, or the platform's when it has none. */
   protected readonly logoUrl = computed(() => this.theme.logoUrl());
+  /** The preview's address that would not load: the box shows its empty state, the controls still say Replace. */
+  protected readonly failedLogo = signal<string | null>(null);
+  protected readonly shownLogo = computed(() => {
+    const logo = this.logoUrl();
+    return logo && logo !== this.failedLogo() ? logo : null;
+  });
   /** Only the school's own logo can be removed; the platform's fallback is not hers to delete. */
   protected readonly hasOwnLogo = computed(() => (this.theme.theme()?.logoUrl ?? '') !== '');
 
