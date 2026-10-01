@@ -282,9 +282,11 @@ export interface NavItem<T extends string = string> {
       flex: 1;
     }
 
+    // The rhythm between rows is the list's gap, never a margin on a link, so the collapsed strip
+    // and the drawer keep it too. A menu taller than the viewport scrolls inside the panel.
     .nav__list {
       display: grid;
-      gap: var(--hq-space-4);
+      gap: var(--hq-space-8);
     }
 
     .nav__footer:not(:empty) {
@@ -297,6 +299,10 @@ export interface NavItem<T extends string = string> {
       align-items: center;
       gap: var(--hq-space-12);
       inline-size: 100%;
+      // 48 px rows: the icon and the label are centred in them, and the hover and active fills
+      // take the whole row. A minimum, so a taller Arabic line grows the row instead of clipping.
+      box-sizing: border-box;
+      min-block-size: var(--hq-space-48);
       padding: var(--hq-space-nav-item);
       border: 0;
       border-radius: var(--hq-radius-control);
