@@ -1,5 +1,6 @@
 package quest.feature.chat.presentation
 
+import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,7 +37,6 @@ import quest.feature.parent.presentation.Strings
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
 
 /**
  * R8 (DR3), widened by RM4 (DR5): where a parent starts a conversation with somebody who is not one of her child's
@@ -148,7 +148,7 @@ fun CoordinatorPickerScreen(
         }
         if (problem != null) {
             ParentCard(Modifier.padding(vertical = Dimens.s8)) {
-                Text(problem, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInkSoft)
+                Text(problem, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkSoft)
             }
             return
         }
@@ -156,7 +156,7 @@ fun CoordinatorPickerScreen(
         Text(
             strings.pickCoordinator,
             style = MaterialTheme.typography.bodyLarge,
-            color = Palette.parentInk,
+            color = DashboardTokens.ink,
             modifier = Modifier.padding(vertical = Dimens.s8),
         )
         if (state.coordinators.isNotEmpty()) {

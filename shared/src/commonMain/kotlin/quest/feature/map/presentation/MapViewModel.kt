@@ -10,6 +10,7 @@ import quest.core.platform.Today
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.content.domain.JourneyRepository
 import quest.feature.content.domain.MapRepository
+import quest.feature.journey.presentation.LessonCopy
 import quest.feature.map.presentation.MapContract.Effect
 import quest.feature.map.presentation.MapContract.Intent
 import quest.feature.map.presentation.MapContract.State
@@ -20,6 +21,7 @@ class MapViewModel(
     private val maps: MapRepository,
     private val journey: JourneyRepository,
     private val rewards: RewardsRepository,
+    private val copy: LessonCopy,
 ) : MviViewModel<State, Intent, Effect>(State()) {
 
     override suspend fun handle(intent: Intent) {
@@ -42,16 +44,18 @@ class MapViewModel(
 
     private suspend fun tap(id: String) {
         val island = current.islands.firstOrNull { it.id == id } ?: return
+        // §8: an exam allows exactly one sitting, so a finished one says so instead of opening again.
+        if (island.examWindow != null && island.state == IslandState.DONE) { effect(Effect.Speak(copy.strings().examAlreadySubmitted)); return }
         when (island.kind) {
-            IslandKind.LOCKED -> effect(Effect.Speak("This island is still asleep."))
+            IslandKind.LOCKED -> effect(Effect.Speak(copy.strings().speakLocked))
             IslandKind.REVIEW -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 1))
             IslandKind.LESSON -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 0))
         }
     }
 
     private fun readAloudText(): String = when {
-        current.isEmpty -> "No quest today yet. Ask a grown-up to check the map tomorrow."
-        current.islands.any { it.state == IslandState.TODAY } -> "Tap the glowing island to start today's quest!"
-        else -> "Tap an island to play."
+        current.isEmpty -> copy.strings().speakHomeEmpty
+        current.islands.any { it.state == IslandState.TODAY } -> copy.strings().speakHomeToday
+        else -> copy.strings().speakHome
     }
 }

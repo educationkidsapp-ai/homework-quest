@@ -1,5 +1,6 @@
 package quest.feature.broadcasts.presentation
 
+import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -43,7 +44,6 @@ import quest.feature.broadcasts.domain.NoAttachmentImages
 import quest.feature.parent.presentation.ParentButton
 import quest.feature.parent.presentation.Strings
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
 
 /** Provided by the app root; [NoAttachmentImages] under tests, screenshots and previews, so nothing is fetched. */
 val LocalAttachmentImages = staticCompositionLocalOf<AttachmentImages> { NoAttachmentImages }
@@ -127,7 +127,7 @@ fun AttachmentImage(attachment: BroadcastAttachment, description: String, string
         }
     }
     if (load is Load.Failed) {
-        Text(strings.imageFailed, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+        Text(strings.imageFailed, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
     }
     // The viewer decodes the same bytes again at full size, so pinching to 6× shows detail the card never held.
     if (full && load is Load.Ready) FullScreenImage(attachment, description, strings) { full = false }

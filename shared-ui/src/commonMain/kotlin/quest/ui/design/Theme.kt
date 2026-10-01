@@ -271,6 +271,8 @@ object AdminType {
  * Pulled out of [ParentTheme] so `TokensDriftTest` can assert it without a composition.
  */
 internal fun parentTypography(family: FontFamily) = Typography(
+    // The largest step a lesson uses (a vocabulary word, a number to compare); without it Material's own 57sp default would appear.
+    displayLarge = TextStyle(fontFamily = family, fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold),
     headlineMedium = TextStyle(fontFamily = family, fontSize = 24.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold),
     titleLarge = TextStyle(fontFamily = family, fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
     titleMedium = TextStyle(fontFamily = family, fontSize = DesignTokens.fontBodySize, lineHeight = DesignTokens.fontBodyLine, fontWeight = FontWeight.SemiBold),
@@ -278,6 +280,7 @@ internal fun parentTypography(family: FontFamily) = Typography(
     bodyMedium = TextStyle(fontFamily = family, fontSize = 15.sp, lineHeight = 22.sp),
     labelLarge = TextStyle(fontFamily = family, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
     bodySmall = TextStyle(fontFamily = family, fontSize = 13.sp, lineHeight = 18.sp),
+    labelMedium = TextStyle(fontFamily = family, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium),
 )
 
 @Composable
@@ -305,9 +308,9 @@ fun ParentTheme(rtl: Boolean, content: @Composable () -> Unit) {
 }
 
 /**
- * Formal academic student theme for upper elementary (Grades 4–6).
- * Shares the sleek, high-contrast dashboard typography, surfaces, and rounded corners,
- * providing a mature student hub experience instead of cartoon island aesthetics.
+ * The student theme, for every grade: the student home, the lesson and exam screens and the results all share the
+ * parent mode's typography, surfaces and rounded corners. Only [LocalThemeMode] differs, because §7's child-mode rules
+ * (64 dp targets, no percentages, no timers) still apply to whatever is drawn inside.
  */
 @Composable
 fun AcademicTheme(rtl: Boolean = false, content: @Composable () -> Unit) {

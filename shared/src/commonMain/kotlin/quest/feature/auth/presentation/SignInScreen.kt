@@ -1,5 +1,6 @@
 package quest.feature.auth.presentation
 
+import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,10 +31,9 @@ import quest.feature.parent.presentation.ParentButton
 import quest.feature.parent.presentation.ParentShell
 import quest.feature.parent.presentation.Strings
 import quest.feature.school.presentation.LocalSchoolBranding
+import quest.feature.school.presentation.SchoolLogo
+import androidx.compose.ui.unit.dp
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
-import quest.ui.design.Pip
-import quest.ui.design.PipPose
 
 object SignInContract {
     data class State(val email: String = "", val password: String = "", val busy: Boolean = false, val error: String? = null) : MviState
@@ -72,15 +72,15 @@ fun SignInRoute(onSignedIn: () -> Unit) {
 fun SignInScreen(state: SignInContract.State, s: Strings, dispatch: (SignInContract.Intent) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s24), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(Dimens.s24))
-        Pip(PipPose.WAVING, Dimens.pipMedium)
+        val branding = LocalSchoolBranding.current
+        SchoolLogo(branding.logoUrl, branding.schoolName ?: branding.appName, size = 72.dp)
         Spacer(Modifier.height(Dimens.s12))
-        // Logo / App Name only (text under logo removed per requirement)
-        Text(LocalSchoolBranding.current.appName, style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk)
+        Text(branding.appName, style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.ink)
         Spacer(Modifier.height(Dimens.s24))
         OutlinedTextField(state.email, { dispatch(SignInContract.Intent.Email(it)) }, Modifier.fillMaxWidth(), label = { Text(s.email) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
         Spacer(Modifier.height(Dimens.s12))
         OutlinedTextField(state.password, { dispatch(SignInContract.Intent.Password(it)) }, Modifier.fillMaxWidth(), label = { Text(s.password) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
-        state.error?.let { Text(it, color = Palette.parentAccent, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Dimens.s8)) }
+        state.error?.let { Text(it, color = DashboardTokens.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Dimens.s8)) }
         Spacer(Modifier.height(Dimens.s24))
         ParentButton(s.signIn, { dispatch(SignInContract.Intent.Submit) }, enabled = !state.busy && state.email.isNotBlank() && state.password.isNotBlank())
         Spacer(Modifier.height(Dimens.s24))

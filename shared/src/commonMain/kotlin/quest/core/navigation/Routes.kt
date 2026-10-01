@@ -13,8 +13,6 @@ object Routes {
     @Serializable data class Journey(val lessonId: String, val level: Int = 1, val variant: Int = 0)
     @Serializable data class StopPlayer(val lessonId: String, val level: Int, val variant: Int, val index: Int)
     @Serializable data class LessonComplete(val lessonId: String, val level: Int, val variant: Int)
-    @Serializable object StickerBook
-    @Serializable object TreasureChest
 
     // parent mode
     @Serializable data class ParentPin(val lessonId: String? = null)

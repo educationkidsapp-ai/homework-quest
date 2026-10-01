@@ -1,5 +1,6 @@
 package quest.feature.chat.presentation
 
+import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,7 +35,6 @@ import quest.feature.parent.presentation.Chip
 import quest.feature.parent.presentation.ParentCard
 import quest.feature.parent.presentation.Strings
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
 
 /**
  * R8: how a parent's thread row reads once the dashboard side can be a coordinator as well as a teacher (DR3).
@@ -129,7 +129,7 @@ fun ChatThreadRow(
             Box(
                 Modifier.size(48.dp).clip(CircleShape)
                     .background(
-                        if (thread.staffRole != ChatStaffRole.TEACHER) MaterialTheme.colorScheme.secondaryContainer
+                        if (thread.staffRole != ChatStaffRole.TEACHER) DashboardTokens.bgSubtle
                         else MaterialTheme.colorScheme.primaryContainer,
                     ),
                 contentAlignment = Alignment.Center,
@@ -137,7 +137,7 @@ fun ChatThreadRow(
                 Text(
                     text = avatarInitial(thread.teacherName),
                     style = MaterialTheme.typography.titleLarge,
-                    color = Palette.parentInk,
+                    color = DashboardTokens.ink,
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -149,18 +149,18 @@ fun ChatThreadRow(
                     Text(
                         text = thread.teacherName,
                         style = MaterialTheme.typography.titleMedium,
-                        color = Palette.parentInk,
+                        color = DashboardTokens.ink,
                         fontWeight = FontWeight.SemiBold,
                     )
                     thread.lastMessage?.let {
-                        Text(formatClock(it.createdAt), style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+                        Text(formatClock(it.createdAt), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
                     }
                 }
 
                 Text(
                     text = staffLabel(thread, strings, department),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Palette.parentInkSoft,
+                    color = DashboardTokens.inkSoft,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -170,7 +170,7 @@ fun ChatThreadRow(
                     Text(
                         text = threadPreview(body),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Palette.parentInkSoft,
+                        color = DashboardTokens.inkSoft,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -180,16 +180,16 @@ fun ChatThreadRow(
                 if (badges) {
                     Spacer(Modifier.height(Dimens.s8))
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8), verticalAlignment = Alignment.CenterVertically) {
-                        if (thread.topic == ChatTopic.COMPLAINT) Chip(strings.complaintBadge, Palette.sun)
+                        if (thread.topic == ChatTopic.COMPLAINT) Chip(strings.complaintBadge, DashboardTokens.warningBg)
                         if (showStatus && thread.id != null) {
                             val resolved = thread.status == ChatThreadStatus.RESOLVED
                             Chip(
                                 text = if (resolved) strings.statusResolved else strings.statusOpen,
-                                color = if (resolved) Palette.mint else MaterialTheme.colorScheme.primaryContainer,
+                                color = if (resolved) DashboardTokens.successBg else MaterialTheme.colorScheme.primaryContainer,
                                 selected = resolved,
                             )
                         }
-                        if (thread.unread > 0) Chip("${thread.unread}", Palette.sun)
+                        if (thread.unread > 0) Chip("${thread.unread}", DashboardTokens.warningBg)
                     }
                 }
             }

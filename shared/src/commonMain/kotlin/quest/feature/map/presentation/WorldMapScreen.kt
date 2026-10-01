@@ -1,12 +1,5 @@
 package quest.feature.map.presentation
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,10 +19,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
@@ -44,10 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -71,40 +58,23 @@ import quest.feature.map.presentation.MapContract.State
 import quest.feature.parent.domain.ParentRepository
 import quest.feature.parent.presentation.Strings
 import quest.feature.school.domain.Flags
-import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.featureEnabled
-import quest.feature.school.presentation.LocalSchoolBranding
-import quest.feature.school.presentation.SchoolLogo
 import quest.ui.design.AcademicTheme
 import quest.ui.design.AnimatedLoadingView
-import quest.ui.design.DashboardBottomNavigation
 import quest.ui.design.DashboardButton
 import quest.ui.design.DashboardButtonVariant
 import quest.ui.design.DashboardCard
 import quest.ui.design.DashboardFilterChip
 import quest.ui.design.DashboardPill
 import quest.ui.design.DashboardPillVariant
-import quest.ui.design.DashboardProgressBar
-import quest.ui.design.DashboardTab
 import quest.ui.design.DashboardTokens
-import quest.ui.design.Dimens
-import quest.ui.design.LocalThemeOverrides
-import quest.ui.design.Palette
-import quest.ui.design.Pip
-import quest.ui.design.PipPose
 import quest.ui.design.ReadAloudButton
-import quest.ui.design.RoundIconButton
-import quest.ui.design.SpeechBubble
-import quest.ui.design.StarRow
 import quest.ui.design.SubjectMeta
-import quest.ui.design.animationsEnabled
 
 @Composable
 fun WorldMapRoute(
     onSwitchChild: () -> Unit,
     onOpenLesson: (String, Int, Int) -> Unit,
-    onStickers: () -> Unit,
-    onChest: () -> Unit,
     onGrownUps: () -> Unit,
     onNeedsChild: () -> Unit,
     onNotifications: () -> Unit = {},
@@ -132,8 +102,6 @@ fun WorldMapRoute(
     WorldMapScreen(
         state = state,
         dispatch = vm::dispatch,
-        onStickers = onStickers,
-        onChest = onChest,
         onGrownUps = onGrownUps,
         onSwitchChild = onSwitchChild,
         onNotifications = onNotifications,
@@ -144,7 +112,7 @@ fun WorldMapRoute(
 }
 
 /**
- * Modern TailAdmin Dashboard Student Home (all grades):
+ * The student home (all grades):
  * Clean dashboard aesthetic with student profile header, subject filter chips,
  * formal coursework cards, parent access icon, and bottom navigation bar.
  */
@@ -152,8 +120,6 @@ fun WorldMapRoute(
 fun WorldMapScreen(
     state: State,
     dispatch: (Intent) -> Unit,
-    onStickers: () -> Unit,
-    onChest: () -> Unit,
     onGrownUps: () -> Unit,
     onSwitchChild: () -> Unit = {},
     onNotifications: () -> Unit = {},
@@ -164,8 +130,6 @@ fun WorldMapScreen(
     FormalStudentScreen(
         state = state,
         dispatch = dispatch,
-        onStickers = onStickers,
-        onChest = onChest,
         onGrownUps = onGrownUps,
         onSwitchChild = onSwitchChild,
         onNotifications = onNotifications,
@@ -175,184 +139,10 @@ fun WorldMapScreen(
     )
 }
 
-// =============================================================================
-// GRADES 1–3: PLAYFUL GAME MAP (PRESERVED)
-// =============================================================================
-
-@Composable
-fun GameWorldMapScreen(
-    state: State,
-    dispatch: (Intent) -> Unit,
-    onStickers: () -> Unit,
-    onChest: () -> Unit,
-    onGrownUps: () -> Unit,
-    onSwitchChild: () -> Unit = {},
-) {
-    Box(Modifier.fillMaxSize().background(Palette.sea)) {
-        Waves()
-        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = Dimens.s16)) {
-            Row(Modifier.fillMaxWidth().padding(top = Dimens.s8), verticalAlignment = Alignment.CenterVertically) {
-                RoundIconButton(onSwitchChild, "Switch child") {
-                    Pip(PipPose.IDLE, 44.dp, animated = false, color = state.child?.avatarColor ?: "sky")
-                }
-                Spacer(Modifier.width(Dimens.s8))
-                RoundIconButton(onStickers, "Sticker book") { Text("🌟", fontSize = 26.sp) }
-                FeatureGate(Flags.TREASURE_CHEST) {
-                    Spacer(Modifier.width(Dimens.s8))
-                    RoundIconButton(onChest, "Treasure chest") { Text("🎁", fontSize = 26.sp) }
-                }
-                Spacer(Modifier.weight(1f))
-                SchoolMark()
-                if (state.streakDays > 0) {
-                    Text(
-                        "🔥 ${state.streakDays}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Palette.white,
-                        modifier = Modifier.semantics { contentDescription = "${state.streakDays} day streak" },
-                    )
-                    Spacer(Modifier.width(Dimens.s12))
-                }
-                ReadAloudButton({ dispatch(Intent.ReadAloud) })
-            }
-            Spacer(Modifier.height(Dimens.s12))
-            Box(Modifier.weight(1f)) {
-                if (state.isEmpty && !state.loading) EmptyMap() else IslandList(state, dispatch)
-            }
-            Text(
-                "Grown-ups",
-                color = Palette.white.copy(alpha = 0.85f),
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier
-                    .padding(bottom = Dimens.s12)
-                    .size(width = 140.dp, height = Dimens.minTarget)
-                    .clickable(role = Role.Button, onClick = onGrownUps)
-                    .semantics { contentDescription = "Grown-ups" },
-            )
-        }
-    }
-}
-
-@Composable
-private fun SchoolMark() {
-    val branding = LocalSchoolBranding.current
-    val name = branding.schoolName ?: return
-    val overrides = LocalThemeOverrides.current
-    SchoolLogo(
-        branding.logoUrl, name, size = 44.dp,
-        background = overrides.primary ?: Palette.cream,
-        ink = overrides.primaryInk ?: Palette.ink,
-    )
-    Spacer(Modifier.width(Dimens.s12))
-}
-
-@Composable
-private fun Waves() {
-    Canvas(Modifier.fillMaxSize()) {
-        val w = size.width
-        val h = size.height
-        for (i in 0..12) {
-            val y = h * i / 12f
-            drawLine(Palette.seaDeep.copy(alpha = 0.25f), Offset(0f, y), Offset(w, y + 18f), strokeWidth = 3f)
-        }
-    }
-}
-
-@Composable
-private fun EmptyMap() {
-    Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(220.dp, 60.dp).background(Palette.sand, RoundedCornerShape(20.dp)).semantics { contentDescription = "raft" })
-        Pip(PipPose.SLEEPING, Dimens.pipLarge)
-        Spacer(Modifier.height(Dimens.s16))
-        SpeechBubble("No quest today yet. Check the map tomorrow!")
-    }
-}
-
-@Composable
-private fun IslandList(state: State, dispatch: (Intent) -> Unit) {
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Dimens.s12)) {
-        val hello = state.child?.name?.takeIf { it.isNotBlank() }?.let { "$it's quest" } ?: "Today's quest"
-        Text(hello, style = MaterialTheme.typography.headlineMedium, color = Palette.white, modifier = Modifier.padding(start = Dimens.s8))
-        state.islands.forEachIndexed { i, island ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = if (i % 2 == 0) Arrangement.Start else Arrangement.End) {
-                IslandView(island, onClick = { dispatch(Intent.TapIsland(island.id)) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun IslandView(island: Island, onClick: () -> Unit) {
-    val glow = if (!animationsEnabled()) 1f else {
-        val transition = rememberInfiniteTransition(label = "glow")
-        transition.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse), label = "scale").value
-    }
-    val today = island.state == IslandState.TODAY
-    val worlds = LocalThemeOverrides.current.worldPalettes
-    val meta = SubjectMeta.of(island.subject)
-    val ground = when {
-        island.kind == IslandKind.LOCKED -> Palette.night
-        island.state == IslandState.DONE -> Palette.mint
-        island.kind == IslandKind.REVIEW -> Palette.peach
-        island.subject == Subject.MATH -> worlds.math ?: meta.color
-        island.subject == Subject.ENGLISH -> worlds.english ?: meta.color
-        island.subject == Subject.FRENCH -> worlds.french ?: meta.color
-        island.subject == Subject.SCIENCE -> worlds.science ?: meta.color
-        island.subject == Subject.RELIGION -> worlds.religion ?: meta.color
-        island.subject == Subject.ARABIC -> worlds.arabic ?: meta.color
-        else -> meta.color
-    }
-    val width = if (island.kind == IslandKind.REVIEW) 150.dp else 200.dp
-    val description = when (island.kind) {
-        IslandKind.LOCKED -> "Sleeping island. This island is still asleep."
-        IslandKind.REVIEW -> "Review island: ${island.title}"
-        IslandKind.LESSON -> "${island.state.name.lowercase()} island: ${island.title}, ${dateLabel(island.date)}"
-    }
-    Column(
-        Modifier
-            .width(width)
-            .scale(if (today && island.kind == IslandKind.LESSON) glow else 1f)
-            .shadow(if (today) 12.dp else 4.dp, RoundedCornerShape(50), ambientColor = Palette.sun, spotColor = Palette.sun)
-            .background(ground, RoundedCornerShape(50))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(vertical = Dimens.s16, horizontal = Dimens.s12)
-            .semantics { contentDescription = description },
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        when (island.kind) {
-            IslandKind.LOCKED -> {
-                Pip(PipPose.SLEEPING, 64.dp)
-                Text("Shh… asleep", style = MaterialTheme.typography.labelLarge, color = Palette.white)
-            }
-            else -> {
-                Text(dateLabel(island.date), style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp), color = Palette.ink.copy(alpha = 0.7f))
-                Text(if (island.kind == IslandKind.REVIEW) "🔁" else meta.emoji, fontSize = 30.sp)
-                Text(island.title, style = MaterialTheme.typography.labelLarge, color = Palette.ink, textAlign = TextAlign.Center, maxLines = 2)
-                Spacer(Modifier.height(Dimens.s4))
-                when {
-                    island.state == IslandState.DONE -> {
-                        Text("✓ Done", style = MaterialTheme.typography.labelLarge, color = Palette.ink)
-                        StarRow(3, ((island.starsEarned ?: 0) * 3f / (island.starsTotal ?: 1).coerceAtLeast(1)).let { kotlin.math.round(it).toInt() }.coerceIn(0, 3), starSize = 14.dp)
-                    }
-                    today -> Box(Modifier.background(Palette.sun, CircleShape).padding(horizontal = 14.dp, vertical = 6.dp)) {
-                        Text("Play!", style = MaterialTheme.typography.labelLarge, color = Palette.ink)
-                    }
-                    else -> Text("Waiting", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp), color = Palette.ink.copy(alpha = 0.7f))
-                }
-            }
-        }
-    }
-}
-
-// =============================================================================
-// GRADES 4–6: FORMAL ACADEMIC STUDENT HUB
-// =============================================================================
-
 @Composable
 fun FormalStudentScreen(
     state: State,
     dispatch: (Intent) -> Unit,
-    onStickers: () -> Unit,
-    onChest: () -> Unit,
     onGrownUps: () -> Unit,
     onSwitchChild: () -> Unit = {},
     onNotifications: () -> Unit = {},
@@ -401,14 +191,13 @@ fun FormalStudentScreen(
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
-                                .background(DashboardTokens.brandSoft, CircleShape)
-                                .border(1.dp, DashboardTokens.brandSubtle, CircleShape),
+                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
                                 text = state.child?.name?.take(1)?.uppercase() ?: "S",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = DashboardTokens.brand,
+                                color = MaterialTheme.colorScheme.primary,
                             )
                         }
                         Spacer(Modifier.width(8.dp))
@@ -452,13 +241,13 @@ fun FormalStudentScreen(
                         Icon(
                             imageVector = Icons.Default.Person,
                             contentDescription = strings.parentPortal,
-                            tint = DashboardTokens.brand,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp),
                         )
                     }
 
                     Spacer(Modifier.width(8.dp))
-                    ReadAloudButton({ dispatch(Intent.ReadAloud) })
+                    ReadAloudButton({ dispatch(Intent.ReadAloud) }, contentDescription = strings.lesson.readAloud)
                 }
 
                 // Subject Filter Bar
@@ -562,9 +351,11 @@ private fun FormalCourseworkCard(
     val isDone = island.state == IslandState.DONE
     val isToday = island.state == IslandState.TODAY
     val isReview = island.kind == IslandKind.REVIEW
+    // §8: an island that carries a window is an exam the student may sit now — once, so a finished one is not reopened.
+    val isExam = island.examWindow != null
 
     DashboardCard(
-        onClick = if (!isLocked) onOpen else null,
+        onClick = if (!isLocked && !(isExam && isDone)) onOpen else null,
     ) {
         Column {
             // Meta Row
@@ -599,6 +390,8 @@ private fun FormalCourseworkCard(
                 // Status Badge
                 when {
                     isLocked -> DashboardPill(text = strings.lessonLocked, variant = DashboardPillVariant.NEUTRAL)
+                    isExam && isDone -> DashboardPill(text = strings.lesson.examSubmittedPill, variant = DashboardPillVariant.SUCCESS)
+                    isExam -> DashboardPill(text = strings.lesson.exam, variant = DashboardPillVariant.WARNING)
                     isDone -> DashboardPill(text = strings.lessonCompleted, variant = DashboardPillVariant.SUCCESS)
                     isReview -> DashboardPill(text = strings.lessonReview, variant = DashboardPillVariant.WARNING)
                     isToday -> DashboardPill(text = strings.lessonAssignedToday, variant = DashboardPillVariant.INFO)
@@ -628,7 +421,23 @@ private fun FormalCourseworkCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (isDone) {
+                if (isExam) {
+                    Text(
+                        text = if (isDone) strings.lesson.examAlreadySubmitted else strings.lesson.examNote,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = DashboardTokens.inkSoft,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (!isDone) {
+                        DashboardButton(
+                            text = strings.lesson.startExam,
+                            onClick = onOpen,
+                            variant = DashboardButtonVariant.PRIMARY,
+                            modifier = Modifier.width(130.dp),
+                            height = 36.dp,
+                        )
+                    }
+                } else if (isDone) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val stars = island.starsEarned ?: 0
                         val total = island.starsTotal ?: 1

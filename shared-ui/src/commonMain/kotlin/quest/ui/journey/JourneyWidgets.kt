@@ -1,7 +1,5 @@
 package quest.ui.journey
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,137 +10,181 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import quest.api.dto.Ingredient
 import quest.api.dto.Stop
-import quest.api.dto.Theme
+import quest.ui.design.DashboardCard
+import quest.ui.design.DashboardPill
+import quest.ui.design.DashboardPillVariant
+import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
-import quest.ui.design.Pip
-import quest.ui.design.PipPose
 import quest.ui.design.StarRow
 
-/** The pot at the end of the journey: collected ingredients float in it; full when every stop is done. */
-@Composable
-fun PotView(theme: Theme, collected: List<Ingredient>, total: Int, modifier: Modifier = Modifier, size: Int = 140) {
-    val fill by animateFloatAsState(if (total == 0) 0f else collected.size.toFloat() / total, spring(), label = "pot")
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(size.dp).semantics { contentDescription = "${theme.potName}: ${collected.size} of $total ingredients" }, contentAlignment = Alignment.BottomCenter) {
-            Box(Modifier.fillMaxWidth().height((size * (0.25f + 0.6f * fill)).dp).background(Palette.coral.copy(alpha = 0.35f), RoundedCornerShape(bottomStart = 40.dp, bottomEnd = 40.dp, topStart = 12.dp, topEnd = 12.dp)))
-            Text(theme.potEmoji, fontSize = (size * 0.6f).sp, modifier = Modifier.align(Alignment.Center))
-            Row(Modifier.align(Alignment.TopCenter).padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                collected.takeLast(5).forEach { Text(it.emoji, fontSize = 20.sp) }
-            }
-        }
-        Text("${collected.size} / $total", style = MaterialTheme.typography.labelLarge, color = Palette.ink)
+/**
+ * The words the lesson overview draws: the step kinds, the three levels and the certificate. English by default; the
+ * app provides the parent's language through [LocalJourneyLabels]. `{n}` is a count, `{name}` a level's name.
+ */
+data class JourneyLabels(
+    val step: String = "Step {n}",
+    val level: String = "Level {n}",
+    val levelNames: Map<Int, String> = mapOf(1 to "Core", 2 to "Extended", 3 to "Advanced"),
+    val locked: String = "Locked",
+    val completed: String = "Completed",
+    val current: String = "Next",
+    val certificate: String = "Certificate of completion",
+    val certificateFor: String = "Awarded to",
+    val certificateLesson: String = "for completing",
+    val studentFallback: String = "Student",
+    val kindRead: String = "Reading",
+    val kindStory: String = "Story elements",
+    val kindWords: String = "Vocabulary",
+    val kindActivity: String = "Activity",
+    val kindExplain: String = "Explanation",
+    val kindQuestion: String = "Question",
+    val kindSelect: String = "Multiple selection",
+    val kindMatch: String = "Matching",
+    val kindOrder: String = "Ordering",
+    val kindTrace: String = "Handwriting",
+    val kindRetell: String = "Retelling",
+    val kindOpen: String = "Open answer",
+    val kindSentence: String = "Sentence completion",
+    val kindReview: String = "Review questions",
+) {
+    fun kind(stop: Stop): String = when (stop) {
+        is Stop.ReadPage -> kindRead; is Stop.StoryPieces -> kindStory; is Stop.WordCards -> kindWords; is Stop.Move -> kindActivity; is Stop.Explain -> kindExplain
+        is Stop.Choice, is Stop.TrueFalse, is Stop.Sequence, is Stop.Count, is Stop.Compare, is Stop.Sound, is Stop.Word, is Stop.ReadTap -> kindQuestion
+        is Stop.MultiSelect, is Stop.SelectAll -> kindSelect; is Stop.Match -> kindMatch; is Stop.Order -> kindOrder; is Stop.Trace -> kindTrace
+        is Stop.Retell -> kindRetell; is Stop.OpenAnswer -> kindOpen; is Stop.WriteSentence -> kindSentence; is Stop.ExitTicket -> kindReview
     }
 }
+
+val LocalJourneyLabels = staticCompositionLocalOf { JourneyLabels() }
 
 enum class NodeState { DONE, CURRENT, LOCKED }
 
-/** The path of stops: numbered nodes with the ingredient emoji, connected top to bottom, the pot at the end. */
+/**
+ * The steps of a lesson as a list of cards — number, title, kind, and the stars of a finished step. A locked step is
+ * drawn but not tappable. [showStars] is off in an exam, where §8 keeps every result off the student's screen.
+ */
 @Composable
-fun JourneyPath(stops: List<Stop>, states: List<NodeState>, stars: List<Int?>, onTap: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+fun StepList(stops: List<Stop>, states: List<NodeState>, stars: List<Int?>, onTap: (Int) -> Unit, modifier: Modifier = Modifier, showStars: Boolean = true) {
+    val labels = LocalJourneyLabels.current
+    Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), verticalArrangement = Arrangement.spacedBy(Dimens.s8)) {
         stops.forEachIndexed { i, stop ->
             val state = states.getOrElse(i) { NodeState.LOCKED }
-            val scale by animateFloatAsState(if (state == NodeState.CURRENT) 1.06f else 1f, spring(dampingRatio = 0.6f), label = "node")
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = Dimens.s24, vertical = 6.dp).scale(scale)
-                    .alpha(if (state == NodeState.LOCKED) 0.55f else 1f)
-                    .shadow(if (state == NodeState.CURRENT) 10.dp else 3.dp, RoundedCornerShape(Dimens.radiusTile), ambientColor = Palette.sun, spotColor = Palette.sun)
-                    .background(when (state) { NodeState.DONE -> Palette.mint; NodeState.CURRENT -> Palette.sun; NodeState.LOCKED -> Palette.cream }, RoundedCornerShape(Dimens.radiusTile))
-                    .clickable(enabled = state != NodeState.LOCKED, role = Role.Button) { onTap(i) }
-                    .padding(Dimens.s12)
-                    .semantics { contentDescription = "Stop ${i + 1}: ${stop.title}, ${state.name.lowercase()}" },
-                verticalAlignment = Alignment.CenterVertically,
+            val stateWord = when (state) { NodeState.DONE -> labels.completed; NodeState.CURRENT -> labels.current; NodeState.LOCKED -> labels.locked }
+            DashboardCard(
+                modifier = Modifier.heightIn(min = Dimens.minTarget).alpha(if (state == NodeState.LOCKED) 0.6f else 1f)
+                    .semantics { contentDescription = "${labels.step.replace("{n}", "${i + 1}")}: ${stop.title}, $stateWord" },
+                onClick = if (state != NodeState.LOCKED) ({ onTap(i) }) else null,
+                borderColor = if (state == NodeState.CURRENT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
             ) {
-                Box(Modifier.size(52.dp).background(Palette.white.copy(alpha = 0.7f), CircleShape), contentAlignment = Alignment.Center) {
-                    Text(if (state == NodeState.DONE) stop.ingredient.emoji else "${i + 1}", fontSize = 24.sp, color = Palette.ink)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(36.dp).background(
+                            when (state) { NodeState.DONE -> DashboardTokens.successBg; NodeState.CURRENT -> MaterialTheme.colorScheme.primaryContainer; NodeState.LOCKED -> DashboardTokens.bgSubtle },
+                            RoundedCornerShape(DashboardTokens.radiusSm),
+                        ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            if (state == NodeState.DONE) "✓" else "${i + 1}",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            color = when (state) { NodeState.DONE -> DashboardTokens.success; NodeState.CURRENT -> MaterialTheme.colorScheme.primary; NodeState.LOCKED -> DashboardTokens.inkMuted },
+                        )
+                    }
+                    Spacer(Modifier.width(Dimens.s12))
+                    Column(Modifier.weight(1f)) {
+                        Text(stop.title, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.inkStrong, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(labels.kind(stop), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                    }
+                    val earned = stars.getOrNull(i)
+                    when {
+                        earned != null && showStars -> StarRow(3, earned, starSize = 16.dp)
+                        state == NodeState.DONE -> DashboardPill(labels.completed, variant = DashboardPillVariant.SUCCESS)
+                        state == NodeState.CURRENT -> DashboardPill(labels.current, variant = DashboardPillVariant.INFO)
+                    }
                 }
-                Spacer(Modifier.width(Dimens.s12))
-                Column(Modifier.weight(1f)) {
-                    Text(stop.title, style = MaterialTheme.typography.labelLarge, color = Palette.ink)
-                    Text(stopKindLabel(stop), style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp), color = Palette.inkSoft)
-                }
-                stars.getOrNull(i)?.let { StarRow(3, it, starSize = 16.dp) }
-                if (state == NodeState.CURRENT) Pip(PipPose.WAVING, 44.dp)
             }
-            if (i < stops.lastIndex) Box(Modifier.width(6.dp).height(14.dp).background(Palette.inkSoft.copy(alpha = 0.3f), RoundedCornerShape(3.dp)))
         }
     }
 }
 
-fun stopKindLabel(stop: Stop): String = when (stop) {
-    is Stop.ReadPage -> "Read the page"; is Stop.StoryPieces -> "Story pieces"; is Stop.WordCards -> "New words"; is Stop.Move -> "Move"; is Stop.Explain -> "Learn"
-    is Stop.Choice, is Stop.TrueFalse, is Stop.Sequence, is Stop.Count, is Stop.Compare, is Stop.Sound, is Stop.Word, is Stop.ReadTap -> "Game"
-    is Stop.MultiSelect, is Stop.SelectAll -> "Tap game"; is Stop.Match -> "Match up"; is Stop.Order -> "Put in order"; is Stop.Trace -> "Trace"
-    is Stop.Retell -> "Tell the story"; is Stop.OpenAnswer -> "Your idea"; is Stop.WriteSentence -> "Finish the sentence"; is Stop.ExitTicket -> "Exit ticket"
-}
-
-/** 1 · 2 · 3 selector; locked levels are asleep. */
+/** The lesson's levels as a segmented control; a level the student has not reached is shown locked. */
 @Composable
 fun LevelSelector(unlocked: List<Int>, completed: List<Int>, current: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, levels: List<Int> = listOf(1, 2, 3)) {
-    val names = mapOf(1 to "Same as the book", 2 to "Think", 3 to "Challenge")
+    val labels = LocalJourneyLabels.current
     Row(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
-        // [levels] is normally all three; a school with `levels.three` off is shown two, and the Challenge path is
-        // simply not part of the journey rather than a locked door the child keeps tapping.
+        // [levels] is normally all three; a school with `levels.three` off is shown two, and the third level is
+        // simply not part of the lesson rather than a locked door the student keeps tapping.
         levels.forEach { lvl ->
             val open = lvl in unlocked
+            val selected = lvl == current
+            val shape = RoundedCornerShape(DashboardTokens.radiusSm)
+            val levelWord = labels.level.replace("{n}", "$lvl")
             Column(
-                Modifier.weight(1f).height(Dimens.minTarget + 8.dp)
-                    .background(if (lvl == current) Palette.sun else if (open) Palette.cream else Palette.night, RoundedCornerShape(18.dp))
-                    .border(2.dp, if (lvl == current) Palette.sunDeep else Color.Transparent, RoundedCornerShape(18.dp))
+                Modifier.weight(1f).heightIn(min = Dimens.minTarget)
+                    .background(if (selected) MaterialTheme.colorScheme.primaryContainer else if (open) MaterialTheme.colorScheme.surface else DashboardTokens.bgSubtle, shape)
+                    .border(1.dp, if (selected) MaterialTheme.colorScheme.primary else DashboardTokens.ruleControl, shape)
+                    .clip(shape)
                     .clickable(enabled = open, role = Role.Button) { onSelect(lvl) }.padding(6.dp)
-                    .semantics { contentDescription = "Level $lvl ${names[lvl]}" + if (!open) ", asleep" else if (lvl in completed) ", done" else "" },
+                    .semantics { contentDescription = "$levelWord ${labels.levelNames[lvl].orEmpty()}" + if (!open) ", ${labels.locked}" else if (lvl in completed) ", ${labels.completed}" else "" },
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
             ) {
-                Text(if (open) "$lvl" + (if (lvl in completed) " ✓" else "") else "💤", style = MaterialTheme.typography.titleLarge, color = if (open) Palette.ink else Palette.white)
-                Text(names[lvl] ?: "", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp, lineHeight = 14.sp), color = if (open) Palette.inkSoft else Palette.white.copy(alpha = 0.8f), textAlign = TextAlign.Center, maxLines = 1)
+                Text(
+                    levelWord + if (lvl in completed) " ✓" else "",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold),
+                    color = if (selected) MaterialTheme.colorScheme.primary else if (open) DashboardTokens.ink else DashboardTokens.inkMuted,
+                )
+                Text(
+                    if (open) labels.levelNames[lvl].orEmpty() else labels.locked,
+                    style = MaterialTheme.typography.bodySmall, color = if (open) DashboardTokens.inkSoft else DashboardTokens.inkMuted, textAlign = TextAlign.Center, maxLines = 1,
+                )
             }
         }
     }
 }
 
-/** The certificate shown when the pot is served. */
+/** The certificate of a finished lesson: the student, the lesson, the level and the stars — never a percentage (§7). */
 @Composable
 fun Certificate(childName: String, lessonTitle: String, level: Int, stars: Int, starsTotal: Int, dateText: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier.fillMaxWidth().padding(horizontal = Dimens.s16).shadow(8.dp, RoundedCornerShape(Dimens.radiusCard))
-            .background(Palette.cream, RoundedCornerShape(Dimens.radiusCard)).border(4.dp, Palette.sun, RoundedCornerShape(Dimens.radiusCard)).padding(Dimens.s24)
-            .semantics { contentDescription = "Certificate for $childName: $lessonTitle level $level, $stars of $starsTotal stars" },
-        horizontalAlignment = Alignment.CenterHorizontally,
+    val labels = LocalJourneyLabels.current
+    val levelWord = labels.level.replace("{n}", "$level")
+    DashboardCard(
+        modifier.semantics { contentDescription = "${labels.certificate}: $childName, $lessonTitle, $levelWord" },
+        padding = androidx.compose.foundation.layout.PaddingValues(Dimens.s24),
     ) {
-        Text("🏅", fontSize = 48.sp)
-        Text("Certificate", style = MaterialTheme.typography.headlineMedium, color = Palette.ink)
-        Spacer(Modifier.height(Dimens.s8))
-        Text(childName.ifBlank { "Explorer" }, style = MaterialTheme.typography.displayLarge, color = Palette.ink, textAlign = TextAlign.Center)
-        Text("finished", style = MaterialTheme.typography.bodyLarge, color = Palette.inkSoft)
-        Text(lessonTitle, style = MaterialTheme.typography.titleLarge, color = Palette.ink, textAlign = TextAlign.Center)
-        Text("Level $level", style = MaterialTheme.typography.bodyLarge, color = Palette.inkSoft)
-        Spacer(Modifier.height(Dimens.s8))
-        StarRow(total = 3, filled = ((stars * 3f) / starsTotal.coerceAtLeast(1)).let { kotlin.math.round(it).toInt() }.coerceIn(1, 3), starSize = 30.dp)
-        Spacer(Modifier.height(Dimens.s8))
-        Text(dateText, style = MaterialTheme.typography.bodyMedium, color = Palette.inkSoft)
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(labels.certificate, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(Dimens.s12))
+            Text(labels.certificateFor, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+            Text(childName.ifBlank { labels.studentFallback }, style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(Dimens.s8))
+            Text(labels.certificateLesson, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+            Text(lessonTitle, style = MaterialTheme.typography.titleLarge, color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
+            Text(levelWord, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft)
+            Spacer(Modifier.height(Dimens.s12))
+            StarRow(total = 3, filled = ((stars * 3f) / starsTotal.coerceAtLeast(1)).let { kotlin.math.round(it).toInt() }.coerceIn(1, 3), starSize = 26.dp)
+            Spacer(Modifier.height(Dimens.s8))
+            Text(dateText, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkMuted)
+        }
     }
 }

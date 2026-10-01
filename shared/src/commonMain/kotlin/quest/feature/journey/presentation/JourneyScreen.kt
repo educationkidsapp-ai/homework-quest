@@ -1,7 +1,9 @@
 package quest.feature.journey.presentation
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -19,9 +22,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -32,18 +35,22 @@ import quest.feature.journey.presentation.JourneyContract.Intent
 import quest.feature.journey.presentation.JourneyContract.State
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.featureEnabled
+import quest.ui.design.AnimatedDotsLoader
 import quest.ui.design.BackButton
 import quest.ui.design.BigButton
+import quest.ui.design.DashboardCard
+import quest.ui.design.DashboardPill
+import quest.ui.design.DashboardPillVariant
+import quest.ui.design.DashboardProgressBar
+import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
 import quest.ui.design.ReadAloudButton
-import quest.ui.design.RoundIconButton
-import quest.ui.journey.JourneyPath
+import quest.ui.design.SubjectMeta
 import quest.ui.journey.LevelSelector
-import quest.ui.journey.PotView
+import quest.ui.journey.StepList
 
 @Composable
-fun JourneyRoute(lessonId: String, level: Int, variant: Int, onOpenStop: (String, Int, Int, Int) -> Unit, onComplete: (String, Int, Int) -> Unit, onParentPanel: (String) -> Unit, onBack: () -> Unit) {
+fun JourneyRoute(lessonId: String, level: Int, variant: Int, onOpenStop: (String, Int, Int, Int) -> Unit, onComplete: (String, Int, Int) -> Unit, onBack: () -> Unit) {
     val vm: JourneyViewModel = koinViewModel(key = "journey-$lessonId-$level-$variant") { parametersOf(lessonId, level, variant) }
     val speaker: Speaker = koinInject()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -57,56 +64,88 @@ fun JourneyRoute(lessonId: String, level: Int, variant: Int, onOpenStop: (String
             }
         }
     }
-    JourneyScreen(state, vm::dispatch, onParentPanel = { onParentPanel(lessonId) }, onBack = onBack)
+    JourneyScreen(state, vm::dispatch, onBack = onBack)
 }
 
+/**
+ * The lesson overview: what the lesson is, how far the student is, and its steps. An exam (§8) is the same page
+ * without the level selector and without stars, under an "Exam" badge and its one-sitting rule.
+ */
 @Composable
-fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onParentPanel: () -> Unit = {}, onBack: () -> Unit) {
-    if (state.error != null) { quest.feature.journey.presentation.ErrorView(state.error, onBack); return }
-    if (state.loading || state.play == null) { LoadingView("Getting the journey ready…"); return }
-    val play = state.play
-    Column(Modifier.fillMaxSize().background(quest.ui.design.DashboardTokens.bg).safeDrawingPadding()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = Dimens.s16, vertical = Dimens.s8), verticalAlignment = Alignment.CenterVertically) {
-            BackButton(onBack)
-            Spacer(Modifier.weight(1f))
-            ReadAloudButton({ dispatch(Intent.ReadAloud) })
-        }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(state.lesson?.title ?: "", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = quest.ui.design.DashboardTokens.inkStrong, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = Dimens.s16))
-            Spacer(Modifier.height(Dimens.s8))
-            // §4 `levels.three`: off, the Challenge path is not offered at all.
-            val levels = Flags.levels(featureEnabled(Flags.LEVEL_THREE))
-            LevelSelector(unlocked = state.levelsUnlocked, completed = state.completedLevels, current = state.level, onSelect = { dispatch(Intent.SelectLevel(it)) }, levels = levels)
+fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) {
+    val s = LocalLessonStrings.current
+    if (state.error != null) { ErrorView(state.error, onBack); return }
+    if (state.loading || state.play == null) { LoadingView(s.loadingLesson); return }
+    val total = state.stops.size
+    Column(Modifier.fillMaxSize().background(DashboardTokens.bg).safeDrawingPadding()) {
+        LessonTopBar(onBack = onBack, onReadAloud = { dispatch(Intent.ReadAloud) })
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            DashboardCard(Modifier.padding(horizontal = Dimens.s16)) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
+                        state.lesson?.subject?.let { DashboardPill(SubjectMeta.of(it).label(LocalLessonRtl.current)) }
+                        if (state.exam) DashboardPill(s.exam, variant = DashboardPillVariant.WARNING)
+                    }
+                    Spacer(Modifier.height(Dimens.s8))
+                    Text(state.lesson?.title.orEmpty(), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong)
+                    if (state.exam) {
+                        Spacer(Modifier.height(Dimens.s4))
+                        Text(s.examRules, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft)
+                    }
+                    Spacer(Modifier.height(Dimens.s12))
+                    // A bar and a count of steps — never a percentage (§7).
+                    DashboardProgressBar(if (total == 0) 0f else state.doneCount.toFloat() / total)
+                    Spacer(Modifier.height(Dimens.s4))
+                    Text(s.stepsCompleted.replace("{done}", "${state.doneCount}").replace("{total}", "$total"), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                }
+            }
+            if (!state.exam) {
+                Spacer(Modifier.height(Dimens.s12))
+                // §4 `levels.three`: off, the third level is not offered at all.
+                LevelSelector(unlocked = state.levelsUnlocked, completed = state.completedLevels, current = state.level, onSelect = { dispatch(Intent.SelectLevel(it)) }, levels = Flags.levels(featureEnabled(Flags.LEVEL_THREE)))
+            }
             Spacer(Modifier.height(Dimens.s12))
-            JourneyPath(stops = state.stops, states = state.nodeStates, stars = state.stops.map { state.stopStars[it.id] }, onTap = { dispatch(Intent.TapStop(it)) })
+            StepList(stops = state.stops, states = state.nodeStates, stars = state.stops.map { state.stopStars[it.id] }, onTap = { dispatch(Intent.TapStop(it)) }, showStars = !state.exam)
             Spacer(Modifier.height(Dimens.s16))
-            PotView(play.theme, state.collected, state.stops.size, modifier = Modifier.clickable(enabled = state.complete) { dispatch(Intent.Serve) })
-            Spacer(Modifier.height(Dimens.s16))
-            if (state.complete) BigButton("Serve the ${play.theme.dishName}", onClick = { dispatch(Intent.Serve) }, emoji = play.theme.potEmoji, modifier = Modifier.padding(horizontal = Dimens.s24))
-            else BigButton(if (state.collected.isEmpty()) "Start the journey" else "Next stop", onClick = { dispatch(Intent.TapStop(state.nextIndex)) }, emoji = "🚀", modifier = Modifier.padding(horizontal = Dimens.s24))
-            Spacer(Modifier.height(Dimens.s24))
         }
+        val cta = when {
+            state.complete -> if (state.exam) s.submitExam else s.finishLesson
+            state.doneCount == 0 -> if (state.exam) s.startExam else s.startLesson
+            else -> if (state.exam) s.continueExam else s.continueLesson
+        }
+        BigButton(cta, onClick = { dispatch(if (state.complete) Intent.Finish else Intent.TapStop(state.nextIndex)) }, modifier = Modifier.padding(horizontal = Dimens.s16, vertical = Dimens.s12))
+    }
+}
+
+/** Back on the leading edge, read-aloud on the trailing one, and whatever the screen puts between them. */
+@Composable
+fun LessonTopBar(onBack: (() -> Unit)?, onReadAloud: () -> Unit, center: @Composable () -> Unit = {}) {
+    val s = LocalLessonStrings.current
+    Row(Modifier.fillMaxWidth().padding(horizontal = Dimens.s16, vertical = Dimens.s8), verticalAlignment = Alignment.CenterVertically) {
+        if (onBack != null) BackButton(onBack, contentDescription = s.back)
+        Spacer(Modifier.width(Dimens.s12))
+        Column(Modifier.weight(1f)) { center() }
+        Spacer(Modifier.width(Dimens.s12))
+        ReadAloudButton(onReadAloud, contentDescription = s.readAloud)
     }
 }
 
 @Composable
 fun LoadingView(text: String) {
-    Column(Modifier.fillMaxSize().background(quest.ui.design.DashboardTokens.bg).safeDrawingPadding(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
-        quest.ui.design.Pip(quest.ui.design.PipPose.THINKING, Dimens.pipLarge)
+    Column(Modifier.fillMaxSize().background(DashboardTokens.bg).safeDrawingPadding(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        AnimatedDotsLoader(dotSize = 12.dp, spacing = 8.dp)
         Spacer(Modifier.height(Dimens.s16))
-        quest.ui.design.AnimatedDotsLoader(color = Palette.sunDeep, dotSize = 12.dp, spacing = 8.dp)
-        Spacer(Modifier.height(Dimens.s16))
-        Text(text, style = MaterialTheme.typography.bodyLarge, color = quest.ui.design.DashboardTokens.inkSoft, textAlign = TextAlign.Center)
+        Text(text, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
     }
 }
 
 @Composable
 fun ErrorView(text: String, onBack: () -> Unit) {
-    Column(Modifier.fillMaxSize().background(quest.ui.design.DashboardTokens.bg).safeDrawingPadding().padding(Dimens.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
-        quest.ui.design.Pip(quest.ui.design.PipPose.SLEEPING, Dimens.pipLarge)
-        Spacer(Modifier.height(Dimens.s16))
-        Text(text, style = MaterialTheme.typography.bodyLarge, color = quest.ui.design.DashboardTokens.inkStrong, textAlign = TextAlign.Center)
+    Column(Modifier.fillMaxSize().background(DashboardTokens.bg).safeDrawingPadding().padding(Dimens.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        DashboardCard {
+            Text(text, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkStrong, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        }
         Spacer(Modifier.height(Dimens.s24))
-        BigButton("Back to the map", onClick = onBack)
+        BigButton(LocalLessonStrings.current.backToHome, onClick = onBack)
     }
 }

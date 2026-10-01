@@ -1,5 +1,6 @@
 package quest.feature.parent.presentation
 
+import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,7 +37,6 @@ import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.LocalSchoolBranding
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
 
 object SettingsContract {
     data class State(
@@ -156,15 +156,15 @@ fun SettingsScreen(state: SettingsContract.State, s: Strings, dispatch: (Setting
                 state.phoneSaved -> s.phoneSaved
                 else -> null
             }
-            if (note != null) Text(note, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft, modifier = Modifier.padding(top = Dimens.s4))
+            if (note != null) Text(note, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft, modifier = Modifier.padding(top = Dimens.s4))
             Spacer(Modifier.height(Dimens.s8))
             ParentButton(s.save, { dispatch(SettingsContract.Intent.SavePhone) }, primary = false, icon = "📞")
         }
         SectionTitle(s.changePin)
         ParentButton(s.changePin, onChangePin, primary = false, icon = "🔒")
         SectionTitle(s.privacy)
-        ParentCard { Text(s.privacyBody, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft) }
+        ParentCard { Text(s.privacyBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft) }
         // §A: the school's own `appName` where the product's name is shown, falling back to the platform's.
-        Text("${LocalSchoolBranding.current.appName} · ${s.version} 0.2.0", style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft, modifier = Modifier.padding(vertical = Dimens.s16))
+        Text("${LocalSchoolBranding.current.appName} · ${s.version} 0.2.0", style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft, modifier = Modifier.padding(vertical = Dimens.s16))
     }
 }
