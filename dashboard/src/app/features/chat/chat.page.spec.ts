@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { BehaviorSubject, map, of } from 'rxjs';
@@ -28,6 +28,7 @@ describe('ChatPage', () => {
   const messagesSig = signal<LocalMessage[]>([]);
   const canWriteSig = signal(true);
   const peerOnlineSig = signal<boolean | undefined>(undefined);
+  const activeGoneSig = signal(false);
 
   const sampleThread: ChatThread = {
     id: 'th-1',
@@ -57,6 +58,7 @@ describe('ChatPage', () => {
     messagesSig.set([]);
     canWriteSig.set(true);
     peerOnlineSig.set(undefined);
+    activeGoneSig.set(false);
 
     mockChatService = {
       threads: signal([sampleThread]),
@@ -80,6 +82,7 @@ describe('ChatPage', () => {
       // MG2b: a teacher's key is the child on a parent thread and the thread on a staff one.
       keyOf: (thread: ChatThread) => thread.childId || thread.id!,
       // D2: "is this key a row of the list" is the service's own question now.
+      activeGone: activeGoneSig,
       holds: (key: string) =>
         (mockChatService.threads as () => ChatThread[])().some((thread) => (thread.childId || thread.id!) === key),
       canWrite: canWriteSig,
@@ -230,16 +233,33 @@ describe('ChatPage', () => {
     expect(mockChatService.selectThread).toHaveBeenCalledWith('th-2');
 
     // A thread this list has never answered is left alone: selecting it would send its id to the
-    // child-keyed routes and buy a 404 in a red band. It is *said*, though — a stale bell link that
-    // leaves the screen on "pick a conversation" reads as a click that did nothing.
+    // child-keyed routes and buy a 404 in a red band. D2: the list is read once more, and an id
+    // that is still not hers is let go of in silence — it leaves the URL, and the list is the
+    // screen. Nothing is ever requested *by that id*.
     (mockChatService.selectThread as ReturnType<typeof vi.fn>).mockClear();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     query.next({ thread: 'th-9' });
     TestBed.tick();
     expect(mockChatService.selectThread).not.toHaveBeenCalled();
-    expect(await screen.findByText('That conversation is not in your list any more.')).toBeTruthy();
-    // D2: asked for once more before it was called stale — and only once, however often the
-    // effect reruns. Nothing is ever requested *by that id*, which is what kept the red band away.
     expect(mockChatService.loadThreads).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate.mock.calls[0]![1]).toMatchObject({
+      queryParams: { thread: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+    expect(screen.queryByText('That conversation is not in your list any more.')).toBeNull();
+    // The list is still there to pick from.
+    expect(document.querySelectorAll('.thread-card').length).toBe(2);
+  });
+
+  it('says so only when the conversation she was viewing left her list', async () => {
+    const rendered = await renderPage();
+    expect(screen.queryByText('That conversation is not in your list any more.')).toBeNull();
+
+    activeGoneSig.set(true);
+    rendered.fixture.detectChanges();
+    expect(screen.getByText('That conversation is not in your list any more.')).toBeTruthy();
   });
 
   /** D2 (list 3): S1 marks the admin's threads; a teacher reads the office, not a stranger's name. */

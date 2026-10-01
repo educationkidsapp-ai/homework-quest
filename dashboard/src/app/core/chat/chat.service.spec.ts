@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ChatApi,
@@ -320,6 +320,58 @@ describe('ChatService', () => {
       expect(service.activeKey()).toBeNull();
       expect(service.activeThread()).toBeNull();
       expect(mockApi.teacherChatMessages).not.toHaveBeenCalled();
+      // She was looking at it, so this is the one case the screen says something.
+      expect(service.activeGone()).toBe(true);
+      service.loadThreads();
+      (mockApi.teacherChatThreads as ReturnType<typeof vi.fn>).mockReturnValue(of([sampleThread]));
+      service.loadThreads();
+      service.selectThread('ch-1');
+      expect(service.activeGone()).toBe(false);
+    });
+
+    /**
+     * Review blocker: a read asked by account A that answers after B signed in. Without the epoch
+     * A's rows, names and previews — and A's messages — landed in B's state.
+     */
+    it('drops a list and messages that answer after another account signed in', () => {
+      const list = new Subject<ChatThread[]>();
+      const stream = new Subject<ChatMessage[]>();
+      service.loadThreads();
+      (mockApi.teacherChatThreads as ReturnType<typeof vi.fn>).mockReturnValue(list);
+      (mockApi.teacherChatMessages as ReturnType<typeof vi.fn>).mockReturnValue(stream);
+      // A asks for her list again and opens a conversation; neither has answered yet.
+      service.loadThreads();
+      service.selectThread('ch-1');
+      expect(service.loadingThreads()).toBe(true);
+
+      // B signs in on the same tab. Her own list is empty.
+      role().set('COORDINATOR');
+      user().set({ ...TEACHER_USER, id: 'u-rasha' });
+      TestBed.tick();
+      expect(service.threads()).toEqual([]);
+      expect(service.loadingThreads()).toBe(false);
+
+      // A's answers land now.
+      list.next([sampleThread]);
+      list.complete();
+      stream.next([sampleMessage]);
+      stream.complete();
+
+      expect(service.threads()).toEqual([]);
+      expect(service.messages()).toEqual([]);
+      expect(service.activeKey()).toBeNull();
+      expect(service.totalUnread()).toBe(0);
+    });
+
+    it('drops the messages of a conversation she has already moved on from', () => {
+      const slow = new Subject<ChatMessage[]>();
+      service.loadThreads();
+      service.adopt({ ...sampleThread, id: 'th-2', childId: '', unread: 0 });
+      (mockApi.teacherChatMessages as ReturnType<typeof vi.fn>).mockReturnValueOnce(slow);
+      service.selectThread('ch-1');
+      service.selectThread('th-2');
+      slow.next([sampleMessage]);
+      expect(service.messages()).toEqual([]);
     });
 
     it('keeps the open conversation when the list read itself failed', () => {
@@ -355,6 +407,35 @@ describe('ChatService', () => {
       // Keyed by thread on her staff routes — never sent to the child-keyed parent ones.
       expect(mockApi.teacherStaffMessages).toHaveBeenCalledWith('th-2', undefined, undefined);
       expect(mockApi.teacherChatMessages).not.toHaveBeenCalledWith('th-2', undefined, undefined);
+    });
+
+    /**
+     * Review note: an adopted thread is not pending for ever. The first list read that names it,
+     * or her leaving it, ends that — and no frame refetches the list on its account meanwhile.
+     */
+    it('stops being pending once a list read names it, or once she leaves it', () => {
+      service.loadThreads();
+      service.adopt(staff);
+      service.selectThread('th-2');
+      const reads = () => (mockApi.teacherChatThreads as ReturnType<typeof vi.fn>).mock.calls.length;
+
+      // A frame for some other, listed thread: an adopted row is not a reason to re-read the list.
+      const before = reads();
+      service.receive({ type: 'message', message: { ...sampleMessage, id: 'msg-9' } });
+      expect(reads()).toBe(before);
+
+      // She moves on before any read confirmed it: it is no longer kept alive by hand.
+      service.selectThread('ch-1');
+      service.loadThreads();
+      expect(service.holds('th-2')).toBe(false);
+
+      // Adopted again, and this time the server's own list names it: an ordinary row from here.
+      service.adopt(staff);
+      (mockApi.teacherStaffThreads as ReturnType<typeof vi.fn>).mockReturnValue(of([staff]));
+      service.loadThreads();
+      (mockApi.teacherStaffThreads as ReturnType<typeof vi.fn>).mockReturnValue(of([]));
+      service.loadThreads();
+      expect(service.holds('th-2')).toBe(false);
     });
 
     it('adds nothing for a thread the list already names', () => {

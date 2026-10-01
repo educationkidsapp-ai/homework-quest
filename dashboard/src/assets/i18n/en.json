@@ -2397,7 +2397,8 @@
       "openNamed": "Open {{name}}",
       "unnamed": "Weekly plan (PDF)",
       "failed": "That file could not be opened. Try again."
-    }
+    },
+    "fileSize": "{{size}} MB"
   },
   "announcements": {
     "subtitle": "The announcements and the events of your school."

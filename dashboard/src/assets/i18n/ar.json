@@ -2397,7 +2397,8 @@
       "openNamed": "فتح {{name}}",
       "unnamed": "الخطة الأسبوعية (PDF)",
       "failed": "تعذّر فتح الملف. حاولي مرة أخرى."
-    }
+    },
+    "fileSize": "{{size}} ميجابايت"
   },
   "announcements": {
     "subtitle": "إعلانات مدرستك وأحداثها."

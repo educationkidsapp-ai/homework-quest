@@ -1509,8 +1509,10 @@ the conversation rather than on the list:
   once at sign-in, so a conversation created a second ago is not in it, and a list read still in flight would overwrite
   a row put there by hand — so the row is kept in the list *and* as the pending one, and `loadThreads` keeps it when the
   server's answer does not name it yet.
-- `ChatPage` follows `?thread=` reactively. A key the service does not hold is **re-read once** (`loadThreads`) before
-  the screen says "not in your list any more"; while a read is out it says nothing. Following a link also clears the
+- `ChatPage` follows `?thread=` reactively. A key the service does not hold is **re-read once** (`loadThreads`); if it
+  is still not hers the id is removed from the URL (`replaceUrl`) and the list is the screen, with no line and no band.
+  "Not in your list any more" is said only when the conversation she was *viewing* left the list
+  (`ChatService.activeGone`). Following a link also clears the
   search box and the correspondent chip, so the row it selects is visible. This is the shared page, so a bell link on
   the teacher's, the coordinator's and the admin's transports gets the same treatment.
 - **The manager's Complaints** (`/management/complaints`) is the coordinator's inbox component over
@@ -1520,7 +1522,9 @@ the conversation rather than on the list:
 - **A remembered thread id never reaches the server.** `ChatService` is a root singleton: its `activeKey`, list and
   messages now end with the account (`forgetAccount`, on a change of `auth.user().id`), a key the freshly read list
   does not hold is dropped rather than refetched, and the socket's `onopen` refetches only a conversation the list
-  still names. Before this, signing in as a coordinator in a tab where another account had a conversation open asked
+  still names. Every list and message read captures an account **epoch** when it is asked and is ignored if the
+  account has changed by the time it answers, so one account's rows can never land in the next one's screen. An adopted
+  thread stops being pending at the first list read that names it, or when she leaves it. Before this, signing in as a coordinator in a tab where another account had a conversation open asked
   `GET /coordinator/chat/threads/<that id>/messages` on connect — the "That did not work — thread not found" band on
   her first screen. A list read that *failed* drops nothing: no answer is not "no threads".
 

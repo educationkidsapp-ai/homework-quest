@@ -165,6 +165,18 @@ export class ChatService {
 
   /** Whose `threads`, `activeKey` and `messages` these are — see {@link forgetAccount}. */
   private owner: string | null = null;
+  /**
+   * Which account's state this is, counted. Bumped by {@link forgetAccount}; every read captures
+   * it when it is *asked* and is ignored if it has moved on by the time it *answers* — account A's
+   * list or messages landing after B signed in would otherwise put A's rows into B's screen.
+   */
+  private epoch = 0;
+
+  /**
+   * The conversation she was looking at is no longer in her list (she was taken off it, or it was
+   * removed). The one case the screen says so; a linked or remembered id is simply let go of.
+   */
+  readonly activeGone = signal(false);
 
   constructor() {
     // D2: this service is a root singleton, so what one account opened outlives her sign-out.
@@ -216,9 +228,12 @@ export class ChatService {
     const transports = this.routes.transports();
     if (transports.length === 0 || !this.flags.isOn('chat') || this.chatDenied()) return;
     this.loadingThreads.set(true);
+    const asked = this.epoch;
     forkJoin(transports.map((transport) => transport.threads().pipe(catchError(() => of(null)))))
       .pipe(
         tap((lists) => {
+          // Asked by an account that has since left: not this account's answer.
+          if (asked !== this.epoch) return;
           // A half that failed answered nothing — which is not the same as "she has no threads".
           const complete = lists.every((list) => list !== null);
           const listed = lists.flatMap((list) => list ?? []);
@@ -232,6 +247,9 @@ export class ChatService {
               : listed;
           this.threads.set(threads);
           this.loadingThreads.set(false);
+          // The first read that names the adopted thread confirms it, whether or not she is still
+          // on it: from here it is an ordinary row, and nothing keeps it alive but the list.
+          if (adopted !== null && threads === listed && (adopted.id ?? '') !== '') this.pending.set(null);
           // The list is the answer to "does this child have a thread": drop a placeholder the
           // server has since confirmed, and mark read what could not be marked without one.
           const active = this.activeKey();
@@ -248,10 +266,11 @@ export class ChatService {
             // a 404 in the red band for something she did not do.
             this.activeKey.set(null);
             this.messages.set([]);
+            this.activeGone.set(true);
           }
         }),
         catchError(() => {
-          this.loadingThreads.set(false);
+          if (asked === this.epoch) this.loadingThreads.set(false);
           return of([]);
         }),
       )
@@ -260,6 +279,10 @@ export class ChatService {
 
   /** Drop everything that belonged to the account that was signed in (D2). */
   private forgetAccount(): void {
+    this.epoch += 1;
+    this.loadingThreads.set(false);
+    this.loadingMessages.set(false);
+    this.activeGone.set(false);
     this.threads.set([]);
     this.activeKey.set(null);
     this.messages.set([]);
@@ -295,6 +318,11 @@ export class ChatService {
 
   selectThread(key: string): void {
     if (this.activeKey() === key) return;
+    // Leaving a thread `adopt` took: it stops being the pending one. What keeps it in the list
+    // from here is the server naming it, and no frame refetches the list on its account.
+    const waiting = this.pending();
+    if (waiting !== null && (waiting.id ?? '') !== '' && this.keyOf(waiting) !== key) this.pending.set(null);
+    this.activeGone.set(false);
     this.activeKey.set(key);
     this.isParentTyping.set(false);
     this.loadMessages(key);
@@ -338,15 +366,18 @@ export class ChatService {
     const transport = this.transportFor(key);
     if (transport === null) return;
     this.loadingMessages.set(true);
+    const asked = this.epoch;
     transport
       .messages(key)
       .pipe(
         tap((msgs) => {
+          // Another account's conversation, or one she has already moved on from: not hers to show.
+          if (asked !== this.epoch || this.activeKey() !== key) return;
           this.messages.set(msgs);
           this.loadingMessages.set(false);
         }),
         catchError(() => {
-          this.loadingMessages.set(false);
+          if (asked === this.epoch && this.activeKey() === key) this.loadingMessages.set(false);
           return of([]);
         }),
       )
@@ -512,11 +543,12 @@ export class ChatService {
           const msgs = this.messages();
           const lastMsg = msgs[msgs.length - 1];
           if (lastMsg && !lastMsg.pending) {
+            const asked = this.epoch;
             transport
               .messages(activeId, lastMsg.id)
               .pipe(
                 tap((newMsgs) => {
-                  if (newMsgs.length > 0) {
+                  if (asked === this.epoch && this.activeKey() === activeId && newMsgs.length > 0) {
                     this.mergeNewMessages(newMsgs);
                   }
                 }),
@@ -673,7 +705,8 @@ export class ChatService {
     const activeKey = this.activeKey();
     // The first message of a new conversation *is* the thread: refetch the list so the sidebar
     // has the row the server just created, and let it take the placeholder's place.
-    if (this.pending() !== null && message.threadId) {
+    // Only the placeholder `openWith` drew (it has no id yet) — an adopted thread is a real row.
+    if (this.pending() !== null && (this.pending()?.id ?? '') === '' && message.threadId) {
       this.loadThreads();
     }
     const active = this.activeThread();

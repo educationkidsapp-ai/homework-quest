@@ -119,7 +119,7 @@ import {
                 <span class="hq-badge" aria-hidden="true">PDF</span>
               }
               <span dir="auto">{{ file.name }}</span>
-              <span class="hq-muted" dir="ltr">{{ file.size }}</span>
+              <span class="hq-muted">{{ 'plans.fileSize' | transloco: { size: file.size } }}</span>
             </span>
           }
         </label>
@@ -217,13 +217,13 @@ export class PlanComposeComponent {
    */
   protected readonly preview = signal<string | null>(null);
 
-  /** The file she picked, in words: its name, its size, and whether it is the PDF kind. */
+  /** The file she picked: its name, its size in megabytes (the unit is the translation's), its kind. */
   protected readonly chosen = computed(() => {
     const file = this.draft().file;
     if (file === null) return null;
     return {
       name: file.name,
-      size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+      size: (file.size / (1024 * 1024)).toFixed(1),
       pdf: file.type === PLAN_PDF_TYPE,
     };
   });

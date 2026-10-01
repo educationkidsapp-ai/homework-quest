@@ -4,6 +4,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { activeLang } from '../../core/i18n/active-lang';
+import { FeatureDirective } from '../../core/flags/feature.directive';
 import { CanDirective } from '../../core/permissions/can.directive';
 import {
   type TableColumn,
@@ -61,6 +62,7 @@ interface TeacherRow {
     CanDirective,
     CoordinatorReadFailedComponent,
     EmptyStateComponent,
+    FeatureDirective,
     InputComponent,
     PageComponent,
     SkeletonComponent,
@@ -135,14 +137,18 @@ interface TeacherRow {
             {{ row.coordinators || '—' }}
           }
           @case ('actions') {
-            <hq-button
-              *hqCan="chatKey()"
-              variant="secondary"
-              [loading]="threads.pending() === row.userId"
-              (pressed)="message(row)"
-            >
-              {{ 'management.message.action' | transloco }}
-            </hq-button>
+            <!-- The key of the route it presses, and the flag that route carries: with chat off
+                 there is no Messages screen for the thread to open in. -->
+            <ng-container *hqFeature="'chat'">
+              <hq-button
+                *hqCan="chatKey()"
+                variant="secondary"
+                [loading]="threads.pending() === row.userId"
+                (pressed)="message(row)"
+              >
+                {{ 'management.message.action' | transloco }}
+              </hq-button>
+            </ng-container>
           }
           @case ('today') {
             <span
