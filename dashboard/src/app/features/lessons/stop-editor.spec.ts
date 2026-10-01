@@ -9,7 +9,6 @@ import { ADMIN_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
-import { ViewModeService } from '../../core/view-mode/view-mode.service';
 import type { Stop } from '../../ui/phone-preview';
 import { StopEditorComponent } from './stop-editor.component';
 
@@ -35,12 +34,10 @@ const STOP = {
 } as unknown as Stop;
 
 /**
- * Signed in with `stop.write`, because Save sits behind `*hqCan`.
- *
- * `debug` signs an Admin in instead and opens the Raw JSON panel — `ViewModeService` allows the
- * mode for ADMIN and for nobody else, so a teacher cannot be put into it even by a test.
+ * Signed in with `stop.write`, because Save sits behind `*hqCan`. `admin` signs an Admin in
+ * instead — the owner's list of 2026-10-01 took her Raw JSON panel away, and the spec says so.
  */
-async function renderEditor({ debug = false }: { debug?: boolean } = {}) {
+async function renderEditor({ admin = false }: { admin?: boolean } = {}) {
   const saved = vi.fn();
   const textSaved = vi.fn();
   const rendered = await renderHq(StopEditorComponent, {
@@ -52,19 +49,15 @@ async function renderEditor({ debug = false }: { debug?: boolean } = {}) {
   const backend = TestBed.inject(HttpTestingController);
   TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
   TestBed.inject(AuthService).loadMe().subscribe();
-  backend.expectOne('/me').flush(debug ? ADMIN_USER : TEACHER_USER);
+  backend.expectOne('/me').flush(admin ? ADMIN_USER : TEACHER_USER);
   TestBed.tick();
   backend.expectOne('/me/permissions').flush({
-    role: debug ? 'ADMIN' : 'TEACHER',
+    role: admin ? 'ADMIN' : 'TEACHER',
     permissions: ['lesson.read', 'stop.write'],
     readOnly: false,
   });
   await Promise.resolve();
   TestBed.tick();
-  if (debug) {
-    TestBed.inject(ViewModeService).set('debug');
-    TestBed.tick();
-  }
   await rendered.fixture.whenStable();
 
   return { rendered, saved, textSaved };
@@ -85,12 +78,21 @@ describe('Stop editor', () => {
     expect(document.querySelector('[data-hq-raw-json]')).toBeNull();
   });
 
-  it('keeps teacherText out of the document the Raw JSON panel shows an Admin', async () => {
-    await renderEditor({ debug: true });
+  it('shows an Admin no JSON either: the Raw panel went with the view-mode switch', async () => {
+    await renderEditor({ admin: true });
 
-    // `Play.schema.json` is `additionalProperties: false`: left in, the document never validates.
-    const json: HTMLTextAreaElement = screen.getByLabelText(/The whole stop/);
-    expect(JSON.parse(json.value)).not.toHaveProperty('teacherText');
+    expect(screen.queryByLabelText(/The whole stop/)).toBeNull();
+    expect(document.querySelector('[data-hq-raw-json]')).toBeNull();
+  });
+
+  it('keeps teacherText out of the document a quick-field save sends', async () => {
+    const { saved } = await renderEditor();
+
+    await userEvent.type(screen.getByLabelText(/^Title/), '!');
+    await userEvent.click(screen.getByRole('button', { name: 'Save the stop' }));
+
+    // `Play.schema.json` is `additionalProperties: false`: left in, the server refuses the document.
+    expect(saved.mock.calls[0]?.[0]).not.toHaveProperty('teacherText');
   });
 
   /**
@@ -132,8 +134,8 @@ describe('Stop editor', () => {
     await userEvent.type(screen.getByLabelText(/^Title/), '!');
     await pastTheDebounce();
 
-    // No Ajv on this path (see `stop-editor-chunk.spec.ts`): the bounds on the five fields are
-    // checked in the component instead, so Save still works.
+    // No Ajv on this path: the bounds on the five fields are checked in the component instead,
+    // so Save still works.
     const save = screen.getByRole('button', { name: 'Save the stop' });
     expect(save).toBeEnabled();
     await userEvent.click(save);

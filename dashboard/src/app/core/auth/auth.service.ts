@@ -1,10 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { DOCUMENT, Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, of, shareReplay, throwError, timer } from 'rxjs';
 import { catchError, finalize, map, retry, switchMap, tap } from 'rxjs/operators';
 import { AuthApi, DashboardUser, SignInResponse, TokenPair } from '../../api';
 import { MediaService } from '../media/media.service';
 import { RefreshLock } from './refresh-lock';
+import { forgetRememberedState } from './remembered-state';
 import { SchoolScopeStore } from './school-scope.store';
 import { SessionStore } from './session.store';
 
@@ -76,10 +77,12 @@ export class AuthService {
   private readonly schoolScope = inject(SchoolScopeStore);
   private readonly media = inject(MediaService);
   private readonly lock = inject(RefreshLock);
+  private readonly doc = inject(DOCUMENT);
 
   private readonly currentUser = signal<DashboardUser | null>(null);
   private readonly currentStatus = signal<AuthStatus>('unknown');
   private readonly reconnectingNow = signal(false);
+  private readonly sameOwner = signal(true);
   private inFlightRefresh: Observable<string> | null = null;
   /** Whether the shared in-flight refresh is one whose 401 ends the session. */
   private inFlightEndsSession = true;
@@ -94,6 +97,17 @@ export class AuthService {
    */
   readonly reconnecting = this.reconnectingNow.asReadonly();
   readonly signedIn = computed(() => this.currentStatus() === 'authenticated');
+  /**
+   * Whether the account that just signed in is the one this tab last held a session for (or the
+   * tab had held none).
+   *
+   * D1: what decides whether a remembered address may be followed. `/sign-in?returnTo=…` is
+   * written when a session dies under a screen, and the screen it names was the *previous*
+   * account's — a class of another teacher, a thread of another role, a row of a school that has
+   * since been re-created. Followed by a different account it is a 404 nobody caused, in a red
+   * band, on first open. False means: go Home.
+   */
+  readonly continuesLastSession = this.sameOwner.asReadonly();
   readonly role = computed<Role | null>(() => {
     const role = this.currentUser()?.role;
     return isRole(role) ? role : null;
@@ -154,6 +168,18 @@ export class AuthService {
   loadMe(): Observable<DashboardUser> {
     return this.api.me().pipe(
       tap((user) => {
+        // D1: before the stamp is rewritten — is this the account the tab last held? If not,
+        // whatever the browser remembered was the other account's, and goes before any screen
+        // of this one can read it.
+        if (user.id && user.role) {
+          const last = this.session.lastOwner();
+          const same = last === null || last === `${user.id}:${user.role}`;
+          this.sameOwner.set(same);
+          if (!same) {
+            this.schoolScope.clear();
+            forgetRememberedState(this.doc.defaultView);
+          }
+        }
         this.currentUser.set(user);
         this.currentStatus.set('authenticated');
         // T2 item (e): stamp the stored session with whose it is, so a second role signing in
@@ -246,6 +272,8 @@ export class AuthService {
   forget(): void {
     this.session.clear();
     this.schoolScope.clear();
+    // D1: the ids this account left in the browser leave with it.
+    forgetRememberedState(this.doc.defaultView);
     this.currentUser.set(null);
     this.currentStatus.set('anonymous');
     this.inFlightRefresh = null;

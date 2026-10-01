@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -86,6 +86,17 @@ export class GradebookComponent {
 
   readonly classId = input.required<string>();
   readonly className = input('');
+  /**
+   * D1: something here was written. The class page keeps its tabs for the visit, so it is told —
+   * and drops the kept copies of the tabs that read what this one wrote.
+   */
+  readonly changed = output<void>();
+
+  /** Every reload here follows a write (or its undo), so it is also the moment to say so. */
+  private refresh(): void {
+    this.book.reload();
+    this.changed.emit();
+  }
 
   /**
    * R6 (DR2): the grid, and nothing that writes to it.
@@ -222,11 +233,11 @@ export class GradebookComponent {
       next: () => {
         this.savingCell.set(false);
         this.loaded.delete(cell.lessonId);
-        this.book.reload();
+        this.refresh();
         this.undo.offerUndo({
           message: this.t('results.gradebook.saved', { name: row.name, score: this.score(next.score) }),
           undo: () => this.restore(row, cell, next, before),
-          commit: () => this.book.reload(),
+          commit: () => this.refresh(),
         });
       },
       error: (error: unknown) => {
@@ -240,7 +251,7 @@ export class GradebookComponent {
     const payload = marks(cell.lessonId, row.childId, before, applied);
     if (payload.length === 0) return;
     this.api.saveMarks(request(payload)).subscribe({
-      next: () => this.book.reload(),
+      next: () => this.refresh(),
       error: (error: unknown) => this.fail(error),
     });
   }

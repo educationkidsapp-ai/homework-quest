@@ -1,5 +1,5 @@
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -82,6 +82,17 @@ export class ClassChildrenComponent {
   readonly classId = input.required<string>();
   /** The section's own name — "1A British" — for the sentences that name where a child went. */
   readonly className = input('');
+  /**
+   * D1: something here was written. The class page keeps its tabs for the visit, so it is told —
+   * and drops the kept copies of the tabs that read what this one wrote.
+   */
+  readonly changed = output<void>();
+
+  /** Every reload here follows a write (or its undo), so it is also the moment to say so. */
+  private refresh(): void {
+    this.children.reload();
+    this.changed.emit();
+  }
 
   /** The flag key both the request and the `*hqFeature` on every control read. */
   protected readonly rosterFlag = FLAGS.teacherRosterEdit;
@@ -193,12 +204,12 @@ export class ClassChildrenComponent {
         next: () => {
           this.saving.set(false);
           this.editing.set(null);
-          this.children.reload();
+          this.refresh();
           this.undo.offerUndo({
             message: this.t('classes.children.undo.renamed', { name }),
             // Undo puts the old values back the same way they were changed: another PATCH.
             undo: () => this.restore(row),
-            commit: () => this.children.reload(),
+            commit: () => this.refresh(),
           });
         },
         error: (error: unknown) => this.fail(error),
@@ -211,7 +222,7 @@ export class ClassChildrenComponent {
         name: row.name,
         parentEmail: row.parentEmail ?? undefined,
       })
-      .subscribe({ next: () => this.children.reload(), error: (error: unknown) => this.fail(error) });
+      .subscribe({ next: () => this.refresh(), error: (error: unknown) => this.fail(error) });
   }
 
   // ---- activate / deactivate -------------------------------------------------------------------
@@ -220,13 +231,13 @@ export class ClassChildrenComponent {
     const next = !(row.active ?? true);
     this.rosterApi.updateInMyClass(this.classId(), row.childId, { active: next }).subscribe({
       next: () => {
-        this.children.reload();
+        this.refresh();
         this.undo.offerUndo({
           message: this.t(next ? 'classes.children.undo.activated' : 'classes.children.undo.deactivated', {
             name: row.name,
           }),
           undo: () => this.toggleActive({ ...row, active: next }),
-          commit: () => this.children.reload(),
+          commit: () => this.refresh(),
         });
       },
       error: (error: unknown) => this.fail(error),
@@ -255,7 +266,7 @@ export class ClassChildrenComponent {
       next: () => {
         this.adding.set(false);
         this.addOpen.set(false);
-        this.children.reload();
+        this.refresh();
         this.students.reload();
       },
       error: (error: unknown) => {
@@ -280,7 +291,7 @@ export class ClassChildrenComponent {
    * what the other five columns say and the roster decides that she is there at all.
    */
   protected onPlaced(child: RosterChild): void {
-    this.children.reload();
+    this.refresh();
     this.students.reload();
     this.placedToast.set(
       this.t('classes.children.place.done', { name: child.name ?? '', class: this.sectionName() }),
@@ -321,7 +332,7 @@ export class ClassChildrenComponent {
     if (!row) return;
     this.rosterApi.detachFromMyClass(this.classId(), row.childId).subscribe({
       next: () => {
-        this.children.reload();
+        this.refresh();
         this.students.reload();
         this.placedToast.set(
           this.t('classes.children.remove.done', { name: row.name, class: this.sectionName() }),

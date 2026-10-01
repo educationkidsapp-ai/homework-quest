@@ -10,6 +10,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PermissionService } from '../../core/permissions/permission.service';
 import { ThemeService } from '../../core/theme/theme.service';
+import { SchoolCardComponent } from '../admin/school-card.component';
 import { BandComponent, ButtonComponent, CountUpDirective, PageComponent, SkeletonComponent } from '../../ui';
 
 /**
@@ -56,6 +57,7 @@ interface QuickActionItem {
     NgClass,
     NgTemplateOutlet,
     PageComponent,
+    SchoolCardComponent,
     CountUpDirective,
     SkeletonComponent,
     BandComponent,
@@ -96,7 +98,7 @@ interface QuickActionItem {
       } @else {
         <div class="em-dashboard">
           <!-- =========== 1. The counts, each a door to the screen behind it =========== -->
-          <section class="em-stats-grid" [attr.aria-label]="'home.cardsLabel' | transloco" data-hq-tour="cards">
+          <section class="em-stats-grid" [attr.aria-label]="'home.cardsLabel' | transloco">
             @for (card of cards(); track card.key) {
               @if (cardLink(card.key); as link) {
                 <a class="em-stat-card em-stat-card--link" [routerLink]="link" data-hq-card-link>
@@ -191,6 +193,12 @@ interface QuickActionItem {
                 </div>
             </div>
           </ng-template>
+
+          <!-- D1: the school's logo — upload, replace, remove. The Admin's alone: it is her school
+               to dress, and there is no settings screen left in the rail to put it on. -->
+          @if (isAdmin()) {
+            <hq-school-card (changed)="home.reload()" />
+          }
 
           <!-- ================= 2. Quick Actions Panel ================= -->
           <section class="em-card em-quick-actions-card" [attr.aria-label]="'home.quickActions.title' | transloco">
@@ -705,6 +713,7 @@ export class HomePage {
   private readonly lang = activeLang();
 
   protected readonly isTeacher = computed(() => this.auth.role() === 'TEACHER');
+  protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
 
   protected readonly home = rxResource<HomeResponse, string | undefined>({
     params: () => (this.auth.signedIn() ? (this.auth.effectiveSchoolId() ?? 'all') : undefined),

@@ -313,19 +313,14 @@ async function openSignIn(page: Page): Promise<void> {
 }
 
 /**
- * Sign-in through the screen, tour dismissed.
- *
- * The tour is modal, so nothing below it is clickable until Skip has been pressed.
+ * Sign-in through the screen, returning once the shell has drawn its rail.
  */
 export async function signIn(page: Page, who: Account): Promise<void> {
   await openSignIn(page);
   await page.getByLabel('Email').fill(who.email);
   await page.getByLabel('Password').fill(who.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  const skip = page.getByRole('button', { name: 'Skip' });
-  await skip.waitFor({ state: 'visible', timeout: 30_000 });
-  await skip.click();
-  await expect(page.getByRole('dialog').first()).toBeHidden();
+  await page.getByRole('navigation').first().waitFor({ state: 'visible', timeout: 30_000 });
 }
 
 export function signInAsSara(page: Page): Promise<void> {

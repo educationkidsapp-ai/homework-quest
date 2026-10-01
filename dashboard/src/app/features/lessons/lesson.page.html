@@ -486,7 +486,6 @@
               [disabled]="busy() !== null || stopBusy(stop.id)"
               [saving]="savingStopText()"
               [failure]="stopSaveFailure()"
-              [validatorErrors]="stopValidatorErrors()"
               (saved)="saveStop($event)"
               (textSaved)="saveStopText($event)"
               (regenerated)="requestRegenerateStop()"

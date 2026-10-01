@@ -2,7 +2,7 @@
    like its list. Its own contents carry the gates: the Children tab's roster lives behind
    `teacher.rosterEdit` + `roster.teacher`, and Gradebook and Exams carry `gradebook` and
    `exams` — the flags their own endpoints carry. */
-import { Location } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -11,15 +11,25 @@ import {
   effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { TeacherApi } from '../../api';
+import { catchError, of, tap } from 'rxjs';
+import { type ClassCalendar, TeacherApi } from '../../api';
+import { quietNotFound } from '../../core/http/error.interceptor';
 import { activeLang } from '../../core/i18n/active-lang';
 import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { ClassContextService } from '../../core/nav/class-context.service';
-import { EmptyStateComponent, PageComponent, TabsComponent, type Breadcrumb, type Tab } from '../../ui';
+import {
+  EmptyStateComponent,
+  PageComponent,
+  SkeletonComponent,
+  TabsComponent,
+  type Breadcrumb,
+  type Tab,
+} from '../../ui';
 import { ClassCalendarComponent } from './class-calendar.component';
 import { GradebookComponent } from '../results/gradebook.component';
 import { ExamsTabComponent } from '../exams/exams-tab.component';
@@ -30,20 +40,57 @@ import { calendarCells, monthParam, shiftMonth } from './classes.models';
 const TAB_IDS = ['calendar', 'children', 'attendance', 'gradebook', 'exams'] as const;
 type TabId = (typeof TAB_IDS)[number];
 
+/**
+ * Which tabs read what a tab writes.
+ *
+ * - **Children** writes the roster: the register lists it, the gradebook has a row per child and
+ *   an exam's counts are out of it.
+ * - **Attendance** writes the register, which the roster's own row for a child summarises.
+ * - **Gradebook** writes marks and releases: the calendar's results column and a child's level
+ *   band on the roster are computed from them, and an exam's row carries its marking state.
+ * - **Calendar** and **Exams** write nothing here — their actions open another screen, and coming
+ *   back builds the whole class page again.
+ */
+const DEPENDENTS: Readonly<Record<TabId, readonly TabId[]>> = {
+  calendar: [],
+  children: ['attendance', 'gradebook', 'exams'],
+  attendance: ['children'],
+  gradebook: ['calendar', 'children', 'exams'],
+  exams: [],
+};
+
 function isTabId(value: string | null): value is TabId {
   return TAB_IDS.includes((value ?? '') as TabId);
 }
 
 /**
- * **The class page** (`docs/teacher-flow.md` §4 step 3 and §5) — one class, four tabs.
+ * **The class page** (`docs/teacher-flow.md` §4 step 3 and §5) — one class, five tabs, **one
+ * shell**.
  *
- * All four are built. Gradebook (N4.2) and Exams (N4.4) sit behind their school's own flags and
- * say what they would hold when one is off, rather than disappearing — a teacher who sees two
- * tabs where a colleague has four assumes something is broken in her account.
+ * All five are built. Gradebook (N4.2) and Exams (N4.4) sit behind their school's own flags and
+ * say what they would hold when one is off, rather than disappearing — a teacher who sees three
+ * tabs where a colleague has five assumes something is broken in her account.
  *
- * **The tab is in the URL** (`?tab=children`). A tab kept only in a signal is a screen that
- * cannot be linked to, comes back on the wrong panel after a reload, and answers Back by
- * leaving the class entirely. `replaceUrl` keeps the history one entry per class, not per tab.
+ * **The shell stays; only the tab body swaps** (the owner's list of 2026-10-01, TEACHER item 2).
+ * The header, the actions and the tab strip belong to this component, which the router keeps for
+ * as long as she is in the class — a tab is a *query parameter* of the one route, so moving
+ * between tabs is a navigation Angular answers by re-using this instance. Each tab's component is
+ * created the first time she opens it and then kept (hidden, not destroyed), so its data is
+ * fetched once for the visit and refetched only by its own mutations or a reload of the page.
+ *
+ * **The tab is in the URL** (`?tab=children`), and the URL is the *only* state: the strip reads
+ * the query and a click navigates. So a deep link opens on its tab, a reload comes back to it,
+ * and Back walks the tabs she visited before it leaves the class. The previous version kept a
+ * signal beside the URL and wrote the address with `Location.replaceState`, which the router
+ * never heard about — after a reload or a deep link the two disagreed and the strip snapped back
+ * to the tab the router still believed in.
+ *
+ * **A class that is not hers is not an error she caused.** The id in the address may be a
+ * bookmark, a `returnTo`, or a class from before the school was re-created; the first request is
+ * therefore quiet about a 404 — and only a 404: a dead session still goes to sign-in — and sends
+ * her to My classes instead of raising the red band. Nothing
+ * else — no roster, no register, no gradebook — is asked for until that first answer has
+ * confirmed the class, so a stale id costs one quiet request rather than five loud ones.
  *
  * While she is here the class joins the rail as its third item (§5), and leaving clears it —
  * `ClassContextService`, set on arrival and cleared on destroy.
@@ -54,6 +101,7 @@ function isTabId(value: string | null): value is TabId {
     PageComponent,
     TabsComponent,
     EmptyStateComponent,
+    SkeletonComponent,
     ClassCalendarComponent,
     ClassChildrenComponent,
     ClassAttendanceComponent,
@@ -70,7 +118,6 @@ export class ClassPage {
   private readonly teacherApi = inject(TeacherApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly location = inject(Location);
   private readonly transloco = inject(TranslocoService);
   private readonly classContext = inject(ClassContextService);
   private readonly flags = inject(FlagService);
@@ -82,16 +129,58 @@ export class ClassPage {
   });
 
   protected readonly classId = computed(() => this.path().get('classId') ?? '');
-  private lastClassId = '';
 
-  protected readonly visitedTabs = signal<Set<TabId>>(new Set([
-    isTabId(this.route.snapshot.queryParamMap.get('tab'))
-      ? (this.route.snapshot.queryParamMap.get('tab') as TabId)
-      : 'calendar',
-  ]));
+  /**
+   * The class whose first calendar answer has arrived — the proof that the id in the address is a
+   * class of hers. Tab bodies wait on it; a month change afterwards does not unset it.
+   */
+  private readonly confirmedClass = signal<string | null>(null);
+  protected readonly confirmed = computed(() => this.confirmedClass() === this.classId());
+
+  // ---- the tabs: the URL is the state ---------------------------------------------------------
+
+  /** `?tab=` — read, never mirrored. An absent or unknown value is the calendar. */
+  protected readonly tab = computed<TabId>(() => {
+    const value = this.query().get('tab');
+    return isTabId(value) ? value : 'calendar';
+  });
+
+  /** The tabs opened on this visit to this class: each is created once and then kept. */
+  protected readonly visitedTabs = signal<ReadonlySet<TabId>>(new Set([this.tab()]));
+  private visitedFor = this.classId();
 
   protected hasVisited(id: TabId): boolean {
-    return this.visitedTabs().has(id);
+    return this.confirmed() && this.visitedTabs().has(id);
+  }
+
+  /**
+   * A click on the strip. A query-only navigation of the route she is already on: the router
+   * re-uses this component, so nothing above the tab body is rebuilt and nothing is refetched.
+   * It pushes a history entry, which is what lets Back return to the tab she came from.
+   */
+  /**
+   * **A write in one tab makes the others' copies old.**
+   *
+   * Tabs are kept for the visit, so a pane opened before the write would go on showing what was
+   * true then: a child added to the roster missing from the register and the gradebook, a mark
+   * missing from the calendar's results column. The tab that wrote says so (`changed`), and every
+   * tab that reads what it wrote is dropped from the kept set — it is hidden at that moment, so
+   * nothing visibly happens — and is built again, from the server, the next time she opens it.
+   * The calendar lives in this shell rather than in a pane, so it is reloaded in place.
+   */
+  protected onChanged(source: TabId): void {
+    const stale = DEPENDENTS[source];
+    this.visitedTabs.update((seen) => new Set([...seen].filter((id) => id === this.tab() || !stale.includes(id))));
+    if (stale.includes('calendar')) this.calendar.reload();
+  }
+
+  protected selectTab(id: TabId): void {
+    if (id === this.tab()) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: id },
+      queryParamsHandling: 'merge',
+    });
   }
 
   // ---- which month --------------------------------------------------------------------------
@@ -100,9 +189,20 @@ export class ClassPage {
   protected readonly year = signal(this.now.getUTCFullYear());
   protected readonly month = signal(this.now.getUTCMonth() + 1);
 
-  protected readonly calendar = rxResource({
+  protected readonly calendar = rxResource<ClassCalendar, { classId: string; month: string }>({
     params: () => ({ classId: this.classId(), month: monthParam(this.year(), this.month()) }),
-    stream: ({ params }) => this.teacherApi.classCalendar(params.classId, undefined, params.month),
+    stream: ({ params }) =>
+      this.teacherApi
+        .classCalendar(params.classId, undefined, params.month, 'body', false, { context: quietNotFound() })
+        .pipe(
+          tap(() => this.confirmedClass.set(params.classId)),
+          catchError((error: unknown) => {
+            this.onCalendarFailed(error, params.classId);
+            // An empty calendar rather than an errored resource: the screen is leaving (404) or the
+            // interceptor has said why in the band, and `value()` of a failed resource throws.
+            return of<ClassCalendar>({});
+          }),
+        ),
     defaultValue: {},
   });
 
@@ -158,12 +258,6 @@ export class ClassPage {
 
   // ---- the tabs --------------------------------------------------------------------------------
 
-  protected readonly tab = signal<TabId>(
-    isTabId(this.route.snapshot.queryParamMap.get('tab'))
-      ? (this.route.snapshot.queryParamMap.get('tab') as TabId)
-      : 'calendar',
-  );
-
   protected readonly tabs = computed<readonly Tab<TabId>[]>(() => {
     this.lang();
     return [
@@ -205,53 +299,19 @@ export class ClassPage {
   constructor() {
     const destroyRef = inject(DestroyRef);
 
-    // Keep visited tabs in memory for instant 0ms switching without re-fetching
+    // A tab joins the kept set the first time it is opened; another class starts the set again.
     effect(() => {
-      const currentTab = this.tab();
-      if (!this.visitedTabs().has(currentTab)) {
-        this.visitedTabs.update((set) => new Set([...set, currentTab]));
-      }
-    });
-
-    // Reset visited tabs if the class ID itself changes
-    effect(() => {
-      const cid = this.classId();
-      if (this.lastClassId && this.lastClassId !== cid) {
-        this.visitedTabs.set(new Set([this.tab()]));
-      }
-      this.lastClassId = cid;
-    });
-
-    // The tab lives in the URL, replacing without triggering a full router navigation
-    effect(() => {
+      const classId = this.classId();
       const tab = this.tab();
-      const urlTree = this.router.createUrlTree([], {
-        relativeTo: this.route,
-        queryParams: { tab },
-        queryParamsHandling: 'merge',
+      untracked(() => {
+        if (classId !== this.visitedFor) {
+          this.visitedFor = classId;
+          this.visitedTabs.set(new Set([tab]));
+        } else if (!this.visitedTabs().has(tab)) {
+          this.visitedTabs.update((seen) => new Set([...seen, tab]));
+        }
       });
-      const newUrl = this.router.serializeUrl(urlTree);
-      if (this.location.path() !== newUrl) {
-        this.location.replaceState(newUrl);
-      }
     });
-
-    // Sync incoming URL query param ?tab= (e.g. browser back/forward or direct navigation)
-    effect(() => {
-      const queryTab = this.query().get('tab');
-      if (isTabId(queryTab) && queryTab !== this.tab()) {
-        this.tab.set(queryTab);
-      }
-    });
-
-    const locationSub = this.location.subscribe(() => {
-      const params = new URLSearchParams(window.location.search);
-      const queryTab = params.get('tab');
-      if (isTabId(queryTab) && queryTab !== this.tab()) {
-        this.tab.set(queryTab);
-      }
-    });
-    destroyRef.onDestroy(() => locationSub.unsubscribe());
 
     // §5's third rail item, for as long as she is on this class.
     effect(() => {
@@ -261,6 +321,22 @@ export class ClassPage {
       this.classContext.set({ id, label, link: `/teacher/classes/${id}` });
     });
     destroyRef.onDestroy(() => this.classContext.clear());
+  }
+
+  /**
+   * The calendar did not answer.
+   *
+   * A 404 is "this class is not yours, or is gone" — and she did not click anything to cause it
+   * (My classes only lists classes that exist), so it is a stale address: back to the list,
+   * replacing this entry so Back does not return to it. The request is `quietNotFound()`, so that
+   * is the one status with no band; every other failure — a 401's trip to sign-in included — is
+   * the error interceptor's, unchanged.
+   */
+  private onCalendarFailed(error: unknown, classId: string): void {
+    const missing = error instanceof HttpErrorResponse && error.status === 404;
+    if (missing && this.confirmedClass() !== classId) {
+      void this.router.navigate(['/teacher/classes'], { replaceUrl: true });
+    }
   }
 
   private word(key: string, fallback: string): string {

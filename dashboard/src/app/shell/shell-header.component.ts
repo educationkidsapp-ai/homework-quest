@@ -15,13 +15,12 @@ import { CanDirective } from '../core/permissions/can.directive';
 import { PermissionService } from '../core/permissions/permission.service';
 import { FLAGS, FlagService } from '../core/flags/flag.service';
 import { activeLang } from '../core/i18n/active-lang';
+import { NAV_CONFIG } from '../core/nav/nav-config';
 import { LANGUAGES, LanguageService } from '../core/i18n/language.service';
 import { ScreenSearchService } from '../core/shell/screen-search.service';
 import { SIDEBAR_ID, SidebarService } from '../core/shell/sidebar.service';
 import { DarkModeService } from '../core/theme/dark-mode.service';
 import { NotificationsService, bodyKeyOf, titleKeyOf } from '../core/notifications/notifications.service';
-import { TourService } from '../core/tour/tour.service';
-import { ViewModeService } from '../core/view-mode/view-mode.service';
 
 /**
  * The bar above every screen (spec §2 "Header"): sticky, the raised surface, a 1 px rule under
@@ -110,12 +109,11 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
         }
 
         <div class="header__actions">
-          @if (isAdmin()) {
+          @if (showSwitcher()) {
             <button
               *hqFeature="'multiSchool'"
               type="button"
               class="header__pill"
-              data-hq-tour="switcher"
               [cdkMenuTriggerFor]="schoolMenu"
               [attr.aria-label]="'shell.switcher.label' | transloco"
             >
@@ -188,7 +186,7 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
             }
           </button>
 
-          <button type="button" class="header__user" data-hq-tour="profile" [cdkMenuTriggerFor]="profileMenu">
+          <button type="button" class="header__user" [cdkMenuTriggerFor]="profileMenu">
             <span class="header__avatar" aria-hidden="true">{{ monogram() }}</span>
             <span class="header__user-info">
               <span class="header__user-name">{{ auth.displayName() }}</span>
@@ -299,26 +297,6 @@ import { ViewModeService } from '../core/view-mode/view-mode.service';
         <a cdkMenuItem class="hq-menu__item" routerLink="/profile" (cdkMenuItemTriggered)="openProfile()">{{
           'shell.profile.open' | transloco
         }}</a>
-        <!-- MG2a: a role with no tour has no entry. The manager asked for hers to go, and an
-             item that opened nothing would be worse than the one that was removed. -->
-        @if (tourOffered()) {
-          <button type="button" cdkMenuItem class="hq-menu__item" (cdkMenuItemTriggered)="showMeAround()">
-            {{ 'shell.showMeAround' | transloco }}
-          </button>
-        }
-        <!-- CR5: the raw surfaces, for the one role that is expected to read them. -->
-        @if (viewMode.allowed()) {
-          <button
-            type="button"
-            cdkMenuItem
-            class="hq-menu__item"
-            data-hq-view-mode
-            [attr.aria-pressed]="viewMode.debug()"
-            (cdkMenuItemTriggered)="viewMode.toggle()"
-          >
-            {{ 'shell.viewMode.' + viewMode.mode() | transloco }}
-          </button>
-        }
         <button
           type="button"
           cdkMenuItem
@@ -751,7 +729,7 @@ export class ShellHeaderComponent {
   private readonly router = inject(Router);
   private readonly schoolsApi = inject(SchoolsApi);
   private readonly flags = inject(FlagService);
-  private readonly tour = inject(TourService);
+  private readonly navConfig = inject(NAV_CONFIG);
   private readonly chatService = inject(ChatService);
 
   protected readonly scope = inject(SchoolScopeStore);
@@ -760,14 +738,16 @@ export class ShellHeaderComponent {
   protected readonly sidebarId = SIDEBAR_ID;
   protected readonly auth = inject(AuthService);
   protected readonly language = inject(LanguageService);
-  protected readonly viewMode = inject(ViewModeService);
   /** U1 item 1: the box the showing screen claimed, or nothing. */
   protected readonly search = inject(ScreenSearchService);
   protected readonly languages = LANGUAGES;
-  /** MG2a: MANAGERIAL has no tour, so her account menu has no "Show me around". */
-  protected readonly tourOffered = computed(() => this.tour.offeredTo(this.auth.role()));
 
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
+  /**
+   * The "All schools" switcher: an Admin's, behind `multiSchool`, and — since the owner's list of
+   * 2026-10-01 — behind the one nav switch too (`core/nav/nav-config.ts`). Hidden in design only.
+   */
+  protected readonly showSwitcher = computed(() => this.isAdmin() && this.navConfig.schoolSurfaces);
   /**
    * Where the header's chat icon goes.
    *
@@ -863,7 +843,7 @@ export class ShellHeaderComponent {
    * access log.
    */
   protected readonly schools = rxResource<readonly SchoolSummary[], boolean | undefined>({
-    params: () => (this.isAdmin() && this.flags.isOn(FLAGS.multiSchool) ? true : undefined),
+    params: () => (this.showSwitcher() && this.flags.isOn(FLAGS.multiSchool) ? true : undefined),
     stream: () => this.schoolsApi.listSchools().pipe(catchError(() => of<SchoolSummary[]>([]))),
     defaultValue: [],
   });
@@ -882,11 +862,6 @@ export class ShellHeaderComponent {
   protected choose(school: SchoolSummary | null): void {
     if (school?.id && school.name) this.scope.select({ id: school.id, name: school.name });
     else this.scope.select(null);
-  }
-
-  protected showMeAround(): void {
-    const role = this.auth.role();
-    if (role) this.tour.start(role);
   }
 
   protected openProfile(): void {

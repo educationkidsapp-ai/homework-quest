@@ -1,16 +1,17 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { EnvironmentProviders, Provider } from '@angular/core';
+import { EnvironmentProviders, Provider, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BASE_PATH } from '../../api';
 import { ADMIN_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
+import { AdminThreadService } from './admin-thread.service';
 import { StaffAccountsPage } from './staff-accounts.page';
 
 const ADMIN_PERMISSIONS = {
@@ -76,6 +77,19 @@ async function renderSignedIn(
   await settle(rendered);
 
   return { rendered, backend };
+}
+
+/**
+ * D1: the row's "Message" hands one id to `AdminThreadService` (its own spec covers the request
+ * and the landing). Faked here so the screen's part — *which* id, under *which* name — is what
+ * the test reads, without a flag map and a chat permission to stand up first.
+ */
+function fakeThreads(available = true) {
+  const open = vi.fn();
+  TestBed.overrideProvider(AdminThreadService, {
+    useValue: { available: signal(available), pending: signal(''), open },
+  });
+  return open;
 }
 
 describe('Coordinators', () => {
@@ -224,6 +238,16 @@ describe('Coordinators', () => {
     expect(screen.getByText('No coordinators yet. Add the first one.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add coordinator' })).not.toBeInTheDocument();
   });
+
+  it('offers Message on a coordinator, and names her as the coordinator of the thread', async () => {
+    const open = fakeThreads();
+    await renderSignedIn('coordinators', [HODA]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Hoda' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Message' }));
+
+    expect(open).toHaveBeenCalledWith('u-hoda', { coordinatorUserId: 'u-hoda' });
+  });
 });
 
 describe('Managers', () => {
@@ -270,5 +294,15 @@ describe('Managers', () => {
     const put = backend.expectOne('/admin/managers/u-nadia/scopes');
     expect(put.request.method).toBe('PUT');
     expect(put.request.body).toEqual({ curricula: ['british', 'american'] });
+  });
+
+  it('offers Message on a manager, and names her as the manager of the thread', async () => {
+    const open = fakeThreads();
+    await renderSignedIn('managers', [NADIA]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Nadia' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Message' }));
+
+    expect(open).toHaveBeenCalledWith('u-nadia', { managerUserId: 'u-nadia' });
   });
 });

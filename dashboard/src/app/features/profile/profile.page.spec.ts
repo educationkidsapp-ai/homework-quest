@@ -44,7 +44,7 @@ describe('Profile', () => {
   it('no longer offers the tour or a second place to change the language', async () => {
     await renderProfile();
 
-    // Both live in the header: the tour in the account menu, the language in its own switch.
+    // The tour is gone altogether (D1); the language lives in the header's own switch.
     expect(screen.queryByRole('button', { name: 'Show me around' })).toBeNull();
     expect(screen.queryByRole('combobox', { name: /language/i })).toBeNull();
     expect(screen.queryByText('Language')).toBeNull();

@@ -115,7 +115,7 @@ test('the Admin rail carries every screen §6 gives the Admin on one school', as
   await signIn(page, ADMIN);
   const rail = page.getByRole('navigation');
 
-  for (const item of ['Home', 'Classes', 'Teachers', 'Users'])
+  for (const item of ['Home', 'Classes', 'Teachers'])
     await expect(rail.getByRole('link', { name: item })).toBeVisible();
 
   // MA0 (the owner's admin list, 2026-09-30), items 6–9: the four rows are gone from the rail,
@@ -186,36 +186,17 @@ test('a cold start on a guarded bookmark is let through, not bounced', async ({ 
   await expect(page.getByRole('heading', { name: 'Coming soon' })).toBeVisible({ timeout: 30_000 });
 });
 
-test('the tour is modal in fact, not just in its attributes', async ({ page }) => {
-  await page.goto('sign-in');
-  await page.getByLabel('Email').fill(SARA.email);
-  await page.getByLabel('Password').fill(SARA.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible({ timeout: 30_000 });
-  // Focus starts on the step's title, so a screen reader reads the step it is on.
-  await expect(dialog.locator('h2')).toBeFocused();
-
-  // And Tab stays inside: four presses cannot reach the rail behind the spotlight.
-  for (let press = 0; press < 4; press++) await page.keyboard.press('Tab');
-  expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
-
-  await page.keyboard.press('Escape');
-  await expect(dialog).toBeHidden();
-});
-
 test('a route change moves focus to the new screen and announces it', async ({ page }) => {
   await signIn(page, ADMIN);
   await expect(page.getByRole('heading', { name: /^Hello,/ })).toBeVisible();
 
-  await page.getByRole('navigation').getByRole('link', { name: 'Users' }).click();
-  await expect(page).toHaveURL(/\/dashboard\/admin\/users$/);
+  await page.getByRole('navigation').getByRole('link', { name: 'Teachers' }).click();
+  await expect(page).toHaveURL(/\/dashboard\/admin\/teachers$/);
 
   // Focus is on the new screen's heading, not left on the link that was clicked.
   await expect(page.locator('main h1')).toBeFocused();
   // …and the title reached the live region, so the change is perceivable without a page load.
-  await expect(page.locator('[aria-live]')).toContainText('Coming soon');
+  await expect(page.locator('[aria-live]')).toContainText('Teachers');
 });
 
 test('? opens the shortcut sheet and Esc closes it', async ({ page }) => {

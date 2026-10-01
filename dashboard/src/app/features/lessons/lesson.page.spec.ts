@@ -10,7 +10,6 @@ import { BASE_PATH } from '../../api';
 import { ADMIN_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
-import { ViewModeService } from '../../core/view-mode/view-mode.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { LessonPage } from './lesson.page';
 import { StopDraftService } from './stop-draft.service';
@@ -20,9 +19,6 @@ const ADMIN_PERMISSIONS = {
   permissions: ['lesson.read', 'lesson.write', 'lesson.publish', 'lesson.delete', 'play.write', 'stop.write'],
   readOnly: false,
 };
-
-/** The stop editor validates asynchronously; CI's runner is slower than this Mac. */
-const VALIDATION_TIMEOUT = 10_000;
 
 const TEACHER_PERMISSIONS = {
   role: 'TEACHER',
@@ -84,16 +80,6 @@ function providersFor(id: string, query: Record<string, string> = {}): (Provider
  */
 async function renderLesson(lesson: object, notice?: string, query: Record<string, string> = {}) {
   return renderLessonAs(lesson, ADMIN_USER, ADMIN_PERMISSIONS, notice, query);
-}
-
-/**
- * CR5: the Raw JSON panel is an Admin's, in debug view, and shut by default even for her. The
- * three JSON tests below are about that panel, so they open it the way the account menu does.
- */
-function openRawJson(): void {
-  TestBed.inject(ViewModeService).set('debug');
-  TestBed.tick();
-  document.querySelectorAll('details[data-hq-raw-json]').forEach((el) => el.setAttribute('open', ''));
 }
 
 async function renderLessonAs(
@@ -206,8 +192,6 @@ function lessonWithStops(extra: object = {}) {
 }
 
 describe('Lesson', () => {
-  // `sessionStorage` too: `ViewModeService` remembers debug there, and it would leak into the
-  // next test's teacher view, where the whole point is that no JSON is on the page.
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
@@ -369,24 +353,13 @@ describe('Lesson', () => {
 
   // ---- N2.4a: the stop editor, manual authoring and the parent panel ------------------------
 
-  it('saves the selected stop, quick field and JSON staying one document', async () => {
+  it('saves the selected stop from a quick field, as one document', async () => {
     const { backend } = await renderLesson(lessonWithStops());
-
-    openRawJson();
 
     const title = screen.getByLabelText(/^Title/);
     await userEvent.clear(title);
     await userEvent.type(title, 'Pick the biggest');
 
-    // The quick field rewrote the JSON, so the textarea is the thing that gets PUT.
-    const json: HTMLTextAreaElement = screen.getByLabelText(/The whole stop/);
-    expect(JSON.parse(json.value)).toMatchObject({ title: 'Pick the biggest' });
-
-    // Ajv and the schema load on demand behind a 250 ms debounce, so "valid" lands a few
-    // hundred milliseconds late — longer on a CI runner than on this Mac.
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save the stop' })).toBeEnabled(), {
-      timeout: VALIDATION_TIMEOUT,
-    });
     await userEvent.click(screen.getByRole('button', { name: 'Save the stop' }));
 
     const request = backend.expectOne('/admin/stops/st-1');
@@ -395,41 +368,6 @@ describe('Lesson', () => {
       id: 'st-1',
       title: 'Pick the biggest',
     });
-  });
-
-  /** Only the declared type's branch is reported, and Save stays off until it passes. */
-  it('refuses to save a stop the schema would reject, naming the missing field only', async () => {
-    await renderLesson(lessonWithStops());
-    openRawJson();
-
-    const json = screen.getByLabelText(/The whole stop/);
-    const { question, ...withoutQuestion } = JSON.parse((json as HTMLTextAreaElement).value) as Record<
-      string,
-      unknown
-    >;
-    expect(question).toBeDefined();
-    await userEvent.clear(json);
-    await userEvent.paste(JSON.stringify(withoutQuestion, null, 2));
-
-    const error = await screen.findByRole('alert', {}, { timeout: VALIDATION_TIMEOUT });
-    expect(error).toHaveTextContent('question');
-    expect(error).not.toHaveTextContent('statement');
-    expect(screen.getByRole('button', { name: 'Save the stop' })).toBeDisabled();
-  });
-
-  it('will not save a stop whose id was edited, because the server addresses it by that id', async () => {
-    await renderLesson(lessonWithStops());
-    openRawJson();
-
-    const json = screen.getByLabelText(/The whole stop/);
-    const parsed = JSON.parse((json as HTMLTextAreaElement).value) as Record<string, unknown>;
-    await userEvent.clear(json);
-    await userEvent.paste(JSON.stringify({ ...parsed, id: 'st-renamed' }, null, 2));
-
-    expect(await screen.findByRole('alert', {}, { timeout: VALIDATION_TIMEOUT })).toHaveTextContent(
-      'The id cannot change',
-    );
-    expect(screen.getByRole('button', { name: 'Save the stop' })).toBeDisabled();
   });
 
   // ---- CR5: the stop is prose, and the JSON is the server's problem ------------------------
@@ -447,7 +385,7 @@ describe('Lesson', () => {
         .map((li) => li.textContent),
     ).toEqual(['First (correct)', 'Second']);
 
-    // Teacher view, which is everybody's default: no JSON on the page at all.
+    // No JSON on the page at all — for an Admin either, since the Raw panel went.
     expect(screen.queryByLabelText(/The whole stop/)).toBeNull();
     expect(document.querySelector('[data-hq-raw-json]')).toBeNull();
 
@@ -515,7 +453,7 @@ describe('Lesson', () => {
     expect(screen.getByText(/Wait for this lesson to finish generating/)).toBeInTheDocument();
   });
 
-  it('shows the Raw JSON panel, and the last 422\u2019s validator lines, only in debug view', async () => {
+  it('keeps the validator\u2019s own lines off the page when a rewrite is refused', async () => {
     const { backend } = await renderLesson(lessonWithStops());
 
     const prose = screen.getByLabelText(/This stop, in your words/);
@@ -533,11 +471,7 @@ describe('Lesson', () => {
     TestBed.tick();
 
     expect(screen.queryByText(/minItems/)).toBeNull();
-
-    openRawJson();
-    expect(screen.getByLabelText(/The whole stop/)).toBeInTheDocument();
-    expect(screen.getByText('#/options: minItems 2')).toBeInTheDocument();
-    expect(screen.getByText('#/hint: required')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/The whole stop/)).toBeNull();
   });
 
   /**

@@ -31,13 +31,12 @@ import { FlagService } from '../core/flags/flag.service';
 import { activeLang } from '../core/i18n/active-lang';
 import { ClassContextService } from '../core/nav/class-context.service';
 import { NotificationsService, bodyKeyOf, titleKeyOf } from '../core/notifications/notifications.service';
+import { NAV_CONFIG, inRail } from '../core/nav/nav-config';
 import { navScreens } from '../core/nav/screens';
 import { PermissionService } from '../core/permissions/permission.service';
 import { SchoolScopeStore } from '../core/auth/school-scope.store';
 import { SIDEBAR_ID, SidebarService } from '../core/shell/sidebar.service';
 import { ThemeService } from '../core/theme/theme.service';
-import { TourComponent } from '../core/tour/tour.component';
-import { TourService } from '../core/tour/tour.service';
 import { UndoService } from '../core/undo/undo.service';
 import { ShellHeaderComponent } from './shell-header.component';
 
@@ -48,9 +47,9 @@ import { ShellHeaderComponent } from './shell-header.component';
 const MESSAGE_ROWS = new Set(['chat', 'messages']);
 
 /**
- * The authenticated frame: the 290 px sidebar, the header, one screen, and the four things that
- * belong to no screen in particular — the red band, the Undo strip, the shortcut sheet and the
- * tour (spec §2 "App shell").
+ * The authenticated frame: the 290 px sidebar, the header, one screen, and the three things that
+ * belong to no screen in particular — the red band, the Undo strip and the shortcut sheet
+ * (spec §2 "App shell").
  *
  * **The rail is filtered, not fixed.** An item appears only when its flag is on for the
  * school in scope *and* the account holds its permission, which is why the same component
@@ -76,7 +75,6 @@ const MESSAGE_ROWS = new Set(['chat', 'messages']);
     ToastComponent,
     ShortcutsDialogComponent,
     ShellHeaderComponent,
-    TourComponent,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -86,7 +84,6 @@ const MESSAGE_ROWS = new Set(['chat', 'messages']);
       <hq-nav
         class="shell__nav"
         [id]="sidebarId"
-        data-hq-tour="nav"
         [items]="items()"
         [active]="activeId()"
         [label]="'nav.label.' + (auth.role() ?? 'ADMIN') | transloco"
@@ -147,7 +144,6 @@ const MESSAGE_ROWS = new Set(['chat', 'messages']);
     </div>
 
     <hq-shortcuts-dialog [shortcuts]="shortcuts()" [title]="'shortcuts.title' | transloco" />
-    <hq-tour />
   `,
   styles: `
     :host {
@@ -210,7 +206,7 @@ export class ShellComponent {
   private readonly flags = inject(FlagService);
   private readonly permissions = inject(PermissionService);
   private readonly classContext = inject(ClassContextService);
-  private readonly tour = inject(TourService);
+  private readonly navConfig = inject(NAV_CONFIG);
   private readonly transloco = inject(TranslocoService);
   private readonly announcer = inject(LiveAnnouncer);
   /** The rail's labels are built in a computed, so they need the language as a dependency. */
@@ -269,6 +265,9 @@ export class ShellComponent {
     { initialValue: this.router.url },
   );
 
+  /** The screen she is on, without where inside it: what "the page changed" is decided by. */
+  private readonly path = computed(() => this.url().split('?')[0] ?? '');
+
   private readonly chat = inject(ChatService);
 
   protected readonly items = computed<readonly NavItem[]>(() => {
@@ -276,6 +275,8 @@ export class ShellComponent {
     const role = this.auth.role();
     if (role === null) return [];
     const items = navScreens(role)
+      // The owner's list of 2026-10-01: Schools and Users are out of the rail, in design only.
+      .filter(({ screen }) => inRail(screen, this.navConfig))
       .filter(({ screen }) => (screen.flag ? this.flags.isOn(screen.flag) : true))
       .filter(({ screen }) => (screen.permission ? this.permissions.can(screen.permission) : true))
       .map(({ screen, link }) => ({
@@ -340,21 +341,20 @@ export class ShellComponent {
 
     // After the new screen has rendered, not before: the heading it moves to does not exist
     // until then. The first paint is skipped — landing on a page is not "the page changed".
+    //
+    // The *path*, not the URL: a query-only navigation is the same screen saying where inside
+    // itself she is (a class page's `?tab=`, a week's `?start=`, a conversation's `?thread=`).
+    // Moving focus to the heading on those would take it off the tab or the row she just pressed,
+    // and announce a page change that did not happen.
     let first = true;
     afterRenderEffect(() => {
-      this.url();
+      this.path();
       if (first) {
         first = false;
         return;
       }
       this.focusScreen();
     });
-    // First sign-in for this role in this browser gets the four-step tour.
-    effect(() => {
-      const role = this.auth.role();
-      if (role) this.tour.offer(role);
-    });
-
     // A refresh that failed on the network rather than on the token (T2 follow-up). A notice, not
     // an error: nothing is lost and the session is still hers — it says what is happening so that
     // a moment of unresponsiveness does not read as a sign-out about to happen.

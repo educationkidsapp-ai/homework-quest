@@ -8,11 +8,12 @@ import en from '../../../assets/i18n/en.json';
 import { BASE_PATH } from '../../api';
 import { AuthService } from '../auth/auth.service';
 import { SchoolScopeStore } from '../auth/school-scope.store';
+import { NAV_CONFIG } from '../nav/nav-config';
 import { SessionStore } from '../auth/session.store';
 import { BandService } from '../band/band.service';
 import { ADMIN_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { authInterceptor } from './auth.interceptor';
-import { errorInterceptor } from './error.interceptor';
+import { errorInterceptor, quietNotFound } from './error.interceptor';
 
 /**
  * The interceptors are tested through a bare `HttpClient` rather than through a generated
@@ -42,6 +43,8 @@ describe('interceptors', () => {
         provideHttpClientTesting(),
         provideRouter([]),
         { provide: BASE_PATH, useValue: '' },
+        // The multi-school build: an Admin can pick a school, which is what the scope cases need.
+        { provide: NAV_CONFIG, useValue: { schoolSurfaces: true } },
       ],
     });
     http = TestBed.inject(HttpClient);
@@ -214,6 +217,53 @@ describe('interceptors', () => {
     await failed;
 
     expect(band.current()?.message).toBe('That code is already taken.');
+  });
+
+  /**
+   * D1: a request for a remembered or defaulted id. Its 404 is the screen's own — drop the id,
+   * fall back — and is the *only* status it keeps to itself.
+   */
+  it('keeps a quiet request\u2019s 404 out of the band', async () => {
+    const failed = new Promise<void>((resolve) =>
+      http.get('/teacher/classes/gone/calendar', { context: quietNotFound() }).subscribe({ error: () => resolve() }),
+    );
+    backend
+      .expectOne('/teacher/classes/gone/calendar')
+      .flush({ code: 'not_found', message: 'class not found' }, { status: 404, statusText: 'x' });
+    await failed;
+
+    expect(band.current()).toBeNull();
+  });
+
+  it('still bands a quiet request\u2019s other failures', async () => {
+    const failed = new Promise<void>((resolve) =>
+      http.get('/teacher/classes/c-1/calendar', { context: quietNotFound() }).subscribe({ error: () => resolve() }),
+    );
+    backend
+      .expectOne('/teacher/classes/c-1/calendar')
+      .flush({ code: 'boom', message: 'The calendar is unavailable.' }, { status: 500, statusText: 'x' });
+    await failed;
+
+    expect(band.current()?.message).toBe('The calendar is unavailable.');
+  });
+
+  /** The review's case: a session that dies under a quiet read must still reach sign-in. */
+  it('still sends a quiet request\u2019s dead session to sign in, with returnTo', async () => {
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    session.set({ token: 'stale', refreshToken: 'refresh-1' });
+    const failed = new Promise<void>((resolve) =>
+      http.get('/teacher/classes/c-1/calendar', { context: quietNotFound() }).subscribe({ error: () => resolve() }),
+    );
+
+    backend.expectOne('/teacher/classes/c-1/calendar').flush({}, { status: 401, statusText: 'Unauthorized' });
+    await settle();
+    backend.expectOne('/auth/refresh').flush({}, { status: 401, statusText: 'Unauthorized' });
+    await failed;
+
+    expect(auth.signedIn()).toBe(false);
+    expect(navigate.mock.calls[0]?.[0]).toEqual(['/sign-in']);
+    expect(navigate.mock.calls[0]?.[1]).toEqual({ queryParams: { returnTo: router.url } });
+    expect(band.current()?.message).toContain('expired');
   });
 
   it('sends a 403 to the no-access page', async () => {

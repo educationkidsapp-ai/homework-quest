@@ -2,7 +2,6 @@ import { request, type Locator, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
-  ADMIN,
   API,
   expect,
   removeLessonsOfThisRun,
@@ -12,7 +11,6 @@ import {
   setLanguage,
   setScheme,
   shoot,
-  signIn,
   signInAsSara,
   signInForToken,
   test,
@@ -30,7 +28,7 @@ import {
  * The server runs on H2 with `SEED_SCHOOL=true` and `LLM_PROVIDER=fake` (see `README.md`).
  */
 const SHOTS = resolve(process.cwd(), '../docs/screenshots/dashboard-n2.4');
-/** CR5's own set: the editor as a teacher sees it, and as an Admin in debug view does. */
+/** CR5's own set: the editor as a teacher sees it. */
 const CR5_SHOTS = resolve(process.cwd(), '../docs/screenshots/cr5');
 const SQUARE_PNG = resolve(process.cwd(), 'e2e/fixtures/square.png');
 const TITLE = `Sorting shapes ${RUN}`;
@@ -216,8 +214,8 @@ function proseField(page: Page): Locator {
  * CR5's acceptance: **no element on this page reads as JSON**.
  *
  * Asserted on the text of every element that has no element children, so a `{` nested three
- * divs deep still counts, and the Raw JSON panel is checked by name as well — it is an Admin's,
- * behind debug view, and a teacher must not be able to reach it at all.
+ * divs deep still counts, and the Raw JSON panel is checked by name as well — it was removed
+ * for everybody (D1), and must not come back.
  */
 async function expectNoJsonOnThePage(page: Page): Promise<void> {
   await expect(page.locator('[data-hq-raw-json]')).toHaveCount(0);
@@ -265,27 +263,6 @@ test('she rewrites a stop in her own words, and no JSON is anywhere on the page'
   await stopRows(page).filter({ hasText: title }).click();
   await expect(proseField(page)).toHaveValue(new RegExp(`^${title}`));
   await expectNoJsonOnThePage(page);
-});
-
-test('an Admin in debug view gets the Raw JSON panel, and a teacher never does', async ({ page }) => {
-  test.setTimeout(120_000);
-  await signIn(page, ADMIN);
-  await page.goto(lessonUrl.replace('teacher/', 'admin/'));
-  await expect(page.getByRole('button', { name: '+ Add stop' })).toBeVisible({ timeout: 20_000 });
-  await stopRows(page).first().click();
-
-  // Shut by default, even for her: teacher view is what everybody opens on.
-  await expect(page.locator('[data-hq-raw-json]')).toHaveCount(0);
-
-  await page.locator('[data-hq-tour="profile"]').click();
-  await page.getByRole('menuitem', { name: 'Show the raw JSON' }).click();
-
-  const panel = page.locator('[data-hq-raw-json]');
-  await expect(panel).toBeVisible();
-  await panel.locator('summary').click();
-  await expect(editor(page).getByLabel('The whole stop')).toHaveValue(/"type":/);
-  // The read side-channel is not part of the document the server validates.
-  await expect(editor(page).getByLabel('The whole stop')).not.toHaveValue(/teacherText/);
 });
 
 test('she reorders the stops by dragging the handle', async ({ page }) => {
@@ -405,24 +382,6 @@ test('screenshots: the editor in English and in Arabic, light and dark', async (
   await setScheme(page, 'dark');
   await shoot(page, resolve(SHOTS, 'lesson-editor-ar-dark.png'), editor(page), { fullPage: true });
   await setScheme(page, 'light');
-});
-
-test('screenshots: the same editor as an Admin in debug view', async ({ page }) => {
-  test.setTimeout(180_000);
-  await mkdir(CR5_SHOTS, { recursive: true });
-  await signIn(page, ADMIN);
-  await page.goto(lessonUrl.replace('teacher/', 'admin/'));
-  await expect(page.getByRole('button', { name: '+ Add stop' })).toBeVisible({ timeout: 20_000 });
-  await stopRows(page).first().click();
-
-  await page.locator('[data-hq-tour="profile"]').click();
-  await page.getByRole('menuitem', { name: 'Show the raw JSON' }).click();
-  await page.locator('[data-hq-raw-json] summary').click();
-  await expect(editor(page).getByLabel('The whole stop')).toBeVisible();
-  await shoot(page, resolve(CR5_SHOTS, 'stop-editor-admin-debug-en.png'), editor(page), { fullPage: true });
-
-  await setLanguage(page, 'ar');
-  await shoot(page, resolve(CR5_SHOTS, 'stop-editor-admin-debug-ar.png'), editor(page), { fullPage: true });
 });
 
 /** The lessons this file wrote, off the shared database again (`env.ts`). */

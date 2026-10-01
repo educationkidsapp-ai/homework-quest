@@ -102,6 +102,18 @@
 
   <ng-template #rowMenu>
     <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
+      <!-- D1: her direct thread with this person, opened in Admin Messages. -->
+      @if (threads.available()) {
+        <button
+          type="button"
+          cdkMenuItem
+          class="hq-menu__item"
+          data-hq-message
+          (cdkMenuItemTriggered)="message(menuRow())"
+        >
+          {{ 'admin.people.message' | transloco }}
+        </button>
+      }
       <button
         type="button"
         cdkMenuItem

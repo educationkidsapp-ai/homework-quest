@@ -193,10 +193,18 @@ export class SignInPage {
    * Back to whatever was refused, unless the account has to change its password first — the
    * guard would bounce it there anyway, and arriving on the change screen from sign-in is
    * one step rather than two.
+   *
+   * D1: and only when the person signing in is the one the address was kept *for*
+   * (`AuthService.continuesLastSession`). A `returnTo` left by a teacher's dead session names her
+   * class; an Admin or another teacher who signs in over it would open a row that is not theirs —
+   * the "class not found" the owner met on first open — so anybody else simply goes Home.
    */
   private destination(): string {
     if (this.auth.mustChangePassword()) return '/change-password';
     const returnTo = this.route.snapshot.queryParamMap.get('returnTo');
-    return returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : this.auth.home();
+    const mayFollow = this.auth.continuesLastSession();
+    return mayFollow && returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')
+      ? returnTo
+      : this.auth.home();
   }
 }

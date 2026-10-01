@@ -1,16 +1,17 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { EnvironmentProviders, Provider } from '@angular/core';
+import { EnvironmentProviders, Provider, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BASE_PATH } from '../../api';
 import { ADMIN_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
+import { AdminThreadService } from './admin-thread.service';
 import { TeachersPage } from './teachers.page';
 
 const providers: (Provider | EnvironmentProviders)[] = [
@@ -66,6 +67,19 @@ async function renderSignedIn(teachers: readonly unknown[] = [SARA], permissions
   await settle(rendered);
 
   return { rendered, backend };
+}
+
+/**
+ * D1: the row's "Message" hands one id to `AdminThreadService` (its own spec covers the request
+ * and the landing). Faked here so the screen's part — *which* id, under *which* name — is what
+ * the test reads, without a flag map and a chat permission to stand up first.
+ */
+function fakeThreads(available = true) {
+  const open = vi.fn();
+  TestBed.overrideProvider(AdminThreadService, {
+    useValue: { available: signal(available), pending: signal(''), open },
+  });
+  return open;
 }
 
 describe('Teachers', () => {
@@ -178,5 +192,23 @@ describe('Teachers', () => {
     await settle(rendered);
 
     expect(screen.getByRole('cell', { name: 'Active' })).toBeInTheDocument();
+  });
+
+  it('offers Message on a teacher, and opens the Admin\u2019s thread with her by user id', async () => {
+    const open = fakeThreads();
+    await renderSignedIn();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Sara' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Message' }));
+
+    expect(open).toHaveBeenCalledWith('u-sara', { teacherUserId: 'u-sara' });
+  });
+
+  it('offers no Message where chat is off or the session may not write', async () => {
+    fakeThreads(false);
+    await renderSignedIn();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Sara' }));
+    expect(screen.queryByRole('menuitem', { name: 'Message' })).toBeNull();
   });
 });

@@ -7,6 +7,7 @@ import { FeatureFlagsApi } from '../../api';
 import { AuthService } from '../auth/auth.service';
 import { SchoolScopeStore } from '../auth/school-scope.store';
 import { BandService } from '../band/band.service';
+import { NAV_CONFIG } from '../nav/nav-config';
 import { DEFAULT_FLAGS } from './flags.defaults';
 
 /**
@@ -98,6 +99,7 @@ export class FlagService {
   private readonly band = inject(BandService);
   private readonly transloco = inject(TranslocoService);
   private readonly scope = inject(SchoolScopeStore);
+  private readonly navConfig = inject(NAV_CONFIG);
 
   /** Set only while the band on screen is the one this service put there — never dismiss someone else's. */
   private bandIsOurs = false;
@@ -136,7 +138,9 @@ export class FlagService {
      */
     effect(() => {
       if (!this.auth.signedIn() || !this.ready()) return;
-      this.scope.setMultiSchool(this.isOn(FLAGS.multiSchool));
+      // …and, since the switcher can be hidden by the nav switch alone, on that too: a scope
+      // nobody can change on screen is a scope that must not be applied.
+      this.scope.setMultiSchool(this.isOn(FLAGS.multiSchool) && this.navConfig.schoolSurfaces);
     });
   }
 

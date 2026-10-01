@@ -1,4 +1,5 @@
 import { DOCUMENT, Injectable, computed, inject, signal } from '@angular/core';
+import { NAV_CONFIG } from '../nav/nav-config';
 
 const SCOPE_KEY = 'hq.school';
 
@@ -34,13 +35,32 @@ export interface SchoolScope {
 @Injectable({ providedIn: 'root' })
 export class SchoolScopeStore {
   private readonly doc = inject(DOCUMENT);
-  private readonly current = signal<SchoolScope | null>(this.read());
-  private readonly multiSchool = signal(true);
+  /**
+   * D1: with the switcher out of the design (`NAV_CONFIG.schoolSurfaces`), a stored scope is one
+   * nobody can change on screen — so it is not read at all, and is erased below. Before the flag
+   * map has even loaded: a school id from a re-created database answers `404 school not found`
+   * to `/me` itself, which is the request that restores the session.
+   */
+  private readonly switchable = inject(NAV_CONFIG).schoolSurfaces;
+  private readonly current = signal<SchoolScope | null>(this.switchable ? this.read() : null);
+  private readonly multiSchool = signal(this.switchable);
 
   private readonly sole = signal<string | null>(null);
 
   readonly scope = computed(() => (this.multiSchool() ? this.current() : null));
-  readonly schoolId = computed(() => this.scope()?.id ?? null);
+  /**
+   * The school an Admin's requests are scoped to: the one she picked — or, **with the switcher
+   * hidden, the only one there is** (D1).
+   *
+   * Hiding the switcher took away the only way to pick, and an Admin with no school is not a
+   * neutral position: she reads the *platform's* flag defaults rather than her school's (so a
+   * school with chat on had no Messages for her), the new-lesson wizard asks her to "pick a
+   * school", and `/admin/chat/**` answers `400 Send X-School-Id`. So in that configuration she is
+   * pinned to the one school exactly as if she had chosen it — from the server's own list
+   * ({@link setSoleSchool}), never from storage. Null while it is unresolved, and for a
+   * deployment that turns out to have several.
+   */
+  readonly schoolId = computed(() => this.scope()?.id ?? (this.switchable ? null : this.sole()));
 
   /**
    * The id of the **one** school this deployment has, while `multiSchool` is off.
@@ -56,6 +76,10 @@ export class SchoolScopeStore {
    * because then there are several and choosing is hers.
    */
   readonly soleSchoolId = computed(() => (this.multiSchool() ? null : this.sole()));
+
+  constructor() {
+    if (!this.switchable) this.write(null);
+  }
 
   /** Written by the resolver, never by a screen: no HTTP lives in this store (see the class note). */
   setSoleSchool(id: string | null): void {

@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { SchoolTheme, ThemesApi } from '../../api';
 import { AuthService } from '../auth/auth.service';
+import { SchoolScopeStore } from '../auth/school-scope.store';
 import { PlatformService } from '../platform/platform.service';
 
 /**
@@ -47,10 +48,15 @@ export class ThemeService {
   private readonly api = inject(ThemesApi);
   private readonly auth = inject(AuthService);
   private readonly platform = inject(PlatformService);
+  private readonly scope = inject(SchoolScopeStore);
   private readonly doc = inject(DOCUMENT);
 
   private readonly resource = rxResource<SchoolTheme | null, string | null | undefined>({
-    params: () => (this.auth.signedIn() ? this.auth.effectiveSchoolId() : undefined),
+    // D1: an Admin's token names no school, so with one school and no switcher she used to get the
+    // platform's palette and logo — and would never have seen the logo she had just uploaded.
+    // `soleSchoolId` is "the only school there is", resolved from the server, never from storage.
+    params: () =>
+      this.auth.signedIn() ? (this.auth.effectiveSchoolId() ?? this.scope.soleSchoolId()) : undefined,
     stream: ({ params: schoolId }) =>
       schoolId === null
         ? of(this.platform.settings().defaultTheme ?? null)

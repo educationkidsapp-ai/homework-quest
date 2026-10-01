@@ -21,6 +21,21 @@ export function silentErrors(): HttpContext {
 }
 
 /**
+ * Set on a request made for a **remembered or defaulted id** — the class in a bookmark, a
+ * `returnTo`, the row a screen opens on by itself (D1).
+ *
+ * Narrower than {@link SILENT_ERRORS} on purpose: only the **404** is the screen's to handle (drop
+ * the id, fall back to the list). Everything else is still a failure she should hear about, and a
+ * 401 above all — a session that died under the screen must still reach sign-in with a
+ * `returnTo`, which a fully silent request would skip.
+ */
+export const QUIET_NOT_FOUND = new HttpContextToken<boolean>(() => false);
+
+export function quietNotFound(): HttpContext {
+  return new HttpContext().set(QUIET_NOT_FOUND, true);
+}
+
+/**
  * Endpoints whose failures belong to the screen that called them.
  *
  * A wrong password on sign-in answers 401, and the generic handling below would read that as
@@ -63,6 +78,7 @@ export const errorInterceptor: HttpInterceptorFn = (request, next) => {
     catchError((error: unknown) => {
       if (!(error instanceof HttpErrorResponse)) return throwError(() => error);
       if (request.context.get(SILENT_ERRORS)) return throwError(() => error);
+      if (error.status === 404 && request.context.get(QUIET_NOT_FOUND)) return throwError(() => error);
       if (SCREEN_OWNED.some((path) => request.url.includes(path))) return throwError(() => error);
 
       const api = apiErrorOf(error);

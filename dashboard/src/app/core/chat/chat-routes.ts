@@ -13,6 +13,7 @@ import {
 import { AuthService } from '../auth/auth.service';
 import { SchoolScopeStore } from '../auth/school-scope.store';
 import { FLAGS, FlagService } from '../flags/flag.service';
+import { NAV_CONFIG } from '../nav/nav-config';
 import { ChatCommandKey } from './chat.models';
 
 /**
@@ -71,6 +72,7 @@ export class ChatRoutes {
   private readonly scope = inject(SchoolScopeStore);
   private readonly schools = inject(SchoolsApi);
   private readonly flags = inject(FlagService);
+  private readonly navConfig = inject(NAV_CONFIG);
 
   /**
    * **Which school an Admin's chat is read in.**
@@ -84,11 +86,25 @@ export class ChatRoutes {
    * disagreeing with itself: null, and the screen asks her to pick.
    */
   private readonly sole = rxResource<string | null, boolean>({
-    params: () => this.auth.role() === 'ADMIN' && this.flags.ready() && !this.flags.isOn(FLAGS.multiSchool),
+    // D1: with the switcher hidden nobody can pick whatever `multiSchool` says, so the one school
+    // is resolved for every Admin — and **without waiting on the flags**: the store pins her to
+    // it (`SchoolScopeStore.schoolId`), which is the school the flag map is then read *for*, and a
+    // resolver that waited on that map would unresolve itself each time it reloaded.
+    params: () =>
+      this.auth.role() === 'ADMIN' &&
+      (!this.navConfig.schoolSurfaces || (this.flags.ready() && !this.flags.isOn(FLAGS.multiSchool))),
     stream: ({ params }) =>
       params
         ? this.schools.listSchools().pipe(
-            map((rows) => (rows.length === 1 ? (rows[0]?.id ?? null) : null)),
+            map((rows) => {
+              if (rows.length === 1) return rows[0]?.id ?? null;
+              // D1 review: with the switcher hidden a second school must not leave her with no
+              // scope at all — `/admin/chat/**` answers 400 without one and nothing on screen can
+              // fix it. The first active school of the server's list is hers until the switcher
+              // is back; with the switcher on screen, several schools are still hers to choose.
+              if (this.navConfig.schoolSurfaces) return null;
+              return (rows.find((row) => row.status === 'active') ?? rows[0])?.id ?? null;
+            }),
             catchError(() => of(null)),
           )
         : of(null),
@@ -178,10 +194,10 @@ export class ChatRoutes {
           send: (key, body) => this.management.managementSendChatMessage(key, { body }),
           read: (key) => this.management.managementMarkChatRead(key),
         };
-      // The Admin's own threads with the managers. `GET /admin/chat/threads` is wider than that —
-      // it is the school's whole chat, for support — and `/admin/messages` says so rather than
-      // pretending the list is hers; the three writes below are only ever accepted on a row she
-      // is actually on, which is the server's rule and not one this class could enforce.
+      // The Admin's own threads — with a manager, a coordinator, a teacher or a parent (S1's
+      // direct messages). `GET /admin/chat/threads` alone is wider than that — the school's whole
+      // chat, for support — so the list is asked for with `mine=true`; the three writes below are
+      // only ever accepted on a row she is actually on, which is the server's rule.
       // No transport until the school is settled — the one she picked, or the only one there is:
       // a GET without the header is a 400 in a red band on every reconnect. Left null only when a
       // multi-school deployment is waiting for her to choose, which the screen then says.
@@ -191,7 +207,8 @@ export class ChatRoutes {
           owns: () => true,
           keyOf: (thread) => thread.id ?? '',
           commandKey: (key) => ({ threadId: key }),
-          threads: () => this.teacher.supportChatThreads(),
+          // Her inbox: her threads and her unread, so the badge on her rail counts only hers.
+          threads: () => this.teacher.supportChatThreads(true),
           messages: (key, since) => this.teacher.supportChatMessages(key, undefined, since),
           send: (key, body) => this.teacher.supportSendChatMessage(key, { body }),
           read: (key) => this.teacher.supportMarkChatRead(key),

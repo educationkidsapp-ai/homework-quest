@@ -172,7 +172,7 @@ test.describe('the header', () => {
 
     // The arrow keys walk the rows — which is what makes Tab not the way through a menu.
     await page.keyboard.press('ArrowDown');
-    await expect(page.getByRole('menuitem', { name: 'Show me around' })).toBeFocused();
+    await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeFocused();
 
     await page.keyboard.press('Escape');
     await expect(menu).toBeHidden();

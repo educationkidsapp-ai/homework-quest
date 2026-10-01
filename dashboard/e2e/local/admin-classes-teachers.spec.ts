@@ -35,10 +35,7 @@ async function signInAsAdmin(page: Page): Promise<void> {
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  const skip = page.getByRole('button', { name: 'Skip' });
-  await skip.waitFor({ state: 'visible', timeout: 10_000 });
-  await skip.click();
-  await expect(page.getByRole('dialog').first()).toBeHidden();
+  await page.getByRole('navigation').first().waitFor({ state: 'visible', timeout: 10_000 });
 }
 
 async function openClasses(page: Page): Promise<void> {
