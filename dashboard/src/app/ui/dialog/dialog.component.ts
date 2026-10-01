@@ -45,25 +45,45 @@ import { ButtonComponent } from '../button/button.component';
       <form method="dialog" class="dialog__form" novalidate (submit)="onSubmit($event)">
         <header class="dialog__header">
           <h2 class="dialog__title">{{ title() }}</h2>
-          <hq-button variant="quiet" (pressed)="requestClose()">{{ 'ui.close' | transloco }}</hq-button>
+          <!-- The one way out that is always there: an X with a name, never a second word button. -->
+          <hq-button
+            variant="icon"
+            class="dialog__close"
+            [ariaLabel]="'ui.close' | transloco"
+            (pressed)="requestClose()"
+          >
+            <svg
+              viewBox="0 0 20 20"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M5 5l10 10M15 5L5 15" />
+            </svg>
+          </hq-button>
         </header>
 
         <div class="dialog__body">
           <ng-content />
         </div>
 
-        <footer class="dialog__footer">
-          <hq-button variant="quiet" (pressed)="requestClose()">{{
-            cancelLabel() ?? ('ui.cancel' | transloco)
-          }}</hq-button>
-          <!--
+        <!-- No primary action, no footer: a dialog that only shows something is closed by the X, Esc or the backdrop. -->
+        @if (confirmLabel(); as label) {
+          <footer class="dialog__footer">
+            <hq-button variant="danger" (pressed)="requestClose()">{{
+              cancelLabel() ?? ('ui.cancel' | transloco)
+            }}</hq-button>
+            <!--
             A second, non-primary action beside the primary one — "Save and add another", and
             nothing that commits anything different. It is projected rather than configured
             because its label, its guard and its handler all belong to the form, and the footer
             only owns where it sits.
           -->
-          <ng-content select="[hqDialogAction]" />
-          @if (confirmLabel(); as label) {
+            <ng-content select="[hqDialogAction]" />
             <hq-button
               variant="primary"
               type="submit"
@@ -73,8 +93,8 @@ import { ButtonComponent } from '../button/button.component';
             >
               {{ label }}
             </hq-button>
-          }
-        </footer>
+          </footer>
+        }
       </form>
     </dialog>
   `,

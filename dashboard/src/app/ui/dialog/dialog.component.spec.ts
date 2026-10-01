@@ -131,6 +131,36 @@ describe('hq-dialog', () => {
     expect(host.confirmed).toHaveBeenCalledTimes(1);
   });
 
+  it('is closed by a named X in the header, and its Cancel is the solid danger button', async () => {
+    const rendered = await renderHq(DialogHost);
+    stubShowModal();
+    rendered.fixture.componentInstance.open.set(true);
+    rendered.fixture.detectChanges();
+    await rendered.fixture.whenStable();
+
+    const close = screen.getByRole('button', { name: 'Close' });
+    expect(close).toHaveClass('btn--icon');
+    expect(close.textContent?.trim()).toBe('');
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveClass('btn--danger');
+
+    await userEvent.click(close);
+    expect(rendered.fixture.componentInstance.open()).toBe(false);
+  });
+
+  it('has no footer at all when there is no primary action', async () => {
+    @Component({
+      imports: [DialogComponent],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<hq-dialog [open]="true" title="History"><p>Rows</p></hq-dialog>`,
+    })
+    class ViewOnlyHost {}
+    await renderHq(ViewOnlyHost);
+
+    expect(document.querySelector('.dialog__footer')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel', hidden: true })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Close', hidden: true })).toBeInTheDocument();
+  });
+
   it('never lets a submit navigate the page', async () => {
     const rendered = await renderHq(DialogHost);
     stubShowModal();

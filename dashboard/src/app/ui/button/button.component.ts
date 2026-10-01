@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'quiet' | 'icon';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'danger-outline' | 'quiet' | 'icon';
 export type ButtonType = 'button' | 'submit' | 'reset';
 
 let nextReasonId = 0;
@@ -126,7 +126,29 @@ let nextReasonId = 0;
 
     // §3's danger *outline*. The error ramp, not the accent: the accent is brand-500 on this
     // palette, and a blue Delete button is a button nobody hesitates over.
+    // Solid red, white words (4.8:1 in both themes — the fill does not change with the theme), darker on
+    // hover and press: the destructive action, and every Cancel.
     .btn--danger {
+      background: var(--hq-color-error-600);
+      border-color: var(--hq-color-error-600);
+      color: var(--hq-color-on-accent);
+      box-shadow: var(--hq-shadow-xs);
+
+      &:hover:not(:disabled),
+      &:active:not(:disabled) {
+        background: var(--hq-color-error-700);
+        border-color: var(--hq-color-error-700);
+      }
+
+      &:disabled {
+        background: var(--hq-color-divider);
+        border-color: var(--hq-color-divider);
+        color: var(--hq-color-disabled);
+      }
+    }
+
+    // The same red as a border and words on the surface: a Cancel beside an action that is already solid red.
+    .btn--danger-outline {
       background: var(--hq-color-surface);
       border-color: var(--hq-color-error-rule);
       color: var(--hq-color-error-ink);

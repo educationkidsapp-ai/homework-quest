@@ -32,7 +32,20 @@ export interface Shortcut {
     <dialog #dialog class="sheet" [attr.aria-label]="title()" (close)="open.set(false)">
       <header class="sheet__header">
         <h2 class="sheet__title">{{ title() }}</h2>
-        <hq-button variant="quiet" (pressed)="open.set(false)">{{ 'ui.close' | transloco }}</hq-button>
+        <hq-button variant="icon" [ariaLabel]="'ui.close' | transloco" (pressed)="open.set(false)">
+          <svg
+            viewBox="0 0 20 20"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M5 5l10 10M15 5L5 15" />
+          </svg>
+        </hq-button>
       </header>
       <dl class="sheet__list">
         @for (shortcut of shortcuts(); track shortcut.keys) {
