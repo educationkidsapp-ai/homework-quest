@@ -18,6 +18,11 @@
   border: 1px solid var(--hq-color-rule, #e2e8f0);
 }
 
+// The read-only range view: 20 px between the count-and-export row and the table under it.
+.attendance__controls--range {
+  margin-block-end: calc(var(--hq-space-16) + var(--hq-space-4));
+}
+
 .attendance__date-nav {
   display: flex;
   align-items: center;

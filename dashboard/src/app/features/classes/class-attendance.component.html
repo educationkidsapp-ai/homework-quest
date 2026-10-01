@@ -18,7 +18,7 @@
   <!-- R6: a range she may only read. Children down the side, her days across the top, the four
        totals on the end, and the one export `/coordinator/**` does not publish itself. -->
   @if (range(); as matrix) {
-    <div class="attendance__controls">
+    <div class="attendance__controls attendance__controls--range">
       <p class="attendance__range-count">
         {{ 'attendance.rangeCount' | transloco: { children: matrix.rows.length, days: matrix.days.length } }}
       </p>

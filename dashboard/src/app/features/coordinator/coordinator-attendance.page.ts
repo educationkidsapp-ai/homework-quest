@@ -51,7 +51,7 @@ const MAX_DAYS = 62;
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hq-page [title]="'nav.attendance' | transloco" [subtitle]="co.scoped('attendance.subtitle') | transloco">
+    <hq-page [title]="'nav.attendance' | transloco">
       @if (co.loading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'ui.loading' | transloco" />
       } @else if (co.failed()) {
