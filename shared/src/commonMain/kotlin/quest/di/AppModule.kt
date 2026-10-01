@@ -41,6 +41,7 @@ import quest.feature.content.domain.LessonRepository
 import quest.feature.content.domain.MapRepository
 import quest.feature.content.domain.SchoolApi
 import quest.feature.journey.presentation.JourneyViewModel
+import quest.feature.journey.presentation.LessonCopy
 import quest.feature.journey.presentation.LessonCompleteViewModel
 import quest.feature.journey.presentation.StopPlayerViewModel
 import quest.feature.map.presentation.MapViewModel
@@ -60,7 +61,6 @@ import quest.feature.rewards.data.RewardsRepositoryImpl
 import quest.feature.rewards.domain.AwardStickerUseCase
 import quest.feature.rewards.domain.RewardsRepository
 import quest.feature.rewards.domain.UpdateStreakUseCase
-import quest.feature.rewards.presentation.RewardsViewModel
 import quest.feature.school.data.HttpSchoolLogos
 import quest.feature.school.data.SchoolSessionImpl
 import quest.feature.school.domain.FlagStore
@@ -144,17 +144,17 @@ val contentModule = module {
     factory { AddChildUseCase(get()) }
     viewModel { SignInViewModel(get()) }
     viewModel { (editingId: String?) -> AddChildViewModel(editingId, get(), get(), get()) }
-    viewModel { MapViewModel(get(), get(), get(), get()) }
-    viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get()) }
-    viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get()) }
-    viewModel { (lessonId: String, level: Int, variant: Int) -> LessonCompleteViewModel(lessonId, level, variant, get(), get(), get(), get(), get()) }
+    factory { LessonCopy(get(), get()) }
+    viewModel { MapViewModel(get(), get(), get(), get(), get()) }
+    viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get(), get()) }
+    viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get()) }
+    viewModel { (lessonId: String, level: Int, variant: Int) -> LessonCompleteViewModel(lessonId, level, variant, get(), get(), get(), get(), get(), get()) }
 }
 
 val rewardsModule = module {
     single<RewardsRepository> { RewardsRepositoryImpl(get()) { get<ChildrenRepository>().currentChild.value?.id ?: "none" } }
     factory { AwardStickerUseCase(get(), StickerKeys.all) }
     factory { UpdateStreakUseCase(get()) }
-    viewModel { RewardsViewModel(get()) }
 }
 
 val parentModule = module {

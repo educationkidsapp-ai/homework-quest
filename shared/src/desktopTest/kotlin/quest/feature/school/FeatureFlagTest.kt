@@ -31,6 +31,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+/**
+ * A seeded key the app no longer draws (the treasure chest went with the formal redesign). It stays the sample flag of
+ * these tests precisely because nothing in the app depends on it: they are about the store and the gate, not a screen.
+ */
+private const val TREASURE_CHEST = "stickers.treasureChest"
+
 /** §4: the flag store, and the gate that decides whether a screen is composed at all. */
 class FeatureFlagTest {
     private val db = Db(DriverFactory(null))
@@ -61,19 +67,19 @@ class FeatureFlagTest {
     }
 
     @Test fun syncBringsTheSchoolsFlagsAndAKeyTheServerOmitsKeepsItsDefault() = runBlocking {
-        val api = Flagged(fake, mapOf(Flags.TREASURE_CHEST to false, Flags.LEVEL_THREE to false))
+        val api = Flagged(fake, mapOf(TREASURE_CHEST to false, Flags.LEVEL_THREE to false))
         val session = SchoolSessionImpl(api, api, settings)
         session.use(FakeContentApi.AL_NOOR_ID)
 
-        assertFalse(session.isEnabled(Flags.TREASURE_CHEST))
+        assertFalse(session.isEnabled(TREASURE_CHEST))
         assertFalse(session.isEnabled(Flags.LEVEL_THREE))
         assertTrue(session.isEnabled(Flags.CERTIFICATES), "not in the server's answer, so the platform default stands")
         assertEquals(1, api.flagCalls)
 
         // The next sync brings the chest back; the store follows without another `use`.
-        api.flags = mapOf(Flags.TREASURE_CHEST to true)
+        api.flags = mapOf(TREASURE_CHEST to true)
         session.sync()
-        assertTrue(session.isEnabled(Flags.TREASURE_CHEST))
+        assertTrue(session.isEnabled(TREASURE_CHEST))
         assertEquals(2, api.flagCalls)
     }
 
@@ -86,7 +92,7 @@ class FeatureFlagTest {
         offline.restore()
         assertEquals(FakeContentApi.AL_NOOR_ID, offline.schoolId.value)
         assertFalse(offline.isEnabled(Flags.CERTIFICATES))
-        assertTrue(offline.isEnabled(Flags.TREASURE_CHEST))
+        assertTrue(offline.isEnabled(TREASURE_CHEST))
     }
 
     // ---- the default school: flags yes, theme no --------------------------------------------------------------
@@ -169,16 +175,16 @@ class FeatureFlagTest {
 
     @Test fun anOffFlagMeansTheContentIsNeverComposed() {
         var composed = 0
-        composeOnce(store(mapOf(Flags.TREASURE_CHEST to false))) {
-            FeatureGate(Flags.TREASURE_CHEST) { composed++ }
+        composeOnce(store(mapOf(TREASURE_CHEST to false))) {
+            FeatureGate(TREASURE_CHEST) { composed++ }
         }
         assertEquals(0, composed, "off means absent — not hidden, not disabled, not an error")
     }
 
     @Test fun anOnFlagComposesTheContent() {
         var composed = 0
-        composeOnce(store(mapOf(Flags.TREASURE_CHEST to true))) {
-            FeatureGate(Flags.TREASURE_CHEST) { composed++ }
+        composeOnce(store(mapOf(TREASURE_CHEST to true))) {
+            FeatureGate(TREASURE_CHEST) { composed++ }
         }
         assertEquals(1, composed)
     }
@@ -187,7 +193,7 @@ class FeatureFlagTest {
         var chest = 0
         var complaints = 0
         composeOnce(PlatformDefaultFlags) {
-            FeatureGate(Flags.TREASURE_CHEST) { chest++ }
+            FeatureGate(TREASURE_CHEST) { chest++ }
             FeatureGate("complaints") { complaints++ }
         }
         assertEquals(1, chest, "shipped features render in a screenshot test or preview with no container")

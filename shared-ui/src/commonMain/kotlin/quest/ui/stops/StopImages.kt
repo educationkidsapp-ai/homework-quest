@@ -1,5 +1,6 @@
 package quest.ui.stops
 
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -20,8 +21,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.decodeToImageBitmap
+import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
 
 /**
  * Pictures inside stops (`Stop.imageId`, `Tile.pageImageId`…): the host resolves an image id to its bytes — the app
@@ -52,7 +53,7 @@ fun rememberStopImage(imageId: String?): State<ImageBitmap?> {
 @Composable
 fun StopPicture(imageId: String, modifier: Modifier = Modifier, description: String? = null) {
     val image by rememberStopImage(imageId)
-    Box(modifier.fillMaxWidth().padding(horizontal = Dimens.s16).aspectRatio(1.5f).clip(RoundedCornerShape(Dimens.radiusCard)).background(Palette.cream), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth().padding(horizontal = Dimens.s16).aspectRatio(1.5f).clip(RoundedCornerShape(DashboardTokens.radiusMd)).background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
         val bmp = image
         if (bmp != null) Image(bmp, description, Modifier.fillMaxWidth().aspectRatio(1.5f), contentScale = ContentScale.Fit)
         else Text("🖼️", fontSize = 48.sp)

@@ -1,5 +1,6 @@
 package quest.feature.broadcasts.presentation
 
+import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,7 +57,6 @@ import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.GateFallback
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
 
 /**
  * RM4, narrowed by MH3: the **Announcements** page — what the coordinator or the manager told the parents of this
@@ -221,7 +221,7 @@ fun BroadcastsScreen(
             }
             if (problem != null) {
                 ParentCard(Modifier.padding(vertical = Dimens.s8)) {
-                    Text(problem, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInkSoft)
+                    Text(problem, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkSoft)
                 }
                 return@Column
             }
@@ -309,19 +309,19 @@ fun BroadcastCard(
             Text(
                 text = view.title?.takeIf { it.isNotBlank() } ?: authorLine(view, strings),
                 style = MaterialTheme.typography.titleMedium,
-                color = Palette.parentInk,
+                color = DashboardTokens.ink,
                 // An unread row is heavier, not coloured: §7 keeps the alarm palette off a parent's reading list.
                 fontWeight = if (view.read) FontWeight.Normal else FontWeight.Bold,
                 modifier = Modifier.weight(1f),
             )
-            if (!view.read) Chip(strings.newBadge, Palette.sun)
+            if (!view.read) Chip(strings.newBadge, DashboardTokens.warningBg)
         }
 
         Spacer(Modifier.height(Dimens.s4))
-        Text(authorLine(view, strings), style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+        Text(authorLine(view, strings), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
 
         Spacer(Modifier.height(Dimens.s8))
-        Text(broadcastBody(view, strings.isRtl), style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk)
+        Text(broadcastBody(view, strings.isRtl), style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
 
         // MH3: an image is drawn here, off `GET /media/attachments/{id}` with the parent's bearer — the route is
         // authenticated, so the system viewer would land on a 401 and the bytes come through the app's own client.
@@ -347,7 +347,7 @@ fun BroadcastCard(
                 Text(
                     text = "📎 ${attachment.name ?: strings.attachment} · ${strings.attachmentOnDashboard}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Palette.parentInkSoft,
+                    color = DashboardTokens.inkSoft,
                 )
             }
         }

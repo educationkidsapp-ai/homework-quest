@@ -1,5 +1,6 @@
 package quest.feature.parent.presentation
 
+import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -70,40 +71,40 @@ fun LessonPanelScreen(lesson: PublishedLesson, s: Strings, media: List<StopMedia
     val ar = s.isRtl
     val panel = lesson.parentPanel
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
-        Text(lesson.title, style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk, modifier = Modifier.padding(vertical = Dimens.s8))
+        Text(lesson.title, style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.ink, modifier = Modifier.padding(vertical = Dimens.s8))
         // Step 9: the teacher's score and her note, once she has released them. Parent mode only (§6).
         result?.let { r ->
             SectionTitle(s.teacherMarks)
             ParentCard {
                 androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    r.score?.let { Text("$it", style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk) }
+                    r.score?.let { Text("$it", style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.ink) }
                     Spacer(Modifier.padding(Dimens.s4))
                     r.band?.let { Chip(s.scoreBand(it)) }
                 }
                 r.comment?.takeIf { it.isNotBlank() }?.let { comment ->
                     Spacer(Modifier.height(Dimens.s8))
-                    Text(s.teacherComment, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
-                    Text(comment, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk)
+                    Text(s.teacherComment, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                    Text(comment, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink)
                 }
             }
         }
         SectionTitle(s.objectives)
-        ParentCard { (if (ar) panel.objectives.ar else panel.objectives.en).forEach { Text("• $it", style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk) } }
+        ParentCard { (if (ar) panel.objectives.ar else panel.objectives.en).forEach { Text("• $it", style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink) } }
         SectionTitle(s.supported)
-        ParentCard { panel.supported.forEach { Text("• ${if (ar) it.ar else it.en}", style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk) } }
+        ParentCard { panel.supported.forEach { Text("• ${if (ar) it.ar else it.en}", style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink) } }
         SectionTitle(s.challengeIdeas)
-        ParentCard { panel.challenge.forEach { Text("• ${if (ar) it.ar else it.en}", style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk) } }
+        ParentCard { panel.challenge.forEach { Text("• ${if (ar) it.ar else it.en}", style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink) } }
         SectionTitle(s.tipsPerStop)
         lesson.plays.forEach { play ->
             androidx.compose.foundation.layout.Row(Modifier.padding(top = Dimens.s8), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("${s.level} ${play.level}", style = MaterialTheme.typography.titleMedium, color = Palette.parentInkSoft, modifier = Modifier.weight(1f))
-                if (play.level in unlocked) Chip("✓", Palette.mint) else Chip(s.unlockLevel) { onUnlock(play.level) }
+                Text("${s.level} ${play.level}", style = MaterialTheme.typography.titleMedium, color = DashboardTokens.inkSoft, modifier = Modifier.weight(1f))
+                if (play.level in unlocked) Chip("✓", DashboardTokens.successBg) else Chip(s.unlockLevel) { onUnlock(play.level) }
             }
             play.stops.forEach { stop ->
                 ParentCard(Modifier.padding(top = Dimens.s8)) {
-                    Text(stop.title, style = MaterialTheme.typography.titleMedium, color = Palette.parentInk)
-                    Text(if (ar) stop.parentTip.ar else stop.parentTip.en, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft)
-                    panel.modelAnswers.firstOrNull { it.stopId == stop.id }?.let { Spacer(Modifier.height(Dimens.s4)); Text("✔ ${it.en}", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk) }
+                    Text(stop.title, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink)
+                    Text(if (ar) stop.parentTip.ar else stop.parentTip.en, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft)
+                    panel.modelAnswers.firstOrNull { it.stopId == stop.id }?.let { Spacer(Modifier.height(Dimens.s4)); Text("✔ ${it.en}", style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink) }
                     result?.stops?.firstOrNull { it.stopId == stop.id }?.let { sr ->
                         Spacer(Modifier.height(Dimens.s4))
                         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -115,7 +116,7 @@ fun LessonPanelScreen(lesson: PublishedLesson, s: Strings, media: List<StopMedia
                         }
                         sr.comment?.takeIf { it.isNotBlank() }?.let { comment ->
                             Spacer(Modifier.height(Dimens.s4))
-                            Text("${s.teacherQuestionNote}: $comment", style = MaterialTheme.typography.bodySmall, color = Palette.parentInk)
+                            Text("${s.teacherQuestionNote}: $comment", style = MaterialTheme.typography.bodySmall, color = DashboardTokens.ink)
                         }
                     }
                     media.filter { it.stopId == stop.id }.forEach { m ->

@@ -37,8 +37,6 @@ import quest.feature.parent.domain.epochToDate
 import quest.ui.design.DashboardPill
 import quest.ui.design.DashboardPillVariant
 import quest.ui.design.DashboardTokens
-import quest.ui.design.Dimens
-import quest.ui.design.Palette
 import quest.ui.design.SubjectMeta
 
 object ProgressContract {
@@ -186,7 +184,7 @@ private fun ReleasedResults(results: List<ReleasedResult>, s: Strings) {
                     }
                 }
                 r.score?.let {
-                    Text("$it", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.brand)
+                    Text("$it", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
                 }
             }
             r.band?.let {

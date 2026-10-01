@@ -26,7 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,7 +44,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -92,7 +90,6 @@ import io.github.vinceglb.filekit.core.PickerType
 import quest.ui.design.AnimatedLoadingView
 import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
 import quest.ui.design.ParentTheme
 
 object ChatConversationContract {
@@ -539,7 +536,7 @@ fun ChatConversationScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(Palette.parentBg).safeDrawingPadding()) {
+    Column(Modifier.fillMaxSize().background(DashboardTokens.bg).safeDrawingPadding()) {
         // Conversation Top Bar
         Row(
             modifier = Modifier.fillMaxWidth()
@@ -552,7 +549,7 @@ fun ChatConversationScreen(
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = Palette.parentInk,
+                    tint = DashboardTokens.ink,
                 )
             }
             Spacer(Modifier.width(Dimens.s4))
@@ -562,25 +559,25 @@ fun ChatConversationScreen(
                         text = state.teacherName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Palette.parentInk,
+                        color = DashboardTokens.ink,
                     )
                     if (state.topic == ChatTopic.COMPLAINT) {
                         Spacer(Modifier.width(Dimens.s8))
-                        Chip(strings.complaintBadge, Palette.sun)
+                        Chip(strings.complaintBadge, DashboardTokens.warningBg)
                     }
                 }
                 Text(
                     text = staffLabel(state.staffRole, state.subject, null, strings),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Palette.parentInkSoft,
+                    color = DashboardTokens.inkSoft,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val isOnline = state.connectionState == ChatConnectionState.CONNECTED
                     Box(
                         Modifier.size(8.dp).clip(CircleShape).background(
-                            if (state.isTeacherTyping) Palette.mint
-                            else if (isOnline) Palette.mint
-                            else Palette.parentInkSoft
+                            if (state.isTeacherTyping) DashboardTokens.success
+                            else if (isOnline) DashboardTokens.success
+                            else DashboardTokens.inkSoft
                         )
                     )
                     Spacer(Modifier.width(Dimens.s4))
@@ -589,7 +586,7 @@ fun ChatConversationScreen(
                                else if (isOnline) strings.online
                                else strings.offline,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (state.isTeacherTyping) Palette.mint else Palette.parentInkSoft,
+                        color = if (state.isTeacherTyping) DashboardTokens.success else DashboardTokens.inkSoft,
                     )
                 }
             }
@@ -597,13 +594,13 @@ fun ChatConversationScreen(
 
         if (state.resolved) {
             Row(
-                Modifier.fillMaxWidth().background(Palette.mint).padding(horizontal = Dimens.s16, vertical = Dimens.s8),
+                Modifier.fillMaxWidth().background(DashboardTokens.successBg).padding(horizontal = Dimens.s16, vertical = Dimens.s8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = strings.resolvedBanner,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Palette.parentInk,
+                    color = DashboardTokens.ink,
                 )
             }
         }
@@ -636,7 +633,7 @@ fun ChatConversationScreen(
                             ChatStaffRole.TEACHER -> strings.emptyConversation
                         },
                         style = MaterialTheme.typography.bodyLarge,
-                        color = Palette.parentInkSoft,
+                        color = DashboardTokens.inkSoft,
                     )
                 }
             } else {
@@ -664,13 +661,13 @@ fun ChatConversationScreen(
                         modifier = Modifier.semantics { contentDescription = strings.markAsComplaint },
                     )
                     Spacer(Modifier.width(Dimens.s8))
-                    Text(strings.markAsComplaint, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk)
+                    Text(strings.markAsComplaint, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
                 }
                 Text(
                     if (state.staffRole == ChatStaffRole.MANAGERIAL) strings.markAsComplaintHintManager
                     else strings.markAsComplaintHint,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Palette.parentInkSoft,
+                    color = DashboardTokens.inkSoft,
                 )
             }
         }
@@ -688,8 +685,8 @@ fun ChatConversationScreen(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .background(DashboardTokens.brandSoft, RoundedCornerShape(8.dp))
-                        .border(1.dp, DashboardTokens.brandSubtle, RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -779,7 +776,7 @@ fun ChatConversationScreen(
             OutlinedTextField(
                 value = state.inputText,
                 onValueChange = { if (it.length <= 2000) onInputChange(it) },
-                placeholder = { Text(strings.typeMessage, color = Palette.parentInkSoft) },
+                placeholder = { Text(strings.typeMessage, color = DashboardTokens.inkSoft) },
                 modifier = Modifier.weight(1f),
                 maxLines = 4,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -820,7 +817,7 @@ fun ChatConversationScreen(
                 Icon(
                     Icons.AutoMirrored.Filled.Send,
                     contentDescription = strings.send,
-                    tint = if (canSend) MaterialTheme.colorScheme.onPrimary else Palette.parentInkSoft,
+                    tint = if (canSend) MaterialTheme.colorScheme.onPrimary else DashboardTokens.inkSoft,
                 )
             }
         }
@@ -835,7 +832,7 @@ private fun MessageBubble(
 ) {
     val isParent = msg.isFromParent
     val bubbleColor = if (isParent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
-    val textColor = if (isParent) MaterialTheme.colorScheme.onPrimary else Palette.parentInk
+    val textColor = if (isParent) MaterialTheme.colorScheme.onPrimary else DashboardTokens.ink
     val shape = if (isParent) RoundedCornerShape(12.dp, 12.dp, 2.dp, 12.dp) else RoundedCornerShape(12.dp, 12.dp, 12.dp, 2.dp)
     val parsed = remember(msg.body) { parseMessageBody(msg.body) }
 
@@ -857,18 +854,18 @@ private fun MessageBubble(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isParent) Color.White.copy(alpha = 0.15f) else Color(0xFFFEF3F2))
-                            .border(1.dp, if (isParent) Color.White.copy(alpha = 0.3f) else Color(0xFFFEE4E2), RoundedCornerShape(8.dp))
+                            .background(if (isParent) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f) else DashboardTokens.errorBg)
+                            .border(1.dp, if (isParent) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f) else DashboardTokens.errorBorder, RoundedCornerShape(8.dp))
                             .padding(8.dp),
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
                                     .size(32.dp)
-                                    .background(Color(0xFFB42318), RoundedCornerShape(6.dp)),
+                                    .background(DashboardTokens.error, RoundedCornerShape(6.dp)),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text("PDF", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                Text("PDF", color = DashboardTokens.onBrand, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                             }
                             Spacer(Modifier.width(8.dp))
                             Column(Modifier.weight(1f)) {
@@ -892,8 +889,8 @@ private fun MessageBubble(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isParent) Color.White.copy(alpha = 0.15f) else DashboardTokens.brandSoft)
-                            .border(1.dp, if (isParent) Color.White.copy(alpha = 0.3f) else DashboardTokens.brandSubtle, RoundedCornerShape(8.dp))
+                            .background(if (isParent) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer)
+                            .border(1.dp, if (isParent) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp))
                             .padding(8.dp),
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -938,7 +935,7 @@ private fun MessageBubble(
                 Text(
                     text = formatMessageTimestamp(msg.createdAt),
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                    color = if (isParent) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f) else Palette.parentInkSoft,
+                    color = if (isParent) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f) else DashboardTokens.inkSoft,
                 )
 
                 if (isParent) {

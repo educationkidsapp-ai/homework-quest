@@ -17,9 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,7 +43,7 @@ fun AnimatedDotsLoader(
     modifier: Modifier = Modifier,
     dotSize: Dp = 10.dp,
     spacing: Dp = 6.dp,
-    color: Color = DashboardTokens.brand,
+    color: Color = MaterialTheme.colorScheme.primary,
 ) {
     val transition = rememberInfiniteTransition(label = "dots_loader")
 
@@ -116,7 +114,7 @@ fun AnimatedDotsLoader(
 fun CompactAnimatedLoading(
     modifier: Modifier = Modifier,
     size: Dp = 22.dp,
-    color: Color = DashboardTokens.brand,
+    color: Color = MaterialTheme.colorScheme.primary,
 ) {
     val transition = rememberInfiniteTransition(label = "compact_pulse")
     val scale by transition.animateFloat(
@@ -191,7 +189,7 @@ fun AnimatedLoadingView(
             modifier = Modifier
                 .scale(mascotScale)
                 .size(80.dp)
-                .background(DashboardTokens.brandSoft, CircleShape),
+                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -205,7 +203,7 @@ fun AnimatedLoadingView(
         AnimatedDotsLoader(
             dotSize = 12.dp,
             spacing = 8.dp,
-            color = DashboardTokens.brand,
+            color = MaterialTheme.colorScheme.primary,
         )
 
         Spacer(Modifier.height(18.dp))

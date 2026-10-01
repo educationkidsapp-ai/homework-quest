@@ -53,7 +53,6 @@ import quest.feature.parent.domain.CalendarUseCase
 import quest.ui.design.DashboardPill
 import quest.ui.design.DashboardPillVariant
 import quest.ui.design.DashboardTokens
-import quest.ui.design.Dimens
 import quest.ui.design.SubjectMeta
 
 object CalendarContract {
@@ -184,14 +183,14 @@ fun CalendarScreen(state: CalendarContract.State, s: Strings, dispatch: (Calenda
                                     .clip(CircleShape)
                                     .background(
                                         when {
-                                            selected -> DashboardTokens.brand
-                                            isToday -> DashboardTokens.brandSoft
+                                            selected -> MaterialTheme.colorScheme.primary
+                                            isToday -> MaterialTheme.colorScheme.primaryContainer
                                             else -> Color.Transparent
                                         },
                                         CircleShape,
                                     )
                                     .then(
-                                        if (isToday && !selected) Modifier.border(1.dp, DashboardTokens.brand, CircleShape)
+                                        if (isToday && !selected) Modifier.border(1.dp, MaterialTheme.colorScheme.primary, CircleShape)
                                         else Modifier,
                                     )
                                     .clickable(role = Role.Button) { dispatch(CalendarContract.Intent.Select(date)) }
@@ -208,8 +207,8 @@ fun CalendarScreen(state: CalendarContract.State, s: Strings, dispatch: (Calenda
                                         fontWeight = if (selected || isToday) FontWeight.Bold else FontWeight.Normal,
                                     ),
                                     color = when {
-                                        selected -> Color.White
-                                        isToday -> DashboardTokens.brand
+                                        selected -> MaterialTheme.colorScheme.onPrimary
+                                        isToday -> MaterialTheme.colorScheme.primary
                                         else -> DashboardTokens.ink
                                     },
                                 )

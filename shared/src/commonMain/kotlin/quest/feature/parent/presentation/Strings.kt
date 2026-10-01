@@ -1,8 +1,9 @@
 package quest.feature.parent.presentation
 
 import androidx.compose.runtime.staticCompositionLocalOf
+import quest.feature.journey.presentation.LessonStrings
 
-/** Parent-mode copy in English and Arabic. Child mode stays in English (dev prompt §7). */
+/** The app's copy in English and Arabic. The lesson and exam screens keep theirs in [LessonStrings]. */
 data class Strings(
     val isRtl: Boolean,
     val grownUps: String, val enterPin: String, val createPin: String, val repeatPin: String, val pinMismatch: String, val wrongPin: String,
@@ -30,9 +31,9 @@ data class Strings(
     val addChild: String = "Add a child", val avatar: String = "Pip's colour", val american: String = "American", val british: String = "British",
     val languages: String = "Subject languages", val whoIsPlaying: String = "Who is playing?", val children: String = "Children", val signOut: String = "Sign out",
     val level: String = "Level", val unlockLevel: String = "Unlock", val lessonPanel: String = "Lesson panel", val objectives: String = "Learning objectives",
-    val supported: String = "Supported", val challengeIdeas: String = "Challenge", val tipsPerStop: String = "Tips for each stop", val played: String = "Played", val notPlayed: String = "Not played yet", val playRecording: String = "Play the recording",
+    val supported: String = "Supported", val challengeIdeas: String = "Challenge", val tipsPerStop: String = "Tips for each step", val played: String = "Completed", val notPlayed: String = "Not started", val playRecording: String = "Play the recording",
     val deleteChild: String = "Delete this child", val deleteChildBody: String = "Removes the child, their progress, recordings and drawings from this device and the server.", val deleteChildConfirm: String = "Yes, delete",
-    val weakSkills: String = "Needs another look", val noWeakSkills: String = "Nothing to review right now — great!", val streak: String = "Day streak", val stickers: String = "Stickers",
+    val weakSkills: String = "Needs another look", val noWeakSkills: String = "Nothing to review right now — great!", val streak: String = "Day streak", val stickers: String = "Achievements",
     // §2 join school (P2.2)
     val schoolCode: String = "School code", val schoolCodeHint: String = "The 6-letter code from your child's school. Leave it empty if you do not have one.",
     val schoolCodePlaceholder: String = "ABC123", val schoolNotFound: String = "We couldn't find that school code.",
@@ -167,6 +168,8 @@ data class Strings(
     val parentPortal: String = "Parent Portal",
     /** `{earned}` / `{total}` stars. A fraction, never a percentage (§7). */
     val lessonScore: String = "Score: {earned}/{total}",
+    /** The lesson and exam screens' own table; the student home draws its exam badge and read-aloud label from it. */
+    val lesson: LessonStrings = LessonStrings.en,
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -176,7 +179,7 @@ data class Strings(
     companion object {
         val en = Strings(
             isRtl = false,
-            grownUps = "Grown-ups", enterPin = "Enter your PIN", createPin = "Create a 4-digit PIN", repeatPin = "Repeat the PIN",
+            grownUps = "Parent access", enterPin = "Enter your PIN", createPin = "Create a 4-digit PIN", repeatPin = "Repeat the PIN",
             pinMismatch = "The PINs did not match. Try again.", wrongPin = "That is not the PIN.",
             parentHome = "Parent mode", todaysLessons = "Today's lessons", noLessonsToday = "No lesson added today yet.",
             addLesson = "Add lesson", calendar = "Calendar", progress = "Progress", settings = "Settings", backToChild = "Back to child mode",
@@ -189,7 +192,7 @@ data class Strings(
             confirmTitle = "What was taught?", confirmBody = "Untick anything that is not a skill from today.",
             unsureQuestion = "Not sure — which one?", addSkill = "Add a skill", skillName = "Skill name", makeQuest = "Make the quest",
             keepAtLeastOne = "Keep at least one skill.", slides = "slides",
-            goingWell = "Going well", gettingThere = "Getting there", needsAnotherLook = "Needs another look", notPlayedYet = "Not played yet",
+            goingWell = "Going well", gettingThere = "Getting there", needsAnotherLook = "Needs another look", notPlayedYet = "Not started yet",
             firstTry = "Right on the first try", lastPractised = "Last practised", queuedFor = "Coming back on", attempts = "answers",
             childProfile = "Child profile", childName = "Child's name", grade = "Grade", curriculum = "Curriculum", save = "Save",
             practiceLength = "Practice length", questions = "questions", language = "Language", changePin = "Change PIN",
@@ -203,7 +206,7 @@ data class Strings(
 
         val ar = Strings(
             isRtl = true,
-            grownUps = "الأهل", enterPin = "أدخل الرقم السري", createPin = "أنشئ رقمًا سريًا من 4 أرقام", repeatPin = "أعد إدخال الرقم السري",
+            grownUps = "دخول وليّ الأمر", enterPin = "أدخل الرقم السري", createPin = "أنشئ رقمًا سريًا من 4 أرقام", repeatPin = "أعد إدخال الرقم السري",
             pinMismatch = "الرقمان غير متطابقين. حاول مجددًا.", wrongPin = "الرقم السري غير صحيح.",
             parentHome = "وضع الأهل", todaysLessons = "دروس اليوم", noLessonsToday = "لم يُضف درس اليوم بعد.",
             addLesson = "إضافة درس", calendar = "التقويم", progress = "التقدّم", settings = "الإعدادات", backToChild = "العودة إلى وضع الطفل",
@@ -216,7 +219,7 @@ data class Strings(
             confirmTitle = "ماذا تعلّم اليوم؟", confirmBody = "ألغِ تحديد أي شيء ليس مهارة من درس اليوم.",
             unsureQuestion = "غير متأكد — أيهما؟", addSkill = "أضف مهارة", skillName = "اسم المهارة", makeQuest = "أنشئ المهمة",
             keepAtLeastOne = "أبقِ مهارة واحدة على الأقل.", slides = "شرائح",
-            goingWell = "ممتاز", gettingThere = "يتقدّم", needsAnotherLook = "يحتاج مراجعة", notPlayedYet = "لم يلعب بعد",
+            goingWell = "ممتاز", gettingThere = "يتقدّم", needsAnotherLook = "يحتاج مراجعة", notPlayedYet = "لم يبدأ بعد",
             firstTry = "صحيح من المحاولة الأولى", lastPractised = "آخر تدريب", queuedFor = "سيعود يوم", attempts = "إجابات",
             childProfile = "ملف الطفل", childName = "اسم الطفل", grade = "الصف", curriculum = "المنهج", save = "حفظ",
             practiceLength = "طول التدريب", questions = "أسئلة", language = "اللغة", changePin = "تغيير الرقم السري",
@@ -230,9 +233,9 @@ data class Strings(
             addChild = "إضافة طفل", avatar = "لون بيب", american = "أمريكي", british = "بريطاني",
             languages = "لغات المواد", whoIsPlaying = "من يلعب؟", children = "الأطفال", signOut = "تسجيل الخروج",
             level = "المستوى", unlockLevel = "فتح", lessonPanel = "لوحة الدرس", objectives = "أهداف التعلّم",
-            supported = "دعم", challengeIdeas = "تحدٍّ", tipsPerStop = "نصائح لكل محطة", played = "لُعب", notPlayed = "لم يُلعب بعد", playRecording = "تشغيل التسجيل",
+            supported = "دعم", challengeIdeas = "تحدٍّ", tipsPerStop = "نصائح لكل خطوة", played = "مكتمل", notPlayed = "لم يبدأ بعد", playRecording = "تشغيل التسجيل",
             deleteChild = "حذف هذا الطفل", deleteChildBody = "يزيل الطفل وتقدّمه وتسجيلاته ورسوماته من هذا الجهاز ومن الخادم.", deleteChildConfirm = "نعم، احذف",
-            weakSkills = "يحتاج مراجعة", noWeakSkills = "لا شيء للمراجعة الآن — رائع!", streak = "أيام متتالية", stickers = "الملصقات",
+            weakSkills = "يحتاج مراجعة", noWeakSkills = "لا شيء للمراجعة الآن — رائع!", streak = "أيام متتالية", stickers = "الإنجازات",
             schoolCode = "رمز المدرسة", schoolCodeHint = "الرمز المكوّن من 6 أحرف من مدرسة طفلك. اتركه فارغًا إن لم يكن لديك رمز.",
             schoolCodePlaceholder = "ABC123", schoolNotFound = "لم نعثر على رمز المدرسة هذا.",
             joinSchool = "الانضمام إلى هذه المدرسة", joinedSchool = "تم الانضمام", changeSchool = "استخدم رمزًا آخر",
@@ -333,6 +336,7 @@ data class Strings(
             openLesson = "افتح",
             parentPortal = "بوابة ولي الأمر",
             lessonScore = "النتيجة: {earned}/{total}",
+            lesson = LessonStrings.ar,
         )
 
         fun forLanguage(code: String) = if (code == "ar") ar else en

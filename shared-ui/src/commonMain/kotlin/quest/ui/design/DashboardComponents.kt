@@ -42,7 +42,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -188,21 +187,21 @@ fun DashboardPill(
         DashboardPillVariant.SUCCESS -> DashboardTokens.successBg
         DashboardPillVariant.WARNING -> DashboardTokens.warningBg
         DashboardPillVariant.ERROR -> DashboardTokens.errorBg
-        DashboardPillVariant.INFO -> DashboardTokens.brandSoft
+        DashboardPillVariant.INFO -> MaterialTheme.colorScheme.primaryContainer
         DashboardPillVariant.NEUTRAL -> DashboardTokens.bgSubtle
     }
     val textColor = when (variant) {
         DashboardPillVariant.SUCCESS -> DashboardTokens.success
         DashboardPillVariant.WARNING -> DashboardTokens.warning
         DashboardPillVariant.ERROR -> DashboardTokens.error
-        DashboardPillVariant.INFO -> DashboardTokens.brandStrong
+        DashboardPillVariant.INFO -> MaterialTheme.colorScheme.primary
         DashboardPillVariant.NEUTRAL -> DashboardTokens.inkSoft
     }
     val borderColor = when (variant) {
         DashboardPillVariant.SUCCESS -> DashboardTokens.successBorder
         DashboardPillVariant.WARNING -> DashboardTokens.warningBorder
         DashboardPillVariant.ERROR -> DashboardTokens.errorBorder
-        DashboardPillVariant.INFO -> DashboardTokens.brandSubtle
+        DashboardPillVariant.INFO -> MaterialTheme.colorScheme.primaryContainer
         DashboardPillVariant.NEUTRAL -> DashboardTokens.rule
     }
 
@@ -313,6 +312,21 @@ fun DashboardSectionHeader(
 }
 
 /**
+ * A student as the app draws one everywhere: the initial of the name on the soft accent — the avatar of the student
+ * home, used wherever a child is listed.
+ */
+@Composable
+fun StudentAvatar(name: String, modifier: Modifier = Modifier, size: Dp = 40.dp) {
+    Box(modifier.size(size).background(MaterialTheme.colorScheme.primaryContainer, CircleShape), contentAlignment = Alignment.Center) {
+        Text(
+            name.trim().take(1).uppercase().ifEmpty { "–" },
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+/**
  * Clean formal progress bar with rounded ends.
  */
 @Composable
@@ -410,7 +424,7 @@ fun DashboardBottomNavigation(
                         Icon(
                             imageVector = icon,
                             contentDescription = tab.label(isRtl),
-                            tint = if (isSelected) DashboardTokens.brand else DashboardTokens.inkSoft,
+                            tint = if (isSelected) MaterialTheme.colorScheme.primary else DashboardTokens.inkSoft,
                             modifier = Modifier.size(24.dp),
                         )
                         if (badgeCount > 0) {
@@ -427,7 +441,7 @@ fun DashboardBottomNavigation(
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         ),
-                        color = if (isSelected) DashboardTokens.brand else DashboardTokens.inkSoft,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else DashboardTokens.inkSoft,
                     )
                 }
             }

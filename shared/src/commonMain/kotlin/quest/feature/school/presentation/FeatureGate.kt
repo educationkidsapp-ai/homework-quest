@@ -16,7 +16,7 @@ import quest.feature.school.domain.Flags
  * §4's rule on the app side: **every screen sits inside a gate.** A screen whose flag is off is simply not composed —
  * no placeholder, no message, no error — so a school that has not bought a feature never learns it exists.
  *
- *     FeatureGate("stickers.treasureChest") { TreasureChestScreen(…) }
+ *     FeatureGate("certificates") { Certificate(…) }
  *
  * `./gradlew :shared:checkFeatureGates` fails when a new `*Screen.kt` has neither a `FeatureGate(` reference nor a
  * `// hq-flag: none (<reason>)` line.

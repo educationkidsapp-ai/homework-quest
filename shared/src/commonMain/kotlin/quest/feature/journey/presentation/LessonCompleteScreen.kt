@@ -1,5 +1,15 @@
 package quest.feature.journey.presentation
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import quest.ui.design.DashboardTokens
+import quest.ui.design.DashboardCard
+import quest.ui.design.StarRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,7 +30,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -43,23 +52,18 @@ import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.featureEnabled
 import quest.ui.design.BigButton
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
-import quest.ui.design.Pip
-import quest.ui.design.PipPose
-import quest.ui.design.ReadAloudButton
-import quest.ui.design.StickerKeys
 import quest.ui.journey.Certificate
 
 object CompleteContract {
-    data class State(val loading: Boolean = true, val lesson: PublishedLesson? = null, val level: Int = 1, val variant: Int = 0, val stars: Int = 0, val starsTotal: Int = 0, val stickerKey: String? = null, val childName: String = "", val served: Boolean = false, val nextLevelUnlocked: Boolean = false) : MviState
-    sealed interface Intent : MviIntent { data object Load : Intent; data object Serve : Intent; data object ReadAloud : Intent }
+    data class State(val loading: Boolean = true, val lesson: PublishedLesson? = null, val level: Int = 1, val variant: Int = 0, val stars: Int = 0, val starsTotal: Int = 0, val childName: String = "", val nextLevelUnlocked: Boolean = false, val exam: Boolean = false) : MviState
+    sealed interface Intent : MviIntent { data object Load : Intent; data object ReadAloud : Intent }
     sealed interface Effect : MviEffect { data class Speak(val text: String) : Effect }
 }
 
 class LessonCompleteViewModel(
     private val lessonId: String, private val level: Int, private val variant: Int,
     private val lessons: LessonRepository, private val journey: JourneyRepository, private val children: ChildrenRepository,
-    private val awardSticker: AwardStickerUseCase, private val updateStreak: UpdateStreakUseCase,
+    private val awardSticker: AwardStickerUseCase, private val updateStreak: UpdateStreakUseCase, private val copy: LessonCopy,
 ) : MviViewModel<CompleteContract.State, CompleteContract.Intent, CompleteContract.Effect>(CompleteContract.State(level = level, variant = variant)) {
     init { dispatch(CompleteContract.Intent.Load) }
     override suspend fun handle(intent: CompleteContract.Intent) {
@@ -67,76 +71,80 @@ class LessonCompleteViewModel(
             CompleteContract.Intent.Load -> {
                 val child = children.currentChild.value ?: return
                 val lesson = lessons.lesson(lessonId)
-                val play = lesson.play(level, variant) ?: lesson.plays.first()
+                val play = lesson.playFor(level, variant)
                 val progress = journey.progress(child.id, lessonId, play.level, play.variant)
-                val sticker = awardSticker()
+                awardSticker()
                 updateStreak(Today.date())
                 val unlocked = MapAssembler.unlockedLevels(journey.completions(child.id).filter { it.lessonId == lessonId }, journey.parentUnlocks(child.id)[lessonId].orEmpty())
-                reduce { copy(loading = false, lesson = lesson, stars = progress.starsFor(play), starsTotal = play.stops.size * 3, stickerKey = sticker.key, childName = child.name, nextLevelUnlocked = (level + 1) in unlocked) }
-                effect(CompleteContract.Effect.Speak("The ${play.theme.potName} is full! Tap to serve the ${play.theme.dishName}."))
+                reduce { copy(loading = false, lesson = lesson, stars = progress.starsFor(play), starsTotal = play.stops.size * 3, childName = child.name, nextLevelUnlocked = (level + 1) in unlocked, exam = lesson.isExam) }
+                effect(CompleteContract.Effect.Speak(summary()))
             }
-            CompleteContract.Intent.Serve -> { reduce { copy(served = true) }; effect(CompleteContract.Effect.Speak("${current.lesson?.theme?.servedText} You earned a certificate, ${current.childName}!")) }
-            CompleteContract.Intent.ReadAloud -> effect(CompleteContract.Effect.Speak(if (current.served) "Well done ${current.childName}! You earned a certificate and a new sticker." else "Tap to serve the ${current.lesson?.theme?.dishName}."))
+            CompleteContract.Intent.ReadAloud -> effect(CompleteContract.Effect.Speak(summary()))
         }
     }
+
+    private fun summary(): String = copy.strings().let { if (current.exam) "${it.examSubmitted}. ${it.examSubmittedBody}" else it.speakLessonComplete.replace("{name}", current.childName) }
 }
 
 @Composable
-fun LessonCompleteRoute(lessonId: String, level: Int, variant: Int, onAgain: (String, Int, Int) -> Unit, onNextLevel: (String, Int) -> Unit, onStickers: () -> Unit, onMap: () -> Unit) {
+fun LessonCompleteRoute(lessonId: String, level: Int, variant: Int, onAgain: (String, Int, Int) -> Unit, onNextLevel: (String, Int) -> Unit, onHome: () -> Unit) {
     val vm: LessonCompleteViewModel = koinViewModel(key = "complete-$lessonId-$level-$variant") { parametersOf(lessonId, level, variant) }
     val speaker: Speaker = koinInject()
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(vm) { vm.effects.collect { if (it is CompleteContract.Effect.Speak) speaker.speak(it.text) } }
-    LessonCompleteScreen(state, vm::dispatch, onAgain = { onAgain(lessonId, 1, 1) }, onNextLevel = { onNextLevel(lessonId, level + 1) }, onStickers = onStickers, onMap = onMap)
+    LessonCompleteScreen(state, vm::dispatch, onAgain = { onAgain(lessonId, 1, 1) }, onNextLevel = { onNextLevel(lessonId, level + 1) }, onHome = onHome)
 }
 
+/**
+ * The result of a finished lesson: a summary card, the stars (a count, never a percentage — §7), the certificate when
+ * the school issues them, and where to go next. An exam (§8) shows only that it was submitted: no stars, no repeat and
+ * no next level, because the teacher marks it and releases the result to the parent.
+ */
 @Composable
-fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContract.Intent) -> Unit, onAgain: () -> Unit, onNextLevel: () -> Unit, onStickers: () -> Unit, onMap: () -> Unit) {
-    val lesson = state.lesson ?: run { LoadingView("Serving…"); return }
-    Column(Modifier.fillMaxSize().background(Palette.sky).safeDrawingPadding().padding(Dimens.s16).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(Modifier.fillMaxWidth()) { Spacer(Modifier.weight(1f)); ReadAloudButton({ dispatch(CompleteContract.Intent.ReadAloud) }) }
-        if (!state.served) {
-            Text(lesson.theme.potEmoji, fontSize = 110.sp)
-            Text("The ${lesson.theme.potName} is full!", style = MaterialTheme.typography.displayLarge, color = Palette.ink, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(Dimens.s24))
-            BigButton("Serve the ${lesson.theme.dishName}", onClick = { dispatch(CompleteContract.Intent.Serve) }, emoji = "🥣")
-        } else {
-            Pip(PipPose.CELEBRATING, Dimens.pipMedium)
-            Text(lesson.theme.servedText, style = MaterialTheme.typography.bodyLarge, color = Palette.ink, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(Dimens.s12))
-            // §4 `certificates`: off, the pot is still served and the sticker still arrives — only the certificate
-            // is absent, because a school that does not issue them must never show one.
-            FeatureGate(Flags.CERTIFICATES) {
-                Certificate(state.childName, lesson.title, state.level, state.stars, state.starsTotal, "${Today.date()}")
-                Spacer(Modifier.height(Dimens.s16))
+fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContract.Intent) -> Unit, onAgain: () -> Unit, onNextLevel: () -> Unit, onHome: () -> Unit) {
+    val s = LocalLessonStrings.current
+    val lesson = state.lesson ?: run { LoadingView(s.savingWork); return }
+    Column(Modifier.fillMaxSize().background(DashboardTokens.bg).safeDrawingPadding()) {
+        LessonTopBar(onBack = null, onReadAloud = { dispatch(CompleteContract.Intent.ReadAloud) })
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
+            DashboardCard(padding = PaddingValues(Dimens.s24)) {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(56.dp).background(DashboardTokens.successBg, CircleShape).border(1.dp, DashboardTokens.successBorder, CircleShape), contentAlignment = Alignment.Center) {
+                        Text("✓", style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.success)
+                    }
+                    Spacer(Modifier.height(Dimens.s12))
+                    Text(if (state.exam) s.examSubmitted else s.lessonComplete, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(Dimens.s4))
+                    Text(lesson.title, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(Dimens.s8))
+                    Text(if (state.exam) s.examSubmittedBody else s.lessonCompleteBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
+                    if (!state.exam) {
+                        Spacer(Modifier.height(Dimens.s16))
+                        StarRow(total = 3, filled = ((state.stars * 3f) / state.starsTotal.coerceAtLeast(1)).let { kotlin.math.round(it).toInt() }.coerceIn(1, 3))
+                        Text(s.starsEarned.replace("{earned}", "${state.stars}").replace("{total}", "${state.starsTotal}"), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                    }
+                }
             }
-            state.stickerKey?.let { key ->
-                Column(Modifier.background(Palette.cream, MaterialTheme.shapes.extraLarge).padding(Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("New sticker!", style = MaterialTheme.typography.titleLarge, color = Palette.ink)
-                    Text(StickerKeys.emoji(key), fontSize = 64.sp)
+            if (!state.exam) {
+                // §4 `certificates`: a school that does not issue them must never show one.
+                FeatureGate(Flags.CERTIFICATES) {
+                    Spacer(Modifier.height(Dimens.s12))
+                    Certificate(state.childName, lesson.title, state.level, state.stars, state.starsTotal, "${Today.date()}")
                 }
             }
             Spacer(Modifier.height(Dimens.s16))
-            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s12)) {
-                BigButton("Again", onClick = onAgain, modifier = Modifier.weight(1f), emoji = "🔁", compact = true)
-                // §4 `levels.three`: the last level a school sells is where "Next level" stops being offered. Without
-                // the flag that is level 2, so finishing it offers stickers — the child is never sent to a Challenge
-                // path their school does not have, and `Routes.Journey` refuses it too if they arrive some other way.
-                val top = Flags.topLevel(featureEnabled(Flags.LEVEL_THREE))
-                val hasNext = state.level < top
-                BigButton(
-                    if (hasNext) "Next level" else "Stickers",
-                    onClick = if (hasNext) onNextLevel else onStickers,
-                    modifier = Modifier.weight(1f), emoji = "🚀", color = Palette.lavender, compact = true,
-                    enabled = !hasNext || state.nextLevelUnlocked,
-                )
-            }
-            Spacer(Modifier.height(Dimens.s12))
-            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s12)) {
-                BigButton("Stickers", onClick = onStickers, modifier = Modifier.weight(1f), emoji = "🌟", color = Palette.cream, compact = true)
-                BigButton("Map", onClick = onMap, modifier = Modifier.weight(1f), emoji = "🗺️", color = Palette.cream, compact = true)
-            }
         }
-        Spacer(Modifier.height(Dimens.s24))
+        Column(Modifier.padding(horizontal = Dimens.s16, vertical = Dimens.s12), verticalArrangement = Arrangement.spacedBy(Dimens.s8)) {
+            // §4 `levels.three`: the last level a school sells is where "Next level" stops being offered, and
+            // `Routes.Journey` refuses a level above it if the student arrives some other way.
+            val hasNext = !state.exam && state.level < Flags.topLevel(featureEnabled(Flags.LEVEL_THREE))
+            if (!state.exam) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
+                    BigButton(s.repeatLesson, onClick = onAgain, modifier = Modifier.weight(1f), primary = false, compact = true)
+                    if (hasNext) BigButton(s.nextLevel, onClick = onNextLevel, modifier = Modifier.weight(1f), compact = true, enabled = state.nextLevelUnlocked)
+                }
+            }
+            BigButton(s.backToHome, onClick = onHome, primary = !hasNext)
+        }
     }
 }

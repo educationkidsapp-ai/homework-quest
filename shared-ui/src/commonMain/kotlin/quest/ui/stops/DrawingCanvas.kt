@@ -22,7 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -38,6 +38,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import quest.ui.design.BigButton
+import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
 
@@ -63,13 +64,13 @@ fun DrawingCanvas(onChange: (String) -> Unit, modifier: Modifier = Modifier) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = Dimens.s8)) {
             Drawings.colours.forEachIndexed { i, c ->
                 Box(
-                    Modifier.width(44.dp).aspectRatio(1f).shadow(if (i == colour) 6.dp else 1.dp, RoundedCornerShape(50)).background(c, RoundedCornerShape(50))
+                    Modifier.width(44.dp).aspectRatio(1f).background(c, RoundedCornerShape(50)).border(if (i == colour) 3.dp else 1.dp, if (i == colour) DashboardTokens.inkStrong else DashboardTokens.ruleControl, RoundedCornerShape(50))
                         .clickable { colour = i }.semantics { contentDescription = "colour $i" + if (i == colour) ", selected" else "" },
                 )
             }
         }
         Canvas(
-            Modifier.fillMaxWidth().padding(horizontal = Dimens.s16).aspectRatio(1f).shadow(4.dp, RoundedCornerShape(Dimens.radiusCard)).background(Color.White, RoundedCornerShape(Dimens.radiusCard))
+            Modifier.fillMaxWidth().padding(horizontal = Dimens.s16).aspectRatio(1f).background(Color.White, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
                 .clipToBounds().semantics { contentDescription = "drawing canvas, ${strokes.size} strokes" }
                 .pointerInput(Unit) {
                     detectDragGestures(
@@ -87,7 +88,7 @@ fun DrawingCanvas(onChange: (String) -> Unit, modifier: Modifier = Modifier) {
             drawStrokes(strokes, this.size.width, this.size.height)
             if (current.size > 1) drawPath(Path().apply { current.forEachIndexed { i, p -> if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) } }, Drawings.colours[colour], style = Stroke(14.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
-        BigButton("Clear", onClick = { strokes.clear(); onChange(Drawings.encode(strokes)) }, modifier = Modifier.width(150.dp).padding(top = Dimens.s8), color = Palette.cream, compact = true)
+        BigButton(LocalStopLabels.current.clear, onClick = { strokes.clear(); onChange(Drawings.encode(strokes)) }, modifier = Modifier.width(150.dp).padding(top = Dimens.s8), primary = false, compact = true)
     }
 }
 
@@ -95,7 +96,7 @@ fun DrawingCanvas(onChange: (String) -> Unit, modifier: Modifier = Modifier) {
 @Composable
 fun DrawingPreview(strokesJson: String, modifier: Modifier = Modifier) {
     val strokes = remember(strokesJson) { Drawings.decode(strokesJson) }
-    Canvas(modifier.fillMaxWidth().aspectRatio(1f).clipToBounds().background(Color.White, RoundedCornerShape(16.dp)).semantics { contentDescription = "drawing with ${strokes.size} strokes" }) {
+    Canvas(modifier.fillMaxWidth().aspectRatio(1f).clipToBounds().background(Color.White, RoundedCornerShape(DashboardTokens.radiusMd)).semantics { contentDescription = "drawing with ${strokes.size} strokes" }) {
         drawStrokes(strokes, size.width, size.height)
     }
 }
