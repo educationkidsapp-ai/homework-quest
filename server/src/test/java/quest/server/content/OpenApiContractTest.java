@@ -207,11 +207,13 @@ class OpenApiContractTest extends ApiTestSupport {
             "/children/{id}/broadcasts", "/children/{id}/broadcasts/{broadcastId}/read",
             "/management/chat/threads", "/management/chat/threads/{id}/messages",
             "/management/chat/threads/{id}/read", "/management/admins",
-            "/management/weekly-plans", "/me/weekly-plans", "/children/{id}/weekly-plans");
+            "/management/weekly-plans", "/me/weekly-plans", "/children/{id}/weekly-plans",
+            // S1: the manager's Complaints inbox and its status write, and the school logo's two writes.
+            "/management/complaints", "/management/chat/threads/{id}/status", "/admin/schools/{id}/logo");
 
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
-            "/schools/logo", "/classes/lookup");
+            "/schools/logo", "/classes/lookup", "/schools/{id}/logo");
 
     @Test void every_shared_api_route_is_served() throws Exception {
         var doc = json(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn());

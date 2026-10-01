@@ -696,10 +696,33 @@ class BroadcastApiTest extends ApiTestSupport {
         mvc.perform(get("/media/attachments/" + image).header("Authorization", bearer(AMERICAN_PARENT))).andExpect(status().isNotFound());
         mvc.perform(get("/media/attachments/" + java.util.UUID.randomUUID()).header("Authorization", bearer(BRITISH_PARENT)))
                 .andExpect(status().isNotFound());
-        // Only an image, and only a small one: a PDF announced as a PNG is refused on its own bytes.
-        var pdf = new org.springframework.mock.web.MockMultipartFile("file", "plan.pdf", "image/png", "%PDF-1.7".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        mvc.perform(as(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/media/attachments").file(pdf),
+        // Only an image or a PDF, told by its own bytes: text announced as a PNG is refused.
+        var text = new org.springframework.mock.web.MockMultipartFile("file", "plan.png", "image/png", "hello".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        mvc.perform(as(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/media/attachments").file(text),
                 token(nour, "MANAGERIAL"))).andExpect(status().isBadRequest());
+    }
+
+    /** S1 (owner's list of 2026-10-01): a weekly plan may be a PDF — sniffed, served inline with its own type, and a plan's alone. */
+    @Test @Order(19) void a_weekly_plan_may_be_a_pdf_and_an_announcement_may_not() throws Exception {
+        // Announced as a PNG on purpose: the stored type is what the bytes are.
+        var pdf = new org.springframework.mock.web.MockMultipartFile("file", "Week 5.PDF", "image/png", "%PDF-1.7\n%%EOF".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var uploaded = json(mvc.perform(as(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/media/attachments").file(pdf),
+                token(nour, "MANAGERIAL"))).andExpect(status().isCreated()).andReturn());
+        assertThat(uploaded.get("type").asText()).isEqualTo("application/pdf");
+        String id = uploaded.get("id").asText();
+
+        mvc.perform(as(post("/management/broadcasts").contentType(MediaType.APPLICATION_JSON).content("{\"kind\":\"announcement\",\"bodyEn\":\"Read this\","
+                + "\"audience\":[\"parents\"],\"attachmentId\":\"" + id + "\"}"), token(nour, "MANAGERIAL"))).andExpect(status().isBadRequest());
+
+        var plan = created(nour, "/management/broadcasts", "{\"kind\":\"weekly_plan\",\"weekStart\":\"" + week.minusWeeks(5) + "\","
+                + "\"grade\":1,\"attachmentId\":\"" + id + "\"}");
+        assertThat(plan.get("attachment").get("type").asText()).as("how a client picks a PDF link over an image view").isEqualTo("application/pdf");
+        assertThat(plan.get("attachment").get("name").asText()).isEqualTo("week 5.pdf");
+        mvc.perform(get("/media/attachments/" + id).header("Authorization", bearer(BRITISH_PARENT))).andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Type", "application/pdf"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Disposition", "inline; filename=\"week5.pdf\""))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("X-Content-Type-Options", "nosniff"));
+        mvc.perform(get("/media/attachments/" + id).header("Authorization", bearer(AMERICAN_PARENT))).andExpect(status().isNotFound());
     }
 
     /**

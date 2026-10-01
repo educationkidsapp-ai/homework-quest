@@ -764,6 +764,9 @@
           "unread" : {
             "format" : "int32",
             "type" : "integer"
+          },
+          "withAdmin" : {
+            "type" : "boolean"
           }
         },
         "required" : [ "childId", "childName", "staffRole", "status", "teacherId", "teacherName", "topic", "unread" ],
@@ -810,6 +813,9 @@
             "type" : "boolean"
           },
           "parentId" : {
+            "type" : "string"
+          },
+          "parentName" : {
             "type" : "string"
           },
           "passwordApplied" : {
@@ -2303,6 +2309,9 @@
             "type" : "string"
           },
           "parentId" : {
+            "type" : "string"
+          },
+          "parentName" : {
             "type" : "string"
           },
           "parentPhone" : {
@@ -3801,7 +3810,16 @@
       },
       "ManagerThreadRequest" : {
         "properties" : {
+          "childId" : {
+            "type" : "string"
+          },
+          "coordinatorUserId" : {
+            "type" : "string"
+          },
           "managerUserId" : {
+            "type" : "string"
+          },
+          "teacherUserId" : {
             "type" : "string"
           }
         },
@@ -4162,11 +4180,12 @@
       "OpenManagerThreadRequest" : {
         "properties" : {
           "managerUserId" : {
-            "minLength" : 1,
+            "type" : "string"
+          },
+          "teacherUserId" : {
             "type" : "string"
           }
         },
-        "required" : [ "managerUserId" ],
         "type" : "object"
       },
       "OpenStaffThreadRequest" : {
@@ -4889,6 +4908,9 @@
             "type" : "string"
           },
           "parentEmail" : {
+            "type" : "string"
+          },
+          "parentName" : {
             "type" : "string"
           },
           "photoUrl" : {
@@ -7195,6 +7217,9 @@
           "parentEmail" : {
             "type" : "string"
           },
+          "parentName" : {
+            "type" : "string"
+          },
           "parentPhone" : {
             "type" : "string"
           },
@@ -7874,6 +7899,15 @@
     "/admin/chat/threads" : {
       "get" : {
         "operationId" : "supportChatThreads",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "mine",
+          "required" : false,
+          "schema" : {
+            "default" : false,
+            "type" : "boolean"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
@@ -10171,6 +10205,65 @@
           }
         },
         "tags" : [ "Dashboard users" ]
+      }
+    },
+    "/admin/schools/{id}/logo" : {
+      "delete" : {
+        "operationId" : "deleteSchoolLogo",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "Schools" ]
+      },
+      "put" : {
+        "operationId" : "uploadSchoolLogo",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SchoolLogo"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Schools" ]
       }
     },
     "/admin/schools/{id}/theme" : {
@@ -12956,6 +13049,42 @@
         "tags" : [ "Management chat" ]
       }
     },
+    "/management/chat/threads/{id}/status" : {
+      "patch" : {
+        "operationId" : "managementThreadStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ThreadStatusRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatThread"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management chat" ]
+      }
+    },
     "/management/children/{id}" : {
       "get" : {
         "operationId" : "managementChild",
@@ -13113,6 +13242,35 @@
           }
         },
         "tags" : [ "Management results" ]
+      }
+    },
+    "/management/complaints" : {
+      "get" : {
+        "operationId" : "managementComplaints",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management chat" ]
       }
     },
     "/management/coordinators" : {
@@ -14279,6 +14437,33 @@
           }
         },
         "tags" : [ "Feature flags" ]
+      }
+    },
+    "/schools/{id}/logo" : {
+      "get" : {
+        "operationId" : "schoolLogoImage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Schools" ]
       }
     },
     "/schools/{id}/theme" : {

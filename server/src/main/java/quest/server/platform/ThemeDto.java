@@ -55,5 +55,10 @@ public final class ThemeDto {
             @Schema(example = "#D9D6D2") String softBorder,
             @Schema(example = "#598FB8") String mascotColor,
             Map<String, WorldPalette> worldPalettes,
-            FontChoice fontChoice) {}
+            FontChoice fontChoice) {
+        /** The same theme with another logo — S1's uploaded one, or none. */
+        public SchoolTheme withLogoUrl(String url) {
+            return new SchoolTheme(url, appName, primary, primaryInk, accent, ground, softBorder, mascotColor, worldPalettes, fontChoice);
+        }
+    }
 }

@@ -90,7 +90,9 @@ class ManagerScopeArchitectureTest {
             "POST /management/broadcasts",
             "POST /management/chat/threads",
             "POST /management/chat/threads/{id}/messages",
-            "POST /management/chat/threads/{id}/read");
+            "POST /management/chat/threads/{id}/read",
+            // S1: `open`/`resolved` on a complaint a parent opened with her — a `chat_threads` row that is hers.
+            "PATCH /management/chat/threads/{id}/status");
 
     @Test void the_management_namespace_writes_only_what_rm2_added() {
         var writes = new ArrayList<String>();

@@ -77,7 +77,8 @@ public class PeopleDirectoryService {
                     ManagerScope.normalise(child.getCurriculum()), account == null ? null : account.getEmail(),
                     child.getParentEmail(), account == null ? null : account.getId(),
                     account == null ? null : account.getPhone(),
-                    child.getCreatedAt() == null ? 0L : child.getCreatedAt().toEpochMilli()));
+                    child.getCreatedAt() == null ? 0L : child.getCreatedAt().toEpochMilli(),
+                    account == null ? null : account.getDisplayName()));
         }
         return new ManagementDto.ChildDirectory(index, each, total, List.copyOf(out));
     }

@@ -34,6 +34,8 @@ public class SecurityConfig {
                 // §3/§4/§A: the app and the sign-in page read these before anyone has a token. Listed one by one so
                 // a later `/schools/**` route is authenticated until it is deliberately opened here.
                 .requestMatchers("/platform-settings", "/schools/*/flags", "/schools/*/theme", "/schools/logo").permitAll()
+                // S1: the uploaded school logo, shown on the sign-in page before anyone has a token. GET only.
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/schools/*/logo").permitAll()
                 // V7: the class join code, the narrower sibling of `/schools/by-code/**`. Exactly this path and this
                 // method, so a later `/classes/**` route is authenticated until it is deliberately opened here.
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/classes/lookup").permitAll()

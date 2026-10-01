@@ -232,6 +232,25 @@ class AdminPeopleApiTest extends ApiTestSupport {
         mvc.perform(scoped(patch("/admin/children/" + childId).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"parentPhone\":\"+971 50 111 2233\"}"), admin, SCHOOL)).andExpect(status().isOk());
         assertThat(parents.findById(parentId).orElseThrow().getPhone()).isEqualTo("+971501112233");
+
+        // S1: the parent's name is answered by the create, changed by the edit and carried by the page.
+        assertThat(admitted.get("parentName").asText()).isEqualTo("Ahmed Ali");
+        assertThat(sibling.get("parentName").asText()).as("a reused account keeps the name it has").isEqualTo("Ahmed Ali");
+        assertThat(json(mvc.perform(scoped(patch("/admin/children/" + childId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"parentName\":\" Ahmed A. Ali \"}"), admin, SCHOOL)).andExpect(status().isOk()).andReturn()).get("parentName").asText())
+                .isEqualTo("Ahmed A. Ali");
+        var renamed = json(mvc.perform(scoped(get("/admin/children/search?q=Ahmed A."), admin, SCHOOL)).andExpect(status().isOk()).andReturn());
+        assertThat(renamed.get("total").asInt()).as("both children of the family").isEqualTo(2);
+        assertThat(renamed.get("rows").get(0).get("parentName").asText()).isEqualTo("Ahmed A. Ali");
+        mvc.perform(scoped(patch("/admin/children/" + childId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"parentName\":\" \"}"), admin, SCHOOL)).andExpect(status().isBadRequest());
+
+        // S1 (owner's item 7): she signs in to the app for the first time and both children are simply there — the
+        // account `POST /admin/children` minted is the one her token resolves to, with no join code and no "add child".
+        String uid = parents.findById(parentId).orElseThrow().getFirebaseUid();
+        var mine = json(mvc.perform(get("/children").header("Authorization", "Bearer fake-token-" + uid)).andExpect(status().isOk()).andReturn());
+        assertThat(ids(mine, "id")).containsExactlyInAnyOrder(childId, sibling.get("childId").asText());
+        assertThat(ids(mine, "name")).containsExactlyInAnyOrder("Hala Ahmed", "Omar Ahmed");
     }
 
     @Test void an_address_that_belongs_to_another_school_is_refused_and_a_short_password_is_refused() throws Exception {

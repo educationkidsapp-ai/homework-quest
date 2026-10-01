@@ -193,8 +193,8 @@ public class CoordinatorService {
         var filter = new LessonFilter(null, null, null, iso(from, "from"), iso(to, "to"), null,
                 classId == null || classId.isBlank() ? null : classId);
         var rows = admin.list(filter, l -> all || (l.getClassId() != null && slots.contains(CoordinatorScope.slot(l.getClassId(), l.getSubject()))));
-        String wanted = coarse(status);
-        return wanted == null ? rows : rows.stream().filter(l -> wanted.equals(coarseOf(l.getStatus()))).toList();
+        var wanted = statuses(status);
+        return wanted == null ? rows : rows.stream().filter(l -> wanted.contains(l.getStatus())).toList();
     }
 
     /** The read-only lesson view: the same body `GET /teacher/lessons/{id}` answers, resolved through her scope. */
@@ -273,21 +273,24 @@ public class CoordinatorService {
         return CoordinatorScope.slot(classId, subject) + "\u0000" + date;
     }
 
-    /** `draft` | `ready` | `published`, or null when no filter was asked for; anything else is a 400. */
-    private static String coarse(String status) {
+    /**
+     * The lesson statuses a `?status=` word stands for, or null when no filter was asked for. S1: every word a row's
+     * own `status` can carry is accepted — `needs_review`, `error`, `review`, `generating`, … each meaning exactly
+     * itself, which is what the dashboard's filter sends — beside the two coarse words of the teacher's week:
+     * `ready` (= `review`) and `draft`, which stays "everything not yet ready or published". Only a word that is
+     * neither is a 400.
+     */
+    private static java.util.Set<LessonStatus> statuses(String status) {
         if (status == null || status.isBlank()) return null;
         String wanted = status.trim().toLowerCase(java.util.Locale.ROOT);
-        if (!List.of(TeacherDto.DRAFT, TeacherDto.READY, TeacherDto.PUBLISHED).contains(wanted))
-            throw ApiException.badRequest("`status` is draft, ready or published.");
-        return wanted;
-    }
-
-    private static String coarseOf(LessonStatus status) {
-        return switch (status) {
-            case PUBLISHED -> TeacherDto.PUBLISHED;
-            case REVIEW -> TeacherDto.READY;
-            default -> TeacherDto.DRAFT;
-        };
+        if (TeacherDto.READY.equals(wanted)) return java.util.Set.of(LessonStatus.REVIEW);
+        if (TeacherDto.DRAFT.equals(wanted)) {
+            var out = java.util.EnumSet.allOf(LessonStatus.class);
+            out.remove(LessonStatus.REVIEW); out.remove(LessonStatus.PUBLISHED);
+            return out;
+        }
+        for (LessonStatus s : LessonStatus.values()) if (s.name().toLowerCase(java.util.Locale.ROOT).equals(wanted)) return java.util.Set.of(s);
+        throw ApiException.badRequest("`status` is draft, ready, published or a lesson status such as needs_review or error.");
     }
 
     private static LocalDate date(String value, String field) {

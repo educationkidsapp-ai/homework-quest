@@ -111,7 +111,7 @@ public class ChildAdmissionService {
         // The password is deliberately not in the audit details: the row is readable by every Admin, for ever.
         audit.record(caller.userId(), "child.parentAccount", "child", child.getId(), section.getSchoolId(),
                 Map.of("parentCreated", created, "passwordApplied", passwordApplied));
-        return new ClassDto.ChildAdmission(child.getId(), parent.getId(), created, passwordApplied);
+        return new ClassDto.ChildAdmission(child.getId(), parent.getId(), created, passwordApplied, parent.getDisplayName());
     }
 
     /**

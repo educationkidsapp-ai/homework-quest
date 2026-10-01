@@ -102,7 +102,7 @@ public class CoordinatorController {
         return reads.attendance(CoordinatorScope.require(caller), id, from, to);
     }
 
-    /** The teacher's lesson rows, reduced to her subject. `status` is `draft`, `ready` or `published`. */
+    /** The teacher's lesson rows, reduced to her subject. `status` is `draft`, `ready`, `published` or (S1) any lesson status word. */
     @GetMapping(value = "/coordinator/lessons", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('coordinator.lesson.read')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = AdminLesson.class))))

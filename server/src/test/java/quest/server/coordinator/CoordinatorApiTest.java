@@ -146,6 +146,13 @@ class CoordinatorApiTest extends ApiTestSupport {
         assertThat(lessonIds(lina, "?status=published")).containsExactly("coord-l-math-a");
         assertThat(lessonIds(lina, "?status=ready")).containsExactly("coord-l-math-b");
         assertThat(lessonIds(lina, "?classId=" + britishB)).containsExactly("coord-l-math-b");
+        // S1: every word a lesson's own `status` can carry is a filter too — the dashboard's chips send these — and
+        // only a word that is no status at all is refused.
+        assertThat(lessonIds(lina, "?status=review")).containsExactly("coord-l-math-b");
+        for (var known : quest.api.dto.LessonStatus.values())
+            mvc.perform(as(get("/coordinator/lessons?status=" + known.name().toLowerCase(java.util.Locale.ROOT)), token(lina))).andExpect(status().isOk());
+        assertThat(lessonIds(lina, "?status=needs_review")).isEmpty();
+        assertThat(lessonIds(lina, "?status=error")).isEmpty();
         mvc.perform(as(get("/coordinator/lessons?status=nonsense"), token(lina))).andExpect(status().isBadRequest());
 
         var lesson = json(mvc.perform(as(get("/coordinator/lessons/coord-l-math-a"), token(lina)))

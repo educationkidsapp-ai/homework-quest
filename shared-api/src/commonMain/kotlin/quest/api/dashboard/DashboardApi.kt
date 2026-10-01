@@ -956,7 +956,8 @@ interface DashboardApi {
                                            teacherUserId: String? = null): quest.api.dto.ChatThread
 
     /**
-     * MH1 `POST /media/attachments` — one image (JPEG, PNG or WebP, at most 5 MB) as `multipart/form-data` under
+     * MH1 `POST /media/attachments` — one image (JPEG, PNG or WebP, at most 5 MB) or, S1, one PDF (at most 10 MB, a
+     * weekly plan only) as `multipart/form-data` under
      * `file`. The reply's id is what `createManagementBroadcast` sends as `attachmentId`; until it is attached to a
      * broadcast, only the uploader can read it back from `GET /media/attachments/{id}`.
      */
@@ -1026,6 +1027,32 @@ interface DashboardApi {
 
     /** `POST /admin/chat/threads` — the admin's thread with one manager of the school in `X-School-Id`. */
     suspend fun createSupportManagerThread(managerUserId: String): quest.api.dto.ChatThread
+
+    /**
+     * S1 `POST /admin/chat/threads` — **exactly one** of the four ids: a manager, a coordinator or a teacher of the
+     * school, or a child whose registered parent she writes to (404 `no_parent` when nobody has registered). The
+     * other side answers through its own routes, where the row carries `withAdmin = true`.
+     */
+    suspend fun createSupportThread(managerUserId: String? = null, coordinatorUserId: String? = null,
+                                    teacherUserId: String? = null, childId: String? = null): quest.api.dto.ChatThread
+
+    /** S1 `GET /admin/chat/threads?mine=true` — the admin's own conversations, with her own unread counts. */
+    suspend fun supportOwnThreads(): List<quest.api.dto.ChatThread>
+
+    /** S1 `POST /coordinator/chat/threads` — exactly one of a manager of her department and a teacher of her subjects. */
+    suspend fun createCoordinatorChatThread(managerUserId: String? = null, teacherUserId: String? = null): quest.api.dto.ChatThread
+
+    /** S1 `GET /management/complaints?status=` — the `complaint` threads parents opened with her. */
+    suspend fun managementComplaints(status: String? = null): List<quest.api.dto.ChatThread>
+
+    /** S1 `PATCH /management/chat/threads/{id}/status` — `open` or `resolved`, as the coordinator's. */
+    suspend fun setManagementThreadStatus(threadId: String, status: String): quest.api.dto.ChatThread
+
+    /** S1 `PUT /admin/schools/{id}/logo` — one JPEG, PNG or WebP of at most 1 MB as multipart `file`. */
+    suspend fun uploadSchoolLogo(schoolId: String, file: quest.api.UploadFile): SchoolLogo
+
+    /** S1 `DELETE /admin/schools/{id}/logo` — the school has no logo afterwards. */
+    suspend fun deleteSchoolLogo(schoolId: String)
 
     /** `POST /admin/chat/threads/{threadId}/messages` — into her own thread only; support otherwise reads. */
     suspend fun sendSupportChatMessage(threadId: String, request: quest.api.dto.SendChatMessageRequest): quest.api.dto.ChatMessage

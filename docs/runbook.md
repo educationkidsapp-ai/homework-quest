@@ -198,7 +198,8 @@ curriculum track (`american` / `british`) or for both, across every grade and ev
   is a department (British / American). The seed writes those rows; the manager's own reads are RM1.
 - **Routes**: `GET /coordinator/me` (scope + counts), `/coordinator/teachers`, `/coordinator/classes`,
   `/coordinator/calendar?from&to` (every class in scope, day by day, ≤ 62 days), `/coordinator/lessons` and
-  `/coordinator/lessons/{id}` (the teacher's own lesson view, read-only; `status` is `draft`, `ready` or `published`)
+  `/coordinator/lessons/{id}` (the teacher's own lesson view, read-only; `status` is `draft`, `ready`, `published` or — S1 — any lesson status word
+  such as `needs_review`, `error` or `review`, each meaning itself; only an unknown word is 400)
   and `/coordinator/lessons/{id}/status` (R3 — E1's poll, the same `LessonStatusView` the teacher's and the Admin's
   `/status` routes answer, so her read-only lesson page never ticks against a `/teacher` route her role is refused at
   the matcher; `coordinator.lesson.read`, no flag, because the subject of the route is the lesson itself).
@@ -461,6 +462,15 @@ Admin has just written the typed password on is worthless. `parentCreated` answe
 A Firebase account that exists but has no `parents` row — a parent who signed up in the app before the school typed her
 in — keeps its uid and its own password; `POST /admin/children/{id}/parent/reset-password` is the only route that
 changes one.
+
+**The parent's name (S1).** `POST /admin/children` answers `parentName` beside the ids, `PATCH /admin/children/{id}
+{"parentName":"…"}` changes it (1–80 characters; 400 while no parent is linked, as `parentPhone`) and answers it, the
+search rows and the manager's `GET /management/people/children` rows carry it, and both `q`s match it. Chat rows'
+`parentName` is that name too, falling back to her address.
+
+**What the app sees (S1, owner's item 7).** A parent the Admin created signs in with that email and password and
+`GET /children` answers **every** child admitted under her address — no join code, no "add child" step — as the plain
+`Child` list the app already reads (`AdminPeopleApiTest`).
 
 The page is `GET /admin/children/search?q&page&size` → `{page, size, total, rows}`, matched on the child's name, either
 address the school holds, or the parent's name and telephone number. **Not** `GET /admin/children`, which has answered a
@@ -878,6 +888,23 @@ reaches a client within that, with no rebuild and no redeploy.
 A `theme.read` caller who is not ADMIN gets **404** for another school, not 403 — the same rule as everywhere else in
 §2.
 
+### The school logo as an upload (S1, V27)
+
+```bash
+curl -s -X PUT "$API/admin/schools/$SCHOOL/logo" -H "Authorization: Bearer $TOKEN" -F file=@crest.png   # school.write
+curl -s -o crest.png "$API/schools/$SCHOOL/logo"                                                        # public
+curl -s -X DELETE "$API/admin/schools/$SCHOOL/logo" -H "Authorization: Bearer $TOKEN"                   # 204
+```
+
+One JPEG, PNG or WebP of at most 1 MB, sniffed from its bytes like an attachment, stored in the `FileStore` under
+`school-logos/{schoolId}/…` and named on the school row (`logo_path`, `logo_type`, `logo_updated_at`). Nothing new is
+read by the clients: `ThemeService.themeOf` puts `<PUBLIC_URL>/schools/{id}/logo?v=<uploaded-at>` into the theme's
+existing **`logoUrl`**, so the public theme, `POST /schools/logo` (the sign-in page), the join lookup and
+`/me/home.schoolLogoUrl` all carry it, and an upload wins over a typed URL. `GET /schools/{id}/logo` is public,
+`Cache-Control: public, max-age=86400`, `nosniff`, addressed by the school id alone and able to answer only the three
+image types — 404 for a school with no upload. A replacement is a new `?v=`; `DELETE` clears the upload **and** any
+typed `logoUrl`. A theme save that sends the derived URL back does not freeze it into `theme_json`.
+
 ### How the app applies it
 
 `SchoolSession` caches the theme JSON and its ETag per school and restores it **before the first frame**, so a themed
@@ -1239,9 +1266,27 @@ parent on the message that opens it) and a `status` (`open` / `resolved`, moved 
   subject taught in the child's section, as `ChatThread` rows with `id: null` until she writes — the same shape the
   teacher rows have. She then posts to `/children/{id}/chat/threads/{staffUserId}/messages`, adding
   `{"topic":"complaint"}` on the **first** message to make it a complaint; a coordinator of another subject or the
-  other track is 404, exactly as a teacher who does not teach the section is. A complaint has to name a coordinator:
-  `complaint` on a **teacher's** thread is `400 complaint_needs_coordinator`, because `/coordinator/complaints` lists
-  only the threads a coordinator is the staff peer of and the label would otherwise sit in nobody's inbox.
+  other track is 404, exactly as a teacher who does not teach the section is. **S1 (owner's list of 2026-10-01):
+  a complaint may go to the teacher, the coordinator or the manager** — R4's `400 complaint_needs_coordinator` is
+  gone. One thread per (child, staff) means it usually lands on a conversation that already exists: `topic:"complaint"`
+  on any parent message turns that thread into an **open complaint** (and re-opens a resolved one); a later `question`
+  never takes it back out. The teacher sees it as `topic: complaint` on her `GET /teacher/chat/threads` row (the badge);
+  the coordinator in `/coordinator/complaints`; the manager in **`GET /management/complaints?status=`** with
+  `PATCH /management/chat/threads/{id}/status {"status":"open"|"resolved"}` (`management.complaints`, flag `chat`).
+- **Coordinator → teacher (S1).** `POST /coordinator/chat/threads {"teacherUserId":"…"}` — exactly one of
+  `managerUserId` and `teacherUserId`. It is the row T1b's `POST /teacher/chat/staff-threads {coordinatorUserId}`
+  creates from the other end (teacher on `teacher_id`, coordinator on `peer_user_id`, `staff_role` `COORDINATOR`);
+  a teacher outside her subjects is 404.
+- **Admin direct messages (S1).** `POST /admin/chat/threads` takes **exactly one** of `managerUserId`,
+  `coordinatorUserId`, `teacherUserId` and `childId`, with `X-School-Id`. Staff rows keep the one rule — subordinate
+  on `teacher_id`, the admin on `peer_user_id` — with `staff_role` `MANAGERIAL` for a manager (RM2's row) and `ADMIN`
+  for a coordinator or a teacher; `childId` is the parent thread (child on `child_id`, the admin on `teacher_id`,
+  `staff_role` `ADMIN`; 404 `no_parent` when nobody registered). On the wire `staffRole` stays `MANAGERIAL` (a
+  released app decodes the enum strictly) and **`withAdmin: true`** marks the row. Each side answers through its own
+  routes: `/management/chat/**`, `/coordinator/chat/**`, `/teacher/chat/staff-threads/**`, and the app's
+  `/children/{id}/chat/threads/{adminUserId}/…`, where `teacherName` is "School administration". A parent cannot start
+  that thread. `GET /admin/chat/threads?mine=true` is the admin's own inbox (her threads, her unread); `chat.message`
+  rows link each recipient to her own Messages screen.
 - **Coordinator ↔ manager.** `POST /coordinator/chat/threads {"managerUserId":"…"}` — one thread per pair, however
   many times either side asks for it, limited to a manager whose department (her `curriculum` scope) meets hers; any
   other manager is 404. `childId` is empty on those rows. RM2 gave the manager the other end of it:
@@ -1628,7 +1673,7 @@ it supersedes already carries — so a school with it off answers 404 to compose
 | `POST /me/broadcasts/{id}/read` | `broadcast.write` | Marks one row read; 404 for a row she is not an audience of. |
 | `GET /children/{id}/broadcasts` | `child.broadcast.read` | The app's feed for that child, with the child's `unread`. |
 | `POST /children/{id}/broadcasts/{broadcastId}/read` | `child.broadcast.write` | The parent's read mark. |
-| `POST /media/attachments` | `media.attachment.write` | MH1: one image (JPEG/PNG/WebP, ≤ 5 MB) as `multipart/form-data` under `file`. 201 `{id, name, type, sizeBytes}`. |
+| `POST /media/attachments` | `media.attachment.write` | MH1: one image (JPEG/PNG/WebP, ≤ 5 MB) or, S1, one PDF (≤ 10 MB) as `multipart/form-data` under `file`. 201 `{id, name, type, sizeBytes}`. |
 | `GET /media/attachments/{id}` | `media.attachment.read` | The bytes, to whoever may read a broadcast carrying them — or to the uploader. 404, never 403. |
 
 Each feed has **two keys**, as the bell does: the GET is `broadcast.read` / `child.broadcast.read` and the read mark
@@ -1684,10 +1729,13 @@ an audience is resolved per reader out of `staff_scopes` and counting one would 
 
 **Attachments are an upload now (MH1, V24).** RM2 could only point at bytes that already existed, so nothing could say
 whether the recipient was allowed to read them. `POST /media/attachments` takes one image as `multipart/form-data` under
-`file` — **JPEG, PNG or WebP, at most 5 MB** — stores it in the `FileStore` under the school and answers
+`file` — **JPEG, PNG or WebP, at most 5 MB, or (S1) a PDF, at most 10 MB, sniffed by `%PDF-`** — stores it in the `FileStore` under the school and answers
 `{id, name, type, sizeBytes}`. The media type is **sniffed from the bytes' own magic number**, never the `Content-Type`
 the client sent: a PDF announced as a PNG would otherwise be served back to a whole department as one. Keys:
 `media.attachment.write` (ADMIN, TEACHER, MANAGERIAL, COORDINATOR) and `media.attachment.read` (those four and PARENT).
+**S1: a weekly plan may be a PDF** — `attachment.type` is then `application/pdf` (and `attachment.name` the file name),
+which is how a client chooses a PDF link over an image view; `GET /media/attachments/{id}` serves it
+`Content-Disposition: inline` with that type. An announcement or an event with a PDF `attachmentId` is 400.
 
 A composer then sends `attachmentId` on `POST /management/broadcasts` or `POST /coordinator/broadcasts`, and **only her
 own upload**: anybody else's id is a 400, the same answer an id that never existed gets. The row keeps

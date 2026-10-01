@@ -68,14 +68,16 @@ public interface ChildRepository extends JpaRepository<Entities.ChildEntity, Str
      */
     @Query("select c from ChildEntity c where c.classId in :classIds and c.deletedAt is null and ("
             + "lower(c.name) like :q escape '\\' or lower(coalesce(c.parentEmail, '')) like :q escape '\\'"
-            + " or exists (select 1 from ParentEntity p where p.id = c.parentId and lower(p.email) like :q escape '\\'))")
+            + " or exists (select 1 from ParentEntity p where p.id = c.parentId and ("
+            + "lower(p.email) like :q escape '\\' or lower(coalesce(p.displayName, '')) like :q escape '\\')))")
     List<Entities.ChildEntity> findDirectory(@Param("classIds") java.util.Collection<String> classIds,
                                             @Param("q") String q, org.springframework.data.domain.Pageable page);
 
     /** How many children that same filter matches, for the directory's `total` — the same predicate, counted. */
     @Query("select count(c) from ChildEntity c where c.classId in :classIds and c.deletedAt is null and ("
             + "lower(c.name) like :q escape '\\' or lower(coalesce(c.parentEmail, '')) like :q escape '\\'"
-            + " or exists (select 1 from ParentEntity p where p.id = c.parentId and lower(p.email) like :q escape '\\'))")
+            + " or exists (select 1 from ParentEntity p where p.id = c.parentId and ("
+            + "lower(p.email) like :q escape '\\' or lower(coalesce(p.displayName, '')) like :q escape '\\')))")
     long countDirectory(@Param("classIds") java.util.Collection<String> classIds, @Param("q") String q);
 
     // -------------------------------------------------------------- the Admin's Children & parents page (MA1)
