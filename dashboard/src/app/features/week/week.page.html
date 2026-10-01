@@ -73,7 +73,7 @@
       <div class="em-stat-card">
         <div class="em-stat-info">
           <p class="em-stat-label">{{ 'week.needsReview' | transloco }}</p>
-          <h3 class="em-stat-value" style="color: #e11d48;">{{ needsReviewCount() }}</h3>
+          <h3 class="em-stat-value" style="color: var(--hq-color-error-ink);">{{ needsReviewCount() }}</h3>
           <div class="em-stat-trend">
             <span class="em-pill em-pill--danger">{{ 'week.actionReq' | transloco }}</span>
             <span class="em-stat-trend-sub">{{ 'week.openStops' | transloco }}</span>
@@ -497,7 +497,7 @@
                 <span class="em-fee-change em-fee-change--warning">Pending</span>
               </div>
               <div class="em-fee-val-row">
-                <h3 class="em-fee-value" style="color: #e11d48;">{{ examsOverview.pendingCount }}</h3>
+                <h3 class="em-fee-value" style="color: var(--hq-color-error-ink);">{{ examsOverview.pendingCount }}</h3>
                 <a routerLink="/teacher/classes" class="em-link-action" style="font-size: 11px;">Grade Now</a>
               </div>
             </div>
@@ -511,7 +511,7 @@
                   <h4 class="em-payment-student">{{ exam.title }}</h4>
                   <p class="em-payment-class">{{ exam.classText }}</p>
                 </div>
-                <span class="em-payment-amount" style="color: #2563eb;">{{ exam.score }}</span>
+                <span class="em-payment-amount" style="color: var(--hq-color-brand-ink);">{{ exam.score }}</span>
               </div>
             }
           </div>

@@ -157,8 +157,8 @@ type CategoryFilter = 'all' | 'unread' | 'lessons';
       }
 
       &.is-unread {
-        border-inline-start: 4px solid var(--hq-color-accent, #3b82f6);
-        background: rgba(59, 130, 246, 0.03);
+        border-inline-start: 4px solid var(--hq-color-accent, var(--hq-color-brand-500));
+        background: color-mix(in srgb, var(--hq-color-brand-500) 3%, transparent);
       }
     }
 
@@ -207,8 +207,8 @@ type CategoryFilter = 'all' | 'unread' | 'lessons';
       inline-size: 8px;
       block-size: 8px;
       border-radius: 50%;
-      background: var(--hq-color-accent, #3b82f6);
-      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+      background: var(--hq-color-accent, var(--hq-color-brand-500));
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--hq-color-brand-500) 20%, transparent);
     }
 
     .notification-card__time {
@@ -230,8 +230,8 @@ type CategoryFilter = 'all' | 'unread' | 'lessons';
         border-color: rgba(255, 255, 255, 0.08) !important;
 
         &.is-unread {
-          background: rgba(59, 130, 246, 0.08) !important;
-          border-inline-start-color: #60a5fa !important;
+          background: color-mix(in srgb, var(--hq-color-brand-500) 8%, transparent) !important;
+          border-inline-start-color: var(--hq-color-brand-400) !important;
         }
 
         &:hover {

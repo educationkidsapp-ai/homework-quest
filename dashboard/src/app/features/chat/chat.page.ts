@@ -841,8 +841,8 @@ interface ParsedChatMessage {
       transition: all 0.2s ease;
 
       &:focus {
-        border-color: var(--hq-color-accent, #2563eb);
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        border-color: var(--hq-color-accent, var(--hq-color-brand-600));
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--hq-color-brand-600) 12%, transparent);
       }
     }
 
@@ -915,8 +915,8 @@ interface ParsedChatMessage {
 
       &.is-active {
         background: var(--hq-color-surface, #ffffff);
-        border-color: var(--hq-color-accent, #2563eb);
-        box-shadow: 0 4px 12px -2px rgba(37, 99, 235, 0.12);
+        border-color: var(--hq-color-accent, var(--hq-color-brand-600));
+        box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--hq-color-brand-600) 12%, transparent);
       }
     }
 
@@ -925,13 +925,13 @@ interface ParsedChatMessage {
       width: 40px;
       height: 40px;
       border-radius: 12px;
-      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      background: var(--hq-gradient-brand-fill);
       color: #fff;
       display: grid;
       place-items: center;
       font-weight: 700;
       font-size: 15px;
-      box-shadow: 0 2px 8px -1px rgba(37, 99, 235, 0.3);
+      box-shadow: 0 2px 8px -1px color-mix(in srgb, var(--hq-color-brand-600) 30%, transparent);
     }
 
     .thread-card__content {
@@ -1011,7 +1011,7 @@ interface ParsedChatMessage {
       height: 20px;
       padding: 0 6px;
       border-radius: 9999px;
-      background: var(--hq-color-accent, #2563eb);
+      background: var(--hq-color-accent, var(--hq-color-brand-600));
       color: #fff;
       font-size: 11px;
       font-weight: 700;
@@ -1054,7 +1054,7 @@ interface ParsedChatMessage {
       width: 38px;
       height: 38px;
       border-radius: 12px;
-      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      background: var(--hq-gradient-brand-fill);
       color: #fff;
       display: grid;
       place-items: center;
@@ -1110,10 +1110,10 @@ interface ParsedChatMessage {
     }
 
     .status-pill--connecting {
-      background: rgba(245, 158, 11, 0.12);
-      color: #d97706;
+      background: color-mix(in srgb, var(--hq-color-warning-500) 12%, transparent);
+      color: var(--hq-color-warning-ink);
       .status-pill__dot {
-        background: #f59e0b;
+        background: var(--hq-color-warning-500);
       }
     }
 
@@ -1139,10 +1139,10 @@ interface ParsedChatMessage {
       &--teacher {
         justify-content: flex-end;
         .message-bubble {
-          background: linear-gradient(135deg, #2563eb, #1d4ed8);
+          background: var(--hq-gradient-brand-fill);
           color: #ffffff;
           border-radius: 16px 16px 4px 16px;
-          box-shadow: 0 4px 14px -2px rgba(37, 99, 235, 0.25);
+          box-shadow: 0 4px 14px -2px color-mix(in srgb, var(--hq-color-brand-600) 25%, transparent);
           .message-bubble__time {
             color: rgba(255, 255, 255, 0.8);
           }
@@ -1150,7 +1150,7 @@ interface ParsedChatMessage {
             color: rgba(255, 255, 255, 0.9);
           }
           .message-bubble__status--read {
-            color: #93c5fd;
+            color: var(--hq-color-brand-300);
             font-weight: 700;
           }
           .message-bubble__status--failed {
@@ -1379,8 +1379,8 @@ interface ParsedChatMessage {
       transition: all 0.2s ease;
 
       &:focus-within {
-        border-color: var(--hq-color-accent, #2563eb);
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        border-color: var(--hq-color-accent, var(--hq-color-brand-600));
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--hq-color-brand-600) 12%, transparent);
       }
     }
 
@@ -1496,12 +1496,12 @@ interface ParsedChatMessage {
 
       &:hover {
         background: rgba(0, 0, 0, 0.05);
-        color: var(--hq-color-accent, #2563eb);
+        color: var(--hq-color-accent, var(--hq-color-brand-600));
       }
 
       &.is-active {
-        background: rgba(37, 99, 235, 0.12);
-        color: var(--hq-color-accent, #2563eb);
+        background: color-mix(in srgb, var(--hq-color-brand-600) 12%, transparent);
+        color: var(--hq-color-accent, var(--hq-color-brand-600));
       }
     }
 
@@ -1525,18 +1525,18 @@ interface ParsedChatMessage {
       align-items: center;
       gap: 6px;
       padding: 7px 16px;
-      background: var(--hq-color-accent, #2563eb);
+      background: var(--hq-color-accent, var(--hq-color-brand-600));
       color: #fff;
       border: none;
       border-radius: 10px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      box-shadow: 0 2px 8px -1px rgba(37, 99, 235, 0.3);
+      box-shadow: 0 2px 8px -1px color-mix(in srgb, var(--hq-color-brand-600) 30%, transparent);
       transition: all 0.15s ease;
 
       &:hover:not(:disabled) {
-        background: #1d4ed8;
+        background: var(--hq-color-brand-700);
         transform: translateY(-1px);
       }
       &:disabled {
@@ -1593,8 +1593,8 @@ interface ParsedChatMessage {
       }
 
       &.is-active {
-        background: rgba(37, 99, 235, 0.12);
-        color: var(--hq-color-accent, #2563eb);
+        background: color-mix(in srgb, var(--hq-color-brand-600) 12%, transparent);
+        color: var(--hq-color-accent, var(--hq-color-brand-600));
         font-weight: 600;
       }
     }
@@ -1629,7 +1629,7 @@ interface ParsedChatMessage {
       outline: none;
 
       &:focus {
-        border-color: var(--hq-color-accent, #2563eb);
+        border-color: var(--hq-color-accent, var(--hq-color-brand-600));
       }
     }
 
@@ -1725,9 +1725,9 @@ interface ParsedChatMessage {
       transition: all 0.15s ease;
 
       &:hover {
-        background: var(--hq-color-accent, #2563eb);
+        background: var(--hq-color-accent, var(--hq-color-brand-600));
         color: #fff;
-        border-color: var(--hq-color-accent, #2563eb);
+        border-color: var(--hq-color-accent, var(--hq-color-brand-600));
       }
 
       &--close {
@@ -1774,7 +1774,7 @@ interface ParsedChatMessage {
       width: 52px;
       height: 52px;
       margin: 0 auto 16px;
-      color: var(--hq-color-accent, #2563eb);
+      color: var(--hq-color-accent, var(--hq-color-brand-600));
     }
 
     .convo-empty__title {
@@ -1813,7 +1813,7 @@ interface ParsedChatMessage {
         color: #f8fafc !important;
 
         &:focus {
-          border-color: #3b82f6 !important;
+          border-color: var(--hq-color-brand-500) !important;
         }
       }
 
@@ -1831,7 +1831,7 @@ interface ParsedChatMessage {
 
       .thread-card.is-active {
         background: #1e293b !important;
-        border-color: #3b82f6 !important;
+        border-color: var(--hq-color-brand-500) !important;
         box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.4) !important;
       }
 
@@ -1921,7 +1921,7 @@ interface ParsedChatMessage {
         color: #94a3b8 !important;
         &:hover {
           background: rgba(255, 255, 255, 0.08) !important;
-          color: #3b82f6 !important;
+          color: var(--hq-color-brand-ink) !important;
         }
       }
 
@@ -1941,8 +1941,8 @@ interface ParsedChatMessage {
           background: rgba(255, 255, 255, 0.06) !important;
         }
         &.is-active {
-          background: rgba(59, 130, 246, 0.2) !important;
-          color: #60a5fa !important;
+          background: color-mix(in srgb, var(--hq-color-brand-500) 20%, transparent) !important;
+          color: var(--hq-color-brand-400) !important;
         }
       }
 

@@ -262,15 +262,15 @@
   }
 
   &--word {
-    background: #dbeafe;
-    color: #1e40af;
-    border: 1px solid #bfdbfe;
+    background: var(--hq-color-brand-100);
+    color: var(--hq-color-brand-ink);
+    border: 1px solid var(--hq-color-brand-200);
   }
 
   &--ppt {
-    background: #ffedd5;
-    color: #9a3412;
-    border: 1px solid #fed7aa;
+    background: var(--hq-color-orange-100);
+    color: var(--hq-color-orange-900);
+    border: 1px solid var(--hq-color-orange-200);
   }
 
   &--img {

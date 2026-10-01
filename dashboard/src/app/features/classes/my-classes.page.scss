@@ -10,7 +10,7 @@
   transition: color 0.15s ease;
 
   &:hover {
-    color: #2563eb;
+    color: var(--hq-color-brand-ink);
     text-decoration: underline;
   }
 }

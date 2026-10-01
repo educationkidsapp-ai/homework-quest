@@ -199,6 +199,14 @@ export class StyleguidePage {
       steps: ['25', '50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'],
     },
     {
+      name: 'magenta',
+      steps: ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'],
+    },
+    {
+      name: 'orange',
+      steps: ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'],
+    },
+    {
       name: 'gray',
       steps: ['25', '50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'],
     },
@@ -235,6 +243,10 @@ export class StyleguidePage {
     '--hq-color-error-ink',
     '--hq-color-success-ink',
     '--hq-color-warning-ink',
+    '--hq-color-brand-ink',
+    '--hq-color-secondary-ink',
+    '--hq-color-tertiary-ink',
+    '--hq-color-info-ink',
   ];
   protected readonly contrast = signal<readonly RoleContrast[]>([]);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);

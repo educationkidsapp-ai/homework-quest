@@ -82,8 +82,9 @@ export interface NavItem<T extends string = string> {
         <div class="nav__brand">
           @if (brandLogo(); as logo) {
             <img class="nav__logo" [src]="logo" alt="" />
-          } @else if (monogram(); as initial) {
-            <span class="nav__logo nav__logo--initial" aria-hidden="true">{{ initial }}</span>
+          } @else {
+            <!-- D3: no school or platform logo, so the product's own mark holds the block. -->
+            <img class="nav__logo nav__logo--mark" src="assets/brand/myschool-mark.svg" alt="" />
           }
           <span class="nav__brand-text">
             @if (brandName(); as name) {
@@ -324,9 +325,9 @@ export interface NavItem<T extends string = string> {
       }
 
       &.is-active {
-        background: linear-gradient(to right, #3b82f6, #9333ea);
+        background: var(--hq-gradient-brand-fill);
         color: #ffffff;
-        box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.25);
+        box-shadow: 0 10px 15px -3px color-mix(in srgb, var(--hq-color-brand-500) 25%, transparent);
 
         .nav__icon {
           color: #ffffff;
@@ -347,20 +348,12 @@ export interface NavItem<T extends string = string> {
     }
 
     // A school with no logo yet still needs something in the 90 px strip, where the name is
-    // not rendered at all — its initial on the accent, which is the school's own colour.
+    // not rendered at all — the product mark (D3), at the size of a control.
     // **After** the rule above, not before it: the two match the same element at the same
     // specificity, and the first version of this lost, so the tile rendered as a 24 px square.
-    .nav__logo--initial {
-      display: grid;
-      place-items: center;
+    .nav__logo--mark {
       inline-size: var(--hq-size-control-height);
       block-size: var(--hq-size-control-height);
-      border-radius: 12px;
-      background: linear-gradient(135deg, #3b82f6 0%, #9333ea 100%);
-      color: #ffffff;
-      font-size: var(--hq-text-card-title);
-      font-weight: var(--hq-text-weight-semibold);
-      box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
     }
 
     .nav__icon {
@@ -420,9 +413,6 @@ export class NavComponent<T extends string = string> {
 
   /** Collapsed *now* — a pointer over the rail expands it again while it is there. */
   protected readonly narrowed = computed(() => !this.drawer() && this.collapsed() && !this.hovering());
-
-  /** `[...name]` rather than `name[0]`: an Arabic or emoji first character is not one UTF-16 unit. */
-  protected readonly monogram = computed(() => [...this.brandName().trim()][0] ?? '');
 
   protected iconOf(item: NavItem<T>): string {
     return navIcon(item.icon ?? item.id);

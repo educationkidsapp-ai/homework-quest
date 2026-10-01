@@ -31,6 +31,9 @@ import { PlatformService } from '../../core/platform/platform.service';
           <ng-content select="[auth-logo]">
             @if (platform.platformLogoUrl(); as logo) {
               <img class="auth__logo-image" [src]="logo" alt="" />
+            } @else {
+              <!-- D3: no platform logo uploaded, so the product's own mark stands in. -->
+              <img class="auth__logo-image auth__logo-image--mark" src="assets/brand/myschool-mark.svg" alt="" />
             }
           </ng-content>
         </div>
@@ -149,6 +152,13 @@ import { PlatformService } from '../../core/platform/platform.service';
       inline-size: var(--hq-size-logo-size);
       block-size: var(--hq-size-logo-size);
       object-fit: contain;
+    }
+
+    // The product mark is the page's one brand moment; a school's or the platform's own
+    // uploaded logo keeps the size it always had.
+    .auth__logo-image--mark {
+      inline-size: var(--hq-size-touch-target);
+      block-size: var(--hq-size-touch-target);
     }
 
     .auth__name {

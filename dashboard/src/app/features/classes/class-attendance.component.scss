@@ -49,7 +49,7 @@
 
   &:hover {
     opacity: 1;
-    border-color: var(--hq-color-accent, #6366f1);
+    border-color: var(--hq-color-accent, var(--hq-color-brand-500));
   }
 }
 
@@ -86,19 +86,19 @@
     border-inline-start: 4px solid #10b981;
   }
   &--late {
-    border-inline-start: 4px solid #f59e0b;
+    border-inline-start: 4px solid var(--hq-color-warning-500);
   }
   &--absent {
     border-inline-start: 4px solid #ef4444;
   }
   &--excused {
-    border-inline-start: 4px solid #a855f7;
+    border-inline-start: 4px solid var(--hq-color-magenta-500);
   }
   &--rate {
     border-inline-start: 4px solid #06b6d4;
   }
   &--total {
-    border-inline-start: 4px solid #6366f1;
+    border-inline-start: 4px solid var(--hq-color-brand-500);
   }
 }
 
@@ -160,7 +160,7 @@
   inline-size: 40px;
   block-size: 40px;
   border-radius: var(--hq-radius-pill, 9999px);
-  background-color: var(--avatar-bg, #38bdf8);
+  background-color: var(--avatar-bg, var(--hq-color-brand-400));
   color: #ffffff;
   font-weight: 700;
   font-size: 15px;
@@ -208,9 +208,9 @@
   }
 
   &--late.attendance__status-btn--active {
-    background: #f59e0b;
+    background: var(--hq-color-warning-500);
     color: #ffffff;
-    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25);
+    box-shadow: 0 2px 6px color-mix(in srgb, var(--hq-color-warning-500) 25%, transparent);
   }
 
   &--absent.attendance__status-btn--active {
@@ -220,9 +220,9 @@
   }
 
   &--excused.attendance__status-btn--active {
-    background: #8b5cf6;
+    background: var(--hq-color-magenta-500);
     color: #ffffff;
-    box-shadow: 0 2px 6px rgba(139, 92, 246, 0.25);
+    box-shadow: 0 2px 6px color-mix(in srgb, var(--hq-color-magenta-500) 25%, transparent);
   }
 }
 
@@ -250,8 +250,8 @@
     box-shadow 0.15s ease;
 
   &:focus {
-    border-color: var(--hq-color-accent, #6366f1);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    border-color: var(--hq-color-accent, var(--hq-color-brand-500));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--hq-color-brand-500) 12%, transparent);
   }
 
   &::placeholder {
