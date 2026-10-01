@@ -161,7 +161,6 @@ fun CompactAnimatedLoading(
 fun AnimatedLoadingView(
     text: String = "Loading…",
     modifier: Modifier = Modifier,
-    isDark: Boolean = false,
 ) {
     val transition = rememberInfiniteTransition(label = "loading_view_anim")
     val mascotScale by transition.animateFloat(
@@ -174,13 +173,11 @@ fun AnimatedLoadingView(
         label = "mascot_scale",
     )
 
-    val bgColor = if (isDark) DashboardTokens.surfaceDark else DashboardTokens.bg
-    val textColor = if (isDark) Color.White else DashboardTokens.inkStrong
+    val textColor = DashboardTokens.inkStrong
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(bgColor)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -203,7 +200,7 @@ fun AnimatedLoadingView(
         AnimatedDotsLoader(
             dotSize = 12.dp,
             spacing = 8.dp,
-            color = MaterialTheme.colorScheme.primary,
+            color = DashboardTokens.accentInk,
         )
 
         Spacer(Modifier.height(18.dp))

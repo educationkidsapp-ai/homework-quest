@@ -426,7 +426,7 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
          */
         val alNoorTheme = SchoolTheme(
             logoUrl = null,
-            appName = "Al Noor Quest",
+            appName = "Al Noor School",
             primary = "#E7F2EC",
             primaryInk = "#13301F",
             accent = "#1F6B4A",
@@ -452,6 +452,6 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         )
 
         /** What `GET /platform-settings` answers without a backend. */
-        val platformDefaults = PlatformSettings(name = "Homework Quest", shortName = "Quest")
+        val platformDefaults = PlatformSettings(name = "MySchool", shortName = "MySchool")
     }
 }

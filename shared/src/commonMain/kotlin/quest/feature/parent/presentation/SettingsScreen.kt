@@ -1,5 +1,7 @@
 package quest.feature.parent.presentation
 
+import quest.ui.design.DashboardFilterChip
+import quest.feature.parent.domain.Appearance
 import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,7 +41,7 @@ import quest.ui.design.Dimens
 
 object SettingsContract {
     data class State(
-        val loading: Boolean = true, val settings: ParentSettings = ParentSettings("en"),
+        val loading: Boolean = true, val settings: ParentSettings = ParentSettings("en"), val appearance: Appearance = Appearance.SYSTEM,
         /** MH3: her own mobile number as it is being typed, and whether the server has the value on the screen. */
         val phone: String = "",
         val phoneKnown: Boolean = false,
@@ -52,6 +54,7 @@ object SettingsContract {
     sealed interface Intent : MviIntent {
         data object Load : Intent
         data class Language(val code: String) : Intent
+        data class SetAppearance(val appearance: Appearance) : Intent
         data class Phone(val value: String) : Intent
         data object SavePhone : Intent
     }
@@ -63,12 +66,13 @@ class SettingsViewModel(private val parent: ParentRepository, private val api: C
         when (intent) {
             SettingsContract.Intent.Load -> {
                 val s = parent.settings()
-                reduce { copy(loading = false, settings = s) }
+                reduce { copy(loading = false, settings = s, appearance = parent.appearance.value) }
                 // MH1 `GET /parent/me`. A build against a server without the route, or a device offline, simply shows no
                 // number rather than an error on a screen whose other four sections are all local.
                 val me = runCatching { api.parentProfile() }.getOrNull() ?: return
                 reduce { copy(phone = me.phone.orEmpty(), phoneKnown = true) }
             }
+            is SettingsContract.Intent.SetAppearance -> { parent.setAppearance(intent.appearance); reduce { copy(appearance = intent.appearance) } }
             is SettingsContract.Intent.Language -> { parent.setLanguage(intent.code); reduce { copy(settings = settings.copy(language = intent.code)) } }
             is SettingsContract.Intent.Phone ->
                 reduce { copy(phone = intent.value, phoneSaved = false, phoneInvalid = false, phoneSaveFailed = false) }
@@ -137,6 +141,13 @@ fun SettingsScreen(state: SettingsContract.State, s: Strings, dispatch: (Setting
                 Chip("العربية", selected = state.settings.language == "ar") { dispatch(SettingsContract.Intent.Language("ar")) }
             }
         }
+        // Light / Dark / System. System is the default and follows the device as it changes.
+        SectionTitle(s.appearance)
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
+            listOf(Appearance.SYSTEM to s.appearanceSystem, Appearance.LIGHT to s.appearanceLight, Appearance.DARK to s.appearanceDark).forEach { (value, label) ->
+                DashboardFilterChip(label, selected = state.appearance == value, onClick = { dispatch(SettingsContract.Intent.SetAppearance(value)) })
+            }
+        }
         // MH3 (owner's item 7): the number the department manager reaches her on, in the Children directory. Hidden
         // until `GET /parent/me` answered — an empty field she cannot save is worse than no field at all.
         if (state.phoneKnown) {
@@ -161,6 +172,6 @@ fun SettingsScreen(state: SettingsContract.State, s: Strings, dispatch: (Setting
         SectionTitle(s.privacy)
         ParentCard { Text(s.privacyBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft) }
         // §A: the school's own `appName` where the product's name is shown, falling back to the platform's.
-        Text("${LocalSchoolBranding.current.appName} · ${s.version} 0.2.0", style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft, modifier = Modifier.padding(vertical = Dimens.s16))
+        Text("${LocalSchoolBranding.current.displayName(s)} · ${s.version} 0.2.0", style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft, modifier = Modifier.padding(vertical = Dimens.s16))
     }
 }

@@ -94,7 +94,7 @@ fun StopPlayerRoute(lessonId: String, level: Int, variant: Int, index: Int, onFi
 @Composable
 fun StopPlayerScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) {
     val s = LocalLessonStrings.current
-    Box(Modifier.fillMaxSize().background(DashboardTokens.bg)) {
+    Box(Modifier.fillMaxSize()) {
         when (state.phase) {
             Phase.LOADING -> LoadingView(s.loadingLesson)
             Phase.ERROR -> ErrorView(state.error ?: s.genericError, onBack)

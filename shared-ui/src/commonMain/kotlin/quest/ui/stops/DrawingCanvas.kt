@@ -70,7 +70,7 @@ fun DrawingCanvas(onChange: (String) -> Unit, modifier: Modifier = Modifier) {
             }
         }
         Canvas(
-            Modifier.fillMaxWidth().padding(horizontal = Dimens.s16).aspectRatio(1f).background(DashboardTokens.surface, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
+            Modifier.fillMaxWidth().padding(horizontal = Dimens.s16).aspectRatio(1f).background(DashboardTokens.paper, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
                 .clipToBounds().semantics { contentDescription = labels.drawingPad.replace("{n}", "${strokes.size}") }
                 .pointerInput(Unit) {
                     detectDragGestures(
@@ -97,7 +97,7 @@ fun DrawingCanvas(onChange: (String) -> Unit, modifier: Modifier = Modifier) {
 fun DrawingPreview(strokesJson: String, modifier: Modifier = Modifier) {
     val strokes = remember(strokesJson) { Drawings.decode(strokesJson) }
     val description = LocalStopLabels.current.drawingStrokes.replace("{n}", "${strokes.size}")
-    Canvas(modifier.fillMaxWidth().aspectRatio(1f).clipToBounds().background(DashboardTokens.surface, RoundedCornerShape(DashboardTokens.radiusMd)).semantics { contentDescription = description }) {
+    Canvas(modifier.fillMaxWidth().aspectRatio(1f).clipToBounds().background(DashboardTokens.paper, RoundedCornerShape(DashboardTokens.radiusMd)).semantics { contentDescription = description }) {
         drawStrokes(strokes, size.width, size.height)
     }
 }

@@ -1,5 +1,6 @@
 package quest.feature.auth.presentation
 
+import quest.ui.design.MySchoolMark
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import quest.ui.design.DashboardTokens
@@ -32,6 +33,7 @@ import quest.core.mvi.MviViewModel
 import quest.feature.parent.presentation.ParentButton
 import quest.feature.parent.presentation.ParentShell
 import quest.feature.parent.presentation.Strings
+import quest.feature.parent.presentation.displayName
 import quest.feature.school.presentation.LocalSchoolBranding
 import quest.feature.school.presentation.SchoolLogo
 import quest.ui.design.Dimens
@@ -74,9 +76,11 @@ fun SignInScreen(state: SignInContract.State, s: Strings, dispatch: (SignInContr
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s24), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(Dimens.s24))
         val branding = LocalSchoolBranding.current
-        SchoolLogo(branding.logoUrl, branding.schoolName ?: branding.appName, size = 72.dp)
+        // A school's own logo when it has one; otherwise the product's mark. The school name never borrows our mark.
+        if (branding.logoUrl != null || branding.schoolName != null) SchoolLogo(branding.logoUrl, branding.schoolName ?: branding.displayName(s), size = 72.dp)
+        else MySchoolMark(size = 88.dp, contentDescription = branding.displayName(s))
         Spacer(Modifier.height(Dimens.s12))
-        Text(branding.appName, style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.ink)
+        Text(branding.displayName(s), style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.ink)
         Spacer(Modifier.height(Dimens.s24))
         OutlinedTextField(state.email, { dispatch(SignInContract.Intent.Email(it)) }, Modifier.fillMaxWidth(), label = { Text(s.email) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
         Spacer(Modifier.height(Dimens.s12))

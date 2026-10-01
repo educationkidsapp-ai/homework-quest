@@ -1,5 +1,7 @@
 package quest.feature.parent.presentation
 
+import quest.ui.design.primaryFill
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -83,7 +85,6 @@ fun ParentShell(
             Column(
                 Modifier
                     .fillMaxSize()
-                    .background(DashboardTokens.bg)
                     .safeDrawingPadding(),
             ) {
                 // Modern elevated header bar
@@ -198,7 +199,7 @@ fun ParentCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, con
 
 /**
  * Modern Dashboard Button (TailAdmin style):
- * Primary uses brand blue (#465FFF) with white text, secondary uses clean surface with subtle rule border.
+ * Primary wears the brand gradient with a white label, secondary a clean surface with a subtle rule border.
  */
 @Composable
 fun ParentButton(
@@ -214,7 +215,7 @@ fun ParentButton(
     val isPressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed && enabled) 0.98f else 1f, label = "btn_scale")
 
-    val bg = if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val bg = if (primary) primaryFill() else SolidColor(MaterialTheme.colorScheme.surface)
     val textColor = if (primary) MaterialTheme.colorScheme.onPrimary else DashboardTokens.ink
     val borderModifier = if (primary) Modifier else Modifier.border(1.dp, DashboardTokens.ruleControl, shape)
 

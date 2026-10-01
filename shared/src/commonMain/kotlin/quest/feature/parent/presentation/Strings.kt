@@ -2,6 +2,7 @@ package quest.feature.parent.presentation
 
 import androidx.compose.runtime.staticCompositionLocalOf
 import quest.feature.journey.presentation.LessonStrings
+import quest.feature.school.domain.SchoolBranding
 
 /** The app's copy in English and Arabic. The lesson and exam screens keep theirs in [LessonStrings]. */
 data class Strings(
@@ -157,6 +158,13 @@ data class Strings(
     val openDocument: String = "Open",
     val documentOpening: String = "Opening…",
     val documentFailed: String = "The file could not be opened. Check your connection, and that this device has a PDF viewer.",
+    /** The product's own name, shown when neither the school nor the platform has named the app. */
+    val appName: String = "MySchool",
+    // M1: Light / Dark / System.
+    val appearance: String = "Appearance",
+    val appearanceSystem: String = "System",
+    val appearanceLight: String = "Light",
+    val appearanceDark: String = "Dark",
     // S1: a thread the school administration opened with the parent.
     val schoolAdministration: String = "School administration",
     val emptyConversationAdmin: String = "No messages yet.",
@@ -336,6 +344,11 @@ data class Strings(
             openDocument = "فتح",
             documentOpening = "جارٍ الفتح…",
             documentFailed = "تعذّر فتح الملف. تحقق من الاتصال ومن وجود تطبيق لعرض ملفات PDF على هذا الجهاز.",
+            appName = "مدرستي",
+            appearance = "المظهر",
+            appearanceSystem = "حسب النظام",
+            appearanceLight = "فاتح",
+            appearanceDark = "داكن",
             schoolAdministration = "إدارة المدرسة",
             emptyConversationAdmin = "لا توجد رسائل بعد.",
             newMessage = "رسالة جديدة",
@@ -358,3 +371,9 @@ data class Strings(
 }
 
 val LocalStrings = staticCompositionLocalOf { Strings.en }
+
+/**
+ * The name the app shows for itself: the school's or the platform's when either has one, otherwise the product's own
+ * name in the reader's language — MySchool, مدرستي.
+ */
+fun SchoolBranding.displayName(strings: Strings): String = if (appName == SchoolBranding.DEFAULT_APP_NAME) strings.appName else appName

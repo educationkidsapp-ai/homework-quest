@@ -1,6 +1,7 @@
 <resources>
+    <!-- What is on screen before Compose draws: the dashboard's light ground (gray-50), dark glyphs in the bars. -->
     <style name="Theme.Quest" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">#EAF4FF</item>
+        <item name="android:windowBackground">#F9FAFB</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>

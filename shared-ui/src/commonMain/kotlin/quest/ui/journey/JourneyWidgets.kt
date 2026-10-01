@@ -108,7 +108,7 @@ fun StepList(stops: List<Stop>, states: List<NodeState>, stars: List<Int?>, onTa
                         Text(
                             if (state == NodeState.DONE) "✓" else "${i + 1}",
                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                            color = when (state) { NodeState.DONE -> DashboardTokens.success; NodeState.CURRENT -> MaterialTheme.colorScheme.primary; NodeState.LOCKED -> DashboardTokens.inkMuted },
+                            color = when (state) { NodeState.DONE -> DashboardTokens.success; NodeState.CURRENT -> DashboardTokens.accentInk; NodeState.LOCKED -> DashboardTokens.inkMuted },
                         )
                     }
                     Spacer(Modifier.width(Dimens.s12))
@@ -152,7 +152,7 @@ fun LevelSelector(unlocked: List<Int>, completed: List<Int>, current: Int, onSel
                 Text(
                     levelWord + if (lvl in completed) " ✓" else "",
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold),
-                    color = if (selected) MaterialTheme.colorScheme.primary else if (open) DashboardTokens.ink else DashboardTokens.inkMuted,
+                    color = if (selected) DashboardTokens.accentInk else if (open) DashboardTokens.ink else DashboardTokens.inkMuted,
                 )
                 Text(
                     if (open) labels.levelNames[lvl].orEmpty() else labels.locked,
@@ -173,7 +173,7 @@ fun Certificate(childName: String, lessonTitle: String, level: Int, stars: Int, 
         padding = androidx.compose.foundation.layout.PaddingValues(Dimens.s24),
     ) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(labels.certificate, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(labels.certificate, style = MaterialTheme.typography.labelLarge, color = DashboardTokens.accentInk)
             Spacer(Modifier.height(Dimens.s12))
             Text(labels.certificateFor, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
             Text(childName.ifBlank { labels.studentFallback }, style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)

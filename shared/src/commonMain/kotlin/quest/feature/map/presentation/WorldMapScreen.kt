@@ -1,5 +1,6 @@
 package quest.feature.map.presentation
 
+import quest.ui.design.StudentAvatar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -162,7 +162,6 @@ fun FormalStudentScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DashboardTokens.bg)
                 .safeDrawingPadding(),
         ) {
             // The 16 dp gutter sits on each child rather than on this Column, so the filter row can scroll edge to
@@ -188,18 +187,7 @@ fun FormalStudentScreen(
                             .padding(4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = state.child?.name?.take(1)?.uppercase() ?: "S",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
+                        StudentAvatar(state.child?.name ?: strings.student, size = 36.dp)
                         Spacer(Modifier.width(8.dp))
                         Column {
                             Text(
@@ -222,7 +210,7 @@ fun FormalStudentScreen(
                         DashboardPill(
                             text = strings.dayStreakShort.replace("{n}", "${state.streakDays}"),
                             icon = "🔥",
-                            variant = DashboardPillVariant.WARNING,
+                            variant = DashboardPillVariant.HIGHLIGHT,
                         )
                         Spacer(Modifier.width(8.dp))
                     }
@@ -241,7 +229,7 @@ fun FormalStudentScreen(
                         Icon(
                             imageVector = Icons.Default.Person,
                             contentDescription = strings.parentPortal,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = DashboardTokens.accentInk,
                             modifier = Modifier.size(20.dp),
                         )
                     }

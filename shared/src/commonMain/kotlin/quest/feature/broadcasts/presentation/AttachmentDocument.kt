@@ -64,7 +64,7 @@ fun AttachmentDocument(attachment: BroadcastAttachment, strings: Strings, modifi
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(40.dp).background(MaterialTheme.colorScheme.primaryContainer, shape), contentAlignment = Alignment.Center) {
-                Text("PDF", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+                Text("PDF", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.accentInk)
             }
             Spacer(Modifier.width(Dimens.s12))
             Column(Modifier.weight(1f)) {

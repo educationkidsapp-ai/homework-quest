@@ -1,5 +1,8 @@
 package quest
 
+import quest.ui.design.LocalDarkTheme
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import quest.feature.journey.presentation.LessonTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,7 +41,11 @@ fun App() {
         val auth: AuthProvider = koinInject()
         var ready by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) { initializer.initialise(); ready = true }
-        if (!ready) { AcademicTheme { AnimatedLoadingView("Loading…") }; return@KoinContext }
+        if (!ready) {
+            // Before the settings are read there is no Light/Dark choice to honour, so the first frame follows the device.
+            CompositionLocalProvider(LocalDarkTheme provides isSystemInDarkTheme()) { AcademicTheme { AnimatedLoadingView("…") } }
+            return@KoinContext
+        }
         val nav = rememberNavController()
         val start: Any = if (auth.state.value is AuthState.SignedIn) Routes.WorldMap else Routes.SignIn
         // Everything below sees the joined school's colours, name, logo and feature flags (§3, §4).

@@ -1,5 +1,7 @@
 package quest.ui.design
 
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ColorScheme
@@ -70,9 +72,13 @@ data class ThemeOverrides(
             softBorder == null && mascotColor == null && softAccent == null && worldPalettes.isEmpty && fontChoice == null
 }
 
-/** [accent] at 12 % over [ground] — the same relationship `hq.color.accent-soft` has to `hq.color.accent`. */
-fun softAccentOf(accent: Color?, ground: Color?): Color? =
-    accent?.copy(alpha = 0.12f)?.compositeOver(ground ?: Palette.parentBg)
+/**
+ * The soft tint of [accent] over [surface] — `--hq-color-accent-soft`, which the dashboard mixes from the accent rather
+ * for a school's accent, so a school that picks green gets a green tint behind its own chips: 10 % on a light surface
+ * and 16 % on a dark one.
+ */
+fun softAccentOf(accent: Color?, surface: Color?, dark: Boolean = false): Color? =
+    accent?.copy(alpha = if (dark) 0.16f else 0.10f)?.compositeOver(surface ?: DashboardPalette.Light.surface)
 
 /** `theme.worldPalettes.math` / `.english` — the per-subject world colour a school may override. */
 data class WorldPaletteOverrides(
@@ -121,7 +127,7 @@ fun schoolThemeOverrides(theme: SchoolTheme): ThemeOverrides = ThemeOverrides(
     ground = parseThemeColor(theme.ground),
     softBorder = parseThemeColor(theme.softBorder),
     mascotColor = parseThemeColor(theme.mascotColor),
-    softAccent = softAccentOf(parseThemeColor(theme.accent), parseThemeColor(theme.ground)),
+    softAccent = softAccentOf(parseThemeColor(theme.accent), parseThemeColor(theme.primary)),
     worldPalettes = WorldPaletteOverrides(
         math = parseThemeColor(theme.worldPalettes["math"]?.primary),
         english = parseThemeColor(theme.worldPalettes["english"]?.primary),
@@ -182,45 +188,74 @@ private fun childScheme(): ColorScheme = lightColorScheme(
  * `primaryInk` against `primary` and `accent` against the ground, but never the label on an accent-filled button, so
  * the app picks that one itself rather than assuming every school's accent is dark.
  */
-fun inkOn(background: Color): Color = if (background.luminance() > 0.5f) Palette.parentInk else Palette.white
+fun inkOn(background: Color): Color = if (background.luminance() > 0.5f) DashboardPalette.gray900 else Color.White
 
 /**
- * The parent/admin scheme. Colours come from [Palette] (generated from `design/tokens.json`); a school theme may
- * replace individual roles through [overrides] — with the default, empty [ThemeOverrides] the result is identical
- * to the token values, which `TokensDriftTest` asserts.
+ * The app's Material scheme: the dashboard's roles ([palette], light or dark), with a school's theme replacing
+ * individual roles through [overrides] exactly as the dashboard's `ThemeService` re-points its custom properties.
  *
  * §3 gives the three brand colours distinct jobs, and the Material roles follow them rather than their names:
  *  - `accent` is **the colour of an action** → [ColorScheme.primary] and [ColorScheme.secondary]: filled buttons,
- *    selection borders, rules. The server holds it to 4.5:1 against the ground.
+ *    selection borders. The server holds it to 4.5:1 against the ground.
  *  - `primary` is **a light brand surface** carrying `primaryInk` → [ColorScheme.surface]: cards, the logo tile.
- *    That is the pair the server measures together, so it is the pair used together.
  *  - `ground` is the page → [ColorScheme.background].
+ *
+ * **In the dark theme a school keeps its accent and nothing else.** Its surface, ink, ground and border were chosen
+ * and contrast-checked as a light set, and `_theme.scss` pins those four roles under `html.dark` for the same reason.
  */
-internal fun parentScheme(overrides: ThemeOverrides = ThemeOverrides()): ColorScheme {
-    val accent = overrides.accent ?: Palette.parentAccent
-    return lightColorScheme(
+internal fun parentScheme(overrides: ThemeOverrides = ThemeOverrides(), palette: DashboardPalette = DashboardPalette.Light): ColorScheme {
+    val themed = effectivePalette(palette, overrides)
+    val accent = overrides.accent ?: palette.brand
+    val colors = if (palette.dark) darkColorScheme() else lightColorScheme()
+    return colors.copy(
         primary = accent,
         onPrimary = inkOn(accent),
-        primaryContainer = overrides.softAccent ?: Palette.parentAccentSoft,
-        onPrimaryContainer = Palette.parentInk,
-        secondary = accent,
-        onSecondary = inkOn(accent),
-        background = overrides.ground ?: Palette.parentBg,
-        onBackground = Palette.parentInk,
-        surface = overrides.primary ?: Palette.parentSurface,
-        onSurface = overrides.primaryInk ?: Palette.parentInk,
-        surfaceVariant = overrides.ground ?: Palette.parentBg,
-        onSurfaceVariant = Palette.parentInkSoft,
-        outline = overrides.softBorder ?: Palette.parentLine,
-        error = Palette.coral,
+        // The palette's own soft tint while the accent is the palette's; a school's accent mixes its own.
+        primaryContainer = if (accent == palette.brand) palette.brandSoft else softAccentOf(accent, themed.surface, palette.dark)!!,
+        onPrimaryContainer = themed.ink,
+        secondary = themed.secondary,
+        onSecondary = themed.onSecondary,
+        secondaryContainer = themed.secondarySoft,
+        onSecondaryContainer = themed.secondaryInk,
+        tertiary = themed.tertiary,
+        onTertiary = themed.onTertiary,
+        tertiaryContainer = themed.tertiarySoft,
+        onTertiaryContainer = themed.tertiaryInk,
+        background = themed.bg,
+        onBackground = themed.ink,
+        surface = themed.surface,
+        onSurface = themed.ink,
+        surfaceVariant = themed.bg,
+        onSurfaceVariant = themed.inkSoft,
+        outline = themed.rule,
+        error = themed.error,
+        errorContainer = themed.errorBg,
+        onErrorContainer = themed.error,
     )
 }
+
+/**
+ * [palette] as a school's theme changes it: its surface, ink, ground and border replace the light palette's (and none
+ * of the dark one's — see [parentScheme]). The brand gradient, the magenta and the orange do not follow a school: they
+ * are the product's signature, exactly as the dashboard keeps `--hq-gradient-brand` under every school theme.
+ */
+fun effectivePalette(palette: DashboardPalette, overrides: ThemeOverrides): DashboardPalette =
+    if (palette.dark) palette else palette.copy(
+        bg = overrides.ground ?: palette.bg,
+        surface = overrides.primary ?: palette.surface,
+        surfaceRaised = overrides.primary ?: palette.surfaceRaised,
+        ink = overrides.primaryInk ?: palette.ink,
+        inkStrong = overrides.primaryInk ?: palette.inkStrong,
+        rule = overrides.softBorder ?: palette.rule,
+        // A school's own ground is one flat colour it chose; the brand wash belongs to the unthemed app.
+        groundWash = overrides.ground?.takeIf { it != palette.bg }?.let { listOf(it, it, it) } ?: palette.groundWash,
+    )
 
 /**
  * The parent/admin scheme [overrides] produces — [parentScheme] without the `internal`, so the app can assert what a
  * school's theme does to each Material role without standing up a composition.
  */
-fun parentThemeScheme(overrides: ThemeOverrides = ThemeOverrides()): ColorScheme = parentScheme(overrides)
+fun parentThemeScheme(overrides: ThemeOverrides = ThemeOverrides(), palette: DashboardPalette = DashboardPalette.Light): ColorScheme = parentScheme(overrides, palette)
 
 @Composable
 fun ChildTheme(content: @Composable () -> Unit) {
@@ -284,28 +319,7 @@ internal fun parentTypography(family: FontFamily) = Typography(
 )
 
 @Composable
-fun ParentTheme(rtl: Boolean, content: @Composable () -> Unit) {
-    val family = parentFontFamily(rtl)
-    val scheme = parentScheme(LocalThemeOverrides.current)
-    CompositionLocalProvider(
-        LocalThemeMode provides ThemeMode.PARENT,
-        LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
-    ) {
-        MaterialTheme(
-            colorScheme = scheme,
-            typography = parentTypography(family),
-            shapes = Shapes(
-                extraSmall = RoundedCornerShape(DashboardTokens.radiusSm),
-                small = RoundedCornerShape(DashboardTokens.radiusSm),
-                medium = RoundedCornerShape(DashboardTokens.radiusMd),
-                large = RoundedCornerShape(DashboardTokens.radiusLg),
-                extraLarge = RoundedCornerShape(24.dp),
-            ),
-        ) {
-            Box(Modifier.fillMaxSize().background(DashboardTokens.bg)) { content() }
-        }
-    }
-}
+fun ParentTheme(rtl: Boolean, content: @Composable () -> Unit) = DashboardTheme(ThemeMode.PARENT, rtl, content)
 
 /**
  * The student theme, for every grade: the student home, the lesson and exam screens and the results all share the
@@ -313,15 +327,24 @@ fun ParentTheme(rtl: Boolean, content: @Composable () -> Unit) {
  * (64 dp targets, no percentages, no timers) still apply to whatever is drawn inside.
  */
 @Composable
-fun AcademicTheme(rtl: Boolean = false, content: @Composable () -> Unit) {
+fun AcademicTheme(rtl: Boolean = false, content: @Composable () -> Unit) = DashboardTheme(ThemeMode.CHILD, rtl, content)
+
+/** Whether the dark palette is in force. The app root decides (System / Light / Dark); tests and previews get light. */
+val LocalDarkTheme = staticCompositionLocalOf { false }
+
+@Composable
+private fun DashboardTheme(mode: ThemeMode, rtl: Boolean, content: @Composable () -> Unit) {
     val family = parentFontFamily(rtl)
-    val scheme = parentScheme(LocalThemeOverrides.current)
+    val overrides = LocalThemeOverrides.current
+    val base = if (LocalDarkTheme.current) DashboardPalette.Dark else DashboardPalette.Light
+    val palette = effectivePalette(base, overrides)
     CompositionLocalProvider(
-        LocalThemeMode provides ThemeMode.CHILD,
+        LocalThemeMode provides mode,
+        LocalDashboardPalette provides palette,
         LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
     ) {
         MaterialTheme(
-            colorScheme = scheme,
+            colorScheme = parentScheme(overrides, base),
             typography = parentTypography(family),
             shapes = Shapes(
                 extraSmall = RoundedCornerShape(DashboardTokens.radiusSm),
@@ -331,7 +354,8 @@ fun AcademicTheme(rtl: Boolean = false, content: @Composable () -> Unit) {
                 extraLarge = RoundedCornerShape(24.dp),
             ),
         ) {
-            Box(Modifier.fillMaxSize().background(DashboardTokens.bg)) { content() }
+            // The shell's page wash on light, the flat ground on dark or under a school's own ground.
+            Box(Modifier.fillMaxSize().background(Brush.linearGradient(palette.groundWash))) { content() }
         }
     }
 }
