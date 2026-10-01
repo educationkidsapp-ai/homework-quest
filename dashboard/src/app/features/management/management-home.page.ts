@@ -25,7 +25,6 @@ import {
   type StatsRow,
   MAX_WINDOW_DAYS,
   defaultStatsRange,
-  quietTeachers,
   statsRows,
   windowDays,
 } from './management-stats';
@@ -69,7 +68,6 @@ import {
           <section
             class="em-stats-grid"
             [attr.aria-label]="'home.cardsLabel' | transloco"
-            data-hq-tour="cards"
           >
             @for (card of cards(); track card.key) {
               <div class="em-stat-card">
@@ -120,22 +118,6 @@ import {
             }
           </hq-card>
 
-          <hq-card [title]="'management.quiet.title' | transloco">
-            @if (quiet().length === 0) {
-              <p class="hq-muted">{{ 'management.quiet.empty' | transloco }}</p>
-            } @else {
-              <p class="hq-muted">{{ 'management.quiet.subtitle' | transloco }}</p>
-              <ul class="mg-list">
-                @for (teacher of quiet(); track teacher.userId) {
-                  <li class="mg-list__row">
-                    <span>{{ teacher.displayName }}</span>
-                    <span class="hq-muted">{{ teacher.email }}</span>
-                  </li>
-                }
-              </ul>
-            }
-          </hq-card>
-
           <!-- What needs her: since MG2a took All lessons off her rail, the sections of her
                department with nothing on today, each a way in to the teacher who owns it. Her
                **complaints** belong at the top of this list and are RM3b's: RM2 shipped the
@@ -174,12 +156,6 @@ import {
           }
           @case ('attendanceRate') {
             {{ percent(row.attendanceRate) }}
-          }
-          @case ('lessonsPublished') {
-            {{ row.lessonsPublished }}
-          }
-          @case ('lessonsPlayed') {
-            {{ row.lessonsPlayed }}
           }
           @case ('exams') {
             {{ row.exams }}
@@ -263,7 +239,6 @@ export class ManagementHomePage {
   protected readonly tooWide = computed(() => windowDays(this.from(), this.to()) > MAX_WINDOW_DAYS);
 
   protected readonly rows = computed<readonly StatsRow[]>(() => statsRows(this.stats.value()));
-  protected readonly quiet = computed(() => quietTeachers(this.stats.value()));
 
   protected readonly greeting = computed(() => {
     this.lang();
@@ -294,8 +269,6 @@ export class ManagementHomePage {
       { key: 'children', header: this.t('management.stats.columns.children') },
       { key: 'sections', header: this.t('management.stats.columns.sections') },
       { key: 'attendanceRate', header: this.t('management.stats.columns.attendance') },
-      { key: 'lessonsPublished', header: this.t('management.stats.columns.published') },
-      { key: 'lessonsPlayed', header: this.t('management.stats.columns.played') },
       { key: 'exams', header: this.t('management.stats.columns.exams') },
       { key: 'examAverage', header: this.t('management.stats.columns.examAverage') },
       { key: 'examPassRate', header: this.t('management.stats.columns.examPassRate') },

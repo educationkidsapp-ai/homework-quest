@@ -117,6 +117,17 @@ export class MediaService {
     );
   }
 
+  /**
+   * An attachment's own bytes, **not** as a `data:` URL and not cached (D2, list 3: a PDF plan).
+   *
+   * A PDF is opened, not painted: the bytes go to a new tab (`core/download/download.ts`), which
+   * wants a Blob. Up to 10 MB of base64 held for a document she opens once is what the cache's
+   * caps exist to refuse, so each Open is its own read.
+   */
+  attachmentFile(id: string): Observable<Blob> {
+    return this.media.attachment(id, 'body', false, { context: silentErrors() }) as unknown as Observable<Blob>;
+  }
+
   private remember(key: string, read: (key: string) => Observable<string>): Observable<string> {
     const cached = this.cache.get(key);
     if (cached) {

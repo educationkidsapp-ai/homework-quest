@@ -1,4 +1,4 @@
-import type { GradeStats, ManagementStats, QuietTeacher } from '../../api';
+import type { GradeStats, ManagementStats } from '../../api';
 
 /** One line of the statistics table — a grade, or the department's own total row. */
 export interface StatsRow {
@@ -9,8 +9,6 @@ export interface StatsRow {
   readonly sections: number;
   /** `null` when nothing was marked in the window: a dash, never a flattering 100 %. */
   readonly attendanceRate: number | null;
-  readonly lessonsPublished: number;
-  readonly lessonsPlayed: number;
   readonly exams: number;
   readonly examAverage: number | null;
   readonly examPassRate: number | null;
@@ -32,28 +30,6 @@ export function statsRows(stats: ManagementStats | undefined): readonly StatsRow
   return total ? [...grades, rowOf(total, 'total', null)] : grades;
 }
 
-/**
- * The teachers who published nothing in the window, once each.
- *
- * `GET /management/stats` names them per grade, and a teacher who takes 1A and 2B appears under
- * both — which on a list whose whole point is "these people have gone quiet" reads as two
- * people. Deduplicated by user id, never by name: two teachers of forty may share one.
- *
- * A row that arrives with **no** id is kept rather than folded away. `userId ?? ''` made every
- * such row the same row, so two nameless teachers collapsed into one and the list under-reported
- * the thing it exists to report; a row with nothing to key on is its own row.
- */
-export function quietTeachers(stats: ManagementStats | undefined): readonly QuietTeacher[] {
-  const seen = new Map<string, QuietTeacher>();
-  let unkeyed = 0;
-  for (const grade of stats?.grades ?? [])
-    for (const teacher of grade.quietTeachers ?? []) {
-      const id = teacher.userId ?? '';
-      seen.set(id === '' ? `unkeyed-${(unkeyed += 1)}` : id, teacher);
-    }
-  return [...seen.values()].sort((a, b) => (a.displayName ?? '').localeCompare(b.displayName ?? ''));
-}
-
 function rowOf(stats: GradeStats, key: string, grade: number | null): StatsRow {
   return {
     key,
@@ -61,8 +37,6 @@ function rowOf(stats: GradeStats, key: string, grade: number | null): StatsRow {
     children: stats.children ?? 0,
     sections: stats.sections ?? 0,
     attendanceRate: stats.attendanceRate ?? null,
-    lessonsPublished: stats.lessonsPublished ?? 0,
-    lessonsPlayed: stats.lessonsPlayed ?? 0,
     exams: stats.exams ?? 0,
     examAverage: stats.examAverage ?? null,
     examPassRate: stats.examPassRate ?? null,

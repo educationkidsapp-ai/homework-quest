@@ -44,11 +44,10 @@ interface TeacherRow {
  * both readers: "who else supervises Sara" is a question a coordinator of one subject has about a
  * teacher who also takes another.
  *
- * **The manager's row has one action** (MH2 item 2): Message, which opens the thread with that
- * teacher on RM2's `POST /management/chat/threads` and shows it. A coordinator's row still has
- * none — her own screen for a conversation is R7's Messages, and RM2 gave her no route that opens a
- * staff thread — so the button is behind `management.chat`, a key she does not hold, as well as
- * behind the area check that keeps it out of her table entirely.
+ * **A row has one action**: Message, which opens the direct thread with that teacher and shows it.
+ * A manager's goes to RM2's `POST /management/chat/threads` (MH2 item 2) and a coordinator's to
+ * `POST /coordinator/chat/threads {teacherUserId}` (D2, list 3) — `StaffThreadService` picks the
+ * route by role, and the button is behind the chat key of whichever area is reading.
  *
  * "Today" is computed from `GET /coordinator/classes` rather than asked for separately — that
  * response already carries `todayStatus` per section, and a second endpoint answering the same
@@ -137,7 +136,7 @@ interface TeacherRow {
           }
           @case ('actions') {
             <hq-button
-              *hqCan="'management.chat'"
+              *hqCan="chatKey()"
               variant="secondary"
               [loading]="threads.pending() === row.userId"
               (pressed)="message(row)"
@@ -165,6 +164,9 @@ export class CoordinatorTeachersPage {
   private readonly lang = activeLang();
   protected readonly threads = inject(StaffThreadService);
 
+  /** The key on the route the button presses: each area's own `…/chat/threads`. */
+  protected readonly chatKey = computed(() => (this.co.isManager() ? 'management.chat' : 'coordinator.chat'));
+
   protected readonly search = signal('');
 
   protected readonly columns = computed<readonly TableColumn<TeacherRow>[]>(() => {
@@ -177,7 +179,7 @@ export class CoordinatorTeachersPage {
       { key: 'sections', header: this.t('coordinator.teachers.columns.sections') },
       { key: 'coordinators', header: this.t('management.columns.coordinators'), width: '16%' },
       { key: 'today', header: this.t('coordinator.teachers.columns.today'), width: '10%' },
-      ...(this.co.isManager() ? [{ key: 'actions', header: this.t('ui.actions'), width: '12%' }] : []),
+      { key: 'actions', header: this.t('ui.actions'), width: '12%' },
     ];
   });
 

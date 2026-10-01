@@ -79,6 +79,9 @@ describe('ChatPage', () => {
       }),
       // MG2b: a teacher's key is the child on a parent thread and the thread on a staff one.
       keyOf: (thread: ChatThread) => thread.childId || thread.id!,
+      // D2: "is this key a row of the list" is the service's own question now.
+      holds: (key: string) =>
+        (mockChatService.threads as () => ChatThread[])().some((thread) => (thread.childId || thread.id!) === key),
       canWrite: canWriteSig,
       sendMessage: vi.fn(),
       sendTyping: vi.fn(),
@@ -234,5 +237,73 @@ describe('ChatPage', () => {
     TestBed.tick();
     expect(mockChatService.selectThread).not.toHaveBeenCalled();
     expect(await screen.findByText('That conversation is not in your list any more.')).toBeTruthy();
+    // D2: asked for once more before it was called stale — and only once, however often the
+    // effect reruns. Nothing is ever requested *by that id*, which is what kept the red band away.
+    expect(mockChatService.loadThreads).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * **D2 — "Message opens chat only".** The list is read at sign-in, so a thread that "Message" on
+   * a row created a second ago is not in it. The screen used to call the link stale on the spot;
+   * it now re-reads the list once and selects the row when it lands.
+   */
+  describe('a ?thread= the list does not hold yet', () => {
+    const threadsSig = () => mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>;
+    const loadingSig = () => mockChatService.loadingThreads as ReturnType<typeof signal<boolean>>;
+    const fresh: ChatThread = { ...sampleThread, id: 'th-new', childId: '', childName: '', teacherName: 'Nada Fahad' };
+
+    it('re-reads the list for a brand new thread and selects it when it arrives', async () => {
+      // The re-read, as the real service does it: loading, then the list with the new row in it.
+      (mockChatService.loadThreads as ReturnType<typeof vi.fn>).mockImplementation(() => loadingSig().set(true));
+      await renderPage(new BehaviorSubject<Record<string, string>>({ thread: 'th-new' }));
+      TestBed.tick();
+
+      expect(mockChatService.loadThreads).toHaveBeenCalledTimes(1);
+      expect(mockChatService.selectThread).not.toHaveBeenCalled();
+      // Not found *yet* is not "not in your list": nothing is said while the read is out.
+      expect(screen.queryByText('That conversation is not in your list any more.')).toBeNull();
+
+      threadsSig().set([fresh, sampleThread]);
+      loadingSig().set(false);
+      TestBed.tick();
+      expect(mockChatService.selectThread).toHaveBeenCalledWith('th-new');
+      expect(mockChatService.loadThreads).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText('That conversation is not in your list any more.')).toBeNull();
+    });
+
+    it('waits for a list that is still loading rather than calling the link stale', async () => {
+      threadsSig().set([]);
+      loadingSig().set(true);
+      await renderPage(new BehaviorSubject<Record<string, string>>({ thread: 'th-new' }));
+      TestBed.tick();
+
+      // Already on its way: no second read, no selection, no sentence.
+      expect(mockChatService.loadThreads).not.toHaveBeenCalled();
+      expect(mockChatService.selectThread).not.toHaveBeenCalled();
+      expect(screen.queryByText('That conversation is not in your list any more.')).toBeNull();
+
+      threadsSig().set([fresh]);
+      loadingSig().set(false);
+      TestBed.tick();
+      expect(mockChatService.selectThread).toHaveBeenCalledWith('th-new');
+    });
+
+    it('selects at once a thread the service already holds, on a page that is already open', async () => {
+      const query = new BehaviorSubject<Record<string, string>>({});
+      const rendered = await renderPage(query);
+      // She had the list narrowed: the link names one conversation, so the filter lets go of it.
+      await userEvent.type(screen.getByPlaceholderText('Search by child or class...'), 'xyz');
+      rendered.fixture.detectChanges();
+
+      // `ChatService.adopt` put the row in before the navigation (StaffThreadService).
+      threadsSig().set([fresh, sampleThread]);
+      query.next({ thread: 'th-new' });
+      TestBed.tick();
+      rendered.fixture.detectChanges();
+
+      expect(mockChatService.selectThread).toHaveBeenCalledWith('th-new');
+      expect(mockChatService.loadThreads).not.toHaveBeenCalled();
+      expect(screen.getByText('Nada Fahad')).toBeTruthy();
+    });
   });
 });

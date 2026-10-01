@@ -1,5 +1,5 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
-import { catchError, forkJoin, map, of, tap } from 'rxjs';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
+import { catchError, forkJoin, of, tap } from 'rxjs';
 import {
   ChatMessage,
   ChatMessageSenderEnum,
@@ -163,7 +163,22 @@ export class ChatService {
    */
   readonly chatDenied = signal(false);
 
+  /** Whose `threads`, `activeKey` and `messages` these are — see {@link forgetAccount}. */
+  private owner: string | null = null;
+
   constructor() {
+    // D2: this service is a root singleton, so what one account opened outlives her sign-out.
+    // The next account in the same tab then inherited `activeKey`, and the socket's `onopen`
+    // refetched "the active thread" on *her* routes — a 404 "thread not found" in the red band
+    // on the first screen she saw. An account's chat state ends with the account.
+    effect(() => {
+      const user = this.auth.user()?.id ?? null;
+      untracked(() => {
+        if (user !== this.owner) this.forgetAccount();
+        this.owner = user;
+      });
+    });
+
     // D26: the socket is the dashboard's event channel. It opens for every signed-in
     // dashboard role, because that is how the notification frame reaches an Admin or a
     // manager; the chat half of it (threads, sends, the screen) stays TEACHER + `chat`.
@@ -201,10 +216,20 @@ export class ChatService {
     const transports = this.routes.transports();
     if (transports.length === 0 || !this.flags.isOn('chat') || this.chatDenied()) return;
     this.loadingThreads.set(true);
-    forkJoin(transports.map((transport) => transport.threads().pipe(catchError(() => of([])))))
+    forkJoin(transports.map((transport) => transport.threads().pipe(catchError(() => of(null)))))
       .pipe(
-        map((lists) => lists.flat()),
-        tap((threads) => {
+        tap((lists) => {
+          // A half that failed answered nothing — which is not the same as "she has no threads".
+          const complete = lists.every((list) => list !== null);
+          const listed = lists.flatMap((list) => list ?? []);
+          // A thread `adopt` took from a POST stays even when this read began before it existed.
+          const adopted = this.pending();
+          const threads =
+            adopted !== null &&
+            (adopted.id ?? '') !== '' &&
+            !listed.some((row) => this.keyOf(row) === this.keyOf(adopted))
+              ? [adopted, ...listed]
+              : listed;
           this.threads.set(threads);
           this.loadingThreads.set(false);
           // The list is the answer to "does this child have a thread": drop a placeholder the
@@ -212,8 +237,17 @@ export class ChatService {
           const active = this.activeKey();
           const real = active === null ? undefined : threads.find((t) => this.keyOf(t) === active);
           if (real) {
-            if (this.pending() !== null && this.keyOf(this.pending()!) === active) this.pending.set(null);
+            const confirmed = listed.some((row) => this.keyOf(row) === active);
+            if (confirmed && this.pending() !== null && this.keyOf(this.pending()!) === active) {
+              this.pending.set(null);
+            }
             if (real.unread > 0) this.markRead(active!);
+          } else if (complete && active !== null && !this.holds(active)) {
+            // D2: a remembered key this list does not hold — a thread she left, or one that was
+            // never hers. Forget it and fall back to the list; asking the server for it would be
+            // a 404 in the red band for something she did not do.
+            this.activeKey.set(null);
+            this.messages.set([]);
           }
         }),
         catchError(() => {
@@ -222,6 +256,41 @@ export class ChatService {
         }),
       )
       .subscribe();
+  }
+
+  /** Drop everything that belonged to the account that was signed in (D2). */
+  private forgetAccount(): void {
+    this.threads.set([]);
+    this.activeKey.set(null);
+    this.messages.set([]);
+    this.pending.set(null);
+    this.isParentTyping.set(false);
+    this.chatDenied.set(false);
+  }
+
+  /** Whether `key` names a conversation this account can open: a listed row, or one just opened. */
+  holds(key: string): boolean {
+    if (this.threads().some((thread) => this.keyOf(thread) === key)) return true;
+    const waiting = this.pending();
+    return waiting !== null && this.keyOf(waiting) === key;
+  }
+
+  /**
+   * Take a thread a `POST …/chat/threads` just answered (D2: "Message" on a row).
+   *
+   * The list was read at sign-in and a thread opened a second ago is not in it — and a list read
+   * that is still in flight will overwrite whatever is put there. So the row goes in the list *and*
+   * is remembered as the pending one: `activeThread` can draw it either way, and {@link loadThreads}
+   * keeps it when the server's list does not (yet) name it. Returns the key to select it by.
+   */
+  adopt(thread: ChatThread): string {
+    const key = this.keyOf(thread);
+    if (key === '') return key;
+    if (!this.threads().some((row) => this.keyOf(row) === key)) {
+      this.threads.update((rows) => [thread, ...rows]);
+      this.pending.set(thread);
+    }
+    return key;
   }
 
   selectThread(key: string): void {
@@ -436,8 +505,9 @@ export class ChatService {
         this.loadThreads();
 
         // Refetch recent messages for active thread on reconnect
+        // Only a conversation this account still holds (D2): a remembered id is not refetched.
         const activeId = this.activeKey();
-        const transport = activeId === null ? null : this.transportFor(activeId);
+        const transport = activeId === null || !this.holds(activeId) ? null : this.transportFor(activeId);
         if (activeId && transport !== null) {
           const msgs = this.messages();
           const lastMsg = msgs[msgs.length - 1];

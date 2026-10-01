@@ -21,6 +21,24 @@ themselves without write controls rather than with disabled ones.
 | **All lessons** `/coordinator/lessons`   | `GET /coordinator/lessons?classId&status&from&to`           | Every lesson of every class in scope, narrowed by class, status and a date range                                                                                                                                                                                                                                                             |
 | **A lesson** `/coordinator/lessons/{id}` | `GET /coordinator/lessons/{id}`                             | The teacher's own lesson page in **read-only mode**: the steps, the files, the questions and the phone preview. No control that writes — including the "Lesson day" date input, which is a teacher's. R6 turned the 2.5 s `/status` poll on for her (see below); **Refresh** stays in the header, and a lesson still being generated says so |
 
+**List 3 (D2, 2026-10-01) changed three of these.**
+
+- **Teachers has a Message action per row.** It asks `POST /coordinator/chat/threads {teacherUserId}`
+  (idempotent per pair, behind `coordinator.chat`), hands the answered thread to `ChatService.adopt`
+  and lands on `/coordinator/messages?thread=<id>` with that conversation selected. It is the
+  manager's `StaffThreadService` one role over — the role picks the route, the page does not.
+- **All lessons filters by chips, one per status of the contract** (`draft`, `uploading`,
+  `analyzing`, `needs_review`, `generating`, `review`, `paused`, `published`, `error`), plus "Any
+  status", which sends no `status` at all. Each chip sends its own status as `?status=` and each row
+  wears the teacher list's badge for its own status (failed = error, published = success, a running
+  job = primary, anything waiting on a person = the light pill). The screen also narrows the answer
+  to the pressed chip, so a row can never wear a badge the chip does not name. The old filter sent
+  `needs_review`, `error` and `review` to a server that knew only `draft|ready|published`, which is
+  where the 400 came from. A **manager** reading the same screen is never asked by status — her
+  route still knows the three coarse words — and her rows are narrowed in the page.
+- **No tour.** "Show me around" is gone for her as it is for the manager: `TourService` has no
+  coordinator steps, so nothing is offered on first sign-in and the Home carries no tour anchors.
+
 A failed read is the house error band with Try again on every one of her screens, never an
 empty state: "no classes carry your subject yet" is a statement about her school, and a request
 that did not happen has made no such statement.

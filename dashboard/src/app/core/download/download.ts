@@ -27,6 +27,48 @@ export function saveFile(body: Blob | string, filename: string, type: string): v
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+/** A tab reserved for bytes that are still on their way — see {@link reserveTab}. */
+export interface ReservedTab {
+  /** Show the bytes in the tab; if the browser refused the tab, save them as a file instead. */
+  show(blob: Blob, filename: string): void;
+  /** The bytes never came: close the empty tab rather than leave it. */
+  cancel(): void;
+}
+
+/**
+ * Open a new tab **now**, inside the click, for a file that has to be fetched with the bearer first
+ * (D2, list 3: a weekly plan that is a PDF).
+ *
+ * A `window.open` after the request has answered is no longer "something she did" as far as the
+ * browser is concerned, and the popup blocker eats it. So the tab is opened while the click is still
+ * the reason, and pointed at the bytes when they arrive.
+ *
+ * **A `blob:` URL is right here for `saveFile`'s reason.** The shipped CSP (`default-src 'self'`)
+ * has no `blob:` in `frame-src`/`object-src`, so the PDF cannot be previewed *inside* the page with
+ * an `<iframe>` or an `<object>` — which is why there is no inline preview. A top-level navigation
+ * of another tab is not a fetch into this document, so the policy has nothing to say about it.
+ */
+export function reserveTab(): ReservedTab {
+  const tab = window.open('', '_blank');
+  return {
+    show(blob, filename) {
+      if (tab === null || tab.closed) {
+        saveFile(blob, filename, blob.type);
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      // The document it is about to show has no business reaching back into the dashboard.
+      tab.opener = null;
+      tab.location.href = url;
+      // Long enough for the viewer to have read it; the tab keeps what it loaded.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
+    cancel() {
+      tab?.close();
+    },
+  };
+}
+
 /**
  * A `data:` URL back into bytes, without a network call.
  *

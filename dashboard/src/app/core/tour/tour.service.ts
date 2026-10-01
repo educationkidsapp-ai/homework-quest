@@ -91,7 +91,8 @@ export class TourService {
 
 /**
  * Each role is taught the four things that role's day starts with — **except the department
- * manager**, whose row MG2a took out on the owner's own instruction ("remove show me around").
+ * manager**, whose row MG2a took out on the owner's own instruction ("remove show me around"), and
+ * **the coordinator**, whose row list 3 (D2) took out on the same one.
  * A role missing here is offered nothing on first sign-in and has no entry in her account menu;
  * {@link TourService.offeredTo} is the one place that answers both.
  */
@@ -106,12 +107,6 @@ const TOURS: Partial<Readonly<Record<Role, readonly TourStep[]>>> = {
     { target: 'nav', titleKey: 'tour.teacher.nav.title', bodyKey: 'tour.teacher.nav.body' },
     { target: 'cards', titleKey: 'tour.teacher.cards.title', bodyKey: 'tour.teacher.cards.body' },
     { target: 'classes', titleKey: 'tour.teacher.classes.title', bodyKey: 'tour.teacher.classes.body' },
-    { target: 'profile', titleKey: 'tour.profile.title', bodyKey: 'tour.profile.body' },
-  ],
-  COORDINATOR: [
-    { target: 'nav', titleKey: 'tour.coordinator.nav.title', bodyKey: 'tour.coordinator.nav.body' },
-    { target: 'cards', titleKey: 'tour.coordinator.cards.title', bodyKey: 'tour.coordinator.cards.body' },
-    { target: 'needsYou', titleKey: 'tour.needsYou.title', bodyKey: 'tour.needsYou.body' },
     { target: 'profile', titleKey: 'tour.profile.title', bodyKey: 'tour.profile.body' },
   ],
 };

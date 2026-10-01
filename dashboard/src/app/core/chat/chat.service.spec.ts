@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ChatApi,
@@ -280,6 +280,90 @@ describe('ChatService', () => {
    * T2 follow-up. Cloud Run closes this socket every hour and every network blip reopens it, so if
    * the reconnect could forget the session the socket alone would sign her out mid-lesson.
    */
+  /**
+   * **D2, list 3 — the coordinator's "That did not work — thread not found" on opening the
+   * dashboard.** This service is a root singleton, so the conversation one account had open
+   * outlived her sign-out; the next account in the tab inherited `activeKey`, and the socket's
+   * `onopen` refetched "the active thread" on *her* routes — a 404 in the red band.
+   */
+  describe('a remembered thread that is not hers', () => {
+    const role = () => mockAuth.role as unknown as ReturnType<typeof signal<string>>;
+    const user = () => mockAuth.user as unknown as ReturnType<typeof signal<{ id: string }>>;
+
+    it('forgets the previous account’s conversation when another account signs in', () => {
+      service.loadThreads();
+      service.selectThread('ch-1');
+      expect(service.activeKey()).toBe('ch-1');
+
+      // The teacher signs out and a coordinator signs in, in the same tab.
+      role().set('COORDINATOR');
+      user().set({ ...TEACHER_USER, id: 'u-rasha' });
+      TestBed.tick();
+
+      expect(service.activeKey()).toBeNull();
+      expect(service.messages()).toEqual([]);
+      expect(service.threads()).toEqual([]);
+      // Nothing was asked for by the id she never had — not on arrival, and not on a reconnect.
+      expect(mockCoordinatorApi.coordinatorChatMessages).not.toHaveBeenCalled();
+      expect(mockCoordinatorApi.coordinatorMarkChatRead).not.toHaveBeenCalled();
+    });
+
+    it('drops a key the list no longer holds instead of asking the server for it', () => {
+      service.loadThreads();
+      service.selectThread('ch-1');
+      (mockApi.teacherChatMessages as ReturnType<typeof vi.fn>).mockClear();
+
+      // The thread is gone from her list (she was taken off it): the next read says so.
+      (mockApi.teacherChatThreads as ReturnType<typeof vi.fn>).mockReturnValue(of([]));
+      service.loadThreads();
+
+      expect(service.activeKey()).toBeNull();
+      expect(service.activeThread()).toBeNull();
+      expect(mockApi.teacherChatMessages).not.toHaveBeenCalled();
+    });
+
+    it('keeps the open conversation when the list read itself failed', () => {
+      service.loadThreads();
+      service.selectThread('ch-1');
+
+      // A read that failed answered nothing, which is not "she has no threads".
+      (mockApi.teacherChatThreads as ReturnType<typeof vi.fn>).mockReturnValue(
+        throwError(() => new Error('offline')),
+      );
+      service.loadThreads();
+      expect(service.activeKey()).toBe('ch-1');
+    });
+  });
+
+  /** D2: "Message" on a row hands the thread its POST answered straight to the list. */
+  describe('adopting a thread a POST just answered', () => {
+    const staff: ChatThread = { ...sampleThread, id: 'th-2', childId: '', childName: '', unread: 0 };
+
+    it('holds it at once, and through a list read that began before it existed', () => {
+      service.loadThreads();
+      expect(service.holds('th-2')).toBe(false);
+
+      expect(service.adopt(staff)).toBe('th-2');
+      expect(service.holds('th-2')).toBe(true);
+      expect(service.threads()[0]?.id).toBe('th-2');
+
+      // The slow read lands without it: the row stays, and so does the selection.
+      service.selectThread('th-2');
+      service.loadThreads();
+      expect(service.threads().map((thread) => thread.id)).toEqual(['th-2', 'th-1']);
+      expect(service.activeThread()?.id).toBe('th-2');
+      // Keyed by thread on her staff routes — never sent to the child-keyed parent ones.
+      expect(mockApi.teacherStaffMessages).toHaveBeenCalledWith('th-2', undefined, undefined);
+      expect(mockApi.teacherChatMessages).not.toHaveBeenCalledWith('th-2', undefined, undefined);
+    });
+
+    it('adds nothing for a thread the list already names', () => {
+      service.loadThreads();
+      service.adopt({ ...sampleThread });
+      expect(service.threads().length).toBe(1);
+    });
+  });
+
   it('reconnects through the refresh that cannot end the session', () => {
     // No access token in memory — a reload, or one that has aged out — so `connect` has to get one
     // before it can open the socket.

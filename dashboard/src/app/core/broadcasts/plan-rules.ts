@@ -18,8 +18,27 @@ import { isSunday } from './broadcast.rules';
 /** What `POST /media/attachments` accepts (MH1): a picture of a printed plan, in a web format. */
 export const PLAN_IMAGE_TYPES: readonly string[] = ['image/jpeg', 'image/png', 'image/webp'];
 
+/** List 3 (D2): the sheet as the department exports it. The one non-image a plan may be. */
+export const PLAN_PDF_TYPE = 'application/pdf';
+
+/** Everything the file input offers: the three pictures and the PDF. */
+export const PLAN_FILE_TYPES: readonly string[] = [...PLAN_IMAGE_TYPES, PLAN_PDF_TYPE];
+
 /** The server's own cap. Checked here too, so a 6 MB scan is a sentence rather than a red band. */
 export const PLAN_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+/** The server's cap for a PDF, which is a whole document rather than one photograph. */
+export const PLAN_PDF_MAX_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Is this attachment a PDF? By its content type, and by its name when the type is missing —
+ * a row written before the type was carried still has the file's own name on it.
+ */
+export function isPdfFile(type: string | null | undefined, name: string | null | undefined): boolean {
+  const said = (type ?? '').trim().toLowerCase();
+  if (said !== '') return said === PLAN_PDF_TYPE;
+  return (name ?? '').trim().toLowerCase().endsWith('.pdf');
+}
 
 export interface PlanDraft {
   /** `YYYY-MM-DD`, and a Sunday. */
@@ -57,8 +76,9 @@ export function planBlocked(ctx: PlanContext): boolean {
 }
 
 /** Why this file cannot be a plan, or `null`. The two checks the server makes, made first. */
-export function imageError(file: File | null): string | null {
+export function planFileError(file: File | null): string | null {
   if (file === null) return 'plans.errors.imageRequired';
+  if (file.type === PLAN_PDF_TYPE) return file.size > PLAN_PDF_MAX_BYTES ? 'plans.errors.pdfTooBig' : null;
   if (!PLAN_IMAGE_TYPES.includes(file.type)) return 'plans.errors.imageType';
   return file.size > PLAN_IMAGE_MAX_BYTES ? 'plans.errors.imageTooBig' : null;
 }
@@ -77,7 +97,7 @@ export function planErrors(draft: PlanDraft, ctx: PlanContext): PlanErrors {
         : ctx.grades.includes(draft.grade)
           ? null
           : 'broadcasts.errors.gradeUnmanaged',
-    file: imageError(draft.file),
+    file: planFileError(draft.file),
   };
 }
 

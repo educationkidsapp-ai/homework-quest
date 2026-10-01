@@ -1500,6 +1500,26 @@ exponential backoff (1 s → 30 s) and a fresh token: a dashboard access token l
   `core/notifications/notification-target.ts` — a `/<area>/messages?thread=…` written for somebody
   else's area is already rewritten to the reader's own list by thread id.
 
+**Opening one thread from another screen (D2, list 3).** "Message" on a manager's Children, Coordinators and Teachers
+rows — and on a coordinator's Teachers rows — is `POST /<area>/chat/threads` followed by a navigation to
+`/<area>/messages?thread=<id>` (`features/management/staff-thread.service.ts`). Three client rules make that land on
+the conversation rather than on the list:
+
+- The thread the POST answered is given to `ChatService.adopt` **before** the navigation. The threads list is read
+  once at sign-in, so a conversation created a second ago is not in it, and a list read still in flight would overwrite
+  a row put there by hand — so the row is kept in the list *and* as the pending one, and `loadThreads` keeps it when the
+  server's answer does not name it yet.
+- `ChatPage` follows `?thread=` reactively. A key the service does not hold is **re-read once** (`loadThreads`) before
+  the screen says "not in your list any more"; while a read is out it says nothing. Following a link also clears the
+  search box and the correspondent chip, so the row it selects is visible. This is the shared page, so a bell link on
+  the teacher's, the coordinator's and the admin's transports gets the same treatment.
+- **A remembered thread id never reaches the server.** `ChatService` is a root singleton: its `activeKey`, list and
+  messages now end with the account (`forgetAccount`, on a change of `auth.user().id`), a key the freshly read list
+  does not hold is dropped rather than refetched, and the socket's `onopen` refetches only a conversation the list
+  still names. Before this, signing in as a coordinator in a tab where another account had a conversation open asked
+  `GET /coordinator/chat/threads/<that id>/messages` on connect — the "That did not work — thread not found" band on
+  her first screen. A list read that *failed* drops nothing: no answer is not "no threads".
+
 **Across instances.** QA runs up to two instances and a socket lives on whichever took its handshake. A message
 committed on one reaches the other's sockets through PostgreSQL `LISTEN/NOTIFY` on channel `chat_events`
 (`PostgresChatBus`): every instance holds one pooled connection on `LISTEN` and waits on it 250 ms at a time
@@ -1766,6 +1786,16 @@ needs a headline), and `audience` is **ignored**: a plan always goes to the pare
 of that grade. Everything else is unchanged — the replace key is still (school, week, department, grade), and the
 read-time predicate is still `touches`. An **announcement** or an **event** from a manager still takes `grade` for one
 grade of her department or none for the whole of it, and a coordinator's is still her own classes.
+
+**The dashboard and a PDF plan (D2, list 3).** The compose sheet accepts JPEG/PNG/WebP up to 5 MB **or a PDF up to
+10 MB** (`core/broadcasts/plan-rules.ts`, checked before the upload) and names the chosen file under the drop target; a
+picture also gets its preview. A plan whose attachment is `application/pdf` (by `attachmentContentType`, else
+`attachment.type`, else a `.pdf` name) is drawn by `hq-plan-pdf` wherever a picture would be — the manager's glance
+cards and the archive, and the Weekly plans tab a teacher and a coordinator read — as the file name and **Open**. Open
+reads `GET /media/attachments/{id}` with the bearer and shows the bytes in a new tab from a `blob:` URL; the tab is
+opened inside the click and filled when the bytes arrive, and a browser that refuses the tab gets a download instead.
+There is **no inline preview**: the dashboard's CSP is `default-src 'self'` with no `blob:` for frames or objects, so an
+`<iframe>`/`<object>` of the blob is refused. Nothing is fetched for a PDF until Open is pressed.
 
 **A parent has no bell, so a feed's `unread` is her notification.** `GET /children/{id}/broadcasts` already carried one;
 MH1 adds `unread` to `WeeklyPlanArchive`, so `GET /children/{id}/weekly-plans` (and the two staff archives) say how many

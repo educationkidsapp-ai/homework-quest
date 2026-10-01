@@ -9,6 +9,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
@@ -2400,6 +2401,8 @@ export class ChatPage implements AfterViewChecked {
   private readonly query = toSignal(inject(ActivatedRoute).queryParamMap, { requireSync: true });
   /** The link this visit has already acted on, so a rerun of the effect is not a second open. */
   private followed = '';
+  /** The link the list has been re-read for, so one stale link is one extra read (D2). */
+  private refetchedFor = '';
   /** A `?thread=` the list does not hold: said in a line rather than left as an empty screen. */
   protected readonly missingThread = signal(false);
 
@@ -2417,18 +2420,30 @@ export class ChatPage implements AfterViewChecked {
      */
     effect(() => {
       const params = this.query();
-      const rows = this.chatService.threads();
       const threadId = params.get('thread') ?? '';
       const childId = params.get('childId') ?? '';
       const link = `${threadId}|${childId}`;
       if (link === '|' || link === this.followed) return;
       if (threadId !== '') {
-        if (!rows.some((thread) => this.keyOf(thread) === threadId)) {
-          // A stale bell link — a thread she has left, or one that was never hers. Said once the
-          // list has actually answered, because "not found" while it is still loading is a lie.
-          if (!this.chatService.loadingThreads()) this.missingThread.set(true);
+        if (!this.chatService.holds(threadId)) {
+          // Said once the list has actually answered, because "not found" while it is still
+          // loading is a lie.
+          if (this.chatService.loadingThreads()) return;
+          // D2: the list was read at sign-in, and a thread opened since — "Message" on a row, a
+          // bell link for a conversation somebody just started — is not in it. Ask once more
+          // before calling the link stale; only a second miss is "not in your list".
+          if (this.refetchedFor !== link) {
+            this.refetchedFor = link;
+            untracked(() => this.chatService.loadThreads());
+            if (this.chatService.loadingThreads()) return;
+          }
+          this.missingThread.set(true);
           return;
         }
+        // The row may be behind a chip or a search she left on: the link names one conversation,
+        // so the list shows the tab it is in.
+        this.peer.set('all');
+        this.searchQuery.set('');
         this.followed = link;
         this.missingThread.set(false);
         this.chatService.selectThread(threadId);
