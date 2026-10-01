@@ -1,5 +1,6 @@
 import type { BroadcastView, WeeklyPlanArchive } from '../../api';
 import { csvOf } from '../download/csv';
+import { isPdfFile } from './plan-rules';
 
 /**
  * **The weekly-plan archive, as the screens want it** (MG2b, owner's item 4: "see all weekly plans").
@@ -32,6 +33,8 @@ export interface PlanRow {
   /** MH1: a plan **is** an image. The id `/media/attachments/{id}` wants, and the file's own name. */
   readonly attachmentId: string | null;
   readonly attachmentName: string;
+  /** List 3 (D2): a plan may be a PDF, which is a card with Open rather than a picture. */
+  readonly pdf: boolean;
   /** How many people opened it — the manager's archive only; `null` on a reader's own. */
   readonly readBy: number | null;
   /** The row itself, for the author line and anything else a screen wants off the envelope. */
@@ -70,6 +73,7 @@ export function planWeeks(archive: WeeklyPlanArchive | null | undefined): readon
             grade: plan.grade ?? null,
             attachmentId: plan.attachment?.id ?? null,
             attachmentName: plan.attachment?.name ?? '',
+            pdf: isPdfFile(plan.attachment?.type, plan.attachment?.name),
             readBy: item.readBy ?? null,
             plan,
           },

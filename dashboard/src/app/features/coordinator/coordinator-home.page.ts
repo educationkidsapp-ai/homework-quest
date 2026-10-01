@@ -50,7 +50,6 @@ import { scopeLabel } from './coordinator.labels';
           <section
             class="em-stats-grid"
             [attr.aria-label]="'home.cardsLabel' | transloco"
-            data-hq-tour="cards"
           >
             @for (card of cards(); track card.key) {
               <div class="em-stat-card">
@@ -62,7 +61,7 @@ import { scopeLabel } from './coordinator.labels';
             }
           </section>
 
-          <div data-hq-tour="needsYou">
+          <div>
             <hq-card [title]="'home.needsYou' | transloco">
               @if (co.needs().length === 0) {
                 <p class="hq-muted">{{ 'home.allClear' | transloco }}</p>

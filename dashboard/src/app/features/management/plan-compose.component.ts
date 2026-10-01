@@ -14,11 +14,12 @@ import {
   type PlanContext,
   type PlanDraft,
   EMPTY_PLAN_DRAFT,
-  PLAN_IMAGE_TYPES,
+  PLAN_FILE_TYPES,
+  PLAN_PDF_TYPE,
   canPostPlan,
-  imageError,
   planBlocked,
   planErrors,
+  planFileError,
 } from '../../core/broadcasts/plan-rules';
 import { weekOptions } from '../../core/broadcasts/broadcast.rules';
 import {
@@ -38,9 +39,13 @@ import {
  * checkboxes (they would make the grade a 400).
  *
  * **The file is validated before it leaves the browser.** Type and size are checked here against
- * `PLAN_IMAGE_TYPES` and `PLAN_IMAGE_MAX_BYTES` — the same two rules `MediaController` enforces —
- * because a 6 MB scan that uploads for twenty seconds and then answers 413 has wasted the twenty
- * seconds and told her nothing she could not have been told at once.
+ * `PLAN_FILE_TYPES` and the two size caps — the same rules `MediaController` enforces — because a
+ * 6 MB scan that uploads for twenty seconds and then answers 413 has wasted the twenty seconds and
+ * told her nothing she could not have been told at once.
+ *
+ * **A PDF is accepted as well as a picture** (D2, list 3): the sheet the department exports, up to
+ * 10 MB. Whatever she picked is named under the drop target — a picture also gets its preview, and
+ * a PDF gets its name and size, which is all there is to show of a document before it is opened.
  *
  * **Replacing is confirmed with a red band**, not with a second dialog: posting for a grade and week
  * that already have a plan deletes the previous row, its read marks and its bell rows
@@ -108,6 +113,15 @@ import {
           @if (preview(); as source) {
             <img class="pc__preview" [src]="source" [alt]="previewAlt()" />
           }
+          @if (chosen(); as file) {
+            <span class="pc__chosen" aria-live="polite">
+              @if (file.pdf) {
+                <span class="hq-badge" aria-hidden="true">PDF</span>
+              }
+              <span dir="auto">{{ file.name }}</span>
+              <span class="hq-muted">{{ 'plans.fileSize' | transloco: { size: file.size } }}</span>
+            </span>
+          }
         </label>
         @if (errorFor('file'); as message) {
           <p class="pc__error">{{ message }}</p>
@@ -155,6 +169,14 @@ import {
       object-fit: contain;
     }
 
+    .pc__chosen {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--hq-space-8);
+      overflow-wrap: anywhere;
+    }
+
     .pc__error {
       color: var(--hq-accent);
     }
@@ -163,7 +185,7 @@ import {
 export class PlanComposeComponent {
   private readonly transloco = inject(TranslocoService);
 
-  protected readonly accept = PLAN_IMAGE_TYPES.join(',');
+  protected readonly accept = PLAN_FILE_TYPES.join(',');
 
   readonly open = model<boolean>(false);
   readonly ctx = input.required<PlanContext>();
@@ -194,6 +216,17 @@ export class PlanComposeComponent {
    * `core/media/media.service.ts` documents for the protected routes.
    */
   protected readonly preview = signal<string | null>(null);
+
+  /** The file she picked: its name, its size in megabytes (the unit is the translation's), its kind. */
+  protected readonly chosen = computed(() => {
+    const file = this.draft().file;
+    if (file === null) return null;
+    return {
+      name: file.name,
+      size: (file.size / (1024 * 1024)).toFixed(1),
+      pdf: file.type === PLAN_PDF_TYPE,
+    };
+  });
 
   protected readonly blocked = computed(() => planBlocked(this.ctx()));
   protected readonly valid = computed(() => canPostPlan(this.draft(), this.ctx()));
@@ -272,7 +305,8 @@ export class PlanComposeComponent {
     if (file === null) return;
     this.patch({ file });
     this.preview.set(null);
-    if (imageError(file) !== null) return;
+    // Nothing to paint for a refused file, or for a PDF — which is named, not previewed.
+    if (planFileError(file) !== null || file.type === PLAN_PDF_TYPE) return;
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string' && this.draft().file === file) this.preview.set(reader.result);

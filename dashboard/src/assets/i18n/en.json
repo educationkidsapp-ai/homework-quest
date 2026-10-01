@@ -1476,7 +1476,8 @@
     "supportEmptyHint": "Pick a manager under New message to start one.",
     "supportNoSchool": "Pick a school from the header first — chat is read one school at a time.",
     "threadGone": "That conversation is not in your list any more.",
-    "away": "Away"
+    "away": "Away",
+    "schoolAdministration": "School administration"
   },
   "profile": {
     "title": "Your profile",
@@ -1921,10 +1922,6 @@
       "title": "Your account lives here",
       "body": "Switch between English and Arabic, sign out, or run this tour again from \"Show me around\"."
     },
-    "needsYou": {
-      "title": "What needs you",
-      "body": "Anything waiting on a person appears here, newest first. Each row takes you straight to it."
-    },
     "admin": {
       "nav": {
         "title": "Everything, in one list",
@@ -1951,16 +1948,6 @@
       "classes": {
         "title": "Your classes",
         "body": "Each card shows whether today's lesson is published. One tap adds the missing one."
-      }
-    },
-    "coordinator": {
-      "nav": {
-        "title": "Your screens",
-        "body": "Home, your teachers, your classes and their lessons. You read them all; the teacher is the one who changes them."
-      },
-      "cards": {
-        "title": "Your scope",
-        "body": "How many classes, teachers and children carry your subject."
       }
     }
   },
@@ -2177,18 +2164,11 @@
         "children": "Children",
         "sections": "Classes",
         "attendance": "Attendance",
-        "published": "Lessons published",
-        "played": "Lessons played",
         "exams": "Exams",
         "examAverage": "Exam average",
         "examPassRate": "Pass rate"
       },
       "tooWide": "Choose a window of {{days}} days or less."
-    },
-    "quiet": {
-      "title": "Teachers with nothing published",
-      "subtitle": "Nobody in this window. A word from you is usually enough.",
-      "empty": "Every teacher published something in this window."
     },
     "coordinators": {
       "subtitle": "The subject coordinators of your department, and how much each of them supervises.",
@@ -2372,7 +2352,7 @@
     "wholeDepartment": "The whole department"
   },
   "plans": {
-    "subtitle": "The week your department is teaching, one image per grade.",
+    "subtitle": "The week your department is teaching, one image or PDF per grade.",
     "tab": "Weekly plans",
     "thisWeek": "This week at a glance",
     "archive": "Every weekly plan",
@@ -2388,15 +2368,15 @@
       "week": "Week",
       "grade": "Grade",
       "readBy": "Read by",
-      "image": "Image"
+      "image": "File"
     },
     "backwards": "That window ends before it starts.",
     "emptyReaderHint": "The plans your department posts show up here, this week’s and the weeks before it.",
-    "image": "The plan, as an image",
-    "imageHint": "Drag a photo or a scan in, or choose a file. JPEG, PNG or WebP, up to 5 MB.",
+    "image": "The plan, as an image or a PDF",
+    "imageHint": "Drag a photo, a scan or a PDF in, or choose a file. JPEG, PNG or WebP up to 5 MB, or a PDF up to 10 MB.",
     "imageAlt": "Weekly plan · Grade {{grade}} · {{week}}",
     "gradePick": "Pick a grade",
-    "uploading": "Uploading the image",
+    "uploading": "Uploading the plan",
     "noGrades": "You manage no class yet, so there is no grade to plan for.",
     "department": "The department",
     "replacesTitle": "This replaces the plan that is already there",
@@ -2405,12 +2385,20 @@
     "blockedHint": "You manage more than one, and a weekly plan belongs to one of them. Ask an admin for an account per department.",
     "postFailed": "That plan could not be posted. Nothing was sent, and the plan that was there is untouched.",
     "errors": {
-      "imageRequired": "Add the plan as an image.",
-      "imageType": "A plan has to be a JPEG, a PNG or a WebP.",
+      "imageRequired": "Add the plan as an image or a PDF.",
+      "imageType": "A plan has to be a JPEG, a PNG, a WebP or a PDF.",
       "imageTooBig": "That image is over 5 MB. Export it smaller, or photograph it again.",
-      "gradeRequired": "Pick the grade this plan is for."
+      "gradeRequired": "Pick the grade this plan is for.",
+      "pdfTooBig": "That PDF is over 10 MB. Export it smaller."
     },
-    "gradeAny": "Every grade"
+    "gradeAny": "Every grade",
+    "pdf": {
+      "open": "Open",
+      "openNamed": "Open {{name}}",
+      "unnamed": "Weekly plan (PDF)",
+      "failed": "That file could not be opened. Try again."
+    },
+    "fileSize": "{{size}} MB"
   },
   "announcements": {
     "subtitle": "The announcements and the events of your school."

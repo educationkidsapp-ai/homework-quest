@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { BehaviorSubject, map, of } from 'rxjs';
@@ -28,6 +28,7 @@ describe('ChatPage', () => {
   const messagesSig = signal<LocalMessage[]>([]);
   const canWriteSig = signal(true);
   const peerOnlineSig = signal<boolean | undefined>(undefined);
+  const activeGoneSig = signal(false);
 
   const sampleThread: ChatThread = {
     id: 'th-1',
@@ -57,6 +58,7 @@ describe('ChatPage', () => {
     messagesSig.set([]);
     canWriteSig.set(true);
     peerOnlineSig.set(undefined);
+    activeGoneSig.set(false);
 
     mockChatService = {
       threads: signal([sampleThread]),
@@ -79,6 +81,10 @@ describe('ChatPage', () => {
       }),
       // MG2b: a teacher's key is the child on a parent thread and the thread on a staff one.
       keyOf: (thread: ChatThread) => thread.childId || thread.id!,
+      // D2: "is this key a row of the list" is the service's own question now.
+      activeGone: activeGoneSig,
+      holds: (key: string) =>
+        (mockChatService.threads as () => ChatThread[])().some((thread) => (thread.childId || thread.id!) === key),
       canWrite: canWriteSig,
       sendMessage: vi.fn(),
       sendTyping: vi.fn(),
@@ -227,12 +233,108 @@ describe('ChatPage', () => {
     expect(mockChatService.selectThread).toHaveBeenCalledWith('th-2');
 
     // A thread this list has never answered is left alone: selecting it would send its id to the
-    // child-keyed routes and buy a 404 in a red band. It is *said*, though — a stale bell link that
-    // leaves the screen on "pick a conversation" reads as a click that did nothing.
+    // child-keyed routes and buy a 404 in a red band. D2: the list is read once more, and an id
+    // that is still not hers is let go of in silence — it leaves the URL, and the list is the
+    // screen. Nothing is ever requested *by that id*.
     (mockChatService.selectThread as ReturnType<typeof vi.fn>).mockClear();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     query.next({ thread: 'th-9' });
     TestBed.tick();
     expect(mockChatService.selectThread).not.toHaveBeenCalled();
-    expect(await screen.findByText('That conversation is not in your list any more.')).toBeTruthy();
+    expect(mockChatService.loadThreads).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate.mock.calls[0]![1]).toMatchObject({
+      queryParams: { thread: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+    expect(screen.queryByText('That conversation is not in your list any more.')).toBeNull();
+    // The list is still there to pick from.
+    expect(document.querySelectorAll('.thread-card').length).toBe(2);
+  });
+
+  it('says so only when the conversation she was viewing left her list', async () => {
+    const rendered = await renderPage();
+    expect(screen.queryByText('That conversation is not in your list any more.')).toBeNull();
+
+    activeGoneSig.set(true);
+    rendered.fixture.detectChanges();
+    expect(screen.getByText('That conversation is not in your list any more.')).toBeTruthy();
+  });
+
+  /** D2 (list 3): S1 marks the admin's threads; a teacher reads the office, not a stranger's name. */
+  it('labels a thread with the school admin "School administration"', async () => {
+    (mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>).set([
+      { ...sampleThread, id: 'th-adm', childId: '', childName: '', teacherName: 'Omar Admin', withAdmin: true },
+    ]);
+    await renderPage();
+
+    expect(screen.getByText('School administration')).toBeTruthy();
+    expect(screen.queryByText('Omar Admin')).toBeNull();
+  });
+
+  /**
+   * **D2 — "Message opens chat only".** The list is read at sign-in, so a thread that "Message" on
+   * a row created a second ago is not in it. The screen used to call the link stale on the spot;
+   * it now re-reads the list once and selects the row when it lands.
+   */
+  describe('a ?thread= the list does not hold yet', () => {
+    const threadsSig = () => mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>;
+    const loadingSig = () => mockChatService.loadingThreads as ReturnType<typeof signal<boolean>>;
+    const fresh: ChatThread = { ...sampleThread, id: 'th-new', childId: '', childName: '', teacherName: 'Nada Fahad' };
+
+    it('re-reads the list for a brand new thread and selects it when it arrives', async () => {
+      // The re-read, as the real service does it: loading, then the list with the new row in it.
+      (mockChatService.loadThreads as ReturnType<typeof vi.fn>).mockImplementation(() => loadingSig().set(true));
+      await renderPage(new BehaviorSubject<Record<string, string>>({ thread: 'th-new' }));
+      TestBed.tick();
+
+      expect(mockChatService.loadThreads).toHaveBeenCalledTimes(1);
+      expect(mockChatService.selectThread).not.toHaveBeenCalled();
+      // Not found *yet* is not "not in your list": nothing is said while the read is out.
+      expect(screen.queryByText('That conversation is not in your list any more.')).toBeNull();
+
+      threadsSig().set([fresh, sampleThread]);
+      loadingSig().set(false);
+      TestBed.tick();
+      expect(mockChatService.selectThread).toHaveBeenCalledWith('th-new');
+      expect(mockChatService.loadThreads).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText('That conversation is not in your list any more.')).toBeNull();
+    });
+
+    it('waits for a list that is still loading rather than calling the link stale', async () => {
+      threadsSig().set([]);
+      loadingSig().set(true);
+      await renderPage(new BehaviorSubject<Record<string, string>>({ thread: 'th-new' }));
+      TestBed.tick();
+
+      // Already on its way: no second read, no selection, no sentence.
+      expect(mockChatService.loadThreads).not.toHaveBeenCalled();
+      expect(mockChatService.selectThread).not.toHaveBeenCalled();
+      expect(screen.queryByText('That conversation is not in your list any more.')).toBeNull();
+
+      threadsSig().set([fresh]);
+      loadingSig().set(false);
+      TestBed.tick();
+      expect(mockChatService.selectThread).toHaveBeenCalledWith('th-new');
+    });
+
+    it('selects at once a thread the service already holds, on a page that is already open', async () => {
+      const query = new BehaviorSubject<Record<string, string>>({});
+      const rendered = await renderPage(query);
+      // She had the list narrowed: the link names one conversation, so the filter lets go of it.
+      await userEvent.type(screen.getByPlaceholderText('Search by child or class...'), 'xyz');
+      rendered.fixture.detectChanges();
+
+      // `ChatService.adopt` put the row in before the navigation (StaffThreadService).
+      threadsSig().set([fresh, sampleThread]);
+      query.next({ thread: 'th-new' });
+      TestBed.tick();
+      rendered.fixture.detectChanges();
+
+      expect(mockChatService.selectThread).toHaveBeenCalledWith('th-new');
+      expect(mockChatService.loadThreads).not.toHaveBeenCalled();
+      expect(screen.getByText('Nada Fahad')).toBeTruthy();
+    });
   });
 });

@@ -9,6 +9,7 @@ import { ADMIN_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixt
 import { renderHq } from '../../../testing/render';
 import { type CreateBroadcastRequest, type ManagementStats, BASE_PATH } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { ChatService } from '../../core/chat/chat.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { FlagService } from '../../core/flags/flag.service';
 import { LessonApiService } from '../lessons/lesson-api.service';
@@ -21,7 +22,7 @@ import {
   ManagementChildrenPage,
   exportPlan,
 } from './management-children.page';
-import { statsRows, quietTeachers } from './management-stats';
+import { statsRows } from './management-stats';
 import { SchoolUsagePage } from './school-usage.page';
 import { WeeklyPlansPage } from './weekly-plans.page';
 import { usageSummary, usageTeacherRows } from './school-usage.models';
@@ -297,8 +298,24 @@ describe('RM3a — the management area', () => {
       expect(rows[1]).toContain('92%');
       expect(rows[2]).toContain('Whole department');
 
-      // One quiet teacher, although `/management/stats` named him under two grades.
-      expect(screen.getAllByText('Mr Omar').length).toBe(1);
+      // List 3 (D2), items 2 and 3: the table has no lesson columns, and there is no "Teachers
+      // with nothing published" block — although `/management/stats` still names a quiet teacher.
+      const headers = [...document.querySelectorAll('thead th')].map((cell) => cell.textContent?.trim());
+      expect(headers).toEqual([
+        'Grade',
+        'Children',
+        'Classes',
+        'Attendance',
+        'Exams',
+        'Exam average',
+        'Pass rate',
+      ]);
+      expect(document.body.textContent).not.toContain('Lessons published');
+      expect(document.body.textContent).not.toContain('Lessons played');
+      expect(screen.queryByText('Teachers with nothing published')).toBeNull();
+      expect(screen.queryByText('Mr Omar')).toBeNull();
+      // Grade 2 published 8 and played 30: neither number is a cell any more.
+      expect(rows[1]).not.toContain('30');
       rendered.fixture.destroy();
     });
 
@@ -309,12 +326,12 @@ describe('RM3a — the management area', () => {
       expect(rows[0]?.exams).toBe(0);
       expect(rows[0]?.attendanceRate).toBeNull();
       expect(rows[0]?.examAverage).toBeNull();
-      expect(quietTeachers(STATS).map((teacher) => teacher.userId)).toEqual(['t-9']);
+      expect(Object.keys(rows[0] ?? {})).not.toContain('lessonsPublished');
+      expect(Object.keys(rows[0] ?? {})).not.toContain('lessonsPlayed');
     });
 
     it('draws nothing at all rather than an empty total row when the window answered nothing', () => {
       expect(statsRows(undefined)).toEqual([]);
-      expect(quietTeachers(undefined)).toEqual([]);
     });
   });
 
@@ -553,12 +570,17 @@ describe('RM3a — the management area', () => {
       // that guessed would open a thread with whoever happened to be attached last.
       expect(opened.request.body).toEqual({ childId: 'ch-1' });
       const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-      opened.flush({ id: 'th-9' });
+      opened.flush({ id: 'th-9', childId: 'ch-1', childName: 'Layla', unread: 0 });
       await Promise.resolve();
       TestBed.tick();
       expect(navigate).toHaveBeenCalledWith(['/management/messages'], {
         queryParams: { thread: 'th-9' },
       });
+      // D2: the thread the POST answered is *in the chat's list* before Messages opens — the list
+      // was read at sign-in and would not have named a conversation created a second ago.
+      const chat = TestBed.inject(ChatService);
+      expect(chat.holds('th-9')).toBe(true);
+      expect(chat.threads().map((thread) => thread.id)).toContain('th-9');
       rendered.fixture.destroy();
     });
 
@@ -835,8 +857,8 @@ describe('RM3a — the management area', () => {
     ];
 
     /** A PNG of a known type and size, without allocating megabytes to prove the cap. */
-    function pick(type = 'image/png', size = 2048): File {
-      const file = new File(['plan'], 'plan.png', { type });
+    function pick(type = 'image/png', size = 2048, name = 'plan.png'): File {
+      const file = new File(['plan'], name, { type });
       Object.defineProperty(file, 'size', { value: size });
       const input = document.querySelector('input[type="file"]') as HTMLInputElement;
       Object.defineProperty(input, 'files', { value: [file], configurable: true });
@@ -959,9 +981,15 @@ describe('RM3a — the management area', () => {
       screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
       await settle();
 
-      pick('application/pdf');
+      pick('image/gif');
       await settle();
-      expect(document.body.textContent).toContain('JPEG, a PNG or a WebP');
+      expect(document.body.textContent).toContain('JPEG, a PNG, a WebP or a PDF');
+      expect(screen.getByRole('button', { name: 'Post' }).hasAttribute('disabled')).toBe(true);
+
+      // List 3 (D2): a PDF has its own cap, twice the picture's.
+      pick('application/pdf', 11 * 1024 * 1024, 'plan.pdf');
+      await settle();
+      expect(document.body.textContent).toContain('over 10 MB');
       expect(screen.getByRole('button', { name: 'Post' }).hasAttribute('disabled')).toBe(true);
 
       pick('image/png', 6 * 1024 * 1024);
@@ -1009,6 +1037,102 @@ describe('RM3a — the management area', () => {
       backend
         .match((request) => request.url === '/management/weekly-plans')
         .forEach((request) => request.flush({ weeks: [] }));
+    });
+
+    /**
+     * List 3 (D2), item 4 — compose: a PDF is accepted, named on the sheet instead of previewed,
+     * and goes up the same two requests a picture does.
+     */
+    it('accepts a PDF, names the chosen file, and posts it like a picture', async () => {
+      const backend = await openScreen([]);
+      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      await settle();
+
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      expect(input.accept.split(',')).toContain('application/pdf');
+
+      pick('application/pdf', 7 * 1024 * 1024, 'Grade 1 week 5.pdf');
+      await settle();
+      const chosen = document.querySelector('.pc__chosen');
+      expect(chosen?.textContent).toContain('Grade 1 week 5.pdf');
+      expect(chosen?.textContent).toContain('7.0 MB');
+      expect(chosen?.textContent).toContain('PDF');
+      // Nothing to paint: a document is named, not previewed.
+      expect(document.querySelector('.pc__preview')).toBeNull();
+
+      const post = screen.getByRole('button', { name: 'Post' });
+      expect(post.hasAttribute('disabled')).toBe(false);
+      post.click();
+      await settle();
+
+      const upload = backend.expectOne('/media/attachments');
+      expect((upload.request.body as FormData).get('file')).toBeInstanceOf(File);
+      upload.flush({ id: 'att-pdf', name: 'Grade 1 week 5.pdf', type: 'application/pdf', sizeBytes: 1 });
+      await settle();
+      const posted = backend.expectOne('/management/broadcasts');
+      expect((posted.request.body as CreateBroadcastRequest).attachmentId).toBe('att-pdf');
+      posted.flush({ ...PLAN, id: 'b-pdf' });
+      await settle();
+      backend
+        .match((request) => request.url === '/management/weekly-plans')
+        .forEach((request) => request.flush({ weeks: [] }));
+    });
+
+    /**
+     * List 3 (D2), item 4 — display: a PDF plan is a card with its file name and **Open**, in the
+     * glance and in the archive, and Open reads the bytes with the bearer into a tab that was
+     * reserved inside the click. No `<img>` is pointed at it and nothing is fetched until she asks.
+     */
+    it('draws a PDF plan as a named card whose Open shows the bytes in a new tab', async () => {
+      const PDF_PLAN = {
+        ...PLAN,
+        id: 'b-pdf',
+        attachment: { id: 'att-7', name: 'Grade 1.pdf', type: 'application/pdf', url: 'https://api.example/y' },
+      };
+      const backend = await openScreen([{ weekStart: '2026-09-27', items: [{ plan: PDF_PLAN, readBy: 4 }] }]);
+
+      // The glance card and the archive row: two cards, no picture for either.
+      const cards = [...document.querySelectorAll('hq-plan-pdf')];
+      expect(cards.length).toBe(2);
+      expect(cards[0]?.textContent).toContain('Grade 1.pdf');
+      expect(document.querySelector('.wp__thumb')).toBeNull();
+      expect(document.querySelector('.pw__thumb')).toBeNull();
+      expect(backend.match((request) => request.url === '/media/attachments/att-7')).toEqual([]);
+      expect(document.body.textContent).toContain('Read by 4');
+
+      const tab = { closed: false, opener: {} as unknown, location: { href: '' }, close: vi.fn() };
+      const open = vi.spyOn(window, 'open').mockReturnValue(tab as unknown as Window);
+      const createUrl = vi.fn().mockReturnValue('blob:plan');
+      const createObjectURL = URL.createObjectURL;
+      URL.createObjectURL = createUrl;
+
+      const buttons = screen.getAllByRole('button', { name: /^Open Weekly plan · Grade 1/ });
+      expect(buttons.length).toBe(2);
+      buttons[0]!.click();
+      await settle();
+      // Reserved before the request answers — afterwards it would be a blocked popup.
+      expect(open).toHaveBeenCalledWith('', '_blank');
+      const bytes = backend.expectOne((request) => request.url === '/media/attachments/att-7');
+      expect(bytes.request.responseType).toBe('blob');
+      bytes.flush(new Blob(['%PDF-1.7'], { type: 'application/octet-stream' }));
+      await settle();
+
+      expect((createUrl.mock.calls[0]![0] as Blob).type).toBe('application/pdf');
+      expect(tab.location.href).toBe('blob:plan');
+      expect(tab.opener).toBeNull();
+
+      // A read that fails is said in the card, and the empty tab is closed rather than left.
+      buttons[1]!.click();
+      await settle();
+      backend
+        .expectOne((request) => request.url === '/media/attachments/att-7')
+        .flush(new Blob(['gone']), { status: 404, statusText: 'Not Found' });
+      await settle();
+      expect(tab.close).toHaveBeenCalled();
+      expect(document.body.textContent).toContain('That file could not be opened');
+
+      URL.createObjectURL = createObjectURL;
+      open.mockRestore();
     });
 
     /**

@@ -15,9 +15,12 @@ import {
   PageComponent,
   SelectComponent,
   SkeletonComponent,
+  type Tab,
   TableComponent,
+  TabsComponent,
 } from '../../ui';
 import { LessonApiService } from '../lessons/lesson-api.service';
+import { isRunningStatus } from '../lessons/lessons.models';
 import { CoordinatorReadFailedComponent } from './read-failed.component';
 import { StaffScopeService } from './staff-scope.service';
 
@@ -30,13 +33,41 @@ interface LessonRow {
   readonly status: string;
 }
 
-/** The statuses worth narrowing by: the two that need someone, and the two ordinary ends. */
-const STATUSES: readonly AdminLessonStatusEnum[] = [
+/**
+ * **Every status a lesson can be in, in the order the pipeline passes through them** (D2, list 3).
+ *
+ * The filter used to offer four of them and send each as `?status=`, while the server knew only
+ * its own three coarse words — so three of the four chips answered 400 "status is draft, ready or
+ * published" and the fourth was the only one that worked. The list is now the contract's own enum,
+ * which is what the teacher's lesson list labels its rows with and what `GET /coordinator/lessons`
+ * accepts since S1: a chip per status, the status itself as the parameter, nothing invented here.
+ */
+export const LESSON_STATUS_CHIPS: readonly AdminLessonStatusEnum[] = [
+  AdminLessonStatusEnum.DRAFT,
+  AdminLessonStatusEnum.UPLOADING,
+  AdminLessonStatusEnum.ANALYZING,
   AdminLessonStatusEnum.NEEDS_REVIEW,
-  AdminLessonStatusEnum.ERROR,
+  AdminLessonStatusEnum.GENERATING,
   AdminLessonStatusEnum.REVIEW,
+  AdminLessonStatusEnum.PAUSED,
   AdminLessonStatusEnum.PUBLISHED,
+  AdminLessonStatusEnum.ERROR,
 ];
+
+/** The chip that is no filter at all. Never sent: `status` is simply left off the request. */
+const ANY_STATUS = 'all';
+type StatusChip = AdminLessonStatusEnum | typeof ANY_STATUS;
+
+/**
+ * The badge a status wears — the teacher's list's own rule (`LessonsPage.statusTone`): failed is
+ * the error ramp, published the success one, a job still running the brand, and everything waiting
+ * on a person the light pill. The word is always inside the pill, so colour never carries it alone.
+ */
+export function lessonStatusTone(status: string): 'error' | 'success' | 'primary' | 'light' {
+  if (status === 'error') return 'error';
+  if (status === 'published') return 'success';
+  return isRunningStatus(status as AdminLessonStatusEnum) ? 'primary' : 'light';
+}
 
 /**
  * Lessons (R5, `docs/coordinator-flow.md` §5): every lesson of every class in scope, narrowed by
@@ -62,6 +93,7 @@ const STATUSES: readonly AdminLessonStatusEnum[] = [
     SelectComponent,
     SkeletonComponent,
     TableComponent,
+    TabsComponent,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -74,13 +106,6 @@ const STATUSES: readonly AdminLessonStatusEnum[] = [
           [placeholder]="'coordinator.lessons.allClasses' | transloco"
           [value]="classId()"
           (valueChange)="classId.set($event)"
-        />
-        <hq-select
-          [label]="'coordinator.lessons.byStatus' | transloco"
-          [options]="statusOptions()"
-          [placeholder]="'coordinator.lessons.allStatuses' | transloco"
-          [value]="status()"
-          (valueChange)="status.set($event)"
         />
         <hq-input
           type="date"
@@ -95,6 +120,15 @@ const STATUSES: readonly AdminLessonStatusEnum[] = [
           (valueChange)="to.set($event)"
         />
       </div>
+
+      <hq-tabs
+        variant="chips"
+        class="co-status"
+        [tabs]="statusTabs()"
+        [selected]="status()"
+        (selectedChange)="status.set($event)"
+        [label]="'coordinator.lessons.byStatus' | transloco"
+      />
 
       @if (lessons.isLoading()) {
         <hq-skeleton [loading]="true" [lines]="6" [label]="'lessons.loading' | transloco" />
@@ -129,12 +163,7 @@ const STATUSES: readonly AdminLessonStatusEnum[] = [
             {{ row.date }}
           }
           @case ('status') {
-            <span
-              class="hq-badge"
-              [class.hq-badge--error]="row.status === 'error'"
-              [class.hq-badge--success]="row.status === 'published'"
-              [class.hq-badge--warning]="row.status === 'needs_review'"
-            >
+            <span class="hq-badge" [class]="'hq-badge--' + tone(row.status)">
               {{ 'lessons.status.' + row.status | transloco }}
             </span>
           }
@@ -149,6 +178,11 @@ const STATUSES: readonly AdminLessonStatusEnum[] = [
       gap: var(--hq-space-16);
       margin-block-end: var(--hq-space-16);
     }
+
+    .co-status {
+      display: block;
+      margin-block-end: var(--hq-space-16);
+    }
   `,
 })
 export class CoordinatorLessonsPage {
@@ -158,14 +192,17 @@ export class CoordinatorLessonsPage {
   private readonly lang = activeLang();
 
   protected readonly classId = signal('');
-  protected readonly status = signal('');
+  protected readonly status = signal<StatusChip>(ANY_STATUS);
   protected readonly from = signal('');
   protected readonly to = signal('');
 
   protected readonly lessons = rxResource({
     params: () => ({
       classId: this.classId() || undefined,
-      status: this.status() || undefined,
+      // A manager's route still knows only its three coarse words (MH0), so hers is never asked
+      // by status at all — the rows are narrowed below, which answers every chip for her too.
+      // (Her branch does not read the chip, so pressing one is not a second request either.)
+      status: this.co.isManager() || this.status() === ANY_STATUS ? undefined : this.status(),
       from: this.from() || undefined,
       to: this.to() || undefined,
     }),
@@ -176,7 +213,13 @@ export class CoordinatorLessonsPage {
   protected readonly rows = computed<readonly LessonRow[]>(() => {
     this.lang();
     const untitled = this.transloco.translate<string>('lessons.untitled');
+    const wanted = this.status();
     return [...this.lessons.value()]
+      // The server's filter is exact for every word but one: `draft` is still its coarse
+      // "everything not yet ready or published" (the teacher's week), which would put Uploading
+      // and Failed rows under the Draft chip. Narrowing here makes the chip mean its own word —
+      // and is all that narrows a manager's rows, whose route is not asked by status.
+      .filter((lesson) => wanted === ANY_STATUS || lesson.status === wanted)
       .map((lesson) => ({
         id: lesson.id,
         title: (lesson.title ?? '').trim() || untitled,
@@ -203,10 +246,15 @@ export class CoordinatorLessonsPage {
     this.co.classes().map((row) => ({ value: row.classId, label: row.className })),
   );
 
-  protected readonly statusOptions = computed<readonly SelectOption[]>(() => {
+  protected readonly statusTabs = computed<readonly Tab<StatusChip>[]>(() => {
     this.lang();
-    return STATUSES.map((status) => ({ value: status, label: this.t(`lessons.status.${status}`) }));
+    return [
+      { id: ANY_STATUS, label: this.t('coordinator.lessons.allStatuses') },
+      ...LESSON_STATUS_CHIPS.map((status) => ({ id: status, label: this.t(`lessons.status.${status}`) })),
+    ];
   });
+
+  protected readonly tone = lessonStatusTone;
 
   protected readonly trackRow = (row: LessonRow): string => row.id;
 

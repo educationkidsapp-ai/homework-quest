@@ -40,6 +40,7 @@ import {
   SkeletonComponent,
   ToastComponent,
 } from '../../ui';
+import { PlanPdfComponent } from '../broadcasts/plan-pdf.component';
 import { PlanWeeksComponent } from '../broadcasts/plan-weeks.component';
 import { StaffScopeService } from '../coordinator/staff-scope.service';
 import { CoordinatorReadFailedComponent } from '../coordinator/read-failed.component';
@@ -58,8 +59,9 @@ interface GlanceCard {
 /**
  * **Weekly plans** (MG2b items 3 and 4; reworked by MH2 item 4).
  *
- * MH1 settled what a plan *is*: one grade, one week, one image. So this screen is three things, in
- * the order she uses them on a Sunday morning:
+ * MH1 settled what a plan *is*: one grade, one week, one image — and since list 3 (D2) the file may
+ * be a **PDF** instead, which every card draws as its name and an Open action (`hq-plan-pdf`). So
+ * this screen is three things, in the order she uses them on a Sunday morning:
  *
  * 1. **This week at a glance** — one card per grade of her department, showing the picture that is
  *    posted or an "Add plan" action. There is no all-grades card any more: the server refuses a plan
@@ -94,6 +96,7 @@ interface GlanceCard {
     InputComponent,
     PageComponent,
     PlanComposeComponent,
+    PlanPdfComponent,
     PlanWeeksComponent,
     SelectComponent,
     SkeletonComponent,
@@ -140,12 +143,20 @@ interface GlanceCard {
                   @if (card.plan; as plan) {
                     <!-- Eager: these few are above the fold and are the Sunday-morning question.
                          The archive below them loads a row when it is scrolled to. -->
-                    <img
-                      class="wp__thumb"
-                      [eager]="true"
-                      [hqAttachmentImage]="plan.attachmentId"
-                      [alt]="altOf(plan)"
-                    />
+                    @if (plan.pdf) {
+                      <hq-plan-pdf
+                        [attachmentId]="plan.attachmentId"
+                        [name]="plan.attachmentName"
+                        [label]="altOf(plan)"
+                      />
+                    } @else {
+                      <img
+                        class="wp__thumb"
+                        [eager]="true"
+                        [hqAttachmentImage]="plan.attachmentId"
+                        [alt]="altOf(plan)"
+                      />
+                    }
                     <hq-button *hqCan="'management.broadcast'" variant="secondary" (pressed)="add(card)">
                       {{ 'plans.replace' | transloco }}
                     </hq-button>

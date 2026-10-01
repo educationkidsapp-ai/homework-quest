@@ -9,11 +9,12 @@ import {
   effect,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { catchError, of, tap } from 'rxjs';
 import {
@@ -245,7 +246,7 @@ interface ParsedChatMessage {
             }
           </div>
 
-          <!-- MG2b: a bell link whose thread this list does not hold. One line, where the list is,
+          <!-- D2: the conversation she had open has left her list. One line, where the list is,
                instead of a screen that silently says "pick a conversation". -->
           @if (missingThread()) {
             <p class="chat-sidebar__missing">{{ 'chat.threadGone' | transloco }}</p>
@@ -2142,6 +2143,11 @@ export class ChatPage implements AfterViewChecked {
   /** The child a parent thread is about, or the staff member on the other end of a staff one. */
   protected nameOf(thread: ChatThread): string {
     if (!this.isStaff(thread)) return thread.childName;
+    // D2 (list 3): a thread the school's admin opened with a teacher or a coordinator says who is
+    // on the other end by office, not by a name she may never have met.
+    if (thread.withAdmin === true && (this.auth.role() === 'TEACHER' || this.auth.role() === 'COORDINATOR')) {
+      return this.transloco.translate<string>('chat.schoolAdministration');
+    }
     return thread.teacherName || this.transloco.translate<string>('chat.management');
   }
 
@@ -2397,11 +2403,18 @@ export class ChatPage implements AfterViewChecked {
    * constructor read is never re-read, and the conversation the notification named would not open.
    * `requireSync` because `queryParamMap` emits the current query on subscribe.
    */
-  private readonly query = toSignal(inject(ActivatedRoute).queryParamMap, { requireSync: true });
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly query = toSignal(this.route.queryParamMap, { requireSync: true });
   /** The link this visit has already acted on, so a rerun of the effect is not a second open. */
   private followed = '';
-  /** A `?thread=` the list does not hold: said in a line rather than left as an empty screen. */
-  protected readonly missingThread = signal(false);
+  /** The link the list has been re-read for, so one stale link is one extra read (D2). */
+  private refetchedFor = '';
+  /**
+   * The thread she was *viewing* is gone from her list (`ChatService.activeGone`): said in a line.
+   * A linked or remembered id that was never in the list is not this — it is dropped in silence.
+   */
+  protected readonly missingThread = computed(() => this.chatService.activeGone());
 
   constructor() {
     /*
@@ -2417,20 +2430,42 @@ export class ChatPage implements AfterViewChecked {
      */
     effect(() => {
       const params = this.query();
-      const rows = this.chatService.threads();
       const threadId = params.get('thread') ?? '';
       const childId = params.get('childId') ?? '';
       const link = `${threadId}|${childId}`;
       if (link === '|' || link === this.followed) return;
       if (threadId !== '') {
-        if (!rows.some((thread) => this.keyOf(thread) === threadId)) {
-          // A stale bell link — a thread she has left, or one that was never hers. Said once the
-          // list has actually answered, because "not found" while it is still loading is a lie.
-          if (!this.chatService.loadingThreads()) this.missingThread.set(true);
+        if (!this.chatService.holds(threadId)) {
+          // Said once the list has actually answered, because "not found" while it is still
+          // loading is a lie.
+          if (this.chatService.loadingThreads()) return;
+          // D2: the list was read at sign-in, and a thread opened since — "Message" on a row, a
+          // bell link for a conversation somebody just started — is not in it. Ask once more
+          // before calling the link stale; only a second miss is "not in your list".
+          if (this.refetchedFor !== link) {
+            this.refetchedFor = link;
+            untracked(() => this.chatService.loadThreads());
+            if (this.chatService.loadingThreads()) return;
+          }
+          // Still not hers after a fresh read: a stale bell link, or an id remembered from
+          // somewhere else. Not an error she caused — the id leaves the URL and the list is the
+          // screen; nothing is said, and nothing is ever asked of the server by that id.
+          this.followed = link;
+          untracked(() => {
+            void this.router.navigate([], {
+              relativeTo: this.route,
+              queryParams: { thread: null },
+              queryParamsHandling: 'merge',
+              replaceUrl: true,
+            });
+          });
           return;
         }
+        // The row may be behind a chip or a search she left on: the link names one conversation,
+        // so the list shows the tab it is in.
+        this.peer.set('all');
+        this.searchQuery.set('');
         this.followed = link;
-        this.missingThread.set(false);
         this.chatService.selectThread(threadId);
         this.mobileShowConvo.set(true);
         return;

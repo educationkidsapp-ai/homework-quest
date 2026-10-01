@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, effect, inject, input, signal, untr
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { type PlanRow, type PlanWeek } from '../../core/broadcasts/plan-archive';
 import { AttachmentImageDirective, CardComponent, DialogComponent } from '../../ui';
+import { PlanPdfComponent } from './plan-pdf.component';
 
 /**
  * **The archive, drawn**: weeks newest first, each plan its picture (MG2b, reworked by MH2 item 4).
@@ -25,7 +26,7 @@ import { AttachmentImageDirective, CardComponent, DialogComponent } from '../../
  */
 @Component({
   selector: 'hq-plan-weeks',
-  imports: [AttachmentImageDirective, CardComponent, DialogComponent, TranslocoPipe],
+  imports: [AttachmentImageDirective, CardComponent, DialogComponent, PlanPdfComponent, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (week of weeks(); track week.weekStart) {
@@ -34,35 +35,53 @@ import { AttachmentImageDirective, CardComponent, DialogComponent } from '../../
         <div class="pw__grid">
           @for (row of week.rows; track row.id) {
             <hq-card [eyebrow]="gradeLabel(row)">
-              <button
-                type="button"
-                class="pw__open"
-                [class.is-named]="row.id === open()"
-                (click)="enlarged.set(row)"
-              >
-                <span class="pw__box">
-                  <img
-                    #thumb="hqAttachmentImage"
-                    class="pw__thumb"
-                    [hqAttachmentImage]="row.attachmentId"
-                    [alt]="altOf(row)"
+              @if (row.pdf) {
+                <!-- D2, list 3: a PDF is opened, not drawn — its name and Open, in the picture's
+                     place, with the same line under it. -->
+                <div class="pw__doc" [class.is-named]="row.id === open()">
+                  <hq-plan-pdf
+                    [attachmentId]="row.attachmentId"
+                    [name]="row.attachmentName"
+                    [label]="altOf(row)"
                   />
-                  @if (thumb.state() !== 'ready') {
-                    <!-- Not a spinner: the two things she is looking for in a twelve-week list are
-                         the grade and the week, and they are known before any byte arrives. -->
-                    <span class="pw__placeholder" aria-hidden="true">
-                      <span class="pw__placeholder-grade">{{ gradeLabel(row) }}</span>
-                      <span>{{ weekLabel(row.weekStart) }}</span>
-                    </span>
-                  }
-                </span>
-                <span class="pw__meta">
-                  @if (row.readBy !== null) {
-                    <span>{{ 'plans.readBy' | transloco: { count: row.readBy } }}</span>
-                  }
-                  <span class="hq-muted">{{ authorOf(row) }}</span>
-                </span>
-              </button>
+                  <span class="pw__meta">
+                    @if (row.readBy !== null) {
+                      <span>{{ 'plans.readBy' | transloco: { count: row.readBy } }}</span>
+                    }
+                    <span class="hq-muted">{{ authorOf(row) }}</span>
+                  </span>
+                </div>
+              } @else {
+                <button
+                  type="button"
+                  class="pw__open"
+                  [class.is-named]="row.id === open()"
+                  (click)="enlarged.set(row)"
+                >
+                  <span class="pw__box">
+                    <img
+                      #thumb="hqAttachmentImage"
+                      class="pw__thumb"
+                      [hqAttachmentImage]="row.attachmentId"
+                      [alt]="altOf(row)"
+                    />
+                    @if (thumb.state() !== 'ready') {
+                      <!-- Not a spinner: the two things she is looking for in a twelve-week list are
+                           the grade and the week, and they are known before any byte arrives. -->
+                      <span class="pw__placeholder" aria-hidden="true">
+                        <span class="pw__placeholder-grade">{{ gradeLabel(row) }}</span>
+                        <span>{{ weekLabel(row.weekStart) }}</span>
+                      </span>
+                    }
+                  </span>
+                  <span class="pw__meta">
+                    @if (row.readBy !== null) {
+                      <span>{{ 'plans.readBy' | transloco: { count: row.readBy } }}</span>
+                    }
+                    <span class="hq-muted">{{ authorOf(row) }}</span>
+                  </span>
+                </button>
+              }
             </hq-card>
           }
         </div>
@@ -106,6 +125,17 @@ import { AttachmentImageDirective, CardComponent, DialogComponent } from '../../
       font: inherit;
       text-align: start;
       cursor: pointer;
+    }
+
+    .pw__doc {
+      display: flex;
+      flex-direction: column;
+      gap: var(--hq-space-8);
+    }
+
+    .pw__doc.is-named {
+      outline: var(--hq-size-rule) solid var(--hq-color-accent);
+      outline-offset: var(--hq-space-8);
     }
 
     .pw__open.is-named .pw__thumb {
@@ -187,7 +217,8 @@ export class PlanWeeksComponent {
         const row = rows.find((candidate) => candidate.id === wanted);
         if (row === undefined) return;
         this.shown.add(wanted);
-        this.enlarged.set(row);
+        // A PDF has nothing to enlarge: its card is outlined, and Open is hers to press.
+        if (!row.pdf) this.enlarged.set(row);
       });
     });
   }

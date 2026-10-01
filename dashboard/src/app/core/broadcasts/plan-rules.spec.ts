@@ -4,10 +4,12 @@ import {
   type PlanDraft,
   EMPTY_PLAN_DRAFT,
   PLAN_IMAGE_MAX_BYTES,
+  PLAN_PDF_MAX_BYTES,
   canPostPlan,
-  imageError,
+  isPdfFile,
   planBlocked,
   planErrors,
+  planFileError,
   planRequestOf,
 } from './plan-rules';
 
@@ -53,13 +55,27 @@ describe('the weekly-plan composer rules', () => {
   it('refuses a file the upload route would refuse, before it is uploaded', () => {
     // The two rules `MediaController` enforces, enforced here first: a 6 MB scan that uploads for
     // twenty seconds and then answers 413 has wasted the twenty seconds.
-    expect(imageError(file('application/pdf'))).toBe('plans.errors.imageType');
-    expect(imageError(file('image/gif'))).toBe('plans.errors.imageType');
-    expect(imageError(file('image/png', PLAN_IMAGE_MAX_BYTES + 1))).toBe('plans.errors.imageTooBig');
-    expect(imageError(file('image/png', PLAN_IMAGE_MAX_BYTES))).toBeNull();
-    expect(imageError(file('image/jpeg'))).toBeNull();
-    expect(imageError(file('image/webp'))).toBeNull();
+    expect(planFileError(file('image/gif'))).toBe('plans.errors.imageType');
+    expect(planFileError(file('image/png', PLAN_IMAGE_MAX_BYTES + 1))).toBe('plans.errors.imageTooBig');
+    expect(planFileError(file('image/png', PLAN_IMAGE_MAX_BYTES))).toBeNull();
+    expect(planFileError(file('image/jpeg'))).toBeNull();
+    expect(planFileError(file('image/webp'))).toBeNull();
     expect(canPostPlan(draft({ file: file('image/gif') }), one)).toBe(false);
+  });
+
+  it('accepts a PDF up to its own, larger cap, and tells one from a picture by type then by name', () => {
+    // List 3 (D2): `POST /media/attachments` takes `application/pdf` up to 10 MB.
+    expect(planFileError(file('application/pdf'))).toBeNull();
+    expect(planFileError(file('application/pdf', PLAN_IMAGE_MAX_BYTES + 1))).toBeNull();
+    expect(planFileError(file('application/pdf', PLAN_PDF_MAX_BYTES))).toBeNull();
+    expect(planFileError(file('application/pdf', PLAN_PDF_MAX_BYTES + 1))).toBe('plans.errors.pdfTooBig');
+    expect(canPostPlan(draft({ file: file('application/pdf') }), one)).toBe(true);
+
+    expect(isPdfFile('application/pdf', 'plan.png')).toBe(true);
+    expect(isPdfFile('image/png', 'plan.pdf')).toBe(false);
+    // A row with no type on it still has the file's own name.
+    expect(isPdfFile('', 'Grade 3.PDF')).toBe(true);
+    expect(isPdfFile(undefined, 'grade-3.jpg')).toBe(false);
   });
 
   it('cannot be posted at all by a manager of two departments', () => {

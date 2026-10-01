@@ -109,7 +109,7 @@ describe('hq-tour', () => {
    * else. `offeredTo` is both halves of that — the account menu draws its entry from it, and
    * `offer` on first sign-in is silent for a role with no steps.
    */
-  it('offers no tour at all to a manager, and still offers one to the other three', () => {
+  it('offers no tour at all to a manager or a coordinator, and still offers one to the other two', () => {
     const tour = TestBed.inject(TourService);
 
     expect(tour.offeredTo('MANAGERIAL')).toBe(false);
@@ -118,7 +118,12 @@ describe('hq-tour', () => {
     tour.start('MANAGERIAL');
     expect(tour.running()).toBe(false);
 
-    for (const role of ['ADMIN', 'TEACHER', 'COORDINATOR'] as const) {
+    // List 3 (D2): the same instruction for the coordinator.
+    expect(tour.offeredTo('COORDINATOR')).toBe(false);
+    tour.start('COORDINATOR');
+    expect(tour.running()).toBe(false);
+
+    for (const role of ['ADMIN', 'TEACHER'] as const) {
       expect(`${role}:${tour.offeredTo(role)}`).toBe(`${role}:true`);
     }
     expect(tour.offeredTo(null)).toBe(false);
