@@ -54,7 +54,9 @@ object ChatThreadsContract {
         /** Her teachers, the coordinators (R8) and the department manager (RM4) she has a thread with — three headings. */
         val teacherThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.TEACHER }
         val coordinatorThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.COORDINATOR }
-        val managerThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.MANAGERIAL }
+        val managerThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.MANAGERIAL && it.withAdmin != true }
+        /** S1: a thread the school administration opened. `MANAGERIAL` on the wire; `withAdmin` tells it apart. */
+        val adminThreads: List<ChatThread> get() = threads.filter { it.withAdmin == true }
     }
 
     sealed interface Intent : MviIntent {
@@ -178,6 +180,10 @@ fun ChatThreadsScreen(
             return
         }
 
+        // M1: the one way to start anything — a question or a complaint, to a teacher, a coordinator or the manager.
+        ParentButton(strings.newMessage, onMessageCoordinator)
+        Spacer(Modifier.height(Dimens.s8))
+
         if (state.childNotPlaced) {
             ParentCard(Modifier.padding(vertical = Dimens.s8)) {
                 Text(strings.childNotPlaced, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
@@ -207,8 +213,12 @@ fun ChatThreadsScreen(
             state.managerThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }, department = department) }
         }
 
-        Spacer(Modifier.height(Dimens.s16))
-        ParentButton(strings.messageStaff, onMessageCoordinator, primary = false, icon = "+")
+        // The parent cannot start one of these — New message does not offer the administration — but answers here.
+        if (state.adminThreads.isNotEmpty()) {
+            SectionTitle(strings.schoolAdministration)
+            state.adminThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }) }
+        }
+
         Spacer(Modifier.height(Dimens.s16))
     }
 }

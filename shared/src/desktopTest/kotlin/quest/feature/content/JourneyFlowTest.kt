@@ -38,7 +38,7 @@ class JourneyFlowTest {
 
     @Test fun fullLevelOneFlow() = runTest {
         auth.signIn("parent@example.com", "secret123")
-        val child = children.create(CreateChildRequest("Maya", "sun", Curriculum.BRITISH, 1)); children.select(child.id)
+        val child = api.createChild(CreateChildRequest("Maya", "sun", Curriculum.BRITISH, 1)); children.refresh(); children.select(child.id)
 
         val map = maps.map(child, LocalDate(2026, 9, 1), LocalDate(2026, 9, 30), today)
         val hot = map.islands.first { it.lessonId == HotSoupSeed.LESSON_ID }
@@ -69,7 +69,7 @@ class JourneyFlowTest {
 
     @Test fun weakSkillProducesAReviewIsland() = runTest {
         auth.signIn("p@example.com", "secret123")
-        val child = children.create(CreateChildRequest("Omar", "mint", Curriculum.BRITISH, 1)); children.select(child.id)
+        val child = api.createChild(CreateChildRequest("Omar", "mint", Curriculum.BRITISH, 1)); children.refresh(); children.select(child.id)
         val lesson = lessons.lesson(quest.api.samples.PhonicsSeed.LESSON_ID)
         val play = lesson.plays[0]
         // every single-answer stop wrong on the first try → below 60 %

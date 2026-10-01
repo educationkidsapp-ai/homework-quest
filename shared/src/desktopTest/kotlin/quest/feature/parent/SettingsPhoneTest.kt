@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
@@ -18,15 +17,10 @@ import quest.core.db.Db
 import quest.core.db.SettingsStore
 import quest.core.platform.DriverFactory
 import quest.feature.auth.data.FakeAuth
-import quest.feature.children.domain.ChildrenRepository
 import quest.feature.content.data.FakeContentApi
 import quest.feature.parent.data.ParentRepositoryImpl
 import quest.feature.parent.presentation.SettingsContract
 import quest.feature.parent.presentation.SettingsViewModel
-import quest.api.dto.Child
-import quest.api.dto.CreateChildRequest
-import quest.api.dto.Curriculum
-import quest.api.dto.UpdateChildRequest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -42,19 +36,6 @@ import kotlin.test.assertTrue
  */
 class SettingsPhoneTest {
     private val settings = SettingsStore(Db(DriverFactory(null)))
-
-    private class FakeChildren : ChildrenRepository {
-        override val currentChild: StateFlow<Child?> = MutableStateFlow(Child("c1", "Maya", "sun", Curriculum.BRITISH, 1))
-        override suspend fun refresh(): List<Child> = emptyList()
-        override suspend fun children(): List<Child> = emptyList()
-        override suspend fun create(request: CreateChildRequest): Child = error("not used")
-        override suspend fun update(id: String, request: UpdateChildRequest): Child = error("not used")
-        override suspend fun delete(id: String) {}
-        override suspend fun select(id: String) {}
-        override suspend fun clear() {}
-        override suspend fun sectionName(childId: String): String? = "1A British"
-        override suspend fun rememberSection(childId: String, name: String?) {}
-    }
 
     /** Only the two profile calls matter; the rest of the contract is the fake's, by delegation. */
     private class Api(base: ContentApi, var stored: String? = null, var onUpdate: () -> Unit = {}) : ContentApi by base {
@@ -82,7 +63,7 @@ class SettingsPhoneTest {
         Api(FakeContentApi(FakeAuth(settings), delayMillis = 0), stored, onUpdate)
 
     private fun viewModel(api: ContentApi) =
-        SettingsViewModel(ParentRepositoryImpl(settings), FakeChildren(), api).also { built.add(it) }
+        SettingsViewModel(ParentRepositoryImpl(settings), api).also { built.add(it) }
 
     private suspend fun <S> settle(state: StateFlow<S>, predicate: (S) -> Boolean) {
         repeat(400) {

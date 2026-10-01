@@ -28,9 +28,8 @@ import quest.feature.auth.data.FirebaseAuth
 import quest.feature.auth.data.SessionRestorer
 import quest.feature.auth.presentation.SignInViewModel
 import quest.feature.children.data.ChildrenRepositoryImpl
-import quest.feature.children.domain.AddChildUseCase
 import quest.feature.children.domain.ChildrenRepository
-import quest.feature.children.presentation.AddChildViewModel
+import quest.feature.children.presentation.ChildrenViewModel
 import quest.feature.content.data.FakeContentApi
 import quest.feature.content.data.JourneyRepositoryImpl
 import quest.feature.content.data.LessonRepositoryImpl
@@ -141,9 +140,8 @@ val contentModule = module {
     single<LessonRepository> { LessonRepositoryImpl(get(), get()) }
     single<JourneyRepository> { JourneyRepositoryImpl(get(), get()) }
     single<MapRepository> { MapRepositoryImpl(get(), get(), get()) }
-    factory { AddChildUseCase(get()) }
     viewModel { SignInViewModel(get()) }
-    viewModel { (editingId: String?) -> AddChildViewModel(editingId, get(), get(), get()) }
+    viewModel { ChildrenViewModel(get(), get()) }
     factory { LessonCopy(get(), get()) }
     viewModel { MapViewModel(get(), get(), get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get(), get()) }
@@ -168,7 +166,7 @@ val parentModule = module {
     viewModel { ParentHomeViewModel(get(), get(), get(), get(), get()) }
     viewModel { CalendarViewModel(get(), get(), get()) }
     viewModel { ProgressViewModel(get(), get(), get(), get()) }
-    viewModel { SettingsViewModel(get(), get(), get()) }
+    viewModel { SettingsViewModel(get(), get()) }
 }
 
 val chatModule = module {

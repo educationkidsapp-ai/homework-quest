@@ -1,5 +1,6 @@
 package quest
 
+import quest.feature.journey.presentation.LessonTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,10 +19,8 @@ import quest.api.AuthState
 import quest.core.navigation.Routes
 import quest.di.AppInitializer
 import quest.feature.auth.presentation.SignInRoute
-import quest.feature.children.presentation.AddChildRoute
 import quest.feature.children.presentation.ChildPickerRoute
 import quest.feature.journey.presentation.JourneyRoute
-import quest.feature.journey.presentation.LessonTheme
 import quest.feature.journey.presentation.LessonCompleteRoute
 import quest.feature.journey.presentation.StopPlayerRoute
 import quest.feature.map.presentation.WorldMapRoute
@@ -50,19 +49,23 @@ fun App() {
 @Composable
 fun QuestNavHost(nav: NavHostController, start: Any) {
     NavHost(navController = nav, startDestination = start) {
-        composable<Routes.SignIn> { SignInRoute(onSignedIn = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.SignIn) { inclusive = true } } }) }
-        composable<Routes.AddChild> { entry ->
-            val editingId = entry.toRoute<Routes.AddChild>().editingId
-            AddChildRoute(editingId, onSaved = { if (editingId == null) nav.toMapAfterAdd() else nav.popBackStack() }, onBack = if (editingId == null) null else ({ nav.popBackStack() }))
+        // After sign-in the parent sees every child the school linked to the account, and picks whose home to open.
+        composable<Routes.SignIn> { SignInRoute(onSignedIn = { nav.navigate(Routes.ChildPicker) { popUpTo(Routes.SignIn) { inclusive = true } } }) }
+        composable<Routes.ChildPicker> {
+            ChildPickerRoute(
+                onPicked = { nav.navigate(Routes.WorldMap) { popUpTo(0) { inclusive = true } } },
+                onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } },
+                onBack = if (nav.previousBackStackEntry != null) ({ nav.popBackStack() }) else null,
+            )
         }
-        composable<Routes.ChildPicker> { ChildPickerRoute(onPicked = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } }, onAdd = { nav.navigate(Routes.AddChild()) }, onBack = { nav.popBackStack() }) }
         composable<Routes.WorldMap> {
             AcademicTheme {
                 WorldMapRoute(
                     onSwitchChild = { nav.navigate(Routes.ChildPicker) },
                     onOpenLesson = { id, level, variant -> nav.navigate(Routes.Journey(id, level, variant)) },
                     onGrownUps = { nav.navigate(Routes.ParentPin()) },
-                    onNeedsChild = { nav.navigate(Routes.AddChild()) { popUpTo(Routes.WorldMap) { inclusive = true } } },
+                    // Nobody linked yet: the children list is where the app says so.
+                    onNeedsChild = { nav.navigate(Routes.ChildPicker) { popUpTo(0) { inclusive = true } } },
                 )
             }
         }
@@ -99,17 +102,4 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
         }
         parentGraph(nav)
     }
-}
-
-/**
- * Where a newly added child lands, and what Back does from there (D16 slice 2, `mobile-parent-acceptance` F5).
- *
- * The first child is added from a map that popped itself off the stack, so the form was the only entry left: Back
- * from the new map showed *Add a child* again, pre-filled with the child who had just been saved, and Back once more
- * left the app. This rebuilds the stack the parent expects instead — the child list underneath, the map on top — so
- * Back is "who else is playing?" and never the form.
- */
-private fun NavHostController.toMapAfterAdd() {
-    navigate(Routes.ChildPicker) { popUpTo(0) { inclusive = true } }
-    navigate(Routes.WorldMap)
 }

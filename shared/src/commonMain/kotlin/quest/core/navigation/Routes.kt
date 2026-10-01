@@ -5,7 +5,6 @@ import kotlinx.serialization.Serializable
 /** Type-safe routes for Compose Navigation. Child and parent graphs only meet at the PIN. */
 object Routes {
     @Serializable object SignIn
-    @Serializable data class AddChild(val editingId: String? = null)
     @Serializable object ChildPicker
 
     // child mode
@@ -46,5 +45,9 @@ object Routes {
         val topic: String = "question",
         val resolved: Boolean = false,
         val threadId: String? = null,
+        /** M1: opened from New message with "Complaint" chosen — the toggle starts on. */
+        val complaint: Boolean = false,
+        /** S1: a thread the school administration opened (`ChatThread.withAdmin`). */
+        val admin: Boolean = false,
     )
 }

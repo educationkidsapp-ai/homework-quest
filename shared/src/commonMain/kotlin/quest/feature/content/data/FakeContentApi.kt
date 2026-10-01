@@ -11,7 +11,6 @@ import quest.api.ContentApi
 import quest.api.DEFAULT_FLAGS
 import quest.api.UploadFile
 import quest.api.dashboard.ClassLookup
-import quest.api.dashboard.JoinSchoolInfo
 import quest.api.dto.ApiError
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
@@ -70,7 +69,12 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
     private suspend fun uid(): String = (auth.state.value as? AuthState.SignedIn)?.uid ?: throw ApiException(ApiError(ApiError.UNAUTHORIZED, "Please sign in."))
     private suspend fun net() = delay(delayMillis)
 
-    override suspend fun listChildren(): List<Child> { net(); return mutex.withLock { children[uid()].orEmpty().toList() } }
+    /**
+     * The children the school linked to this parent. The app has no Add child (the admin adds them), so without a
+     * backend the fake plays the admin: a parent it has not seen before is given [linkedChildren], with fixed ids so
+     * the progress cached on the device still belongs to them after a restart.
+     */
+    override suspend fun listChildren(): List<Child> { net(); return mutex.withLock { children.getOrPut(uid()) { linkedChildren.toMutableList() }.toList() } }
 
     override suspend fun createChild(request: CreateChildRequest): Child {
         net()
@@ -145,22 +149,7 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
     }
 
     // ---- §2 join school, §3 theme, §4 flags, §A platform settings -------------------------------------------------
-    // One fake school so the join flow is playable without a backend; every other code is a 404, exactly as the server
-    // answers it, and every other school id is the platform default (`DEFAULT_FLAGS` and the token theme).
-
-    override suspend fun schoolByCode(code: String): JoinSchoolInfo {
-        net()
-        return when (code.trim().uppercase()) {
-            AL_NOOR_CODE -> alNoor
-            DEFAULT_CODE -> defaultSchool
-            else -> throw ApiException(ApiError(ApiError.NOT_FOUND, "No school with code $code"))
-        }
-    }
-
-    override suspend fun classByJoinCode(code: String): ClassLookup {
-        net()
-        return sections[code.trim().uppercase()] ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No class with code $code"))
-    }
+    // One fake themed school; every other school id is the platform default (`DEFAULT_FLAGS` and the token theme).
 
     override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> { net(); return DEFAULT_FLAGS + ("chat" to true) }
 
@@ -276,12 +265,14 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
      * No `FakeAttachmentImages` serves the bytes — there is no image to invent — so the page draws its Try again state,
      * which is the honest offline answer and the one worth seeing without a server.
      */
-    private fun fakePlan(week: String, grade: Int, read: Boolean) = BroadcastView(
+    private fun fakePlan(week: String, grade: Int, read: Boolean, pdf: Boolean = false) = BroadcastView(
         id = "bc-plan-$week", kind = BroadcastKind.WEEKLY_PLAN, authorId = "mg-nour", authorName = "Ms. Nour",
         authorRole = ChatStaffRole.MANAGERIAL, title = "Weekly plan · Grade $grade · week of $week", weekStart = week,
         bodyEn = "Weekly plan · Grade $grade · week of $week",
         curriculum = Curriculum.BRITISH, grade = grade,
-        attachment = BroadcastAttachment("/media/attachments/att-$week", "week-plan.png", "att-$week", "image/png"),
+        // M1: a plan is an image or a PDF; the fake serves one of each kind so both cards exist without a backend.
+        attachment = if (pdf) BroadcastAttachment("/media/attachments/att-$week", "Weekly plan grade $grade.pdf", "att-$week", "application/pdf")
+        else BroadcastAttachment("/media/attachments/att-$week", "week-plan.png", "att-$week", "image/png"),
         createdAt = 1_758_500_000_000L, read = read,
     )
 
@@ -292,7 +283,7 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
     override suspend fun childWeeklyPlans(childId: String, from: String?, to: String?): quest.api.dto.WeeklyPlanArchive {
         net()
         val weeks = (0..2).map { back -> weekStartOf(today()).minus(back * 7, kotlinx.datetime.DateTimeUnit.DAY).toString() }
-        val plans = weeks.map { fakePlan(it, grade = 1, read = "bc-plan-$it" in fakeReads) }
+        val plans = weeks.mapIndexed { i, week -> fakePlan(week, grade = 1, read = "bc-plan-$week" in fakeReads, pdf = i == 1) }
         return quest.api.dto.WeeklyPlanArchive(
             from = weeks.last(), to = weeks.first(), unread = plans.count { !it.read },
             weeks = plans.map { quest.api.dto.WeeklyPlanWeek(it.weekStart!!, listOf(quest.api.dto.WeeklyPlanEntry(it))) },
@@ -379,15 +370,10 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         net()
         val key = "$childId:$teacherId"
         val list = fakeMessages.getOrPut(key) { mutableListOf() }
-        // `topic` is read only while this very message creates the thread, and a complaint needs a coordinator peer.
+        // M1: `topic: complaint` is accepted on any message, to a teacher, a coordinator or a manager alike, and turns
+        // the thread into a complaint from there; any other topic only labels the message that creates the thread.
         val topic = request.topic
-        if (list.isEmpty() && topic != null) {
-            val complaintPeer = fakeCoordinators.any { it.first == teacherId } || fakeManagers.any { it.first == teacherId }
-            if (topic == ChatTopic.COMPLAINT && !complaintPeer) {
-                throw ApiException(ApiError("complaint_needs_coordinator", "A complaint goes to the coordinator of the subject."))
-            }
-            fakeTopics[key] = topic
-        }
+        if (topic == ChatTopic.COMPLAINT || (list.isEmpty() && topic != null)) fakeTopics[key] = topic
         val msg = ChatMessage(
             id = "m-${Ids.random()}",
             threadId = "th-$childId-$teacherId",
@@ -428,7 +414,7 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
     }
 
     companion object {
-        /** The one join code the fake answers; anything else is a 404, like the server. */
+        /** The school code `createChild` places a child in the themed school for. */
         const val AL_NOOR_CODE = "ALNOOR"
         const val AL_NOOR_ID = "al-noor"
 
@@ -453,34 +439,17 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
             ),
         )
 
-        val alNoor = JoinSchoolInfo(
-            name = "Al Noor School",
-            logoUrl = null,
-            curriculumOptions = listOf(Curriculum.BRITISH, Curriculum.AMERICAN),
-            gradeOptions = listOf(1, 2, 3, 4, 5, 6),
-            theme = alNoorTheme,
-        )
-
-        /**
-         * The **default** school also has a code, exactly as QA's acceptance school does (`HQ0001`). It is a school a
-         * parent joins with a code and which nonetheless has no theme, and keeping it in the fake is what stops the
-         * app from being written as if "joined" and "themed" were the same thing.
-         */
-        const val DEFAULT_CODE = "HQ0001"
-
-        val defaultSchool = JoinSchoolInfo(
-            name = "Default school",
-            logoUrl = null,
-            curriculumOptions = listOf(Curriculum.BRITISH, Curriculum.AMERICAN),
-            gradeOptions = listOf(1, 2, 3, 4, 5, 6),
-            theme = null,
-        )
-
-        /** Two sections of the fake school, so a class join card is playable without a backend (§2). */
+        /** Two sections of the fake school, which `createChild` places a child in by class join code (§2). */
         val sections: Map<String, ClassLookup> = listOf(
             ClassLookup(classId = "al-noor:british:1:1a", name = "1A British", grade = 1, curriculum = Curriculum.BRITISH, schoolName = "Al Noor School"),
             ClassLookup(classId = "al-noor:american:1:1a", name = "1A American", grade = 1, curriculum = Curriculum.AMERICAN, schoolName = "Al Noor School"),
         ).let { mapOf("CLASS1" to it[0], "CLASS2" to it[1]) }
+
+        /** The two children the fake "admin" linked to every parent — two grades, so the picker and the switcher have something to switch. */
+        val linkedChildren = listOf(
+            Child("fake-child-1", "Maya", "sky", Curriculum.BRITISH, 1),
+            Child("fake-child-2", "Omar", "mint", Curriculum.BRITISH, 4),
+        )
 
         /** What `GET /platform-settings` answers without a backend. */
         val platformDefaults = PlatformSettings(name = "Homework Quest", shortName = "Quest")

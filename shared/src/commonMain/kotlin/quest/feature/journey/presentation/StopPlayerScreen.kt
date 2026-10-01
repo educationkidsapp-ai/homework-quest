@@ -5,6 +5,7 @@ import quest.ui.design.DashboardProgressBar
 import quest.ui.design.DashboardPillVariant
 import quest.ui.design.DashboardPill
 import quest.ui.design.DashboardCard
+import quest.core.platform.SpeechLanguages
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
@@ -71,7 +72,7 @@ fun StopPlayerRoute(lessonId: String, level: Int, variant: Int, index: Int, onFi
     LaunchedEffect(vm) {
         vm.effects.collect { e ->
             when (e) {
-                is Effect.Speak -> speaker.speak(e.text)
+                is Effect.Speak -> speaker.speak(e.text, SpeechLanguages.of(vm.state.value.lesson?.subject, e.text))
                 is Effect.Finished -> onFinished(e.lessonId, e.level, e.variant)
                 Effect.BackToJourney -> onBack()
             }

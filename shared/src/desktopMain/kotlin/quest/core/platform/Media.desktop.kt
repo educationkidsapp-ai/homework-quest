@@ -15,3 +15,10 @@ actual object MediaFiles {
     actual fun delete(path: String) { File(path).delete() }
     actual fun pathOf(name: String): String = File(dir, name).absolutePath
 }
+
+actual object DocumentViewer {
+    actual fun open(name: String, bytes: ByteArray, mimeType: String): Boolean = runCatching {
+        val file = File(File(System.getProperty("java.io.tmpdir"), "homework-quest-documents").apply { mkdirs() }, name).also { it.writeBytes(bytes) }
+        java.awt.Desktop.getDesktop().open(file)
+    }.isSuccess
+}

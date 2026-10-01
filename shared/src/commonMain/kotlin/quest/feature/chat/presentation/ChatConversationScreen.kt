@@ -60,7 +60,6 @@ import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
-import quest.api.ApiException
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatSender
@@ -103,9 +102,8 @@ object ChatConversationContract {
         val isFailed: Boolean = false,
         val clientId: String? = null,
         /**
-         * The `topic` this send carried, kept so a retry resends it. A failed first message is still in [State.messages],
-         * which turns [State.canMarkComplaint] off — without this the toggle is gone and one transient 5xx would quietly
-         * downgrade a parent's complaint to a question, with no way back.
+         * The `topic` this send carried, kept so a retry resends it. The toggle goes off as the message leaves, so
+         * without this one transient 5xx would quietly downgrade a parent's complaint to a question.
          */
         val topic: ChatTopic? = null,
     )
@@ -126,8 +124,8 @@ object ChatConversationContract {
         val topic: ChatTopic = ChatTopic.QUESTION,
         val resolved: Boolean = false,
         val markAsComplaint: Boolean = false,
-        /** The server's own error code for the last refused send, so the screen picks the translated sentence. */
-        val errorCode: String? = null,
+        /** S1: the school administration holds the other side. She can answer; a complaint is not offered here. */
+        val withAdmin: Boolean = false,
         /**
          * The thread this conversation is, once one exists. `/ws/chat` is **one socket per parent** and fans out every
          * thread of hers, so a `status` frame has to be matched against this before it moves anything — otherwise a
@@ -136,14 +134,14 @@ object ChatConversationContract {
         val threadId: String? = null,
     ) : MviState {
         /**
-         * The toggle is offered only while the thread does not exist yet, and never to a teacher: the server reads
-         * `topic` on the message that *creates* a thread, so a later send cannot re-label one she has already worked on,
-         * and `requireTopic` accepts `complaint` for a coordinator **or** a manager (RM4) and 400s for a teacher.
+         * The toggle is offered on any thread that is not a complaint already — to a teacher, a coordinator or a
+         * manager alike, new thread or old (M1): the server accepts `topic: complaint` on any message and turns the
+         * thread into an open complaint from there.
          *
-         * `!loading` keeps it from flashing over an existing coordinator thread in the moment before its history lands.
+         * `!loading` keeps it from flashing over an existing complaint in the moment before its history lands.
          */
         val canMarkComplaint: Boolean
-            get() = !loading && staffRole != ChatStaffRole.TEACHER && topic == ChatTopic.QUESTION && messages.isEmpty()
+            get() = !loading && !withAdmin && topic == ChatTopic.QUESTION
     }
 
     sealed interface Intent : MviIntent {
@@ -165,6 +163,10 @@ class ChatConversationViewModel(
     ChatConversationContract.State(
         childId = peer.childId, teacherId = peer.staffId, teacherName = peer.staffName,
         staffRole = peer.staffRole, subject = peer.subject, topic = peer.topic, resolved = peer.resolved,
+        // "Complaint" chosen in New message arrives as the toggle already on: nothing is a complaint until the server
+        // has taken a message that says so.
+        markAsComplaint = peer.startAsComplaint && !peer.withAdmin && peer.topic == ChatTopic.QUESTION,
+        withAdmin = peer.withAdmin,
         threadId = peer.threadId,
     )
 ) {
@@ -181,7 +183,7 @@ class ChatConversationViewModel(
             ChatConversationContract.Intent.SendMessage -> sendMessage()
             is ChatConversationContract.Intent.SendCustom -> sendMessage(intent.body)
             is ChatConversationContract.Intent.RetrySend -> retrySend(intent.clientId)
-            ChatConversationContract.Intent.ToggleComplaint -> reduce { copy(markAsComplaint = !markAsComplaint, errorCode = null) }
+            ChatConversationContract.Intent.ToggleComplaint -> reduce { copy(markAsComplaint = !markAsComplaint) }
         }
     }
 
@@ -210,7 +212,8 @@ class ChatConversationViewModel(
         val body = (customBody ?: current.inputText).trim()
         if (body.isBlank() || body.length > 2000) return
 
-        // `topic` only says anything on the message that creates the thread, so it rides on the first send alone.
+        // The topic rides on exactly one send — the one made while the toggle is on. The toggle goes off with it, so a
+        // failed send does not mark the next message as well; its retry carries the topic the message kept.
         val opening = current.canMarkComplaint && current.markAsComplaint
         val sentTopic = if (opening) ChatTopic.COMPLAINT else null
 
@@ -225,7 +228,7 @@ class ChatConversationViewModel(
             topic = sentTopic,
         )
 
-        reduce { copy(inputText = "", errorCode = null, messages = messages + pendingMsg) }
+        reduce { copy(inputText = "", markAsComplaint = false, messages = messages + pendingMsg) }
 
         try {
             val confirmed = chat.sendMessage(childId, teacherId, body, clientId, sentTopic)
@@ -233,20 +236,20 @@ class ChatConversationViewModel(
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) confirmed.toUiMessage(isPending = false) else msg
                 }
+                // A thread that has just become a complaint is an open one, whatever it was before.
                 copy(
                     messages = updated,
                     topic = if (opening) ChatTopic.COMPLAINT else topic,
-                    markAsComplaint = false,
+                    resolved = if (opening) false else resolved,
                     threadId = confirmed.threadId,
                 )
             }
-        } catch (e: Throwable) {
-            val code = (e as? ApiException)?.error?.code
+        } catch (_: Throwable) {
             reduce {
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) msg.copy(isPending = false, isFailed = true) else msg
                 }
-                copy(messages = updated, errorCode = code)
+                copy(messages = updated)
             }
         }
     }
@@ -261,8 +264,8 @@ class ChatConversationViewModel(
         }
 
         try {
-            // The original `topic` goes out again: a retried first message is still the one that creates the thread,
-            // and dropping it here would file the parent's complaint as an ordinary question.
+            // The original `topic` goes out again: dropping it here would file the parent's complaint as an ordinary
+            // question.
             val confirmed = chat.sendMessage(childId, teacherId, target.body, clientId, target.topic)
             reduce {
                 val updated = messages.map { msg ->
@@ -271,6 +274,7 @@ class ChatConversationViewModel(
                 copy(
                     messages = updated,
                     topic = target.topic ?: topic,
+                    resolved = if (target.topic == ChatTopic.COMPLAINT) false else resolved,
                     threadId = confirmed.threadId,
                 )
             }
@@ -556,7 +560,7 @@ fun ChatConversationScreen(
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = state.teacherName,
+                        text = if (state.withAdmin) strings.schoolAdministration else state.teacherName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = DashboardTokens.ink,
@@ -564,9 +568,15 @@ fun ChatConversationScreen(
                     if (state.topic == ChatTopic.COMPLAINT) {
                         Spacer(Modifier.width(Dimens.s8))
                         Chip(strings.complaintBadge, DashboardTokens.warningBg)
+                        // A complaint has a status the staff side moves; the `status` frame keeps it current.
+                        Spacer(Modifier.width(Dimens.s4))
+                        Chip(
+                            text = if (state.resolved) strings.statusResolved else strings.statusOpen,
+                            color = if (state.resolved) DashboardTokens.successBg else MaterialTheme.colorScheme.primaryContainer,
+                        )
                     }
                 }
-                Text(
+                if (!state.withAdmin) Text(
                     text = staffLabel(state.staffRole, state.subject, null, strings),
                     style = MaterialTheme.typography.bodySmall,
                     color = DashboardTokens.inkSoft,
@@ -605,19 +615,6 @@ fun ChatConversationScreen(
             }
         }
 
-        if (state.errorCode == COMPLAINT_NEEDS_COORDINATOR) {
-            Row(
-                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(horizontal = Dimens.s16, vertical = Dimens.s8),
-            ) {
-                Text(
-                    text = strings.complaintNeedsCoordinator,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
-        }
-
         // Message List
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (state.loading) {
@@ -627,7 +624,7 @@ fun ChatConversationScreen(
             } else if (state.messages.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(Dimens.s24), contentAlignment = Alignment.Center) {
                     Text(
-                        text = when (state.staffRole) {
+                        text = if (state.withAdmin) strings.emptyConversationAdmin else when (state.staffRole) {
                             ChatStaffRole.COORDINATOR -> strings.emptyConversationCoordinator
                             ChatStaffRole.MANAGERIAL -> strings.emptyConversationManager
                             ChatStaffRole.TEACHER -> strings.emptyConversation
@@ -664,8 +661,11 @@ fun ChatConversationScreen(
                     Text(strings.markAsComplaint, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
                 }
                 Text(
-                    if (state.staffRole == ChatStaffRole.MANAGERIAL) strings.markAsComplaintHintManager
-                    else strings.markAsComplaintHint,
+                    when (state.staffRole) {
+                        ChatStaffRole.MANAGERIAL -> strings.markAsComplaintHintManager
+                        ChatStaffRole.COORDINATOR -> strings.markAsComplaintHint
+                        ChatStaffRole.TEACHER -> strings.markAsComplaintHintTeacher
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = DashboardTokens.inkSoft,
                 )

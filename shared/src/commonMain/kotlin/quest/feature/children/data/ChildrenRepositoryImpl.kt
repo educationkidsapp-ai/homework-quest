@@ -6,9 +6,7 @@ import quest.api.AuthProvider
 import quest.api.AuthState
 import quest.api.ContentApi
 import quest.api.dto.Child
-import quest.api.dto.CreateChildRequest
 import quest.api.dto.Curriculum
-import quest.api.dto.UpdateChildRequest
 import quest.core.db.Db
 import quest.core.db.SettingsStore
 import quest.feature.children.domain.ChildrenRepository
@@ -22,10 +20,11 @@ class ChildrenRepositoryImpl(private val api: ContentApi, private val db: Db, pr
     override suspend fun refresh(): List<Child> {
         val local = children()
         val remote = runCatching { api.listChildren() }.getOrNull()
-        val merged = when {
-            remote == null -> local
-            remote.isEmpty() && local.isNotEmpty() -> { local.forEach { c -> runCatching { api.updateChild(c.id, UpdateChildRequest(c.name, c.avatarColor, c.curriculum, c.grade, c.languages)) } }; local }  // fake API restarted: re-register
-            else -> remote.also { list -> list.forEach { remember(it) } }
+        // The server is the truth about who is linked: a child the admin unlinked leaves the device too. Only when it
+        // cannot be reached does the cached list stand in, so an offline launch still opens on the child's home.
+        val merged = if (remote == null) local else {
+            local.filter { old -> remote.none { it.id == old.id } }.forEach { forget(it.id) }
+            remote.onEach { remember(it) }
         }
         val currentId = settings.currentChildId.value
         _current.value = merged.firstOrNull { it.id == currentId } ?: merged.firstOrNull()?.also { settings.setCurrentChild(it.id) }
@@ -34,37 +33,12 @@ class ChildrenRepositoryImpl(private val api: ContentApi, private val db: Db, pr
 
     override suspend fun children(): List<Child> = db.read { selectChildren(uid()).executeAsList() }.map { it.toDomain(schoolOf(it.id)) }
 
-    override suspend fun create(request: CreateChildRequest): Child {
-        val child = api.createChild(request)
-        remember(child)
-        return child
-    }
-
-    override suspend fun update(id: String, request: UpdateChildRequest): Child {
-        val child = api.updateChild(id, request)
-        remember(child)
-        if (_current.value?.id == id) _current.value = child
-        return child
-    }
-
-    override suspend fun delete(id: String) {
-        runCatching { api.deleteChild(id) }
-        db.write { deleteChild(id) }
-        settings.set(schoolKey(id), null)
-        settings.set(sectionKey(id), null)
-        if (_current.value?.id == id) { _current.value = null; settings.setCurrentChild(null) }
-    }
-
     override suspend fun select(id: String) {
         _current.value = db.read { selectChild(id).executeAsOneOrNull() }?.toDomain(schoolOf(id))
         settings.setCurrentChild(id)
     }
 
     override suspend fun clear() { _current.value = null }
-
-    override suspend fun sectionName(childId: String): String? = settings.get(sectionKey(childId))?.takeIf { it.isNotBlank() }
-
-    override suspend fun rememberSection(childId: String, name: String?) = settings.set(sectionKey(childId), name?.takeIf { it.isNotBlank() })
 
     /**
      * Writes the row and, beside it, the child's school (§2). The `Child` table predates tenancy and has no
@@ -77,6 +51,11 @@ class ChildrenRepositoryImpl(private val api: ContentApi, private val db: Db, pr
         settings.set(schoolKey(c.id), c.schoolId.takeIf { it.isNotBlank() })
     }
 
+    private suspend fun forget(childId: String) {
+        db.write { deleteChild(childId) }
+        settings.set(schoolKey(childId), null)
+    }
+
     private suspend fun schoolOf(childId: String): String = settings.get(schoolKey(childId))?.takeIf { it.isNotBlank() } ?: "default"
 
     private fun quest.core.db.QuestQueries.save(c: Child) = upsertChild(c.id, uid(), c.name, c.avatarColor, c.curriculum.name.lowercase(), c.grade.toLong(), c.languages.joinToString(","))
@@ -84,6 +63,5 @@ class ChildrenRepositoryImpl(private val api: ContentApi, private val db: Db, pr
 
     private companion object {
         fun schoolKey(childId: String) = "school.child.$childId"
-        fun sectionKey(childId: String) = "section.child.$childId"
     }
 }

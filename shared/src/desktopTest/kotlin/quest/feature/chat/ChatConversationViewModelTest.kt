@@ -196,8 +196,8 @@ class ChatConversationViewModelTest {
         vm.settle { it.messages.singleOrNull()?.isFailed == true }
 
         assertEquals(ChatTopic.COMPLAINT, chat.sends.single().second)
-        // The failed message is still on screen, so the toggle is gone — the topic has to live on the message.
-        assertFalse(vm.state.value.canMarkComplaint)
+        // The toggle went off as the message left — the topic has to live on the message.
+        assertFalse(vm.state.value.markAsComplaint)
         assertEquals(ChatTopic.COMPLAINT, vm.state.value.messages.single().topic)
 
         val clientId = vm.state.value.messages.single().clientId!!
@@ -227,6 +227,51 @@ class ChatConversationViewModelTest {
 
         assertTrue(chat.sends.all { it.second == null }, "a question never sends a topic")
         assertEquals(ChatTopic.QUESTION, vm.state.value.topic)
+    }
+
+    /** M1: New message hands over "complaint" for a thread that does not exist yet — as the toggle, not as a badge. */
+    @Test fun aComplaintChosenInNewMessageArrivesAsTheToggleAndIsSentOnTheFirstMessage() = runBlocking {
+        val chat = FakeChat()
+        val teacher = ChatPeer(childId = "c1", staffId = "t1", staffName = "Ms. Sara", staffRole = ChatStaffRole.TEACHER, subject = "math", threadId = null, startAsComplaint = true)
+        val vm = viewModel(teacher, chat)
+        vm.dispatch(ChatConversationContract.Intent.Load)
+        vm.settle { !it.loading }
+
+        assertEquals(ChatTopic.QUESTION, vm.state.value.topic, "nothing is a complaint until the server has taken the message")
+        assertTrue(vm.state.value.markAsComplaint)
+        assertTrue(vm.state.value.canMarkComplaint, "a teacher may be sent a complaint too")
+
+        vm.dispatch(ChatConversationContract.Intent.UpdateInput("The homework was marked wrongly."))
+        vm.dispatch(ChatConversationContract.Intent.SendMessage)
+        vm.settle { it.topic == ChatTopic.COMPLAINT }
+        assertEquals(ChatTopic.COMPLAINT, chat.sends.single().second)
+    }
+
+    /** An existing complaint thread opens as what it is: the badge, and no toggle. */
+    @Test fun anExistingComplaintThreadKeepsItsTopic() {
+        val vm = viewModel(peer(threadId = OURS, topic = ChatTopic.COMPLAINT).copy(startAsComplaint = true), FakeChat())
+        assertEquals(ChatTopic.COMPLAINT, vm.state.value.topic)
+        assertFalse(vm.state.value.markAsComplaint)
+        assertFalse(vm.state.value.copy(loading = false).canMarkComplaint)
+    }
+
+    /** M1: an existing question thread can still become a complaint, and a resolved one is open again when it does. */
+    @Test fun anExistingQuestionThreadBecomesAnOpenComplaint() = runBlocking {
+        val chat = FakeChat()
+        val vm = viewModel(peer(threadId = OURS).copy(resolved = true), chat)
+        vm.dispatch(ChatConversationContract.Intent.Load)
+        vm.settle { !it.loading }
+        assertTrue(vm.state.value.canMarkComplaint)
+
+        vm.dispatch(ChatConversationContract.Intent.ToggleComplaint)
+        vm.settle { it.markAsComplaint }
+        vm.dispatch(ChatConversationContract.Intent.UpdateInput("I would like this looked at formally."))
+        vm.dispatch(ChatConversationContract.Intent.SendMessage)
+        vm.settle { it.topic == ChatTopic.COMPLAINT }
+
+        assertEquals(ChatTopic.COMPLAINT, chat.sends.last().second)
+        assertFalse(vm.state.value.resolved)
+        assertFalse(vm.state.value.canMarkComplaint, "it is a complaint now; there is nothing left to mark")
     }
 
     @Test fun theToggleDoesNotFlashWhileHistoryIsStillLoading() {

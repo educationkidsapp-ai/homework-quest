@@ -1,0 +1,47 @@
+package quest.feature.broadcasts
+
+import quest.api.dto.BroadcastAttachment
+import quest.core.platform.safeDocumentName
+import quest.feature.broadcasts.domain.isImage
+import quest.feature.broadcasts.domain.isPdf
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+/** M1: a weekly plan's attachment is an image or a PDF, and the app tells them apart by the stored content type. */
+class PdfAttachmentTest {
+    private fun attachment(name: String?, type: String?, id: String? = "att-1") = BroadcastAttachment("/media/attachments/att-1", name, id, type)
+
+    @Test fun aPdfIsKnownByItsContentType() {
+        assertTrue(attachment("plan", "application/pdf").isPdf)
+        assertTrue(attachment("plan.bin", "application/pdf; charset=binary").isPdf)
+        assertFalse(attachment("plan.pdf", "application/pdf").isImage)
+    }
+
+    @Test fun anImageIsNotAPdf() {
+        assertFalse(attachment("plan.png", "image/png").isPdf)
+        assertTrue(attachment("plan.png", "image/png").isImage)
+        // The stored type is the honest answer; a misleading name does not overrule it.
+        assertFalse(attachment("plan.pdf", "image/png").isPdf)
+    }
+
+    @Test fun theExtensionOnlyDecidesForARowWithNoStoredType() {
+        assertTrue(attachment("Grade 1 plan.PDF", null).isPdf)
+        assertFalse(attachment("plan.docx", null).isPdf)
+    }
+
+    @Test fun aRowWithNoIdIsNotOursToFetch() {
+        assertFalse(attachment("plan.pdf", "application/pdf", id = null).isPdf)
+        assertFalse(attachment("plan.pdf", "application/pdf", id = " ").isPdf)
+    }
+
+    @Test fun theCacheNameIsSafeAndAlwaysEndsInTheExtension() {
+        assertEquals("Grade 1 weekly plan.pdf", safeDocumentName("Grade 1 weekly plan.pdf", "pdf"))
+        assertEquals("plan.pdf", safeDocumentName("plan.PDF", "pdf"))
+        assertEquals("passwd.pdf", safeDocumentName("../../etc/passwd", "pdf"))
+        assertEquals("a_b_c.pdf", safeDocumentName("a:b*c", "pdf"))
+        assertEquals("document.pdf", safeDocumentName(null, "pdf"))
+        assertEquals("document.pdf", safeDocumentName("   ", "pdf"))
+    }
+}
