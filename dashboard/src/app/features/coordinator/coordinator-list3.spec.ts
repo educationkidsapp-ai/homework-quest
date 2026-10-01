@@ -13,6 +13,7 @@ import { SessionStore } from '../../core/auth/session.store';
 import { ChatService } from '../../core/chat/chat.service';
 import { FlagService } from '../../core/flags/flag.service';
 import { ManagementCoordinatorsPage } from '../management/management-coordinators.page';
+import { CoordinatorComplaintsPage } from './coordinator-complaints.page';
 import { CoordinatorLessonsPage, LESSON_STATUS_CHIPS, lessonStatusTone } from './coordinator-lessons.page';
 import { CoordinatorTeachersPage } from './coordinator-teachers.page';
 
@@ -151,6 +152,34 @@ describe('list 3 — message a person, and the lesson statuses', () => {
     });
   });
 
+  /** S1 gave the manager the coordinator's pair of routes; the inbox is the same component. */
+  it('a manager reads and resolves her complaints on her own routes', async () => {
+    const { rendered, backend } = await signedIn(CoordinatorComplaintsPage, MANAGERIAL_USER, [
+      'management.complaints',
+    ]);
+    const list = backend.expectOne((request) => request.url === '/management/complaints');
+    expect(list.request.params.get('status')).toBe('open');
+    list.flush([
+      { ...THREAD, id: 'th-7', childId: 'ch-1', childName: 'Layla Ahmed', topic: 'complaint', status: 'open' },
+    ]);
+    await settle();
+    expect(backend.match((request) => request.url.startsWith('/coordinator/'))).toEqual([]);
+
+    // The row opens *her* Messages on that thread.
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    screen.getByText('Layla Ahmed').click();
+    expect(navigate).toHaveBeenCalledWith(['/management/messages'], { queryParams: { thread: 'th-7' } });
+
+    screen.getByRole('button', { name: 'Mark resolved' }).click();
+    await settle();
+    screen.getByRole('button', { name: 'Yes, resolve it' }).click();
+    await settle();
+    const patch = backend.expectOne('/management/chat/threads/th-7/status');
+    expect(patch.request.method).toBe('PATCH');
+    expect(patch.request.body).toEqual({ status: 'resolved' });
+    rendered.fixture.destroy();
+  });
+
   describe('All lessons — the status chips', () => {
     const lessonOf = (status: AdminLessonStatusEnum) => ({
       id: `l-${status}`,
@@ -214,8 +243,8 @@ describe('list 3 — message a person, and the lesson statuses', () => {
       await settle();
       const asked = backend.expectOne((request) => isList(request, 'coordinator'));
       expect(asked.request.params.get('status')).toBe(status);
-      // Answered with more than was asked for, as a coarse server would: only the chip's own
-      // status may be drawn, so no row ever wears a badge the pressed chip does not name.
+      // Answered with more than was asked for, as the server's coarse `draft` does: only the
+      // chip's own status may be drawn, so no row ever wears a badge the pressed chip does not name.
       asked.flush(LESSON_STATUS_CHIPS.map(lessonOf));
       await settle();
 

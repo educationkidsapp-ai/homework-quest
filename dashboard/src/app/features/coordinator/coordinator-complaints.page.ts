@@ -4,7 +4,8 @@ import { DatePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { catchError, of, tap } from 'rxjs';
-import { type ChatThread, ChatThreadStatusEnum, CoordinatorChatApi } from '../../api';
+import { type ChatThread, ChatThreadStatusEnum, CoordinatorChatApi, ManagementChatApi } from '../../api';
+import { StaffAreaService } from '../../core/auth/staff-area';
 import { ChatService } from '../../core/chat/chat.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
@@ -34,6 +35,11 @@ type StatusFilter = 'open' | 'resolved';
  * The one thing she may write in the whole of `/coordinator/**` is a thread's status, and it is
  * the only reason this screen has a confirm band. Resolving is visible to the parent (R4 sends
  * both parties a `status` frame), so it is worth one question first.
+ *
+ * **One component, two areas** (D2, list 3): S1 gave the department manager the same pair —
+ * `GET /management/complaints?status=` and `PATCH /management/chat/threads/{id}/status` — for the
+ * threads a parent marks as a complaint to *her*. The role picks the routes and the Messages
+ * screen a row opens; everything drawn is the same.
  */
 @Component({
   selector: 'hq-coordinator-complaints-page',
@@ -137,6 +143,9 @@ type StatusFilter = 'open' | 'resolved';
 })
 export class CoordinatorComplaintsPage {
   private readonly api = inject(CoordinatorChatApi);
+  private readonly management = inject(ManagementChatApi);
+  private readonly area = inject(StaffAreaService);
+  private readonly manager = computed(() => this.area.area() === 'management');
   private readonly chat = inject(ChatService);
   private readonly router = inject(Router);
   private readonly transloco = inject(TranslocoService);
@@ -149,7 +158,8 @@ export class CoordinatorComplaintsPage {
 
   protected readonly threads = rxResource<ChatThread[], StatusFilter>({
     params: () => this.status(),
-    stream: ({ params }) => this.api.coordinatorComplaints(params),
+    stream: ({ params }) =>
+      this.manager() ? this.management.managementComplaints(params) : this.api.coordinatorComplaints(params),
     defaultValue: [],
   });
 
@@ -224,7 +234,7 @@ export class CoordinatorComplaintsPage {
   /** Her answer to a complaint is the conversation, so a row opens the thread, not a detail page. */
   protected open(event: Event, row: ComplaintRow): void {
     event.preventDefault();
-    void this.router.navigate(['/coordinator/messages'], { queryParams: { thread: row.threadId } });
+    void this.router.navigate([`${this.area.base()}/messages`], { queryParams: { thread: row.threadId } });
   }
 
   protected ask(row: ComplaintRow): void {
@@ -233,14 +243,17 @@ export class CoordinatorComplaintsPage {
   }
 
   /**
-   * `PATCH /coordinator/chat/threads/{id}/status`, then reload rather than patch the row in place:
+   * `PATCH /<area>/chat/threads/{id}/status`, then reload rather than patch the row in place:
    * the list is a filter *on* status, so a resolved thread has to leave the open tab entirely and
    * a row that merely changed its badge would sit in a tab that no longer describes it.
    */
   protected commit(row: ComplaintRow): void {
     this.pending.set(null);
-    this.api
-      .coordinatorThreadStatus(row.threadId, { status: row.resolved ? 'open' : 'resolved' })
+    const body = { status: row.resolved ? 'open' : 'resolved' };
+    (this.manager()
+      ? this.management.managementThreadStatus(row.threadId, body)
+      : this.api.coordinatorThreadStatus(row.threadId, body)
+    )
       .pipe(
         tap(() => this.threads.reload()),
         catchError(() => {

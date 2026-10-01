@@ -31,8 +31,9 @@ themselves without write controls rather than with disabled ones.
   `analyzing`, `needs_review`, `generating`, `review`, `paused`, `published`, `error`), plus "Any
   status", which sends no `status` at all. Each chip sends its own status as `?status=` and each row
   wears the teacher list's badge for its own status (failed = error, published = success, a running
-  job = primary, anything waiting on a person = the light pill). The screen also narrows the answer
-  to the pressed chip, so a row can never wear a badge the chip does not name. The old filter sent
+  job = primary, anything waiting on a person = the light pill). The server's filter is exact for
+  every word except `draft`, which stays its coarse "not yet ready or published"; the screen
+  therefore also narrows the answer to the pressed chip, so Draft means Draft. The old filter sent
   `needs_review`, `error` and `review` to a server that knew only `draft|ready|published`, which is
   where the 400 came from. A **manager** reading the same screen is never asked by status — her
   route still knows the three coarse words — and her rows are narrowed in the page.

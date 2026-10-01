@@ -2143,6 +2143,11 @@ export class ChatPage implements AfterViewChecked {
   /** The child a parent thread is about, or the staff member on the other end of a staff one. */
   protected nameOf(thread: ChatThread): string {
     if (!this.isStaff(thread)) return thread.childName;
+    // D2 (list 3): a thread the school's admin opened with a teacher or a coordinator says who is
+    // on the other end by office, not by a name she may never have met.
+    if (thread.withAdmin === true && (this.auth.role() === 'TEACHER' || this.auth.role() === 'COORDINATOR')) {
+      return this.transloco.translate<string>('chat.schoolAdministration');
+    }
     return thread.teacherName || this.transloco.translate<string>('chat.management');
   }
 

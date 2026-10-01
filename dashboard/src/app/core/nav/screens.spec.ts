@@ -320,6 +320,8 @@ describe('the screen table', () => {
       'weekly-plans',
       'announcements',
       'messages',
+      // D2 (list 3): back in the rail, built on S1's `GET /management/complaints`.
+      'complaints',
       'usage',
     ]);
     // MH2 item 5: both renamed paths keep a redirect row, so a bookmark and an old notification's
@@ -328,10 +330,11 @@ describe('the screen table', () => {
     expect(redirectOf('people')?.redirectTo).toBe('children');
     expect(redirectOf('people')?.labelKey).toBeUndefined();
     expect(redirectOf('broadcasts')?.redirectTo).toBe('announcements');
-    // MG2a: Complaints keeps its route and loses its label until phase 5 fills the stub.
+    // D2 (list 3): Complaints is a real screen again — the chat flag and her own key, no stub.
     const complaints = AREAS.MANAGERIAL.screens.find((screen) => screen.id === 'complaints');
-    expect(complaints?.labelKey).toBeUndefined();
-    expect(phaseOf('/management/complaints')).toBe(5);
+    expect(complaints?.labelKey).toBe('nav.complaints');
+    expect(complaints?.permission).toBe('management.complaints');
+    expect(phaseOf('/management/complaints')).toBeUndefined();
 
     const routes = childrenOf(areaRoutes('MANAGERIAL'));
     for (const path of [
@@ -364,7 +367,7 @@ describe('the screen table', () => {
 
   it('names the phase of a stub, including on a detail route', () => {
     expect(phaseOf('/admin/users')).toBe(3);
-    expect(phaseOf('/management/complaints')).toBe(5);
+    expect(phaseOf('/management/complaints/c-1')).toBe(5);
     // Matched against the pattern, so a real id resolves.
     expect(phaseOf('/admin/schools/5c5bc15a-0e3b-4d87-b3a2-d04f7bc267e2')).toBe(3);
     // A still-stubbed detail route (school) stays stubbed with a query string on it.

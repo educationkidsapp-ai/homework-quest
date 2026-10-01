@@ -1513,6 +1513,10 @@ the conversation rather than on the list:
   the screen says "not in your list any more"; while a read is out it says nothing. Following a link also clears the
   search box and the correspondent chip, so the row it selects is visible. This is the shared page, so a bell link on
   the teacher's, the coordinator's and the admin's transports gets the same treatment.
+- **The manager's Complaints** (`/management/complaints`) is the coordinator's inbox component over
+  `GET /management/complaints?status=` and `PATCH /management/chat/threads/{id}/status` (`management.complaints`, the
+  `chat` flag); a row opens `/management/messages?thread=`. A thread with `withAdmin: true` is titled "School
+  administration" for a teacher and a coordinator.
 - **A remembered thread id never reaches the server.** `ChatService` is a root singleton: its `activeKey`, list and
   messages now end with the account (`forgetAccount`, on a change of `auth.user().id`), a key the freshly read list
   does not hold is dropped rather than refetched, and the socket's `onopen` refetches only a conversation the list
@@ -1789,8 +1793,8 @@ grade of her department or none for the whole of it, and a coordinator's is stil
 
 **The dashboard and a PDF plan (D2, list 3).** The compose sheet accepts JPEG/PNG/WebP up to 5 MB **or a PDF up to
 10 MB** (`core/broadcasts/plan-rules.ts`, checked before the upload) and names the chosen file under the drop target; a
-picture also gets its preview. A plan whose attachment is `application/pdf` (by `attachmentContentType`, else
-`attachment.type`, else a `.pdf` name) is drawn by `hq-plan-pdf` wherever a picture would be — the manager's glance
+picture also gets its preview. A plan whose attachment is `application/pdf` (by `attachment.type`, else a `.pdf`
+name) is drawn by `hq-plan-pdf` wherever a picture would be — the manager's glance
 cards and the archive, and the Weekly plans tab a teacher and a coordinator read — as the file name and **Open**. Open
 reads `GET /media/attachments/{id}` with the bearer and shows the bytes in a new tab from a `blob:` URL; the tab is
 opened inside the click and filled when the bytes arrive, and a browser that refuses the tab gets a download instead.

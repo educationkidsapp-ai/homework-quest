@@ -1476,7 +1476,8 @@
     "supportEmptyHint": "Pick a manager under New message to start one.",
     "supportNoSchool": "Pick a school from the header first — chat is read one school at a time.",
     "threadGone": "That conversation is not in your list any more.",
-    "away": "Away"
+    "away": "Away",
+    "schoolAdministration": "School administration"
   },
   "profile": {
     "title": "Your profile",

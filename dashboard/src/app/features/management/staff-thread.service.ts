@@ -3,7 +3,6 @@ import { Router } from '@angular/router';
 import { type Observable, catchError, of, tap } from 'rxjs';
 import {
   type ChatThread,
-  type OpenManagerThreadRequest,
   type StaffThreadRequest,
   CoordinatorChatApi,
   ManagementChatApi,
@@ -39,15 +38,6 @@ import { ChatService } from '../../core/chat/chat.service';
  * A **coordinator** presses the same button on her Teachers page: `POST /coordinator/chat/threads
  * {teacherUserId}`, shown on `/coordinator/messages`. The role picks the route, never the caller.
  */
-
-/**
- * `POST /coordinator/chat/threads` as list 3 widened it: a manager *or* a teacher of her scope.
- * Narrow and local until the generated `OpenManagerThreadRequest` names `teacherUserId` itself.
- */
-interface CoordinatorThreadRequest {
-  readonly managerUserId?: string;
-  readonly teacherUserId?: string;
-}
 
 @Injectable({ providedIn: 'root' })
 export class StaffThreadService {
@@ -86,7 +76,7 @@ export class StaffThreadService {
 
   private request(coordinator: boolean, body: StaffThreadRequest): Observable<ChatThread> {
     if (!coordinator) return this.management.managementStaffThread(body);
-    const request: CoordinatorThreadRequest = { teacherUserId: body.teacherUserId };
-    return this.coordinator.coordinatorStaffThread(request as OpenManagerThreadRequest);
+    // Exactly one id: the route takes a manager *or* a teacher, and this button is the teacher's.
+    return this.coordinator.coordinatorStaffThread({ teacherUserId: body.teacherUserId });
   }
 }

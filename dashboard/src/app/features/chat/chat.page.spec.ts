@@ -242,6 +242,17 @@ describe('ChatPage', () => {
     expect(mockChatService.loadThreads).toHaveBeenCalledTimes(1);
   });
 
+  /** D2 (list 3): S1 marks the admin's threads; a teacher reads the office, not a stranger's name. */
+  it('labels a thread with the school admin "School administration"', async () => {
+    (mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>).set([
+      { ...sampleThread, id: 'th-adm', childId: '', childName: '', teacherName: 'Omar Admin', withAdmin: true },
+    ]);
+    await renderPage();
+
+    expect(screen.getByText('School administration')).toBeTruthy();
+    expect(screen.queryByText('Omar Admin')).toBeNull();
+  });
+
   /**
    * **D2 — "Message opens chat only".** The list is read at sign-in, so a thread that "Message" on
    * a row created a second ago is not in it. The screen used to call the link stale on the spot;

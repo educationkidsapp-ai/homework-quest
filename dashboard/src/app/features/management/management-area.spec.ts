@@ -1087,7 +1087,6 @@ describe('RM3a — the management area', () => {
       const PDF_PLAN = {
         ...PLAN,
         id: 'b-pdf',
-        attachmentContentType: 'application/pdf',
         attachment: { id: 'att-7', name: 'Grade 1.pdf', type: 'application/pdf', url: 'https://api.example/y' },
       };
       const backend = await openScreen([{ weekStart: '2026-09-27', items: [{ plan: PDF_PLAN, readBy: 4 }] }]);

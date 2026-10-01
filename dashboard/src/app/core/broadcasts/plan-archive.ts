@@ -73,7 +73,7 @@ export function planWeeks(archive: WeeklyPlanArchive | null | undefined): readon
             grade: plan.grade ?? null,
             attachmentId: plan.attachment?.id ?? null,
             attachmentName: plan.attachment?.name ?? '',
-            pdf: isPdfFile(contentTypeOf(plan), plan.attachment?.name),
+            pdf: isPdfFile(plan.attachment?.type, plan.attachment?.name),
             readBy: item.readBy ?? null,
             plan,
           },
@@ -81,18 +81,6 @@ export function planWeeks(archive: WeeklyPlanArchive | null | undefined): readon
       }),
     }))
     .filter((week) => week.rows.length > 0);
-}
-
-/**
- * The attachment's content type, wherever this contract version says it.
- *
- * S1 (list 3) carries it as `attachmentContentType` on the plan; `attachment.type` is what the
- * attachment itself has always said. Narrow and local until the generated `BroadcastView` names
- * the first one itself.
- */
-function contentTypeOf(plan: BroadcastView): string {
-  const flat = (plan as BroadcastView & { readonly attachmentContentType?: string }).attachmentContentType;
-  return flat ?? plan.attachment?.type ?? '';
 }
 
 /** The filter, applied to the mapped weeks; a week left with no row disappears with them. */

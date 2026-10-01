@@ -215,8 +215,10 @@ export class CoordinatorLessonsPage {
     const untitled = this.transloco.translate<string>('lessons.untitled');
     const wanted = this.status();
     return [...this.lessons.value()]
-      // The server narrows; this keeps the rows honest with the chip that is pressed whatever it
-      // answered, so a row never wears a badge the selected chip does not name.
+      // The server's filter is exact for every word but one: `draft` is still its coarse
+      // "everything not yet ready or published" (the teacher's week), which would put Uploading
+      // and Failed rows under the Draft chip. Narrowing here makes the chip mean its own word —
+      // and is all that narrows a manager's rows, whose route is not asked by status.
       .filter((lesson) => wanted === ANY_STATUS || lesson.status === wanted)
       .map((lesson) => ({
         id: lesson.id,
