@@ -17,9 +17,8 @@ import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { catchError, of, tap } from 'rxjs';
-import { type ClassCalendar, TeacherApi, apiErrorOf } from '../../api';
-import { BandService } from '../../core/band/band.service';
-import { silentErrors } from '../../core/http/error.interceptor';
+import { type ClassCalendar, TeacherApi } from '../../api';
+import { quietNotFound } from '../../core/http/error.interceptor';
 import { activeLang } from '../../core/i18n/active-lang';
 import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { ClassContextService } from '../../core/nav/class-context.service';
@@ -40,6 +39,25 @@ import { calendarCells, monthParam, shiftMonth } from './classes.models';
 
 const TAB_IDS = ['calendar', 'children', 'attendance', 'gradebook', 'exams'] as const;
 type TabId = (typeof TAB_IDS)[number];
+
+/**
+ * Which tabs read what a tab writes.
+ *
+ * - **Children** writes the roster: the register lists it, the gradebook has a row per child and
+ *   an exam's counts are out of it.
+ * - **Attendance** writes the register, which the roster's own row for a child summarises.
+ * - **Gradebook** writes marks and releases: the calendar's results column and a child's level
+ *   band on the roster are computed from them, and an exam's row carries its marking state.
+ * - **Calendar** and **Exams** write nothing here — their actions open another screen, and coming
+ *   back builds the whole class page again.
+ */
+const DEPENDENTS: Readonly<Record<TabId, readonly TabId[]>> = {
+  calendar: [],
+  children: ['attendance', 'gradebook', 'exams'],
+  attendance: ['children'],
+  gradebook: ['calendar', 'children', 'exams'],
+  exams: [],
+};
 
 function isTabId(value: string | null): value is TabId {
   return TAB_IDS.includes((value ?? '') as TabId);
@@ -69,7 +87,8 @@ function isTabId(value: string | null): value is TabId {
  *
  * **A class that is not hers is not an error she caused.** The id in the address may be a
  * bookmark, a `returnTo`, or a class from before the school was re-created; the first request is
- * therefore silent, and a 404 sends her to My classes instead of raising the red band. Nothing
+ * therefore quiet about a 404 — and only a 404: a dead session still goes to sign-in — and sends
+ * her to My classes instead of raising the red band. Nothing
  * else — no roster, no register, no gradebook — is asked for until that first answer has
  * confirmed the class, so a stale id costs one quiet request rather than five loud ones.
  *
@@ -99,7 +118,6 @@ export class ClassPage {
   private readonly teacherApi = inject(TeacherApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly band = inject(BandService);
   private readonly transloco = inject(TranslocoService);
   private readonly classContext = inject(ClassContextService);
   private readonly flags = inject(FlagService);
@@ -140,6 +158,22 @@ export class ClassPage {
    * re-uses this component, so nothing above the tab body is rebuilt and nothing is refetched.
    * It pushes a history entry, which is what lets Back return to the tab she came from.
    */
+  /**
+   * **A write in one tab makes the others' copies old.**
+   *
+   * Tabs are kept for the visit, so a pane opened before the write would go on showing what was
+   * true then: a child added to the roster missing from the register and the gradebook, a mark
+   * missing from the calendar's results column. The tab that wrote says so (`changed`), and every
+   * tab that reads what it wrote is dropped from the kept set — it is hidden at that moment, so
+   * nothing visibly happens — and is built again, from the server, the next time she opens it.
+   * The calendar lives in this shell rather than in a pane, so it is reloaded in place.
+   */
+  protected onChanged(source: TabId): void {
+    const stale = DEPENDENTS[source];
+    this.visitedTabs.update((seen) => new Set([...seen].filter((id) => id === this.tab() || !stale.includes(id))));
+    if (stale.includes('calendar')) this.calendar.reload();
+  }
+
   protected selectTab(id: TabId): void {
     if (id === this.tab()) return;
     void this.router.navigate([], {
@@ -159,13 +193,13 @@ export class ClassPage {
     params: () => ({ classId: this.classId(), month: monthParam(this.year(), this.month()) }),
     stream: ({ params }) =>
       this.teacherApi
-        .classCalendar(params.classId, undefined, params.month, 'body', false, { context: silentErrors() })
+        .classCalendar(params.classId, undefined, params.month, 'body', false, { context: quietNotFound() })
         .pipe(
           tap(() => this.confirmedClass.set(params.classId)),
           catchError((error: unknown) => {
             this.onCalendarFailed(error, params.classId);
-            // An empty calendar rather than an errored resource: the screen is leaving (404) or
-            // has said why in the band, and `value()` of a failed resource throws when read.
+            // An empty calendar rather than an errored resource: the screen is leaving (404) or the
+            // interceptor has said why in the band, and `value()` of a failed resource throws.
             return of<ClassCalendar>({});
           }),
         ),
@@ -294,15 +328,15 @@ export class ClassPage {
    *
    * A 404 is "this class is not yours, or is gone" — and she did not click anything to cause it
    * (My classes only lists classes that exist), so it is a stale address: back to the list,
-   * replacing this entry so Back does not return to it, with no band. Anything else is a real
-   * failure of a request this screen made silently, so the band is raised here instead.
+   * replacing this entry so Back does not return to it. The request is `quietNotFound()`, so that
+   * is the one status with no band; every other failure — a 401's trip to sign-in included — is
+   * the error interceptor's, unchanged.
    */
   private onCalendarFailed(error: unknown, classId: string): void {
-    if (error instanceof HttpErrorResponse && error.status === 404) {
-      if (this.confirmedClass() !== classId) void this.router.navigate(['/teacher/classes'], { replaceUrl: true });
-      return;
+    const missing = error instanceof HttpErrorResponse && error.status === 404;
+    if (missing && this.confirmedClass() !== classId) {
+      void this.router.navigate(['/teacher/classes'], { replaceUrl: true });
     }
-    this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable'));
   }
 
   private word(key: string, fallback: string): string {

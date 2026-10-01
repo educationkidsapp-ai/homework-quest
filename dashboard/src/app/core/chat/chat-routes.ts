@@ -96,7 +96,15 @@ export class ChatRoutes {
     stream: ({ params }) =>
       params
         ? this.schools.listSchools().pipe(
-            map((rows) => (rows.length === 1 ? (rows[0]?.id ?? null) : null)),
+            map((rows) => {
+              if (rows.length === 1) return rows[0]?.id ?? null;
+              // D1 review: with the switcher hidden a second school must not leave her with no
+              // scope at all — `/admin/chat/**` answers 400 without one and nothing on screen can
+              // fix it. The first active school of the server's list is hers until the switcher
+              // is back; with the switcher on screen, several schools are still hers to choose.
+              if (this.navConfig.schoolSurfaces) return null;
+              return (rows.find((row) => row.status === 'active') ?? rows[0])?.id ?? null;
+            }),
             catchError(() => of(null)),
           )
         : of(null),

@@ -497,12 +497,24 @@ export class ChildrenPage implements OnDestroy {
     this.isEdit()
       ? this.name().trim() !== '' &&
         this.classId() !== '' &&
-        this.parentName().trim() !== '' &&
+        (!this.editingHasParent() || this.parentName().trim() !== '') &&
         this.phoneError() === null
       : this.canAdmit(),
   );
 
-  /** D1: the parent's thread is named by the child — `{childId}` — because a parent has no user id here. */
+  /**
+   * Whether the child being edited has a parent account at all. One admitted from a roster has
+   * none until somebody registers — her name and section must still be saveable, so the parent's
+   * name is asked for, and sent, only when there is a parent to carry it.
+   */
+  protected readonly editingHasParent = computed(() => (this.editing()?.parentEmail ?? '') !== '');
+  /** Always at admission (the contract requires it); on an edit, only for a child with a parent. */
+  protected readonly parentNameRequired = computed(() => !this.isEdit() || this.editingHasParent());
+
+  /**
+   * D1: the parent's thread is named by the child — `{childId}` — because a parent has no user id
+   * here. Offered only on a row that has a parent: without one the server answers `no_parent`.
+   */
   protected message(row: FamilyView | null): void {
     if (row) this.threads.open(row.childId, { childId: row.childId });
   }
@@ -547,7 +559,7 @@ export class ChildrenPage implements OnDestroy {
         name: this.name().trim(),
         classId: this.classId(),
         parentPhone: this.parentPhone().trim(),
-        parentName: this.parentName().trim(),
+        ...(this.editingHasParent() ? { parentName: this.parentName().trim() } : {}),
       })
       .subscribe({
         next: () => {

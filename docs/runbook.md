@@ -1844,7 +1844,8 @@ requests for those rows were answered with an honest 404 that the error intercep
 
 The rule both follow: **a 404 for a remembered or defaulted id never raises the band** — the id is dropped and the
 screen falls back to its list — while a 404 for something she just clicked still does. So the teacher's class page
-makes its first request silently and, on a 404, replaces itself with My classes; nothing else on it (roster,
+makes its first request with `quietNotFound()` — quiet about the 404 and nothing else, so a dead session still goes
+to sign-in with `returnTo` — and, on a 404, replaces itself with My classes; nothing else on it (roster,
 register, gradebook, exams) is asked for until that first answer has confirmed the class is hers.
 `forgetRememberedState` (`core/auth/remembered-state.ts`) erases what an account left in storage — `hq.school`,
 `hq.flags.*`, staged chat attachments — on sign-out and whenever the session's owner changes. The language, the
@@ -1859,7 +1860,9 @@ single row of `GET /admin/schools` (resolved by `ChatRoutes`, never read from st
 `X-School-Id`, her flags are her school's rather than the platform defaults, the new-lesson wizard has its school and
 `/admin/chat/**` has its header. A stored `hq.school` is never read in this configuration and is erased at boot — an
 id from before the database was re-created answers `404 school not found` to `/me` itself. A deployment that answers
-more than one school leaves her unpinned, as before.
+**more than one** school pins her to the **first active one** in the server's list (the first row when none is
+active) for as long as the switcher is hidden — no scope at all would be `400 Send X-School-Id` from her own Messages
+with nothing on screen to fix it. Reaching another school means turning `schoolSurfaces` back on.
 
 **Message, from the Admin's people screens.** Teachers, Coordinators, Managers and Children & parents each carry a
 **Message** action in the row menu (shown with `chat` on and `admin.chat` held). It posts exactly one id —

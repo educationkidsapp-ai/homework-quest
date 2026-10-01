@@ -95,6 +95,7 @@ describe('the class page', () => {
         provideRouter([
           { path: 'teacher/classes/:classId', component: ClassPage },
           { path: 'teacher/classes', component: MyClassesStub },
+          { path: 'sign-in', component: MyClassesStub },
         ]),
         { provide: BASE_PATH, useValue: '' },
       ],
@@ -210,6 +211,66 @@ describe('the class page', () => {
     expect(router.url).toBe('/teacher/classes');
     expect(TestBed.inject(BandService).current()).toBeNull();
     expect(TestBed.inject(ClassContextService).current()).toBeNull();
+  });
+
+  /** The review's case: quiet about a 404 only — a dead session still goes to sign-in. */
+  it('sends a session that died under the class page to sign in, with the way back', async () => {
+    const harness = await open('/teacher/classes/c-1a?tab=attendance');
+
+    backend
+      .expectOne((request) => isCalendar(request.url))
+      .flush({ code: 'unauthorized', message: 'no' }, { status: 401, statusText: 'Unauthorized' });
+    await settle(harness);
+
+    expect(router.url).toBe(`/sign-in?returnTo=${encodeURIComponent('/teacher/classes/c-1a?tab=attendance')}`);
+    expect(TestBed.inject(BandService).current()?.titleKey).toBe('band.signedOut');
+  });
+
+  /**
+   * Tabs are kept for the visit, so a write in one has to reach the kept copies of the tabs that
+   * read it: they are dropped while hidden and built again, from the server, when next opened.
+   */
+  it('rebuilds the register after a roster change, and leaves it alone otherwise', async () => {
+    const harness = await openClass();
+    const shell = harness.routeDebugElement?.componentInstance as unknown as {
+      onChanged: (source: string) => void;
+    };
+
+    await userEvent.click(tab('Attendance'));
+    await settle(harness);
+    await answerAttendance(harness);
+    await userEvent.click(tab('Calendar'));
+    await settle(harness);
+
+    // What the Children tab's `changed` output calls when a child is added, moved or removed.
+    shell.onChanged('children');
+    await settle(harness);
+    // The calendar does not read the roster: it is not asked for again.
+    backend.expectNone((request) => isCalendar(request.url));
+
+    await userEvent.click(tab('Attendance'));
+    await settle(harness);
+    // The register does: a fresh pane, a fresh read.
+    await answerAttendance(harness);
+  });
+
+  it('reloads the calendar in place after a mark, and never drops the tab she is on', async () => {
+    const harness = await openClass('/teacher/classes/c-1a?tab=attendance');
+    await answerAttendance(harness);
+    const shell = harness.routeDebugElement?.componentInstance as unknown as {
+      onChanged: (source: string) => void;
+    };
+
+    // The Gradebook's `changed`: the calendar's results column is computed from marks.
+    shell.onChanged('gradebook');
+    await settle(harness);
+    backend.expectOne((request) => isCalendar(request.url)).flush(CALENDAR);
+
+    // Her own register saving is not a reason to rebuild the register under her.
+    shell.onChanged('attendance');
+    await settle(harness);
+    backend.expectNone((request) => isAttendance(request.url));
+    expect(screen.getByText('Amina')).toBeInTheDocument();
   });
 
   it('still says so when the class request fails for any other reason', async () => {

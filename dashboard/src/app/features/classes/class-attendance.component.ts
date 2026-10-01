@@ -6,6 +6,7 @@ import {
   effect,
   inject,
   input,
+  output,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -55,6 +56,9 @@ export class ClassAttendanceComponent {
    * control she has no key for. The same input the shared calendar takes (`hq-class-calendar`).
    */
   readonly readOnly = input(false);
+
+  /** D1: the register was saved — for a host that keeps other views of the same class. */
+  readonly changed = output<void>();
 
   /**
    * R6: a **range** of days, already read by the caller, instead of the one day this fetches.
@@ -297,6 +301,8 @@ export class ClassAttendanceComponent {
         this.attendanceData.set(res);
         this.isSaving.set(false);
         this.saveSuccess.set(true);
+        // D1: the class page keeps its tabs, and the roster's row summarises this register.
+        this.changed.emit();
       },
       error: (err: unknown) => {
         this.isSaving.set(false);

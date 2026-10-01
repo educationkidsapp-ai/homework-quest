@@ -64,7 +64,7 @@ describe('ChatRoutes', () => {
   const multiSchool = signal(false);
   /** D1's nav switch: whether the school switcher is on screen at all. */
   let schoolSurfaces = true;
-  const schools = signal<{ id: string; name: string }[]>([{ id: 's-1', name: 'Al Noor' }]);
+  const schools = signal<{ id: string; name: string; status?: string }[]>([{ id: 's-1', name: 'Al Noor' }]);
 
   function setup(): { routes: ChatRoutes; chat: ChatService } {
     teacherApi = {
@@ -353,6 +353,25 @@ describe('ChatRoutes', () => {
     // The store is told on the effect that follows the resource — which is what the interceptor reads.
     TestBed.tick();
     expect(TestBed.inject(SchoolScopeStore).soleSchoolId()).toBe('s-1');
+  });
+
+  /**
+   * The review's case: two schools and no switcher must not leave her with no scope at all —
+   * `/admin/chat/**` answers 400 without one and nothing on screen could fix it.
+   */
+  it('pins the first active school when the switcher is hidden and there are several', () => {
+    role.set('ADMIN');
+    schoolSurfaces = false;
+    schools.set([
+      { id: 's-old', name: 'Closed', status: 'archived' },
+      { id: 's-1', name: 'Al Noor', status: 'active' },
+      { id: 's-2', name: 'Green Valley', status: 'active' },
+    ]);
+    const { routes } = setup();
+    TestBed.tick();
+
+    expect(routes.adminSchoolId()).toBe('s-1');
+    expect(routes.transport()).not.toBeNull();
   });
 
   /** A single-school deployment that answers two rows is disagreeing with itself: pick, don't guess. */

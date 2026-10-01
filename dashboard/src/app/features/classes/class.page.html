@@ -56,12 +56,16 @@
     }
     @if (hasVisited('children')) {
       <div class="class-tab-pane" [hidden]="tab() !== 'children'">
-        <hq-class-children [classId]="classId()" [className]="className()" />
+        <hq-class-children [classId]="classId()" [className]="className()" (changed)="onChanged('children')" />
       </div>
     }
     @if (hasVisited('attendance')) {
       <div class="class-tab-pane" [hidden]="tab() !== 'attendance'">
-        <hq-class-attendance [classId]="classId()" [className]="className()" />
+        <hq-class-attendance
+          [classId]="classId()"
+          [className]="className()"
+          (changed)="onChanged('attendance')"
+        />
       </div>
     }
     @if (hasVisited('gradebook')) {
@@ -70,7 +74,7 @@
              without it keeps the tab and is told what it would hold, rather than losing a tab
              its neighbour has and wondering what happened to it. -->
         @if (gradebookOn()) {
-          <hq-gradebook [classId]="classId()" [className]="className()" />
+          <hq-gradebook [classId]="classId()" [className]="className()" (changed)="onChanged('gradebook')" />
         } @else {
           <hq-empty-state [message]="'results.gradebook.off' | transloco" />
         }

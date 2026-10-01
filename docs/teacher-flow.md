@@ -82,7 +82,7 @@ A grid of her classes (rows) by the days of the school week (columns; default Su
 **One shell, five tabs (D1, the owner's list of 2026-10-01).** The class header, its two actions and the tab strip are one screen that stays put; only the tab body changes.
 
 - The tab is in the address — `/teacher/classes/{classId}?tab=children` — and the address is the only state. A link opens on its tab, a reload returns to it, and **Back** walks the tabs she visited before it leaves the class.
-- Changing tab does not reload anything above the tab body and does not ask for the class again. Each tab is built the first time she opens it and kept for the visit, so going back to a tab shows what she already loaded; a tab refetches only after its own changes (marking attendance, placing a child) or a reload of the page.
+- Changing tab does not reload anything above the tab body and does not ask for the class again. Each tab is built the first time she opens it and kept for the visit, so going back to a tab shows what she already loaded; a tab refetches after its own changes, and a change in one tab rebuilds the kept tabs that read it — the roster rebuilds the register, the gradebook and the exams; the register rebuilds the roster; a mark rebuilds the roster and the exams and reloads the calendar.
 - No full-page skeleton appears between tabs. The one skeleton is on arrival, while the class itself is being confirmed.
 - A class that is not hers — an old bookmark, or a class from before the school was re-created — is not an error she caused: the page goes back to **My classes** without a red band.
 

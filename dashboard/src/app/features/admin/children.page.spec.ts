@@ -347,6 +347,31 @@ describe('Children & parents', () => {
     expect(patch.request.body).toMatchObject({ parentName: 'Ahmed Ali Hassan' });
   });
 
+  /**
+   * The review's case: a child admitted from a roster has no parent until somebody registers.
+   * Her name and section must stay saveable, and there is nobody to message.
+   */
+  it('saves a child who has no parent without a parent name, and offers no Message for her', async () => {
+    fakeThreads();
+    const orphan = { ...HALA, parentName: undefined, parentEmail: undefined, parentPhone: undefined, parentId: undefined };
+    const { rendered, backend } = await renderSignedIn([orphan]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Hala Ahmed' }));
+    expect(screen.queryByRole('menuitem', { name: 'Message' })).toBeNull();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    await settle(rendered);
+
+    expect(screen.getByLabelText(/^Parent's name/)).toBeDisabled();
+    const name = screen.getByLabelText(/^Child's name/);
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Hala A. Ahmed');
+    await settle(rendered);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const patch = backend.expectOne('/admin/children/ch-hala');
+    expect(patch.request.body).toEqual({ name: 'Hala A. Ahmed', classId: 'c-1a', parentPhone: '' });
+  });
+
   it('shows the parent\u2019s name in the table', async () => {
     await renderSignedIn();
 
