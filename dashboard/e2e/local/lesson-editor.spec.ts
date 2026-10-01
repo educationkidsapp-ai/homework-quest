@@ -214,8 +214,8 @@ function proseField(page: Page): Locator {
  * CR5's acceptance: **no element on this page reads as JSON**.
  *
  * Asserted on the text of every element that has no element children, so a `{` nested three
- * divs deep still counts, and the Raw JSON panel is checked by name as well — it is an Admin's,
- * behind debug view, and a teacher must not be able to reach it at all.
+ * divs deep still counts, and the Raw JSON panel is checked by name as well — it was removed
+ * for everybody (D1), and must not come back.
  */
 async function expectNoJsonOnThePage(page: Page): Promise<void> {
   await expect(page.locator('[data-hq-raw-json]')).toHaveCount(0);
