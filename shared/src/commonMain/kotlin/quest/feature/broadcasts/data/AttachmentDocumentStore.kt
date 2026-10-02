@@ -47,9 +47,12 @@ class AttachmentDocumentStore(
     override suspend fun fetch(attachment: BroadcastAttachment): String? = withContext(io) {
         val key = cacheName(attachment) ?: return@withContext null
         val token = auth.idToken() ?: return@withContext null
-        // The id leads the name so two attachments called "plan.pdf" are two files; the display name is reduced to
-        // one path segment first, so nothing in it can drop the id or leave the directory.
-        val name = safeDocumentName("$key-${safeFileName(attachment.name.orEmpty())}", "pdf")
+        // M4 (D13): one folder per attachment, named by its id, so two attachments called "plan.pdf" are two files —
+        // and the file inside carries the attachment's own name, which is what the system viewer shows as the title.
+        // Both segments are reduced to plain names, so nothing in them can leave the directory.
+        val folder = safeFileName(key)
+        val name = "$folder/${safeDocumentName(attachment.name ?: key, "pdf")}"
+        SystemFileSystem.createDirectories(Path(directory(), folder))
         val target = Path(directory(), name)
         if (SystemFileSystem.exists(target)) return@withContext name
         val url = absolute(attachment.url)
@@ -63,8 +66,14 @@ class AttachmentDocumentStore(
 
     override suspend fun clear() = withContext(io) {
         val dir = Path(directory())
-        runCatching { SystemFileSystem.list(dir).forEach { SystemFileSystem.delete(it, mustExist = false) } }
+        runCatching { SystemFileSystem.list(dir).forEach { deleteTree(it) } }
         Unit
+    }
+
+    /** A folder per attachment since M4: emptied before it is removed, because a non-empty one cannot be. */
+    private fun deleteTree(path: Path) {
+        if (SystemFileSystem.metadataOrNull(path)?.isDirectory == true) runCatching { SystemFileSystem.list(path).forEach { deleteTree(it) } }
+        runCatching { SystemFileSystem.delete(path, mustExist = false) }
     }
 
     private enum class Download { SAVED, UNAUTHORISED, FAILED }
