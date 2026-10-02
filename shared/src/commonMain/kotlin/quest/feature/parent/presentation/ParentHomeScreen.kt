@@ -1,5 +1,7 @@
 package quest.feature.parent.presentation
 
+import androidx.compose.ui.platform.testTag
+import quest.ui.design.TestTags
 import quest.feature.children.domain.SignOutUseCase
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -173,7 +175,7 @@ fun ParentHomeScreen(
             .padding(horizontal = 16.dp),
     ) {
         // ---- Children Section ------------------------------------------------
-        SectionTitle(s.children)
+        SectionTitle(s.children, Modifier.testTag(TestTags.PARENT_HOME))
         // Every child the school linked to this account; the admin adds them, so there is nothing to add here.
         if (state.children.isEmpty() && !state.loading) NoChildrenLinked(s) { dispatch(ParentHomeContract.Intent.Load) }
         state.children.forEach { c ->
@@ -242,7 +244,7 @@ fun ParentHomeScreen(
                 val meta = SubjectMeta.of(day.subjects.getOrNull(i))
                 val isDone = id in day.doneIds
                 ParentCard(
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier.padding(bottom = 8.dp).testTag(TestTags.parentLesson(id)),
                     onClick = { onLessonPanel(id) },
                 ) {
                     Row(

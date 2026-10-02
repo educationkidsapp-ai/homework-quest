@@ -1,5 +1,7 @@
 package quest.ui.stops
 
+import androidx.compose.ui.platform.testTag
+import quest.ui.design.TestTags
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -166,7 +168,7 @@ fun WordCardsStop(stop: Stop.WordCards, onEvent: (StopEvent) -> Unit, modifier: 
         Spacer(Modifier.height(Dimens.s12))
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s12)) {
             SpeakButton("${card.word}. ${card.meaning}", onEvent, modifier = Modifier.width(150.dp))
-            if (index < stop.words.lastIndex) quest.ui.design.BigButton(LocalStopLabels.current.next, onClick = { index += 1; seen = seen + index }, modifier = Modifier.width(150.dp), compact = true)
+            if (index < stop.words.lastIndex) quest.ui.design.BigButton(LocalStopLabels.current.next, onClick = { index += 1; seen = seen + index }, modifier = Modifier.testTag(TestTags.STOP_NEXT).width(150.dp), compact = true)
         }
         DoneButton(enabled = seen.size == stop.words.size) { onEvent(StopEvent.Completed(StopScoring.INFO)) }
     }

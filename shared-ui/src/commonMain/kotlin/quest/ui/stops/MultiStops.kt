@@ -1,5 +1,7 @@
 package quest.ui.stops
 
+import androidx.compose.ui.platform.testTag
+import quest.ui.design.TestTags
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -90,11 +92,11 @@ fun MatchStop(stop: Stop.Match, onEvent: (StopEvent) -> Unit, modifier: Modifier
         PromptText(stop.prompt); Spacer(Modifier.height(Dimens.s16))
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s16)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Dimens.s12)) {
-                stop.pairs.forEach { p -> MatchTile(p.left, locked = p.id in matched, selected = left == p.id, onClick = { if (p.id !in matched) { left = p.id; onEvent(StopEvent.Speak(p.left.label ?: p.left.illustrationKey ?: "")) } }) }
+                stop.pairs.forEach { p -> MatchTile(p.left, locked = p.id in matched, selected = left == p.id, tag = TestTags.matchLeft(p.id), onClick = { if (p.id !in matched) { left = p.id; onEvent(StopEvent.Speak(p.left.label ?: p.left.illustrationKey ?: "")) } }) }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Dimens.s12)) {
                 rights.forEach { rid -> val p = stop.pairs.first { it.id == rid }
-                    MatchTile(p.right, locked = p.id in matched, selected = false, onClick = {
+                    MatchTile(p.right, locked = p.id in matched, selected = false, tag = TestTags.matchRight(p.id), onClick = {
                         val l = left ?: return@MatchTile
                         if (l == p.id) { matched = matched + p.id; left = null; if (matched.size == stop.pairs.size) { done = true; onEvent(StopEvent.Completed(StopScoring.byMistakes(mistakes), mistakes = mistakes)) } }
                         else { mistakes += 1; left = null; onEvent(StopEvent.Speak(notAMatch)) }
@@ -106,12 +108,13 @@ fun MatchStop(stop: Stop.Match, onEvent: (StopEvent) -> Unit, modifier: Modifier
 }
 
 @Composable
-private fun MatchTile(tile: Tile, locked: Boolean, selected: Boolean, onClick: () -> Unit) {
+private fun MatchTile(tile: Tile, locked: Boolean, selected: Boolean, tag: String, onClick: () -> Unit) {
     Box(
         Modifier.fillMaxWidth().height(84.dp).alpha(if (locked) 0.55f else 1f)
             .background(if (locked) DashboardTokens.successBg else MaterialTheme.colorScheme.surface, RoundedCornerShape(DashboardTokens.radiusMd))
             .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
             .clickable(enabled = !locked, role = Role.Button, onClick = onClick)
+            .testTag(tag)
             .semantics { contentDescription = (tile.label ?: tile.illustrationKey ?: "") + if (locked) ", matched" else "" },
         contentAlignment = Alignment.Center,
     ) {

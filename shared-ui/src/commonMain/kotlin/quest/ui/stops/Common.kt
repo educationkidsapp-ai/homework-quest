@@ -1,5 +1,7 @@
 package quest.ui.stops
 
+import androidx.compose.ui.platform.testTag
+import quest.ui.design.TestTags
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -125,12 +127,12 @@ fun SmallSpeakButton(text: String, onEvent: (StopEvent) -> Unit) {
 
 @Composable
 fun DoneButton(text: String = LocalStopLabels.current.done, enabled: Boolean = true, onClick: () -> Unit) {
-    BigButton(text, onClick = onClick, enabled = enabled, modifier = Modifier.padding(top = Dimens.s16).padding(horizontal = Dimens.s16))
+    BigButton(text, onClick = onClick, enabled = enabled, modifier = Modifier.padding(top = Dimens.s16).padding(horizontal = Dimens.s16).testTag(TestTags.STOP_DONE))
 }
 
 @Composable
 fun CheckButton(enabled: Boolean, onClick: () -> Unit) {
-    BigButton(LocalStopLabels.current.check, onClick = onClick, enabled = enabled, modifier = Modifier.padding(top = Dimens.s16).padding(horizontal = Dimens.s16))
+    BigButton(LocalStopLabels.current.check, onClick = onClick, enabled = enabled, modifier = Modifier.padding(top = Dimens.s16).padding(horizontal = Dimens.s16).testTag(TestTags.STOP_CHECK))
 }
 
 @Composable

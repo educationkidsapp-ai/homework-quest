@@ -1,5 +1,7 @@
 package quest.feature.map.presentation
 
+import androidx.compose.ui.platform.testTag
+import quest.ui.design.TestTags
 import quest.ui.design.StudentAvatar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -223,6 +225,7 @@ fun FormalStudentScreen(
                             .border(1.dp, DashboardTokens.rule, RoundedCornerShape(DashboardTokens.radiusSm))
                             .clip(RoundedCornerShape(DashboardTokens.radiusSm))
                             .clickable(role = Role.Button, onClick = onGrownUps)
+                            .testTag(TestTags.HOME_PARENT_PORTAL)
                             .semantics { contentDescription = strings.parentPortal },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -341,6 +344,7 @@ private fun FormalCourseworkCard(
     val isReview = island.kind == IslandKind.REVIEW
 
     DashboardCard(
+        modifier = if (island.lessonId != null) Modifier.testTag(TestTags.homeLesson(island.lessonId!!)) else Modifier,
         onClick = if (!isLocked) onOpen else null,
     ) {
         Column {

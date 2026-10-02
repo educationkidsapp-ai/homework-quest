@@ -1,5 +1,7 @@
 package quest.feature.children.presentation
 
+import androidx.compose.ui.platform.testTag
+import quest.ui.design.TestTags
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -109,7 +111,7 @@ fun ChildPickerScreen(state: ChildrenContract.State, s: Strings, dispatch: (Chil
 /** One linked child: initial, name, course. Shared by this list and the parent home. */
 @Composable
 fun ChildRow(child: Child, s: Strings, selected: Boolean, onClick: () -> Unit) {
-    ParentCard(Modifier.padding(bottom = 10.dp), onClick = onClick) {
+    ParentCard(Modifier.padding(bottom = 10.dp).testTag(TestTags.childRow(child.id)), onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             StudentAvatar(child.name)
             Spacer(Modifier.width(Dimens.s12))

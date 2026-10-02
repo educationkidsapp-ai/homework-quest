@@ -1,5 +1,7 @@
 package quest.feature.parent.presentation
 
+import androidx.compose.ui.platform.testTag
+import quest.ui.design.TestTags
 import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -115,6 +117,7 @@ fun PinScreen(state: PinContract.State, dispatch: (PinContract.Intent) -> Unit, 
                             .then(if (key.isEmpty()) Modifier else Modifier.border(1.dp, DashboardTokens.ruleControl, CircleShape).clickable(role = Role.Button) {
                                 if (key == "⌫") dispatch(PinContract.Intent.Backspace) else dispatch(PinContract.Intent.Digit(key[0]))
                             })
+                            .testTag(TestTags.pinKey(if (key == "⌫") "delete" else key))
                             .semantics { contentDescription = if (key == "⌫") "Delete" else key },
                         contentAlignment = Alignment.Center,
                     ) { Text(key, style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.ink) }
