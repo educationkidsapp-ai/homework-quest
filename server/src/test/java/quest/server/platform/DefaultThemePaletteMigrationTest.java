@@ -14,15 +14,15 @@ import quest.server.ApiTestSupport;
 import quest.server.config.Json;
 
 /**
- * `V29__default_theme_logo_palette.sql`, run against rows that look the way themed rows looked before B2.
+ * `V28__default_theme_logo_palette.sql`, run against rows that look the way themed rows looked before B2.
  *
- * <p>Flyway applies V29 to an empty database here and in CI, so the update itself would ship unexercised. The
+ * <p>Flyway applies V28 to an empty database here and in CI, so the update itself would ship unexercised. The
  * statements are read out of the migration file, the rows are written by the very code that writes them in
  * production ({@link ThemeService#validated} + {@link Json#write}) so the guard is measured against the real stored
  * shape, and the file is run twice to prove the second run changes nothing.
  */
 class DefaultThemePaletteMigrationTest extends ApiTestSupport {
-    private static final Path MIGRATION = Path.of("src/main/resources/db/migration/V29__default_theme_logo_palette.sql");
+    private static final Path MIGRATION = Path.of("src/main/resources/db/migration/V28__default_theme_logo_palette.sql");
     private static final String PREFIX = "b2-", OLD_ACCENT = "#CC2A0F", NEW_ACCENT = "#0762BF";
 
     @Autowired JdbcTemplate jdbc;

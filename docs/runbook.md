@@ -837,7 +837,7 @@ default theme (`DesignTokens`, mirrored by `quest.api.dto.SchoolTheme()`), the d
 white text clears AA on, and the dark-mode accent), `color.accent-strong` is `#0762BF` (the default theme's `accent`,
 5.4:1 on the ground), `color.accent-soft` is `#E6F5FC`, and `color.gradient-from` / `gradient-to` / `secondary` /
 `tertiary` carry the gradient's `#089CDF → #0754B7`, the magenta `#B8047A` and the orange `#FB9B0A`; the tokens have
-no dark slots, so dark values stay in `palette.md` and the front-ends. `V29__default_theme_logo_palette.sql` moved the
+no dark slots, so dark values stay in `palette.md` and the front-ends. `V28__default_theme_logo_palette.sql` moved the
 accent of every stored theme that still held the old default's colours verbatim (`#CC2A0F` with the default surface,
 ink, ground, rule, mascot and worlds) to `#0762BF`; a theme with any colour of its own was left as it was.
 
