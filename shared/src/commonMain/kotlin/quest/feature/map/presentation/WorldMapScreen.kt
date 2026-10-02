@@ -50,6 +50,9 @@ import kotlinx.datetime.LocalDate
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import quest.api.dto.Island
+import kotlinx.datetime.TimeZone
+import quest.feature.journey.presentation.LessonStrings
+import androidx.compose.ui.semantics.semantics
 import quest.api.dto.IslandKind
 import quest.api.dto.IslandState
 import quest.api.dto.Subject
@@ -317,7 +320,12 @@ fun FormalStudentScreen(
                             contentPadding = PaddingValues(vertical = 8.dp),
                         ) {
                             items(filteredIslands, key = { it.id }) { island ->
-                                FormalCourseworkCard(
+                                if (island.lessonId in state.exams) ExamCourseworkCard(
+                                    island = island,
+                                    card = examCard(island, state.now, TimeZone.currentSystemDefault(), if (strings.isRtl) LessonStrings.ar else LessonStrings.en, strings.months, shortMonths = !strings.isRtl),
+                                    strings = strings,
+                                    onOpen = { dispatch(Intent.TapIsland(island.id)) },
+                                ) else FormalCourseworkCard(
                                     island = island,
                                     strings = strings,
                                     onOpen = { dispatch(Intent.TapIsland(island.id)) },
@@ -445,6 +453,52 @@ private fun FormalCourseworkCard(
                         modifier = Modifier.width(130.dp),
                         height = 36.dp,
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * §8: an exam on the student home. It says when the window closes and roughly how long is left, opens only while the
+ * window is open, and once handed in says so and nothing else — no stars, no score: the result is the teacher's to
+ * release, and it is shown in the parent area.
+ */
+@Composable
+private fun ExamCourseworkCard(island: Island, card: ExamCard, strings: Strings, onOpen: () -> Unit) {
+    val ls = if (strings.isRtl) LessonStrings.ar else LessonStrings.en
+    val meta = SubjectMeta.of(island.subject)
+    val open = card.status == ExamStatus.OPEN
+    DashboardCard(
+        modifier = Modifier.semantics(mergeDescendants = true) {},
+        onClick = if (open) onOpen else null,
+        borderColor = if (open) DashboardTokens.secondary else MaterialTheme.colorScheme.outline,
+    ) {
+        Column {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    DashboardPill(text = ls.exam, variant = DashboardPillVariant.ACCENT)
+                    Spacer(Modifier.width(8.dp))
+                    Text("${meta.emoji} ${meta.label(strings.isRtl)}", style = MaterialTheme.typography.labelMedium, color = DashboardTokens.inkSoft)
+                }
+                when (card.status) {
+                    ExamStatus.OPEN -> card.left?.let { DashboardPill(text = it, variant = DashboardPillVariant.INFO) }
+                    ExamStatus.SUBMITTED -> DashboardPill(text = ls.examSubmittedShort, variant = DashboardPillVariant.NEUTRAL)
+                    ExamStatus.NOT_OPEN -> DashboardPill(text = ls.examNotOpenShort, variant = DashboardPillVariant.NEUTRAL)
+                    ExamStatus.CLOSED, ExamStatus.UNAVAILABLE -> DashboardPill(text = ls.examClosedShort, variant = DashboardPillVariant.NEUTRAL)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                island.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 16.sp),
+                color = if (open) DashboardTokens.inkStrong else DashboardTokens.inkMuted, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(card.line, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft, modifier = Modifier.weight(1f))
+                if (open) {
+                    Spacer(Modifier.width(8.dp))
+                    DashboardButton(text = ls.startExam, onClick = onOpen, variant = DashboardButtonVariant.PRIMARY, modifier = Modifier.width(130.dp), height = 36.dp)
                 }
             }
         }

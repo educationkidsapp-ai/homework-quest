@@ -57,7 +57,7 @@ import quest.ui.design.Dimens
 import quest.ui.journey.Certificate
 
 object CompleteContract {
-    data class State(val loading: Boolean = true, val lesson: PublishedLesson? = null, val level: Int = 1, val variant: Int = 0, val stars: Int = 0, val starsTotal: Int = 0, val childName: String = "", val nextLevelUnlocked: Boolean = false) : MviState
+    data class State(val loading: Boolean = true, val lesson: PublishedLesson? = null, val level: Int = 1, val variant: Int = 0, val stars: Int = 0, val starsTotal: Int = 0, val childName: String = "", val nextLevelUnlocked: Boolean = false, val exam: Boolean = false) : MviState
     sealed interface Intent : MviIntent { data object Load : Intent; data object ReadAloud : Intent }
     sealed interface Effect : MviEffect { data class Speak(val text: String) : Effect }
 }
@@ -73,19 +73,19 @@ class LessonCompleteViewModel(
             CompleteContract.Intent.Load -> {
                 val child = children.currentChild.value ?: return
                 val lesson = lessons.lesson(lessonId)
-                val play = lesson.play(level, variant) ?: lesson.plays.first()
+                val play = lesson.playFor(level, variant)
                 val progress = journey.progress(child.id, lessonId, play.level, play.variant)
                 awardSticker()
                 updateStreak(Today.date())
                 val unlocked = MapAssembler.unlockedLevels(journey.completions(child.id).filter { it.lessonId == lessonId }, journey.parentUnlocks(child.id)[lessonId].orEmpty())
-                reduce { copy(loading = false, lesson = lesson, stars = progress.starsFor(play), starsTotal = play.stops.size * 3, childName = child.name, nextLevelUnlocked = (level + 1) in unlocked) }
+                reduce { copy(loading = false, lesson = lesson, stars = progress.starsFor(play), starsTotal = play.stops.size * 3, childName = child.name, nextLevelUnlocked = (level + 1) in unlocked, exam = lesson.isExam) }
                 effect(CompleteContract.Effect.Speak(summary()))
             }
             CompleteContract.Intent.ReadAloud -> effect(CompleteContract.Effect.Speak(summary()))
         }
     }
 
-    private fun summary(): String = copy.strings().speakLessonComplete.replace("{name}", current.childName)
+    private fun summary(): String = if (current.exam) copy.strings().speakExamSubmitted else copy.strings().speakLessonComplete.replace("{name}", current.childName)
 }
 
 @Composable
@@ -105,6 +105,7 @@ fun LessonCompleteRoute(lessonId: String, level: Int, variant: Int, onAgain: (St
 fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContract.Intent) -> Unit, onAgain: () -> Unit, onNextLevel: () -> Unit, onHome: () -> Unit) {
     val s = LocalLessonStrings.current
     val lesson = state.lesson ?: run { LoadingView(s.savingWork); return }
+    if (state.exam) { ExamSubmitted(lesson.title, dispatch, onHome); return }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         LessonTopBar(onBack = null, onReadAloud = { dispatch(CompleteContract.Intent.ReadAloud) })
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -141,5 +142,33 @@ fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContr
             }
             BigButton(s.backToHome, onClick = onHome, primary = !hasNext, modifier = Modifier.testTag(TestTags.LESSON_BACK_HOME))
         }
+    }
+}
+
+/**
+ * §8: what a student sees when the exam is handed in — that it was, and that the teacher shares the result. No stars,
+ * no count, no certificate and no way back in: the result appears in the parent area once the teacher releases it.
+ */
+@Composable
+private fun ExamSubmitted(title: String, dispatch: (CompleteContract.Intent) -> Unit, onHome: () -> Unit) {
+    val s = LocalLessonStrings.current
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        LessonTopBar(onBack = null, onReadAloud = { dispatch(CompleteContract.Intent.ReadAloud) })
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
+            DashboardCard(padding = PaddingValues(Dimens.s24)) {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(56.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape).border(1.dp, MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
+                        Text("✓", style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.accentInk)
+                    }
+                    Spacer(Modifier.height(Dimens.s12))
+                    Text(s.examSubmitted, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(Dimens.s4))
+                    Text(title, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(Dimens.s8))
+                    Text(s.examSubmittedBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
+                }
+            }
+        }
+        BigButton(s.backToHome, onClick = onHome, modifier = Modifier.padding(horizontal = Dimens.s16, vertical = Dimens.s12))
     }
 }

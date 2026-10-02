@@ -56,7 +56,9 @@ fun ReadPageStop(stop: Stop.ReadPage, onEvent: (StopEvent) -> Unit, modifier: Mo
     var found by rememberSaveable(stop.id) { mutableStateOf(setOf<String>()) }
     var wrongTaps by rememberSaveable(stop.id) { mutableIntStateOf(0) }
     val task = stop.tapTask
-    val taskDone = task == null || found.containsAll(task.correctIds)
+    val exam = LocalExamMode.current
+    // In an exam the hotspots the student tapped are her answer, so Done never waits for the right ones.
+    val taskDone = task == null || exam || found.containsAll(task.correctIds)
     val labels = LocalStopLabels.current
 
     LaunchedEffect(reading) {
@@ -83,11 +85,13 @@ fun ReadPageStop(stop: Stop.ReadPage, onEvent: (StopEvent) -> Unit, modifier: Mo
             } else {
                 task.hotspots.forEach { hs ->
                     val ok = hs.id in found
+                    val tint = if (exam) MaterialTheme.colorScheme.primaryContainer else DashboardTokens.successBg
                     Box(
                         Modifier.offset(w * hs.x, h * hs.y).size(w * hs.w, h * hs.h)
-                            .background(if (ok) DashboardTokens.successBg else DashboardTokens.surface.copy(alpha = 0.7f), RoundedCornerShape(DashboardTokens.radiusMd))
+                            .background(if (ok) tint else DashboardTokens.surface.copy(alpha = 0.7f), RoundedCornerShape(DashboardTokens.radiusMd))
                             .clickable(role = Role.Button) {
-                                if (hs.id in task.correctIds) { if (hs.id !in found) { found = found + hs.id; onEvent(StopEvent.Speak(hs.label)) } }
+                                if (exam) { found = if (hs.id in found) found - hs.id else found + hs.id; onEvent(StopEvent.Speak(hs.label)) }
+                                else if (hs.id in task.correctIds) { if (hs.id !in found) { found = found + hs.id; onEvent(StopEvent.Speak(hs.label)) } }
                                 else { wrongTaps += 1; onEvent(StopEvent.Speak("${labels.notThatOne} ${task.prompt}")) }
                             }
                             .semantics { contentDescription = hs.label + if (ok) ", found" else "" },
@@ -106,11 +110,16 @@ fun ReadPageStop(stop: Stop.ReadPage, onEvent: (StopEvent) -> Unit, modifier: Mo
             )
         }
         Spacer(Modifier.height(Dimens.s12))
-        if (task != null) Text(task.prompt + "  (${found.size}/${task.correctIds.size})", style = MaterialTheme.typography.labelLarge, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
+        if (task != null) Text(if (exam) task.prompt else task.prompt + "  (${found.size}/${task.correctIds.size})", style = MaterialTheme.typography.labelLarge, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s12)) {
             SpeakButton("", { if (!reading) reading = true }, label = if (reading) labels.reading else labels.readToMe)
         }
-        DoneButton(enabled = taskDone && !reading) { onEvent(StopEvent.Completed(if (task == null) StopScoring.INFO else StopScoring.byMistakes(wrongTaps), mistakes = wrongTaps)) }
+        DoneButton(enabled = taskDone && !reading) {
+            if (exam && task != null) {
+                val right = found == task.correctIds.toSet()
+                onEvent(StopEvent.Completed(if (right) StopScoring.byMistakes(0) else 0, answer = found.joinToString(","), mistakes = if (right) 0 else 1, correct = right))
+            } else onEvent(StopEvent.Completed(if (task == null) StopScoring.INFO else StopScoring.byMistakes(wrongTaps), mistakes = wrongTaps))
+        }
     }
 }
 

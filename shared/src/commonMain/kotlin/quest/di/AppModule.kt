@@ -151,7 +151,7 @@ val contentModule = module {
     factory { SignOutUseCase(get(), get(), get()) }
     viewModel { ChildrenViewModel(get(), get()) }
     factory { LessonCopy(get(), get()) }
-    viewModel { MapViewModel(get(), get(), get(), get(), get()) }
+    viewModel { MapViewModel(get(), get(), get(), get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> LessonCompleteViewModel(lessonId, level, variant, get(), get(), get(), get(), get(), get()) }

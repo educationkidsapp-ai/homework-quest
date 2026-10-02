@@ -28,6 +28,7 @@ import quest.feature.content.domain.StopMediaRecord
 import quest.ui.stops.DrawingPreview
 import quest.api.dto.PublishedLesson
 import quest.api.dto.ReleasedResult
+import quest.feature.journey.presentation.isExam
 import quest.feature.parent.domain.ReleasedResultsUseCase
 import quest.feature.content.domain.LessonRepository
 import quest.ui.design.Dimens
@@ -88,6 +89,13 @@ fun LessonPanelScreen(lesson: PublishedLesson, s: Strings, media: List<StopMedia
                 }
             }
         }
+        // §8: until the teacher releases an exam, the parent area shows nothing of it — not the result, and not the
+        // paper either (its questions, tips and model answers would hand the exam to whoever holds the phone).
+        if (lesson.isExam && result == null) {
+            ParentCard { Text(s.examResultPending, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink) }
+            Spacer(Modifier.height(Dimens.s24))
+            return@Column
+        }
         SectionTitle(s.objectives)
         ParentCard { (if (ar) panel.objectives.ar else panel.objectives.en).forEach { Text("• $it", style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink) } }
         SectionTitle(s.supported)
@@ -95,10 +103,11 @@ fun LessonPanelScreen(lesson: PublishedLesson, s: Strings, media: List<StopMedia
         SectionTitle(s.challengeIdeas)
         ParentCard { panel.challenge.forEach { Text("• ${if (ar) it.ar else it.en}", style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink) } }
         SectionTitle(s.tipsPerStop)
-        lesson.plays.forEach { play ->
+        // A released exam lists the one paper that was sat; it has no levels to unlock.
+        (if (lesson.isExam) listOfNotNull(lesson.examPlay) else lesson.plays).forEach { play ->
             androidx.compose.foundation.layout.Row(Modifier.padding(top = Dimens.s8), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("${s.level} ${play.level}", style = MaterialTheme.typography.titleMedium, color = DashboardTokens.inkSoft, modifier = Modifier.weight(1f))
-                if (play.level in unlocked) Chip("✓", DashboardTokens.successBg) else Chip(s.unlockLevel) { onUnlock(play.level) }
+                if (!lesson.isExam) { if (play.level in unlocked) Chip("✓", DashboardTokens.successBg) else Chip(s.unlockLevel) { onUnlock(play.level) } }
             }
             play.stops.forEach { stop ->
                 ParentCard(Modifier.padding(top = Dimens.s8)) {

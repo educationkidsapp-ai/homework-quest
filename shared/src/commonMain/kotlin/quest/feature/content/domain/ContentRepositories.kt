@@ -39,8 +39,19 @@ interface JourneyRepository {
     suspend fun parentUnlocks(childId: String): Map<String, List<Int>>
     suspend fun unlockLevel(childId: String, lessonId: String, level: Int)
     suspend fun flushAttempts(childId: String): Int
+
+    /**
+     * §8: sends the queued attempts of **one** lesson now and says how the server took them. An exam is a single
+     * sitting inside a window, so its answers go up as they are given and a refusal has to reach the screen:
+     * [SubmitOutcome.ALREADY_TAKEN] and [SubmitOutcome.CLOSED] are the server's `409`s, and the refused attempts are
+     * dropped from the queue — they will never be accepted, and left there they would fail every later upload.
+     */
+    suspend fun submit(childId: String, lessonId: String): SubmitOutcome
     suspend fun firstTryResults(childId: String, skillId: String): List<Boolean>
     suspend fun progressReport(childId: String): ProgressResponse?
 }
+
+/** How the server took one lesson's attempts. [QUEUED] is "not reached": they stay on the device and go up later. */
+enum class SubmitOutcome { SENT, QUEUED, ALREADY_TAKEN, CLOSED }
 
 data class StopMediaRecord(val stopId: String, val level: Int, val recordingPath: String?, val drawingPath: String?, val completedAt: Long)

@@ -1,5 +1,9 @@
 package quest.feature.content.data
 
+import quest.feature.content.domain.SubmitOutcome
+import quest.core.runCancellable
+import quest.api.dto.ApiError
+import quest.api.ApiException
 import kotlinx.datetime.LocalDate
 import quest.api.ContentApi
 import quest.api.dto.AttemptUpload
@@ -120,9 +124,36 @@ class JourneyRepositoryImpl(private val api: ContentApi, private val db: Db) : J
         val pending = db.read { selectPendingAttempts(childId).executeAsList() }
         if (pending.isEmpty()) return 0
         val uploads = pending.map { AttemptUpload(it.id, it.stopId, it.lessonId, it.level.toInt(), it.answerJson, it.correct == 1L, it.attemptNumber.toInt(), it.mistakes.toInt(), it.stars.toInt(), it.answeredAt) }
-        val ack = runCatching { api.uploadAttempts(childId, uploads) }.getOrNull() ?: return 0
+        val result = runCancellable { api.uploadAttempts(childId, uploads) }
+        val ack = result.getOrNull()
+        if (ack == null) {
+            // A closed or already-sat exam refuses the batch it is in. Its attempts are handed in lesson by lesson
+            // (which drops the refused ones), so one exam cannot hold every other lesson's answers on the device.
+            if (result.exceptionOrNull().examRefusal() != null) pending.map { it.lessonId }.distinct().forEach { submit(childId, it) }
+            return 0
+        }
         db.write { markAttemptsUploaded(pending.map { it.id }) }
         return ack.accepted
+    }
+
+    override suspend fun submit(childId: String, lessonId: String): SubmitOutcome {
+        val pending = db.read { selectPendingAttempts(childId).executeAsList() }.filter { it.lessonId == lessonId }
+        if (pending.isEmpty()) return SubmitOutcome.SENT
+        val uploads = pending.map { AttemptUpload(it.id, it.stopId, it.lessonId, it.level.toInt(), it.answerJson, it.correct == 1L, it.attemptNumber.toInt(), it.mistakes.toInt(), it.stars.toInt(), it.answeredAt) }
+        val result = runCancellable { api.uploadAttempts(childId, uploads) }
+        val refusal = result.exceptionOrNull().examRefusal()
+        return when {
+            result.isSuccess -> { db.write { markAttemptsUploaded(pending.map { it.id }) }; SubmitOutcome.SENT }
+            refusal != null -> { db.write { markAttemptsUploaded(pending.map { it.id }) }; refusal }
+            else -> SubmitOutcome.QUEUED
+        }
+    }
+
+    /** The two `409`s of §8, as the outcome they mean; null for every other failure. */
+    private fun Throwable?.examRefusal(): SubmitOutcome? = when ((this as? ApiException)?.error?.code) {
+        ApiError.EXAM_ALREADY_TAKEN -> SubmitOutcome.ALREADY_TAKEN
+        ApiError.EXAM_CLOSED -> SubmitOutcome.CLOSED
+        else -> null
     }
 
     override suspend fun firstTryResults(childId: String, skillId: String): List<Boolean> = db.read { selectFirstTryResultsForSkill(childId, "%$skillId%").executeAsList().map { it == 1L } }

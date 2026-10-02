@@ -9,6 +9,8 @@ import quest.core.mvi.MviViewModel
 import quest.core.platform.Today
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.content.domain.JourneyRepository
+import quest.feature.content.domain.LessonRepository
+import quest.feature.journey.presentation.isExam
 import quest.feature.content.domain.MapRepository
 import quest.feature.journey.presentation.LessonCopy
 import quest.feature.map.presentation.MapContract.Effect
@@ -22,6 +24,8 @@ class MapViewModel(
     private val journey: JourneyRepository,
     private val rewards: RewardsRepository,
     private val copy: LessonCopy,
+    private val lessons: LessonRepository,
+    private val now: () -> Long = Today::epochMillis,
 ) : MviViewModel<State, Intent, Effect>(State()) {
 
     override suspend fun handle(intent: Intent) {
@@ -39,11 +43,26 @@ class MapViewModel(
         val today = Today.date()
         val map = maps.map(child, today.minus(30, DateTimeUnit.DAY), today.plus(7, DateTimeUnit.DAY), today)
         val streak = rewards.streak()
-        reduce { copy(loading = false, child = child, islands = map.islands, streakDays = streak.currentDays) }
+        // An island with a window is an exam the server says is open; one without may still be an exam the device has
+        // cached (the map came from the cache, or the paper was already handed in) and must not be drawn as homework.
+        val exams = map.islands.filter { it.lessonId != null && (it.examWindow != null || runCatching { lessons.cached(it.lessonId!!) }.getOrNull()?.isExam == true) }.mapNotNull { it.lessonId }.toSet()
+        reduce { copy(loading = false, child = child, islands = map.islands, streakDays = streak.currentDays, exams = exams, now = now()) }
     }
 
     private suspend fun tap(id: String) {
         val island = current.islands.firstOrNull { it.id == id } ?: return
+        if (island.lessonId in current.exams) {
+            // §8: an exam opens only inside its window and only once. Outside it the card says why, and so does this.
+            val t = copy.strings()
+            when (examStatus(island, now())) {
+                ExamStatus.OPEN -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 0))
+                ExamStatus.SUBMITTED -> effect(Effect.Speak(t.examAlreadyTaken))
+                ExamStatus.CLOSED -> effect(Effect.Speak(t.examClosed))
+                ExamStatus.NOT_OPEN -> effect(Effect.Speak(t.examNotOpenYet))
+                ExamStatus.UNAVAILABLE -> effect(Effect.Speak(t.examNeedsConnection))
+            }
+            return
+        }
         when (island.kind) {
             IslandKind.LOCKED -> effect(Effect.Speak(copy.strings().speakLocked))
             IslandKind.REVIEW -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 1))

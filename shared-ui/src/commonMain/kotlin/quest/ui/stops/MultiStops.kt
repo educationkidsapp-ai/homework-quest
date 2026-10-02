@@ -58,6 +58,7 @@ private fun PickTiles(id: String, prompt: String, options: List<Tile>, correctId
     var done by rememberSaveable(id) { mutableStateOf(false) }
     val remaining = pick?.let { it - lit.size }
     val labels = LocalStopLabels.current
+    val exam = LocalExamMode.current
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         PromptText(prompt)
         if (pick != null) Text(labels.moreToSelect.replace("{n}", "$remaining"), style = MaterialTheme.typography.labelLarge, color = DashboardTokens.inkSoft)
@@ -68,6 +69,14 @@ private fun PickTiles(id: String, prompt: String, options: List<Tile>, correctId
         })
         CheckButton(enabled = selected.isNotEmpty() && !done) {
             val (right, wrong) = quest.api.dto.MultiAnswerLogic.check(selected, correctIds)
+            if (exam) {
+                // One Check, and what was selected is the answer: it stays selected, nothing lights or dims.
+                val missed = correctIds.count { it !in selected }
+                val perfect = wrong.isEmpty() && missed == 0
+                done = true
+                onEvent(StopEvent.Completed(if (perfect) StopScoring.byMistakes(0) else 0, answer = selected.joinToString(","), mistakes = wrong.size + missed, correct = perfect))
+                return@CheckButton
+            }
             lit = lit + right; dimmed = dimmed + wrong; mistakes += wrong.size; selected = emptySet()
             if (wrong.isNotEmpty()) onEvent(StopEvent.Speak(if (right.isNotEmpty()) labels.someRight else labels.notThose))
             if (lit.containsAll(correctIds)) { done = true; onEvent(StopEvent.Completed(StopScoring.byMistakes(mistakes), answer = lit.joinToString(","), mistakes = mistakes)) }
@@ -88,16 +97,29 @@ fun MatchStop(stop: Stop.Match, onEvent: (StopEvent) -> Unit, modifier: Modifier
     var mistakes by rememberSaveable(stop.id) { mutableIntStateOf(0) }
     var done by rememberSaveable(stop.id) { mutableStateOf(false) }
     val notAMatch = LocalStopLabels.current.notAMatch
+    val exam = LocalExamMode.current
+    // Exam: every pairing the student makes is kept as made (left id → right id), right or wrong.
+    var paired by rememberSaveable(stop.id) { mutableStateOf(mapOf<String, String>()) }
     Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
         PromptText(stop.prompt); Spacer(Modifier.height(Dimens.s16))
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s16)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Dimens.s12)) {
-                stop.pairs.forEach { p -> MatchTile(p.left, locked = p.id in matched, selected = left == p.id, tag = TestTags.matchLeft(p.id), onClick = { if (p.id !in matched) { left = p.id; onEvent(StopEvent.Speak(p.left.label ?: p.left.illustrationKey ?: "")) } }) }
+                stop.pairs.forEach { p -> MatchTile(p.left, locked = p.id in matched || p.id in paired, selected = left == p.id, neutral = exam, tag = TestTags.matchLeft(p.id), onClick = { if (p.id !in matched && p.id !in paired) { left = p.id; onEvent(StopEvent.Speak(p.left.label ?: p.left.illustrationKey ?: "")) } }) }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Dimens.s12)) {
                 rights.forEach { rid -> val p = stop.pairs.first { it.id == rid }
-                    MatchTile(p.right, locked = p.id in matched, selected = false, tag = TestTags.matchRight(p.id), onClick = {
+                    MatchTile(p.right, locked = p.id in matched || p.id in paired.values, selected = false, neutral = exam, tag = TestTags.matchRight(p.id), onClick = {
                         val l = left ?: return@MatchTile
+                        if (exam) {
+                            if (p.id in paired.values) return@MatchTile
+                            paired = paired + (l to p.id); left = null
+                            if (paired.size == stop.pairs.size) {
+                                val wrong = paired.count { (a, b) -> a != b }
+                                done = true
+                                onEvent(StopEvent.Completed(if (wrong == 0) StopScoring.byMistakes(0) else 0, answer = paired.entries.joinToString(",") { "${it.key}=${it.value}" }, mistakes = wrong, correct = wrong == 0))
+                            }
+                            return@MatchTile
+                        }
                         if (l == p.id) { matched = matched + p.id; left = null; if (matched.size == stop.pairs.size) { done = true; onEvent(StopEvent.Completed(StopScoring.byMistakes(mistakes), mistakes = mistakes)) } }
                         else { mistakes += 1; left = null; onEvent(StopEvent.Speak(notAMatch)) }
                     })
@@ -108,10 +130,11 @@ fun MatchStop(stop: Stop.Match, onEvent: (StopEvent) -> Unit, modifier: Modifier
 }
 
 @Composable
-private fun MatchTile(tile: Tile, locked: Boolean, selected: Boolean, tag: String, onClick: () -> Unit) {
+private fun MatchTile(tile: Tile, locked: Boolean, selected: Boolean, tag: String, neutral: Boolean = false, onClick: () -> Unit) {
     Box(
         Modifier.fillMaxWidth().height(84.dp).alpha(if (locked) 0.55f else 1f)
-            .background(if (locked) DashboardTokens.successBg else MaterialTheme.colorScheme.surface, RoundedCornerShape(DashboardTokens.radiusMd))
+            // In an exam a paired tile is only "used", so it takes the neutral tint rather than the success one.
+            .background(if (locked && neutral) DashboardTokens.bgSubtle else if (locked) DashboardTokens.successBg else MaterialTheme.colorScheme.surface, RoundedCornerShape(DashboardTokens.radiusMd))
             .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
             .clickable(enabled = !locked, role = Role.Button, onClick = onClick)
             .testTag(tag)
@@ -137,6 +160,7 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
     var locked by rememberSaveable(stop.id) { mutableIntStateOf(0) }  // leading prefix confirmed correct
     val byId = stop.items.associateBy { it.id }
     val partlyRight = LocalStopLabels.current.orderPartlyRight
+    val exam = LocalExamMode.current
     Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
         PromptText(stop.prompt); Spacer(Modifier.height(Dimens.s12))
         // slots
@@ -166,6 +190,13 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
         CheckButton(enabled = placed.size == stop.correctOrder.size && !done) {
             attempts += 1
             val prefix = quest.api.dto.MultiAnswerLogic.lockedPrefix(placed, stop.correctOrder)
+            if (exam) {
+                // The order as placed is the answer; nothing is locked or sent back.
+                val right = prefix == stop.correctOrder.size
+                done = true
+                onEvent(StopEvent.Completed(if (right) StopScoring.byAttempts(1) else 0, answer = placed.joinToString(","), mistakes = if (right) 0 else 1, correct = right))
+                return@CheckButton
+            }
             if (prefix == stop.correctOrder.size) { locked = prefix; done = true; onEvent(StopEvent.Completed(StopScoring.byAttempts(attempts), answer = placed.joinToString(","), mistakes = attempts - 1)) }
             else { locked = prefix; placed = placed.take(prefix); onEvent(StopEvent.Speak(partlyRight.replace("{n}", "$prefix"))) }
         }
@@ -174,10 +205,16 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
 
 @Composable
 fun TraceStop(stop: Stop.Trace, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
+    val exam = LocalExamMode.current
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         TraceCanvas(stop.text, onFinished = { coverage ->
             val stars = TraceScorer.stars(coverage)
-            if (stars == 0) onEvent(StopEvent.Speak(stop.hint)) else onEvent(StopEvent.Completed(stars, answer = "coverage=$coverage"))
+            when {
+                // An exam takes the tracing as it is, with no hint and no second go.
+                exam -> onEvent(StopEvent.Completed(stars, answer = "coverage=$coverage", correct = stars > 0))
+                stars == 0 -> onEvent(StopEvent.Speak(stop.hint))
+                else -> onEvent(StopEvent.Completed(stars, answer = "coverage=$coverage"))
+            }
         })
     }
 }
@@ -244,14 +281,28 @@ fun ExitTicketStop(stop: Stop.ExitTicket, onEvent: (StopEvent) -> Unit, modifier
     var index by rememberSaveable(stop.id) { mutableIntStateOf(0) }
     var stars by rememberSaveable(stop.id) { mutableStateOf(listOf<Int>()) }
     val q = stop.questions.getOrNull(index) ?: return
+    val exam = LocalExamMode.current
+    var wrongAnswers by rememberSaveable(stop.id) { mutableIntStateOf(0) }
+    // Exam: each of the three takes one answer and the ticket moves on in silence; the player hears only that the
+    // whole stop is finished, so nothing between the questions says which were right.
+    fun examNext(earned: Int, right: Boolean) {
+        val all = stars + earned
+        stars = all
+        if (!right) wrongAnswers += 1
+        if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(quest.api.dto.MultiAnswerLogic.exitTicketStars(all), mistakes = wrongAnswers, correct = wrongAnswers == 0))
+        else { index += 1; onEvent(StopEvent.Speak(stop.questions[index].speak)) }
+    }
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = Dimens.s8)) {
             stop.questions.indices.forEach { i -> Box(Modifier.size(14.dp).background(if (i < index) DashboardTokens.success else if (i == index) MaterialTheme.colorScheme.primary else DashboardTokens.inkSoft.copy(alpha = 0.3f), RoundedCornerShape(7.dp))) }
         }
         StopContent(q, onEvent = { e ->
-            when (e) {
-                is StopEvent.Correct -> { val s = stars + StopScoring.singleAnswer(e.attempt); stars = s; onEvent(e); if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(quest.api.dto.MultiAnswerLogic.exitTicketStars(s))) else index += 1 }
-                is StopEvent.Completed -> { val s = stars + e.stars; stars = s; if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(quest.api.dto.MultiAnswerLogic.exitTicketStars(s))) else { index += 1; onEvent(StopEvent.Speak(stop.questions[index].speak)) } }
+            when {
+                exam && e is StopEvent.Correct -> examNext(StopScoring.singleAnswer(1), right = true)
+                exam && e is StopEvent.Wrong -> examNext(0, right = false)
+                exam && e is StopEvent.Completed -> examNext(e.stars, right = e.correct)
+                e is StopEvent.Correct -> { val s = stars + StopScoring.singleAnswer(e.attempt); stars = s; onEvent(e); if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(quest.api.dto.MultiAnswerLogic.exitTicketStars(s))) else index += 1 }
+                e is StopEvent.Completed -> { val s = stars + e.stars; stars = s; if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(quest.api.dto.MultiAnswerLogic.exitTicketStars(s))) else { index += 1; onEvent(StopEvent.Speak(stop.questions[index].speak)) } }
                 else -> onEvent(e)
             }
         })

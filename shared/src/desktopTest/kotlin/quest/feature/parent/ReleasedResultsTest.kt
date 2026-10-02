@@ -38,6 +38,7 @@ class ReleasedResultsTest {
         override suspend fun parentUnlocks(childId: String): Map<String, List<Int>> = emptyMap()
         override suspend fun unlockLevel(childId: String, lessonId: String, level: Int) = error("not used")
         override suspend fun flushAttempts(childId: String): Int = 0
+        override suspend fun submit(childId: String, lessonId: String) = quest.feature.content.domain.SubmitOutcome.SENT
         override suspend fun firstTryResults(childId: String, skillId: String): List<Boolean> = emptyList()
     }
 
