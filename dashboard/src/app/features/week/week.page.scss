@@ -188,7 +188,7 @@
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 999px;
-  background: var(--hq-color-brand-50);
+  background: var(--hq-color-info-soft);
   color: var(--hq-color-brand-ink);
 }
 
@@ -552,8 +552,8 @@
     color: #15803d;
   }
   &--leave {
-    background: var(--hq-color-orange-100);
-    color: var(--hq-color-orange-800);
+    background: var(--hq-color-warning-100);
+    color: var(--hq-color-warning-700);
   }
   &--danger {
     background: #fee2e2;

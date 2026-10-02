@@ -1150,7 +1150,7 @@ interface ParsedChatMessage {
             color: rgba(255, 255, 255, 0.9);
           }
           .message-bubble__status--read {
-            color: var(--hq-color-brand-300);
+            color: var(--hq-color-brand-100);
             font-weight: 700;
           }
           .message-bubble__status--failed {
@@ -1942,7 +1942,7 @@ interface ParsedChatMessage {
         }
         &.is-active {
           background: color-mix(in srgb, var(--hq-color-brand-500) 20%, transparent) !important;
-          color: var(--hq-color-brand-400) !important;
+          color: var(--hq-color-brand-300) !important;
         }
       }
 

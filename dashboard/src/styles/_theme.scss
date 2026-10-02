@@ -168,6 +168,9 @@
   --hq-color-tertiary: var(--hq-color-orange-400);
   --hq-color-tertiary-soft: var(--hq-color-orange-50);
   --hq-color-tertiary-ink: var(--hq-color-orange-800);
+  // Yellow is a light fill in both schemes, so what sits on it is dark in both: white on
+  // `warning-500` is 1.78:1, `gray-900` is 9.99:1.
+  --hq-color-on-warning: var(--hq-color-gray-900);
   --hq-color-info-soft: var(--hq-color-brand-50);
   --hq-color-info-ink: var(--hq-color-brand-700);
   // The brand blue as text and as a fill that carries white text, for the surfaces that are the
@@ -221,8 +224,10 @@
   --hq-color-teal-600: #0891b2;
   --hq-gradient-blue: linear-gradient(135deg, var(--hq-color-brand-400) 0%, var(--hq-color-brand-600) 100%);
   --hq-gradient-magenta: linear-gradient(135deg, var(--hq-color-magenta-400) 0%, var(--hq-color-magenta-600) 100%);
-  --hq-gradient-orange: linear-gradient(135deg, var(--hq-color-orange-400) 0%, var(--hq-color-orange-600) 100%);
-  --hq-gradient-neutral: linear-gradient(135deg, var(--hq-color-gray-400) 0%, var(--hq-color-gray-600) 100%);
+  // The tiles carry a white glyph, which needs 3:1 on the *first* stop: the logo's own orange
+  // is 2.14:1 under white and `gray-400` 2.58:1, so both gradients start two steps in.
+  --hq-gradient-orange: linear-gradient(135deg, var(--hq-color-orange-600) 0%, var(--hq-color-orange-700) 100%);
+  --hq-gradient-neutral: linear-gradient(135deg, var(--hq-color-gray-500) 0%, var(--hq-color-gray-700) 100%);
   --hq-gradient-green: linear-gradient(135deg, var(--hq-color-success-500) 0%, var(--hq-color-success-700) 100%);
   --hq-gradient-teal: linear-gradient(135deg, var(--hq-color-teal-400) 0%, var(--hq-color-teal-600) 100%);
   --hq-gradient-warning: linear-gradient(135deg, var(--hq-color-warning-400) 0%, var(--hq-color-warning-600) 100%);

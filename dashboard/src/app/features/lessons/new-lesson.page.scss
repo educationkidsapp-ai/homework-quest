@@ -262,9 +262,9 @@
   }
 
   &--word {
-    background: var(--hq-color-brand-100);
-    color: var(--hq-color-brand-ink);
-    border: 1px solid var(--hq-color-brand-200);
+    background: var(--hq-color-info-soft);
+    color: var(--hq-color-info-ink);
+    border: 1px solid color-mix(in srgb, var(--hq-color-brand-400) 40%, transparent);
   }
 
   &--ppt {

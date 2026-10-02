@@ -209,7 +209,7 @@
 
   &--late.attendance__status-btn--active {
     background: var(--hq-color-warning-500);
-    color: #ffffff;
+    color: var(--hq-color-on-warning);
     box-shadow: 0 2px 6px color-mix(in srgb, var(--hq-color-warning-500) 25%, transparent);
   }
 

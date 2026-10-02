@@ -114,8 +114,12 @@ signature and stays the logo's blues, exactly as the gradient it replaced did. T
 | `tertiary` | `orange-400` `#FB9B0A` | `orange-400` `#FB9B0A` |
 | `tertiary-soft` / `tertiary-ink` | `orange-50` / `orange-800` | `orange-400` 16 % / `orange-300` |
 | `info-soft` / `info-ink` | `brand-50` / `brand-700` | `brand-400` 16 % / `brand-300` |
+| `on-warning` (text on a yellow fill) | `gray-900` `#101828` | same |
 | `warning-soft` / `warning-ink` | `warning-50` / `warning-700` | `warning-500` 15 % / `warning-500` |
 | Ground / surface / ink | `#F9FAFB` / `#FFFFFF` / `#1D2939` | `#101828` / `#171F2E` / white 90 % |
+
+Tile gradients that carry a white glyph start at a stop white reaches 3:1 on: orange `#C17307` → `#A25E05`, neutral
+`#667085` → `#344054`, blue `#089CDF` → `#0762BF`, magenta `#D25EAA` → `#B8047A`.
 
 Categorical series, in order: `brand-500`, `magenta-600`, `orange-400`, `gray-500`, teal `#0891B2`, `brand-900`
 (dark: `brand-400`, `magenta-400`, `orange-400`, `gray-400`, teal `#22D3EE`, `brand-200`).

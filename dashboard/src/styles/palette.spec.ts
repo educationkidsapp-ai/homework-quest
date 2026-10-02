@@ -134,6 +134,28 @@ const TEXT_PAIRS: readonly (readonly [string, string])[] = [
   [WHITE, 'var(--hq-gradient-brand-fill-from)'],
   [WHITE, 'var(--hq-gradient-brand-to)'],
   [WHITE, role('secondary')],
+  // Pairs written in feature styles rather than as a role pair (review of #189).
+  [role('on-warning'), role('warning-500')], // attendance "late", the amber tile
+  [role('on-warning'), role('warning-600')],
+  [role('brand-ink'), role('info-soft')], // count badges, quiet buttons, the Word chip
+  [role('warning-700'), role('warning-100')], // `.em-pill--warning` / `--leave`
+];
+
+/** Pairs that only exist under `html.dark`. */
+const DARK_PAIRS: readonly (readonly [string, string])[] = [
+  [role('brand-300'), 'color-mix(in srgb, var(--hq-color-brand-500) 20%, transparent)'], // info pill, emoji tab
+  [role('brand-300'), 'color-mix(in srgb, var(--hq-color-brand-500) 25%, transparent)'],
+  [role('warning-300'), 'color-mix(in srgb, var(--hq-color-warning-500) 20%, transparent)'],
+];
+
+/** Glyphs and ticks, which need 3:1 rather than 4.5:1 — measured on both ends of a gradient. */
+const GLYPH_PAIRS: readonly (readonly [string, string])[] = [
+  [role('brand-100'), 'var(--hq-gradient-brand-fill-from)'], // the chat bubble's read tick
+  [role('brand-100'), 'var(--hq-gradient-brand-to)'],
+  [WHITE, role('orange-600')], // `--hq-gradient-orange`, first stop
+  [WHITE, role('gray-500')], // `--hq-gradient-neutral`, first stop
+  [WHITE, role('brand-400')], // `--hq-gradient-blue`
+  [WHITE, role('magenta-400')], // `--hq-gradient-magenta`
 ];
 
 describe('logo palette', () => {
@@ -176,6 +198,22 @@ describe('logo palette', () => {
       }
     });
   }
+
+  it('clears AA for the pairs that only the dark scheme draws', () => {
+    for (const [text, background] of DARK_PAIRS) {
+      expect(contrast(dark, text, background), `${text} on ${background}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('keeps glyphs and ticks at 3:1 on the first and last stop of their gradient', () => {
+    for (const scheme of [light, dark]) {
+      for (const [glyph, fill] of GLYPH_PAIRS) {
+        expect(contrast(scheme, glyph, fill), `${glyph} on ${fill}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+    expect(light.get('--hq-gradient-orange')).toContain('var(--hq-color-orange-600) 0%');
+    expect(light.get('--hq-gradient-neutral')).toContain('var(--hq-color-gray-500) 0%');
+  });
 
   it('keeps warning and error clear of the orange and the magenta', () => {
     const hue = (name: string): number => {

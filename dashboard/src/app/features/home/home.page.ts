@@ -693,8 +693,8 @@ interface QuickActionItem {
         color: #15803d;
       }
       &--leave {
-        background: var(--hq-color-orange-100);
-        color: var(--hq-color-orange-800);
+        background: var(--hq-color-warning-100);
+        color: var(--hq-color-warning-700);
       }
       &--danger {
         background: #fee2e2;
