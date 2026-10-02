@@ -49,6 +49,8 @@ import quest.feature.content.domain.JourneyRepository
 import quest.feature.content.domain.LessonRepository
 import quest.feature.content.domain.LevelProgress
 import quest.feature.content.domain.MapRepository
+import quest.feature.content.domain.PendingAnswersSync
+import quest.core.platform.ManualConnectivity
 import quest.feature.content.domain.StopMediaRecord
 import quest.feature.content.domain.SubmitOutcome
 import quest.feature.journey.presentation.JourneyContract
@@ -137,7 +139,7 @@ class ExamModeTest {
         var unsent = 0
         override suspend fun submit(childId: String, lessonId: String): SubmitOutcome { submits++; if (outcome == SubmitOutcome.SENT || outcome == SubmitOutcome.ALREADY_TAKEN) unsent = 0; return outcome }
         override suspend fun pendingCount(childId: String, lessonId: String): Int = unsent
-        override suspend fun pending(childId: String): Map<String, Int> = if (unsent > 0) mapOf("exam" to unsent) else emptyMap()
+        override suspend fun pending(childId: String): Map<String, Int> = if (unsent > 0) mapOf(HotSoupSeed.lesson.id to unsent) else emptyMap()
         override suspend fun firstTryResults(childId: String, skillId: String, excludeLessons: Set<String>): List<Boolean> = emptyList()
         override suspend fun progressReport(childId: String): ProgressResponse? = null
     }
@@ -160,8 +162,8 @@ class ExamModeTest {
         block()
     }
 
-    private fun TestScope.player(journey: FakeJourney, lesson: PublishedLesson = exam, startIndex: Int = 0): Pair<StopPlayerViewModel, MutableList<PlayerContract.Effect>> {
-        val vm = StopPlayerViewModel(lesson.id, 1, 0, startIndex, FakeLessons(lesson), journey, FakeChildren(maya), media, copy).also { built.add(it) }
+    private fun TestScope.player(journey: FakeJourney, lesson: PublishedLesson = exam, startIndex: Int = 0, sync: PendingAnswersSync? = null): Pair<StopPlayerViewModel, MutableList<PlayerContract.Effect>> {
+        val vm = StopPlayerViewModel(lesson.id, 1, 0, startIndex, FakeLessons(lesson), journey, FakeChildren(maya), media, copy, sync = sync).also { built.add(it) }
         val effects = mutableListOf<PlayerContract.Effect>()
         backgroundScope.launch { vm.effects.collect { effects += it } }
         runCurrent()
@@ -455,6 +457,28 @@ class ExamModeTest {
         assertEquals(PlayerContract.Effect.Finished(exam.id, 1, 0), effects.last())
         val state = complete(journey)
         assertFalse(state.examClosed); assertEquals(0, state.undelivered)
+    }
+
+    /** M4 (D3): back online, the paper is handed in by itself — "Sending your answers…" waits for no tap. */
+    @Test fun aPaperLeftSendingIsSubmittedByItselfWhenTheNetworkReturns() = examTest {
+        val last = paper.stops.lastIndex
+        val journey = answeredUpTo(last).apply { outcome = SubmitOutcome.QUEUED }
+        val net = ManualConnectivity(initial = false)
+        val sync = PendingAnswersSync(net, journey, FakeChildren(maya))
+        sync.start(backgroundScope)
+        val (vm, effects) = player(journey, sync = sync)
+        vm.dispatch(PlayerContract.Intent.Completed(stars = 2, answer = "x", mistakes = 0, correct = true))
+        advanceTimeBy(10_000); runCurrent()
+        assertEquals(Phase.SENDING, vm.state.value.phase)
+        assertEquals(0, journey.completed)
+
+        journey.outcome = SubmitOutcome.SENT                      // the network comes back; nobody taps anything
+        net.set(true)
+        advanceTimeBy(1_000); runCurrent()
+
+        assertEquals(Phase.DONE, vm.state.value.phase)
+        assertEquals(1, journey.completed, "handed in once, and only after the server took the answers")
+        assertEquals(PlayerContract.Effect.Finished(exam.id, 1, 0), effects.last())
     }
 
     @Test fun theWindowClosingOnUnsentAnswersSaysHowManyWereNotDelivered() = examTest {

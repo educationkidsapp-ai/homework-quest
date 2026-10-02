@@ -5,6 +5,8 @@ import quest.core.runCancellable
 import quest.api.dto.ApiError
 import quest.api.ApiException
 import kotlinx.datetime.LocalDate
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import quest.api.ContentApi
 import quest.api.dto.AttemptUpload
 import quest.api.dto.Child
@@ -79,6 +81,13 @@ class MapRepositoryImpl(private val api: ContentApi, private val lessons: Lesson
 }
 
 class JourneyRepositoryImpl(private val api: ContentApi, private val db: Db) : JourneyRepository {
+    /**
+     * M4: one hand-in at a time. The exam screen, the home page and [quest.feature.content.domain.PendingAnswersSync]
+     * all call [submit]; serialised, the second caller finds the queue the first one emptied instead of sending the
+     * same answers twice.
+     */
+    private val submitting = Mutex()
+
     override suspend fun progress(childId: String, lessonId: String, level: Int, variant: Int): LevelProgress = db.read {
         val stops = selectStopCompletions(childId, lessonId, level.toLong(), variant.toLong()).executeAsList().associate { it.stopId to it.stars.toInt() }
         val done = selectLessonCompletionsFor(childId, lessonId).executeAsList().firstOrNull { it.level.toInt() == level && it.variant.toInt() == variant }
@@ -132,7 +141,9 @@ class JourneyRepositoryImpl(private val api: ContentApi, private val db: Db) : J
         return sent
     }
 
-    override suspend fun submit(childId: String, lessonId: String): SubmitOutcome {
+    override suspend fun submit(childId: String, lessonId: String): SubmitOutcome = submitting.withLock { submitLocked(childId, lessonId) }
+
+    private suspend fun submitLocked(childId: String, lessonId: String): SubmitOutcome {
         val pending = db.read { selectPendingAttempts(childId).executeAsList() }.filter { it.lessonId == lessonId }
         if (pending.isEmpty()) return SubmitOutcome.SENT
         val uploads = pending.map { AttemptUpload(it.id, it.stopId, it.lessonId, it.level.toInt(), it.answerJson, it.correct == 1L, it.attemptNumber.toInt(), it.mistakes.toInt(), it.stars.toInt(), it.answeredAt) }

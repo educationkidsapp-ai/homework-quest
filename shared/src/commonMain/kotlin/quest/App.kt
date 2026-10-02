@@ -29,6 +29,9 @@ import quest.api.AuthProvider
 import quest.api.AuthState
 import quest.core.navigation.Routes
 import quest.di.AppInitializer
+import quest.feature.content.domain.PendingAnswersSync
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import quest.feature.auth.presentation.SignInRoute
 import quest.feature.children.presentation.ChildPickerRoute
 import quest.feature.journey.presentation.JourneyRoute
@@ -57,6 +60,9 @@ fun App() {
             CompositionLocalProvider(LocalDarkTheme provides appearance.isDark(isSystemInDarkTheme())) { AcademicTheme { AnimatedLoadingView("…") } }
             return@KoinContext
         }
+        // M4 (D3): back in front — whatever was kept offline is tried again at once, whichever screen is showing.
+        val answers: PendingAnswersSync = koinInject()
+        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { answers.nudge() }
         val nav = rememberNavController()
         val start: Any = if (auth.state.value is AuthState.SignedIn) Routes.WorldMap else Routes.SignIn
         // Everything below sees the joined school's colours, name, logo and feature flags (§3, §4).
