@@ -88,6 +88,10 @@ class ChatApiTest extends ChatTestSupport {
         assertThat(mine.get(0).get("childId").asText()).isEqualTo(maya);
         assertThat(mine.get(0).get("teacherName").asText()).isEqualTo("Ms Sara");
         assertThat(mine.get(0).get("lastMessage").get("body").asText()).isEqualTo("Welcome!");
+        // N1 `peerRole`: the teacher is talking to a parent, and the parent's row of the same thread to a teacher.
+        assertThat(mine.get(0).get("peerRole").asText()).isEqualTo("PARENT");
+        for (var row : json(mvc.perform(parent(get("/children/" + maya + "/chat/threads"))).andExpect(status().isOk()).andReturn()))
+            assertThat(row.get("peerRole").asText()).as("the parent's row with %s", row.get("teacherName")).isEqualTo("TEACHER");
     }
 
     @Test void the_flag_off_is_a_404_on_every_route() throws Exception {

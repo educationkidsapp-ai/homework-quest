@@ -12,8 +12,8 @@ let nextReasonId = 0;
  *
  * * **primary** — the brand fill, white label.
  * * **secondary** — surface on a 1 px control rule.
- * * **danger** — §3's *outline*: surface on the error ramp's rule, error ink. Solid red is not
- *   a variant here, because the one place this system shouts is the red band behind it.
+ * * **danger** — solid red from the error ramp, white label: a destructive action, and every
+ *   Cancel (N1, the owner's rule).
  * * **quiet** — no box until it is hovered.
  * * **icon** — a 44×44 square for a glyph, with the label read out rather than drawn.
  *
@@ -124,19 +124,25 @@ let nextReasonId = 0;
       }
     }
 
-    // §3's danger *outline*. The error ramp, not the accent: the accent is brand-500 on this
-    // palette, and a blue Delete button is a button nobody hesitates over.
+    // Solid red, white words (4.8:1 in both themes — the fill does not change with the theme),
+    // darker on hover and press: the destructive action, and every Cancel (N1). The error ramp,
+    // not the accent: a blue Delete button is a button nobody hesitates over.
     .btn--danger {
-      background: var(--hq-color-surface);
-      border-color: var(--hq-color-error-rule);
-      color: var(--hq-color-error-ink);
+      background: var(--hq-color-error-600);
+      border-color: var(--hq-color-error-600);
+      color: var(--hq-color-on-accent);
+      box-shadow: var(--hq-shadow-xs);
 
-      &:hover:not(:disabled) {
-        background: var(--hq-color-error-soft);
+      &:hover:not(:disabled),
+      &:active:not(:disabled) {
+        background: var(--hq-color-error-700);
+        border-color: var(--hq-color-error-700);
       }
 
       &:disabled {
-        border-color: var(--hq-color-rule);
+        background: var(--hq-color-divider);
+        border-color: var(--hq-color-divider);
+        color: var(--hq-color-disabled);
       }
     }
 

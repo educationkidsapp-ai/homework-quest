@@ -56,10 +56,18 @@
 }
 
 .classes__copy-btn {
+  flex: none;
+}
+
+// The glyph and the word are one line, centred on each other, with a gap between them. The row lives in the
+// button's projected content, so it is this page's to lay out; the screen-reader sentence beside it is
+// `.hq-sr-only` (absolutely placed) and takes no part in it. `flex` follows the writing direction, so in RTL the
+// glyph is still at the start.
+.classes__copy-label {
   display: inline-flex;
   align-items: center;
-  gap: var(--hq-space-4);
-  font-size: var(--hq-text-theme-xs);
+  gap: var(--hq-space-8);
+  white-space: nowrap;
 }
 
 .classes__copy-icon {

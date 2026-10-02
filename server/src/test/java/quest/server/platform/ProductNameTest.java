@@ -15,7 +15,8 @@ import org.junit.jupiter.api.Test;
  * §A: "Nothing in the code base hard-codes a product name; an ESLint rule and an ArchUnit test fail the build on the
  * literal `Homework Quest` or `Schools Dashboard` outside the seed and the tests."
  *
- * <p>The seed is `db/migration/V5__flags_themes.sql`, which is where the name enters the system; the tests are
+ * <p>The seed is `db/migration/V5__flags_themes.sql`, which is where the name enters the system, and
+ * `V29__product_name_myschool.sql` is the rename to MySchool (N1); the tests are
  * `src/test`, which has to spell the seeded value out to assert on it. Everything else — including a comment or a
  * model prompt — asks {@link PlatformSettingsService} instead.
  */
@@ -44,10 +45,12 @@ class ProductNameTest {
         }
     }
 
-    /** Where the name does live: the migration seeds it, and nothing else in `src/main` repeats it. */
+    /** Where the name does live: one migration seeds it, one renames it, and nothing else in `src/main` repeats it. */
     @Test void the_seed_migration_is_the_one_place_the_name_appears() throws IOException {
         var seed = Files.readString(Path.of("src", "main", "resources", "db", "migration", "V5__flags_themes.sql"), StandardCharsets.UTF_8);
         assertThat(seed).contains("'Schools Dashboard'").contains("'Schools'");
+        var rename = Files.readString(Path.of("src", "main", "resources", "db", "migration", "V29__product_name_myschool.sql"), StandardCharsets.UTF_8);
+        assertThat(rename).contains("name = 'MySchool'").contains("short_name = 'MySchool'");
 
         var elsewhere = new ArrayList<String>();
         try (Stream<Path> files = Files.walk(Path.of("src", "main", "resources"))) {

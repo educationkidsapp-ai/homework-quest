@@ -18,6 +18,21 @@ describe('hq-tabs', () => {
     expect(screen.getByRole('tab', { name: /Users/ })).toHaveAttribute('tabindex', '-1');
   });
 
+  it('fills its parent on one line only when asked to', async () => {
+    const { fixture } = await renderHq(TabsComponent, {
+      inputs: { tabs, selected: 'overview', label: 'School settings', variant: 'chips' },
+    });
+    const list = screen.getByRole('tablist');
+
+    expect(list).not.toHaveClass('tabs--fill');
+
+    fixture.componentRef.setInput('fill', true);
+    fixture.detectChanges();
+
+    expect(list).toHaveClass('tabs--chips', 'tabs--fill');
+    expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('selects on click', async () => {
     const { fixture } = await renderHq(TabsComponent, {
       inputs: { tabs, selected: 'overview', label: 'School settings' },

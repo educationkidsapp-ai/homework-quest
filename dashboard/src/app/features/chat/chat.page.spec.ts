@@ -10,9 +10,13 @@ import {
   ChatApi,
   ChatMessageSenderEnum,
   ChatThread,
+  ChatThreadPeerRoleEnum,
   ChatThreadStaffRoleEnum,
   ChatThreadStatusEnum,
   ChatThreadTopicEnum,
+  ManagementApi,
+  ManagementChatApi,
+  ManagersApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { LocalMessage } from '../../core/chat/chat.models';
@@ -84,7 +88,9 @@ describe('ChatPage', () => {
       // D2: "is this key a row of the list" is the service's own question now.
       activeGone: activeGoneSig,
       holds: (key: string) =>
-        (mockChatService.threads as () => ChatThread[])().some((thread) => (thread.childId || thread.id!) === key),
+        (mockChatService.threads as () => ChatThread[])().some(
+          (thread) => (thread.childId || thread.id!) === key,
+        ),
       canWrite: canWriteSig,
       sendMessage: vi.fn(),
       sendTyping: vi.fn(),
@@ -102,15 +108,29 @@ describe('ChatPage', () => {
     teacherStaffThread: vi.fn().mockReturnValue(of({ id: 'th-2' })),
   };
 
-  async function renderPage(query: BehaviorSubject<Record<string, string>> | null = null) {
+  async function renderPage(
+    query: BehaviorSubject<Record<string, string>> | null = null,
+    role: 'TEACHER' | 'ADMIN' | 'MANAGERIAL' | 'COORDINATOR' = 'TEACHER',
+  ) {
     return renderHq(ChatPage, {
       providers: [
         provideRouter([]),
         { provide: ChatService, useValue: mockChatService },
         { provide: ChatApi, useValue: chatApi },
+        // The Admin's "New message" picker reads the school's managers.
+        {
+          provide: ManagersApi,
+          useValue: { managers: () => of([{ userId: 'u-mgr', fullName: 'Huda Manager' }]) },
+        },
+        // A manager's picker reads her coordinators, her teachers and the school's admins.
+        {
+          provide: ManagementApi,
+          useValue: { managementCoordinators: () => of([]), managementTeachers: () => of([]) },
+        },
+        { provide: ManagementChatApi, useValue: { managementAdmins: () => of([]) } },
         {
           provide: AuthService,
-          useValue: { role: signal('TEACHER' as const), user: signal({ id: 'u-sara' }) },
+          useValue: { role: signal(role), user: signal({ id: 'u-sara' }) },
         },
         { provide: FlagService, useValue: mockFlags },
         ...(query === null
@@ -265,12 +285,123 @@ describe('ChatPage', () => {
   /** D2 (list 3): S1 marks the admin's threads; a teacher reads the office, not a stranger's name. */
   it('labels a thread with the school admin "School administration"', async () => {
     (mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>).set([
-      { ...sampleThread, id: 'th-adm', childId: '', childName: '', teacherName: 'Omar Admin', withAdmin: true },
+      {
+        ...sampleThread,
+        id: 'th-adm',
+        childId: '',
+        childName: '',
+        teacherName: 'Omar Admin',
+        withAdmin: true,
+      },
     ]);
     await renderPage();
 
     expect(screen.getByText('School administration')).toBeTruthy();
     expect(screen.queryByText('Omar Admin')).toBeNull();
+  });
+
+  /**
+   * N1: the words under a thread's name are the other end's role, read from `peerRole` — the
+   * server's word, the same for every viewer — as plain text on the name's edge, never a pill.
+   */
+  describe('the role under a thread name', () => {
+    const staff = { ...sampleThread, childId: '', childName: '' };
+    const rolesShown = (host: HTMLElement) =>
+      [...host.querySelectorAll('.thread-card')].map(
+        (card) => card.querySelector('.thread-card__role')?.textContent?.trim() ?? null,
+      );
+    const render = async (role: 'TEACHER' | 'ADMIN' | 'MANAGERIAL' | 'COORDINATOR', rows: ChatThread[]) => {
+      (mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>).set(rows);
+      const { fixture } = await renderPage(null, role);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    };
+
+    it('is plain text, not a pill', async () => {
+      const host = await render('TEACHER', [
+        { ...staff, id: 'th-m', teacherName: 'Huda', peerRole: ChatThreadPeerRoleEnum.MANAGERIAL },
+      ]);
+
+      expect(rolesShown(host)).toEqual(['Manager']);
+      expect(host.querySelector('.thread-card__badge--staff')).toBeNull();
+    });
+
+    it('does not repeat "School administration" under a row already named by that office', async () => {
+      const host = await render('TEACHER', [
+        {
+          ...staff,
+          id: 'th-a',
+          teacherName: 'Omar Admin',
+          withAdmin: true,
+          peerRole: ChatThreadPeerRoleEnum.ADMIN,
+        },
+      ]);
+
+      expect(screen.getByText('School administration')).toBeTruthy();
+      expect(rolesShown(host)).toEqual([null]);
+    });
+
+    it('tells an Admin a teacher from a coordinator from a manager', async () => {
+      const host = await render('ADMIN', [
+        {
+          ...staff,
+          id: 'th-1',
+          teacherId: 'u-t',
+          teacherName: 'Teacher G1 Arabic',
+          withAdmin: true,
+          peerRole: ChatThreadPeerRoleEnum.TEACHER,
+        },
+        {
+          ...staff,
+          id: 'th-2',
+          teacherId: 'u-c',
+          teacherName: 'Lina',
+          withAdmin: true,
+          peerRole: ChatThreadPeerRoleEnum.COORDINATOR,
+        },
+        {
+          ...staff,
+          id: 'th-3',
+          teacherId: 'u-m',
+          teacherName: 'American Department Manager',
+          withAdmin: true,
+          peerRole: ChatThreadPeerRoleEnum.MANAGERIAL,
+        },
+      ]);
+
+      expect(rolesShown(host)).toEqual(['Teacher', 'Coordinator', 'Manager']);
+      expect(screen.queryByText('Coordinators')).toBeNull();
+    });
+
+    it('names a manager’s coordinator', async () => {
+      expect(
+        rolesShown(
+          await render('MANAGERIAL', [
+            { ...staff, id: 'th-c', teacherName: 'Lina', peerRole: ChatThreadPeerRoleEnum.COORDINATOR },
+          ]),
+        ),
+      ).toContain('Coordinator');
+    });
+
+    it('names a coordinator’s teacher', async () => {
+      expect(
+        rolesShown(
+          await render('COORDINATOR', [
+            { ...staff, id: 'th-t', teacherName: 'Maya', peerRole: ChatThreadPeerRoleEnum.TEACHER },
+          ]),
+        ),
+      ).toEqual(['Teacher']);
+    });
+
+    it('says Parent on a parent thread, and nothing on a row that carries no role', async () => {
+      const host = await render('TEACHER', [
+        { ...sampleThread, peerRole: ChatThreadPeerRoleEnum.PARENT },
+        { ...staff, id: 'th-x', teacherName: 'Somebody' },
+      ]);
+
+      expect(rolesShown(host)).toEqual(['Parent', null]);
+    });
   });
 
   /**
@@ -281,11 +412,19 @@ describe('ChatPage', () => {
   describe('a ?thread= the list does not hold yet', () => {
     const threadsSig = () => mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>;
     const loadingSig = () => mockChatService.loadingThreads as ReturnType<typeof signal<boolean>>;
-    const fresh: ChatThread = { ...sampleThread, id: 'th-new', childId: '', childName: '', teacherName: 'Nada Fahad' };
+    const fresh: ChatThread = {
+      ...sampleThread,
+      id: 'th-new',
+      childId: '',
+      childName: '',
+      teacherName: 'Nada Fahad',
+    };
 
     it('re-reads the list for a brand new thread and selects it when it arrives', async () => {
       // The re-read, as the real service does it: loading, then the list with the new row in it.
-      (mockChatService.loadThreads as ReturnType<typeof vi.fn>).mockImplementation(() => loadingSig().set(true));
+      (mockChatService.loadThreads as ReturnType<typeof vi.fn>).mockImplementation(() =>
+        loadingSig().set(true),
+      );
       await renderPage(new BehaviorSubject<Record<string, string>>({ thread: 'th-new' }));
       TestBed.tick();
 

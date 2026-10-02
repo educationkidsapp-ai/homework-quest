@@ -90,7 +90,7 @@ interface TeacherRow {
              statement about her school, and this read did not happen. -->
         <hq-coordinator-read-failed (retry)="co.reload()" />
       } @else {
-        <div data-hq-search>
+        <div data-hq-search class="co-teachers__search">
           <hq-input
             type="search"
             keycap="/"
@@ -102,6 +102,7 @@ interface TeacherRow {
         </div>
 
         <hq-table
+          [bordered]="true"
           [rows]="rows()"
           [columns]="columns()"
           [cellTemplate]="cell"
@@ -162,6 +163,12 @@ interface TeacherRow {
         }
       </ng-template>
     </hq-page>
+  `,
+  styles: `
+    // 20 px between the search and the list, on the wrapper — the field itself keeps the kit's metrics.
+    .co-teachers__search {
+      margin-block-end: calc(var(--hq-space-16) + var(--hq-space-4));
+    }
   `,
 })
 export class CoordinatorTeachersPage {

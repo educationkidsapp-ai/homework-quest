@@ -103,6 +103,31 @@ describe('hq-nav', () => {
     expect(host.querySelector('img.nav__logo')).toHaveAttribute('src', '/logo.png');
   });
 
+  it('falls back to the brand mark when the logo does not load, and tries a new address', async () => {
+    const { fixture } = await renderHq(NavComponent, {
+      inputs: {
+        items: links,
+        active: 'week',
+        label: 'Teacher',
+        brandName: 'Al Noor',
+        brandLogo: '/broken.png',
+      },
+      providers: [provideRouter(routes)],
+    });
+    const host = fixture.nativeElement as HTMLElement;
+
+    host.querySelector('img.nav__logo')?.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+
+    expect(host.querySelector('img.nav__logo:not(.nav__logo--mark)')).toBeNull();
+    expect(host.querySelector('img.nav__logo--mark')).toHaveAttribute('src', 'assets/brand/myschool-mark.svg');
+
+    fixture.componentRef.setInput('brandLogo', '/logo.png');
+    fixture.detectChanges();
+
+    expect(host.querySelector('img.nav__logo:not(.nav__logo--mark)')).toHaveAttribute('src', '/logo.png');
+  });
+
   it('is a scrim and a panel under 1024 px, and Escape dismisses it', async () => {
     const dismissals: number[] = [];
     const { fixture } = await renderHq(NavComponent, {

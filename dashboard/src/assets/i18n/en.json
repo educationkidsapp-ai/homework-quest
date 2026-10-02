@@ -1471,6 +1471,13 @@
     "pickPerson": "Who do you want to write to",
     "pickPersonHint": "Pick a person",
     "peers": "Filter the inbox by who wrote",
+    "role": {
+      "TEACHER": "Teacher",
+      "COORDINATOR": "Coordinator",
+      "MANAGERIAL": "Manager",
+      "ADMIN": "School administration",
+      "PARENT": "Parent"
+    },
     "peer": {
       "all": "All",
       "parents": "Parents",
@@ -2075,7 +2082,6 @@
       "empty": "No lessons match these filters."
     },
     "attendance": {
-      "subtitle": "A register for one of your classes. You can read it; only the teacher marks it.",
       "tooWide": "Choose a range of {{days}} days or less."
     },
     "gradebook": {
@@ -2199,9 +2205,6 @@
     },
     "lessons": {
       "subtitle": "Every lesson of every class in your department. You can read them; only the teacher changes them."
-    },
-    "attendance": {
-      "subtitle": "A register for one of your classes. You can read it; only the teacher marks it."
     },
     "gradebook": {
       "subtitle": "The scores of one of your classes. You can read them; only the teacher marks and releases them."

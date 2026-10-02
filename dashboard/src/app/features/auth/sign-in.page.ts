@@ -38,7 +38,7 @@ const LOGO_DEBOUNCE_MS = 400;
   template: `
     <hq-auth-layout [title]="'auth.signIn.title' | transloco">
       @if (schoolLogo(); as logo) {
-        <img auth-logo class="sign-in__logo" [src]="logo" alt="" />
+        <img auth-logo class="sign-in__logo" [src]="logo" alt="" (error)="markLogoFailed(logo)" />
       } @else {
         <!-- D3: neither a school's logo nor the platform's — the product's own mark. Projected
              here, not left to the layout's fallback: an empty block still fills the slot. -->
@@ -157,9 +157,20 @@ export class SignInPage {
     defaultValue: null,
   });
 
-  protected readonly schoolLogo = computed(
-    () => this.lookup.value()?.logoUrl || this.platform.platformLogoUrl(),
-  );
+  /** Addresses that would not load. The school's falls back to the platform's, and that one to no image. */
+  private readonly failedLogos = signal<readonly string[]>([]);
+  protected readonly schoolLogo = computed(() => {
+    const failed = this.failedLogos();
+    return (
+      [this.lookup.value()?.logoUrl, this.platform.platformLogoUrl()].find(
+        (logo) => !!logo && !failed.includes(logo),
+      ) ?? null
+    );
+  });
+
+  protected markLogoFailed(logo: string): void {
+    this.failedLogos.update((failed) => [...failed, logo]);
+  }
 
   constructor() {
     const params = this.route.snapshot.queryParamMap;

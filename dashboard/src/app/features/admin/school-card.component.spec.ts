@@ -132,6 +132,18 @@ describe('hq-school-card', () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
+  it('shows the empty box, not a broken image, when the logo does not load', async () => {
+    logo.set('https://cdn.example.test/missing.png');
+    const { rendered } = await renderCard();
+
+    screen.getByRole('img', { name: 'Logo of Al Noor School' }).dispatchEvent(new Event('error'));
+    rendered.fixture.detectChanges();
+
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByText('No logo yet')).toBeInTheDocument();
+    expect(screen.getByText('Replace logo')).toBeInTheDocument();
+  });
+
   it('shows the logo and no controls to a session that may not write', async () => {
     keys = [];
     logo.set('/media/logos/school-a.png');

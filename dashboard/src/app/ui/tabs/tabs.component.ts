@@ -26,7 +26,13 @@ export interface Tab<T extends string = string> {
   selector: 'hq-tabs',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="tabs" [class]="'tabs--' + variant()" role="tablist" [attr.aria-label]="label()">
+    <div
+      class="tabs"
+      [class]="'tabs--' + variant()"
+      [class.tabs--fill]="fill()"
+      role="tablist"
+      [attr.aria-label]="label()"
+    >
       @for (tab of tabs(); track tab.id) {
         <button
           #tab
@@ -140,6 +146,27 @@ export interface Tab<T extends string = string> {
       }
     }
 
+    // --- fill ---------------------------------------------------------------
+    // One line from edge to edge of the parent. Every tab starts from the same share of the width
+    // and may not go under its own words, so two or three chips are equal and fill the row, and
+    // five on a narrow rail keep their labels whole and the row scrolls sideways instead of
+    // wrapping or truncating. The padding (taken back by the margin, so the first chip still sits
+    // on the parent's edge) is room for the focus ring, which a scroll container would clip.
+    .tabs--fill {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      padding: var(--hq-space-4);
+      margin: calc(var(--hq-space-4) * -1);
+
+      .tabs__tab {
+        flex: 1 0 0;
+        min-inline-size: max-content;
+        justify-content: center;
+        white-space: nowrap;
+      }
+    }
+
     .tabs__badge {
       padding: 0 var(--hq-space-8);
       border-radius: var(--hq-radius-pill);
@@ -167,6 +194,8 @@ export class TabsComponent<T extends string = string> {
   readonly label = input.required<string>();
   /** `underline` switches between panels; `chips` filters one list (§3 Filter chip). */
   readonly variant = input<'underline' | 'chips'>('underline');
+  /** The tablist takes the whole width of its parent on one line; see `.tabs--fill`. */
+  readonly fill = input(false);
 
   protected select(id: T): void {
     this.selected.set(id);

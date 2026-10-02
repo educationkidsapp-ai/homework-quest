@@ -23,6 +23,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import quest.api.dto.ChatMessage;
 import quest.api.dto.ChatReadReceipt;
 import quest.api.dto.ChatSender;
+import quest.api.dto.ChatPeerRole;
 import quest.api.dto.ChatStaffRole;
 import quest.api.dto.ChatThread;
 import quest.api.dto.ChatThreadStatus;
@@ -143,13 +144,13 @@ public class ChatService {
             var t = byStaff.get(teacherId);
             rows.add(row(t, child.getId(), child.getName(), teacherId, name(staff.get(teacherId)), section,
                     subjects.get(teacherId), t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), ROLE_TEACHER, parentName,
-                    key(USER, teacherId)));
+                    key(USER, teacherId), ChatPeerRole.TEACHER));
         }
         for (var t : staffThreads)
             rows.add(row(t, child.getId(), child.getName(), t.getTeacherId(),
                     ADMIN.equals(t.getStaffRole()) ? ADMINISTRATION : name(staff.get(t.getTeacherId())), section,
                     coordinatorSubjects.get(t.getTeacherId()), t.getParentUnread(), last.get(t.getId()), t.getStaffRole(), parentName,
-                    key(USER, t.getTeacherId())));
+                    key(USER, t.getTeacherId()), peerRole(t.getStaffRole())));
         rows.sort(order());
         return rows;
     }
@@ -171,7 +172,7 @@ public class ChatService {
             var t = byStaff.get(coordinator.user().getId());
             rows.add(row(t, child.getId(), child.getName(), coordinator.user().getId(), name(coordinator.user()), section.getName(),
                     coordinator.subjects(), t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), COORDINATOR, parentName,
-                    key(USER, coordinator.user().getId())));
+                    key(USER, coordinator.user().getId()), ChatPeerRole.COORDINATOR));
         }
         rows.sort(order());
         return rows;
@@ -195,7 +196,7 @@ public class ChatService {
             var t = byStaff.get(manager.getId());
             rows.add(row(t, child.getId(), child.getName(), manager.getId(), name(manager), section.getName(),
                     null, t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), MANAGERIAL, parentName,
-                    key(USER, manager.getId())));
+                    key(USER, manager.getId()), ChatPeerRole.MANAGERIAL));
         }
         rows.sort(order());
         return rows;
@@ -251,7 +252,7 @@ public class ChatService {
         return live.stream().map(t -> { var c = kids.get(t.getChildId()); var k = sections.get(c.getClassId());
             return row(t, c.getId(), c.getName(), teacher.userId(), teacherName, k == null ? null : k.getName(),
                     subjects.get(c.getClassId()), t.getTeacherUnread(), last.get(t.getId()), ROLE_TEACHER,
-                    parentNames.get(c.getId()), c.getParentId() == null ? null : key(PARENT, c.getParentId())); }).toList();
+                    parentNames.get(c.getId()), c.getParentId() == null ? null : key(PARENT, c.getParentId()), ChatPeerRole.PARENT); }).toList();
     }
 
     public List<ChatMessage> teacherMessages(Principals.User caller, String childId, String before, String since, Integer limit) {
@@ -409,7 +410,7 @@ public class ChatService {
         return all.stream().map(t -> { var c = kids.get(t.getChildId()); var k = c == null || c.getClassId() == null ? null : sections.get(c.getClassId());
             return row(t, t.getChildId() == null ? "" : t.getChildId(), c == null ? "" : c.getName(), t.getTeacherId(), name(teachers.get(t.getTeacherId())),
                     k == null ? null : k.getName(), null, t.getParentUnread() + t.getTeacherUnread(), last.get(t.getId()), t.getStaffRole(),
-                    c == null ? null : parentNames.get(c.getId()), null, adminOn(t, admins)); }).toList();
+                    c == null ? null : parentNames.get(c.getId()), null, adminOn(t, admins), null); }).toList();
     }
 
     /**
@@ -469,7 +470,8 @@ public class ChatService {
             String person = named(t, meId);
             rows.add(row(t, child == null ? "" : child.getId(), child == null ? "" : child.getName(), person, name(people.get(person)),
                     section == null ? null : section.getName(), null, unreadFor(t, meId), last.get(t.getId()), t.getStaffRole(),
-                    child == null ? null : parentNames.get(child.getId()), peerKey(child, person), adminOn(t, admins)));
+                    child == null ? null : parentNames.get(child.getId()), peerKey(child, person), adminOn(t, admins),
+                    child != null ? ChatPeerRole.PARENT : peerRole(people.get(person), person, admins)));
         }
         return List.copyOf(rows);
     }
@@ -811,11 +813,13 @@ public class ChatService {
         var child = t.getChildId() == null ? null : children.findOneById(t.getChildId()).orElse(null);
         var section = child == null || child.getClassId() == null ? null : classes.findOneById(child.getClassId()).orElse(null);
         String person = named(t, meId);
+        var colleague = users.findById(person);
+        Set<String> admins = t.getPeerUserId() == null ? Set.of() : Set.copyOf(users.findActiveAdminIds());
         return row(t, child == null ? "" : child.getId(), child == null ? "" : child.getName(), person,
-                users.findById(person).map(ChatService::name).orElse(""), section == null ? null : section.getName(),
+                colleague.map(ChatService::name).orElse(""), section == null ? null : section.getName(),
                 null, unreadFor(t, meId), lastMessages(List.of(t)).get(t.getId()), t.getStaffRole(),
                 child == null ? null : parentNames(List.of(child)).get(child.getId()), peerKey(child, person),
-                adminOn(t, t.getPeerUserId() == null ? Set.of() : Set.copyOf(users.findActiveAdminIds())));
+                adminOn(t, admins), child != null ? ChatPeerRole.PARENT : peerRole(colleague.orElse(null), person, admins));
     }
 
     /** S1 `withAdmin`: the row says `ADMIN`, or — the manager's thread, which RM2 wrote as `MANAGERIAL` — its peer is one. */
@@ -995,20 +999,31 @@ public class ChatService {
      */
     private ChatThread row(ChatThreadEntity t, String childId, String childName, String staffId, String staffName,
                            String className, String subject, int unread, ChatMessage last, String staffRole,
-                           String parentName, String peerKey) {
+                           String parentName, String peerKey, ChatPeerRole peerRole) {
         return row(t, childId, childName, staffId, staffName, className, subject, unread, last, staffRole, parentName, peerKey,
-                t != null && ADMIN.equals(t.getStaffRole()));
+                t != null && ADMIN.equals(t.getStaffRole()), peerRole);
     }
 
     private ChatThread row(ChatThreadEntity t, String childId, String childName, String staffId, String staffName,
                            String className, String subject, int unread, ChatMessage last, String staffRole,
-                           String parentName, String peerKey, boolean withAdmin) {
+                           String parentName, String peerKey, boolean withAdmin, ChatPeerRole peerRole) {
         return new ChatThread(t == null ? null : t.getId(), childId, childName, staffId, staffName, className, subject, unread, last,
                 staffRole(t == null ? staffRole : t.getStaffRole()), topic(t == null ? QUESTION : t.getTopic()),
                 status(t == null ? OPEN : t.getStatus()),
                 t == null || t.getResolvedAt() == null ? null : t.getResolvedAt().toEpochMilli(),
                 parentName == null || parentName.isBlank() ? null : parentName, peerKey == null ? null : presence.online(peerKey),
-                withAdmin ? Boolean.TRUE : null);
+                withAdmin ? Boolean.TRUE : null, peerRole);
+    }
+
+    /** N1 `peerRole` from an account's role; null for a role this list does not name, or an account that is gone. */
+    static ChatPeerRole peerRole(String role) {
+        return switch (role == null ? "" : role) {
+            case ROLE_TEACHER -> ChatPeerRole.TEACHER; case COORDINATOR -> ChatPeerRole.COORDINATOR;
+            case MANAGERIAL -> ChatPeerRole.MANAGERIAL; case ADMIN -> ChatPeerRole.ADMIN; default -> null; };
+    }
+    /** The colleague on a staff thread. The platform admin has no school, so a school-scoped read of her account comes back empty: her id says it. */
+    private static ChatPeerRole peerRole(UserEntity user, String userId, Set<String> admins) {
+        return admins.contains(userId) ? ChatPeerRole.ADMIN : user == null ? null : peerRole(user.getRole());
     }
 
     /**

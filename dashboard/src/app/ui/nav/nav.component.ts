@@ -80,10 +80,10 @@ export interface NavItem<T extends string = string> {
         (mouseleave)="hovering.set(false)"
       >
         <div class="nav__brand">
-          @if (brandLogo(); as logo) {
-            <img class="nav__logo" [src]="logo" alt="" />
+          @if (shownLogo(); as logo) {
+            <img class="nav__logo" [src]="logo" alt="" (error)="failedLogo.set(logo)" />
           } @else {
-            <!-- D3: no school or platform logo, so the product's own mark holds the block. -->
+            <!-- D3: no school or platform logo — or one that would not load — so the product's own mark holds the block. -->
             <img class="nav__logo nav__logo--mark" src="assets/brand/myschool-mark.svg" alt="" />
           }
           <span class="nav__brand-text">
@@ -282,9 +282,11 @@ export interface NavItem<T extends string = string> {
       flex: 1;
     }
 
+    // The rhythm between rows is the list's gap, never a margin on a link, so the collapsed strip
+    // and the drawer keep it too. A menu taller than the viewport scrolls inside the panel.
     .nav__list {
       display: grid;
-      gap: var(--hq-space-4);
+      gap: var(--hq-space-8);
     }
 
     .nav__footer:not(:empty) {
@@ -297,6 +299,10 @@ export interface NavItem<T extends string = string> {
       align-items: center;
       gap: var(--hq-space-12);
       inline-size: 100%;
+      // 48 px rows: the icon and the label are centred in them, and the hover and active fills
+      // take the whole row. A minimum, so a taller Arabic line grows the row instead of clipping.
+      box-sizing: border-box;
+      min-block-size: var(--hq-space-48);
       padding: var(--hq-space-nav-item);
       border: 0;
       border-radius: var(--hq-radius-control);
@@ -410,6 +416,13 @@ export class NavComponent<T extends string = string> {
   readonly dismissed = output<void>();
 
   protected readonly hovering = signal(false);
+
+  /** The address that would not load. Kept by URL, so a new logo is tried and a bad one falls back to the brand mark. */
+  protected readonly failedLogo = signal<string | null>(null);
+  protected readonly shownLogo = computed(() => {
+    const logo = this.brandLogo();
+    return logo && logo !== this.failedLogo() ? logo : null;
+  });
 
   /** Collapsed *now* — a pointer over the rail expands it again while it is there. */
   protected readonly narrowed = computed(() => !this.drawer() && this.collapsed() && !this.hovering());

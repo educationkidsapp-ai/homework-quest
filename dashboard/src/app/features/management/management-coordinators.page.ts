@@ -84,7 +84,7 @@ interface CoordinatorRow {
              a statement about her school, and this request did not happen. -->
         <hq-coordinator-read-failed (retry)="people.reload()" />
       } @else {
-        <div data-hq-search>
+        <div data-hq-search class="mg-coordinators__search">
           <hq-input
             type="search"
             keycap="/"
@@ -96,6 +96,7 @@ interface CoordinatorRow {
         </div>
 
         <hq-table
+          [bordered]="true"
           [rows]="rows()"
           [columns]="columns()"
           [cellTemplate]="cell"
@@ -143,6 +144,12 @@ interface CoordinatorRow {
         }
       </ng-template>
     </hq-page>
+  `,
+  styles: `
+    // 20 px between the search and the list, on the wrapper — the field itself keeps the kit's metrics.
+    .mg-coordinators__search {
+      margin-block-end: calc(var(--hq-space-16) + var(--hq-space-4));
+    }
   `,
 })
 export class ManagementCoordinatorsPage {

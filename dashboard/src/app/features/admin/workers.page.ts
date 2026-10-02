@@ -264,7 +264,7 @@ interface WorkerRow {
         }
       </hq-dialog>
 
-      <div page-footer>
+      <div page-actions>
         <hq-button *hqCan="'worker.write'" variant="primary" (pressed)="openCreate()">
           {{ 'admin.workers.createAction' | transloco }}
         </hq-button>

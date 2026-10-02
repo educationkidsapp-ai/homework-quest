@@ -1,5 +1,8 @@
 # Homework Quest
 
+> The product is named **MySchool** (Arabic **مدرستي**) since 2026-10-02. The repository, package, service, database
+> and bundle identifiers keep their old names (`homework-quest`, `quest.*`) on purpose.
+
 A phone app for children in grades 1–3 (with a parent mode), a web admin panel where the school's slides become
 lessons, and a backend that analyses each slide deck **once** and publishes it to every child on that course.
 

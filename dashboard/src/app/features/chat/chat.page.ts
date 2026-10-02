@@ -21,6 +21,7 @@ import {
   ChatApi,
   ChatMessageSenderEnum,
   ChatThread,
+  ChatThreadPeerRoleEnum,
   ChatThreadTopicEnum,
   ManagementApi,
   ManagementChatApi,
@@ -256,6 +257,7 @@ interface ParsedChatMessage {
             <div class="chat-sidebar__tabs">
               <hq-tabs
                 variant="chips"
+                [fill]="true"
                 [tabs]="peerTabs()"
                 [(selected)]="peer"
                 [label]="'chat.peers' | transloco"
@@ -290,12 +292,11 @@ interface ParsedChatMessage {
                       }
                     </div>
                     <div class="thread-card__meta">
-                      @if (isStaff(thread)) {
+                      @if (peerLabelOf(thread); as role) {
                         <!-- R7: a coordinator ↔ manager thread has no child on it at all, so the
-                             row says who the other end is instead of pretending to a class. -->
-                        <span class="thread-card__badge thread-card__badge--staff">
-                          {{ 'chat.peer.' + peerOf(thread) | transloco }}
-                        </span>
+                             row says who the other end is instead of pretending to a class. Plain
+                             secondary text on the name's own start edge, not a pill. -->
+                        <span class="thread-card__role">{{ role | transloco }}</span>
                       }
                       @if (thread.topic === topicComplaint) {
                         <span class="thread-card__badge thread-card__badge--complaint">
@@ -362,7 +363,9 @@ interface ParsedChatMessage {
                 <h2 class="convo-header__title">{{ nameOf(active) }}</h2>
                 <span class="convo-header__parent">
                   @if (isStaff(active)) {
-                    {{ 'chat.peer.' + peerOf(active) | transloco }}
+                    @if (peerLabelOf(active); as role) {
+                      {{ role | transloco }}
+                    }
                   } @else {
                     {{ 'chat.parent' | transloco: { child: active.childName } }}
                     @if (active.className) {
@@ -804,9 +807,13 @@ interface ParsedChatMessage {
       min-width: 0;
     }
 
+    // One row: the search takes what is left, New message keeps its width, both the kit's control
+    // height. A narrow rail wraps the button under the field instead of squeezing either.
     .chat-sidebar__search {
-      display: grid;
-      gap: var(--hq-space-2);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--hq-space-8);
       padding: 12px 16px;
       border-bottom: 1px solid var(--hq-color-rule, #e2e8f0);
     }
@@ -819,7 +826,10 @@ interface ParsedChatMessage {
       position: relative;
       display: flex;
       align-items: center;
-      width: 100%;
+      // Takes what is left of the row, and never less than three controls' worth: under that the
+      // button wraps below the field.
+      flex: 1 1 0;
+      min-inline-size: calc(var(--hq-size-control-height) * 3);
     }
 
     .search-box__icon {
@@ -831,6 +841,8 @@ interface ParsedChatMessage {
 
     .search-box__input {
       width: 100%;
+      box-sizing: border-box;
+      block-size: var(--hq-size-control-height);
       padding: 9px 34px 9px 34px;
       font-size: 13.5px;
       border: 1px solid var(--hq-color-rule, #e2e8f0);
@@ -992,7 +1004,15 @@ interface ParsedChatMessage {
       color: var(--hq-color-ink-faint, #94a3b8);
     }
 
-    .thread-card__badge--staff,
+    // The other end's role: the meta line's own secondary ink and size, no fill, no padding — so its
+    // start edge is the name's and the preview's. One line, cut with an ellipsis.
+    .thread-card__role {
+      display: block;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
     .thread-card__badge--complaint {
       border-radius: 0;
       font-size: var(--hq-font-label-size);
@@ -2017,8 +2037,50 @@ interface ParsedChatMessage {
           display: flex;
         }
         .convo-header__back {
-          display: block;
+          display: inline-flex;
         }
+      }
+      // The pill leaves the far end of the row and sits under the title and the role line, on
+      // their start edge; back and avatar are centred on that block, in the first row.
+      .convo-header {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr);
+        grid-template-areas: 'back avatar info' '. . status';
+        align-items: center;
+        column-gap: var(--hq-space-8);
+        padding-inline: var(--hq-space-12);
+      }
+      .convo-header__back {
+        grid-area: back;
+        align-items: center;
+        justify-content: center;
+        inline-size: var(--hq-size-touch-target);
+        block-size: var(--hq-size-touch-target);
+        padding: 0;
+      }
+      .convo-header__avatar {
+        grid-area: avatar;
+      }
+      .convo-header__info {
+        grid-area: info;
+        display: flex;
+        flex-direction: column;
+      }
+      .convo-header__title,
+      .convo-header__parent {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .convo-header__status {
+        grid-area: status;
+        justify-self: start;
+      }
+      .status-pill {
+        margin-block-start: var(--hq-space-4);
+      }
+      :host-context([dir='rtl']) .convo-header__back svg {
+        transform: scaleX(-1);
       }
       .emoji-picker {
         width: 290px;
@@ -2206,22 +2268,39 @@ export class ChatPage implements AfterViewChecked {
   });
 
   /**
-   * Which of her three correspondents a thread is with.
+   * Which chip a thread sits under — from `peerRole`, the server's own word for who is on the
+   * other end of the row (N1). Never from an id looked up in a list: the lists load late, hold
+   * only what a picker needs, and "not found" used to read as "Coordinators".
    *
-   * The row cannot say on its own: a parent thread and both staff threads all carry
-   * `staffRole: MANAGERIAL`, because she is the staff side of one and the named peer of the other
-   * two. So the child settles "parent", and the peer's id is looked up in the two lists the
-   * "New message" picker already needs — no extra call for the sake of a badge.
+   * A teacher's strip is by list rather than by role: her parents, and everybody who supervises
+   * her under Management. A row with no `peerRole` sits under "All" only.
    */
-  protected peerOf(thread: ChatThread): Peer {
-    if (thread.childId !== '') return 'parents';
-    // A teacher's only child-less threads are with the department manager, so there is nothing to
-    // look up — and `GET /teacher/managers` may not have answered yet when the first row arrives.
+  protected peerOf(thread: ChatThread): Peer | null {
+    if (thread.peerRole === ChatThreadPeerRoleEnum.PARENT) return 'parents';
+    if (thread.peerRole === undefined) return null;
     if (this.auth.role() === 'TEACHER') return 'management';
-    if (this.admins.value().some((person) => person.userId === thread.teacherId)) return 'admin';
-    return this.departmentTeachers.value().some((person) => person.userId === thread.teacherId)
-      ? 'teachers'
-      : 'coordinators';
+    switch (thread.peerRole) {
+      case ChatThreadPeerRoleEnum.TEACHER:
+        return 'teachers';
+      case ChatThreadPeerRoleEnum.COORDINATOR:
+        return 'coordinators';
+      case ChatThreadPeerRoleEnum.ADMIN:
+        return 'admin';
+      default:
+        return 'management';
+    }
+  }
+
+  /**
+   * The words under a thread's name: the role of the person on the other end, as a translation
+   * key. It reads `peerRole` and nothing else, so it is the same answer for every viewer and no
+   * label at all while the row does not say. A row already named by office ("School
+   * administration", to a teacher or a coordinator) does not repeat the office under itself.
+   */
+  protected peerLabelOf(thread: ChatThread): string | null {
+    if (thread.peerRole === undefined) return null;
+    const key = `chat.role.${thread.peerRole}`;
+    return this.transloco.translate<string>(key) === this.nameOf(thread) ? null : key;
   }
 
   /**

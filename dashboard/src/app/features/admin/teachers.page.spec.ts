@@ -113,7 +113,7 @@ describe('Teachers', () => {
   it('shows the temporary password once, and says it will not be shown again', async () => {
     const { rendered, backend } = await renderSignedIn([]);
 
-    // Two of them while the list is empty: the empty state's and the sticky footer's.
+    // Two of them while the list is empty: the empty state's and the header's.
     await userEvent.click(screen.getAllByRole('button', { name: 'Add teacher' })[0]!);
     await userEvent.type(screen.getByLabelText('Full name'), 'Sara');
     await userEvent.type(screen.getByLabelText('Email'), 'sara@alnoor.test');
