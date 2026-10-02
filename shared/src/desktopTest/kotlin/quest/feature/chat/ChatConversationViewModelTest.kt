@@ -21,6 +21,13 @@ import quest.api.dto.ChatTopic
 import quest.feature.chat.domain.ChatConnectionState
 import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.ChatRepository
+import quest.feature.chat.domain.Resolver
+import quest.feature.chat.domain.applyPresence
+import quest.feature.chat.domain.resolverOf
+import quest.feature.chat.presentation.presenceLine
+import quest.feature.chat.presentation.resolvedBanner
+import quest.feature.parent.presentation.Strings
+import quest.api.dto.ChatPeerRole
 import quest.feature.chat.presentation.ChatConversationContract
 import quest.feature.chat.presentation.ChatConversationViewModel
 import kotlin.test.AfterTest
@@ -77,7 +84,8 @@ class ChatConversationViewModelTest {
             return ChatMessage("m-${sends.size}", threadId, ChatSender.PARENT, "p1", body, 1_758_450_000_000L)
         }
 
-        override suspend fun markRead(childId: String, teacherId: String) {}
+        var reads = 0
+        override suspend fun markRead(childId: String, teacherId: String) { reads++ }
         override suspend fun sendTyping(childId: String, teacherId: String) {}
         override fun connect() {}
         override fun disconnect() {}
@@ -278,5 +286,69 @@ class ChatConversationViewModelTest {
         val loading = ChatConversationContract.State(staffRole = ChatStaffRole.COORDINATOR, loading = true)
         assertFalse(loading.canMarkComplaint)
         assertTrue(loading.copy(loading = false).canMarkComplaint)
+    }
+
+    // ---- M4: presence (D6), the resolved banner (D7) and reading a thread that does not exist (D11)
+
+    @Test fun presenceComesFromTheRowAndThePresenceFrame_notFromThisAppsSocket() = runBlocking {
+        val chat = FakeChat()                                    // this app's socket is CONNECTED
+        val vm = viewModel(peer().copy(peerOnline = false), chat)
+        vm.dispatch(ChatConversationContract.Intent.Load)
+        vm.settle { !it.loading }
+        assertEquals(false, vm.state.value.peerOnline, "the API said peerOnline:false — the header must not say Online")
+        assertEquals(Strings.en.offline to false, presenceLine(vm.state.value, Strings.en))
+
+        chat.awaitCollector()
+        chat.frames.emit(ChatFrame.Presence(online = true, userId = "someone-else"))
+        delay(80)
+        assertEquals(false, vm.state.value.peerOnline, "another person's presence leaves this header alone")
+
+        chat.frames.emit(ChatFrame.Presence(online = true, userId = COORDINATOR))
+        vm.settle { it.peerOnline == true }
+        assertEquals(Strings.en.online to true, presenceLine(vm.state.value, Strings.en))
+    }
+
+    @Test fun unknownPresenceShowsNoIndicator() = runBlocking {
+        val vm = viewModel(peer(), FakeChat())
+        vm.dispatch(ChatConversationContract.Intent.Load)
+        vm.settle { !it.loading }
+        assertNull(vm.state.value.peerOnline)
+        assertNull(presenceLine(vm.state.value, Strings.en))
+    }
+
+    @Test fun theResolvedBannerNamesWhoTheParentWroteTo() {
+        val manager = ChatPeer("c1", "nour", "Ms. Nour", staffRole = ChatStaffRole.MANAGERIAL, peerRole = ChatPeerRole.MANAGERIAL)
+        assertEquals(Resolver.MANAGER, resolverOf(manager.peerRole, manager.staffRole, manager.withAdmin))
+        assertEquals(Strings.en.resolvedBannerManager, resolvedBanner(Resolver.MANAGER, Strings.en))
+        assertFalse(resolvedBanner(Resolver.MANAGER, Strings.en).contains("coordinator"))
+        assertEquals(Resolver.COORDINATOR, resolverOf(ChatPeerRole.COORDINATOR, ChatStaffRole.COORDINATOR, false))
+        assertEquals(Resolver.TEACHER, resolverOf(null, ChatStaffRole.TEACHER, false), "an older server without peerRole falls back to the staff side")
+        assertEquals(Resolver.ADMIN, resolverOf(null, ChatStaffRole.MANAGERIAL, withAdmin = true))
+        assertTrue(resolvedBanner(Resolver.MANAGER, Strings.ar).isNotBlank())
+    }
+
+    @Test fun openingAThreadThatDoesNotExistYetDoesNotMarkItRead() = runBlocking {
+        val chat = FakeChat()
+        val vm = viewModel(peer(threadId = null), chat)
+        vm.dispatch(ChatConversationContract.Intent.Load)
+        vm.settle { !it.loading }
+        delay(50)
+        assertEquals(0, chat.reads, "no `…/read` for a thread the server has not created")
+
+        val existing = FakeChat()
+        val vm2 = viewModel(peer(), existing)
+        vm2.dispatch(ChatConversationContract.Intent.Load)
+        vm2.settle { !it.loading }
+        delay(50)
+        assertEquals(1, existing.reads)
+    }
+
+    @Test fun presenceFramesMoveOnlyTheRowsThatCarryPresence() {
+        val row = ChatThread(id = "t", childId = "c1", childName = "Hala", teacherId = "maya", teacherName = "Maya", peerOnline = false)
+        val silent = row.copy(id = "u", peerOnline = null)
+        val moved = applyPresence(listOf(row, silent), "maya", true)
+        assertEquals(true, moved[0].peerOnline)
+        assertNull(moved[1].peerOnline)
+        assertEquals(true, ChatPeer.of(moved[0]).peerOnline)
     }
 }

@@ -49,5 +49,9 @@ object Routes {
         val complaint: Boolean = false,
         /** S1: a thread the school administration opened (`ChatThread.withAdmin`). */
         val admin: Boolean = false,
+        /** M4 (D6): `ChatThread.peerOnline` as `"true"`/`"false"`, null when the row said nothing. */
+        val peerOnline: String? = null,
+        /** M4 (D7): `ChatThread.peerRole`'s wire name, null when absent. */
+        val peerRole: String? = null,
     )
 }

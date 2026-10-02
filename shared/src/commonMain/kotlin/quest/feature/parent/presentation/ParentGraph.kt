@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import quest.core.navigation.Routes
+import quest.api.dto.ChatPeerRole
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
 import quest.api.dto.ChatThreadStatus
@@ -89,6 +90,8 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
                 threadId = route.threadId,
                 startAsComplaint = route.complaint,
                 withAdmin = route.admin,
+                peerOnline = route.peerOnline?.toBooleanStrictOrNull(),
+                peerRole = ChatPeerRole.entries.firstOrNull { it.name == route.peerRole },
             ),
             onBack = { nav.popBackStack() },
         )
@@ -109,4 +112,6 @@ private fun ChatThread.asConversation() = Routes.ChatConversation(
     resolved = status == ChatThreadStatus.RESOLVED,
     threadId = id,
     admin = withAdmin == true,
+    peerOnline = peerOnline?.toString(),
+    peerRole = peerRole?.name,
 )

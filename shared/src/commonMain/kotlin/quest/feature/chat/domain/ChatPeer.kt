@@ -1,5 +1,6 @@
 package quest.feature.chat.domain
 
+import quest.api.dto.ChatPeerRole
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
 import quest.api.dto.ChatThreadStatus
@@ -27,6 +28,13 @@ data class ChatPeer(
     val startAsComplaint: Boolean = false,
     /** S1: the school administration is the staff side ([staffRole] is `MANAGERIAL` on the wire). */
     val withAdmin: Boolean = false,
+    /**
+     * M4 (D6): T1's `peerOnline` from the row — the only source of the header's presence besides the `presence` frame.
+     * Null is "nobody said", and then the header shows no presence at all.
+     */
+    val peerOnline: Boolean? = null,
+    /** M4 (D7): N1's `peerRole` — who the parent is talking to, which is who resolves her complaint. */
+    val peerRole: ChatPeerRole? = null,
 ) {
     companion object {
         fun of(thread: ChatThread): ChatPeer = ChatPeer(
@@ -39,6 +47,24 @@ data class ChatPeer(
             resolved = thread.status == ChatThreadStatus.RESOLVED,
             threadId = thread.id,
             withAdmin = thread.withAdmin == true,
+            peerOnline = thread.peerOnline,
+            peerRole = thread.peerRole,
         )
     }
+}
+
+/**
+ * M4 (D7): who answered a resolved thread, as the banner says it — the person on the other end ([ChatPeer.peerRole]),
+ * or, from a server older than N1, the staff side's role. The admin is named as the school administration.
+ */
+enum class Resolver { TEACHER, COORDINATOR, MANAGER, ADMIN }
+
+fun resolverOf(peerRole: ChatPeerRole?, staffRole: ChatStaffRole, withAdmin: Boolean): Resolver = when {
+    withAdmin || peerRole == ChatPeerRole.ADMIN -> Resolver.ADMIN
+    peerRole == ChatPeerRole.TEACHER -> Resolver.TEACHER
+    peerRole == ChatPeerRole.COORDINATOR -> Resolver.COORDINATOR
+    peerRole == ChatPeerRole.MANAGERIAL -> Resolver.MANAGER
+    staffRole == ChatStaffRole.TEACHER -> Resolver.TEACHER
+    staffRole == ChatStaffRole.COORDINATOR -> Resolver.COORDINATOR
+    else -> Resolver.MANAGER
 }

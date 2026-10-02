@@ -57,3 +57,10 @@ fun applyStatus(threads: List<ChatThread>, threadId: String, status: ChatThreadS
         if (thread.id != threadId) thread
         else thread.copy(status = status, resolvedAt = if (status == ChatThreadStatus.RESOLVED) at else null)
     }
+
+/**
+ * M4 (D6): fold a T1 `presence` frame about staff member [userId] into the rows she is on. A row whose `peerOnline` was
+ * absent stays absent — "nothing to say" (the Admin's support rows) is not turned into a dot by a frame.
+ */
+fun applyPresence(threads: List<ChatThread>, userId: String, online: Boolean): List<ChatThread> =
+    threads.map { if (it.teacherId == userId && it.peerOnline != null) it.copy(peerOnline = online) else it }
