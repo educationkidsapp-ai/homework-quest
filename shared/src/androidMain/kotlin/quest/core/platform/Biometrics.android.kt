@@ -29,6 +29,11 @@ object BiometricHost {
  * only where a biometric is enrolled.
  */
 actual fun platformBiometricAuthenticator(): BiometricAuthenticator = object : BiometricAuthenticator {
+    /**
+     * Null while no biometric can be used right now — none enrolled, or the sensor is locked out. That only stops the
+     * lock being offered; an app that is already locked stays locked and [authenticate] falls back to the device
+     * PIN, pattern or password.
+     */
     override fun kind(): BiometricKind? {
         val host = BiometricHost.current() ?: return null
         val enrolled = BiometricManager.from(host).canAuthenticate(BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
@@ -50,3 +55,7 @@ actual fun platformBiometricAuthenticator(): BiometricAuthenticator = object : B
         }
     }
 }
+
+actual fun elapsedRealtimeMillis(): Long = android.os.SystemClock.elapsedRealtime()
+
+actual fun sendAppToBackground() { BiometricHost.current()?.moveTaskToBack(true) }

@@ -2,7 +2,10 @@ package quest.feature.lock.domain
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import quest.api.AuthProvider
 import quest.api.AuthState
 import quest.core.platform.BiometricAuthenticator
@@ -28,35 +31,55 @@ interface BiometricPreferences {
  *
  * It is a gate in front of the screens, not part of signing in: the session and its tokens stay exactly where
  * `AuthProvider` keeps them, and a successful prompt only lifts the cover. Every rule is here so it can be tested
- * without a device: offered after every password sign-in until it is answered (signing out forgets the answer), locked on a cold start and after [BACKGROUND_LIMIT_MILLIS] in the
- * background, silent where the device has no biometric, and "Sign in with password" as the way out.
+ * without a device.
+ *
+ * **A lock that was turned on always locks.** Whether the device can show a biometric *right now* decides only how it
+ * is opened, never whether it is shut: Face ID locked out after failed attempts, switched off for the app in
+ * Settings, or removed from the device leaves the app locked, and the prompt falls back to the device passcode; where
+ * even that is impossible the lock screen offers "Sign in with password". Availability matters for one thing only —
+ * *offering* the lock, which is done where a biometric is enrolled.
+ *
+ * Time away is measured on [elapsed], a monotonic clock that keeps counting while the device sleeps: the wall clock
+ * can be set back by the user, which would otherwise keep an app unlocked for as long as she liked.
  */
 class AppLock(
     private val auth: AuthProvider,
     private val preferences: BiometricPreferences,
     private val authenticator: BiometricAuthenticator,
     private val signOut: suspend () -> Unit,
-    private val now: () -> Long,
+    private val elapsed: () -> Long,
 ) {
     enum class Stage { UNLOCKED, LOCKED, OFFER }
 
-    /** [failed] is "the last prompt did not confirm the owner": the lock screen then shows its two buttons. */
-    data class State(val stage: Stage = Stage.UNLOCKED, val kind: BiometricKind? = null, val failed: Boolean = false, val prompting: Boolean = false)
+    /**
+     * [failed] is "the last prompt did not confirm the owner": the lock screen then shows its two buttons, always
+     * both. [covered] is the plain cover that goes up the instant the app leaves the foreground — so the system's
+     * app-switcher picture shows the cover and not the screen — and comes down on return unless the app locked.
+     */
+    data class State(
+        val stage: Stage = Stage.UNLOCKED, val kind: BiometricKind? = null, val failed: Boolean = false, val prompting: Boolean = false, val covered: Boolean = false,
+    )
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state
 
+    /** One system prompt at a time, whoever asks: the lock screen, the offer, Settings or the parent area. */
+    private val prompts = Mutex()
+
+    /** The stored choice of the signed-in account, kept in memory so leaving and returning are decided without I/O. */
+    private var armed = false
     private var backgroundedAt: Long? = null
 
     private fun uid(): String? = (auth.state.value as? AuthState.SignedIn)?.uid
 
-    /** Whether this account unlocks with a biometric here — false wherever the device has none, whatever was stored. */
+    /** Whether this account chose the lock on this device — whatever the device can prompt with at the moment. */
     suspend fun enabled(): Boolean {
-        val uid = uid() ?: return false
-        return authenticator.kind() != null && preferences.choice(uid) == BiometricChoice.ENABLED
+        val on = uid()?.let { preferences.choice(it) == BiometricChoice.ENABLED } ?: false
+        armed = on
+        return on
     }
 
-    /** The kind the device offers, for the Settings row; null hides the row. */
+    /** The kind the device offers right now, for the offer and the Settings row; null hides both. */
     fun available(): BiometricKind? = authenticator.kind()
 
     /** A cold start: a signed-in account that chose the lock starts behind it. */
@@ -64,7 +87,7 @@ class AppLock(
         if (enabled()) _state.value = State(Stage.LOCKED, authenticator.kind())
     }
 
-    /** Just signed in with a password: offer the lock once, and only where the device can do it. */
+    /** Just signed in with a password: offer the lock, and only where the device has a biometric to offer. */
     suspend fun signedIn() {
         val uid = uid() ?: return
         val kind = authenticator.kind() ?: return
@@ -74,7 +97,7 @@ class AppLock(
     /** "Turn on" in the offer: it counts only after a successful prompt. A cancelled one leaves the offer open. */
     suspend fun acceptOffer(reason: String) {
         val uid = uid() ?: return
-        if (prompt(reason) == BiometricResult.SUCCESS) { preferences.set(uid, BiometricChoice.ENABLED); _state.value = State() }
+        if (prompt(reason) == BiometricResult.SUCCESS) { preferences.set(uid, BiometricChoice.ENABLED); armed = true; _state.value = State() }
     }
 
     suspend fun declineOffer() {
@@ -82,48 +105,75 @@ class AppLock(
         _state.value = State()
     }
 
-    /** The lock screen's prompt — shown when it appears, and again by "Try again". */
+    /**
+     * The lock screen's prompt — shown when it appears, and again by "Try again". Calls are serialised: a second one
+     * waits for the first and then does nothing if the app is already open. Anything but success leaves the lock
+     * screen with both of its buttons.
+     */
     suspend fun unlock(reason: String) {
-        if (_state.value.stage != Stage.LOCKED || _state.value.prompting) return
-        when (prompt(reason)) {
-            BiometricResult.SUCCESS -> _state.value = State()
-            BiometricResult.CANCELLED -> _state.update { it.copy(failed = true) }
-            // The biometric was removed from the device since the lock was chosen: there is nothing to prompt with, so
-            // the password is the only way in.
-            BiometricResult.UNAVAILABLE -> _state.update { it.copy(failed = true, kind = null) }
+        prompts.withLock {
+            if (_state.value.stage != Stage.LOCKED) return
+            _state.update { it.copy(prompting = true, kind = authenticator.kind()) }
+            val result = try { authenticator.authenticate(reason) } finally { _state.update { it.copy(prompting = false) } }
+            if (result == BiometricResult.SUCCESS) _state.value = State() else _state.update { it.copy(failed = true) }
         }
     }
 
-    /** "Sign in with password": the session ends (which also turns the lock off) and the sign-in screen takes over. */
+    /** "Sign in with password": the session ends (which also forgets the lock) and the sign-in screen takes over. */
     suspend fun usePassword() {
         signOut()
+        armed = false
         _state.value = State()
     }
 
-    fun background() { if (backgroundedAt == null) backgroundedAt = now() }
+    /**
+     * The app is leaving the foreground (`ON_PAUSE`): the cover goes up **now**, in the same call, so whatever picture
+     * the system takes of the app for its switcher is the cover. Nothing is read or awaited here.
+     */
+    fun cover() { if (armed && _state.value.stage == Stage.UNLOCKED) _state.update { it.copy(covered = true) } }
 
-    /** Back in front: more than a minute away locks the app again; a shorter absence does not. */
-    suspend fun foreground() {
-        val since = backgroundedAt ?: return
-        backgroundedAt = null
-        if (_state.value.stage == Stage.UNLOCKED && now() - since > BACKGROUND_LIMIT_MILLIS && enabled()) _state.value = State(Stage.LOCKED, authenticator.kind())
+    /** The app is not visible any more (`ON_STOP`): the time away starts counting. */
+    fun background() {
+        cover()
+        if (backgroundedAt == null) backgroundedAt = elapsed()
     }
 
-    /** The Settings switch. Turning it on needs a successful prompt; turning it off does not. Returns the new value. */
+    /**
+     * Back in front (`ON_START`), decided synchronously before a frame is drawn: more than a minute away locks the
+     * app; a shorter absence does not.
+     */
+    fun foreground() {
+        val since = backgroundedAt ?: return
+        backgroundedAt = null
+        if (armed && _state.value.stage == Stage.UNLOCKED && elapsed() - since > BACKGROUND_LIMIT_MILLIS) _state.value = State(Stage.LOCKED, authenticator.kind())
+    }
+
+    /** Interactive again (`ON_RESUME`): the plain cover comes down. A locked app keeps its lock screen. */
+    fun uncover() { _state.update { it.copy(covered = false) } }
+
+    /** The Settings switch. Turning it on needs a biometric to offer and a successful prompt; turning it off does not. */
     suspend fun setEnabled(on: Boolean, reason: String): Boolean {
         val uid = uid() ?: return false
-        if (!on) { preferences.set(uid, BiometricChoice.DECLINED); return false }
+        if (!on) { preferences.set(uid, BiometricChoice.DECLINED); armed = false; return false }
         if (authenticator.kind() == null || prompt(reason) != BiometricResult.SUCCESS) return enabled()
-        preferences.set(uid, BiometricChoice.ENABLED)
+        preferences.set(uid, BiometricChoice.ENABLED); armed = true
         return true
     }
 
-    /** The parent area's gate: true when the owner was confirmed. False sends the caller to its PIN, the fallback. */
-    suspend fun confirmOwner(reason: String): Boolean = enabled() && prompt(reason) == BiometricResult.SUCCESS
+    /**
+     * The parent area's gate: true when the owner was confirmed. False sends the caller to its PIN, the fallback. If
+     * the app itself is locked — the PIN screen was restored underneath the cover — this waits for that lock to be
+     * lifted first, so the two never prompt on top of each other.
+     */
+    suspend fun confirmOwner(reason: String): Boolean {
+        if (!enabled()) return false
+        _state.first { it.stage != Stage.LOCKED }
+        return prompt(reason) == BiometricResult.SUCCESS
+    }
 
-    private suspend fun prompt(reason: String): BiometricResult {
+    private suspend fun prompt(reason: String): BiometricResult = prompts.withLock {
         _state.update { it.copy(prompting = true) }
-        return try { authenticator.authenticate(reason) } finally { _state.update { it.copy(prompting = false) } }
+        try { authenticator.authenticate(reason) } finally { _state.update { it.copy(prompting = false) } }
     }
 
     companion object { const val BACKGROUND_LIMIT_MILLIS = 60_000L }

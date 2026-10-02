@@ -5,3 +5,7 @@ actual fun platformBiometricAuthenticator(): BiometricAuthenticator = object : B
     override fun kind(): BiometricKind? = null
     override suspend fun authenticate(reason: String): BiometricResult = BiometricResult.UNAVAILABLE
 }
+
+actual fun elapsedRealtimeMillis(): Long = System.nanoTime() / 1_000_000
+
+actual fun sendAppToBackground() = Unit

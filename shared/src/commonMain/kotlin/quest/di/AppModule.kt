@@ -1,7 +1,7 @@
 package quest.di
 
+import quest.core.platform.elapsedRealtimeMillis
 import quest.feature.parent.domain.UndeliveredExamAnswersUseCase
-import quest.core.platform.Today
 import quest.core.platform.platformBiometricAuthenticator
 import quest.feature.lock.data.BiometricPreferencesImpl
 import quest.feature.lock.domain.BiometricPreferences
@@ -158,7 +158,7 @@ val contentModule = module {
     // M2: the biometric lock. One instance — it remembers when the app went to the background.
     single<BiometricPreferences> { BiometricPreferencesImpl(get()) }
     single { platformBiometricAuthenticator() }
-    single { AppLock(get(), get(), get(), signOut = { get<SignOutUseCase>()() }, now = Today::epochMillis) }
+    single { AppLock(get(), get(), get(), signOut = { get<SignOutUseCase>()() }, elapsed = ::elapsedRealtimeMillis) }
     viewModel { ChildrenViewModel(get(), get()) }
     factory { LessonCopy(get(), get()) }
     viewModel { MapViewModel(get(), get(), get(), get(), get(), get()) }

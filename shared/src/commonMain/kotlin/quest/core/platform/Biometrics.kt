@@ -20,3 +20,14 @@ interface BiometricAuthenticator {
 }
 
 expect fun platformBiometricAuthenticator(): BiometricAuthenticator
+
+/**
+ * Milliseconds on a clock that only moves forward and **keeps counting while the device is asleep** — what "more than
+ * a minute away" is measured on. The wall clock is no use for that: the owner (or a child) can set it back.
+ * Android: `SystemClock.elapsedRealtime()`. iOS: `clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)`, which is
+ * `mach_continuous_time` — unlike `ProcessInfo.systemUptime`, it advances during sleep.
+ */
+expect fun elapsedRealtimeMillis(): Long
+
+/** What the system back gesture does on the lock's cover: the app goes to the background; the cover is not dismissed. */
+expect fun sendAppToBackground()

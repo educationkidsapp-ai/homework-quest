@@ -38,7 +38,9 @@ class LockScreensScreenshotTest {
     @Test fun lockScreenDismissed() = shot("50b-lock-dismissed") { LockScreen(dismissed, it, it.appName, {}, {}) }
     @Test fun lockScreenDismissedDark() = shot("50c-lock-dismissed-dark", dark = true) { LockScreen(dismissed, it, it.appName, {}, {}) }
     @Test fun lockScreenDismissedArabic() = shot("50d-lock-dismissed-ar", strings = Strings.ar) { LockScreen(dismissed, it, it.appName, {}, {}) }
-    @Test fun lockScreenNoBiometricLeft() = shot("50e-lock-no-biometric") { LockScreen(dismissed.copy(kind = null), it, it.appName, {}, {}) }
+    /** Face ID locked out, switched off or removed: still locked, opened with the device passcode. */
+    @Test fun lockScreenPasscodeOnly() = shot("50e-lock-passcode") { LockScreen(dismissed.copy(kind = null), it, it.appName, {}, {}) }
+    @Test fun privacyCover() = shot("50f-privacy-cover", dark = true) { quest.feature.lock.presentation.PrivacyCover(it.appName) }
 
     /** The offer sits over the screen she has just arrived on. */
     @Composable private fun Offer(s: Strings, kind: BiometricKind) = Box(Modifier.fillMaxSize()) {

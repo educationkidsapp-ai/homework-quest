@@ -16,6 +16,11 @@ import kotlin.coroutines.resume
  * device passcode as its fallback.
  */
 actual fun platformBiometricAuthenticator(): BiometricAuthenticator = object : BiometricAuthenticator {
+    /**
+     * Null while a biometric cannot be used *at this moment* — none enrolled, locked out after failed attempts, or
+     * switched off for this app in Settings. That only stops the lock being offered; an app that is already locked
+     * stays locked and [authenticate] falls back to the passcode.
+     */
     override fun kind(): BiometricKind? {
         val context = LAContext()
         if (!context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthenticationWithBiometrics, error = null)) return null
@@ -26,6 +31,10 @@ actual fun platformBiometricAuthenticator(): BiometricAuthenticator = object : B
         }
     }
 
+    /**
+     * The device-owner policy: Face ID / Touch ID when usable, otherwise — locked out, switched off, removed — the
+     * device passcode, on the same system sheet. [BiometricResult.UNAVAILABLE] only when the device has no passcode.
+     */
     override suspend fun authenticate(reason: String): BiometricResult {
         val context = LAContext()
         if (!context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthentication, error = null)) return BiometricResult.UNAVAILABLE
@@ -37,3 +46,8 @@ actual fun platformBiometricAuthenticator(): BiometricAuthenticator = object : B
         }
     }
 }
+
+actual fun elapsedRealtimeMillis(): Long = (platform.posix.clock_gettime_nsec_np(platform.posix.CLOCK_MONOTONIC_RAW.toUInt()) / 1_000_000uL).toLong()
+
+/** iOS has no back gesture that reaches the app's root. */
+actual fun sendAppToBackground() = Unit
