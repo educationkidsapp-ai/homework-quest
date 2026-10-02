@@ -18,24 +18,37 @@ private final class Widgets: WidgetReloader {
 
 /// The exam sitting as a Live Activity. Everything is local: the app starts it when a sitting opens, updates the count
 /// after each answer and ends it when the paper is handed in — no push token is requested and nothing is sent anywhere.
-/// The system marks it stale when the exam's window ends, so an abandoned sitting does not linger as if it were live.
+/// The system marks it stale at the time the shared code gives (the window's end, or its fixed cap when the end is not
+/// known), so an abandoned sitting does not linger as if it were live.
 @available(iOS 16.2, *)
 private final class ExamActivityController: ExamActivityBridge {
     private var activity: Activity<ExamActivityAttributes>?
 
-    func show(title: String, childName: String, closesAtMillis: Int64, answered: Int32, total: Int32) {
+    func show(key: String, title: String, childName: String, closesAtMillis: Int64, staleAtMillis: Int64, windowEnded: String, answered: Int32, total: Int32) {
         let closesAt = closesAtMillis > 0 ? Date(timeIntervalSince1970: TimeInterval(closesAtMillis) / 1000) : nil
-        // Stale by the window's end, or — when the end is not known — two hours on: an activity never outlives a
-        // paper the app was killed in the middle of.
-        let content = ActivityContent(state: ExamActivityAttributes.ContentState(answered: Int(answered), total: Int(total)), staleDate: closesAt ?? Date().addingTimeInterval(2 * 60 * 60))
-        // After a relaunch the app's handle is gone but the activity may still be up: adopt it rather than start a second.
-        if activity == nil { activity = Activity<ExamActivityAttributes>.activities.first }
+        let staleAt = Date(timeIntervalSince1970: TimeInterval(staleAtMillis) / 1000)
+        let content = ActivityContent(state: ExamActivityAttributes.ContentState(answered: Int(answered), total: Int(total)), staleDate: staleAt)
+        // After a relaunch the app's handle is gone but activities may still be up. Only this sitting's own (same student,
+        // same paper) is taken over; anything left by another paper or another child is ended, so this count is never
+        // drawn under someone else's title.
+        if activity?.attributes.sittingKey != key {
+            activity = nil
+            for leftover in Activity<ExamActivityAttributes>.activities {
+                let live = leftover.activityState == .active || leftover.activityState == .stale
+                if activity == nil, live, leftover.attributes.sittingKey == key {
+                    activity = leftover
+                } else {
+                    Task { await leftover.end(nil, dismissalPolicy: .immediate) }
+                }
+            }
+        }
         if let activity {
             Task { await activity.update(content) }
             return
         }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }   // the owner turned Live Activities off: respected
-        activity = try? Activity.request(attributes: ExamActivityAttributes(title: title, childName: childName, closesAt: closesAt), content: content, pushType: nil)
+        let attributes = ExamActivityAttributes(sittingKey: key, title: title, childName: childName, closesAt: closesAt, windowEnded: windowEnded)
+        activity = try? Activity.request(attributes: attributes, content: content, pushType: nil)
     }
 
     func end() {

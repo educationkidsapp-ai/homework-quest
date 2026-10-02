@@ -71,6 +71,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -265,12 +266,25 @@ class TodayTest {
         val windows = ExamWindows().apply { remember(mapOf(exam.id to now + 1_800_000)) }
         val vm = sit(Journey(paper.stops.take(2).map { it.id }), presenter, windows)
 
-        assertEquals(ExamSitting(exam.id, exam.title, "Maya", now + 1_800_000, answered = 2, total = paper.stops.size), presenter.shown.single())
+        assertEquals(ExamSitting(maya.id, exam.id, exam.title, "Maya", now + 1_800_000, answered = 2, total = paper.stops.size, windowEnded = "Exam window ended"), presenter.shown.single())
 
         vm.dispatch(PlayerContract.Intent.Completed(stars = 0, answer = "x", mistakes = 1, correct = false))   // a wrong answer
         runCurrent()
         assertEquals(3, presenter.shown.last().answered, "the count moves; nothing in it says the answer was wrong")
         assertEquals(0, presenter.ended)
+    }
+
+    @Test fun aSittingIsKnownByItsStudentAndPaperSoALeftoverOfAnotherIsNeverReused() {
+        val a = ExamSitting("c1", "exam-a", "Fractions", "Maya", null, answered = 1, total = 5)
+        assertEquals(a.key, a.copy(title = "Renamed", answered = 4, closesAt = now).key, "the count, title and window do not change which sitting it is")
+        assertNotEquals(a.key, a.copy(lessonId = "exam-b").key, "another paper")
+        assertNotEquals(a.key, a.copy(childId = "c2").key, "a sibling's sitting of the same paper")
+    }
+
+    @Test fun aSittingIsTakenDownAtItsWindowsEndOrAfterTheCapWhenTheEndIsUnknown() {
+        val known = ExamSitting("c1", "exam-a", "Fractions", "Maya", now + 600_000, answered = 0, total = 5)
+        assertEquals(now + 600_000, known.takeDownAt(now))
+        assertEquals(now + ExamSitting.LONGEST_MILLIS, known.copy(closesAt = null).takeDownAt(now))
     }
 
     @Test fun handingInEndsIt() = runTest {

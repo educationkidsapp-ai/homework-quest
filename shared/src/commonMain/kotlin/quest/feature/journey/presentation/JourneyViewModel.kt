@@ -188,7 +188,7 @@ class StopPlayerViewModel(
     /** Title, student, how many are answered — never how — and, when the window's end is known, the time it closes. */
     private fun showSitting() {
         val lesson = current.lesson ?: return
-        sitting.show(ExamSitting(lessonId, lesson.title, current.childName, windows.closesAt(lessonId, now()), current.doneCount, current.total))
+        sitting.show(ExamSitting(childId, lessonId, lesson.title, current.childName, windows.closesAt(lessonId, now()), current.doneCount, current.total, copy.strings().examWindowEnded))
     }
 
     /** Leaving the exam screen takes the sitting down: it is shown while the student is in the paper, not after. */

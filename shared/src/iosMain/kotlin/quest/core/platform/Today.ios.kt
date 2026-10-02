@@ -23,8 +23,11 @@ object IosBridges {
 interface WidgetReloader { fun reload() }
 
 interface ExamActivityBridge {
-    /** [closesAtMillis] is 0 when the end of the sitting is not known. */
-    fun show(title: String, childName: String, closesAtMillis: Long, answered: Int, total: Int)
+    /**
+     * [key] identifies the sitting (never shown): an activity left by another sitting is ended, not reused.
+     * [closesAtMillis] is 0 when the end of the sitting is not known; [staleAtMillis] is when the system marks it stale.
+     */
+    fun show(key: String, title: String, childName: String, closesAtMillis: Long, staleAtMillis: Long, windowEnded: String, answered: Int, total: Int)
     fun end()
 }
 
@@ -46,6 +49,10 @@ class IosTodaySnapshotStore : TodaySnapshotStore {
 }
 
 class IosExamSittingPresenter : ExamSittingPresenter {
-    override fun show(sitting: ExamSitting) { IosBridges.examActivity?.show(sitting.title, sitting.childName, sitting.closesAt ?: 0L, sitting.answered, sitting.total) }
+    override fun show(sitting: ExamSitting) {
+        IosBridges.examActivity?.show(
+            sitting.key, sitting.title, sitting.childName, sitting.closesAt ?: 0L, sitting.takeDownAt(Today.epochMillis()), sitting.windowEnded, sitting.answered, sitting.total,
+        )
+    }
     override fun end() { IosBridges.examActivity?.end() }
 }

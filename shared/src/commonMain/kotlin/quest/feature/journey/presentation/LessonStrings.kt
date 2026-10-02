@@ -96,6 +96,8 @@ data class LessonStrings(
     val today: TodayLabels = TodayLabels(),
     val examInProgress: String = "Exam in progress",
     val examNotificationChannel: String = "Exam in progress",
+    /** M3: the Live Activity once its window has ended (or its sitting was abandoned) and the system marked it stale. */
+    val examWindowEnded: String = "Exam window ended",
 ) {
     companion object {
         val en = LessonStrings()
@@ -168,6 +170,7 @@ data class LessonStrings(
             ),
             examInProgress = "اختبار جارٍ",
             examNotificationChannel = "اختبار جارٍ",
+            examWindowEnded = "انتهى وقت الاختبار",
             stops = StopLabels(
                 check = "تحقّق", done = "تم", continueLabel = "متابعة", finished = "انتهيت", next = "التالي", listen = "استمع", sayIt = "انطقها",
                 readToMe = "اقرأ لي", reading = "جارٍ القراءة…", showAnother = "اعرض مثالاً آخر", clear = "مسح", record = "تسجيل",

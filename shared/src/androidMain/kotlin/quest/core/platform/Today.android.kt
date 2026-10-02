@@ -76,7 +76,10 @@ class AndroidExamSittingPresenter(private val context: Context, private val copy
         // sitting is given, so a notification never outlives a paper after the app was killed mid-exam.
         val end = sitting.closesAt
         if (end != null) builder.setWhen(end).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
-        builder.setTimeoutAfter(((end ?: (System.currentTimeMillis() + ExamSitting.LONGEST_MILLIS)) - System.currentTimeMillis()).coerceAtLeast(1_000))
+        val now = System.currentTimeMillis()
+        builder.setTimeoutAfter((sitting.takeDownAt(now) - now).coerceAtLeast(1_000))
+        // One id for every sitting, and each post is built whole from this sitting alone: one left by an earlier paper
+        // (or another child) after the app was killed is replaced outright, never shown with this one's count.
         manager.notify(NOTIFICATION_ID, builder.build())
     }
 

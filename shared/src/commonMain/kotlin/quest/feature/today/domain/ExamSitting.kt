@@ -6,9 +6,22 @@ package quest.feature.today.domain
  *
  * [closesAt] is the end of the exam's window (epoch millis) and drives the countdown the *system* draws; it is null
  * when the end is not known (a re-opened sitting), and then only the count is shown. Nothing here says how any
- * question was answered: [answered] of [total] is the same count the exam screen shows.
+ * question was answered: [answered] of [total] is the same count the exam screen shows. [windowEnded] is what is shown
+ * once the system has marked it stale, in the language the parent chose.
  */
-data class ExamSitting(val lessonId: String, val title: String, val childName: String, val closesAt: Long?, val answered: Int, val total: Int) {
+data class ExamSitting(
+    val childId: String, val lessonId: String, val title: String, val childName: String, val closesAt: Long?, val answered: Int, val total: Int,
+    val windowEnded: String = "",
+) {
+    /**
+     * Which sitting this is — the student and the paper — never shown. What the system still shows after the app was
+     * killed is taken over only by the same sitting; anything left by another paper or another child is taken down.
+     */
+    val key: String get() = "$childId/$lessonId"
+
+    /** When the system takes it down (Android) or marks it stale (iOS): the window's end, or [LONGEST_MILLIS] after [now] when that is unknown. */
+    fun takeDownAt(now: Long): Long = closesAt ?: (now + LONGEST_MILLIS)
+
     companion object {
         /** The longest a sitting whose end is unknown is shown outside the app: two hours, the system's own ceiling for a re-opened paper. */
         const val LONGEST_MILLIS = 2 * 60 * 60_000L

@@ -38,10 +38,13 @@ struct ExamLiveActivity: Widget {
         }
     }
 
-    /// The time left until the window closes; empty when the end is unknown or already past.
+    /// The time left until the window closes; once the system has marked the activity stale (the window ended, or the
+    /// app was killed mid-paper and the cap passed) it says so instead; empty when the end is simply unknown.
     @ViewBuilder
     private func countdown(_ context: ActivityViewContext<ExamActivityAttributes>) -> some View {
-        if let end = context.attributes.closesAt, end > Date() {
+        if context.isStale {
+            Text(context.attributes.windowEnded).font(.caption).lineLimit(2).multilineTextAlignment(.trailing)
+        } else if let end = context.attributes.closesAt, end > Date() {
             Text(timerInterval: Date()...end, countsDown: true).multilineTextAlignment(.trailing)
         } else {
             EmptyView()
