@@ -100,6 +100,15 @@ A's for the length of its assertion (g), and puts the seeded one back afterwards
 The H2 database is in memory: restart the server and the fixture is gone, so run the seed again. Re-running it against
 a live server is safe — every step finds its row and skips.
 
+### Staff side of a manual app pass (`e2e/local/parent-flows.sh`)
+
+A LOCAL-only helper (never QA) for driving the staff half while a person or an agent drives the app on an emulator —
+used for `docs/reports/app-parent-flows.md`. Start the server with `SEED_PROFILE=acceptance`, FAKE_AUTH and
+`PUBLIC_URL=http://10.0.2.2:8080`, export `ADMIN_PASSWORD`, `SEED_STAFF_PASSWORD` and `PARENT_PASSWORD`, then
+`source e2e/local/parent-flows.sh` and call `t3_tokens`, `t3_flags on`, `t3_week_all`, `t3_parent_child …`,
+`t3_parent_token_for_child`, and the `t3_exam_*`, `t3_plan_*`, `t3_event`, `t3_announcement`, complaint and
+`t3_parent_*` read functions listed at the top of the file. Nothing in it prints a password.
+
 ## Against QA
 
 QA is Cloud Run and may have scaled to zero; the first request then waits for a cold start. All four scripts retry a
