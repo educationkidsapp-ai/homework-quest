@@ -98,8 +98,10 @@ class AppLock(
     /** Just signed in with a password: offer the lock, and only where the device has a biometric to offer. */
     suspend fun signedIn() {
         val uid = uid() ?: return
+        val choice = preferences.choice(uid)
+        arm(choice == BiometricChoice.ENABLED)            // never what an earlier session, or an earlier account, stored
         val kind = authenticator.kind() ?: return
-        if (preferences.choice(uid) == BiometricChoice.NOT_ASKED) _state.value = State(Stage.OFFER, kind)
+        if (choice == BiometricChoice.NOT_ASKED) _state.value = State(Stage.OFFER, kind)
     }
 
     /** "Turn on" in the offer: it counts only after a successful prompt. A cancelled one leaves the offer open. */
@@ -110,6 +112,7 @@ class AppLock(
 
     suspend fun declineOffer() {
         uid()?.let { preferences.set(it, BiometricChoice.DECLINED) }
+        arm(false)
         _state.value = State()
     }
 

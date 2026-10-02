@@ -265,6 +265,33 @@ class AppLockTest {
         assertEquals(Stage.UNLOCKED, lock.state.value.stage)
     }
 
+    /** The same account, signed out normally and back in: "Not now" means not locked, whatever it chose last time. */
+    @Test fun theSameAccountThatDeclinesAfterSigningBackInIsNotLocked() = runTest {
+        enable()
+        preferences.signedOut(); auth.signOut()
+        auth.signIn("u1@example.com", "secret")
+        lock.signedIn()
+        assertEquals(Stage.OFFER, lock.state.value.stage)
+        lock.declineOffer()
+
+        lock.cover(); lock.background()
+        assertFalse(lock.state.value.covered)
+        clock += 10 * AppLock.BACKGROUND_LIMIT_MILLIS
+        lock.foreground()
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage)
+        lock.coldStart()
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage)
+    }
+
+    @Test fun signingInArmsOnlyAStoredEnabledChoice() = runTest {
+        enable()                                          // stored ENABLED for u1 and armed
+        auth.flow.value = AuthState.SignedOut; auth.signIn("u1@example.com", "secret")
+        lock.signedIn()                                   // the choice is still stored (no sign-out call ran): armed again
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage)
+        lock.background(); clock += AppLock.BACKGROUND_LIMIT_MILLIS + 1; lock.foreground()
+        assertEquals(Stage.LOCKED, lock.state.value.stage)
+    }
+
     @Test fun anAppWithoutTheLockIsNeverCovered() = runTest {
         lock.signedIn(); lock.declineOffer()
         lock.cover(); lock.background()
