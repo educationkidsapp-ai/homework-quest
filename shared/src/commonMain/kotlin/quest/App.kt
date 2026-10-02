@@ -6,7 +6,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import quest.feature.journey.presentation.LessonTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import quest.feature.parent.domain.ParentRepository
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,8 +44,9 @@ fun App() {
         var ready by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) { initializer.initialise(); ready = true }
         if (!ready) {
-            // Before the settings are read there is no Light/Dark choice to honour, so the first frame follows the device.
-            CompositionLocalProvider(LocalDarkTheme provides isSystemInDarkTheme()) { AcademicTheme { AnimatedLoadingView("…") } }
+            // The first frame already wears the stored Light/Dark choice: the repository reads it synchronously.
+            val appearance by koinInject<ParentRepository>().appearance.collectAsState()
+            CompositionLocalProvider(LocalDarkTheme provides appearance.isDark(isSystemInDarkTheme())) { AcademicTheme { AnimatedLoadingView("…") } }
             return@KoinContext
         }
         val nav = rememberNavController()

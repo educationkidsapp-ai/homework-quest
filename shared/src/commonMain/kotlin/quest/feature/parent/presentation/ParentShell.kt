@@ -179,7 +179,7 @@ fun ParentCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, con
         modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(1.dp, shape, spotColor = Color(0x0A101828), ambientColor = Color(0x05101828))
+            .shadow(1.dp, shape, spotColor = DashboardTokens.shadowSpot, ambientColor = DashboardTokens.shadowAmbient)
             .background(MaterialTheme.colorScheme.surface, shape)
             .border(DashboardTokens.cardBorderWidth, MaterialTheme.colorScheme.outline, shape)
             .clip(shape)

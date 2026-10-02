@@ -55,13 +55,6 @@ data class ThemeOverrides(
     val ground: Color? = null,
     val softBorder: Color? = null,
     val mascotColor: Color? = null,
-    /**
-     * The soft tint of [accent] — what `hq.color.accent-soft` is to `hq.color.accent`: chips, hover fills, the
-     * secondary button. A theme JSON has no such field (the server has no contrast pair to measure for it), so
-     * [softAccentOf] derives it; it is a field rather than a computed property so the root can cross-fade it like
-     * any other colour, and so the token's own soft red survives untouched when nothing is themed.
-     */
-    val softAccent: Color? = null,
     val worldPalettes: WorldPaletteOverrides = WorldPaletteOverrides(),
     /** The school's font family key; `null` keeps Archivo / IBM Plex Sans Arabic. */
     val fontChoice: String? = null,
@@ -69,7 +62,7 @@ data class ThemeOverrides(
     /** True when the school theme carries nothing — the default, and the only state phase 1 ever sees. */
     val isEmpty: Boolean
         get() = primary == null && primaryInk == null && accent == null && ground == null &&
-            softBorder == null && mascotColor == null && softAccent == null && worldPalettes.isEmpty && fontChoice == null
+            softBorder == null && mascotColor == null && worldPalettes.isEmpty && fontChoice == null
 }
 
 /**
@@ -127,7 +120,6 @@ fun schoolThemeOverrides(theme: SchoolTheme): ThemeOverrides = ThemeOverrides(
     ground = parseThemeColor(theme.ground),
     softBorder = parseThemeColor(theme.softBorder),
     mascotColor = parseThemeColor(theme.mascotColor),
-    softAccent = softAccentOf(parseThemeColor(theme.accent), parseThemeColor(theme.primary)),
     worldPalettes = WorldPaletteOverrides(
         math = parseThemeColor(theme.worldPalettes["math"]?.primary),
         english = parseThemeColor(theme.worldPalettes["english"]?.primary),

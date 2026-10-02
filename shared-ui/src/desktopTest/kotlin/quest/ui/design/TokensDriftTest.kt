@@ -136,8 +136,8 @@ class TokensDriftTest {
         val tinted = softAccentOf(Color(0xFF1F6B4A), Color(0xFFFFFFFF))!!
         assertTrue(tinted.luminance() > 0.7f, "a 10 % tint of a dark accent on white is still a light surface")
         assertEquals(tinted, parentScheme(ThemeOverrides(accent = Color(0xFF1F6B4A))).primaryContainer)
-        // On the dark surface the same accent gives a dark tint, whatever light tint a school's theme carried.
-        val dark = parentScheme(ThemeOverrides(accent = Color(0xFF1F6B4A), softAccent = tinted), DashboardPalette.Dark).primaryContainer
+        // On the dark surface the same accent gives a dark tint.
+        val dark = parentScheme(ThemeOverrides(accent = Color(0xFF1F6B4A)), DashboardPalette.Dark).primaryContainer
         assertTrue(dark.luminance() < 0.1f)
     }
 

@@ -1,9 +1,4 @@
 <resources>
-    <!-- The same, when the device is in dark mode: the dashboard's dark ground (gray-900), light glyphs in the bars. -->
-    <style name="Theme.Quest" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#101828</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">false</item>
-    </style>
+    <!-- The same, when the device (or, from API 31, the app's own night mode) is dark: gray-900, light glyphs. -->
+    <style name="Theme.Quest" parent="Theme.Quest.Dark" />
 </resources>

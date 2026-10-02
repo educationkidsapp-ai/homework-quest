@@ -76,6 +76,8 @@ data class DashboardPalette(
     // secondary (magenta) and tertiary (orange): the fill, its soft tint over the surface, and the text role
     val secondary: Color, val onSecondary: Color, val secondarySoft: Color, val secondaryInk: Color,
     val tertiary: Color, val onTertiary: Color, val tertiarySoft: Color, val tertiaryInk: Color,
+    /** Orange as a *graphic* on the surface — an earned star: at least 3:1 against it (WCAG 1.4.11), which orange-400 on white is not. */
+    val tertiaryGraphic: Color,
     // status: the soft tint, the text that goes on it, and the tint's border
     val success: Color, val successBg: Color, val successBorder: Color,
     val warning: Color, val warningBg: Color, val warningBorder: Color,
@@ -106,7 +108,7 @@ data class DashboardPalette(
             gradient = listOf(BrandColors.blue400, BrandColors.blue700),
             gradientText = listOf(BrandColors.blue500, BrandColors.blue700),
             secondary = BrandColors.magenta600, onSecondary = Color.White, secondarySoft = BrandColors.magenta50, secondaryInk = BrandColors.magenta700,
-            tertiary = BrandColors.orange400, onTertiary = gray900, tertiarySoft = BrandColors.orange50, tertiaryInk = BrandColors.orange800,
+            tertiary = BrandColors.orange400, onTertiary = gray900, tertiarySoft = BrandColors.orange50, tertiaryInk = BrandColors.orange800, tertiaryGraphic = BrandColors.orange600,
             success = success700, successBg = Color(0xFFECFDF3), successBorder = Color(0xFFD1FADF),
             warning = BrandColors.warning700, warningBg = BrandColors.warning50, warningBorder = BrandColors.warning100,
             error = error700, errorBg = Color(0xFFFEF3F2), errorBorder = Color(0xFFFEE4E2),
@@ -124,7 +126,7 @@ data class DashboardPalette(
             gradient = listOf(BrandColors.blue400, BrandColors.blue700),
             gradientText = listOf(BrandColors.blue500, BrandColors.blue700),
             secondary = BrandColors.magenta500, onSecondary = Color.White, secondarySoft = BrandColors.magenta500.on(darkSurface, 0.16f), secondaryInk = BrandColors.magenta300,
-            tertiary = BrandColors.orange400, onTertiary = gray900, tertiarySoft = BrandColors.orange400.on(darkSurface, 0.16f), tertiaryInk = BrandColors.orange300,
+            tertiary = BrandColors.orange400, onTertiary = gray900, tertiarySoft = BrandColors.orange400.on(darkSurface, 0.16f), tertiaryInk = BrandColors.orange300, tertiaryGraphic = BrandColors.orange400,
             success = success500, successBg = success500.copy(alpha = 0.15f), successBorder = success500.copy(alpha = 0.3f),
             warning = BrandColors.warning500, warningBg = BrandColors.warning500.copy(alpha = 0.15f), warningBorder = BrandColors.warning500.copy(alpha = 0.3f),
             error = error400, errorBg = error500.copy(alpha = 0.15f), errorBorder = error500.copy(alpha = 0.35f),
@@ -190,6 +192,7 @@ object DashboardTokens {
     val onTertiary: Color @Composable @ReadOnlyComposable get() = p.onTertiary
     val tertiarySoft: Color @Composable @ReadOnlyComposable get() = p.tertiarySoft
     val tertiaryInk: Color @Composable @ReadOnlyComposable get() = p.tertiaryInk
+    val tertiaryGraphic: Color @Composable @ReadOnlyComposable get() = p.tertiaryGraphic
 
     val success: Color @Composable @ReadOnlyComposable get() = p.success
     val successBg: Color @Composable @ReadOnlyComposable get() = p.successBg

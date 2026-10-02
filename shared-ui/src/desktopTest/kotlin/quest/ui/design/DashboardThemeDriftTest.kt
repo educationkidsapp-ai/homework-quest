@@ -180,6 +180,8 @@ class DashboardThemeDriftTest {
             assertTrue(ratio(p.success, over(p.successBg, p.surface)) >= 4.5, "$name success on its tint")
             assertTrue(ratio(p.warning, over(p.warningBg, p.surface)) >= 4.5, "$name warning on its tint")
             assertTrue(ratio(p.error, over(p.errorBg, p.surface)) >= 4.5, "$name error on its tint")
+            // An earned star is a graphic, not text: 3:1 against the surface it is drawn on (WCAG 1.4.11).
+            listOf(p.surface, p.bg).forEach { assertTrue(ratio(p.tertiaryGraphic, it) >= 3.0, "$name earned star") }
             // Brand roles: every pair that carries text, in both palettes.
             assertTrue(ratio(p.onBrand, p.brand) >= 4.5, "$name label on the primary")
             p.gradientText.forEach { assertTrue(ratio(p.onBrand, it) >= 4.5, "$name label across the text gradient") }

@@ -10,9 +10,10 @@ import quest.feature.parent.domain.PinHasher
 
 class ParentRepositoryImpl(private val settings: SettingsStore) : ParentRepository {
     override val language get() = settings.language
-    private val _appearance = MutableStateFlow(Appearance.SYSTEM)
-    // Re-read from the store on every access: this object may be built before `SettingsStore.load()` has run.
-    override val appearance: StateFlow<Appearance> get() = _appearance.also { it.value = Appearance.of(settings.appearance.value) }
+    // Read from the store synchronously, once, when this object is built — which is before the first frame (the root
+    // composable asks for it), so the app never starts in the device's palette and then switches to the chosen one.
+    private val _appearance = MutableStateFlow(Appearance.of(settings.appearanceNow()))
+    override val appearance: StateFlow<Appearance> = _appearance
     override suspend fun setAppearance(appearance: Appearance) {
         settings.set(SettingsStore.KEY_APPEARANCE, appearance.key)
         _appearance.value = appearance

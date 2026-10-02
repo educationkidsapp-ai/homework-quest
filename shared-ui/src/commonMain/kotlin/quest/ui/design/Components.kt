@@ -141,7 +141,7 @@ fun StarRow(total: Int, filled: Int, modifier: Modifier = Modifier, starSize: Dp
             Text(
                 if (on) "★" else "☆",
                 fontSize = (starSize.value).sp,
-                color = if (on) DashboardTokens.tertiary else DashboardTokens.inkLight,
+                color = if (on) DashboardTokens.tertiaryGraphic else DashboardTokens.inkLight,
                 modifier = Modifier.semantics { contentDescription = if (on) "star earned" else "star" },
             )
         }

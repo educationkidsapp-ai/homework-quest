@@ -1,10 +1,10 @@
 package quest.feature.school.presentation
 
-import quest.ui.design.softAccentOf
 import quest.ui.design.LocalDarkTheme
 import quest.ui.design.DashboardPalette
 import quest.feature.parent.domain.ParentRepository
 import quest.core.platform.SystemBarsAppearance
+import quest.feature.parent.domain.Appearance
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -64,7 +64,7 @@ fun SchoolThemeHost(content: @Composable () -> Unit) {
     // Light / Dark / System (Settings): System follows the device, and changes with it while the app is open.
     val appearance by parent.appearance.collectAsState()
     val dark = appearance.isDark(isSystemInDarkTheme())
-    SystemBarsAppearance(dark)
+    SystemBarsAppearance(dark, followsSystem = appearance == Appearance.SYSTEM)
     val branding by session.branding.collectAsState()
 
     // The child decides the school: switching child switches theme and flags together, and a child in the default
@@ -105,7 +105,6 @@ internal fun unthemed(dark: Boolean = false): ThemeOverrides {
         ground = palette.bg,
         softBorder = palette.rule,
         mascotColor = AvatarColors.body(AvatarColors.MASCOT),
-        softAccent = softAccentOf(palette.brand, palette.surface, dark),
         worldPalettes = WorldPaletteOverrides(math = Palette.sand, english = Palette.lavender),
     )
 }
@@ -126,17 +125,13 @@ private fun animatedOverrides(target: ThemeOverrides?, dark: Boolean): ThemeOver
 
     val base = unthemed(dark)
     val school = if (dark) target?.copy(primary = null, primaryInk = null, ground = null, softBorder = null) else target
-    val accent = role(school?.accent, base.accent, "accent")
-    val surface = role(school?.primary, base.primary, "primary")
     return ThemeOverrides(
-        primary = surface,
+        primary = role(school?.primary, base.primary, "primary"),
         primaryInk = role(school?.primaryInk, base.primaryInk, "primaryInk"),
-        accent = accent,
+        accent = role(school?.accent, base.accent, "accent"),
         ground = role(school?.ground, base.ground, "ground"),
         softBorder = role(school?.softBorder, base.softBorder, "softBorder"),
         mascotColor = role(school?.mascotColor, base.mascotColor, "mascot"),
-        // Derived from the two colours it sits between rather than animated on its own, so it is right in both palettes.
-        softAccent = softAccentOf(accent, surface, dark),
         worldPalettes = WorldPaletteOverrides(
             math = role(school?.worldPalettes?.math, base.worldPalettes.math, "worldMath"),
             english = role(school?.worldPalettes?.english, base.worldPalettes.english, "worldEnglish"),

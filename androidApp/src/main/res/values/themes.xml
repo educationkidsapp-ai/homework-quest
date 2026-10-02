@@ -1,9 +1,21 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- What is on screen before Compose draws: the dashboard's light ground (gray-50), dark glyphs in the bars. -->
-    <style name="Theme.Quest" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.Quest" parent="Theme.Quest.Light" />
+
+    <!-- The two palettes by name, for a Light or Dark choice made in Settings: MainActivity applies the stored one
+         before the window is created, whatever the device is set to. -->
+    <style name="Theme.Quest.Light" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">#F9FAFB</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="s">#F9FAFB</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
+    </style>
+    <style name="Theme.Quest.Dark" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#101828</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="s">#101828</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

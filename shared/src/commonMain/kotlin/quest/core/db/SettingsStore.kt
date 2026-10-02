@@ -2,6 +2,7 @@ package quest.core.db
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -23,6 +24,12 @@ class SettingsStore(private val db: Db) {
     val appearance: StateFlow<String> = _appearance
     private val _currentChildId = MutableStateFlow<String?>(null)
     val currentChildId: StateFlow<String?> = _currentChildId
+
+    /**
+     * The stored appearance, read **now**: one row, blocking, for the single caller that cannot wait — the first frame,
+     * which has to be drawn in the chosen palette. Everything else reads [appearance] or the suspending [get].
+     */
+    fun appearanceNow(): String = runBlocking { get(KEY_APPEARANCE) ?: APPEARANCE_SYSTEM }.also { _appearance.value = it }
 
     suspend fun load() {
         _language.value = get(KEY_LANGUAGE) ?: "en"

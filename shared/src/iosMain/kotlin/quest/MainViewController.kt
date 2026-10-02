@@ -8,6 +8,10 @@ import platform.Foundation.NSBundle
 import platform.UIKit.UIViewController
 import quest.di.ApiConfig
 import quest.di.appModules
+import quest.core.platform.InterfaceStyle
+import quest.core.platform.interfaceStyle
+import quest.feature.parent.domain.Appearance
+import quest.feature.parent.domain.ParentRepository
 
 private var koinStarted = false
 private var hookInstalled = false
@@ -33,5 +37,10 @@ fun MainViewController(): UIViewController {
         startKoin { modules(appModules(config)) }
         koinStarted = true
     }
-    return ComposeUIViewController { App() }
+    // The stored Light/Dark choice is on the controller before it is shown, so the first frame is not the device's.
+    val appearance = org.koin.mp.KoinPlatform.getKoin().get<ParentRepository>().appearance.value
+    return ComposeUIViewController { App() }.also {
+        InterfaceStyle.root = it
+        InterfaceStyle.apply(interfaceStyle(dark = appearance == Appearance.DARK, followsSystem = appearance == Appearance.SYSTEM))
+    }
 }

@@ -2,6 +2,8 @@
 <!-- The MySchool mark (full colour). The path data is `MySchoolMarkPaths` in shared-ui; keep the two in step. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp" android:viewportWidth="2070" android:viewportHeight="2070">
+    <!-- Scaled about the centre so the arcs' ends stay inside the 66 dp safe circle of an adaptive icon. -->
+    <group android:scaleX="0.93" android:scaleY="0.93" android:pivotX="1035" android:pivotY="1035">
     <group android:translateX="402.5" android:translateY="431.0">
         <path android:fillType="evenOdd" android:pathData="M630,110 L1220,385 L630,640 L45,385 Z M630,212 L272,378 L630,545 L990,378 Z">
             <aapt:attr name="android:fillColor">
@@ -12,5 +14,6 @@
         <path android:fillColor="#B8047A" android:pathData="M1255,535 A685,685 0 0 0 632.5,934.1 L632.5,1135 L684.3,1135 A577,577 0 0 1 1255,643 Z" />
         <path android:fillColor="#FB9B0A" android:pathData="M10,755 A465,465 0 0 1 467.2,1135 L359.8,1135 A360,360 0 0 0 10,860 Z" />
         <path android:fillColor="#FB9B0A" android:pathData="M1255,755 A465,465 0 0 0 797.8,1135 L905.2,1135 A360,360 0 0 1 1255,860 Z" />
+    </group>
     </group>
 </vector>
