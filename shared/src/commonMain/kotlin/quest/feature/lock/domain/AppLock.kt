@@ -13,8 +13,9 @@ import quest.core.platform.BiometricResult
 enum class BiometricChoice { NOT_ASKED, ENABLED, DECLINED }
 
 /**
- * The choice, kept on the device for the account it was made by. [signedOut] turns the lock off — the next person to
- * sign in on this phone must not inherit it — but remembers that the question was asked, so it is offered once.
+ * The choice, kept on the device for the account it was made by. [signedOut] forgets it entirely: the next person to
+ * sign in on this phone must not inherit the lock, and the next sign-in — the same account's included — is a first
+ * sign-in again, so the offer is made again.
  */
 interface BiometricPreferences {
     suspend fun choice(uid: String): BiometricChoice
@@ -27,7 +28,7 @@ interface BiometricPreferences {
  *
  * It is a gate in front of the screens, not part of signing in: the session and its tokens stay exactly where
  * `AuthProvider` keeps them, and a successful prompt only lifts the cover. Every rule is here so it can be tested
- * without a device: offered once after a sign-in, locked on a cold start and after [BACKGROUND_LIMIT_MILLIS] in the
+ * without a device: offered after every password sign-in until it is answered (signing out forgets the answer), locked on a cold start and after [BACKGROUND_LIMIT_MILLIS] in the
  * background, silent where the device has no biometric, and "Sign in with password" as the way out.
  */
 class AppLock(

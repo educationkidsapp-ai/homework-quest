@@ -19,10 +19,7 @@ class BiometricPreferencesImpl(private val settings: SettingsStore) : BiometricP
 
     override suspend fun set(uid: String, choice: BiometricChoice) = settings.set(KEY, "$uid|${choice.name}")
 
-    override suspend fun signedOut() {
-        val (uid, choice) = stored() ?: return
-        if (choice == BiometricChoice.ENABLED) set(uid, BiometricChoice.DECLINED)
-    }
+    override suspend fun signedOut() = settings.set(KEY, null)
 
     private companion object { const val KEY = "biometricUnlock" }
 }

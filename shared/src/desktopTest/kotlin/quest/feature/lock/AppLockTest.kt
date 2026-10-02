@@ -52,7 +52,7 @@ class AppLockTest {
 
     // ---------------------------------------------------------------- the offer
 
-    @Test fun theOfferComesOnceAfterASignIn() = runTest {
+    @Test fun theOfferComesOncePerSignIn() = runTest {
         lock.signedIn()
         assertEquals(Stage.OFFER, lock.state.value.stage)
         assertEquals(BiometricKind.FACE, lock.state.value.kind)
@@ -61,8 +61,28 @@ class AppLockTest {
         assertEquals(Stage.UNLOCKED, lock.state.value.stage)
         assertFalse(lock.enabled())
 
-        lock.signedIn()                                   // the same account signs in again: not asked twice
+        lock.signedIn()                                   // the same session: not asked twice
         assertEquals(Stage.UNLOCKED, lock.state.value.stage)
+    }
+
+    /** Signing out forgets the answer, so the same account's next sign-in is a first sign-in again. */
+    @Test fun afterSigningOutTheSameAccountIsOfferedItAgain() = runTest {
+        lock.signedIn(); lock.declineOffer()
+        preferences.signedOut(); auth.signOut()
+
+        auth.signIn("u1@example.com", "secret")
+        assertEquals(BiometricChoice.NOT_ASKED, preferences.choice("u1"))
+        lock.signedIn()
+        assertEquals(Stage.OFFER, lock.state.value.stage)
+
+        // …and the same after having had it on: off with the session, offered with the next one.
+        lock.acceptOffer("Unlock")
+        assertTrue(lock.enabled())
+        preferences.signedOut(); auth.signOut()
+        auth.signIn("u1@example.com", "secret")
+        assertFalse(lock.enabled())
+        lock.signedIn()
+        assertEquals(Stage.OFFER, lock.state.value.stage)
     }
 
     @Test fun acceptingCountsOnlyAfterASuccessfulPrompt() = runTest {
@@ -165,13 +185,13 @@ class AppLockTest {
         assertEquals(AuthState.SignedOut, auth.state.value)
         assertEquals(Stage.UNLOCKED, lock.state.value.stage)
 
-        // Signing in again with the password: the lock is off, and the question is not asked a second time.
+        // Signing in again with the password: the lock is off, nothing is locked, and the offer is made again.
         auth.signIn("u1@example.com", "secret")
         assertFalse(lock.enabled())
-        lock.signedIn()
-        assertEquals(Stage.UNLOCKED, lock.state.value.stage)
         lock.coldStart()
         assertEquals(Stage.UNLOCKED, lock.state.value.stage)
+        lock.signedIn()
+        assertEquals(Stage.OFFER, lock.state.value.stage)
     }
 
     @Test fun unlockDoesNothingWhenTheAppIsNotLocked() = runTest {
@@ -197,12 +217,12 @@ class AppLockTest {
         assertEquals(Stage.OFFER, other.state.value.stage)
     }
 
-    @Test fun signingOutTurnsTheLockOffButRemembersThatItWasOffered() = runTest {
+    @Test fun signingOutForgetsTheChoice() = runTest {
         enable()
         preferences.signedOut()
-        assertEquals(BiometricChoice.DECLINED, preferences.choice("u1"))
+        assertEquals(BiometricChoice.NOT_ASKED, preferences.choice("u1"))
         preferences.signedOut()                           // twice is harmless, and so is signing out with nothing stored
-        assertEquals(BiometricChoice.DECLINED, preferences.choice("u1"))
+        assertEquals(BiometricChoice.NOT_ASKED, preferences.choice("u1"))
         BiometricPreferencesImpl(SettingsStore(Db(DriverFactory(null)))).signedOut()
     }
 

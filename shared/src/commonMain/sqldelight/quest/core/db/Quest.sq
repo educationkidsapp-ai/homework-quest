@@ -145,9 +145,6 @@ UPDATE Attempt SET uploaded = 1 WHERE id IN ?;
 selectFirstTriesForSkill:
 SELECT correct, lessonId FROM Attempt WHERE childId = ? AND attemptNumber = 1 AND skillIds LIKE ? ORDER BY answeredAt DESC LIMIT 200;
 
-selectFirstTryResultsForSkill:
-SELECT correct FROM Attempt WHERE childId = ? AND attemptNumber = 1 AND skillIds LIKE ? ORDER BY answeredAt DESC LIMIT 14;
-
 countAttempts:
 SELECT COUNT(*) FROM Attempt WHERE childId = ?;
 
