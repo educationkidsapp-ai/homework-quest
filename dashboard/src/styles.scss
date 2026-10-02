@@ -684,28 +684,29 @@ img[data-hq-media='error'] {
 
 // EduManage Gradients
 .em-gradient--blue {
-  background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+  background: var(--hq-gradient-blue);
 }
 .em-gradient--purple {
-  background: linear-gradient(135deg, #c084fc 0%, #9333ea 100%);
+  background: var(--hq-gradient-magenta);
 }
 .em-gradient--pink {
-  background: linear-gradient(135deg, #f472b6 0%, #db2777 100%);
+  background: var(--hq-gradient-neutral);
 }
 .em-gradient--green {
-  background: linear-gradient(135deg, #4ade80 0%, #16a34a 100%);
+  background: var(--hq-gradient-green);
 }
 .em-gradient--orange {
-  background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%);
+  background: var(--hq-gradient-orange);
 }
 .em-gradient--cyan {
-  background: linear-gradient(135deg, #22d3ee 0%, #0891b2 100%);
+  background: var(--hq-gradient-teal);
 }
 .em-gradient--amber {
-  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+  background: var(--hq-gradient-warning);
+  color: var(--hq-color-on-warning);
 }
 .em-gradient--rose {
-  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
+  background: var(--hq-gradient-error);
 }
 
 // 2. Card Container
@@ -750,7 +751,7 @@ img[data-hq-media='error'] {
 .em-link-action {
   font-size: 13px;
   font-weight: 600;
-  color: #2563eb;
+  color: var(--hq-color-brand-ink);
   text-decoration: none;
   cursor: pointer;
   &:hover { text-decoration: underline; }
@@ -767,8 +768,8 @@ img[data-hq-media='error'] {
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--hq-color-info-soft);
+  color: var(--hq-color-brand-ink);
 }
 
 .em-badge-count {
@@ -776,8 +777,8 @@ img[data-hq-media='error'] {
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 999px;
-  background: #fef3c7;
-  color: #b45309;
+  background: var(--hq-color-warning-100);
+  color: var(--hq-color-warning-700);
 }
 
 // 3. Quick Actions
@@ -812,11 +813,11 @@ img[data-hq-media='error'] {
   }
 }
 
-.em-bg--blue { background: #eff6ff; border-color: #dbeafe; }
-.em-bg--purple { background: #faf5ff; border-color: #f3e8ff; }
-.em-bg--pink { background: #fdf2f8; border-color: #fce7f3; }
+.em-bg--blue { background: var(--hq-color-brand-50); border-color: var(--hq-color-brand-100); }
+.em-bg--purple { background: var(--hq-color-magenta-50); border-color: var(--hq-color-magenta-100); }
+.em-bg--pink { background: var(--hq-color-gray-100); border-color: var(--hq-color-gray-200); }
 .em-bg--green { background: #f0fdf4; border-color: #dcfce7; }
-.em-bg--orange { background: #fff7ed; border-color: #ffedd5; }
+.em-bg--orange { background: var(--hq-color-orange-50); border-color: var(--hq-color-orange-100); }
 .em-bg--cyan { background: #ecfeff; border-color: #cffafe; }
 
 .em-quick-action-icon {
@@ -938,19 +939,19 @@ img[data-hq-media='error'] {
 
   &--ghost {
     background: var(--hq-color-surface-sunken, #f8fafc);
-    color: #2563eb;
+    color: var(--hq-color-brand-ink);
     border: 1px solid var(--hq-color-rule, #e2e8f0);
     &:hover {
-      background: #eff6ff;
-      border-color: #bfdbfe;
+      background: var(--hq-color-brand-50);
+      border-color: var(--hq-color-brand-200);
     }
   }
 
   &--primary {
-    background: #2563eb;
+    background: var(--hq-color-brand-600);
     color: #ffffff;
     border: 1px solid transparent;
-    &:hover { background: #1d4ed8; }
+    &:hover { background: var(--hq-color-brand-700); }
   }
 }
 
@@ -962,18 +963,18 @@ img[data-hq-media='error'] {
   padding: 10px 18px;
   border: 0;
   border-radius: 14px;
-  background: linear-gradient(135deg, #3b82f6 0%, #9333ea 100%);
+  background: var(--hq-gradient-brand-fill);
   color: #ffffff;
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
-  box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.35);
+  box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--hq-color-brand-500) 35%, transparent);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   cursor: pointer;
 
   &:hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px -2px rgba(59, 130, 246, 0.45);
+    box-shadow: 0 6px 16px -2px color-mix(in srgb, var(--hq-color-brand-500) 45%, transparent);
   }
 }
 
@@ -994,8 +995,8 @@ img[data-hq-media='error'] {
   }
   &--leave,
   &--warning {
-    background: #ffedd5;
-    color: #c2410c;
+    background: var(--hq-color-warning-100);
+    color: var(--hq-color-warning-700);
   }
   &--danger,
   &--error {
@@ -1004,8 +1005,8 @@ img[data-hq-media='error'] {
   }
   &--info,
   &--draft {
-    background: #eff6ff;
-    color: #1d4ed8;
+    background: var(--hq-color-info-soft);
+    color: var(--hq-color-brand-ink);
   }
 }
 
@@ -1031,14 +1032,8 @@ img[data-hq-media='error'] {
   flex-wrap: wrap;
 }
 
-// 8. Global Brand Accents (EduManage Blue)
-:root {
-  --hq-color-accent: #2563eb;
-  --hq-color-accent-strong: #1d4ed8;
-  --hq-color-accent-soft: #eff6ff;
-  --hq-color-accent-on-soft: #2563eb;
-  --hq-color-accent-ink: #2563eb;
-}
+// 8. Brand accents: the accent roles are declared once, in `styles/_theme.scss` (D3), so the
+// logo palette, the dark scheme and a school's own accent all resolve in one place.
 
 // 9. EduManage Pill Tabs (.tabs--chips)
 .tabs--chips {
@@ -1068,7 +1063,7 @@ img[data-hq-media='error'] {
 
     &[aria-selected='true'] {
       background: #ffffff !important;
-      color: #2563eb !important;
+      color: var(--hq-color-brand-ink) !important;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
       font-weight: 700 !important;
     }
@@ -1084,18 +1079,13 @@ img[data-hq-media='error'] {
   }
 
   .tabs__tab[aria-selected='true'] .tabs__badge {
-    background: #eff6ff !important;
-    color: #2563eb !important;
+    background: var(--hq-color-info-soft) !important;
+    color: var(--hq-color-brand-ink) !important;
   }
 }
 
 // 10. Dark Mode Overrides for EduManage Components
 html.dark {
-  --hq-color-accent: #3b82f6;
-  --hq-color-accent-strong: #60a5fa;
-  --hq-color-accent-soft: rgba(59, 130, 246, 0.16);
-  --hq-color-accent-on-soft: #93c5fd;
-  --hq-color-accent-ink: #60a5fa;
 
   .shell {
     background: var(--hq-color-bg, #0c111d) !important;
@@ -1137,7 +1127,7 @@ html.dark {
 
       &[aria-selected='true'] {
         background: #1e293b !important;
-        color: #60a5fa !important;
+        color: var(--hq-color-brand-400) !important;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4) !important;
       }
     }
@@ -1148,38 +1138,38 @@ html.dark {
     }
 
     .tabs__tab[aria-selected='true'] .tabs__badge {
-      background: rgba(59, 130, 246, 0.25) !important;
-      color: #93c5fd !important;
+      background: color-mix(in srgb, var(--hq-color-brand-500) 25%, transparent) !important;
+      color: var(--hq-color-brand-300) !important;
     }
   }
 
   .em-btn-sm--ghost {
     background: rgba(255, 255, 255, 0.05) !important;
-    color: #60a5fa !important;
+    color: var(--hq-color-brand-400) !important;
     border-color: rgba(255, 255, 255, 0.12) !important;
 
     &:hover {
-      background: rgba(59, 130, 246, 0.18) !important;
-      border-color: #3b82f6 !important;
-      color: #93c5fd !important;
+      background: color-mix(in srgb, var(--hq-color-brand-500) 18%, transparent) !important;
+      border-color: var(--hq-color-brand-500) !important;
+      color: var(--hq-color-brand-300) !important;
     }
   }
 
   .em-badge-pill {
-    background: rgba(59, 130, 246, 0.18) !important;
-    color: #93c5fd !important;
+    background: color-mix(in srgb, var(--hq-color-brand-500) 18%, transparent) !important;
+    color: var(--hq-color-brand-300) !important;
   }
 
   .em-badge-count {
-    background: rgba(245, 158, 11, 0.18) !important;
-    color: #fcd34d !important;
+    background: color-mix(in srgb, var(--hq-color-warning-500) 18%, transparent) !important;
+    color: var(--hq-color-warning-300) !important;
   }
 
-  .em-bg--blue { background: rgba(59, 130, 246, 0.12) !important; border-color: rgba(59, 130, 246, 0.25) !important; }
-  .em-bg--purple { background: rgba(168, 85, 247, 0.12) !important; border-color: rgba(168, 85, 247, 0.25) !important; }
-  .em-bg--pink { background: rgba(236, 72, 153, 0.12) !important; border-color: rgba(236, 72, 153, 0.25) !important; }
+  .em-bg--blue { background: color-mix(in srgb, var(--hq-color-brand-500) 12%, transparent) !important; border-color: color-mix(in srgb, var(--hq-color-brand-500) 25%, transparent) !important; }
+  .em-bg--purple { background: color-mix(in srgb, var(--hq-color-magenta-500) 12%, transparent) !important; border-color: color-mix(in srgb, var(--hq-color-magenta-500) 25%, transparent) !important; }
+  .em-bg--pink { background: color-mix(in srgb, var(--hq-color-gray-500) 12%, transparent) !important; border-color: color-mix(in srgb, var(--hq-color-gray-500) 25%, transparent) !important; }
   .em-bg--green { background: rgba(34, 197, 94, 0.12) !important; border-color: rgba(34, 197, 94, 0.25) !important; }
-  .em-bg--orange { background: rgba(249, 115, 22, 0.12) !important; border-color: rgba(249, 115, 22, 0.25) !important; }
+  .em-bg--orange { background: color-mix(in srgb, var(--hq-color-orange-500) 12%, transparent) !important; border-color: color-mix(in srgb, var(--hq-color-orange-500) 25%, transparent) !important; }
   .em-bg--cyan { background: rgba(6, 182, 212, 0.12) !important; border-color: rgba(6, 182, 212, 0.25) !important; }
 
   .em-pill {
@@ -1188,16 +1178,16 @@ html.dark {
       color: #4ade80 !important;
     }
     &--leave, &--warning {
-      background: rgba(249, 115, 22, 0.2) !important;
-      color: #fb923c !important;
+      background: color-mix(in srgb, var(--hq-color-warning-500) 20%, transparent) !important;
+      color: var(--hq-color-warning-300) !important;
     }
     &--danger, &--error {
       background: rgba(239, 68, 68, 0.2) !important;
       color: #f87171 !important;
     }
     &--info, &--draft {
-      background: rgba(59, 130, 246, 0.2) !important;
-      color: #60a5fa !important;
+      background: color-mix(in srgb, var(--hq-color-brand-500) 20%, transparent) !important;
+      color: var(--hq-color-brand-300) !important;
     }
   }
 
@@ -1221,10 +1211,10 @@ html.dark {
   .em-event-item {
     border-color: rgba(255, 255, 255, 0.1) !important;
   }
-  .em-event--orange { background: rgba(249, 115, 22, 0.12) !important; border-color: #f97316 !important; }
-  .em-event--purple { background: rgba(168, 85, 247, 0.12) !important; border-color: #a855f7 !important; }
-  .em-event--pink { background: rgba(236, 72, 153, 0.12) !important; border-color: #ec4899 !important; }
-  .em-event--blue { background: rgba(59, 130, 246, 0.12) !important; border-color: #3b82f6 !important; }
+  .em-event--orange { background: color-mix(in srgb, var(--hq-color-orange-500) 12%, transparent) !important; border-color: var(--hq-color-orange-500) !important; }
+  .em-event--purple { background: color-mix(in srgb, var(--hq-color-magenta-500) 12%, transparent) !important; border-color: var(--hq-color-magenta-500) !important; }
+  .em-event--pink { background: color-mix(in srgb, var(--hq-color-gray-500) 12%, transparent) !important; border-color: var(--hq-color-gray-500) !important; }
+  .em-event--blue { background: color-mix(in srgb, var(--hq-color-brand-500) 12%, transparent) !important; border-color: var(--hq-color-brand-500) !important; }
   .em-event--green { background: rgba(34, 197, 94, 0.12) !important; border-color: #22c55e !important; }
 
   .em-event-title { color: var(--hq-color-ink, rgba(255, 255, 255, 0.95)) !important; }
@@ -1232,7 +1222,7 @@ html.dark {
 
   .em-status-pill.is-active {
     background: #1e293b !important;
-    color: #60a5fa !important;
+    color: var(--hq-color-brand-400) !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
   }
 

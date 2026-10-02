@@ -2136,6 +2136,36 @@ cd dashboard && node tools/fonts.mjs --check   # the subset woff2 files against 
 Editing a token: change `design/tokens.json`, run both generators, commit the generated files with it. `tokens.json`
 is a shared interface — it is created and owned by the `dashboard` worker and consumed by `mobile`.
 
+### The dashboard palette is the logo's
+
+The dashboard's brand colours are sampled from the MySchool logo and are written in one file,
+`dashboard/src/styles/_theme.scss`: the blue ramp `--hq-color-brand-*` (the logo's light blue is `brand-400`, its deep
+blue `brand-700`), the magenta ramp `--hq-color-magenta-*` (secondary), the orange ramp `--hq-color-orange-*` (accent),
+the brand gradient (`--hq-gradient-brand`, light blue to deep blue at 135°, and `--hq-gradient-brand-fill` for
+surfaces that carry white text) and the dark-scheme roles in the `html.dark` block. Warning is yellow so that it never
+reads as the orange accent. [docs/brand/palette.md](brand/palette.md) is the published table the mobile app adopts.
+
+To change a colour: edit the ramp step in `_theme.scss`, update the same row of `docs/brand/palette.md`, and run
+
+```bash
+corepack pnpm --dir dashboard exec ng test --watch=false --include src/styles/palette.spec.ts
+corepack pnpm --dir dashboard e2e      # the styleguide, EN/AR, light/dark — also re-measures the contrast row
+```
+
+`palette.spec.ts` fails when the two disagree, when a text/background pair drops under 4.5:1 in either scheme, or
+when the focus ring drops under 3:1. No other stylesheet may hold a brand hex: feature styles read the ramps, the
+roles (`--hq-color-brand-ink`, `--hq-color-secondary-ink`, …) or the named gradients (`--hq-gradient-blue`,
+`-magenta`, `-orange`, `-neutral`, …).
+
+`design/tokens.json` is **not** where these live. It still carries the parent-mode palette that the app's
+`TokensDriftTest` and the server's default theme read, and the server ships a byte-identical copy of it.
+
+The mark is `dashboard/src/assets/brand/myschool-mark.svg` (`myschool-mark-mono.svg` paints in `currentColor`). The
+favicon, the PNG fallbacks and the maskable manifest icons in `dashboard/public/` are rendered from it. It is shown on
+the sign-in page and in the sidebar only when neither the school nor the platform has a logo of its own. A school's
+theme still overrides `--hq-color-accent`, surface, ink, ground and rule as before; the gradient, the accent tint and
+the accent-as-text stay the logo's blue under every school.
+
 ## CI
 
 Seven workflows — `ci`, `ios`, `deploy-qa`, `deploy-production`, `rollback`, `migration-check`, `actions-cost` — plus

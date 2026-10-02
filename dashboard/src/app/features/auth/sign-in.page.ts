@@ -39,6 +39,10 @@ const LOGO_DEBOUNCE_MS = 400;
     <hq-auth-layout [title]="'auth.signIn.title' | transloco">
       @if (schoolLogo(); as logo) {
         <img auth-logo class="sign-in__logo" [src]="logo" alt="" />
+      } @else {
+        <!-- D3: neither a school's logo nor the platform's — the product's own mark. Projected
+             here, not left to the layout's fallback: an empty block still fills the slot. -->
+        <img auth-logo class="sign-in__logo sign-in__logo--mark" src="assets/brand/myschool-mark.svg" alt="" />
       }
 
       <form class="sign-in" (submit)="submit($event)">
@@ -101,6 +105,11 @@ const LOGO_DEBOUNCE_MS = 400;
       block-size: var(--hq-size-logo-size);
       object-fit: contain;
       animation: hq-fade-in var(--hq-motion-base) var(--hq-motion-ease) both;
+    }
+
+    .sign-in__logo--mark {
+      inline-size: var(--hq-size-touch-target);
+      block-size: var(--hq-size-touch-target);
     }
   `,
 })

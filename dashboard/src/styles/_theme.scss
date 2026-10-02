@@ -18,18 +18,49 @@
 
 :root {
   // --- Ramps -------------------------------------------------------------- §1 Colour
-  --hq-color-brand-25: #f2f7ff;
-  --hq-color-brand-50: #ecf3ff;
-  --hq-color-brand-100: #dde9ff;
-  --hq-color-brand-200: #c2d6ff;
-  --hq-color-brand-300: #9cb9ff;
-  --hq-color-brand-400: #7592ff;
-  --hq-color-brand-500: #465fff;
-  --hq-color-brand-600: #3641f5;
-  --hq-color-brand-700: #2a31d8;
-  --hq-color-brand-800: #252dae;
-  --hq-color-brand-900: #262e89;
-  --hq-color-brand-950: #161950;
+  // D3 (2026-10-02): the palette is the MySchool logo's (`src/assets/brand/myschool-mark.svg`),
+  // sampled from the artwork: the diamond's light blue is `brand-400`, its deep blue `brand-700`,
+  // the magenta arcs `magenta-600`, the orange arcs `orange-400`. Every other step is mixed from
+  // those four. `docs/brand/palette.md` publishes the table and `palette.spec.ts` holds it there
+  // and measures every text/background pair below against AA.
+  --hq-color-brand-25: #f3fafd;
+  --hq-color-brand-50: #e6f5fc;
+  --hq-color-brand-100: #ceebf9;
+  --hq-color-brand-200: #a1d9f3;
+  --hq-color-brand-300: #66c2eb;
+  --hq-color-brand-400: #089cdf; // the logo's light blue — the gradient's first stop
+  --hq-color-brand-500: #0774c9; // the first step white text clears 4.5:1 on (4.83:1)
+  --hq-color-brand-600: #0762bf;
+  --hq-color-brand-700: #0754b7; // the logo's deep blue — the gradient's last stop
+  --hq-color-brand-800: #064192;
+  --hq-color-brand-900: #05306e;
+  --hq-color-brand-950: #052150;
+
+  // Secondary: the logo's magenta. An accent — chips, highlights, the second chart series.
+  --hq-color-magenta-50: #fbf0f7;
+  --hq-color-magenta-100: #f6deee;
+  --hq-color-magenta-200: #edbedc;
+  --hq-color-magenta-300: #e091c4;
+  --hq-color-magenta-400: #d25eaa;
+  --hq-color-magenta-500: #c32c8f;
+  --hq-color-magenta-600: #b8047a; // the logo's magenta
+  --hq-color-magenta-700: #9c0368;
+  --hq-color-magenta-800: #810356;
+  --hq-color-magenta-900: #650244;
+  --hq-color-magenta-950: #4a0132;
+
+  // Accent: the logo's orange. Never text on white below `orange-700` (5.07:1).
+  --hq-color-orange-50: #fff6e9;
+  --hq-color-orange-100: #feebce;
+  --hq-color-orange-200: #fdd79d;
+  --hq-color-orange-300: #fcbe60;
+  --hq-color-orange-400: #fb9b0a; // the logo's orange
+  --hq-color-orange-500: #e48b09;
+  --hq-color-orange-600: #c17307;
+  --hq-color-orange-700: #a25e05;
+  --hq-color-orange-800: #874b04;
+  --hq-color-orange-900: #703b03;
+  --hq-color-orange-950: #592b02;
 
   --hq-color-gray-25: #fcfcfd;
   --hq-color-gray-50: #f9fafb;
@@ -61,13 +92,16 @@
   --hq-color-error-600: #d92d20;
   --hq-color-error-700: #b42318;
 
-  --hq-color-warning-50: #fffaeb;
-  --hq-color-warning-100: #fef0c7;
-  --hq-color-warning-300: #fec84b;
-  --hq-color-warning-400: #fdb022;
-  --hq-color-warning-500: #f79009;
-  --hq-color-warning-600: #dc6803;
-  --hq-color-warning-700: #b54708;
+  // D3: warning was an orange (`#f79009`) one step from the logo's own. It moves to yellow so a
+  // warning never reads as the brand accent; the error ramp stays the orange-red it was, which
+  // sits 45 degrees of hue from the magenta and is always carried by an icon or a label too.
+  --hq-color-warning-50: #fffbe0;
+  --hq-color-warning-100: #fff5b8;
+  --hq-color-warning-300: #ffe24d;
+  --hq-color-warning-400: #fbd400;
+  --hq-color-warning-500: #e6bf00;
+  --hq-color-warning-600: #b39500;
+  --hq-color-warning-700: #7d6500;
 
   // --- Roles -------------------------------------------------------------- §1, §4
   // The five properties a school may override (`ThemeService.THEME_PROPERTIES`) keep their
@@ -91,19 +125,19 @@
   --hq-color-divider: var(--hq-color-gray-100); // the divider *inside* a container
   --hq-color-control-rule: var(--hq-color-gray-300); // input and secondary-button border
   --hq-color-hover: var(--hq-color-gray-100); // row and nav hover
-  --hq-color-accent: var(--hq-color-brand-500); // school `accent`
-  --hq-color-accent-strong: var(--hq-color-brand-600); // accent hover, and link text
-  // Mixed from the accent rather than pinned to `brand-50`, because the accent is the one
-  // colour a school really does change: a school that picks green would otherwise get a
-  // brand-blue tint behind its own badges and nav. 10 % of `brand-500` on white is `#ecefff`,
-  // within one step of the spec's `#ecf3ff`, so the default is the spec's for all practical
-  // purposes and a school's is its own.
-  --hq-color-accent-soft: color-mix(in srgb, var(--hq-color-accent) 10%, #ffffff);
-  --hq-color-accent-on-soft: var(--hq-color-accent); // text on that tint
-  // The accent used as *text* rather than as a fill — a selected tab's label, a highlighted
-  // figure. On a white page a school's own accent is what it chose and what it gets; the dark
-  // block re-derives it, because the same colour on `#171f2e` is not the same contrast.
-  --hq-color-accent-ink: var(--hq-color-accent);
+  // `brand-600` rather than `brand-500`: the accent is also set as text (a selected tab, a link)
+  // on the ground, the sunken surface and its own tint, and 5.99:1 on white holds 4.5:1 on all
+  // of them where `brand-500`'s 4.83:1 does not.
+  --hq-color-accent: var(--hq-color-brand-600); // school `accent`
+  --hq-color-accent-strong: var(--hq-color-brand-700); // accent hover, and link text — the logo's deep blue
+  // The tint, the text on it and the accent-as-text are the *product's* blue, not the school's:
+  // only `--hq-color-accent` itself is a school's to set. They were mixed from the accent until
+  // the EduManage layer pinned them in `styles.scss`; D3 moves the pins here, onto the logo's
+  // ramp, so there is one place they are written and a school's accent reaches exactly the
+  // surfaces it reached before — fills that read `--hq-color-accent`, and nothing else.
+  --hq-color-accent-soft: var(--hq-color-brand-50);
+  --hq-color-accent-on-soft: var(--hq-color-brand-600); // text on that tint
+  --hq-color-accent-ink: var(--hq-color-brand-600); // the accent as text — a selected tab, a figure
   --hq-color-disabled: var(--hq-color-gray-400);
   // §3 Filter chip, on: the count pill is the accent held back by 22 % of the label's white.
   --hq-color-on-accent-soft: rgb(255 255 255 / 0.22);
@@ -123,7 +157,81 @@
   // borders that take it.
   --hq-color-focus: var(--hq-color-brand-500);
   --hq-color-focus-border: var(--hq-color-brand-300);
-  --hq-focus-ring: 0 0 0 3px rgb(70 95 255 / 0.1);
+  --hq-focus-ring: 0 0 0 3px color-mix(in srgb, var(--hq-color-focus) 16%, transparent);
+
+  // --- Brand: secondary, accent, gradient --------------------------------- D3
+  // Blue leads. Magenta and orange are accents: a fill, a chip, a chart series — and as text
+  // only through the `-ink` roles, which are the first steps of each ramp that clear AA.
+  --hq-color-secondary: var(--hq-color-magenta-600);
+  --hq-color-secondary-soft: var(--hq-color-magenta-50);
+  --hq-color-secondary-ink: var(--hq-color-magenta-700);
+  --hq-color-tertiary: var(--hq-color-orange-400);
+  --hq-color-tertiary-soft: var(--hq-color-orange-50);
+  --hq-color-tertiary-ink: var(--hq-color-orange-800);
+  // Yellow is a light fill in both schemes, so what sits on it is dark in both: white on
+  // `warning-500` is 1.78:1, `gray-900` is 9.99:1.
+  --hq-color-on-warning: var(--hq-color-gray-900);
+  --hq-color-info-soft: var(--hq-color-brand-50);
+  --hq-color-info-ink: var(--hq-color-brand-700);
+  // The brand blue as text and as a fill that carries white text, for the surfaces that are the
+  // product's rather than a school's (they do not follow `--hq-color-accent`).
+  --hq-color-brand-ink: var(--hq-color-brand-600);
+  --hq-color-brand-fill: var(--hq-color-brand-500);
+  --hq-color-brand-fill-hover: var(--hq-color-brand-600);
+
+  // The brand gradient is the logo diamond's: light blue to deep blue, top-left to bottom-right.
+  // `--hq-gradient-brand` is the artwork's own pair and is decorative (white text on its first
+  // stop is 3.07:1); `--hq-gradient-brand-fill` starts one step in, at the first blue white text
+  // clears AA on, and is the one for anything that carries a label — the active nav item, a
+  // primary button, a hero card. Neither follows a school's accent: the gradient is the
+  // product's signature and stays the logo's blues under every school theme, as the gradient
+  // it replaces did. The stops are properties of their own so that can change in one place.
+  --hq-gradient-angle: 135deg;
+  --hq-gradient-brand-from: var(--hq-color-brand-400);
+  --hq-gradient-brand-to: var(--hq-color-brand-700);
+  --hq-gradient-brand-fill-from: var(--hq-color-brand-500);
+  --hq-gradient-brand: linear-gradient(
+    var(--hq-gradient-angle),
+    var(--hq-gradient-brand-from) 0%,
+    var(--hq-gradient-brand-to) 100%
+  );
+  --hq-gradient-brand-fill: linear-gradient(
+    var(--hq-gradient-angle),
+    var(--hq-gradient-brand-fill-from) 0%,
+    var(--hq-gradient-brand-to) 100%
+  );
+  // The page wash behind the shell: the three logo hues at their palest.
+  --hq-gradient-ground: linear-gradient(
+    var(--hq-gradient-angle),
+    var(--hq-color-brand-50) 0%,
+    var(--hq-color-magenta-50) 50%,
+    var(--hq-color-orange-50) 100%
+  );
+
+  // Categorical series, in order: blue, magenta, orange, then the neutrals and the hues that
+  // are not the logo's. Charts, icon tiles and avatars read these; a series is never told apart
+  // by hue alone where it carries a status — those take the status roles, with their label.
+  --hq-color-series-1: var(--hq-color-brand-500);
+  --hq-color-series-2: var(--hq-color-magenta-600);
+  --hq-color-series-3: var(--hq-color-orange-400);
+  --hq-color-series-4: var(--hq-color-gray-500);
+  --hq-color-series-5: var(--hq-color-teal-600);
+  --hq-color-series-6: var(--hq-color-brand-900);
+  --hq-color-teal-50: #ecfeff;
+  --hq-color-teal-100: #cffafe;
+  --hq-color-teal-400: #22d3ee;
+  --hq-color-teal-500: #06b6d4;
+  --hq-color-teal-600: #0891b2;
+  --hq-gradient-blue: linear-gradient(135deg, var(--hq-color-brand-400) 0%, var(--hq-color-brand-600) 100%);
+  --hq-gradient-magenta: linear-gradient(135deg, var(--hq-color-magenta-400) 0%, var(--hq-color-magenta-600) 100%);
+  // The tiles carry a white glyph, which needs 3:1 on the *first* stop: the logo's own orange
+  // is 2.14:1 under white and `gray-400` 2.58:1, so both gradients start two steps in.
+  --hq-gradient-orange: linear-gradient(135deg, var(--hq-color-orange-600) 0%, var(--hq-color-orange-700) 100%);
+  --hq-gradient-neutral: linear-gradient(135deg, var(--hq-color-gray-500) 0%, var(--hq-color-gray-700) 100%);
+  --hq-gradient-green: linear-gradient(135deg, var(--hq-color-success-500) 0%, var(--hq-color-success-700) 100%);
+  --hq-gradient-teal: linear-gradient(135deg, var(--hq-color-teal-400) 0%, var(--hq-color-teal-600) 100%);
+  --hq-gradient-warning: linear-gradient(135deg, var(--hq-color-warning-400) 0%, var(--hq-color-warning-600) 100%);
+  --hq-gradient-error: linear-gradient(135deg, var(--hq-color-error-400) 0%, var(--hq-color-error-600) 100%);
 
   // Status tints — badge, band and pill backgrounds with the text colour that goes on them.
   --hq-color-success-soft: var(--hq-color-success-50);
@@ -355,25 +463,34 @@ html.dark {
   // An ink fill is near-white here, so the text on it cannot be.
   --hq-color-on-ink: var(--hq-color-gray-900);
 
+  // One step lighter than the light scheme's, so a fill still has an edge on `#171f2e`. Not
+  // `!important`: a school's inline accent still wins here.
+  --hq-color-accent: var(--hq-color-brand-500);
   --hq-color-accent-strong: var(--hq-color-brand-400);
-  // §5's `rgba(70,95,255,0.12)` written so a school's accent tints with its own colour, and
-  // lightened for the text on it — `brand-500` mixed 70 % into white is `brand-400` to within
-  // a step, and on a school's accent it is that school's colour, brought up off the ground.
-  --hq-color-accent-soft: color-mix(in srgb, var(--hq-color-accent) 12%, transparent);
-  --hq-color-accent-on-soft: color-mix(in srgb, var(--hq-color-accent) 70%, #ffffff);
-  // The accent as text, held up to AA. A school's accent was picked against a white page, so
-  // it arrives here as whatever it is — the seeded school's `#cc2a0f` measures **3.07:1** on
-  // the `#171f2e` card, which is not a colour to set words in (§4.5 of
-  // `docs/reports/tailadmin-restyle.md`). Mixed 45 % into white it clears 4.5:1 for *any*
-  // accent a school could send, including pure black, which is the worst case at **4.9:1**;
-  // `#cc2a0f` itself lands at **7.72:1** and still reads as that school's red. The accent is
-  // untouched as a fill — a button, a chip, the rail's marker are all still the school's.
-  //
-  // The guarantee is this block's alone. In light mode the role is the raw accent, because a
-  // school chose that colour against a white page and the server's contrast check on the theme
-  // is what governs it there.
-  --hq-color-accent-ink: color-mix(in srgb, var(--hq-color-accent) 45%, #ffffff);
+  // The same three pins on the dark ground: a 16 % wash of the blue, and the two light steps
+  // of the ramp for the text on it (`brand-300` is 8.24:1 on the card, `brand-400` 5.37:1).
+  --hq-color-accent-soft: color-mix(in srgb, var(--hq-color-brand-500) 16%, transparent);
+  --hq-color-accent-on-soft: var(--hq-color-brand-300);
+  --hq-color-accent-ink: var(--hq-color-brand-400);
   --hq-color-focus-border: var(--hq-color-brand-400);
+  // `brand-500` is 3.42:1 on the dark card: enough for a fill's edge, not for an outline a
+  // keyboard user has to find. The logo's light blue is 5.37:1 there.
+  --hq-color-focus: var(--hq-color-brand-400);
+  --hq-color-brand-ink: var(--hq-color-brand-300);
+  --hq-color-secondary: var(--hq-color-magenta-500);
+  --hq-color-secondary-soft: color-mix(in srgb, var(--hq-color-magenta-500) 16%, transparent);
+  --hq-color-secondary-ink: var(--hq-color-magenta-300);
+  --hq-color-tertiary-soft: color-mix(in srgb, var(--hq-color-orange-400) 16%, transparent);
+  --hq-color-tertiary-ink: var(--hq-color-orange-300);
+  --hq-color-info-soft: color-mix(in srgb, var(--hq-color-brand-400) 16%, transparent);
+  --hq-color-info-ink: var(--hq-color-brand-300);
+  --hq-color-series-1: var(--hq-color-brand-400);
+  --hq-color-series-2: var(--hq-color-magenta-400);
+  --hq-color-series-4: var(--hq-color-gray-400);
+  --hq-color-series-5: var(--hq-color-teal-400);
+  --hq-color-series-6: var(--hq-color-brand-200);
+  // On the dark ground the wash is the ground itself; a pastel gradient there is a grey smear.
+  --hq-gradient-ground: none;
 
   // Badge tints: 15 % of the ramp's 500 behind the 500 itself.
   --hq-color-success-soft: rgb(18 183 106 / 0.15);
@@ -382,7 +499,7 @@ html.dark {
   // `error-500` measures 4.39:1 on the dark card — a tenth under AA, and the one ramp ink that
   // missed. One step lighter carries the same red at 5.9:1.
   --hq-color-error-ink: var(--hq-color-error-400);
-  --hq-color-warning-soft: rgb(247 144 9 / 0.15);
+  --hq-color-warning-soft: rgb(230 191 0 / 0.15);
   --hq-color-warning-ink: var(--hq-color-warning-500);
   --hq-color-neutral-soft: rgb(255 255 255 / 0.05);
   --hq-color-neutral-ink: var(--hq-color-gray-300);
@@ -424,6 +541,8 @@ html.dark {
   --hq-color-error-rule: var(--hq-color-error-200);
   --hq-color-skeleton: var(--hq-color-gray-100);
   --hq-color-skeleton-shine: var(--hq-color-gray-50);
+  --hq-color-focus: var(--hq-color-brand-500);
+  --hq-color-brand-ink: var(--hq-color-brand-600);
 
   color-scheme: light;
   background: var(--hq-color-surface);

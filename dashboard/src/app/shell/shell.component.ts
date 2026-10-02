@@ -155,7 +155,7 @@ const MESSAGE_ROWS = new Set(['chat', 'messages']);
       display: flex;
       align-items: stretch;
       min-block-size: 100vh;
-      background: linear-gradient(135deg, #eff6ff 0%, #faf5ff 50%, #fff1f2 100%);
+      background: var(--hq-gradient-ground);
     }
 
     :host-context(html.dark) .shell,

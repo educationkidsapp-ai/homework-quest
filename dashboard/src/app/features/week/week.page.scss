@@ -111,22 +111,22 @@
 
 // Gradients
 .em-gradient--blue {
-  background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+  background: var(--hq-gradient-blue);
 }
 .em-gradient--purple {
-  background: linear-gradient(135deg, #c084fc 0%, #9333ea 100%);
+  background: var(--hq-gradient-magenta);
 }
 .em-gradient--pink {
-  background: linear-gradient(135deg, #f472b6 0%, #db2777 100%);
+  background: var(--hq-gradient-neutral);
 }
 .em-gradient--green {
-  background: linear-gradient(135deg, #4ade80 0%, #16a34a 100%);
+  background: var(--hq-gradient-green);
 }
 .em-gradient--orange {
-  background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%);
+  background: var(--hq-gradient-orange);
 }
 .em-gradient--cyan {
-  background: linear-gradient(135deg, #22d3ee 0%, #0891b2 100%);
+  background: var(--hq-gradient-teal);
 }
 
 // 2. Card Container
@@ -171,7 +171,7 @@
 .em-link-action {
   font-size: 13px;
   font-weight: 600;
-  color: #2563eb;
+  color: var(--hq-color-brand-ink);
   text-decoration: none;
   cursor: pointer;
   &:hover { text-decoration: underline; }
@@ -188,8 +188,8 @@
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--hq-color-info-soft);
+  color: var(--hq-color-brand-ink);
 }
 
 // 3. Quick Actions
@@ -224,11 +224,11 @@
   }
 }
 
-.em-bg--blue { background: #eff6ff; border-color: #dbeafe; }
-.em-bg--purple { background: #faf5ff; border-color: #f3e8ff; }
-.em-bg--pink { background: #fdf2f8; border-color: #fce7f3; }
+.em-bg--blue { background: var(--hq-color-brand-50); border-color: var(--hq-color-brand-100); }
+.em-bg--purple { background: var(--hq-color-magenta-50); border-color: var(--hq-color-magenta-100); }
+.em-bg--pink { background: var(--hq-color-gray-100); border-color: var(--hq-color-gray-200); }
 .em-bg--green { background: #f0fdf4; border-color: #dcfce7; }
-.em-bg--orange { background: #fff7ed; border-color: #ffedd5; }
+.em-bg--orange { background: var(--hq-color-orange-50); border-color: var(--hq-color-orange-100); }
 .em-bg--cyan { background: #ecfeff; border-color: #cffafe; }
 
 .em-quick-action-icon {
@@ -314,7 +314,7 @@
   transition: border-color 0.15s ease;
 
   &:focus {
-    border-color: #3b82f6;
+    border-color: var(--hq-color-brand-500);
   }
 }
 
@@ -356,19 +356,19 @@
 
   &--ready {
     &.is-active {
-      color: #2563eb;
+      color: var(--hq-color-brand-ink);
     }
   }
 
   &--draft {
     &.is-active {
-      color: #d97706;
+      color: var(--hq-color-warning-ink);
     }
   }
 
   &--exams {
     &.is-active {
-      color: #9333ea;
+      color: var(--hq-color-secondary-ink);
     }
   }
 }
@@ -432,17 +432,17 @@
   gap: 6px;
   padding: 8px 16px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #3b82f6 0%, #9333ea 100%);
+  background: var(--hq-gradient-brand-fill);
   color: #ffffff;
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
-  box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.35);
+  box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--hq-color-brand-500) 35%, transparent);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 
   &:hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px -2px rgba(59, 130, 246, 0.45);
+    box-shadow: 0 6px 16px -2px color-mix(in srgb, var(--hq-color-brand-500) 45%, transparent);
   }
 
   svg {
@@ -527,16 +527,16 @@
 
   &--ghost {
     background: var(--hq-color-surface, #ffffff);
-    color: #2563eb;
+    color: var(--hq-color-brand-ink);
     border: 1px solid var(--hq-color-rule, #e2e8f0);
-    &:hover { background: #eff6ff; }
+    &:hover { background: var(--hq-color-brand-50); }
   }
 
   &--primary {
-    background: #2563eb;
+    background: var(--hq-color-brand-600);
     color: #ffffff;
     border: 0;
-    &:hover { background: #1d4ed8; }
+    &:hover { background: var(--hq-color-brand-700); }
   }
 }
 
@@ -552,8 +552,8 @@
     color: #15803d;
   }
   &--leave {
-    background: #ffedd5;
-    color: #c2410c;
+    background: var(--hq-color-warning-100);
+    color: var(--hq-color-warning-700);
   }
   &--danger {
     background: #fee2e2;
@@ -583,10 +583,10 @@
   }
 }
 
-.em-event--orange { border-color: #f97316; background: #fff7ed; }
-.em-event--purple { border-color: #a855f7; background: #faf5ff; }
-.em-event--pink { border-color: #ec4899; background: #fdf2f8; }
-.em-event--blue { border-color: #3b82f6; background: #eff6ff; }
+.em-event--orange { border-color: var(--hq-color-orange-500); background: var(--hq-color-orange-50); }
+.em-event--purple { border-color: var(--hq-color-magenta-500); background: var(--hq-color-magenta-50); }
+.em-event--pink { border-color: var(--hq-color-gray-500); background: var(--hq-color-gray-100); }
+.em-event--blue { border-color: var(--hq-color-brand-500); background: var(--hq-color-brand-50); }
 .em-event--green { border-color: #22c55e; background: #f0fdf4; }
 
 .em-event-title-row {
@@ -617,7 +617,7 @@
 .em-event-action {
   font-size: 12px;
   font-weight: 700;
-  color: #2563eb;
+  color: var(--hq-color-brand-ink);
   text-decoration: none;
   margin-top: 4px;
   &:hover { text-decoration: underline; }
@@ -655,7 +655,7 @@
   font-size: 11px;
   font-weight: 600;
   &--success { color: #16a34a; }
-  &--warning { color: #d97706; }
+  &--warning { color: var(--hq-color-warning-ink); }
   &--danger { color: #dc2626; }
 }
 
@@ -711,7 +711,7 @@
 .em-payment-amount {
   font-size: 13px;
   font-weight: 700;
-  color: #2563eb;
+  color: var(--hq-color-brand-ink);
   margin: 0;
 }
 
@@ -721,19 +721,19 @@
   padding-block: 12px;
   border: 0;
   border-radius: 16px;
-  background: linear-gradient(135deg, #3b82f6 0%, #9333ea 100%);
+  background: var(--hq-gradient-brand-fill);
   color: #ffffff;
   font-size: 13px;
   font-weight: 700;
   text-align: center;
   text-decoration: none;
   cursor: pointer;
-  box-shadow: 0 4px 14px -2px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 4px 14px -2px color-mix(in srgb, var(--hq-color-brand-500) 40%, transparent);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 
   &:hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px -2px rgba(59, 130, 246, 0.5);
+    box-shadow: 0 6px 20px -2px color-mix(in srgb, var(--hq-color-brand-500) 50%, transparent);
   }
 }
 
@@ -746,11 +746,11 @@
     box-shadow: none;
   }
 
-  .em-bg--blue { background: rgba(30, 58, 138, 0.25); border-color: rgba(59, 130, 246, 0.3); }
-  .em-bg--purple { background: rgba(88, 28, 135, 0.25); border-color: rgba(168, 85, 247, 0.3); }
-  .em-bg--pink { background: rgba(131, 24, 67, 0.25); border-color: rgba(236, 72, 153, 0.3); }
+  .em-bg--blue { background: color-mix(in srgb, var(--hq-color-brand-900) 25%, transparent); border-color: color-mix(in srgb, var(--hq-color-brand-500) 30%, transparent); }
+  .em-bg--purple { background: color-mix(in srgb, var(--hq-color-magenta-900) 25%, transparent); border-color: color-mix(in srgb, var(--hq-color-magenta-500) 30%, transparent); }
+  .em-bg--pink { background: color-mix(in srgb, var(--hq-color-gray-700) 25%, transparent); border-color: color-mix(in srgb, var(--hq-color-gray-500) 30%, transparent); }
   .em-bg--green { background: rgba(20, 83, 45, 0.25); border-color: rgba(34, 197, 94, 0.3); }
-  .em-bg--orange { background: rgba(124, 45, 18, 0.25); border-color: rgba(249, 115, 22, 0.3); }
+  .em-bg--orange { background: color-mix(in srgb, var(--hq-color-orange-900) 25%, transparent); border-color: color-mix(in srgb, var(--hq-color-orange-500) 30%, transparent); }
   .em-bg--cyan { background: rgba(22, 78, 99, 0.25); border-color: rgba(6, 182, 212, 0.3); }
 
   .em-quick-action-btn {
@@ -777,10 +777,10 @@
     border-color: #1e293b;
   }
 
-  .em-event--orange { background: rgba(124, 45, 18, 0.2); }
-  .em-event--purple { background: rgba(88, 28, 135, 0.2); }
-  .em-event--pink { background: rgba(131, 24, 67, 0.2); }
-  .em-event--blue { background: rgba(30, 58, 138, 0.2); }
+  .em-event--orange { background: color-mix(in srgb, var(--hq-color-orange-900) 20%, transparent); }
+  .em-event--purple { background: color-mix(in srgb, var(--hq-color-magenta-900) 20%, transparent); }
+  .em-event--pink { background: color-mix(in srgb, var(--hq-color-gray-700) 20%, transparent); }
+  .em-event--blue { background: color-mix(in srgb, var(--hq-color-brand-900) 20%, transparent); }
   .em-event--green { background: rgba(20, 83, 45, 0.2); }
 
   .em-event-title { color: #f1f5f9; }

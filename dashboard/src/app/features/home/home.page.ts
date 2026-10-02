@@ -473,22 +473,22 @@ interface QuickActionItem {
 
     // Gradients
     .em-gradient--blue {
-      background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+      background: var(--hq-gradient-blue);
     }
     .em-gradient--purple {
-      background: linear-gradient(135deg, #c084fc 0%, #9333ea 100%);
+      background: var(--hq-gradient-magenta);
     }
     .em-gradient--pink {
-      background: linear-gradient(135deg, #f472b6 0%, #db2777 100%);
+      background: var(--hq-gradient-neutral);
     }
     .em-gradient--green {
-      background: linear-gradient(135deg, #4ade80 0%, #16a34a 100%);
+      background: var(--hq-gradient-green);
     }
     .em-gradient--orange {
-      background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%);
+      background: var(--hq-gradient-orange);
     }
     .em-gradient--cyan {
-      background: linear-gradient(135deg, #22d3ee 0%, #0891b2 100%);
+      background: var(--hq-gradient-teal);
     }
 
     // --- 2. Card Container ---
@@ -527,8 +527,8 @@ interface QuickActionItem {
       font-weight: 600;
       padding: 3px 10px;
       border-radius: 999px;
-      background: #fef3c7;
-      color: #b45309;
+      background: var(--hq-color-warning-100);
+      color: var(--hq-color-warning-700);
     }
 
     // --- Quick Actions Grid ---
@@ -562,11 +562,11 @@ interface QuickActionItem {
       }
     }
 
-    .em-bg--blue { background: #eff6ff; }
-    .em-bg--purple { background: #faf5ff; }
-    .em-bg--pink { background: #fdf2f8; }
+    .em-bg--blue { background: var(--hq-color-brand-50); }
+    .em-bg--purple { background: var(--hq-color-magenta-50); }
+    .em-bg--pink { background: var(--hq-color-gray-100); }
     .em-bg--green { background: #f0fdf4; }
-    .em-bg--orange { background: #fff7ed; }
+    .em-bg--orange { background: var(--hq-color-orange-50); }
     .em-bg--cyan { background: #ecfeff; }
 
     .em-quick-action-icon {
@@ -668,16 +668,16 @@ interface QuickActionItem {
 
       &--ghost {
         background: #ffffff;
-        color: #2563eb;
+        color: var(--hq-color-brand-ink);
         border: 1px solid #e2e8f0;
-        &:hover { background: #eff6ff; }
+        &:hover { background: var(--hq-color-brand-50); }
       }
 
       &--primary {
-        background: #2563eb;
+        background: var(--hq-color-brand-600);
         color: #ffffff;
         border: 0;
-        &:hover { background: #1d4ed8; }
+        &:hover { background: var(--hq-color-brand-700); }
       }
     }
 
@@ -693,8 +693,8 @@ interface QuickActionItem {
         color: #15803d;
       }
       &--leave {
-        background: #ffedd5;
-        color: #c2410c;
+        background: var(--hq-color-warning-100);
+        color: var(--hq-color-warning-700);
       }
       &--danger {
         background: #fee2e2;

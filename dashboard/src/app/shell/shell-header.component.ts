@@ -587,9 +587,9 @@ import { NotificationsService, bodyKeyOf, titleKeyOf } from '../core/notificatio
       @include m.motion-safe('border-color, background-color, box-shadow');
 
       &:focus {
-        border-color: var(--hq-color-accent, #6366f1);
+        border-color: var(--hq-color-accent, var(--hq-color-brand-500));
         background: var(--hq-color-surface-raised, #ffffff);
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--hq-color-brand-500) 12%, transparent);
       }
 
       &::placeholder {

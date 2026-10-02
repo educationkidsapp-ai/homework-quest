@@ -86,20 +86,20 @@ describe('hq-nav', () => {
     expect(week).not.toHaveAttribute('title');
   });
 
-  it('draws the school’s initial when it has no logo, and its logo when it has one', async () => {
+  it('draws the product mark when the school has no logo, and its logo when it has one', async () => {
     const { fixture } = await renderHq(NavComponent, {
       inputs: { items: links, active: 'week', label: 'Teacher', brandName: 'Al Noor' },
       providers: [provideRouter(routes)],
     });
     const host = fixture.nativeElement as HTMLElement;
 
-    expect(host.querySelector('.nav__logo--initial')?.textContent).toBe('A');
+    expect(host.querySelector('img.nav__logo--mark')).toHaveAttribute('src', 'assets/brand/myschool-mark.svg');
     expect(host.querySelector('.nav__brand-name')?.textContent).toBe('Al Noor');
 
     fixture.componentRef.setInput('brandLogo', '/logo.png');
     fixture.detectChanges();
 
-    expect(host.querySelector('.nav__logo--initial')).toBeNull();
+    expect(host.querySelector('.nav__logo--mark')).toBeNull();
     expect(host.querySelector('img.nav__logo')).toHaveAttribute('src', '/logo.png');
   });
 

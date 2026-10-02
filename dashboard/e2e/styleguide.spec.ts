@@ -155,7 +155,9 @@ test.describe('styleguide', () => {
     const field = page.getByLabel('School name');
     await field.focus();
 
-    await expect(field).toHaveCSS('box-shadow', /rgba\(70, 95, 255/);
+    // D3: the halo is 16 % of `--hq-color-focus` (`brand-500`, #0774c9), and a `color-mix()`
+    // computes to `color(srgb …)` rather than `rgba(…)`.
+    await expect(field).toHaveCSS('box-shadow', /srgb 0\.027\d* 0\.45\d* 0\.78\d* \/ 0\.16/);
     await expect(field).toHaveCSS('outline-width', '3px');
   });
 

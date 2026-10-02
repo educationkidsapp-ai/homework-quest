@@ -192,7 +192,7 @@
               <div class="attendance__student">
                 <span
                   class="attendance__avatar"
-                  [style.--avatar-bg]="'var(--hq-color-' + (student.avatarColor || 'sky') + ', #38bdf8)'"
+                  [style.--avatar-bg]="'var(--hq-color-' + (student.avatarColor || 'sky') + ', var(--hq-color-brand-400))'"
                   aria-hidden="true"
                 >
                   {{ student.childName ? student.childName.charAt(0).toUpperCase() : 'S' }}
