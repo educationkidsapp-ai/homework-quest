@@ -102,6 +102,10 @@ data class Strings(
     val statusOpen: String = "Open",
     val statusResolved: String = "Resolved",
     val resolvedBanner: String = "Resolved — the coordinator answered this. You can still write here.",
+    // M4 (D7): the banner names who the parent was talking to — a complaint the manager resolved is not the coordinator's.
+    val resolvedBannerTeacher: String = "Resolved — the teacher answered this. You can still write here.",
+    val resolvedBannerManager: String = "Resolved — the department manager answered this. You can still write here.",
+    val resolvedBannerAdmin: String = "Resolved — the school administration answered this. You can still write here.",
     val markAsComplaint: String = "This is a complaint",
     val markAsComplaintHint: String = "The coordinator sees it as an open complaint in her complaints list.",
     /**
@@ -329,6 +333,9 @@ data class Strings(
             statusOpen = "مفتوحة",
             statusResolved = "تم الحل",
             resolvedBanner = "تم الحل — ردّ المنسّق على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
+            resolvedBannerTeacher = "تم الحل — ردّت المعلّمة على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
+            resolvedBannerManager = "تم الحل — ردّ مدير القسم على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
+            resolvedBannerAdmin = "تم الحل — ردّت إدارة المدرسة على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
             markAsComplaint = "هذه شكوى",
             markAsComplaintHint = "ستظهر كشكوى مفتوحة في قائمة الشكاوى عند المنسّق.",
             subjectNames = mapOf(
