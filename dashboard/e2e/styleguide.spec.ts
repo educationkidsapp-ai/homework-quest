@@ -95,8 +95,9 @@ test.describe('styleguide', () => {
       await expect(page.locator('hq-card.card--nested')).toHaveCount(1);
       await expect(page.locator('hq-card.card--flush').first()).toBeVisible();
 
-      // Buttons: the 44 × 44 icon variant, which no feature screen uses, and the block one.
-      await expect(page.locator('.btn--icon')).toHaveCount(2);
+      // Buttons: the 44 × 44 icon variant — the two on the page and the shortcuts sheet's X
+      // (N1: every dialog closes with one) — and the block one.
+      await expect(page.locator('.btn--icon')).toHaveCount(3);
       await expect(page.locator('.btn--block')).toHaveCount(1);
 
       // Tabs: the underline set and T3's chips, the same contract twice.
