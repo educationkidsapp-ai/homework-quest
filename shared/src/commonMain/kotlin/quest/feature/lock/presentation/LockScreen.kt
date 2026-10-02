@@ -97,10 +97,12 @@ fun AppLockHost(onSignedOut: () -> Unit, content: @Composable () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { lock.uncover() }
 
     val shut = state.stage != AppLock.Stage.UNLOCKED || state.covered
-    // Back on the cover sends the app to the background; it never pops the screen hidden underneath.
-    BackHandler(enabled = shut) { sendAppToBackground() }
     Box(Modifier.fillMaxSize()) {
         Box(if (shut) Modifier.fillMaxSize().clearAndSetSemantics {} else Modifier.fillMaxSize()) { content() }
+        // Back on the cover sends the app to the background; it never pops the screen hidden underneath. Composed
+        // *after* the content on purpose: the handler registered last wins, and the navigation host inside `content`
+        // registers its own.
+        BackHandler(enabled = shut) { sendAppToBackground() }
         if (shut) ParentTheme(rtl = strings.isRtl) {
             CompositionLocalProvider(LocalStrings provides strings) {
                 when (state.stage) {

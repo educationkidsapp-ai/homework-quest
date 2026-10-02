@@ -230,6 +230,41 @@ class AppLockTest {
         assertEquals(Stage.LOCKED, lock.state.value.stage)
     }
 
+    /** Re-review point 1: the armed state belongs to the signed-in account whose choice is ENABLED, and to nobody else. */
+    @Test fun afterSigningOutTheSignInScreenIsNeitherCoveredNorLocked() = runTest {
+        enable()
+        preferences.signedOut(); auth.signOut()           // an ordinary sign-out button, not the lock screen's
+        lock.cover(); lock.background()
+        assertFalse(lock.state.value.covered)
+        clock += AppLock.BACKGROUND_LIMIT_MILLIS + 1
+        lock.foreground(); lock.uncover()
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage)
+    }
+
+    @Test fun anExpiredSessionDisarmsTheLock() = runTest {
+        enable()
+        auth.flow.value = AuthState.SignedOut             // the session expired; nothing called the lock
+        lock.cover(); lock.background(); clock += AppLock.BACKGROUND_LIMIT_MILLIS + 1; lock.foreground()
+        assertFalse(lock.state.value.covered)
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage)
+    }
+
+    @Test fun theNextAccountThatDeclinesIsNeverLockedByThePreviousOnesChoice() = runTest {
+        enable()                                          // account u1 turned the lock on
+        auth.flow.value = AuthState.SignedIn("u2", "u2@example.com")   // u1's session ended; u2 signs in on the same phone
+        lock.signedIn()
+        assertEquals(Stage.OFFER, lock.state.value.stage)
+        lock.declineOffer()
+
+        lock.cover(); lock.background()
+        assertFalse(lock.state.value.covered)
+        clock += 10 * AppLock.BACKGROUND_LIMIT_MILLIS
+        lock.foreground()
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage)
+        lock.coldStart()
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage)
+    }
+
     @Test fun anAppWithoutTheLockIsNeverCovered() = runTest {
         lock.signedIn(); lock.declineOffer()
         lock.cover(); lock.background()

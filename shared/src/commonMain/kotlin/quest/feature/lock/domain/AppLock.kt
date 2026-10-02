@@ -66,16 +66,24 @@ class AppLock(
     /** One system prompt at a time, whoever asks: the lock screen, the offer, Settings or the parent area. */
     private val prompts = Mutex()
 
-    /** The stored choice of the signed-in account, kept in memory so leaving and returning are decided without I/O. */
-    private var armed = false
+    /**
+     * The account whose stored choice is ENABLED, kept in memory so leaving and returning are decided without I/O.
+     * The lock is armed only while **that** account is the one signed in: a sign-out or an expired session disarms it
+     * by itself (nobody is signed in), and so does another account signing in — the sign-in screen and an account
+     * that declined the offer are never covered or locked by someone else's choice.
+     */
+    private var armedFor: String? = null
+    private val armed: Boolean get() = armedFor != null && armedFor == uid()
     private var backgroundedAt: Long? = null
 
     private fun uid(): String? = (auth.state.value as? AuthState.SignedIn)?.uid
 
+    private fun arm(on: Boolean) { armedFor = if (on) uid() else null }
+
     /** Whether this account chose the lock on this device — whatever the device can prompt with at the moment. */
     suspend fun enabled(): Boolean {
         val on = uid()?.let { preferences.choice(it) == BiometricChoice.ENABLED } ?: false
-        armed = on
+        arm(on)
         return on
     }
 
@@ -97,7 +105,7 @@ class AppLock(
     /** "Turn on" in the offer: it counts only after a successful prompt. A cancelled one leaves the offer open. */
     suspend fun acceptOffer(reason: String) {
         val uid = uid() ?: return
-        if (prompt(reason) == BiometricResult.SUCCESS) { preferences.set(uid, BiometricChoice.ENABLED); armed = true; _state.value = State() }
+        if (prompt(reason) == BiometricResult.SUCCESS) { preferences.set(uid, BiometricChoice.ENABLED); arm(true); _state.value = State() }
     }
 
     suspend fun declineOffer() {
@@ -122,7 +130,7 @@ class AppLock(
     /** "Sign in with password": the session ends (which also forgets the lock) and the sign-in screen takes over. */
     suspend fun usePassword() {
         signOut()
-        armed = false
+        arm(false)
         _state.value = State()
     }
 
@@ -154,9 +162,9 @@ class AppLock(
     /** The Settings switch. Turning it on needs a biometric to offer and a successful prompt; turning it off does not. */
     suspend fun setEnabled(on: Boolean, reason: String): Boolean {
         val uid = uid() ?: return false
-        if (!on) { preferences.set(uid, BiometricChoice.DECLINED); armed = false; return false }
+        if (!on) { preferences.set(uid, BiometricChoice.DECLINED); arm(false); return false }
         if (authenticator.kind() == null || prompt(reason) != BiometricResult.SUCCESS) return enabled()
-        preferences.set(uid, BiometricChoice.ENABLED); armed = true
+        preferences.set(uid, BiometricChoice.ENABLED); arm(true)
         return true
     }
 
