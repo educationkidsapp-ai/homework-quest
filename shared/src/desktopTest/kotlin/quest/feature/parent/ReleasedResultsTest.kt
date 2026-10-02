@@ -39,7 +39,9 @@ class ReleasedResultsTest {
         override suspend fun unlockLevel(childId: String, lessonId: String, level: Int) = error("not used")
         override suspend fun flushAttempts(childId: String): Int = 0
         override suspend fun submit(childId: String, lessonId: String) = quest.feature.content.domain.SubmitOutcome.SENT
-        override suspend fun firstTryResults(childId: String, skillId: String): List<Boolean> = emptyList()
+        override suspend fun firstTryResults(childId: String, skillId: String, excludeLessons: Set<String>): List<Boolean> = emptyList()
+        override suspend fun pendingCount(childId: String, lessonId: String): Int = 0
+        override suspend fun pending(childId: String): Map<String, Int> = emptyMap()
     }
 
     private fun response(vararg results: ReleasedResult) =

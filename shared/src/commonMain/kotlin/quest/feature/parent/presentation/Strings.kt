@@ -37,6 +37,8 @@ data class Strings(
 
     // D16 slice 4 / teacher flow step 9: what the teacher released. Parent mode only — §6 keeps numbers off child screens.
     val teacherMarks: String = "Marked by the teacher",
+    val examUndeliveredTitle: String = "Exam answers not delivered",
+    val examUndeliveredBody: String = "{n} answers of “{title}” are on this device only and have not reached the school. Open the exam while online. If the exam has closed, ask the teacher to re-open it — the answers are kept and are sent then.",
     val examResultPending: String = "This is an exam. The result, the questions and the teacher's comment appear here after the teacher releases them.",
     val teacherComment: String = "Teacher's note",
     val teacherQuestionNote: String = "Teacher note",
@@ -252,6 +254,8 @@ data class Strings(
             weakSkills = "يحتاج مراجعة", noWeakSkills = "لا شيء للمراجعة الآن — رائع!", streak = "أيام متتالية",
 
             examResultPending = "هذا اختبار. تظهر النتيجة والأسئلة وملاحظة المعلّمة هنا بعد أن تنشرها المعلّمة.",
+            examUndeliveredTitle = "إجابات اختبار لم تُسلَّم",
+            examUndeliveredBody = "{n} من إجابات «{title}» موجودة على هذا الجهاز فقط ولم تصل إلى المدرسة. افتح الاختبار مع اتصال بالإنترنت. إذا كان الاختبار قد أُغلق فاطلب من المعلّمة إعادة فتحه — الإجابات محفوظة وتُرسل عندها.",
             teacherMarks = "تقييم المعلّمة", teacherComment = "ملاحظة المعلّمة",
             teacherQuestionNote = "ملاحظة المعلّمة", needsAttention = "يحتاج انتباه", passed = "ناجح",
             scoreBands = mapOf("emerging" to "مبتدئ", "developing" to "في تطوّر", "secure" to "متمكّن", "exceeding" to "متفوّق"),

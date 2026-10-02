@@ -1,5 +1,6 @@
 package quest.di
 
+import quest.feature.parent.domain.UndeliveredExamAnswersUseCase
 import quest.feature.children.domain.SignOutUseCase
 import quest.core.platform.DocumentViewer
 import quest.feature.broadcasts.domain.AttachmentDocuments
@@ -171,7 +172,7 @@ val parentModule = module {
     factory { CalendarUseCase(get()) }
     factory { ReleasedResultsUseCase(get()) }
     viewModel { (changePin: Boolean) -> PinViewModel(get(), get(), get(), changePin) }
-    viewModel { ParentHomeViewModel(get(), get(), get(), get(), get()) }
+    viewModel { ParentHomeViewModel(get(), get(), get(), get(), get(), UndeliveredExamAnswersUseCase(get(), get())) }
     viewModel { CalendarViewModel(get(), get(), get()) }
     viewModel { ProgressViewModel(get(), get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get()) }

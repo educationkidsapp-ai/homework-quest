@@ -90,6 +90,7 @@ class StopPlayerViewModel(
             is PlayerContract.Intent.Completed -> onCompleted(intent.stars, intent.answer, intent.mistakes, intent.recording, intent.drawing, intent.correct)
             PlayerContract.Intent.TryAgain -> if (!current.exam) { reduce { copy(phase = PlayerContract.Phase.STOP) }; current.stop?.let { effect(PlayerContract.Effect.Speak(it.speak)) } }
             PlayerContract.Intent.Advance -> advance()
+            PlayerContract.Intent.SendAgain -> if (current.phase == PlayerContract.Phase.SENDING) finish()
             PlayerContract.Intent.ReadAloud -> effect(PlayerContract.Effect.Speak(if (current.phase == PlayerContract.Phase.HINT) current.hint else current.stop?.speak ?: ""))
             is PlayerContract.Intent.Speak -> effect(PlayerContract.Effect.Speak(intent.text))
         }
@@ -100,8 +101,12 @@ class StopPlayerViewModel(
         childId = child.id
         val lesson = runCatching { lessons.lesson(lessonId) }.getOrElse { reduce { copy(phase = PlayerContract.Phase.ERROR, error = this@StopPlayerViewModel.copy.strings().lessonMissing) }; return }
         val play = lesson.playFor(level, variant)
-        val progress = journey.progress(child.id, lessonId, play.level, play.variant)
         val exam = lesson.isExam
+        // §8: answers left on the device by an earlier sitting — given offline, or refused when the window shut and now
+        // deliverable because the teacher re-opened it — go up before anything else, so the server's paper and this
+        // device's agree before the next question is shown.
+        if (exam) journey.submit(child.id, lessonId)
+        val progress = journey.progress(child.id, lessonId, play.level, play.variant)
         // §8: a sitting resumes at the first unanswered question, wherever the route pointed — an answered one is never reopened.
         val index = if (exam) play.stops.indexOfFirst { it.id !in progress.stops } else startIndex
         reduce { copy(phase = PlayerContract.Phase.STOP, lesson = lesson, play = play, index = index.coerceAtLeast(0), stopStars = progress.stops, childName = child.name, exam = exam) }
@@ -164,15 +169,32 @@ class StopPlayerViewModel(
         reduce { copy(phase = PlayerContract.Phase.STEP_DONE) }
         effect(PlayerContract.Effect.Speak(copy.strings().answerSaved))
         when (val outcome = journey.submit(childId, lessonId)) {
-            SubmitOutcome.ALREADY_TAKEN, SubmitOutcome.CLOSED -> reduce { copy(phase = PlayerContract.Phase.REFUSED, refusal = outcome) }
+            SubmitOutcome.ALREADY_TAKEN -> reduce { copy(phase = PlayerContract.Phase.REFUSED, refusal = outcome) }
+            // The window shut during the sitting: it ends here, on the submitted screen, which says the exam closed
+            // and how many answers (this one at least) did not reach the teacher. They stay queued for a re-opening.
+            SubmitOutcome.CLOSED -> { reduce { copy(phase = PlayerContract.Phase.DONE, refusal = outcome) }; effect(PlayerContract.Effect.Finished(lessonId, level, variant)) }
             SubmitOutcome.SENT, SubmitOutcome.QUEUED -> launch { delay(EXAM_ACKNOWLEDGE_MILLIS); dispatch(PlayerContract.Intent.Advance) }
         }
     }
 
+    /**
+     * Every step is answered. A homework is complete at once — its answers upload whenever they can. An exam is
+     * **submitted only when the server has every answer**: until then the screen says the answers are still being
+     * sent and offers to try again, and nothing is marked handed in. If the window has shut meanwhile, the sitting
+     * ends on the submitted screen with what was not delivered, and stays re-openable.
+     */
     private suspend fun finish() {
         val play = current.play ?: return
+        if (current.exam) {
+            reduce { copy(phase = PlayerContract.Phase.DONE) }
+            when (val outcome = journey.submit(childId, lessonId)) {
+                SubmitOutcome.QUEUED -> { reduce { copy(phase = PlayerContract.Phase.SENDING) }; return }
+                SubmitOutcome.CLOSED -> { reduce { copy(refusal = outcome) }; effect(PlayerContract.Effect.Finished(lessonId, level, variant)); return }
+                SubmitOutcome.SENT, SubmitOutcome.ALREADY_TAKEN -> Unit
+            }
+        }
         journey.completeLevel(childId, current.lesson!!, play)
-        runCatching { journey.flushAttempts(childId) }
+        if (!current.exam) runCatching { journey.flushAttempts(childId) }
         reduce { copy(phase = PlayerContract.Phase.DONE) }
         effect(PlayerContract.Effect.Finished(lessonId, if (current.exam) level else play.level, if (current.exam) variant else play.variant))
     }

@@ -489,8 +489,7 @@ private fun ExamCourseworkCard(island: Island, card: ExamCard, strings: Strings,
                     ExamStatus.OPEN -> card.left?.let { DashboardPill(text = it, variant = DashboardPillVariant.INFO) }
                     ExamStatus.REOPENED -> DashboardPill(text = ls.examReopenedShort, variant = DashboardPillVariant.INFO)
                     ExamStatus.SUBMITTED -> DashboardPill(text = ls.examSubmittedShort, variant = DashboardPillVariant.NEUTRAL)
-                    ExamStatus.NOT_OPEN -> DashboardPill(text = ls.examNotOpenShort, variant = DashboardPillVariant.NEUTRAL)
-                    ExamStatus.CLOSED, ExamStatus.UNAVAILABLE -> DashboardPill(text = ls.examClosedShort, variant = DashboardPillVariant.NEUTRAL)
+                    ExamStatus.UNAVAILABLE -> DashboardPill(text = ls.examClosedShort, variant = DashboardPillVariant.NEUTRAL)
                 }
             }
             Spacer(Modifier.height(10.dp))

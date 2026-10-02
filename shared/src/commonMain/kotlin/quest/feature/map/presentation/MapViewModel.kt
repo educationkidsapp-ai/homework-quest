@@ -52,13 +52,12 @@ class MapViewModel(
     private suspend fun tap(id: String) {
         val island = current.islands.firstOrNull { it.id == id } ?: return
         if (island.lessonId in current.exams) {
-            // §8: an exam opens only inside its window and only once. Outside it the card says why, and so does this.
+            // §8: an exam the server put on the map with a window is open — the device clock has no say. Handed in, or
+            // known only from the cache, it stays shut and says why.
             val t = copy.strings()
-            when (examStatus(island, now(), loadedAt = current.now)) {
+            when (examStatus(island, loadedAt = current.now)) {
                 ExamStatus.OPEN, ExamStatus.REOPENED -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 0))
                 ExamStatus.SUBMITTED -> effect(Effect.Speak(t.examAlreadyTaken))
-                ExamStatus.CLOSED -> effect(Effect.Speak(t.examClosed))
-                ExamStatus.NOT_OPEN -> effect(Effect.Speak(t.examNotOpenYet))
                 ExamStatus.UNAVAILABLE -> effect(Effect.Speak(t.examNeedsConnection))
             }
             return

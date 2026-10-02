@@ -61,7 +61,6 @@ import quest.ui.design.NumberLineView
 import quest.ui.stops.StopContent
 import quest.ui.stops.StopEvent
 import quest.ui.stops.LocalExamMode
-import quest.feature.content.domain.SubmitOutcome
 import androidx.compose.runtime.CompositionLocalProvider
 import quest.ui.stops.LocalStopMedia
 import quest.core.platform.rememberStopMedia
@@ -102,8 +101,10 @@ fun StopPlayerScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
             Phase.LOADING -> LoadingView(s.loadingLesson)
             Phase.ERROR -> ErrorView(state.error ?: s.genericError, onBack)
             Phase.DONE -> LoadingView(s.savingWork)
-            // §8's 409: the sitting is over, said plainly — the paper was already handed in, or its window has shut.
-            Phase.REFUSED -> ErrorView(if (state.refusal == SubmitOutcome.CLOSED) s.examClosed else s.examAlreadyTaken, onBack)
+            // §8's "already taken": the server holds a handed-in paper, so there is nothing to sit here.
+            Phase.REFUSED -> ErrorView(s.examAlreadyTaken, onBack)
+            // Every question is answered but the answers have not all reached the server: not "submitted" yet.
+            Phase.SENDING -> SendingView(onRetry = { dispatch(Intent.SendAgain) }, onBack = onBack)
             // The stops read LocalExamMode: one answer each, and nothing that tells right from wrong.
             else -> CompositionLocalProvider(LocalExamMode provides state.exam) { StopView(state, dispatch, onBack) }
         }
@@ -163,6 +164,25 @@ private fun HintSheetContent(state: State, dispatch: (Intent) -> Unit) {
         state.numberLine?.let { Spacer(Modifier.height(Dimens.s16)); NumberLineView(it) }
         Spacer(Modifier.height(Dimens.s16))
         BigButton(s.tryAgain, onClick = { dispatch(Intent.TryAgain) })
+    }
+}
+
+/** A finished exam whose answers are still on the device: what that means, and the one thing to do about it. */
+@Composable
+private fun SendingView(onRetry: () -> Unit, onBack: () -> Unit) {
+    val s = LocalLessonStrings.current
+    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(Dimens.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
+        DashboardCard(padding = PaddingValues(Dimens.s24)) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(s.examSending, style = MaterialTheme.typography.titleLarge, color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(Dimens.s8))
+                Text(s.examSendingBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
+            }
+        }
+        Spacer(Modifier.height(Dimens.s24))
+        BigButton(s.examSendAgain, onClick = onRetry)
+        Spacer(Modifier.height(Dimens.s12))
+        BigButton(s.backToHome, onClick = onBack, primary = false)
     }
 }
 

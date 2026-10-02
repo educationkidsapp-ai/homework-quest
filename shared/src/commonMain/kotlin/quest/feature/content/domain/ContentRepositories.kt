@@ -42,16 +42,32 @@ interface JourneyRepository {
 
     /**
      * §8: sends the queued attempts of **one** lesson now and says how the server took them. An exam is a single
-     * sitting inside a window, so its answers go up as they are given and a refusal has to reach the screen:
-     * [SubmitOutcome.ALREADY_TAKEN] and [SubmitOutcome.CLOSED] are the server's `409`s, and the refused attempts are
-     * dropped from the queue — they will never be accepted, and left there they would fail every later upload.
+     * sitting inside a window, so its answers go up as they are given and a refusal has to reach the screen.
+     *
+     * What a refusal does to the queue differs. [SubmitOutcome.CLOSED] **keeps** the answers: the window has shut, but
+     * a teacher can re-open the paper for this student, and the answers she gave must then still be there to send.
+     * [SubmitOutcome.ALREADY_TAKEN] drops them: the server already holds a handed-in paper, on another device.
      */
     suspend fun submit(childId: String, lessonId: String): SubmitOutcome
-    suspend fun firstTryResults(childId: String, skillId: String): List<Boolean>
+
+    /** How many answers of this lesson are still on the device only. */
+    suspend fun pendingCount(childId: String, lessonId: String): Int
+
+    /** Every lesson with answers still on the device only, and how many. */
+    suspend fun pending(childId: String): Map<String, Int>
+
+    /**
+     * The first-try results of a skill, newest first. Attempts of [excludeLessons] are left out — an exam's answers
+     * must not move a skill band the parent can see before the teacher has released the exam.
+     */
+    suspend fun firstTryResults(childId: String, skillId: String, excludeLessons: Set<String> = emptySet()): List<Boolean>
     suspend fun progressReport(childId: String): ProgressResponse?
 }
 
-/** How the server took one lesson's attempts. [QUEUED] is "not reached": they stay on the device and go up later. */
+/**
+ * How the server took one lesson's attempts. [QUEUED] is "not reached" and [CLOSED] is "the window has shut": in both
+ * the answers stay on the device — to go up later, or after a teacher re-opens the exam.
+ */
 enum class SubmitOutcome { SENT, QUEUED, ALREADY_TAKEN, CLOSED }
 
 data class StopMediaRecord(val stopId: String, val level: Int, val recordingPath: String?, val drawingPath: String?, val completedAt: Long)

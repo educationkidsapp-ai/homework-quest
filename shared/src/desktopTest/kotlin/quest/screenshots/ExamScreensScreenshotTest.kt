@@ -30,7 +30,8 @@ import kotlin.test.assertTrue
 
 /**
  * M1d: every screen of an exam sitting — the home card in each of its states, the overview, a question, the one
- * acknowledgement, the submitted screen and the two refusals — in light and dark, English and Arabic.
+ * acknowledgement, the submitted screen, a refused second sitting, answers still being sent, and a window that shut
+ * mid-sitting — in light and dark, English and Arabic.
  */
 class ExamScreensScreenshotTest {
     private val exam = HotSoupSeed.lesson.let { it.copy(title = "Reading exam · Unit 2", type = "exam", hintsOff = true, numbersOff = true, examPlay = it.plays[1]) }
@@ -46,14 +47,15 @@ class ExamScreensScreenshotTest {
         assertTrue(f.length() > 1000, "screenshot $name is empty")
     }
 
-    // The home page was loaded at `now`; one exam is open for another two and a half hours, one was handed in, one has shut.
+    // The home page was loaded at `now`: one exam is open for another two and a half hours, one was handed in, and one
+    // arrived after its own window had shut — the teacher re-opened it for this student.
     private val now = 1_790_000_000_000L
     private fun home(ar: Boolean = false) = MapContract.State(
         loading = false, child = if (ar) child.copy(name = "نور") else child, now = now, exams = setOf("e1", "e2", "e3"),
         islands = listOf(
             Island("a", IslandKind.LESSON, LocalDate(2026, 10, 2), IslandState.TODAY, if (ar) "اختبار القراءة · الوحدة ٢" else exam.title, Subject.ENGLISH, "e1", examWindow = ExamWindow(now - 3_600_000, now + 150 * 60_000L)),
             Island("b", IslandKind.LESSON, LocalDate(2026, 10, 1), IslandState.DONE, if (ar) "اختبار الكسور" else "Fractions exam", Subject.MATH, "e2", starsEarned = 12, starsTotal = 27, examWindow = ExamWindow(now - 86_400_000, now + 3_600_000)),
-            Island("c", IslandKind.LESSON, LocalDate(2026, 10, 1), IslandState.WAITING, if (ar) "اختبار العلوم" else "Science exam", Subject.SCIENCE, "e3", examWindow = ExamWindow(now - 86_400_000, now - 60_000)),
+            Island("c", IslandKind.LESSON, LocalDate(2026, 10, 1), IslandState.WAITING, if (ar) "اختبار العلوم" else "Science exam", Subject.SCIENCE, "e3", examWindow = ExamWindow(now - 86_400_000, now - 60_000)),   // re-opened by the teacher
             Island("d", IslandKind.LESSON, LocalDate(2026, 10, 2), IslandState.TODAY, if (ar) "العدّ بالاثنينات" else "Counting by 2s", Subject.MATH, "l2", 1, listOf(1)),
         ),
     )
@@ -81,5 +83,10 @@ class ExamScreensScreenshotTest {
     @Test fun examSubmittedArabic() = shot("44c-exam-submitted-ar", strings = LessonStrings.ar) { LessonCompleteScreen(submitted, {}, {}, {}, {}) }
 
     @Test fun examAlreadyTaken() = shot("45-exam-already-taken") { StopPlayerScreen(player(PlayerContract.Phase.REFUSED, SubmitOutcome.ALREADY_TAKEN), {}, {}) }
-    @Test fun examClosed() = shot("45b-exam-closed-ar", strings = LessonStrings.ar) { StopPlayerScreen(player(PlayerContract.Phase.REFUSED, SubmitOutcome.CLOSED), {}, {}) }
+    // Every question answered, not every answer delivered: "sending", never "submitted".
+    @Test fun examSending() = shot("46-exam-sending") { StopPlayerScreen(player(PlayerContract.Phase.SENDING), {}, {}) }
+    @Test fun examSendingArabicDark() = shot("46b-exam-sending-ar-dark", strings = LessonStrings.ar, dark = true) { StopPlayerScreen(player(PlayerContract.Phase.SENDING), {}, {}) }
+    // The window shut mid-sitting: the submitted screen, saying so and what did not reach the teacher.
+    @Test fun examClosedWithUndelivered() = shot("47-exam-closed-undelivered") { LessonCompleteScreen(submitted.copy(examClosed = true, undelivered = 3), {}, {}, {}, {}) }
+    @Test fun examClosedWithUndeliveredArabic() = shot("47b-exam-closed-undelivered-ar", strings = LessonStrings.ar) { LessonCompleteScreen(submitted.copy(examClosed = true, undelivered = 1), {}, {}, {}, {}) }
 }

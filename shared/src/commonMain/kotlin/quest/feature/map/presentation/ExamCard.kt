@@ -8,12 +8,18 @@ import quest.api.dto.IslandState
 import quest.feature.journey.presentation.LessonStrings
 
 /**
- * §8: where one exam stands for this student, as the home card says it. Only [OPEN] can be entered.
+ * §8: where one exam stands for this student, as the home card says it.
  *
- * [UNAVAILABLE] is an exam the device knows about but has no window for — the map came from the cache — and an exam
- * is sat against the server's clock, so it stays shut until the app is online again.
+ * **The server decides whether an exam can be sat, not this device.** It puts an exam on the map only while this
+ * student may sit it, so an island that carries `examWindow` is open — whatever the tablet's clock says. A slow clock
+ * must never show "Not open yet" on a paper the server sent as open, and a fast one must never shut it; if the window
+ * really has closed since the page was loaded, the server refuses the first answer and the sitting says so. The
+ * device clock is used for one thing only: the words about how long is left.
+ *
+ * [UNAVAILABLE] is an exam the device knows about but has no window for — the map came from the cache — so there is
+ * nothing from the server saying it may be sat; it stays shut until the app is online again.
  */
-enum class ExamStatus { OPEN, REOPENED, NOT_OPEN, CLOSED, SUBMITTED, UNAVAILABLE }
+enum class ExamStatus { OPEN, REOPENED, SUBMITTED, UNAVAILABLE }
 
 /** Whether the card lets the student in. */
 val ExamStatus.canSit: Boolean get() = this == ExamStatus.OPEN || this == ExamStatus.REOPENED
@@ -22,39 +28,29 @@ val ExamStatus.canSit: Boolean get() = this == ExamStatus.OPEN || this == ExamSt
 data class ExamCard(val status: ExamStatus, val line: String, val left: String? = null)
 
 /**
- * The window is half-open, as the server reads it: open from `opensAt` up to but not including `closesAt`. A sitting
- * that was handed in is [ExamStatus.SUBMITTED] whatever the clock says — one sitting, no way back in.
+ * [loadedAt] is the device's clock when the server sent this island. `examWindow` carries the exam's own times, not
+ * the extra sitting a teacher gives one student, so an island that arrives with a closing time already behind the
+ * device's clock is shown as [ExamStatus.REOPENED]: open, with no closing time claimed. (A device whose clock runs
+ * fast lands here too — it is equally open, and equally without a time the app could truthfully show.)
  */
-/**
- * [loadedAt] is when the server sent this island. The server puts an exam on the map only while *this* student may
- * sit it, and `examWindow` carries the exam's own times — not the extra sitting a teacher gives one student. So an
- * island that arrived with a window that had already shut is a paper the teacher re-opened: [ExamStatus.REOPENED],
- * open, with no closing time the app could truthfully show. It stays that way until the home page is refreshed (it
- * is, every time the app comes back to the front); the server's clock still decides whether an answer is accepted.
- */
-fun examStatus(island: Island, nowMillis: Long, loadedAt: Long = nowMillis): ExamStatus {
+fun examStatus(island: Island, loadedAt: Long): ExamStatus {
     val window = island.examWindow
     return when {
         island.state == IslandState.DONE -> ExamStatus.SUBMITTED
         window == null -> ExamStatus.UNAVAILABLE
         loadedAt >= window.closesAt -> ExamStatus.REOPENED
-        nowMillis < window.opensAt -> ExamStatus.NOT_OPEN
-        nowMillis >= window.closesAt -> ExamStatus.CLOSED
         else -> ExamStatus.OPEN
     }
 }
 
-fun examCard(island: Island, nowMillis: Long, zone: TimeZone, s: LessonStrings, months: List<String>, shortMonths: Boolean): ExamCard {
-    val status = examStatus(island, nowMillis)   // the card is drawn for the moment it was loaded
+fun examCard(island: Island, loadedAt: Long, zone: TimeZone, s: LessonStrings, months: List<String>, shortMonths: Boolean): ExamCard {
+    val status = examStatus(island, loadedAt)
     val window = island.examWindow
-    fun time(millis: Long) = examTime(millis, nowMillis, zone, months, shortMonths)
     return when (status) {
         ExamStatus.SUBMITTED -> ExamCard(status, s.examSubmittedNote)
         ExamStatus.UNAVAILABLE -> ExamCard(status, s.examNeedsConnection)
-        ExamStatus.NOT_OPEN -> ExamCard(status, s.examOpensAt.replace("{time}", time(window!!.opensAt)))
-        ExamStatus.CLOSED -> ExamCard(status, s.examClosed)
         ExamStatus.REOPENED -> ExamCard(status, s.examReopened)
-        ExamStatus.OPEN -> ExamCard(status, s.examOpenUntil.replace("{time}", time(window!!.closesAt)), examTimeLeft(window.closesAt - nowMillis, s))
+        ExamStatus.OPEN -> ExamCard(status, s.examOpenUntil.replace("{time}", examTime(window!!.closesAt, loadedAt, zone, months, shortMonths)), examTimeLeft(window.closesAt - loadedAt, s))
     }
 }
 

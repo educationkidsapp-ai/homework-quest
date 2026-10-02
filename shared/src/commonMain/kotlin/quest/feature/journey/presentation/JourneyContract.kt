@@ -33,8 +33,11 @@ object JourneyContract {
 }
 
 object PlayerContract {
-    /** [REFUSED] is §8's `409`: the server will not take this sitting (already sat, or the window has closed). */
-    enum class Phase { LOADING, STOP, HINT, CORRECT, STEP_DONE, DONE, ERROR, REFUSED }
+    /**
+     * [REFUSED] is §8's `409` "already taken": the server holds a handed-in paper. [SENDING] is a finished paper whose
+     * answers have not all reached the server yet — it is not "submitted" until they have.
+     */
+    enum class Phase { LOADING, STOP, HINT, CORRECT, STEP_DONE, DONE, ERROR, REFUSED, SENDING }
     data class State(
         val phase: Phase = Phase.LOADING, val lesson: PublishedLesson? = null, val play: Play? = null, val index: Int = 0,
         val stopStars: Map<String, Int> = emptyMap(), val hint: String = "", val numberLine: NumberLine? = null, val praise: String = "",
@@ -52,6 +55,8 @@ object PlayerContract {
         data class Wrong(val attempt: Int, val hint: String, val numberLine: NumberLine?, val answer: String) : Intent
         data class Completed(val stars: Int, val answer: String, val mistakes: Int, val recording: ByteArray? = null, val drawing: String? = null, val correct: Boolean = true) : Intent
         data object TryAgain : Intent
+        /** [Phase.SENDING]: try to hand the queued answers in again. */
+        data object SendAgain : Intent
         data object Advance : Intent
         data object ReadAloud : Intent
         data class Speak(val text: String) : Intent

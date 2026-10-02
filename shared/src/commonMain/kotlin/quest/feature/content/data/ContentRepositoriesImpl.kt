@@ -120,20 +120,16 @@ class JourneyRepositoryImpl(private val api: ContentApi, private val db: Db) : J
     override suspend fun parentUnlocks(childId: String): Map<String, List<Int>> = db.read { selectParentUnlocks(childId).executeAsList().groupBy({ it.lessonId }, { it.level.toInt() }) }
     override suspend fun unlockLevel(childId: String, lessonId: String, level: Int) = db.write { upsertParentUnlock(childId, lessonId, level.toLong()) }
 
+    /**
+     * Everything queued, lesson by lesson. One request per lesson rather than one for all: the server refuses a whole
+     * batch that names a closed exam, and a closed exam's answers stay queued (see [submit]) — sent together, they
+     * would hold every homework's answers on the device with them.
+     */
     override suspend fun flushAttempts(childId: String): Int {
         val pending = db.read { selectPendingAttempts(childId).executeAsList() }
-        if (pending.isEmpty()) return 0
-        val uploads = pending.map { AttemptUpload(it.id, it.stopId, it.lessonId, it.level.toInt(), it.answerJson, it.correct == 1L, it.attemptNumber.toInt(), it.mistakes.toInt(), it.stars.toInt(), it.answeredAt) }
-        val result = runCancellable { api.uploadAttempts(childId, uploads) }
-        val ack = result.getOrNull()
-        if (ack == null) {
-            // A closed or already-sat exam refuses the batch it is in. Its attempts are handed in lesson by lesson
-            // (which drops the refused ones), so one exam cannot hold every other lesson's answers on the device.
-            if (result.exceptionOrNull().examRefusal() != null) pending.map { it.lessonId }.distinct().forEach { submit(childId, it) }
-            return 0
-        }
-        db.write { markAttemptsUploaded(pending.map { it.id }) }
-        return ack.accepted
+        var sent = 0
+        pending.groupBy { it.lessonId }.forEach { (lessonId, attempts) -> if (submit(childId, lessonId) == SubmitOutcome.SENT) sent += attempts.size }
+        return sent
     }
 
     override suspend fun submit(childId: String, lessonId: String): SubmitOutcome {
@@ -141,13 +137,22 @@ class JourneyRepositoryImpl(private val api: ContentApi, private val db: Db) : J
         if (pending.isEmpty()) return SubmitOutcome.SENT
         val uploads = pending.map { AttemptUpload(it.id, it.stopId, it.lessonId, it.level.toInt(), it.answerJson, it.correct == 1L, it.attemptNumber.toInt(), it.mistakes.toInt(), it.stars.toInt(), it.answeredAt) }
         val result = runCancellable { api.uploadAttempts(childId, uploads) }
-        val refusal = result.exceptionOrNull().examRefusal()
         return when {
             result.isSuccess -> { db.write { markAttemptsUploaded(pending.map { it.id }) }; SubmitOutcome.SENT }
-            refusal != null -> { db.write { markAttemptsUploaded(pending.map { it.id }) }; refusal }
-            else -> SubmitOutcome.QUEUED
+            else -> when (val refusal = result.exceptionOrNull().examRefusal()) {
+                // The server holds a handed-in paper already: these answers will never be taken.
+                SubmitOutcome.ALREADY_TAKEN -> { db.write { markAttemptsUploaded(pending.map { it.id }) }; refusal }
+                // The window has shut. The answers stay queued: after a teacher's re-opening the same call delivers them.
+                SubmitOutcome.CLOSED -> refusal
+                else -> SubmitOutcome.QUEUED
+            }
         }
     }
+
+    override suspend fun pendingCount(childId: String, lessonId: String): Int = pending(childId)[lessonId] ?: 0
+
+    override suspend fun pending(childId: String): Map<String, Int> =
+        db.read { selectPendingAttempts(childId).executeAsList() }.groupingBy { it.lessonId }.eachCount()
 
     /** The two `409`s of §8, as the outcome they mean; null for every other failure. */
     private fun Throwable?.examRefusal(): SubmitOutcome? = when ((this as? ApiException)?.error?.code) {
@@ -156,7 +161,8 @@ class JourneyRepositoryImpl(private val api: ContentApi, private val db: Db) : J
         else -> null
     }
 
-    override suspend fun firstTryResults(childId: String, skillId: String): List<Boolean> = db.read { selectFirstTryResultsForSkill(childId, "%$skillId%").executeAsList().map { it == 1L } }
+    override suspend fun firstTryResults(childId: String, skillId: String, excludeLessons: Set<String>): List<Boolean> =
+        db.read { selectFirstTriesForSkill(childId, "%$skillId%").executeAsList() }.filter { it.lessonId !in excludeLessons }.take(14).map { it.correct == 1L }
 
     override suspend fun progressReport(childId: String): ProgressResponse? = runCatching { api.progress(childId) }.getOrNull()
 }

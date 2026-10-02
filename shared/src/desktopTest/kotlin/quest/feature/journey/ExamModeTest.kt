@@ -63,6 +63,7 @@ import quest.feature.journey.presentation.playFor
 import quest.feature.map.presentation.ExamStatus
 import quest.feature.map.presentation.MapContract
 import quest.feature.map.presentation.MapViewModel
+import quest.feature.map.presentation.canSit
 import quest.feature.map.presentation.examCard
 import quest.feature.map.presentation.examStatus
 import quest.feature.map.presentation.examTime
@@ -123,7 +124,7 @@ class ExamModeTest {
 
         override suspend fun progress(childId: String, lessonId: String, level: Int, variant: Int) = LevelProgress(lessonId, level, variant, stars.toMap(), null)
         override suspend fun recordStop(childId: String, lesson: PublishedLesson, play: Play, stopId: String, stars: Int, answer: String, correct: Boolean, attemptNumber: Int, mistakes: Int, recording: ByteArray?, drawing: String?) {
-            recorded += Recorded(stopId, stars, answer, correct, attemptNumber); this.stars[stopId] = stars
+            recorded += Recorded(stopId, stars, answer, correct, attemptNumber); this.stars[stopId] = stars; unsent++
         }
         override suspend fun media(childId: String, lessonId: String): List<StopMediaRecord> = emptyList()
         override suspend fun recordWrongAttempt(childId: String, lesson: PublishedLesson, play: Play, stopId: String, answer: String, attemptNumber: Int) { wrongAttempts += stopId }
@@ -132,8 +133,12 @@ class ExamModeTest {
         override suspend fun parentUnlocks(childId: String): Map<String, List<Int>> = emptyMap()
         override suspend fun unlockLevel(childId: String, lessonId: String, level: Int) {}
         override suspend fun flushAttempts(childId: String): Int = 0
-        override suspend fun submit(childId: String, lessonId: String): SubmitOutcome { submits++; return outcome }
-        override suspend fun firstTryResults(childId: String, skillId: String): List<Boolean> = emptyList()
+        /** Answers the "server" has not taken: everything recorded since the last [SubmitOutcome.SENT]. */
+        var unsent = 0
+        override suspend fun submit(childId: String, lessonId: String): SubmitOutcome { submits++; if (outcome == SubmitOutcome.SENT || outcome == SubmitOutcome.ALREADY_TAKEN) unsent = 0; return outcome }
+        override suspend fun pendingCount(childId: String, lessonId: String): Int = unsent
+        override suspend fun pending(childId: String): Map<String, Int> = if (unsent > 0) mapOf("exam" to unsent) else emptyMap()
+        override suspend fun firstTryResults(childId: String, skillId: String, excludeLessons: Set<String>): List<Boolean> = emptyList()
         override suspend fun progressReport(childId: String): ProgressResponse? = null
     }
 
@@ -227,7 +232,7 @@ class ExamModeTest {
         assertEquals(listOf(FakeJourney.Recorded(stop.id, 0, "b", false, 1)), journey.recorded)
         assertTrue(journey.wrongAttempts.isEmpty(), "an exam answer is the result, not a homework's wrong attempt")
         assertEquals(Phase.STEP_DONE, vm.state.value.phase)
-        assertEquals(1, journey.submits)
+        assertEquals(2, journey.submits, "once when the sitting opened (leftovers), once for the one answer that counted")
     }
 
     @Test fun aMultiPartQuestionFinishedWrongIsAcknowledgedTheSameWay() = examTest {
@@ -303,13 +308,35 @@ class ExamModeTest {
         assertTrue(effects.none { it is PlayerContract.Effect.Finished })
     }
 
-    @Test fun aClosedWindowIsRefusedAndStops() = examTest {
-        val journey = answeredUpTo(firstSingle).apply { outcome = SubmitOutcome.CLOSED }
-        val (vm, _) = player(journey)
+    /** Rule (d): the window shutting mid-sitting is not an error screen — it ends on the submitted screen. */
+    @Test fun theWindowClosingMidSittingEndsOnTheSubmittedScreen() = examTest {
+        val journey = answeredUpTo(firstSingle).apply { outcome = SubmitOutcome.CLOSED; unsent = 0 }
+        val (vm, effects) = player(journey)
         vm.dispatch(PlayerContract.Intent.Wrong(1, "", null, "b"))
-        advanceUntilIdle(); runCurrent()   // the effect collector lives in backgroundScope, which advanceUntilIdle does not wait for
-        assertEquals(Phase.REFUSED, vm.state.value.phase)
-        assertEquals(SubmitOutcome.CLOSED, vm.state.value.refusal)
+        advanceUntilIdle(); runCurrent()
+
+        assertEquals(Phase.DONE, vm.state.value.phase)
+        assertEquals(PlayerContract.Effect.Finished(exam.id, 1, 0), effects.last())
+        assertEquals(0, journey.completed, "a paper cut off by its window is not marked handed in — a re-opening can still finish it")
+        assertEquals(firstSingle, vm.state.value.index, "and it does not move on to the next question")
+
+        // The submitted screen then says the exam closed and that this one answer did not reach the teacher.
+        val state = complete(journey)
+        assertTrue(state.exam); assertTrue(state.examClosed)
+        assertEquals(1, state.undelivered)
+    }
+
+    private suspend fun TestScope.complete(journey: FakeJourney): quest.feature.journey.presentation.CompleteContract.State {
+        val rewards = object : RewardsRepository {
+            override suspend fun stickers(): List<Sticker> = emptyList()
+            override suspend fun addSticker(key: String): Sticker = Sticker("s", key, 0)
+            override suspend fun streak(): Streak = Streak(0, null)
+            override suspend fun saveStreak(streak: Streak) {}
+        }
+        val vm = quest.feature.journey.presentation.LessonCompleteViewModel(exam.id, 1, 0, FakeLessons(exam), journey, FakeChildren(maya),
+            quest.feature.rewards.domain.AwardStickerUseCase(rewards, listOf("a")), quest.feature.rewards.domain.UpdateStreakUseCase(rewards), copy).also { built.add(it) }
+        runCurrent()
+        return vm.state.value
     }
 
     @Test fun anUnreachableServerKeepsTheSittingGoing() = examTest {
@@ -321,7 +348,7 @@ class ExamModeTest {
         assertNull(vm.state.value.refusal)
     }
 
-    @Test fun theRepositoryTurnsThe409sIntoOutcomesAndDropsTheRefusedAnswers() = runTest {
+    @Test fun theRepositoryKeepsAnswersAClosedWindowRefusedAndDropsOnlyAnAlreadyTakenPaper() = runTest {
         var failure: Throwable? = null
         val uploads = mutableListOf<List<AttemptUpload>>()
         val fake = FakeContentApi(FakeAuth(settings), delayMillis = 0)
@@ -337,20 +364,46 @@ class ExamModeTest {
         // Not reached: the answer stays queued and goes up with the next one.
         answer(0); failure = ApiException(ApiError(ApiError.NETWORK, "offline"))
         assertEquals(SubmitOutcome.QUEUED, journey.submit(maya.id, exam.id))
+        assertEquals(1, journey.pendingCount(maya.id, exam.id))
         answer(1); failure = null
         assertEquals(SubmitOutcome.SENT, journey.submit(maya.id, exam.id))
         assertEquals(2, uploads.single().size)
+        assertEquals(0, journey.pendingCount(maya.id, exam.id))
 
-        // 409 already taken: said once, and the refused answer is not left to fail every later upload.
-        answer(2); failure = ApiException(ApiError(ApiError.EXAM_ALREADY_TAKEN, "already handed in"))
-        assertEquals(SubmitOutcome.ALREADY_TAKEN, journey.submit(maya.id, exam.id))
-        failure = null
-        assertEquals(SubmitOutcome.SENT, journey.submit(maya.id, exam.id))
-        assertEquals(1, uploads.size, "nothing was left to send")
-
-        // 409 closed.
-        answer(3); failure = ApiException(ApiError(ApiError.EXAM_CLOSED, "not open"))
+        // 409 closed: said, and the answer is KEPT — a teacher's re-opening delivers it with the very same call.
+        answer(2); failure = ApiException(ApiError(ApiError.EXAM_CLOSED, "not open"))
         assertEquals(SubmitOutcome.CLOSED, journey.submit(maya.id, exam.id))
+        assertEquals(1, journey.pendingCount(maya.id, exam.id))
+        assertEquals(mapOf(exam.id to 1), journey.pending(maya.id))
+        failure = null                                                    // re-opened
+        assertEquals(SubmitOutcome.SENT, journey.submit(maya.id, exam.id))
+        assertEquals(paper.stops[2].id, uploads.last().single().stopId)
+        assertEquals(0, journey.pendingCount(maya.id, exam.id))
+
+        // 409 already taken: the server holds a handed-in paper; these answers will never be accepted and are dropped.
+        answer(3); failure = ApiException(ApiError(ApiError.EXAM_ALREADY_TAKEN, "already handed in"))
+        assertEquals(SubmitOutcome.ALREADY_TAKEN, journey.submit(maya.id, exam.id))
+        assertEquals(0, journey.pendingCount(maya.id, exam.id))
+    }
+
+    /** A closed exam's kept answers must not hold a homework's answers on the device with them. */
+    @Test fun aClosedExamDoesNotBlockOtherLessonsFromUploading() = runTest {
+        val accepted = mutableListOf<String>()
+        val fake = FakeContentApi(FakeAuth(settings), delayMillis = 0)
+        val api = object : ContentApi by fake {
+            override suspend fun uploadAttempts(childId: String, attempts: List<AttemptUpload>): AttemptAck {
+                if (attempts.any { it.lessonId == exam.id }) throw ApiException(ApiError(ApiError.EXAM_CLOSED, "not open"))
+                accepted += attempts.map { it.lessonId }; return AttemptAck(attempts.size)
+            }
+        }
+        val journey = JourneyRepositoryImpl(api, db)
+        val homework = quest.api.samples.MathSeed.lesson
+        journey.recordStop(maya.id, exam, paper, paper.stops[0].id, 0, "x", false, 1, 1)
+        journey.recordStop(maya.id, homework, homework.plays[0], homework.plays[0].stops[0].id, 3, "y", true, 1, 0)
+
+        assertEquals(1, journey.flushAttempts(maya.id))
+        assertEquals(listOf(homework.id), accepted)
+        assertEquals(mapOf(exam.id to 1), journey.pending(maya.id))
     }
 
     // ---------------------------------------------------------------- (d) handing in
@@ -378,6 +431,60 @@ class ExamModeTest {
         assertEquals(PlayerContract.Effect.Finished(exam.id, 1, 0), effects.last())
     }
 
+    /** Review point 3: "submitted" is said only when the server has every answer. */
+    @Test fun aFinishedPaperIsNotSubmittedWhileItsAnswersAreStillOnTheDevice() = examTest {
+        val last = paper.stops.lastIndex
+        val journey = answeredUpTo(last).apply { outcome = SubmitOutcome.QUEUED }
+        val (vm, effects) = player(journey)
+        vm.dispatch(PlayerContract.Intent.Completed(stars = 2, answer = "x", mistakes = 0, correct = true))
+        advanceUntilIdle(); runCurrent()
+
+        assertEquals(Phase.SENDING, vm.state.value.phase)
+        assertTrue(effects.none { it is PlayerContract.Effect.Finished }, "no submitted screen while the answers are unsent")
+        assertEquals(0, journey.completed)
+
+        vm.dispatch(PlayerContract.Intent.SendAgain)              // still offline
+        advanceUntilIdle(); runCurrent()
+        assertEquals(Phase.SENDING, vm.state.value.phase)
+
+        journey.outcome = SubmitOutcome.SENT                      // back online
+        vm.dispatch(PlayerContract.Intent.SendAgain)
+        advanceUntilIdle(); runCurrent()
+        assertEquals(Phase.DONE, vm.state.value.phase)
+        assertEquals(1, journey.completed)
+        assertEquals(PlayerContract.Effect.Finished(exam.id, 1, 0), effects.last())
+        val state = complete(journey)
+        assertFalse(state.examClosed); assertEquals(0, state.undelivered)
+    }
+
+    @Test fun theWindowClosingOnUnsentAnswersSaysHowManyWereNotDelivered() = examTest {
+        val last = paper.stops.lastIndex
+        val journey = answeredUpTo(last).apply { outcome = SubmitOutcome.QUEUED; unsent = 2 }      // two earlier answers given offline
+        val (vm, effects) = player(journey)
+        vm.dispatch(PlayerContract.Intent.Completed(stars = 2, answer = "x", mistakes = 0, correct = true))
+        advanceUntilIdle(); runCurrent()
+        assertEquals(Phase.SENDING, vm.state.value.phase)
+
+        journey.outcome = SubmitOutcome.CLOSED                    // the window shuts before the device is online again
+        vm.dispatch(PlayerContract.Intent.SendAgain)
+        advanceUntilIdle(); runCurrent()
+        assertEquals(PlayerContract.Effect.Finished(exam.id, 1, 0), effects.last())
+        assertEquals(0, journey.completed, "kept re-openable: not marked handed in")
+
+        val state = complete(journey)
+        assertTrue(state.examClosed)
+        assertEquals(3, state.undelivered)
+    }
+
+    /** Review point 4: answers a closed window refused go up when the sitting is opened again, before any question. */
+    @Test fun openingTheExamAgainSendsWhatWasLeftOnTheDeviceFirst() = examTest {
+        val journey = answeredUpTo(2).apply { unsent = 1 }
+        val (vm, _) = player(journey)
+        assertEquals(1, journey.submits, "the leftover answer is sent on load")
+        assertEquals(0, journey.unsent)
+        assertEquals(2, vm.state.value.index)
+    }
+
     // ---------------------------------------------------------------- (c) the window on the home card
 
     private val opens = 1_790_000_000_000L          // an arbitrary instant; the tests only move around it
@@ -385,36 +492,24 @@ class ExamModeTest {
     private fun island(state: IslandState = IslandState.TODAY, window: ExamWindow? = ExamWindow(opens, closes)) =
         Island("i1", IslandKind.LESSON, LocalDate(2026, 10, 2), state, exam.title, Subject.ENGLISH, exam.id, examWindow = window)
 
-    @Test fun theWindowIsOpenFromItsFirstMillisecondToJustBeforeItsLast() {
-        assertEquals(ExamStatus.NOT_OPEN, examStatus(island(), opens - 1))
-        assertEquals(ExamStatus.OPEN, examStatus(island(), opens))
-        assertEquals(ExamStatus.OPEN, examStatus(island(), closes - 1))
-        assertEquals(ExamStatus.CLOSED, examStatus(island(), closes, loadedAt = opens))
-        // Handed in beats the clock, and no window from the server means no sitting.
+    /**
+     * Review point 1: the server is the authority. An island that carries a window is sittable now, whatever this
+     * device's clock says — slow (before `opensAt`) or fast (past `closesAt`). The clock only words the countdown.
+     */
+    @Test fun anExamTheServerSentIsOpenWhateverTheDeviceClockSays() = examTest {
+        val slow = opens - 6 * 3_600_000L
+        val fast = closes + 6 * 3_600_000L
+        listOf(slow, opens, closes - 1, closes, fast).forEach { clock ->
+            assertTrue(examStatus(island(), clock).canSit, "open at device time $clock")
+            assertEquals(listOf<MapContract.Effect>(MapContract.Effect.OpenLesson(exam.id, 1, 0)), home(island(), clock).second)
+        }
+        // Past the closing time the server's own window cannot be the reason it is open: no time is claimed.
+        assertEquals(ExamStatus.REOPENED, examStatus(island(), closes))
+        val card = examCard(island(), fast, TimeZone.UTC, en, emptyList(), true)
+        assertEquals(en.examReopened, card.line); assertNull(card.left)
+        // Handed in, and known only from the cache, stay shut — neither is the device clock's doing.
         assertEquals(ExamStatus.SUBMITTED, examStatus(island(IslandState.DONE), opens + 1))
         assertEquals(ExamStatus.UNAVAILABLE, examStatus(island(window = null), opens + 1))
-    }
-
-    /**
-     * The server lists an exam only while this student may sit it, and the window it sends is the exam's own. One
-     * that arrives already past its closing time is therefore a sitting the teacher re-opened — for a student who
-     * was absent or cut off — and must open, not read "Closed".
-     */
-    @Test fun anExamThatArrivesAfterItsWindowShutWasReopenedAndOpens() = examTest {
-        val loadedAt = closes + 5 * 60_000L
-        assertEquals(ExamStatus.REOPENED, examStatus(island(), loadedAt))
-        assertEquals(ExamStatus.REOPENED, examStatus(island(), loadedAt + 3_600_000L, loadedAt), "it does not flip to Closed while the page is open")
-        val card = examCard(island(), loadedAt, TimeZone.UTC, en, emptyList(), true)
-        assertEquals(en.examReopened, card.line)
-        assertNull(card.left, "the extra sitting's end is not in the contract, so no time is claimed")
-        assertEquals(listOf<MapContract.Effect>(MapContract.Effect.OpenLesson(exam.id, 1, 0)), home(island(), loadedAt).second)
-        // A paper she already handed in every answer of stays handed in, re-opened or not.
-        assertEquals(ExamStatus.SUBMITTED, examStatus(island(IslandState.DONE), loadedAt))
-    }
-
-    /** Loaded while open, tapped after the window shut: closed, until a refresh says otherwise. */
-    @Test fun aCardLoadedWhileOpenClosesWhenTheWindowDoes() {
-        assertEquals(ExamStatus.CLOSED, examStatus(island(), closes, loadedAt = opens))
     }
 
     @Test fun theCardSaysWhenItClosesAndRoughlyHowLongIsLeft() {
@@ -437,8 +532,7 @@ class ExamModeTest {
         assertEquals("14:05", examTime(noon + 2 * 3_600_000L + 5 * 60_000L, noon, zone, months, true))
         assertEquals("3 Oct, 09:00", examTime(noon + 21 * 3_600_000L, noon, zone, months, true))
 
-        // Outside the window the card says so and offers nothing else — and a submitted one shows no result.
-        assertEquals(en.examReopened, examCard(island(), closes, zone, en, months, true).line)
+        // A submitted one shows no result.
         assertEquals(en.examSubmittedNote, examCard(island(IslandState.DONE), opens, zone, en, months, true).line)
         assertNull(examCard(island(IslandState.DONE), opens, zone, en, months, true).left)
     }
@@ -460,13 +554,6 @@ class ExamModeTest {
         vm.dispatch(MapContract.Intent.Load); runCurrent()
         vm.dispatch(MapContract.Intent.TapIsland(island.id)); runCurrent()
         return vm to effects
-    }
-
-    @Test fun theHomeCardOpensAnExamOnlyInsideItsWindow() = examTest {
-        assertEquals(listOf<MapContract.Effect>(MapContract.Effect.OpenLesson(exam.id, 1, 0)), home(island(), opens).second)
-        assertEquals(listOf<MapContract.Effect>(MapContract.Effect.Speak(en.examNotOpenYet)), home(island(), opens - 1).second)
-        // Loaded with its window already shut, the server is saying this student may still sit it (a re-opening).
-        assertEquals(listOf<MapContract.Effect>(MapContract.Effect.OpenLesson(exam.id, 1, 0)), home(island(), closes).second)
     }
 
     @Test fun aSubmittedExamDoesNotOpenAgainAndSaysWhy() = examTest {

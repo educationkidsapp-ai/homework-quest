@@ -57,7 +57,10 @@ import quest.ui.design.Dimens
 import quest.ui.journey.Certificate
 
 object CompleteContract {
-    data class State(val loading: Boolean = true, val lesson: PublishedLesson? = null, val level: Int = 1, val variant: Int = 0, val stars: Int = 0, val starsTotal: Int = 0, val childName: String = "", val nextLevelUnlocked: Boolean = false, val exam: Boolean = false) : MviState
+    data class State(val loading: Boolean = true, val lesson: PublishedLesson? = null, val level: Int = 1, val variant: Int = 0, val stars: Int = 0, val starsTotal: Int = 0, val childName: String = "", val nextLevelUnlocked: Boolean = false, val exam: Boolean = false,
+        /** §8: the window shut before the paper was complete or delivered; [undelivered] answers are still on the device. */
+        val examClosed: Boolean = false, val undelivered: Int = 0,
+    ) : MviState
     sealed interface Intent : MviIntent { data object Load : Intent; data object ReadAloud : Intent }
     sealed interface Effect : MviEffect { data class Speak(val text: String) : Effect }
 }
@@ -75,17 +78,19 @@ class LessonCompleteViewModel(
                 val lesson = lessons.lesson(lessonId)
                 val play = lesson.playFor(level, variant)
                 val progress = journey.progress(child.id, lessonId, play.level, play.variant)
-                awardSticker()
-                updateStreak(Today.date())
+                // An exam that reaches this screen without every answer on the server was cut off by its window.
+                val undelivered = if (lesson.isExam) journey.pendingCount(child.id, lessonId) else 0
+                val closed = lesson.isExam && (undelivered > 0 || play.stops.any { it.id !in progress.stops })
+                if (!closed) { awardSticker(); updateStreak(Today.date()) }
                 val unlocked = MapAssembler.unlockedLevels(journey.completions(child.id).filter { it.lessonId == lessonId }, journey.parentUnlocks(child.id)[lessonId].orEmpty())
-                reduce { copy(loading = false, lesson = lesson, stars = progress.starsFor(play), starsTotal = play.stops.size * 3, childName = child.name, nextLevelUnlocked = (level + 1) in unlocked, exam = lesson.isExam) }
+                reduce { copy(loading = false, lesson = lesson, stars = progress.starsFor(play), starsTotal = play.stops.size * 3, childName = child.name, nextLevelUnlocked = (level + 1) in unlocked, exam = lesson.isExam, examClosed = closed, undelivered = undelivered) }
                 effect(CompleteContract.Effect.Speak(summary()))
             }
             CompleteContract.Intent.ReadAloud -> effect(CompleteContract.Effect.Speak(summary()))
         }
     }
 
-    private fun summary(): String = if (current.exam) copy.strings().speakExamSubmitted else copy.strings().speakLessonComplete.replace("{name}", current.childName)
+    private fun summary(): String = if (current.examClosed) copy.strings().examClosedBody else if (current.exam) copy.strings().speakExamSubmitted else copy.strings().speakLessonComplete.replace("{name}", current.childName)
 }
 
 @Composable
@@ -105,7 +110,7 @@ fun LessonCompleteRoute(lessonId: String, level: Int, variant: Int, onAgain: (St
 fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContract.Intent) -> Unit, onAgain: () -> Unit, onNextLevel: () -> Unit, onHome: () -> Unit) {
     val s = LocalLessonStrings.current
     val lesson = state.lesson ?: run { LoadingView(s.savingWork); return }
-    if (state.exam) { ExamSubmitted(lesson.title, dispatch, onHome); return }
+    if (state.exam) { ExamSubmitted(lesson.title, state, dispatch, onHome); return }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         LessonTopBar(onBack = null, onReadAloud = { dispatch(CompleteContract.Intent.ReadAloud) })
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -146,11 +151,12 @@ fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContr
 }
 
 /**
- * §8: what a student sees when the exam is handed in — that it was, and that the teacher shares the result. No stars,
+ * §8: what a student sees when the exam ends — handed in, or closed by its window (then with what did not reach the
+ * teacher) — and that the teacher shares the result. No stars,
  * no count, no certificate and no way back in: the result appears in the parent area once the teacher releases it.
  */
 @Composable
-private fun ExamSubmitted(title: String, dispatch: (CompleteContract.Intent) -> Unit, onHome: () -> Unit) {
+private fun ExamSubmitted(title: String, state: CompleteContract.State, dispatch: (CompleteContract.Intent) -> Unit, onHome: () -> Unit) {
     val s = LocalLessonStrings.current
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         LessonTopBar(onBack = null, onReadAloud = { dispatch(CompleteContract.Intent.ReadAloud) })
@@ -161,11 +167,18 @@ private fun ExamSubmitted(title: String, dispatch: (CompleteContract.Intent) -> 
                         Text("✓", style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.accentInk)
                     }
                     Spacer(Modifier.height(Dimens.s12))
-                    Text(s.examSubmitted, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
+                    Text(if (state.examClosed) s.examClosedTitle else s.examSubmitted, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(Dimens.s4))
                     Text(title, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(Dimens.s8))
-                    Text(s.examSubmittedBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
+                    Text(if (state.examClosed) s.examClosedBody else s.examSubmittedBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
+                    if (state.undelivered > 0) {
+                        Spacer(Modifier.height(Dimens.s12))
+                        Text(
+                            if (state.undelivered == 1) s.examOneUndelivered else s.examUndelivered.replace("{n}", "${state.undelivered}"),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = DashboardTokens.warning, textAlign = TextAlign.Center,
+                        )
+                    }
                 }
             }
         }
