@@ -1,5 +1,7 @@
 package quest.feature.journey.presentation
 
+import androidx.compose.ui.platform.testTag
+import quest.ui.design.TestTags
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -112,7 +114,7 @@ fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContr
                         Text("✓", style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.success)
                     }
                     Spacer(Modifier.height(Dimens.s12))
-                    Text(s.lessonComplete, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
+                    Text(s.lessonComplete, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong, textAlign = TextAlign.Center, modifier = Modifier.testTag(TestTags.LESSON_COMPLETE))
                     Spacer(Modifier.height(Dimens.s4))
                     Text(lesson.title, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(Dimens.s8))
@@ -125,7 +127,7 @@ fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContr
             // §4 `certificates`: a school that does not issue them must never show one.
             FeatureGate(Flags.CERTIFICATES) {
                 Spacer(Modifier.height(Dimens.s12))
-                Certificate(state.childName, lesson.title, state.level, state.stars, state.starsTotal, "${Today.date()}")
+                Certificate(state.childName, lesson.title, state.level, state.stars, state.starsTotal, "${Today.date()}", modifier = Modifier.testTag(TestTags.LESSON_CERTIFICATE))
             }
             Spacer(Modifier.height(Dimens.s16))
         }
@@ -137,7 +139,7 @@ fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContr
                 BigButton(s.repeatLesson, onClick = onAgain, modifier = Modifier.weight(1f), primary = false, compact = true)
                 if (hasNext) BigButton(s.nextLevel, onClick = onNextLevel, modifier = Modifier.weight(1f), compact = true, enabled = state.nextLevelUnlocked)
             }
-            BigButton(s.backToHome, onClick = onHome, primary = !hasNext)
+            BigButton(s.backToHome, onClick = onHome, primary = !hasNext, modifier = Modifier.testTag(TestTags.LESSON_BACK_HOME))
         }
     }
 }

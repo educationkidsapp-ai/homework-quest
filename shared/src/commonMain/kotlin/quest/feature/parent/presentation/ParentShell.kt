@@ -286,7 +286,7 @@ fun Chip(
  * Section Title with modern dashboard typography.
  */
 @Composable
-fun SectionTitle(text: String) {
+fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         style = MaterialTheme.typography.titleMedium.copy(
@@ -294,6 +294,6 @@ fun SectionTitle(text: String) {
             fontSize = 16.sp,
         ),
         color = DashboardTokens.inkStrong,
-        modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+        modifier = modifier.padding(top = 18.dp, bottom = 8.dp),
     )
 }

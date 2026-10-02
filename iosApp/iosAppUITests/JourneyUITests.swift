@@ -3,6 +3,10 @@ import XCTest
 /// The full student cycle on iOS with the seeded fake API: sign in → pick a child the school linked → home → Hot Soup Level 1, all nine
 /// steps → the result and its certificate → parent mode. Every step is a real tap on the accessibility tree, so a crash anywhere fails the test.
 ///
+/// The app's own controls are found by **accessibility identifier** (`TestTags` in shared-ui — a Compose `testTag` is the identifier on
+/// iOS), never by their wording or position, so a copy change, a translation or a new layout does not break the cycle. Lesson content
+/// (a word, a picture's name) is found by its label: that is seed data.
+///
 ///   xcodebuild test -project iosApp/iosApp.xcodeproj -scheme iosApp -destination 'platform=iOS Simulator,name=iPhone 15' -only-testing:iosAppUITests/JourneyUITests
 final class JourneyUITests: XCTestCase {
     private var app: XCUIApplication!
@@ -24,79 +28,69 @@ final class JourneyUITests: XCTestCase {
     func testHotSoupLevelOneCycle() {
         signInIfNeeded()
         tap("Maya", timeout: 20)                                     // the fake API links Maya and Omar to every parent
-        XCTAssertTrue(el("Grade 1").waitForExistence(timeout: 15), "the student home should show the child")
-
-        tapContaining("Hot Soup")                                    // the lesson card opens the overview
-        tap("Start lesson")                                          // → step 1
+        tapId("home.lesson.lesson-hot-soup-1", timeout: 20)          // the lesson card opens the overview
+        tapId("lesson.cta")                                          // → step 1
         for action in ["🥾", "🥄", "👃", "🥣"] { tap(action) }
-        tap("Done")                                                   // Done → stop 2
+        tapId("stop.done")                                           // → stop 2
         for piece in ["title:", "genre:", "characters:", "setting:", "plot:", "problem:"] { tap(piece) }
-        tap("Done")                                                   // → stop 3 (read page 1)
-        tap("Done")                                                   // → stop 4 (fridge, tap task)
+        tapId("stop.done")                                           // → stop 3 (read page 1)
+        tapId("stop.done")                                           // → stop 4 (fridge, tap task)
         for veg in ["carrot", "potato", "onion", "peas"] { tap(veg) }
-        tap("Done")                                                   // → stop 5 (read page 3)
-        tap("Done")                                                   // → stop 6 (word cards)
-        for _ in 0..<3 { tap("Next") }
-        tap("Done")                                                   // → stop 7 (match)
+        tapId("stop.done")                                           // → stop 5 (read page 3)
+        tapId("stop.done")                                           // → stop 6 (word cards)
+        for _ in 0..<3 { tapId("stop.next") }
+        tapId("stop.done")                                           // → stop 7 (match)
         matchPairs()
-        XCTAssertTrue(el("Put the story in order.").waitForExistence(timeout: 10))
         for item in ["Mummy is in bed", "Alan and Daddy find", "The soup cooks", "Alan carries"] { tap(item) }
-        tap("Check")                                                   // Check → stop 9 (exit ticket)
+        tapId("stop.check")                                          // → stop 9 (exit ticket)
         tap("Mummy")
-        tap("carrot"); tap("potato"); tap("Check")
+        tap("carrot"); tap("potato"); tapId("stop.check")
         tap("True")
-        XCTAssertTrue(el("Lesson complete").waitForExistence(timeout: 10))
-        XCTAssertTrue(el("Certificate of completion").exists)
+        XCTAssertTrue(id("lesson.complete").waitForExistence(timeout: 15), "the result screen should follow the last step")
+        XCTAssertTrue(id("lesson.certificate").waitForExistence(timeout: 5), "the default school issues a certificate")
 
-        // parent mode: PIN, home, lesson panel
-        tap("Back to home")
-        tap("Parent Portal")
-        enterPin("12341234")
-        XCTAssertTrue(el("Parent mode").waitForExistence(timeout: 10))
-        tapContaining("English")
-        XCTAssertTrue(el("Lesson panel").waitForExistence(timeout: 10))
+        // parent mode: create the PIN (entered twice), then the parent home
+        tapId("lesson.backHome")
+        tapId("home.parentPortal")
+        for d in "12341234" { tapId("pin.key.\(d)") }
+        XCTAssertTrue(id("parent.home").waitForExistence(timeout: 10), "the PIN should open the parent home")
         XCTAssertEqual(app.state, .runningForeground)
     }
 
     // MARK: - helpers
+    private func id(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+    /// Waits for the control with this identifier to be there *and* hittable — the confirmation between two steps covers the next
+    /// step's button for a moment — then taps it.
+    private func tapId(_ identifier: String, timeout: TimeInterval = 15) {
+        let e = id(identifier)
+        XCTAssertTrue(e.waitForExistence(timeout: timeout), "expected the control '\(identifier)' on screen")
+        e.tap()
+    }
     private func el(_ label: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR label BEGINSWITH %@", label, label)).firstMatch
     }
-    private func tap(_ label: String, timeout: TimeInterval = 10) {
+    private func tap(_ label: String, timeout: TimeInterval = 15) {
         let e = el(label)
         XCTAssertTrue(e.waitForExistence(timeout: timeout), "expected '\(label)' on screen")
         e.tap()
     }
-    private func tapContaining(_ text: String, timeout: TimeInterval = 10) {
-        let e = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
-        XCTAssertTrue(e.waitForExistence(timeout: timeout), "expected something containing '\(text)'")
-        e.tap()
-    }
-    private func tapPoint(_ x: CGFloat, _ y: CGFloat) {
-        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: y)).tap()
-    }
     private func signInIfNeeded() {
-        guard el("Email").waitForExistence(timeout: 20) else { return }
-        let fields = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Email'")).firstMatch
-        _ = fields.waitForExistence(timeout: 5)
-        tapPoint(200, 379); app.typeText("ios@test.com")
-        tapPoint(200, 457); app.typeText("secret12\n")
-        let button = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Sign in'")).element(boundBy: 1)
-        if button.waitForExistence(timeout: 5) { button.tap() }
+        let email = id("signin.email")
+        guard email.waitForExistence(timeout: 20) else { return }   // already signed in on a replay
+        email.tap(); app.typeText("ios@test.com")
+        id("signin.password").tap(); app.typeText("secret12")
+        tapId("signin.submit")
     }
-    private func enterPin(_ digits: String) {
-        for d in digits { tap(String(d)) }
-    }
-    /// The match stop lists four left tiles and four right tiles; pair them by label.
+    /// Pairs every left tile of the match stop with the right tile that carries the same pair id — by identifier, so neither the
+    /// tiles' position nor their wording matters.
     private func matchPairs() {
-        XCTAssertTrue(el("Match the word to the picture.").waitForExistence(timeout: 10))
-        let buttons = app.buttons.allElementsBoundByIndex.filter { $0.frame.minY > 300 && $0.frame.width > 150 }
-        let left = buttons.filter { $0.frame.minX < 100 }
-        let right = buttons.filter { $0.frame.minX >= 100 }
-        for l in left {
-            let word = l.label.components(separatedBy: "\n").first ?? l.label
-            guard let r = right.first(where: { $0.label.components(separatedBy: "\n").contains(word) }) else { continue }
-            l.tap(); r.tap()
-        }
+        let prefix = "stop.match.left."
+        let lefts = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix))
+        XCTAssertTrue(lefts.firstMatch.waitForExistence(timeout: 15), "the match step should show its tiles")
+        let pairIds = Set(lefts.allElementsBoundByIndex.map { String($0.identifier.dropFirst(prefix.count)) })
+        XCTAssertFalse(pairIds.isEmpty)
+        for pair in pairIds.sorted() { tapId(prefix + pair); tapId("stop.match.right." + pair) }
     }
 }

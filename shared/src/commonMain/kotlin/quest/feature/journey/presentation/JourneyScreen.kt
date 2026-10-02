@@ -1,5 +1,7 @@
 package quest.feature.journey.presentation
 
+import androidx.compose.ui.platform.testTag
+import quest.ui.design.TestTags
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.Arrangement
@@ -103,7 +105,7 @@ fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) 
             state.doneCount == 0 -> s.startLesson
             else -> s.continueLesson
         }
-        BigButton(cta, onClick = { dispatch(if (state.complete) Intent.Finish else Intent.TapStop(state.nextIndex)) }, modifier = Modifier.padding(horizontal = Dimens.s16, vertical = Dimens.s12))
+        BigButton(cta, onClick = { dispatch(if (state.complete) Intent.Finish else Intent.TapStop(state.nextIndex)) }, modifier = Modifier.padding(horizontal = Dimens.s16, vertical = Dimens.s12).testTag(TestTags.LESSON_CTA))
     }
 }
 
