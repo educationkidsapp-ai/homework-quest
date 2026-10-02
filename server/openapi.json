@@ -736,6 +736,10 @@
           "peerOnline" : {
             "type" : "boolean"
           },
+          "peerRole" : {
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "ADMIN", "PARENT" ],
+            "type" : "string"
+          },
           "resolvedAt" : {
             "format" : "int64",
             "type" : "integer"

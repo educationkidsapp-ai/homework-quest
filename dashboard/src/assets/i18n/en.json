@@ -1472,7 +1472,11 @@
     "pickPersonHint": "Pick a person",
     "peers": "Filter the inbox by who wrote",
     "role": {
-      "manager": "Manager"
+      "TEACHER": "Teacher",
+      "COORDINATOR": "Coordinator",
+      "MANAGERIAL": "Manager",
+      "ADMIN": "School administration",
+      "PARENT": "Parent"
     },
     "peer": {
       "all": "All",

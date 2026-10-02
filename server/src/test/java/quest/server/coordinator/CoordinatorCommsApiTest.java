@@ -341,6 +341,7 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
         String thread = opened.get("id").asText();
         assertThat(opened.get("teacherId").asText()).as("the row names the other person").isEqualTo(maya);
         assertThat(opened.get("staffRole").asText()).isEqualTo("COORDINATOR");
+        assertThat(opened.get("peerRole").asText()).as("N1: the coordinator is talking to a teacher").isEqualTo("TEACHER");
         var row = threadRows.findById(thread).orElseThrow();
         assertThat(row.getTeacherId()).as("T1b's shape: the teacher is the subordinate").isEqualTo(maya);
         assertThat(row.getPeerUserId()).isEqualTo(lina);
@@ -349,8 +350,9 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
                 .content("{\"coordinatorUserId\":\"" + lina + "\"}"), token(maya, "TEACHER", SCHOOL))).andExpect(status().isCreated()).andReturn())
                 .get("id").asText()).isEqualTo(thread);
         staffPostJson(lina, "/coordinator/chat/threads/" + thread + "/messages", "{\"body\":\"Unit 3 moves to next week.\"}");
-        assertThat(rowWith(json(mvc.perform(as(get("/teacher/chat/staff-threads"), token(maya, "TEACHER", SCHOOL))).andReturn()), "id", thread)
-                .get("unread").asInt()).isEqualTo(1);
+        var mayasRow = rowWith(json(mvc.perform(as(get("/teacher/chat/staff-threads"), token(maya, "TEACHER", SCHOOL))).andReturn()), "id", thread);
+        assertThat(mayasRow.get("unread").asInt()).isEqualTo(1);
+        assertThat(mayasRow.get("peerRole").asText()).as("N1: and the teacher to a coordinator").isEqualTo("COORDINATOR");
         // Rami teaches American maths, outside her British scope; and the body names exactly one person.
         for (var refused : List.of(new String[] {"{\"teacherUserId\":\"" + rami + "\"}", "404"}, new String[] {"{}", "400"},
                 new String[] {"{\"teacherUserId\":\"" + maya + "\",\"managerUserId\":\"" + nour + "\"}", "400"}))
@@ -366,6 +368,7 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
         var toTeacher = adminPost(admin, "/admin/chat/threads", "{\"teacherUserId\":\"" + maya + "\"}");
         String teacherThread = toTeacher.get("id").asText();
         assertThat(toTeacher.get("withAdmin").asBoolean()).isTrue();
+        assertThat(toTeacher.get("peerRole").asText()).as("N1: admin → teacher").isEqualTo("TEACHER");
         assertThat(toTeacher.get("teacherId").asText()).isEqualTo(maya);
         var stored = threadRows.findById(teacherThread).orElseThrow();
         assertThat(List.of(stored.getTeacherId(), stored.getPeerUserId(), stored.getStaffRole())).containsExactly(maya, adminId, "ADMIN");
@@ -373,6 +376,7 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
         var mayas = rowWith(json(mvc.perform(as(get("/teacher/chat/staff-threads"), mayaToken)).andReturn()), "id", teacherThread);
         assertThat(mayas.get("teacherId").asText()).isEqualTo(adminId);
         assertThat(mayas.get("withAdmin").asBoolean()).isTrue();
+        assertThat(mayas.get("peerRole").asText()).as("N1: teacher → admin").isEqualTo("ADMIN");
         assertThat(mayas.get("unread").asInt()).isEqualTo(1);
         assertThat(links(mayaToken, null)).contains("/teacher/chat?thread=" + teacherThread);
         mvc.perform(as(post("/teacher/chat/staff-threads/" + teacherThread + "/messages").contentType(MediaType.APPLICATION_JSON)
@@ -380,25 +384,33 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
         assertThat(links(admin, SCHOOL)).contains("/admin/messages?thread=" + teacherThread);
 
         // a coordinator, through `/coordinator/chat/**`
-        String coordinatorThread = adminPost(admin, "/admin/chat/threads", "{\"coordinatorUserId\":\"" + lina + "\"}").get("id").asText();
+        var toCoordinator = adminPost(admin, "/admin/chat/threads", "{\"coordinatorUserId\":\"" + lina + "\"}");
+        String coordinatorThread = toCoordinator.get("id").asText();
+        assertThat(toCoordinator.get("peerRole").asText()).as("N1: admin → coordinator, the row `staffRole` cannot tell from a teacher's").isEqualTo("COORDINATOR");
         adminPost(admin, "/admin/chat/threads/" + coordinatorThread + "/messages", "{\"body\":\"The maths plan, please.\"}");
-        assertThat(rowWith(staffJson(lina, "/coordinator/chat/threads"), "id", coordinatorThread).get("withAdmin").asBoolean()).isTrue();
+        var linas = rowWith(staffJson(lina, "/coordinator/chat/threads"), "id", coordinatorThread);
+        assertThat(linas.get("withAdmin").asBoolean()).isTrue();
+        assertThat(linas.get("peerRole").asText()).as("N1: coordinator → admin").isEqualTo("ADMIN");
         staffPostJson(lina, "/coordinator/chat/threads/" + coordinatorThread + "/messages", "{\"body\":\"Sent.\"}");
 
         // a parent, by her child: the app's own list carries the thread as "School administration"
         var toParent = adminPost(admin, "/admin/chat/threads", "{\"childId\":\"" + childBritishB + "\"}");
         String parentThread = toParent.get("id").asText();
         assertThat(toParent.get("childName").asText()).isEqualTo("Bilal");
+        assertThat(toParent.get("peerRole").asText()).as("N1: admin → parent").isEqualTo("PARENT");
         adminPost(admin, "/admin/chat/threads/" + parentThread + "/messages", "{\"body\":\"Bilal's form is ready.\"}");
         var parents = rowWith(parentJson(BRITISH_B_PARENT, "/children/" + childBritishB + "/chat/threads"), "id", parentThread);
         assertThat(parents.get("teacherName").asText()).isEqualTo("School administration");
         assertThat(parents.get("withAdmin").asBoolean()).isTrue();
+        assertThat(parents.get("peerRole").asText()).as("N1: parent → admin").isEqualTo("ADMIN");
         assertThat(parents.get("unread").asInt()).isEqualTo(1);
         parentPostJson(BRITISH_B_PARENT, "/children/" + childBritishB + "/chat/threads/" + adminId + "/messages", "{\"body\":\"Thank you!\"}");
 
         // her own inbox: the three threads, each with her own unread count, and the same row when asked again
         var mine = json(mvc.perform(as(get("/admin/chat/threads?mine=true"), admin).header("X-School-Id", SCHOOL)).andExpect(status().isOk()).andReturn());
         assertThat(names(mine, "id")).containsExactlyInAnyOrder(teacherThread, coordinatorThread, parentThread);
+        assertThat(List.of(rowWith(mine, "id", teacherThread).get("peerRole").asText(), rowWith(mine, "id", coordinatorThread).get("peerRole").asText(),
+                rowWith(mine, "id", parentThread).get("peerRole").asText())).as("N1: the list says the same as the POST").containsExactly("TEACHER", "COORDINATOR", "PARENT");
         for (var row : mine) assertThat(row.get("unread").asInt()).as("thread %s", row.get("id")).isEqualTo(1);
         assertThat(adminPost(admin, "/admin/chat/threads", "{\"teacherUserId\":\"" + maya + "\"}").get("id").asText()).isEqualTo(teacherThread);
 
@@ -414,7 +426,7 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
     /** The owner's "Message opens chat but not the person's thread": the server answers the thread's id in all four cases. */
     @Test @Order(12) void the_manager_gets_the_thread_id_for_a_coordinator_a_teacher_a_parent_and_the_admin() throws Exception {
         String manager = token(nour, "MANAGERIAL", SCHOOL), adminId = users.findByEmailIgnoreCase("admin@test.local").orElseThrow().getId();
-        var listed = new ArrayList<String>();
+        var listed = new ArrayList<String>(); var peerRoles = new ArrayList<String>();
         for (String body : List.of("{\"coordinatorUserId\":\"" + lina + "\"}", "{\"teacherUserId\":\"" + idOf("maya@test.com") + "\"}",
                 "{\"childId\":\"" + childBritishB + "\"}", "{\"adminUserId\":\"" + adminId + "\"}")) {
             var first = json(mvc.perform(as(post("/management/chat/threads").contentType(MediaType.APPLICATION_JSON).content(body), manager))
@@ -422,10 +434,25 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
             assertThat(first.hasNonNull("id")).as("an id for %s", body).isTrue();
             assertThat(json(mvc.perform(as(post("/management/chat/threads").contentType(MediaType.APPLICATION_JSON).content(body), manager))
                     .andExpect(status().isCreated()).andReturn()).get("id").asText()).as("the same row when asked again").isEqualTo(first.get("id").asText());
-            listed.add(first.get("id").asText());
+            listed.add(first.get("id").asText()); peerRoles.add(first.get("peerRole").asText());
         }
         assertThat(listed).doesNotHaveDuplicates();
-        assertThat(names(json(mvc.perform(as(get("/management/chat/threads"), manager)).andExpect(status().isOk()).andReturn()), "id")).containsAll(listed);
+        var managers = json(mvc.perform(as(get("/management/chat/threads"), manager)).andExpect(status().isOk()).andReturn());
+        assertThat(names(managers, "id")).containsAll(listed);
+        // N1 `peerRole`: the manager's four correspondents by their real role, on the POST and on the list alike …
+        assertThat(peerRoles).containsExactly("COORDINATOR", "TEACHER", "PARENT", "ADMIN");
+        assertThat(listed.stream().map(id -> rowWith(managers, "id", id).get("peerRole").asText()).toList()).isEqualTo(peerRoles);
+        // … and each of them reads MANAGERIAL from her own side of the same thread.
+        String admin = adminToken();
+        assertThat(rowWith(staffJson(lina, "/coordinator/chat/threads"), "id", listed.get(0)).get("peerRole").asText()).isEqualTo("MANAGERIAL");
+        assertThat(rowWith(json(mvc.perform(as(get("/teacher/chat/staff-threads"), token(idOf("maya@test.com"), "TEACHER", SCHOOL))).andReturn()), "id", listed.get(1))
+                .get("peerRole").asText()).isEqualTo("MANAGERIAL");
+        assertThat(rowWith(parentJson(BRITISH_B_PARENT, "/children/" + childBritishB + "/chat/threads"), "id", listed.get(2)).get("peerRole").asText()).isEqualTo("MANAGERIAL");
+        assertThat(rowWith(json(mvc.perform(as(get("/admin/chat/threads?mine=true"), admin).header("X-School-Id", SCHOOL)).andReturn()), "id", listed.get(3))
+                .get("peerRole").asText()).as("admin → manager").isEqualTo("MANAGERIAL");
+        // The Admin's read-only support list is about threads that are not hers: no peer, so no role.
+        for (var row : json(mvc.perform(as(get("/admin/chat/threads"), admin).header("X-School-Id", SCHOOL)).andExpect(status().isOk()).andReturn()))
+            assertThat(row.has("peerRole")).as("support row %s", row.get("id")).isFalse();
     }
 
     // ---------------------------------------------------------------- fixture helpers

@@ -984,7 +984,7 @@ the migration. `GET /me` answers the resolved `platformName`, the app resolves t
 mail subjects take the platform name. Verified locally: `GET /platform-settings` answered `Schools Dashboard` and
 `GET /me.platformName` answered the same for an ADMIN, who has no school.
 
-`ProductNameTest` fails the build if the literal `Homework Quest`, `Schools Dashboard` or `MySchool` appears anywhere under
+`ProductNameTest` fails the build if the literal `Homework Quest` or `Schools Dashboard` appears anywhere under
 `server/src/main` — including a comment or a model prompt — outside `db/migration`. `V5__flags_themes.sql` is where the
 name enters the system; everything else asks `PlatformSettingsService`.
 
@@ -1310,6 +1310,10 @@ parent on the message that opens it) and a `status` (`open` / `resolved`, moved 
   `/children/{id}/chat/threads/{adminUserId}/…`, where `teacherName` is "School administration". A parent cannot start
   that thread. `GET /admin/chat/threads?mine=true` is the admin's own inbox (her threads, her unread); `chat.message`
   rows link each recipient to her own Messages screen.
+
+**`ChatThread.peerRole` (N1)** — optional, on every thread list and thread POST: the role of the *other* party relative to the
+caller (`TEACHER`, `COORDINATOR`, `MANAGERIAL`, `ADMIN`, `PARENT`), from that account's role; absent on the Admin's read-only
+support list (`GET /admin/chat/threads` without `mine=true`). The dashboard's role line and inbox chips read only this.
 - **Coordinator ↔ manager.** `POST /coordinator/chat/threads {"managerUserId":"…"}` — one thread per pair, however
   many times either side asks for it, limited to a manager whose department (her `curriculum` scope) meets hers; any
   other manager is 404. `childId` is empty on those rows. RM2 gave the manager the other end of it:

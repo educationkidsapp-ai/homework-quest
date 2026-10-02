@@ -1472,7 +1472,11 @@
     "pickPersonHint": "اختر شخصًا",
     "peers": "تصفية الوارد حسب المرسل",
     "role": {
-      "manager": "مدير القسم"
+      "TEACHER": "معلمة",
+      "COORDINATOR": "منسقة",
+      "MANAGERIAL": "مدير القسم",
+      "ADMIN": "إدارة المدرسة",
+      "PARENT": "ولي أمر"
     },
     "peer": {
       "all": "الكل",

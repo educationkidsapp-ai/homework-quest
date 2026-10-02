@@ -33,6 +33,17 @@ enum class ChatSender { @SerialName("parent") PARENT, @SerialName("teacher") TEA
 @Serializable
 enum class ChatStaffRole { @SerialName("TEACHER") TEACHER, @SerialName("COORDINATOR") COORDINATOR, @SerialName("MANAGERIAL") MANAGERIAL }
 
+/**
+ * N1: the role of the person on the **other end** of a [ChatThread], relative to whoever asked for the row. Its own
+ * enum rather than a fifth and sixth word on [ChatStaffRole], which a released app decodes strictly; this one rides
+ * on an optional key that app has never seen and therefore ignores.
+ */
+@Serializable
+enum class ChatPeerRole {
+    @SerialName("TEACHER") TEACHER, @SerialName("COORDINATOR") COORDINATOR, @SerialName("MANAGERIAL") MANAGERIAL,
+    @SerialName("ADMIN") ADMIN, @SerialName("PARENT") PARENT,
+}
+
 /** What the parent opened a thread about. A `complaint` is what the coordinator's Complaints inbox lists (DR3). */
 @Serializable
 enum class ChatTopic { @SerialName("question") QUESTION, @SerialName("complaint") COMPLAINT }
@@ -99,6 +110,14 @@ data class ChatThread(
      * nothing to say, so a client written before S1 reads the row unchanged.
      */
     val withAdmin: Boolean? = null,
+    /**
+     * N1: who the caller is talking to on this row — the parent on a staff member's parent thread, the staff member
+     * (by her account's role) on a parent's row, the colleague on a staff-to-staff thread. [staffRole] cannot say:
+     * it is the staff *side's* role and is `MANAGERIAL` on every thread a manager or the admin holds, whoever is on
+     * the other end. Absent where the row is not a conversation of the caller's (the Admin's read-only support
+     * list) or the other account no longer exists; a client shows no role then rather than a guess.
+     */
+    val peerRole: ChatPeerRole? = null,
 )
 
 /**

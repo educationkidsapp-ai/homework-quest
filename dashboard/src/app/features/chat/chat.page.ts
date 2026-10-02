@@ -21,6 +21,7 @@ import {
   ChatApi,
   ChatMessageSenderEnum,
   ChatThread,
+  ChatThreadPeerRoleEnum,
   ChatThreadTopicEnum,
   ManagementApi,
   ManagementChatApi,
@@ -825,8 +826,10 @@ interface ParsedChatMessage {
       position: relative;
       display: flex;
       align-items: center;
-      flex: 1 1 10rem;
-      min-inline-size: 0;
+      // Takes what is left of the row, and never less than three controls' worth: under that the
+      // button wraps below the field.
+      flex: 1 1 0;
+      min-inline-size: calc(var(--hq-size-control-height) * 3);
     }
 
     .search-box__icon {
@@ -2265,45 +2268,39 @@ export class ChatPage implements AfterViewChecked {
   });
 
   /**
-   * Which of her three correspondents a thread is with.
+   * Which chip a thread sits under — from `peerRole`, the server's own word for who is on the
+   * other end of the row (N1). Never from an id looked up in a list: the lists load late, hold
+   * only what a picker needs, and "not found" used to read as "Coordinators".
    *
-   * The row cannot say on its own: a parent thread and both staff threads all carry
-   * `staffRole: MANAGERIAL`, because she is the staff side of one and the named peer of the other
-   * two. So the child settles "parent", and the peer's id is looked up in the two lists the
-   * "New message" picker already needs — no extra call for the sake of a badge.
+   * A teacher's strip is by list rather than by role: her parents, and everybody who supervises
+   * her under Management. A row with no `peerRole` sits under "All" only.
    */
-  protected peerOf(thread: ChatThread): Peer {
-    if (thread.childId !== '') return 'parents';
-    // A teacher's only child-less threads are with the department manager, so there is nothing to
-    // look up — and `GET /teacher/managers` may not have answered yet when the first row arrives.
+  protected peerOf(thread: ChatThread): Peer | null {
+    if (thread.peerRole === ChatThreadPeerRoleEnum.PARENT) return 'parents';
+    if (thread.peerRole === undefined) return null;
     if (this.auth.role() === 'TEACHER') return 'management';
-    if (this.admins.value().some((person) => person.userId === thread.teacherId)) return 'admin';
-    return this.departmentTeachers.value().some((person) => person.userId === thread.teacherId)
-      ? 'teachers'
-      : 'coordinators';
+    switch (thread.peerRole) {
+      case ChatThreadPeerRoleEnum.TEACHER:
+        return 'teachers';
+      case ChatThreadPeerRoleEnum.COORDINATOR:
+        return 'coordinators';
+      case ChatThreadPeerRoleEnum.ADMIN:
+        return 'admin';
+      default:
+        return 'management';
+    }
   }
 
   /**
-   * The words under a staff thread's name: the role of the person on the other end, as a
-   * translation key — or nothing, when the row cannot say and a guess would be a wrong label.
-   *
-   * `peerOf` is the manager's chip maths and falls through to "coordinators" when neither of her
-   * lists knows the id; for an Admin and a coordinator both lists are empty, so every one of their
-   * staff threads read "Coordinators". A coordinator's are with Management or with the school's
-   * Admin (`withAdmin`). An Admin's carry the other person on `teacherId` and nothing about that
-   * person's role (`staffRole` is MANAGERIAL on every one), so only a manager — found in the list
-   * her "New message" picker already loads — is named; a teacher or a coordinator gets no label.
+   * The words under a thread's name: the role of the person on the other end, as a translation
+   * key. It reads `peerRole` and nothing else, so it is the same answer for every viewer and no
+   * label at all while the row does not say. A row already named by office ("School
+   * administration", to a teacher or a coordinator) does not repeat the office under itself.
    */
   protected peerLabelOf(thread: ChatThread): string | null {
-    if (!this.isStaff(thread)) return null;
-    const role = this.auth.role();
-    if (role === 'ADMIN') {
-      return this.schoolManagers.value().some((person) => person.userId === thread.teacherId)
-        ? 'chat.role.manager'
-        : null;
-    }
-    if (role === 'COORDINATOR') return thread.withAdmin === true ? 'chat.peer.admin' : 'chat.peer.management';
-    return `chat.peer.${this.peerOf(thread)}`;
+    if (thread.peerRole === undefined) return null;
+    const key = `chat.role.${thread.peerRole}`;
+    return this.transloco.translate<string>(key) === this.nameOf(thread) ? null : key;
   }
 
   /**

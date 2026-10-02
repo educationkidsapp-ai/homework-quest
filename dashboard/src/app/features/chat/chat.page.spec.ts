@@ -10,9 +10,12 @@ import {
   ChatApi,
   ChatMessageSenderEnum,
   ChatThread,
+  ChatThreadPeerRoleEnum,
   ChatThreadStaffRoleEnum,
   ChatThreadStatusEnum,
   ChatThreadTopicEnum,
+  ManagementApi,
+  ManagementChatApi,
   ManagersApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
@@ -107,18 +110,24 @@ describe('ChatPage', () => {
 
   async function renderPage(
     query: BehaviorSubject<Record<string, string>> | null = null,
-    role: 'TEACHER' | 'ADMIN' = 'TEACHER',
+    role: 'TEACHER' | 'ADMIN' | 'MANAGERIAL' | 'COORDINATOR' = 'TEACHER',
   ) {
     return renderHq(ChatPage, {
       providers: [
         provideRouter([]),
         { provide: ChatService, useValue: mockChatService },
         { provide: ChatApi, useValue: chatApi },
-        // N1: an Admin's label looks the other end up in the school's managers — the picker's own list.
+        // The Admin's "New message" picker reads the school's managers.
         {
           provide: ManagersApi,
           useValue: { managers: () => of([{ userId: 'u-mgr', fullName: 'Huda Manager' }]) },
         },
+        // A manager's picker reads her coordinators, her teachers and the school's admins.
+        {
+          provide: ManagementApi,
+          useValue: { managementCoordinators: () => of([]), managementTeachers: () => of([]) },
+        },
+        { provide: ManagementChatApi, useValue: { managementAdmins: () => of([]) } },
         {
           provide: AuthService,
           useValue: { role: signal(role), user: signal({ id: 'u-sara' }) },
@@ -291,48 +300,108 @@ describe('ChatPage', () => {
     expect(screen.queryByText('Omar Admin')).toBeNull();
   });
 
-  /** N1: the role under a staff thread's name is plain text on the name's edge, and it is the right role. */
-  it('names the other end of a staff thread in plain text, not in a pill', async () => {
-    (mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>).set([
-      { ...sampleThread, id: 'th-mgr', childId: '', childName: '', teacherName: 'Huda Manager' },
-    ]);
-    const { fixture } = await renderPage();
-    const host = fixture.nativeElement as HTMLElement;
+  /**
+   * N1: the words under a thread's name are the other end's role, read from `peerRole` — the
+   * server's word, the same for every viewer — as plain text on the name's edge, never a pill.
+   */
+  describe('the role under a thread name', () => {
+    const staff = { ...sampleThread, childId: '', childName: '' };
+    const rolesShown = (host: HTMLElement) =>
+      [...host.querySelectorAll('.thread-card')].map(
+        (card) => card.querySelector('.thread-card__role')?.textContent?.trim() ?? null,
+      );
+    const render = async (role: 'TEACHER' | 'ADMIN' | 'MANAGERIAL' | 'COORDINATOR', rows: ChatThread[]) => {
+      (mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>).set(rows);
+      const { fixture } = await renderPage(null, role);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    };
 
-    expect(host.querySelector('.thread-card__role')?.textContent?.trim()).toBe('Management');
-    expect(host.querySelector('.thread-card__badge--staff')).toBeNull();
-  });
+    it('is plain text, not a pill', async () => {
+      const host = await render('TEACHER', [
+        { ...staff, id: 'th-m', teacherName: 'Huda', peerRole: ChatThreadPeerRoleEnum.MANAGERIAL },
+      ]);
 
-  it('tells an Admin a manager is a manager, and guesses nothing about anyone else', async () => {
-    (mockChatService.threads as ReturnType<typeof signal<ChatThread[]>>).set([
-      {
-        ...sampleThread,
-        id: 'th-1',
-        childId: '',
-        childName: '',
-        teacherId: 'u-mgr',
-        teacherName: 'Huda Manager',
-        withAdmin: true,
-      },
-      {
-        ...sampleThread,
-        id: 'th-2',
-        childId: '',
-        childName: '',
-        teacherId: 'u-t',
-        teacherName: 'Teacher G1 Arabic',
-        withAdmin: true,
-      },
-    ]);
-    const { fixture } = await renderPage(null, 'ADMIN');
-    await fixture.whenStable();
-    fixture.detectChanges();
-    const roles = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.thread-card')].map(
-      (card) => card.querySelector('.thread-card__role')?.textContent?.trim() ?? null,
-    );
+      expect(rolesShown(host)).toEqual(['Manager']);
+      expect(host.querySelector('.thread-card__badge--staff')).toBeNull();
+    });
 
-    expect(roles).toEqual(['Manager', null]);
-    expect(screen.queryByText('Coordinators')).toBeNull();
+    it('does not repeat "School administration" under a row already named by that office', async () => {
+      const host = await render('TEACHER', [
+        {
+          ...staff,
+          id: 'th-a',
+          teacherName: 'Omar Admin',
+          withAdmin: true,
+          peerRole: ChatThreadPeerRoleEnum.ADMIN,
+        },
+      ]);
+
+      expect(screen.getByText('School administration')).toBeTruthy();
+      expect(rolesShown(host)).toEqual([null]);
+    });
+
+    it('tells an Admin a teacher from a coordinator from a manager', async () => {
+      const host = await render('ADMIN', [
+        {
+          ...staff,
+          id: 'th-1',
+          teacherId: 'u-t',
+          teacherName: 'Teacher G1 Arabic',
+          withAdmin: true,
+          peerRole: ChatThreadPeerRoleEnum.TEACHER,
+        },
+        {
+          ...staff,
+          id: 'th-2',
+          teacherId: 'u-c',
+          teacherName: 'Lina',
+          withAdmin: true,
+          peerRole: ChatThreadPeerRoleEnum.COORDINATOR,
+        },
+        {
+          ...staff,
+          id: 'th-3',
+          teacherId: 'u-m',
+          teacherName: 'American Department Manager',
+          withAdmin: true,
+          peerRole: ChatThreadPeerRoleEnum.MANAGERIAL,
+        },
+      ]);
+
+      expect(rolesShown(host)).toEqual(['Teacher', 'Coordinator', 'Manager']);
+      expect(screen.queryByText('Coordinators')).toBeNull();
+    });
+
+    it('names a manager’s coordinator', async () => {
+      expect(
+        rolesShown(
+          await render('MANAGERIAL', [
+            { ...staff, id: 'th-c', teacherName: 'Lina', peerRole: ChatThreadPeerRoleEnum.COORDINATOR },
+          ]),
+        ),
+      ).toContain('Coordinator');
+    });
+
+    it('names a coordinator’s teacher', async () => {
+      expect(
+        rolesShown(
+          await render('COORDINATOR', [
+            { ...staff, id: 'th-t', teacherName: 'Maya', peerRole: ChatThreadPeerRoleEnum.TEACHER },
+          ]),
+        ),
+      ).toEqual(['Teacher']);
+    });
+
+    it('says Parent on a parent thread, and nothing on a row that carries no role', async () => {
+      const host = await render('TEACHER', [
+        { ...sampleThread, peerRole: ChatThreadPeerRoleEnum.PARENT },
+        { ...staff, id: 'th-x', teacherName: 'Somebody' },
+      ]);
+
+      expect(rolesShown(host)).toEqual(['Parent', null]);
+    });
   });
 
   /**
