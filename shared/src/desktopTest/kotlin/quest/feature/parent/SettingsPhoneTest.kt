@@ -63,7 +63,9 @@ class SettingsPhoneTest {
         Api(FakeContentApi(FakeAuth(settings), delayMillis = 0), stored, onUpdate)
 
     private fun viewModel(api: ContentApi) =
-        SettingsViewModel(ParentRepositoryImpl(settings), api).also { built.add(it) }
+        SettingsViewModel(ParentRepositoryImpl(settings), api, quest.feature.lock.domain.AppLock(
+            FakeAuth(settings), quest.feature.lock.data.BiometricPreferencesImpl(settings), quest.core.platform.platformBiometricAuthenticator(), signOut = {}, now = { 0L },
+        )).also { built.add(it) }
 
     private suspend fun <S> settle(state: StateFlow<S>, predicate: (S) -> Boolean) {
         repeat(400) {

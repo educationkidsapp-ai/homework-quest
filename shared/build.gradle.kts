@@ -85,6 +85,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core)
+            api(libs.androidx.biometric)   // BiometricPrompt, and the FragmentActivity it needs MainActivity to be
             implementation(libs.koin.android)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.sqldelight.android)

@@ -2,6 +2,8 @@ package quest.feature.parent.presentation
 
 import androidx.compose.ui.platform.testTag
 import quest.ui.design.TestTags
+import org.koin.compose.koinInject
+import quest.feature.lock.domain.AppLock
 import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -83,7 +85,13 @@ fun PinRoute(onUnlocked: () -> Unit, onBack: () -> Unit, changePin: Boolean = fa
     val vm: PinViewModel = koinViewModel(key = "pin-$changePin") { org.koin.core.parameter.parametersOf(changePin) }
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(vm) { vm.effects.collect { if (it is PinContract.Effect.Unlocked) onUnlocked() } }
-    ParentShell(title = { it.grownUps }, onBack = onBack) { s -> PinScreen(state, vm::dispatch, s) }
+    ParentShell(title = { it.grownUps }, onBack = onBack) { s ->
+        // M2: where the account unlocks with a biometric, the parent area asks for it first. The PIN pad stays on
+        // screen underneath as the fallback — a dismissed prompt leaves her exactly where she was before M2.
+        val lock: AppLock = koinInject()
+        if (!changePin && state.mode == PinContract.Mode.ENTER) LaunchedEffect(Unit) { if (lock.confirmOwner(s.parentAreaReason)) onUnlocked() }
+        PinScreen(state, vm::dispatch, s)
+    }
 }
 
 @Composable

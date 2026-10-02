@@ -1,5 +1,8 @@
 package quest.feature.parent.presentation
 
+import quest.feature.lock.presentation.biometricName
+import quest.feature.lock.domain.AppLock
+import quest.core.platform.BiometricKind
 import quest.ui.design.DashboardFilterChip
 import quest.feature.parent.domain.Appearance
 import quest.ui.design.DashboardTokens
@@ -50,6 +53,9 @@ object SettingsContract {
         val phoneInvalid: Boolean = false,
         /** The shape was fine and the save did not reach the server. Her number stays in the field to try again. */
         val phoneSaveFailed: Boolean = false,
+        /** M2: the biometric this device offers (null hides the row) and whether this account unlocks with it. */
+        val biometricKind: BiometricKind? = null,
+        val biometricOn: Boolean = false,
     ) : MviState
     sealed interface Intent : MviIntent {
         data object Load : Intent
@@ -57,21 +63,25 @@ object SettingsContract {
         data class SetAppearance(val appearance: Appearance) : Intent
         data class Phone(val value: String) : Intent
         data object SavePhone : Intent
+        /** [reason] is the line the system prompt shows; turning the lock on needs that prompt to succeed. */
+        data class Biometric(val on: Boolean, val reason: String) : Intent
     }
     sealed interface Effect : MviEffect
 }
 
-class SettingsViewModel(private val parent: ParentRepository, private val api: ContentApi) : MviViewModel<SettingsContract.State, SettingsContract.Intent, SettingsContract.Effect>(SettingsContract.State()) {
+class SettingsViewModel(private val parent: ParentRepository, private val api: ContentApi, private val lock: AppLock) : MviViewModel<SettingsContract.State, SettingsContract.Intent, SettingsContract.Effect>(SettingsContract.State()) {
     override suspend fun handle(intent: SettingsContract.Intent) {
         when (intent) {
             SettingsContract.Intent.Load -> {
                 val s = parent.settings()
-                reduce { copy(loading = false, settings = s, appearance = parent.appearance.value) }
+                val biometricOn = lock.enabled()
+                reduce { copy(loading = false, settings = s, appearance = parent.appearance.value, biometricKind = lock.available(), biometricOn = biometricOn) }
                 // MH1 `GET /parent/me`. A build against a server without the route, or a device offline, simply shows no
                 // number rather than an error on a screen whose other four sections are all local.
                 val me = runCatching { api.parentProfile() }.getOrNull() ?: return
                 reduce { copy(phone = me.phone.orEmpty(), phoneKnown = true) }
             }
+            is SettingsContract.Intent.Biometric -> { val on = lock.setEnabled(intent.on, intent.reason); reduce { copy(biometricOn = on) } }
             is SettingsContract.Intent.SetAppearance -> { parent.setAppearance(intent.appearance); reduce { copy(appearance = intent.appearance) } }
             is SettingsContract.Intent.Language -> { parent.setLanguage(intent.code); reduce { copy(settings = settings.copy(language = intent.code)) } }
             is SettingsContract.Intent.Phone ->
@@ -146,6 +156,20 @@ fun SettingsScreen(state: SettingsContract.State, s: Strings, dispatch: (Setting
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
             listOf(Appearance.SYSTEM to s.appearanceSystem, Appearance.LIGHT to s.appearanceLight, Appearance.DARK to s.appearanceDark).forEach { (value, label) ->
                 DashboardFilterChip(label, selected = state.appearance == value, onClick = { dispatch(SettingsContract.Intent.SetAppearance(value)) })
+            }
+        }
+        // M2: unlock with Face ID / fingerprint. Only on a device that has one enrolled; On asks for it before it counts.
+        state.biometricKind?.let { kind ->
+            SectionTitle(s.security)
+            ParentCard {
+                Text(s.biometricSetting.replace("{with}", s.biometricName(kind)), style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink)
+                Text(s.biometricSettingHint, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                Spacer(Modifier.height(Dimens.s8))
+                val reason = s.biometricSetting.replace("{with}", s.biometricName(kind))
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
+                    DashboardFilterChip(s.biometricOn, selected = state.biometricOn, onClick = { dispatch(SettingsContract.Intent.Biometric(true, reason)) })
+                    DashboardFilterChip(s.biometricOff, selected = !state.biometricOn, onClick = { dispatch(SettingsContract.Intent.Biometric(false, reason)) })
+                }
             }
         }
         // MH3 (owner's item 7): the number the department manager reaches her on, in the Children directory. Hidden
