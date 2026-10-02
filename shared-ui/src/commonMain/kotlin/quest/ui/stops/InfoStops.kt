@@ -83,7 +83,7 @@ fun ReadPageStop(stop: Stop.ReadPage, onEvent: (StopEvent) -> Unit, modifier: Mo
                     val ok = hs.id in found
                     Box(
                         Modifier.offset(w * hs.x, h * hs.y).size(w * hs.w, h * hs.h)
-                            .background(if (ok) DashboardTokens.successBg else Color.White.copy(alpha = 0.7f), RoundedCornerShape(DashboardTokens.radiusMd))
+                            .background(if (ok) DashboardTokens.successBg else DashboardTokens.surface.copy(alpha = 0.7f), RoundedCornerShape(DashboardTokens.radiusMd))
                             .clickable(role = Role.Button) {
                                 if (hs.id in task.correctIds) { if (hs.id !in found) { found = found + hs.id; onEvent(StopEvent.Speak(hs.label)) } }
                                 else { wrongTaps += 1; onEvent(StopEvent.Speak("${labels.notThatOne} ${task.prompt}")) }

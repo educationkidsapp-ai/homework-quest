@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -60,18 +59,19 @@ fun DrawingCanvas(onChange: (String) -> Unit, modifier: Modifier = Modifier) {
     var current by remember { mutableStateOf<List<Offset>>(emptyList()) }
     var colour by remember { mutableStateOf(0) }
     var size by remember { mutableStateOf(Offset(1f, 1f)) }
+    val labels = LocalStopLabels.current
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = Dimens.s8)) {
             Drawings.colours.forEachIndexed { i, c ->
                 Box(
                     Modifier.width(44.dp).aspectRatio(1f).background(c, RoundedCornerShape(50)).border(if (i == colour) 3.dp else 1.dp, if (i == colour) DashboardTokens.inkStrong else DashboardTokens.ruleControl, RoundedCornerShape(50))
-                        .clickable { colour = i }.semantics { contentDescription = "colour $i" + if (i == colour) ", selected" else "" },
+                        .clickable { colour = i }.semantics { contentDescription = labels.colour.replace("{n}", "${i + 1}") + if (i == colour) ", ${labels.selected}" else "" },
                 )
             }
         }
         Canvas(
-            Modifier.fillMaxWidth().padding(horizontal = Dimens.s16).aspectRatio(1f).background(Color.White, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
-                .clipToBounds().semantics { contentDescription = "drawing canvas, ${strokes.size} strokes" }
+            Modifier.fillMaxWidth().padding(horizontal = Dimens.s16).aspectRatio(1f).background(DashboardTokens.surface, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
+                .clipToBounds().semantics { contentDescription = labels.drawingPad.replace("{n}", "${strokes.size}") }
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { current = listOf(it) },
@@ -96,7 +96,8 @@ fun DrawingCanvas(onChange: (String) -> Unit, modifier: Modifier = Modifier) {
 @Composable
 fun DrawingPreview(strokesJson: String, modifier: Modifier = Modifier) {
     val strokes = remember(strokesJson) { Drawings.decode(strokesJson) }
-    Canvas(modifier.fillMaxWidth().aspectRatio(1f).clipToBounds().background(Color.White, RoundedCornerShape(DashboardTokens.radiusMd)).semantics { contentDescription = "drawing with ${strokes.size} strokes" }) {
+    val description = LocalStopLabels.current.drawingStrokes.replace("{n}", "${strokes.size}")
+    Canvas(modifier.fillMaxWidth().aspectRatio(1f).clipToBounds().background(DashboardTokens.surface, RoundedCornerShape(DashboardTokens.radiusMd)).semantics { contentDescription = description }) {
         drawStrokes(strokes, size.width, size.height)
     }
 }

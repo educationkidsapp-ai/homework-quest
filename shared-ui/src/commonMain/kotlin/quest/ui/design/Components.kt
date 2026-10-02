@@ -40,14 +40,14 @@ import androidx.compose.ui.unit.sp
  * school's accent, the same control language as the student home.
  */
 @Composable
-fun ReadAloudButton(onClick: () -> Unit, modifier: Modifier = Modifier, contentDescription: String = "Read aloud") {
+fun ReadAloudButton(onClick: () -> Unit, contentDescription: String, modifier: Modifier = Modifier) {
     FormalIconButton(onClick, contentDescription, modifier) {
         Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
     }
 }
 
 @Composable
-fun BackButton(onClick: () -> Unit, modifier: Modifier = Modifier, contentDescription: String = "Back") {
+fun BackButton(onClick: () -> Unit, contentDescription: String, modifier: Modifier = Modifier) {
     FormalIconButton(onClick, contentDescription, modifier) {
         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = DashboardTokens.ink)
     }
@@ -77,7 +77,7 @@ fun AnswerTile(
     enabled: Boolean = true,
     color: Color = MaterialTheme.colorScheme.surface,
     fontSize: Int = 28,
-    dimmedDescription: String = "already tried",
+    dimmedDescription: String,
     content: (@Composable () -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(DashboardTokens.radiusMd)

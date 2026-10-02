@@ -351,11 +351,9 @@ private fun FormalCourseworkCard(
     val isDone = island.state == IslandState.DONE
     val isToday = island.state == IslandState.TODAY
     val isReview = island.kind == IslandKind.REVIEW
-    // §8: an island that carries a window is an exam the student may sit now — once, so a finished one is not reopened.
-    val isExam = island.examWindow != null
 
     DashboardCard(
-        onClick = if (!isLocked && !(isExam && isDone)) onOpen else null,
+        onClick = if (!isLocked) onOpen else null,
     ) {
         Column {
             // Meta Row
@@ -390,8 +388,6 @@ private fun FormalCourseworkCard(
                 // Status Badge
                 when {
                     isLocked -> DashboardPill(text = strings.lessonLocked, variant = DashboardPillVariant.NEUTRAL)
-                    isExam && isDone -> DashboardPill(text = strings.lesson.examSubmittedPill, variant = DashboardPillVariant.SUCCESS)
-                    isExam -> DashboardPill(text = strings.lesson.exam, variant = DashboardPillVariant.WARNING)
                     isDone -> DashboardPill(text = strings.lessonCompleted, variant = DashboardPillVariant.SUCCESS)
                     isReview -> DashboardPill(text = strings.lessonReview, variant = DashboardPillVariant.WARNING)
                     isToday -> DashboardPill(text = strings.lessonAssignedToday, variant = DashboardPillVariant.INFO)
@@ -421,23 +417,7 @@ private fun FormalCourseworkCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (isExam) {
-                    Text(
-                        text = if (isDone) strings.lesson.examAlreadySubmitted else strings.lesson.examNote,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = DashboardTokens.inkSoft,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (!isDone) {
-                        DashboardButton(
-                            text = strings.lesson.startExam,
-                            onClick = onOpen,
-                            variant = DashboardButtonVariant.PRIMARY,
-                            modifier = Modifier.width(130.dp),
-                            height = 36.dp,
-                        )
-                    }
-                } else if (isDone) {
+                if (isDone) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val stars = island.starsEarned ?: 0
                         val total = island.starsTotal ?: 1

@@ -1,5 +1,7 @@
 package quest.feature.children.presentation
 
+import androidx.compose.foundation.shape.CircleShape
+import quest.ui.design.StudentAvatar
 import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,8 +59,6 @@ import quest.feature.school.presentation.SchoolLogo
 import quest.ui.design.AvatarColors
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
-import quest.ui.design.Pip
-import quest.ui.design.PipPose
 
 // hq-flag: none (this is the screen a child joins a school on, so there is no school whose flags could gate it)
 object AddChildContract {
@@ -240,7 +240,7 @@ fun AddChildRoute(editingId: String?, onSaved: () -> Unit, onBack: (() -> Unit)?
     ParentShell(title = { if (editingId == null) it.addChild else it.childProfile }, onBack = onBack) { s -> AddChildScreen(state, s, vm::dispatch) }
 }
 
-/** Screen 13: name, Pip in four colours, curriculum (American / British), grade (1 / 2 / 3), subject languages. */
+/** Screen 13: name, a profile colour, curriculum (American / British), grade (1 / 2 / 3), subject languages. */
 @Composable
 fun AddChildScreen(state: AddChildContract.State, s: Strings, dispatch: (AddChildContract.Intent) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
@@ -257,7 +257,7 @@ fun AddChildScreen(state: AddChildContract.State, s: Strings, dispatch: (AddChil
                     Modifier.size(76.dp).background(MaterialTheme.colorScheme.surface).border(if (state.avatar == key) 3.dp else 1.dp, if (state.avatar == key) MaterialTheme.colorScheme.secondary else Palette.parentRule)
                         .clickable(role = Role.Button) { dispatch(AddChildContract.Intent.Avatar(key)) }.semantics { contentDescription = "avatar $key" + if (state.avatar == key) ", selected" else "" },
                     contentAlignment = Alignment.Center,
-                ) { Pip(PipPose.IDLE, 60.dp, animated = false, color = key) }
+                ) { Box(Modifier.size(44.dp).background(AvatarColors.body(key), CircleShape)) }
             }
         }
         // A class card already says which course the child is in, so the choosers come off rather than offering a
@@ -438,7 +438,7 @@ fun ChildPickerScreen(children: List<Child>, s: Strings, onPick: (Child) -> Unit
         children.forEach { c ->
             ParentCard(Modifier.padding(bottom = Dimens.s12), onClick = { onPick(c) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Pip(PipPose.IDLE, 56.dp, animated = false, color = c.avatarColor)
+                    StudentAvatar(c.name, size = 48.dp)
                     Spacer(Modifier.size(Dimens.s12))
                     Column {
                         Text(c.name, style = MaterialTheme.typography.titleLarge, color = DashboardTokens.ink)

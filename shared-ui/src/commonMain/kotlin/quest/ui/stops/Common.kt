@@ -1,5 +1,9 @@
 package quest.ui.stops
 
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -100,7 +104,8 @@ fun numberLineOf(stop: Stop): NumberLine? = when (stop) {
 
 @Composable
 fun PromptText(text: String, modifier: Modifier = Modifier) {
-    Text(text, style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.ink, textAlign = TextAlign.Center, modifier = modifier.fillMaxWidth().padding(horizontal = Dimens.s16))
+    // The lesson's own words set their direction: an English question in an Arabic frame keeps its "?" at the end.
+    Text(text, style = MaterialTheme.typography.headlineMedium.copy(textDirection = TextDirection.Content), color = DashboardTokens.ink, textAlign = TextAlign.Center, modifier = modifier.fillMaxWidth().padding(horizontal = Dimens.s16))
 }
 
 @Composable
@@ -130,9 +135,10 @@ fun CheckButton(enabled: Boolean, onClick: () -> Unit) {
 
 @Composable
 fun NumberChip(text: String, highlight: Boolean = false) {
+    val missing = LocalStopLabels.current.missingNumber
     Box(
         Modifier.size(64.dp).background(if (highlight) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
-            .semantics { contentDescription = if (text == "?") "missing number" else text },
+            .semantics { contentDescription = if (text == "?") missing else text },
         contentAlignment = Alignment.Center,
     ) { Text(text, fontSize = 26.sp, color = DashboardTokens.ink, style = MaterialTheme.typography.labelLarge) }
 }
@@ -145,3 +151,11 @@ fun BigCard(modifier: Modifier = Modifier, color: Color = MaterialTheme.colorSch
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier).padding(Dimens.s16),
     ) { content() }
 }
+
+/**
+ * Content that is the same in every language — a number sequence, a comparison, the answer tiles under them — keeps
+ * its left-to-right order when the lesson's frame is right-to-left for an Arabic reader.
+ */
+@Composable
+fun LeftToRight(content: @Composable () -> Unit) =
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr, content = content)

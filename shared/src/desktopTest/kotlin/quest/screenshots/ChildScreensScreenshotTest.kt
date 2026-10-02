@@ -59,9 +59,9 @@ class ChildScreensScreenshotTest {
         assertTrue(f.length() > 1000, "screenshot $name is empty")
     }
 
-    private fun stopShot(name: String, stop: Stop) = shot(name) {
+    private fun stopShot(name: String, stop: Stop, strings: LessonStrings = LessonStrings.en) = shot(name, strings = strings) {
         Column(Modifier.fillMaxSize().background(DashboardTokens.bg).verticalScroll(rememberScrollState()).padding(top = Dimens.s24)) {
-            DashboardCard(Modifier.padding(horizontal = Dimens.s16)) { Text(stop.speak, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.inkStrong) }
+            DashboardCard(Modifier.padding(horizontal = Dimens.s16)) { Text(stop.speak, style = MaterialTheme.typography.titleMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Content), color = DashboardTokens.inkStrong) }
             Box(Modifier.padding(top = Dimens.s16)) { StopContent(stop, onEvent = {}) }
         }
     }
@@ -123,11 +123,6 @@ class ChildScreensScreenshotTest {
         JourneyScreen(JourneyContract.State(loading = false, lesson = hot, play = hot.plays[0], levelsUnlocked = listOf(1, 2), completedLevels = listOf(1), stopStars = hot.plays[0].stops.associate { it.id to 3 }, childName = "Maya"), {}, {})
     }
 
-    // §8: an exam is one play, no level selector, no stars, under an Exam badge.
-    private val exam = hot.copy(type = "exam", hintsOff = true, numbersOff = true, examPlay = hot.plays[0])
-    @Test fun examOverview() = shot("03c-exam-overview") {
-        JourneyScreen(JourneyContract.State(loading = false, lesson = exam, play = exam.examPlay, stopStars = mapOf("hs1-move" to 3), childName = "Maya", exam = true), {}, {})
-    }
     @Test fun journeyArabic() = shot("03d-journey-ar", strings = LessonStrings.ar) {
         JourneyScreen(JourneyContract.State(loading = false, lesson = hot, play = hot.plays[0], levelsUnlocked = listOf(1), stopStars = mapOf("hs1-move" to 3, "hs1-pieces" to 3), childName = "Maya"), {}, {})
     }
@@ -164,18 +159,11 @@ class ChildScreensScreenshotTest {
     @Test fun hintSheet() = shot("27-hint-sheet") { StopPlayerScreen(playerState(PlayerContract.Phase.HINT).copy(index = 8, numberLine = MathSeed.level1.stops.filterIsInstance<Stop.Sequence>().first().numberLine), {}, {}) }
     @Test fun correctOverlay() = shot("28-correct-overlay") { StopPlayerScreen(playerState(PlayerContract.Phase.CORRECT), {}, {}) }
     @Test fun stepDone() = shot("29-step-done") { StopPlayerScreen(playerState(PlayerContract.Phase.STEP_DONE), {}, {}) }
-    @Test fun examSitting() = shot("26b-exam-sitting") { StopPlayerScreen(playerState(PlayerContract.Phase.STOP).copy(lesson = exam, exam = true, index = 8), {}, {}) }
-    @Test fun examAnswerSaved() = shot("28b-exam-answer-saved") { StopPlayerScreen(playerState(PlayerContract.Phase.CORRECT).copy(lesson = exam, exam = true, praise = "Answer saved"), {}, {}) }
     @Test fun playerArabic() = shot("26c-player-ar", strings = LessonStrings.ar) { StopPlayerScreen(playerState(PlayerContract.Phase.STOP).copy(index = 8), {}, {}) }
 
     @Test fun lessonComplete() = shot("30-lesson-complete") { LessonCompleteScreen(CompleteContract.State(loading = false, lesson = hot, stars = 24, starsTotal = 27, childName = "Maya", nextLevelUnlocked = true), {}, {}, {}, {}) }
-    @Test fun examResult() = shot("31-exam-result") { LessonCompleteScreen(CompleteContract.State(loading = false, lesson = exam, stars = 24, starsTotal = 27, childName = "Maya", exam = true), {}, {}, {}, {}) }
 
-    @Test fun worldMapWithExam() = shot("02f-world-map-exam") {
-        WorldMapScreen(MapContract.State(loading = false, child = child, islands = listOf(
-            Island("e", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "Unit 1 exam", Subject.MATH, "l9", 1, listOf(1), examWindow = quest.api.dto.ExamWindow(opensAt = 0, closesAt = 1)),
-            Island("d", IslandKind.LESSON, LocalDate(2026, 9, 12), IslandState.DONE, "Reading exam", Subject.ENGLISH, "l8", 1, listOf(1), listOf(1), 18, 21, examWindow = quest.api.dto.ExamWindow(opensAt = 0, closesAt = 1)),
-            Island("b", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "Counting by 2s", Subject.MATH, "l2", 1, listOf(1)),
-        )), {}, {})
-    }
+    /** Arabic frame, but numbers still run left to right: 2 4 6 ?, and "left ? right" keeps its order. */
+    @Test fun stopSequenceArabic() = stopShot("18b-stop-sequence-ar", MathSeed.level1.stops[1], LessonStrings.ar)
+    @Test fun stopCompareArabic() = stopShot("20b-stop-compare-ar", MathSeed.level1.stops[4], LessonStrings.ar)
 }

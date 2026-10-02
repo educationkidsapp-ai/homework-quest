@@ -1,5 +1,6 @@
 package quest.feature.journey.presentation
 
+import androidx.compose.ui.text.style.TextDirection
 import quest.ui.design.DashboardTokens
 import quest.ui.design.DashboardProgressBar
 import quest.ui.design.DashboardPillVariant
@@ -9,7 +10,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.border
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -19,7 +19,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -109,9 +108,9 @@ fun StopPlayerScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
                 HintSheetContent(state, dispatch)
             }
         }
-        AnimatedVisibility(state.phase == Phase.CORRECT, enter = fadeIn(), exit = fadeOut()) { ConfirmationOverlay(state.praise, positive = !state.exam) }
+        AnimatedVisibility(state.phase == Phase.CORRECT, enter = fadeIn(), exit = fadeOut()) { ConfirmationOverlay(state.praise) }
         AnimatedVisibility(state.phase == Phase.STEP_DONE, enter = fadeIn(), exit = fadeOut()) {
-            ConfirmationOverlay(if (state.exam) s.answerSaved else s.stepComplete, positive = !state.exam, detail = s.stepsCompleted.replace("{done}", "${state.doneCount}").replace("{total}", "${state.total}"))
+            ConfirmationOverlay(s.stepComplete, detail = s.stepsCompleted.replace("{done}", "${state.doneCount}").replace("{total}", "${state.total}"))
         }
     }
 }
@@ -120,20 +119,17 @@ fun StopPlayerScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
 private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) {
     val stop = state.stop ?: return
     val s = LocalLessonStrings.current
-    val position = (if (state.exam) s.questionOf else s.stepOf).replace("{n}", "${state.index + 1}").replace("{total}", "${state.total}")
+    val position = s.stepOf.replace("{n}", "${state.index + 1}").replace("{total}", "${state.total}")
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         LessonTopBar(onBack = onBack, onReadAloud = { dispatch(Intent.ReadAloud) }) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
-                Text(position, style = MaterialTheme.typography.labelLarge, color = DashboardTokens.inkSoft, modifier = Modifier.semantics { contentDescription = position })
-                if (state.exam) DashboardPill(s.exam, variant = DashboardPillVariant.WARNING)
-            }
+            Text(position, style = MaterialTheme.typography.labelLarge, color = DashboardTokens.inkSoft, modifier = Modifier.semantics { contentDescription = position })
             Spacer(Modifier.height(Dimens.s4))
-            // How many steps are done, as a bar: no percentage and no clock (§7, §8).
+            // How many steps are done, as a bar: no percentage and no clock (§7).
             DashboardProgressBar(if (state.total == 0) 0f else state.doneCount.toFloat() / state.total)
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
             DashboardCard(Modifier.padding(horizontal = Dimens.s16)) {
-                Text(stop.speak, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.inkStrong, modifier = Modifier.fillMaxWidth())
+                Text(stop.speak, style = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Content), color = DashboardTokens.inkStrong, modifier = Modifier.fillMaxWidth())
             }
             Spacer(Modifier.height(Dimens.s16))
             StopContent(stop, onEvent = { e ->
@@ -162,21 +158,16 @@ private fun HintSheetContent(state: State, dispatch: (Intent) -> Unit) {
     }
 }
 
-/**
- * The short confirmation between steps. [positive] draws the success tick of a right answer; an exam passes false and
- * gets a neutral "answer saved", because §8 keeps right and wrong off the student's screen.
- */
+/** The short confirmation between steps: a tick, the word, and how far along the lesson is. */
 @Composable
-private fun ConfirmationOverlay(text: String, positive: Boolean, detail: String? = null) {
+private fun ConfirmationOverlay(text: String, detail: String? = null) {
     Box(Modifier.fillMaxSize().background(DashboardTokens.inkStrong.copy(alpha = 0.35f)).semantics { contentDescription = text }, contentAlignment = Alignment.Center) {
         DashboardCard(Modifier.padding(horizontal = Dimens.s32), padding = PaddingValues(Dimens.s24)) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                if (positive) {
-                    Box(Modifier.size(48.dp).background(DashboardTokens.successBg, CircleShape).border(1.dp, DashboardTokens.successBorder, CircleShape), contentAlignment = Alignment.Center) {
-                        Text("✓", style = MaterialTheme.typography.titleLarge, color = DashboardTokens.success)
-                    }
-                    Spacer(Modifier.height(Dimens.s12))
+                Box(Modifier.size(48.dp).background(DashboardTokens.successBg, CircleShape).border(1.dp, DashboardTokens.successBorder, CircleShape), contentAlignment = Alignment.Center) {
+                    Text("✓", style = MaterialTheme.typography.titleLarge, color = DashboardTokens.success)
                 }
+                Spacer(Modifier.height(Dimens.s12))
                 Text(text, style = MaterialTheme.typography.titleLarge, color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
                 if (detail != null) {
                     Spacer(Modifier.height(Dimens.s4))

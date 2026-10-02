@@ -1,6 +1,5 @@
 package quest.feature.journey.presentation
 
-import androidx.compose.foundation.layout.size
 import kotlinx.coroutines.delay
 import quest.api.ContentApi
 import quest.api.UploadFile
@@ -28,7 +27,7 @@ class JourneyViewModel(
     override suspend fun handle(intent: Intent) {
         when (intent) {
             Intent.Load -> load(current.level, current.variant)
-            is Intent.SelectLevel -> if (!current.exam && intent.level in current.levelsUnlocked) load(intent.level, 0)
+            is Intent.SelectLevel -> if (intent.level in current.levelsUnlocked) load(intent.level, 0)
             is Intent.TapStop -> { val s = current.stops.getOrNull(intent.index) ?: return; if (current.nodeStates[intent.index] != quest.ui.journey.NodeState.LOCKED) effect(Effect.OpenStop(lessonId, current.level, current.variant, intent.index)) }
             Intent.ReadAloud -> effect(Effect.Speak(readAloud()))
             Intent.Finish -> effect(Effect.OpenComplete(lessonId, current.level, current.variant))
@@ -38,7 +37,7 @@ class JourneyViewModel(
     private suspend fun load(level: Int, variant: Int) {
         val child = children.currentChild.value ?: run { reduce { copy(loading = false, error = this@JourneyViewModel.copy.strings().noStudent) }; return }
         val lesson = runCatching { lessons.lesson(lessonId) }.getOrElse { reduce { copy(loading = false, error = this@JourneyViewModel.copy.strings().lessonUnavailable) }; return }
-        val play = lesson.playFor(level, variant)
+        val play = lesson.play(level, variant) ?: lesson.plays.first()
         val completions = journey.completions(child.id)
         val unlocks = journey.parentUnlocks(child.id)
         val progress = journey.progress(child.id, lessonId, play.level, play.variant)
@@ -46,7 +45,7 @@ class JourneyViewModel(
             copy(loading = false, lesson = lesson, play = play, level = play.level, variant = play.variant,
                 levelsUnlocked = MapAssembler.unlockedLevels(completions.filter { it.lessonId == lessonId }, unlocks[lessonId].orEmpty()),
                 completedLevels = completions.filter { it.lessonId == lessonId }.map { it.level }.distinct().sorted(),
-                stopStars = progress.stops, childName = child.name, exam = lesson.isExam)
+                stopStars = progress.stops, childName = child.name)
         }
     }
 
@@ -87,9 +86,9 @@ class StopPlayerViewModel(
         val child = children.currentChild.value ?: run { reduce { copy(phase = PlayerContract.Phase.ERROR, error = this@StopPlayerViewModel.copy.strings().noStudent) }; return }
         childId = child.id
         val lesson = runCatching { lessons.lesson(lessonId) }.getOrElse { reduce { copy(phase = PlayerContract.Phase.ERROR, error = this@StopPlayerViewModel.copy.strings().lessonMissing) }; return }
-        val play = lesson.playFor(level, variant)
+        val play = lesson.play(level, variant) ?: lesson.plays.first()
         val progress = journey.progress(child.id, lessonId, play.level, play.variant)
-        reduce { copy(phase = PlayerContract.Phase.STOP, lesson = lesson, play = play, stopStars = progress.stops, childName = child.name, exam = lesson.isExam) }
+        reduce { copy(phase = PlayerContract.Phase.STOP, lesson = lesson, play = play, stopStars = progress.stops, childName = child.name) }
         current.stop?.let { effect(PlayerContract.Effect.Speak(it.speak)) }
     }
 
@@ -112,8 +111,6 @@ class StopPlayerViewModel(
         val stop = current.stop ?: return
         val lesson = current.lesson ?: return; val play = current.play ?: return
         journey.recordWrongAttempt(childId, lesson, play, stop.id, i.answer, i.attempt)
-        // §8 `hintsOff`: the wrong answer is recorded exactly as before, but an exam shows and speaks no hint.
-        if (lesson.hintsOff) return
         reduce { copy(phase = PlayerContract.Phase.HINT, hint = i.hint, numberLine = i.numberLine) }
         effect(PlayerContract.Effect.Speak(i.hint))
     }
@@ -155,8 +152,7 @@ class StopPlayerViewModel(
         }
     }
 
-    /** An exam confirms that the answer was taken, never that it was right (§8). */
-    private fun praise(n: Int): String = copy.strings().let { if (current.exam) it.answerSaved else it.praises[n % it.praises.size] }
+    private fun praise(n: Int): String = copy.strings().praises.let { it[n % it.size] }
 
-    private fun doneText(): String = copy.strings().let { if (current.exam) it.answerSaved else it.stepComplete }
+    private fun doneText(): String = copy.strings().stepComplete
 }

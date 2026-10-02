@@ -1,7 +1,7 @@
 import XCTest
 
-/// The full child cycle on iOS with the seeded fake API: sign in → add a child → map → Hot Soup Level 1, all nine stops →
-/// certificate → parent mode. Every step is a real tap on the accessibility tree, so a crash anywhere fails the test.
+/// The full student cycle on iOS with the seeded fake API: sign in → add a child → home → Hot Soup Level 1, all nine
+/// steps → the result and its certificate → parent mode. Every step is a real tap on the accessibility tree, so a crash anywhere fails the test.
 ///
 ///   xcodebuild test -project iosApp/iosApp.xcodeproj -scheme iosApp -destination 'platform=iOS Simulator,name=iPhone 15' -only-testing:iosAppUITests/JourneyUITests
 final class JourneyUITests: XCTestCase {
@@ -24,39 +24,36 @@ final class JourneyUITests: XCTestCase {
     func testHotSoupLevelOneCycle() {
         signInIfNeeded()
         addChildIfNeeded()
-        XCTAssertTrue(el("Noor's quest").waitForExistence(timeout: 15), "map should show the child's quest")
+        XCTAssertTrue(el("Noor").waitForExistence(timeout: 15), "the student home should show the child")
 
-        tapContaining("island: Hot Soup")                            // today on a fresh install, done on a replay
-        tap("Stop 1: Move your body")
+        tapContaining("Hot Soup")                                    // the lesson card opens the overview
+        tap("Start lesson")                                          // → step 1
         for action in ["🥾", "🥄", "👃", "🥣"] { tap(action) }
-        tap("✅")                                                   // Done → stop 2
+        tap("Done")                                                   // Done → stop 2
         for piece in ["title:", "genre:", "characters:", "setting:", "plot:", "problem:"] { tap(piece) }
-        tap("✅")                                                   // → stop 3 (read page 1)
-        tap("✅")                                                   // → stop 4 (fridge, tap task)
+        tap("Done")                                                   // → stop 3 (read page 1)
+        tap("Done")                                                   // → stop 4 (fridge, tap task)
         for veg in ["carrot", "potato", "onion", "peas"] { tap(veg) }
-        tap("✅")                                                   // → stop 5 (read page 3)
-        tap("✅")                                                   // → stop 6 (word cards)
+        tap("Done")                                                   // → stop 5 (read page 3)
+        tap("Done")                                                   // → stop 6 (word cards)
         for _ in 0..<3 { tap("Next") }
-        tap("✅")                                                   // → stop 7 (match)
+        tap("Done")                                                   // → stop 7 (match)
         matchPairs()
         XCTAssertTrue(el("Put the story in order.").waitForExistence(timeout: 10))
         for item in ["Mummy is in bed", "Alan and Daddy find", "The soup cooks", "Alan carries"] { tap(item) }
-        tap("👀")                                                   // Check → stop 9 (exit ticket)
+        tap("Check")                                                   // Check → stop 9 (exit ticket)
         tap("Mummy")
-        tap("carrot"); tap("potato"); tap("👀")
-        tap("👍 True")
-        XCTAssertTrue(el("The Soup pot is full!").waitForExistence(timeout: 10))
-        tap("🥣")                                                   // Serve
-        XCTAssertTrue(el("Certificate").waitForExistence(timeout: 10))
-        XCTAssertTrue(el("New sticker!").exists)
+        tap("carrot"); tap("potato"); tap("Check")
+        tap("True")
+        XCTAssertTrue(el("Lesson complete").waitForExistence(timeout: 10))
+        XCTAssertTrue(el("Certificate of completion").exists)
 
         // parent mode: PIN, home, lesson panel
-        app.swipeUp()
-        tap("🗺️")
-        tap("Grown-ups")
+        tap("Back to home")
+        tap("Parent Portal")
         enterPin("12341234")
         XCTAssertTrue(el("Parent mode").waitForExistence(timeout: 10))
-        tap("📖 English")
+        tapContaining("English")
         XCTAssertTrue(el("Lesson panel").waitForExistence(timeout: 10))
         XCTAssertEqual(app.state, .runningForeground)
     }
@@ -79,7 +76,7 @@ final class JourneyUITests: XCTestCase {
         app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: y)).tap()
     }
     private func signInIfNeeded() {
-        guard el("Parents sign in; children just play.").waitForExistence(timeout: 20) else { return }
+        guard el("Email").waitForExistence(timeout: 20) else { return }
         let fields = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Email'")).firstMatch
         _ = fields.waitForExistence(timeout: 5)
         tapPoint(200, 379); app.typeText("ios@test.com")

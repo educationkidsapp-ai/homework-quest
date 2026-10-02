@@ -55,8 +55,11 @@ fun TrueFalseStop(stop: Stop.TrueFalse, onEvent: (StopEvent) -> Unit, modifier: 
 fun SequenceStop(stop: Stop.Sequence, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
     val s = rememberSingleAnswer(stop, onEvent)
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(Modifier.fillMaxWidth().wrapContentWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            stop.chips.forEach { v -> NumberChip(v?.toString() ?: "?", highlight = v == null) }
+        // A number sequence runs left to right in every language; mirrored, 2 4 6 ? would read ? 6 4 2.
+        LeftToRight {
+            Row(Modifier.fillMaxWidth().wrapContentWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                stop.chips.forEach { v -> NumberChip(v?.toString() ?: "?", highlight = v == null) }
+            }
         }
         Spacer(Modifier.height(Dimens.s32))
         TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed)
@@ -66,11 +69,12 @@ fun SequenceStop(stop: Stop.Sequence, onEvent: (StopEvent) -> Unit, modifier: Mo
 @Composable
 fun CountStop(stop: Stop.Count, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
     val s = rememberSingleAnswer(stop, onEvent)
+    val groupOf = LocalStopLabels.current.groupOf
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         stop.groupSizes.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 row.forEach { size ->
-                    Box(Modifier.background(IllustrationGlyphs.tint(stop.objectKey), RoundedCornerShape(DashboardTokens.radiusMd)).padding(8.dp).semantics { contentDescription = "group of $size ${stop.objectKey}" }) {
+                    Box(Modifier.background(IllustrationGlyphs.tint(stop.objectKey), RoundedCornerShape(DashboardTokens.radiusMd)).padding(8.dp).semantics { contentDescription = "${groupOf.replace("{n}", "$size")} ${stop.objectKey}" }) {
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) { repeat(size) { Text(IllustrationGlyphs.glyph(stop.objectKey), fontSize = 30.sp) } }
                     }
                 }
@@ -85,8 +89,11 @@ fun CountStop(stop: Stop.Count, onEvent: (StopEvent) -> Unit, modifier: Modifier
 fun CompareStop(stop: Stop.Compare, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
     val s = rememberSingleAnswer(stop, onEvent)
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            BigNumberCard(stop.left.toString()); Spacer(Modifier.width(16.dp)); NumberChip("?", highlight = true); Spacer(Modifier.width(16.dp)); BigNumberCard(stop.right.toString())
+        // "left ? right" must stay in that order: mirrored, 8 > 6 would be shown as 6 ? 8 and the right answer be wrong.
+        LeftToRight {
+            Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                BigNumberCard(stop.left.toString()); Spacer(Modifier.width(16.dp)); NumberChip("?", highlight = true); Spacer(Modifier.width(16.dp)); BigNumberCard(stop.right.toString())
+            }
         }
         Spacer(Modifier.height(Dimens.s32))
         TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed, fontSize = 44)
@@ -95,8 +102,9 @@ fun CompareStop(stop: Stop.Compare, onEvent: (StopEvent) -> Unit, modifier: Modi
 
 @Composable
 private fun BigNumberCard(text: String) {
+    val label = LocalStopLabels.current.numberWord.replace("{n}", text)
     Box(
-        Modifier.size(110.dp, 130.dp).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd)).semantics { contentDescription = "number $text" },
+        Modifier.size(110.dp, 130.dp).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd)).semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) { Text(text, fontSize = 52.sp, color = DashboardTokens.ink, style = MaterialTheme.typography.displayLarge) }
 }

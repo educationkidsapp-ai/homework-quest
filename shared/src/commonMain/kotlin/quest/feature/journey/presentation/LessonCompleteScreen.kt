@@ -55,7 +55,7 @@ import quest.ui.design.Dimens
 import quest.ui.journey.Certificate
 
 object CompleteContract {
-    data class State(val loading: Boolean = true, val lesson: PublishedLesson? = null, val level: Int = 1, val variant: Int = 0, val stars: Int = 0, val starsTotal: Int = 0, val childName: String = "", val nextLevelUnlocked: Boolean = false, val exam: Boolean = false) : MviState
+    data class State(val loading: Boolean = true, val lesson: PublishedLesson? = null, val level: Int = 1, val variant: Int = 0, val stars: Int = 0, val starsTotal: Int = 0, val childName: String = "", val nextLevelUnlocked: Boolean = false) : MviState
     sealed interface Intent : MviIntent { data object Load : Intent; data object ReadAloud : Intent }
     sealed interface Effect : MviEffect { data class Speak(val text: String) : Effect }
 }
@@ -71,19 +71,19 @@ class LessonCompleteViewModel(
             CompleteContract.Intent.Load -> {
                 val child = children.currentChild.value ?: return
                 val lesson = lessons.lesson(lessonId)
-                val play = lesson.playFor(level, variant)
+                val play = lesson.play(level, variant) ?: lesson.plays.first()
                 val progress = journey.progress(child.id, lessonId, play.level, play.variant)
                 awardSticker()
                 updateStreak(Today.date())
                 val unlocked = MapAssembler.unlockedLevels(journey.completions(child.id).filter { it.lessonId == lessonId }, journey.parentUnlocks(child.id)[lessonId].orEmpty())
-                reduce { copy(loading = false, lesson = lesson, stars = progress.starsFor(play), starsTotal = play.stops.size * 3, childName = child.name, nextLevelUnlocked = (level + 1) in unlocked, exam = lesson.isExam) }
+                reduce { copy(loading = false, lesson = lesson, stars = progress.starsFor(play), starsTotal = play.stops.size * 3, childName = child.name, nextLevelUnlocked = (level + 1) in unlocked) }
                 effect(CompleteContract.Effect.Speak(summary()))
             }
             CompleteContract.Intent.ReadAloud -> effect(CompleteContract.Effect.Speak(summary()))
         }
     }
 
-    private fun summary(): String = copy.strings().let { if (current.exam) "${it.examSubmitted}. ${it.examSubmittedBody}" else it.speakLessonComplete.replace("{name}", current.childName) }
+    private fun summary(): String = copy.strings().speakLessonComplete.replace("{name}", current.childName)
 }
 
 @Composable
@@ -97,8 +97,7 @@ fun LessonCompleteRoute(lessonId: String, level: Int, variant: Int, onAgain: (St
 
 /**
  * The result of a finished lesson: a summary card, the stars (a count, never a percentage — §7), the certificate when
- * the school issues them, and where to go next. An exam (§8) shows only that it was submitted: no stars, no repeat and
- * no next level, because the teacher marks it and releases the result to the parent.
+ * the school issues them, and where to go next.
  */
 @Composable
 fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContract.Intent) -> Unit, onAgain: () -> Unit, onNextLevel: () -> Unit, onHome: () -> Unit) {
@@ -113,36 +112,30 @@ fun LessonCompleteScreen(state: CompleteContract.State, dispatch: (CompleteContr
                         Text("✓", style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.success)
                     }
                     Spacer(Modifier.height(Dimens.s12))
-                    Text(if (state.exam) s.examSubmitted else s.lessonComplete, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
+                    Text(s.lessonComplete, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(Dimens.s4))
                     Text(lesson.title, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(Dimens.s8))
-                    Text(if (state.exam) s.examSubmittedBody else s.lessonCompleteBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
-                    if (!state.exam) {
-                        Spacer(Modifier.height(Dimens.s16))
-                        StarRow(total = 3, filled = ((state.stars * 3f) / state.starsTotal.coerceAtLeast(1)).let { kotlin.math.round(it).toInt() }.coerceIn(1, 3))
-                        Text(s.starsEarned.replace("{earned}", "${state.stars}").replace("{total}", "${state.starsTotal}"), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
-                    }
+                    Text(s.lessonCompleteBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(Dimens.s16))
+                    StarRow(total = 3, filled = ((state.stars * 3f) / state.starsTotal.coerceAtLeast(1)).let { kotlin.math.round(it).toInt() }.coerceIn(1, 3))
+                    Text(s.starsEarned.replace("{earned}", "${state.stars}").replace("{total}", "${state.starsTotal}"), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
                 }
             }
-            if (!state.exam) {
-                // §4 `certificates`: a school that does not issue them must never show one.
-                FeatureGate(Flags.CERTIFICATES) {
-                    Spacer(Modifier.height(Dimens.s12))
-                    Certificate(state.childName, lesson.title, state.level, state.stars, state.starsTotal, "${Today.date()}")
-                }
+            // §4 `certificates`: a school that does not issue them must never show one.
+            FeatureGate(Flags.CERTIFICATES) {
+                Spacer(Modifier.height(Dimens.s12))
+                Certificate(state.childName, lesson.title, state.level, state.stars, state.starsTotal, "${Today.date()}")
             }
             Spacer(Modifier.height(Dimens.s16))
         }
         Column(Modifier.padding(horizontal = Dimens.s16, vertical = Dimens.s12), verticalArrangement = Arrangement.spacedBy(Dimens.s8)) {
             // §4 `levels.three`: the last level a school sells is where "Next level" stops being offered, and
             // `Routes.Journey` refuses a level above it if the student arrives some other way.
-            val hasNext = !state.exam && state.level < Flags.topLevel(featureEnabled(Flags.LEVEL_THREE))
-            if (!state.exam) {
-                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
-                    BigButton(s.repeatLesson, onClick = onAgain, modifier = Modifier.weight(1f), primary = false, compact = true)
-                    if (hasNext) BigButton(s.nextLevel, onClick = onNextLevel, modifier = Modifier.weight(1f), compact = true, enabled = state.nextLevelUnlocked)
-                }
+            val hasNext = state.level < Flags.topLevel(featureEnabled(Flags.LEVEL_THREE))
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
+                BigButton(s.repeatLesson, onClick = onAgain, modifier = Modifier.weight(1f), primary = false, compact = true)
+                if (hasNext) BigButton(s.nextLevel, onClick = onNextLevel, modifier = Modifier.weight(1f), compact = true, enabled = state.nextLevelUnlocked)
             }
             BigButton(s.backToHome, onClick = onHome, primary = !hasNext)
         }

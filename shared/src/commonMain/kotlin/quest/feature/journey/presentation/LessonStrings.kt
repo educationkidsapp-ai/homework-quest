@@ -17,7 +17,7 @@ import quest.ui.stops.LocalStopLabels
 import quest.ui.stops.StopLabels
 
 /**
- * The copy of the lesson and exam screens — school wording, in the language the parent picked. It is its own table
+ * The copy of the lesson screens — school wording, in the language the parent picked. It is its own table
  * rather than more fields on the parent `Strings` because the view models speak some of it aloud and need it without a
  * composition. `{n}`, `{done}`, `{total}`, `{earned}` and `{name}` are replaced by the caller.
  */
@@ -37,27 +37,14 @@ data class LessonStrings(
     val finishLesson: String = "Finish lesson",
     val stepsCompleted: String = "{done} of {total} steps completed",
     val stepOf: String = "Step {n} of {total}",
-    // exam (§8): one sitting, no hints, no level chooser
-    val exam: String = "Exam",
-    val examRules: String = "One sitting. Hints are not available during an exam.",
-    val startExam: String = "Start exam",
-    val continueExam: String = "Continue exam",
-    val submitExam: String = "Submit exam",
-    val questionOf: String = "Question {n} of {total}",
-    val examSubmittedPill: String = "Submitted",
-    val examAlreadySubmitted: String = "This exam has already been submitted.",
-    val examNote: String = "Exam — one sitting",
     // player
     val hint: String = "Hint",
     val tryAgain: String = "Try again",
     val praises: List<String> = listOf("Correct", "Well done", "That is right"),
-    val answerSaved: String = "Answer saved",
     val stepComplete: String = "Step complete",
     // result
     val lessonComplete: String = "Lesson complete",
     val lessonCompleteBody: String = "You have finished every step of this lesson.",
-    val examSubmitted: String = "Exam submitted",
-    val examSubmittedBody: String = "Your answers were sent to your teacher. The result will be shared with your parent.",
     val starsEarned: String = "{earned} of {total} stars",
     val repeatLesson: String = "Repeat lesson",
     val nextLevel: String = "Next level",
@@ -90,24 +77,12 @@ data class LessonStrings(
             finishLesson = "إنهاء الدرس",
             stepsCompleted = "اكتمل {done} من {total} خطوات",
             stepOf = "الخطوة {n} من {total}",
-            exam = "اختبار",
-            examRules = "جلسة واحدة. التلميحات غير متاحة أثناء الاختبار.",
-            startExam = "ابدأ الاختبار",
-            continueExam = "متابعة الاختبار",
-            submitExam = "تسليم الاختبار",
-            questionOf = "السؤال {n} من {total}",
-            examSubmittedPill = "تم التسليم",
-            examAlreadySubmitted = "تم تسليم هذا الاختبار من قبل.",
-            examNote = "اختبار — جلسة واحدة",
             hint = "تلميح",
             tryAgain = "حاول مرة أخرى",
             praises = listOf("إجابة صحيحة", "أحسنت", "هذا صحيح"),
-            answerSaved = "تم حفظ الإجابة",
             stepComplete = "اكتملت الخطوة",
             lessonComplete = "اكتمل الدرس",
             lessonCompleteBody = "لقد أنهيت جميع خطوات هذا الدرس.",
-            examSubmitted = "تم تسليم الاختبار",
-            examSubmittedBody = "أُرسلت إجاباتك إلى معلّمك. ستُشارك النتيجة مع وليّ أمرك.",
             starsEarned = "{earned} من {total} نجوم",
             repeatLesson = "إعادة الدرس",
             nextLevel = "المستوى التالي",
@@ -127,6 +102,8 @@ data class LessonStrings(
                 someRight = "بعضها صحيح. واصل.", notThose = "ليست هذه. حاول مرة أخرى.", notAMatch = "غير متطابقين. حاول مرة أخرى.",
                 orderPartlyRight = "أول {n} صحيحة. أعد ترتيب الباقي.", readSentenceAgain = "اقرأ الجملة مرة أخرى. أي كلمة تناسب المعنى؟",
                 alreadyTried = "تمت تجربتها",
+                drawingStrokes = "رسم من {n} خطوط", drawingPad = "لوحة الرسم، {n} خطوط", groupOf = "مجموعة من {n}", colour = "اللون {n}",
+                selected = "محدّد", numberWord = "العدد {n}", missingNumber = "العدد الناقص",
             ),
             journey = JourneyLabels(
                 step = "الخطوة {n}", level = "المستوى {n}", levelNames = mapOf(1 to "أساسي", 2 to "موسّع", 3 to "متقدّم"),

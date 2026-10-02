@@ -44,7 +44,6 @@ object ProgressContract {
         val loading: Boolean = true,
         val reports: List<SkillReport> = emptyList(),
         val streakDays: Int = 0,
-        val stickers: Int = 0,
         /** Step 9: what the teacher has released, newest first. Empty until she releases something. */
         val results: List<ReleasedResult> = emptyList(),
     ) : MviState
@@ -62,9 +61,8 @@ class ProgressViewModel(
         val child = children.currentChild.value ?: return
         val r = report(child)
         val streak = rewards.streak().currentDays
-        val stickers = rewards.stickers().size
         val marks = runCatching { released(child) }.getOrDefault(emptyList())
-        reduce { copy(loading = false, reports = r, streakDays = streak, stickers = stickers, results = marks) }
+        reduce { copy(loading = false, reports = r, streakDays = streak, results = marks) }
     }
 }
 
@@ -87,22 +85,11 @@ fun ProgressScreen(state: ProgressContract.State, s: Strings) {
     ) {
         Spacer(Modifier.height(8.dp))
 
-        // Stat Cards Row (TailAdmin stat style)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ParentCard(Modifier.weight(1f)) {
-                Column {
-                    Text("🔥 ${state.streakDays}", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong)
-                    Spacer(Modifier.height(2.dp))
-                    Text(s.streak, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
-                }
-            }
-            ParentCard(Modifier.weight(1f)) {
-                Column {
-                    Text("🌟 ${state.stickers}", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong)
-                    Spacer(Modifier.height(2.dp))
-                    Text(s.stickers, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
-                }
-            }
+        // The streak: a count of days, the one figure the student home shows too.
+        ParentCard {
+            Text("${state.streakDays}", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong)
+            Spacer(Modifier.height(2.dp))
+            Text(s.streak, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
         }
 
         ReleasedResults(state.results, s)

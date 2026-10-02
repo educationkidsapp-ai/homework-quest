@@ -36,6 +36,14 @@ data class StopLabels(
     val orderPartlyRight: String = "The first {n} are right. Try the rest again.",
     val readSentenceAgain: String = "Read the sentence again. Which word makes sense?",
     val alreadyTried: String = "already tried",
+    // spoken by a screen reader only
+    val drawingStrokes: String = "drawing with {n} strokes",
+    val drawingPad: String = "drawing pad, {n} strokes",
+    val groupOf: String = "group of {n}",
+    val colour: String = "colour {n}",
+    val selected: String = "selected",
+    val numberWord: String = "number {n}",
+    val missingNumber: String = "missing number",
 )
 
 val LocalStopLabels = staticCompositionLocalOf { StopLabels() }

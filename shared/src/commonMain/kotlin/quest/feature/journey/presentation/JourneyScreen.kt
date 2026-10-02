@@ -40,7 +40,6 @@ import quest.ui.design.BackButton
 import quest.ui.design.BigButton
 import quest.ui.design.DashboardCard
 import quest.ui.design.DashboardPill
-import quest.ui.design.DashboardPillVariant
 import quest.ui.design.DashboardProgressBar
 import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
@@ -68,8 +67,7 @@ fun JourneyRoute(lessonId: String, level: Int, variant: Int, onOpenStop: (String
 }
 
 /**
- * The lesson overview: what the lesson is, how far the student is, and its steps. An exam (§8) is the same page
- * without the level selector and without stars, under an "Exam" badge and its one-sitting rule.
+ * The lesson overview: what the lesson is, how far the student is, its levels and its steps.
  */
 @Composable
 fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) {
@@ -84,14 +82,9 @@ fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) 
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
                         state.lesson?.subject?.let { DashboardPill(SubjectMeta.of(it).label(LocalLessonRtl.current)) }
-                        if (state.exam) DashboardPill(s.exam, variant = DashboardPillVariant.WARNING)
                     }
                     Spacer(Modifier.height(Dimens.s8))
                     Text(state.lesson?.title.orEmpty(), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong)
-                    if (state.exam) {
-                        Spacer(Modifier.height(Dimens.s4))
-                        Text(s.examRules, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft)
-                    }
                     Spacer(Modifier.height(Dimens.s12))
                     // A bar and a count of steps — never a percentage (§7).
                     DashboardProgressBar(if (total == 0) 0f else state.doneCount.toFloat() / total)
@@ -99,19 +92,17 @@ fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) 
                     Text(s.stepsCompleted.replace("{done}", "${state.doneCount}").replace("{total}", "$total"), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
                 }
             }
-            if (!state.exam) {
-                Spacer(Modifier.height(Dimens.s12))
-                // §4 `levels.three`: off, the third level is not offered at all.
-                LevelSelector(unlocked = state.levelsUnlocked, completed = state.completedLevels, current = state.level, onSelect = { dispatch(Intent.SelectLevel(it)) }, levels = Flags.levels(featureEnabled(Flags.LEVEL_THREE)))
-            }
             Spacer(Modifier.height(Dimens.s12))
-            StepList(stops = state.stops, states = state.nodeStates, stars = state.stops.map { state.stopStars[it.id] }, onTap = { dispatch(Intent.TapStop(it)) }, showStars = !state.exam)
+            // §4 `levels.three`: off, the third level is not offered at all.
+            LevelSelector(unlocked = state.levelsUnlocked, completed = state.completedLevels, current = state.level, onSelect = { dispatch(Intent.SelectLevel(it)) }, levels = Flags.levels(featureEnabled(Flags.LEVEL_THREE)))
+            Spacer(Modifier.height(Dimens.s12))
+            StepList(stops = state.stops, states = state.nodeStates, stars = state.stops.map { state.stopStars[it.id] }, onTap = { dispatch(Intent.TapStop(it)) })
             Spacer(Modifier.height(Dimens.s16))
         }
         val cta = when {
-            state.complete -> if (state.exam) s.submitExam else s.finishLesson
-            state.doneCount == 0 -> if (state.exam) s.startExam else s.startLesson
-            else -> if (state.exam) s.continueExam else s.continueLesson
+            state.complete -> s.finishLesson
+            state.doneCount == 0 -> s.startLesson
+            else -> s.continueLesson
         }
         BigButton(cta, onClick = { dispatch(if (state.complete) Intent.Finish else Intent.TapStop(state.nextIndex)) }, modifier = Modifier.padding(horizontal = Dimens.s16, vertical = Dimens.s12))
     }

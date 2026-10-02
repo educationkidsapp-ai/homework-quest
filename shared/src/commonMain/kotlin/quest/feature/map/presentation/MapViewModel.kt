@@ -44,8 +44,6 @@ class MapViewModel(
 
     private suspend fun tap(id: String) {
         val island = current.islands.firstOrNull { it.id == id } ?: return
-        // §8: an exam allows exactly one sitting, so a finished one says so instead of opening again.
-        if (island.examWindow != null && island.state == IslandState.DONE) { effect(Effect.Speak(copy.strings().examAlreadySubmitted)); return }
         when (island.kind) {
             IslandKind.LOCKED -> effect(Effect.Speak(copy.strings().speakLocked))
             IslandKind.REVIEW -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 1))
