@@ -2,4 +2,7 @@
 <resources>
     <!-- The launcher label. Per locale; the QA flavor overrides it with a suffix. -->
     <string name="app_name">MySchool</string>
+    <string name="widget_today_name">Today</string>
+    <string name="widget_today_description">Lessons to do, the next exam and unread messages.</string>
+    <string name="widget_signed_out">Open MySchool to sign in</string>
 </resources>

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">مدرستي</string>
+    <string name="widget_today_name">اليوم</string>
+    <string name="widget_today_description">دروس اليوم والاختبار القادم والرسائل غير المقروءة.</string>
+    <string name="widget_signed_out">افتح «مدرستي» لتسجيل الدخول</string>
 </resources>

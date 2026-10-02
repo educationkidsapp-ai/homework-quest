@@ -10,5 +10,8 @@ struct ComposeView: UIViewControllerRepresentable {
 struct ContentView: View {
     var body: some View {
         ComposeView().ignoresSafeArea(.keyboard)
+            // M3: a tap on the Today widget (`myschool://today/<link>`). The shared UI follows it underneath the
+            // biometric lock, so a locked app asks for Face ID first.
+            .onOpenURL { url in TodayLinks.shared.open(key: url.lastPathComponent) }
     }
 }

@@ -1,5 +1,6 @@
 package quest.feature.journey.presentation
 
+import quest.feature.today.domain.TodayLabels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -91,6 +92,10 @@ data class LessonStrings(
     val speakHome: String = "Select a lesson to open it.",
     val stops: StopLabels = StopLabels(),
     val journey: JourneyLabels = JourneyLabels(),
+    /** M3: the words of the home-screen widget, handed to it with each snapshot. */
+    val today: TodayLabels = TodayLabels(),
+    val examInProgress: String = "Exam in progress",
+    val examNotificationChannel: String = "Exam in progress",
 ) {
     companion object {
         val en = LessonStrings()
@@ -157,6 +162,13 @@ data class LessonStrings(
             speakHomeEmpty = "لا توجد دروس اليوم. عُد غداً.",
             speakHomeToday = "اختر درس اليوم للبدء.",
             speakHome = "اختر درساً لفتحه.",
+            today = TodayLabels(
+                title = "اليوم", lessonsToDo = "{n} دروس للإنجاز", oneLessonToDo = "درس واحد للإنجاز", allDone = "اكتملت جميع الدروس",
+                exam = "اختبار", examUntil = "حتى {time}", unread = "{n} رسائل غير مقروءة", oneUnread = "رسالة واحدة غير مقروءة",
+                signedOut = "افتح «مدرستي» لتسجيل الدخول",
+            ),
+            examInProgress = "اختبار جارٍ",
+            examNotificationChannel = "اختبار جارٍ",
             stops = StopLabels(
                 check = "تحقّق", done = "تم", continueLabel = "متابعة", finished = "انتهيت", next = "التالي", listen = "استمع", sayIt = "انطقها",
                 readToMe = "اقرأ لي", reading = "جارٍ القراءة…", showAnother = "اعرض مثالاً آخر", clear = "مسح", record = "تسجيل",

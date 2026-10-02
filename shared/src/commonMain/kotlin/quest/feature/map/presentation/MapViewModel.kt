@@ -1,5 +1,7 @@
 package quest.feature.map.presentation
 
+import quest.feature.journey.presentation.LessonStrings
+import quest.feature.today.domain.PublishTodayUseCase
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
@@ -26,6 +28,7 @@ class MapViewModel(
     private val copy: LessonCopy,
     private val lessons: LessonRepository,
     private val now: () -> Long = Today::epochMillis,
+    private val publishToday: PublishTodayUseCase? = null,
 ) : MviViewModel<State, Intent, Effect>(State()) {
 
     override suspend fun handle(intent: Intent) {
@@ -47,6 +50,9 @@ class MapViewModel(
         // cached (the map came from the cache, or the paper was already handed in) and must not be drawn as homework.
         val exams = map.islands.filter { it.lessonId != null && (it.examWindow != null || runCatching { lessons.cached(it.lessonId!!) }.getOrNull()?.isExam == true) }.mapNotNull { it.lessonId }.toSet()
         reduce { copy(loading = false, child = child, islands = map.islands, streakDays = streak.currentDays, exams = exams, now = now()) }
+        // M3: the home-screen widget shows what this page has just shown.
+        val strings = copy.strings()
+        publishToday?.invoke(child, map.islands, exams, current.now, strings.today, rtl = strings === LessonStrings.ar)
     }
 
     private suspend fun tap(id: String) {

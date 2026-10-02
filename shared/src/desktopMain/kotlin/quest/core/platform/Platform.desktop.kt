@@ -1,5 +1,9 @@
 package quest.core.platform
 
+import quest.feature.today.domain.NoExamSittingPresenter
+import quest.feature.today.domain.ExamSittingPresenter
+import quest.feature.today.domain.TodaySnapshot
+import quest.feature.today.domain.TodaySnapshotStore
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import org.koin.core.module.Module
@@ -27,5 +31,8 @@ class LoggingSpeaker : Speaker {
 actual fun platformModule(): Module = module {
     single { DriverFactory(File(System.getProperty("user.home"), ".homework-quest/quest.db").also { it.parentFile.mkdirs() }.path) }
     single<Speaker> { LoggingSpeaker() }
+    // A desktop build has no home-screen widget and no system exam activity.
+    single<TodaySnapshotStore> { object : TodaySnapshotStore { override suspend fun write(snapshot: TodaySnapshot?) = Unit } }
+    single<ExamSittingPresenter> { NoExamSittingPresenter }
 }
 
