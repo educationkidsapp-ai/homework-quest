@@ -10,9 +10,10 @@ expect object DocumentViewer {
     fun directory(): String
 
     /**
-     * Opens the cached document called [name]. The name is reduced to a plain file name here ([safeFileName]) — it can
-     * never point outside [directory], whatever the caller passed. False when there is no such file or nothing can
-     * open it; never throws.
+     * Opens the cached document at [name] — `file.pdf`, or `folder/file.pdf` one level down (M4: a folder per
+     * attachment, so the file itself can carry the name the viewer shows). The path is reduced here
+     * ([safeDocumentPath]) and can never point outside [directory], whatever the caller passed. False when there is
+     * no such file or nothing can open it; never throws.
      */
     fun open(name: String, mimeType: String): Boolean
 }
@@ -29,3 +30,10 @@ fun safeDocumentName(name: String?, extension: String): String {
     val base = safeFileName(name.orEmpty()).removeSuffix(".$extension").removeSuffix(".${extension.uppercase()}").trim().trim('.')
     return "${base.ifEmpty { "document" }}.$extension"
 }
+
+/**
+ * At most two plain segments — a folder and a file — each reduced by [safeFileName], so `..`, absolute paths and deeper
+ * nesting all collapse into a name inside the cache directory.
+ */
+fun safeDocumentPath(path: String): String =
+    path.split('/', '\\').filter { it.isNotBlank() && it.trim('.').isNotEmpty() }.takeLast(2).joinToString("/") { safeFileName(it) }.ifEmpty { "document" }

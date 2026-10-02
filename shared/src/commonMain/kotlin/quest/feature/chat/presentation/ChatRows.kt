@@ -1,5 +1,6 @@
 package quest.feature.chat.presentation
 
+import quest.core.text.isolate
 import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -174,7 +175,7 @@ fun ChatThreadRow(
                 thread.lastMessage?.body?.let { body ->
                     Spacer(Modifier.height(Dimens.s4))
                     Text(
-                        text = threadPreview(body),
+                        text = isolate(threadPreview(body)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = DashboardTokens.inkSoft,
                         maxLines = 1,

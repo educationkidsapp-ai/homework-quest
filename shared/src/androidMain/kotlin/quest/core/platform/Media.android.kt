@@ -86,7 +86,7 @@ actual object DocumentViewer {
      * `ActivityNotFoundException`; that is a `false`, never a crash.
      */
     actual fun open(name: String, mimeType: String): Boolean = runCatching {
-        val file = File(directory(), safeFileName(name))
+        val file = File(directory(), safeDocumentPath(name))
         if (!file.isFile) return false
         val uri = FileProvider.getUriForFile(appContext, "${appContext.packageName}.quest.fileprovider", file)
         val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mimeType)

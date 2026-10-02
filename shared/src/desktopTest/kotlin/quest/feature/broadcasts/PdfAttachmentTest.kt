@@ -3,6 +3,7 @@ package quest.feature.broadcasts
 import quest.api.dto.BroadcastAttachment
 import quest.core.platform.safeDocumentName
 import quest.core.platform.safeFileName
+import quest.core.platform.safeDocumentPath
 import quest.feature.broadcasts.domain.isImage
 import quest.feature.broadcasts.domain.isPdf
 import kotlin.test.Test
@@ -53,5 +54,15 @@ class PdfAttachmentTest {
         assertEquals("plan.pdf", safeFileName("C:\\Users\\x\\plan.pdf"))
         assertEquals("document", safeFileName("../.."))
         assertEquals("document", safeFileName(""))
+    }
+
+    /** M4 (D13): a folder and a file, never more, and never outside the cache directory. */
+    @Test fun aDocumentPathIsAtMostOneFolderAndOneFile() {
+        assertEquals("attachment-1/plan-last-week.pdf", safeDocumentPath("attachment-1/plan-last-week.pdf"))
+        assertEquals("etc/passwd", safeDocumentPath("../../etc/passwd"))
+        assertEquals("b/c.pdf", safeDocumentPath("/a/b/c.pdf"))
+        assertEquals("plan.pdf", safeDocumentPath("plan.pdf"))
+        assertEquals("document", safeDocumentPath("../.."))
+        assertEquals("document", safeDocumentPath(""))
     }
 }

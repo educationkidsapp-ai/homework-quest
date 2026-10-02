@@ -64,12 +64,13 @@ class AttachmentDocumentStoreTest {
         directory = { dir.absolutePath }, maxBytes = maxBytes, io = StandardTestDispatcher(testScheduler),
     )
 
-    private fun files() = dir.listFiles().orEmpty().map { it.name }.sorted()
+    private fun files() = dir.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).invariantSeparatorsPath }.toList().sorted()
 
     @Test fun aPdfIsStreamedToOneFileUnderItsOwnName() = runTest {
         val bytes = ByteArray(700) { (it % 251).toByte() }
         val name = store(bytes).fetch(pdf)
-        assertEquals("attachment-att-1-Grade 1 plan.pdf", name)
+        // M4 (D13): the file carries the attachment's own name — the viewer's title — inside a folder named by its id.
+        assertEquals("attachment-att-1/Grade 1 plan.pdf", name)
         assertEquals(listOf(name), files(), "one copy, and no .part left behind")
         assertContentEquals(bytes, File(dir, name!!).readBytes())
         assertEquals("Bearer id-1", calls.single().headers[HttpHeaders.Authorization])
@@ -111,7 +112,7 @@ class AttachmentDocumentStoreTest {
 
     @Test fun aHostileNameCannotLeaveTheCacheDirectory() = runTest {
         val name = store(ByteArray(10) { 1 }).fetch(pdf.copy(name = "../../etc/passwd"))
-        assertEquals("attachment-att-1-passwd.pdf", name)
+        assertEquals("attachment-att-1/passwd.pdf", name)
         assertEquals(listOf(name), files())
     }
 
@@ -136,6 +137,7 @@ class AttachmentDocumentStoreTest {
         SignOutUseCase(auth, children, store)()
 
         assertTrue(files().isEmpty(), "a weekly plan must not outlive the session that downloaded it")
+        assertTrue(dir.listFiles().orEmpty().isEmpty(), "nor the folder it was kept in")
         assertEquals(1, auth.signedOut)
         assertEquals(1, children.cleared)
     }

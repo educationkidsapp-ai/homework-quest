@@ -1,5 +1,6 @@
 package quest.feature.broadcasts.presentation
 
+import quest.core.text.isolate
 import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -308,7 +309,7 @@ fun BroadcastCard(
     ) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text(
-                text = view.title?.takeIf { it.isNotBlank() } ?: authorLine(view, strings),
+                text = view.title?.takeIf { it.isNotBlank() }?.let(::isolate) ?: authorLine(view, strings),
                 style = MaterialTheme.typography.titleMedium,
                 color = DashboardTokens.ink,
                 // An unread row is heavier, not coloured: §7 keeps the alarm palette off a parent's reading list.
@@ -322,7 +323,7 @@ fun BroadcastCard(
         Text(authorLine(view, strings), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
 
         Spacer(Modifier.height(Dimens.s8))
-        Text(broadcastBody(view, strings.isRtl), style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
+        Text(isolate(broadcastBody(view, strings.isRtl)), style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
 
         // MH3: an image is drawn here, off `GET /media/attachments/{id}` with the parent's bearer — the route is
         // authenticated, so the system viewer would land on a 401 and the bytes come through the app's own client.

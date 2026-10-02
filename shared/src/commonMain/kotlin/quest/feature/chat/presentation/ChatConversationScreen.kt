@@ -1,5 +1,6 @@
 package quest.feature.chat.presentation
 
+import quest.core.text.isolate
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -949,7 +950,8 @@ private fun MessageBubble(
 
             if (parsed.text.isNotBlank()) {
                 Text(
-                    text = parsed.text,
+                    // M4 (D12): a message keeps its own direction inside the other language's screen.
+                    text = isolate(parsed.text),
                     style = MaterialTheme.typography.bodyLarge,
                     color = textColor,
                 )

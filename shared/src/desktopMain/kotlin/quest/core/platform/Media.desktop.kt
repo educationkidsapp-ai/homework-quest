@@ -20,7 +20,7 @@ actual object DocumentViewer {
     actual fun directory(): String = File(System.getProperty("java.io.tmpdir"), "homework-quest-documents").apply { mkdirs() }.absolutePath
 
     actual fun open(name: String, mimeType: String): Boolean = runCatching {
-        val file = File(directory(), safeFileName(name))
+        val file = File(directory(), safeDocumentPath(name))
         if (!file.isFile) return false
         java.awt.Desktop.getDesktop().open(file)
     }.isSuccess
