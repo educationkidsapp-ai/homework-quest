@@ -13,6 +13,7 @@
 	<key>CFBundleVersion</key><string>1</string>
 	<key>LSRequiresIPhoneOS</key><true/>
 	<key>CADisableMinimumFrameDurationOnPhone</key><true/>
+	<key>NSFaceIDUsageDescription</key><string>Unlock MySchool with Face ID instead of your password.</string>
 	<key>NSMicrophoneUsageDescription</key><string>Record your child retelling the story.</string>
 	<key>API_BASE_URL</key><string>$(API_BASE_URL)</string>
 	<key>FIREBASE_API_KEY</key><string>$(FIREBASE_API_KEY)</string>

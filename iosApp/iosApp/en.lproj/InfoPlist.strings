@@ -1,2 +1,5 @@
 /* The name under the icon. */
 "CFBundleDisplayName" = "MySchool";
+
+/* Asked the first time the app uses Face ID to unlock (M2). */
+"NSFaceIDUsageDescription" = "Unlock MySchool with Face ID instead of your password.";

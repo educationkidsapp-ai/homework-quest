@@ -22,8 +22,13 @@ interface ChildrenRepository {
  * documents she downloaded (a weekly plan PDF sits in the cache the system viewer can read). Every sign-out button
  * goes through here so the three cannot drift apart.
  */
-class SignOutUseCase(private val auth: AuthProvider, private val children: ChildrenRepository, private val documents: AttachmentDocuments) {
+class SignOutUseCase(
+    private val auth: AuthProvider, private val children: ChildrenRepository, private val documents: AttachmentDocuments,
+    /** What else belongs to the account on this device — the biometric lock is turned off with the session (M2). */
+    private val alsoForget: suspend () -> Unit = {},
+) {
     suspend operator fun invoke() {
+        alsoForget()
         auth.signOut()
         children.clear()
         documents.clear()

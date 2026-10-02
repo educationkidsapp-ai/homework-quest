@@ -60,6 +60,7 @@ kotlin {
             implementation(libs.lifecycle.viewmodel.compose)
             implementation(libs.lifecycle.runtime.compose)
             implementation(libs.navigation.compose)
+            implementation(libs.compose.ui.backhandler)   // M2: Back on the lock cover (already on the classpath through navigation)
 
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
@@ -85,6 +86,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core)
+            api(libs.androidx.biometric)   // BiometricPrompt, and the FragmentActivity it needs MainActivity to be
             implementation(libs.koin.android)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.sqldelight.android)

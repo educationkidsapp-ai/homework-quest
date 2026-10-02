@@ -1,6 +1,11 @@
 package quest.di
 
+import quest.core.platform.elapsedRealtimeMillis
 import quest.feature.parent.domain.UndeliveredExamAnswersUseCase
+import quest.core.platform.platformBiometricAuthenticator
+import quest.feature.lock.data.BiometricPreferencesImpl
+import quest.feature.lock.domain.BiometricPreferences
+import quest.feature.lock.domain.AppLock
 import quest.feature.children.domain.SignOutUseCase
 import quest.core.platform.DocumentViewer
 import quest.feature.broadcasts.domain.AttachmentDocuments
@@ -85,7 +90,7 @@ fun apiModule(config: ApiConfig): Module = module {
     single<AuthProvider> {
         val key = (config as? ApiConfig.Server)?.firebaseApiKey.orEmpty()
         // Resolved when the session expires, not here: the document store itself depends on the auth provider.
-        if (key.isBlank()) FakeAuth(get()) else FirebaseAuth(key, get(), get(), onSessionExpired = { get<AttachmentDocuments>().clear() })
+        if (key.isBlank()) FakeAuth(get()) else FirebaseAuth(key, get(), get(), onSessionExpired = { get<AttachmentDocuments>().clear(); get<BiometricPreferences>().signedOut() })
     }
     single<SessionRestorer> { get<AuthProvider>() as SessionRestorer }
     // One Ktor client for the whole app: each `HttpClient()` starts an engine and its own thread pool, and the two
@@ -149,7 +154,11 @@ val contentModule = module {
     single<JourneyRepository> { JourneyRepositoryImpl(get(), get()) }
     single<MapRepository> { MapRepositoryImpl(get(), get(), get()) }
     viewModel { SignInViewModel(get()) }
-    factory { SignOutUseCase(get(), get(), get()) }
+    factory { SignOutUseCase(get(), get(), get(), alsoForget = { get<BiometricPreferences>().signedOut() }) }
+    // M2: the biometric lock. One instance — it remembers when the app went to the background.
+    single<BiometricPreferences> { BiometricPreferencesImpl(get()) }
+    single { platformBiometricAuthenticator() }
+    single { AppLock(get(), get(), get(), signOut = { get<SignOutUseCase>()() }, elapsed = ::elapsedRealtimeMillis) }
     viewModel { ChildrenViewModel(get(), get()) }
     factory { LessonCopy(get(), get()) }
     viewModel { MapViewModel(get(), get(), get(), get(), get(), get()) }
@@ -175,7 +184,7 @@ val parentModule = module {
     viewModel { ParentHomeViewModel(get(), get(), get(), get(), get(), UndeliveredExamAnswersUseCase(get(), get())) }
     viewModel { CalendarViewModel(get(), get(), get()) }
     viewModel { ProgressViewModel(get(), get(), get(), get()) }
-    viewModel { SettingsViewModel(get(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get()) }
 }
 
 val chatModule = module {

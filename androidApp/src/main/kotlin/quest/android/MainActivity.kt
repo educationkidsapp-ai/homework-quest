@@ -1,16 +1,18 @@
 package quest.android
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import org.koin.android.ext.android.get
 import quest.App
+import quest.core.platform.BiometricHost
 import quest.core.platform.applyNightMode
 import quest.feature.parent.domain.Appearance
 import quest.feature.parent.domain.ParentRepository
 
-class MainActivity : ComponentActivity() {
+/** A `FragmentActivity` because `BiometricPrompt` (M2) can only be shown from one. */
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // The stored Light/Dark choice, before the window exists: a pinned choice picks the window theme itself (so
         // the ground behind the first frame is the right one on every API level) and is handed to the system, which
@@ -24,6 +26,12 @@ class MainActivity : ComponentActivity() {
         applyNightMode(this, dark = appearance == Appearance.DARK, followsSystem = appearance == Appearance.SYSTEM)
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        BiometricHost.attach(this)
         setContent { App() }
+    }
+
+    override fun onDestroy() {
+        BiometricHost.detach(this)
+        super.onDestroy()
     }
 }

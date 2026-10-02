@@ -1,5 +1,9 @@
 package quest
 
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import quest.feature.lock.presentation.AppLockHost
+import quest.feature.lock.domain.AppLock
 import quest.ui.design.LocalDarkTheme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -42,7 +46,9 @@ fun App() {
         val initializer: AppInitializer = koinInject()
         val auth: AuthProvider = koinInject()
         var ready by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { initializer.initialise(); ready = true }
+        val lock: AppLock = koinInject()
+        // The lock is decided before the first screen is drawn, so a locked app never shows a frame of its content.
+        LaunchedEffect(Unit) { initializer.initialise(); lock.coldStart(); ready = true }
         if (!ready) {
             // The first frame already wears the stored Light/Dark choice: the repository reads it synchronously.
             val appearance by koinInject<ParentRepository>().appearance.collectAsState()
@@ -52,15 +58,22 @@ fun App() {
         val nav = rememberNavController()
         val start: Any = if (auth.state.value is AuthState.SignedIn) Routes.WorldMap else Routes.SignIn
         // Everything below sees the joined school's colours, name, logo and feature flags (§3, §4).
-        SchoolThemeHost { QuestNavHost(nav, start) }
+        SchoolThemeHost {
+            AppLockHost(onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } }) { QuestNavHost(nav, start) }
+        }
     }
 }
 
 @Composable
 fun QuestNavHost(nav: NavHostController, start: Any) {
+    val lock: AppLock = koinInject()
+    val scope = rememberCoroutineScope()   // outlives the sign-in screen, which is popped the moment it succeeds
     NavHost(navController = nav, startDestination = start) {
         // After sign-in the parent sees every child the school linked to the account, and picks whose home to open.
-        composable<Routes.SignIn> { SignInRoute(onSignedIn = { nav.navigate(Routes.ChildPicker) { popUpTo(Routes.SignIn) { inclusive = true } } }) }
+        composable<Routes.SignIn> {
+            // M2: a password sign-in is followed, once, by the offer to unlock with a biometric from now on.
+            SignInRoute(onSignedIn = { scope.launch { lock.signedIn() }; nav.navigate(Routes.ChildPicker) { popUpTo(Routes.SignIn) { inclusive = true } } })
+        }
         composable<Routes.ChildPicker> {
             ChildPickerRoute(
                 onPicked = { nav.navigate(Routes.WorldMap) { popUpTo(0) { inclusive = true } } },
