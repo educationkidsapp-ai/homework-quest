@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="quest_camera" path="camera/" />
+    <!-- M1: a weekly plan PDF, downloaded with the parent's token and handed to the system viewer. -->
+    <cache-path name="quest_documents" path="documents/" />
 </paths>

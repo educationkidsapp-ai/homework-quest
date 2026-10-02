@@ -23,6 +23,10 @@ data class ChatPeer(
     val resolved: Boolean = false,
     /** The thread behind the row, when one exists — what a `status`, `read` or `typing` frame is matched against. */
     val threadId: String? = null,
+    /** M1: the parent chose "Complaint" in New message, so the conversation opens with the complaint toggle on. */
+    val startAsComplaint: Boolean = false,
+    /** S1: the school administration is the staff side ([staffRole] is `MANAGERIAL` on the wire). */
+    val withAdmin: Boolean = false,
 ) {
     companion object {
         fun of(thread: ChatThread): ChatPeer = ChatPeer(
@@ -34,6 +38,7 @@ data class ChatPeer(
             topic = thread.topic,
             resolved = thread.status == ChatThreadStatus.RESOLVED,
             threadId = thread.id,
+            withAdmin = thread.withAdmin == true,
         )
     }
 }

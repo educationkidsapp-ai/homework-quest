@@ -29,7 +29,6 @@ import quest.core.mvi.MviViewModel
 import quest.api.ApiException
 import quest.api.ContentApi
 import quest.api.dto.ApiError
-import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.domain.ParentRepository
 import quest.feature.parent.domain.ParentSettings
 import quest.feature.parent.domain.Phones
@@ -40,7 +39,7 @@ import quest.ui.design.Dimens
 
 object SettingsContract {
     data class State(
-        val loading: Boolean = true, val settings: ParentSettings = ParentSettings("en"), val childName: String = "", val childId: String? = null,
+        val loading: Boolean = true, val settings: ParentSettings = ParentSettings("en"),
         /** MH3: her own mobile number as it is being typed, and whether the server has the value on the screen. */
         val phone: String = "",
         val phoneKnown: Boolean = false,
@@ -59,12 +58,12 @@ object SettingsContract {
     sealed interface Effect : MviEffect
 }
 
-class SettingsViewModel(private val parent: ParentRepository, private val children: ChildrenRepository, private val api: ContentApi) : MviViewModel<SettingsContract.State, SettingsContract.Intent, SettingsContract.Effect>(SettingsContract.State()) {
+class SettingsViewModel(private val parent: ParentRepository, private val api: ContentApi) : MviViewModel<SettingsContract.State, SettingsContract.Intent, SettingsContract.Effect>(SettingsContract.State()) {
     override suspend fun handle(intent: SettingsContract.Intent) {
         when (intent) {
             SettingsContract.Intent.Load -> {
-                val s = parent.settings(); val c = children.currentChild.value
-                reduce { copy(loading = false, settings = s, childName = c?.name ?: "", childId = c?.id) }
+                val s = parent.settings()
+                reduce { copy(loading = false, settings = s) }
                 // MH1 `GET /parent/me`. A build against a server without the route, or a device offline, simply shows no
                 // number rather than an error on a screen whose other four sections are all local.
                 val me = runCatching { api.parentProfile() }.getOrNull() ?: return
@@ -103,7 +102,6 @@ class SettingsViewModel(private val parent: ParentRepository, private val childr
 @Composable
 fun SettingsRoute(
     onChangePin: () -> Unit,
-    onEditChild: (String) -> Unit,
     onBack: () -> Unit,
     onHome: () -> Unit = onBack,
     onNotifications: () -> Unit = {},
@@ -124,15 +122,13 @@ fun SettingsRoute(
                 quest.ui.design.DashboardTab.SETTINGS -> {}
             }
         },
-    ) { s -> SettingsScreen(state, s, vm::dispatch, onChangePin, onEditChild) }
+    ) { s -> SettingsScreen(state, s, vm::dispatch, onChangePin) }
 }
 
-/** Screens 22–23: language (EN / AR with RTL), child profile, her mobile number (MH3), change PIN, privacy. */
+/** Screens 22–23: language (EN / AR with RTL), her mobile number (MH3), change PIN, privacy. The child's profile is the school's to edit. */
 @Composable
-fun SettingsScreen(state: SettingsContract.State, s: Strings, dispatch: (SettingsContract.Intent) -> Unit, onChangePin: () -> Unit, onEditChild: (String) -> Unit) {
+fun SettingsScreen(state: SettingsContract.State, s: Strings, dispatch: (SettingsContract.Intent) -> Unit, onChangePin: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
-        SectionTitle(s.childProfile)
-        ParentButton(state.childName.ifBlank { s.childProfile }, { state.childId?.let(onEditChild) }, primary = false, icon = "🧒", enabled = state.childId != null)
         // §4 `parentPanel.arabic`: with one language there is nothing to choose, so the whole section goes.
         FeatureGate(Flags.PARENT_PANEL_ARABIC) {
             SectionTitle(s.language)

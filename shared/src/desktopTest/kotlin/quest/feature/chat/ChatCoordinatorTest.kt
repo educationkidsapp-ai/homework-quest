@@ -1,14 +1,13 @@
 package quest.feature.chat
 
+import quest.feature.chat.presentation.staffName
+import quest.feature.chat.presentation.ChatConversationContract
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
-import quest.api.ApiException
 import quest.api.AuthProvider
 import quest.api.AuthState
-import quest.api.dto.ChatMessage
-import quest.api.dto.ChatSender
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
 import quest.api.dto.ChatThreadStatus
@@ -26,7 +25,6 @@ import quest.feature.content.data.FakeContentApi
 import quest.feature.parent.presentation.Strings
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -114,6 +112,27 @@ class ChatCoordinatorTest {
         assertEquals(ChatTopic.COMPLAINT, state.coordinatorThreads.single().topic)
     }
 
+    /** S1: the school administration writes to a parent on a `MANAGERIAL` row marked `withAdmin`. */
+    @Test
+    fun aThreadFromTheSchoolAdministrationHasItsOwnHeadingAndALocalisedName() {
+        val admin = row("th-9", "School administration", ChatStaffRole.MANAGERIAL).copy(withAdmin = true)
+        val manager = row("th-8", "Ms. Nour", ChatStaffRole.MANAGERIAL)
+        val state = ChatThreadsContract.State(loading = false, threads = listOf(admin, manager))
+
+        assertEquals(listOf("Ms. Nour"), state.managerThreads.map { it.teacherName }, "she is not the department manager")
+        assertEquals(listOf(admin), state.adminThreads)
+        assertEquals("School administration", staffName(admin, Strings.en))
+        assertEquals("إدارة المدرسة", staffName(admin, Strings.ar))
+        assertEquals("Ms. Nour", staffName(manager, Strings.ar))
+        assertEquals("Maya", staffLabel(admin, Strings.en), "the line under the name says whom it is about")
+
+        // The parent answers her but cannot turn the thread into a complaint.
+        val peer = ChatPeer.of(admin)
+        assertTrue(peer.withAdmin)
+        assertFalse(ChatConversationContract.State(loading = false, withAdmin = true).canMarkComplaint)
+        assertTrue(ChatConversationContract.State(loading = false).canMarkComplaint)
+    }
+
     @Test
     fun theAvatarSkipsTheHonorificSoTwoCoordinatorsDiffer() {
         // "Ms. Lina" and "Mr. Omar" both start with M; the circle has to say L and O, or the picker is two same rows.
@@ -161,7 +180,7 @@ class ChatCoordinatorTest {
         assertEquals(emptyList(), applyStatus(emptyList(), "th-1", ChatThreadStatus.RESOLVED, 1L))
     }
 
-    // ---- 3. the first message carries the topic; a later one does not, and a teacher may not be complained to
+    // ---- 3. the first message carries the topic; a later one does not, for a teacher as for a coordinator
 
     @Test
     fun theCoordinatorListIsSeparateFromTheThreadList() = runTest {
@@ -194,13 +213,14 @@ class ChatCoordinatorTest {
     }
 
     @Test
-    fun aComplaintAimedAtATeacherIsRefusedWithItsOwnCode() = runTest {
+    fun aComplaintToATeacherLabelsHerThreadAComplaintToo() = runTest {
+        // M1: a complaint may go to the teacher, the coordinator or the manager.
         val repo = repo()
-        val teacher = repo.threads("c1").first { it.staffRole == ChatStaffRole.TEACHER }
-        val failure = assertFailsWith<ApiException> {
-            repo.sendMessage("c1", teacher.teacherId, "This is a complaint.", "cid-3", ChatTopic.COMPLAINT)
-        }
-        assertEquals("complaint_needs_coordinator", failure.error.code)
+        val teacher = repo.threads("c1").first { it.staffRole == ChatStaffRole.TEACHER && it.lastMessage == null }
+        repo.sendMessage("c1", teacher.teacherId, "This is a complaint.", "cid-3", ChatTopic.COMPLAINT)
+        val thread = repo.threads("c1").single { it.teacherId == teacher.teacherId }
+        assertEquals(ChatTopic.COMPLAINT, thread.topic)
+        assertEquals(ChatThreadStatus.OPEN, thread.status)
     }
 
     @Test

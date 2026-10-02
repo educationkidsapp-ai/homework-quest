@@ -15,7 +15,6 @@ import quest.feature.chat.presentation.ChatThreadsRoute
 import quest.feature.chat.presentation.CoordinatorPickerRoute
 import quest.feature.broadcasts.presentation.BroadcastsRoute
 import quest.feature.broadcasts.presentation.WeeklyPlanRoute
-import quest.feature.children.presentation.AddChildRoute
 
 /** Parent-mode graph (behind the PIN). Nothing here is reachable from child screens except the PIN entry. */
 fun NavGraphBuilder.parentGraph(nav: NavHostController) {
@@ -28,7 +27,6 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
     }
     composable<Routes.ParentHome> {
         ParentHomeRoute(
-            onAddChild = { nav.navigate(Routes.AddChild()) }, onEditChild = { nav.navigate(Routes.AddChild(it)) },
             onCalendar = { nav.navigate(Routes.Calendar) }, onProgress = { nav.navigate(Routes.Progress) }, onSettings = { nav.navigate(Routes.Settings) },
             onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) },
             onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } }, onExit = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } },
@@ -42,7 +40,6 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
     composable<Routes.Settings> {
         SettingsRoute(
             onChangePin = { nav.navigate(Routes.ChangePin) },
-            onEditChild = { nav.navigate(Routes.AddChild(it)) },
             onBack = { nav.popBackStack() },
             onHome = { nav.navigate(Routes.ParentHome) { popUpTo(Routes.ParentHome) { inclusive = false } } },
             onNotifications = { nav.navigate(Routes.Broadcasts) { popUpTo(Routes.ParentHome) { inclusive = false } } },
@@ -75,7 +72,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
     composable<Routes.ChatCoordinators> {
         CoordinatorPickerRoute(
             onBack = { nav.popBackStack() },
-            onOpenConversation = { nav.navigate(it.asConversation()) },
+            onOpenConversation = { thread, complaint -> nav.navigate(thread.asConversation().copy(complaint = complaint)) },
         )
     }
     composable<Routes.ChatConversation> { entry ->
@@ -90,6 +87,8 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
                 topic = if (route.topic == "complaint") ChatTopic.COMPLAINT else ChatTopic.QUESTION,
                 resolved = route.resolved,
                 threadId = route.threadId,
+                startAsComplaint = route.complaint,
+                withAdmin = route.admin,
             ),
             onBack = { nav.popBackStack() },
         )
@@ -109,4 +108,5 @@ private fun ChatThread.asConversation() = Routes.ChatConversation(
     topic = if (topic == ChatTopic.COMPLAINT) "complaint" else "question",
     resolved = status == ChatThreadStatus.RESOLVED,
     threadId = id,
+    admin = withAdmin == true,
 )

@@ -2,7 +2,6 @@ package quest.feature.school
 
 import quest.feature.journey.presentation.LessonTheme
 import quest.feature.journey.presentation.LessonStrings
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.ExperimentalComposeUiApi

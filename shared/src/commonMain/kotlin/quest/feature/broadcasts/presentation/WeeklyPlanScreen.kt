@@ -38,6 +38,7 @@ import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.broadcasts.domain.WeeklyPlans
 import quest.feature.broadcasts.domain.broadcastBody
 import quest.feature.broadcasts.domain.isImage
+import quest.feature.broadcasts.domain.isPdf
 import quest.feature.broadcasts.domain.weeklyPlans
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.presentation.Chip
@@ -251,8 +252,9 @@ private fun PlanCard(
 
         Spacer(Modifier.height(Dimens.s8))
         val attachment = plan.attachment
-        // MH1 requires an image on a plan, but QA still holds rows written before it: those fall back to their body.
+        // A plan is an image or, since M1, a PDF. QA still holds rows written before either: those fall back to their body.
         if (attachment != null && attachment.isImage) AttachmentImage(attachment, planDescription(plan, grade, strings), strings)
+        else if (attachment != null && attachment.isPdf) AttachmentDocument(attachment, strings)
         else Text(broadcastBody(plan, strings.isRtl), style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
     }
 }

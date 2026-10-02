@@ -80,10 +80,16 @@ fun staffLabel(role: ChatStaffRole, subject: String?, className: String?, string
     return (listOf(word) + detail).joinToString(" · ")
 }
 
-/** `400` from a send whose `topic` was `complaint` but whose peer is a teacher — the one code this screen explains. */
-const val COMPLAINT_NEEDS_COORDINATOR = "complaint_needs_coordinator"
+
+/**
+ * S1: the name a row shows. A thread the school administration holds carries a fixed English `teacherName` meant to be
+ * localised, so the app writes its own words for it.
+ */
+fun staffName(thread: ChatThread, strings: Strings): String =
+    if (thread.withAdmin == true) strings.schoolAdministration else thread.teacherName
 
 fun staffLabel(thread: ChatThread, strings: Strings, department: String? = null): String =
+    if (thread.withAdmin == true) thread.childName else
     staffLabel(thread.staffRole, thread.subject, thread.className, strings, department)
 
 /**
@@ -100,7 +106,7 @@ fun threadPreview(body: String): String {
 
 /** Screen-reader copy for a row: who, what about, and where it stands — the chips say the same thing visually. */
 fun threadDescription(thread: ChatThread, strings: Strings, department: String? = null): String = buildList {
-    add(thread.teacherName)
+    add(staffName(thread, strings))
     add(staffLabel(thread, strings, department))
     if (thread.topic == ChatTopic.COMPLAINT) add(strings.complaintBadge)
     if (thread.status == ChatThreadStatus.RESOLVED) add(strings.statusResolved)
@@ -135,7 +141,7 @@ fun ChatThreadRow(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = avatarInitial(thread.teacherName),
+                    text = avatarInitial(staffName(thread, strings)),
                     style = MaterialTheme.typography.titleLarge,
                     color = DashboardTokens.ink,
                     fontWeight = FontWeight.Bold,
@@ -147,7 +153,7 @@ fun ChatThreadRow(
             Column(Modifier.weight(1f)) {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                     Text(
-                        text = thread.teacherName,
+                        text = staffName(thread, strings),
                         style = MaterialTheme.typography.titleMedium,
                         color = DashboardTokens.ink,
                         fontWeight = FontWeight.SemiBold,
