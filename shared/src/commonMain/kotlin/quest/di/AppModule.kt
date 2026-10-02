@@ -83,7 +83,8 @@ fun apiModule(config: ApiConfig): Module = module {
     // Real Firebase Authentication (REST, shared by every platform) when the environment has a key; FakeAuth otherwise.
     single<AuthProvider> {
         val key = (config as? ApiConfig.Server)?.firebaseApiKey.orEmpty()
-        if (key.isBlank()) FakeAuth(get()) else FirebaseAuth(key, get(), get())
+        // Resolved when the session expires, not here: the document store itself depends on the auth provider.
+        if (key.isBlank()) FakeAuth(get()) else FirebaseAuth(key, get(), get(), onSessionExpired = { get<AttachmentDocuments>().clear() })
     }
     single<SessionRestorer> { get<AuthProvider>() as SessionRestorer }
     // One Ktor client for the whole app: each `HttpClient()` starts an engine and its own thread pool, and the two

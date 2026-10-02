@@ -2,7 +2,6 @@ package quest.core.platform
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import platform.UIKit.UIApplication
 import platform.UIKit.UIUserInterfaceStyle
 
 /**
@@ -12,7 +11,7 @@ import platform.UIKit.UIUserInterfaceStyle
 @Composable
 actual fun SystemBarsAppearance(dark: Boolean) {
     LaunchedEffect(dark) {
-        UIApplication.sharedApplication.keyWindow?.overrideUserInterfaceStyle =
+        activeKeyWindow()?.overrideUserInterfaceStyle =
             if (dark) UIUserInterfaceStyle.UIUserInterfaceStyleDark else UIUserInterfaceStyle.UIUserInterfaceStyleLight
     }
 }

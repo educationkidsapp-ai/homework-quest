@@ -34,6 +34,11 @@ class FirebaseAuth(
     private val client: HttpClient,
     private val identityUrl: String = "https://identitytoolkit.googleapis.com/v1",
     private val tokenUrl: String = "https://securetoken.googleapis.com/v1",
+    /**
+     * Runs when the session ends without the parent asking — Firebase refuses the refresh token. Whatever belongs to
+     * the session and lives outside this class (the cached documents) is cleared here, exactly as a sign-out clears it.
+     */
+    private val onSessionExpired: suspend () -> Unit = {},
 ) : AuthProvider, SessionRestorer {
     private val _state = MutableStateFlow<AuthState>(AuthState.Unknown)
     override val state: StateFlow<AuthState> = _state
@@ -99,6 +104,7 @@ class FirebaseAuth(
         idToken = null; refreshToken = null
         settings.set(SettingsStore.KEY_FIREBASE_SESSION, null)
         _state.value = AuthState.SignedOut
+        onSessionExpired()
     }
 
     private fun friendly(code: String?): String = when {

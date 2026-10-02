@@ -71,10 +71,13 @@ class AttachmentDocumentStore(
 
     private suspend fun download(url: String, token: String, target: Path): Download {
         val part = Path(target.toString() + ".part")
+        // The rename and the clean-up are inside the guard too: a full disk or a vanished directory is a failed
+        // download, not an exception out of a click handler.
         val outcome = runCancellable {
             client.prepareGet(url) { bearer(token) }.execute { response -> save(response, part) }
+                .also { if (it == Download.SAVED) SystemFileSystem.atomicMove(part, target) }
         }.getOrDefault(Download.FAILED)
-        if (outcome == Download.SAVED) SystemFileSystem.atomicMove(part, target) else SystemFileSystem.delete(part, mustExist = false)
+        if (outcome != Download.SAVED) runCancellable { SystemFileSystem.delete(part, mustExist = false) }
         return outcome
     }
 
