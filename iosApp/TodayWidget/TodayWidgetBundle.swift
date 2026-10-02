@@ -19,7 +19,6 @@ enum Brand {
     static let inkSoft = color(0x475467, 0xD0D5DD)
     static let accent = color(0x0762BF, 0x089CDF)
     static let magenta = color(0x9A0366, 0xF081C6)
-    static let gradient = LinearGradient(colors: [Color(UIColor(hex: 0x089CDF)), Color(UIColor(hex: 0x0754B7))], startPoint: .leading, endPoint: .trailing)
 }
 
 extension UIColor {

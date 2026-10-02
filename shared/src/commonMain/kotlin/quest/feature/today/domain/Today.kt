@@ -12,7 +12,9 @@ import quest.api.dto.IslandState
  * The widget never signs in and never talks to the network: it is handed this one small record — no token, no id of
  * anyone, nothing a lock-screen glance should not show — and the app replaces it whenever the home page loads and
  * removes it when the parent signs out. [labels] carries the words in the language the parent chose, so the widget
- * (a separate process on iOS) says the same thing the app does without owning a copy of the translations.
+ * (a separate process on iOS) says the same thing the app does without owning a copy of the translations. What the
+ * widget says with no snapshot at all — its gallery entry and the signed-out line — is the platform's own string, in
+ * the device language, since there is nothing of the app's to read then.
  */
 @Serializable
 data class TodaySnapshot(
@@ -32,7 +34,6 @@ data class TodaySnapshot(
 
 @Serializable
 data class TodayLabels(
-    val title: String = "Today",
     val lessonsToDo: String = "{n} lessons to do",
     val oneLessonToDo: String = "1 lesson to do",
     val allDone: String = "All lessons done",
@@ -40,7 +41,6 @@ data class TodayLabels(
     val examUntil: String = "until {time}",
     val unread: String = "{n} unread messages",
     val oneUnread: String = "1 unread message",
-    val signedOut: String = "Open MySchool to sign in",
 )
 
 /**

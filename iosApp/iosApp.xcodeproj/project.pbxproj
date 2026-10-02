@@ -17,6 +17,7 @@
 		C1000001000000000000UT01 /* JourneyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000002000000000000UT01 /* JourneyUITests.swift */; };
 		C1000001000000000000UT02 /* RemoteDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000002000000000000UT02 /* RemoteDriver.swift */; };
 		C22BCDED21B58DFD2BB8598F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7AB074DC6C97D11128E25C12 /* Foundation.framework */; };
+		C6DB2B431133A15CFFC1BD9A /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 489D83251E76E2998E56F3F7 /* Localizable.strings */; };
 		CFE12E415B4AF5BE8942AD91 /* ExamLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5281F6AD98DA13AD664F8C56 /* ExamLiveActivity.swift */; };
 		E5DF5A8DE7FBF425AACA8D9D /* TodayWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B78447164DB1CB21AC1C15AD /* TodayWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F2B091ECB308F6A3D60F7F07 /* TodayWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F21D8026AD1FE6ACE233E81 /* TodayWidget.swift */; };
@@ -67,8 +68,10 @@
 		7DA3E9D6076A22AC73BC6D95 /* ExamActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExamActivityAttributes.swift; sourceTree = "<group>"; };
 		8F21D8026AD1FE6ACE233E81 /* TodayWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TodayWidget.swift; sourceTree = "<group>"; };
 		92F904BCCFC388D0EECB9E81 /* TodayWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TodayWidgetBundle.swift; sourceTree = "<group>"; };
+		9C7E80EED90E6C5660FDC2A5 /* Localizable.strings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = ar.lproj/Localizable.strings; sourceTree = "<group>"; };
 		AB3632DC29227652001CCB65 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		B78447164DB1CB21AC1C15AD /* TodayWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TodayWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		BFFD0ABF2BCF4830A2C5917B /* Localizable.strings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		C1000002000000000000UT01 /* JourneyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyUITests.swift; sourceTree = "<group>"; };
 		C1000002000000000000UT02 /* RemoteDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteDriver.swift; sourceTree = "<group>"; };
 		C1000002000000000000UT03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -114,6 +117,7 @@
 				5281F6AD98DA13AD664F8C56 /* ExamLiveActivity.swift */,
 				23642EE9A96DFEEB24E1EE27 /* Info.plist */,
 				0AAD7817791D276540EFA330 /* TodayWidget.entitlements */,
+				489D83251E76E2998E56F3F7 /* Localizable.strings */,
 			);
 			name = TodayWidget;
 			path = TodayWidget;
@@ -302,6 +306,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				88B52F3DA9D8D949AC6B9154 /* Assets.xcassets in Resources */,
+				C6DB2B431133A15CFFC1BD9A /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -387,6 +392,15 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
+		489D83251E76E2998E56F3F7 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				BFFD0ABF2BCF4830A2C5917B /* Localizable.strings */,
+				9C7E80EED90E6C5660FDC2A5 /* Localizable.strings */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
 		M1000003000000000000LC01 /* InfoPlist.strings */ = {
 			isa = PBXVariantGroup;
 			children = (

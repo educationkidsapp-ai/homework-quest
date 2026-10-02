@@ -1,0 +1,4 @@
+/* The widget gallery entry and the signed-out line: the device language, since there is no snapshot to read then. */
+"widget.today.name" = "Today";
+"widget.today.description" = "Lessons to do, the next exam and unread messages.";
+"widget.signedOut" = "Open MySchool to sign in";

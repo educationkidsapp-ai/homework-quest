@@ -8,7 +8,12 @@ package quest.feature.today.domain
  * when the end is not known (a re-opened sitting), and then only the count is shown. Nothing here says how any
  * question was answered: [answered] of [total] is the same count the exam screen shows.
  */
-data class ExamSitting(val lessonId: String, val title: String, val childName: String, val closesAt: Long?, val answered: Int, val total: Int)
+data class ExamSitting(val lessonId: String, val title: String, val childName: String, val closesAt: Long?, val answered: Int, val total: Int) {
+    companion object {
+        /** The longest a sitting whose end is unknown is shown outside the app: two hours, the system's own ceiling for a re-opened paper. */
+        const val LONGEST_MILLIS = 2 * 60 * 60_000L
+    }
+}
 
 interface ExamSittingPresenter {
     /** Shows the sitting, or replaces what is shown with its new count. */

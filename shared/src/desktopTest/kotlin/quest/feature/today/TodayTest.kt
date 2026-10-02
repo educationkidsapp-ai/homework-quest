@@ -144,7 +144,7 @@ class TodayTest {
         assertFalse(json.contains("lesson-secret-id")); assertFalse(json.contains(maya.id + "\""))
         listOf("token", "email", "uid", "childId", "schoolId").forEach { assertFalse(json.contains(it, ignoreCase = true), it) }
         assertTrue(json.contains("\"rtl\":true"))
-        assertTrue(json.contains(LessonStrings.ar.today.title), "the words travel with it, in the parent's language")
+        assertTrue(json.contains(LessonStrings.ar.today.exam), "the words travel with it, in the parent's language")
         // Every field is written, defaults too: the Swift widget cannot fill in what is left out.
         val english = TodayJson.encodeToString(TodaySnapshots.of("Maya", emptyList(), emptySet(), 0, now, TodayLabels(), rtl = false))
         listOf("labels", "allDone", "rtl", "unreadMessages", "lessonTitles").forEach { assertTrue(english.contains("\"$it\""), it) }

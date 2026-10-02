@@ -84,7 +84,6 @@ class StopPlayerViewModel(
 ) : MviViewModel<PlayerContract.State, PlayerContract.Intent, PlayerContract.Effect>(PlayerContract.State(index = startIndex)) {
 
     private var childId = ""
-    private var knownEnd: Long? = null
     init { dispatch(PlayerContract.Intent.Load) }
 
     companion object { /** How long "Answer saved" stays up — one value for every answer. */ const val EXAM_ACKNOWLEDGE_MILLIS = 1_200L }
@@ -189,13 +188,12 @@ class StopPlayerViewModel(
     /** Title, student, how many are answered — never how — and, when the window's end is known, the time it closes. */
     private fun showSitting() {
         val lesson = current.lesson ?: return
-        knownEnd = windows.closesAt(lessonId, now())
-        sitting.show(ExamSitting(lessonId, lesson.title, current.childName, knownEnd, current.doneCount, current.total))
+        sitting.show(ExamSitting(lessonId, lesson.title, current.childName, windows.closesAt(lessonId, now()), current.doneCount, current.total))
     }
 
-    /** Leaving the exam screen: a sitting with a known end stays up until then; one without is taken down now. */
+    /** Leaving the exam screen takes the sitting down: it is shown while the student is in the paper, not after. */
     override fun onCleared() {
-        if (current.exam && knownEnd == null) sitting.end()
+        if (current.exam) sitting.end()
         super.onCleared()
     }
 

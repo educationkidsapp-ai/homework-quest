@@ -163,9 +163,8 @@ data class LessonStrings(
             speakHomeToday = "اختر درس اليوم للبدء.",
             speakHome = "اختر درساً لفتحه.",
             today = TodayLabels(
-                title = "اليوم", lessonsToDo = "{n} دروس للإنجاز", oneLessonToDo = "درس واحد للإنجاز", allDone = "اكتملت جميع الدروس",
+                lessonsToDo = "{n} دروس للإنجاز", oneLessonToDo = "درس واحد للإنجاز", allDone = "اكتملت جميع الدروس",
                 exam = "اختبار", examUntil = "حتى {time}", unread = "{n} رسائل غير مقروءة", oneUnread = "رسالة واحدة غير مقروءة",
-                signedOut = "افتح «مدرستي» لتسجيل الدخول",
             ),
             examInProgress = "اختبار جارٍ",
             examNotificationChannel = "اختبار جارٍ",

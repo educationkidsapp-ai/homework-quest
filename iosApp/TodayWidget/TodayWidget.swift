@@ -5,7 +5,6 @@ import WidgetKit
 /// widget never signs in and never uses the network: this record is all it knows, and it is removed on sign-out.
 struct TodaySnapshot: Decodable {
     struct Labels: Decodable {
-        var title = "Today"
         var lessonsToDo = "{n} lessons to do"
         var oneLessonToDo = "1 lesson to do"
         var allDone = "All lessons done"
@@ -13,7 +12,6 @@ struct TodaySnapshot: Decodable {
         var examUntil = "until {time}"
         var unread = "{n} unread messages"
         var oneUnread = "1 unread message"
-        var signedOut = "Open MySchool to sign in"
     }
     var childName: String
     var lessonsToDo: Int
@@ -56,8 +54,8 @@ struct TodayWidget: Widget {
                 TodayView(entry: entry).padding().background(Brand.surface)
             }
         }
-        .configurationDisplayName("Today")
-        .description("Lessons to do, the next exam and unread messages.")
+        .configurationDisplayName(LocalizedStringKey("widget.today.name"))
+        .description(LocalizedStringKey("widget.today.description"))
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -90,7 +88,7 @@ struct TodayView: View {
                     }
                 }
             } else {
-                Text(labels.signedOut).font(.caption).foregroundColor(Brand.inkSoft)
+                Text("widget.signedOut").font(.caption).foregroundColor(Brand.inkSoft)
             }
             Spacer(minLength: 0)
         }

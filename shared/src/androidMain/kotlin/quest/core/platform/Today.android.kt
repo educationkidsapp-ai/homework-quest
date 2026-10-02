@@ -72,10 +72,11 @@ class AndroidExamSittingPresenter(private val context: Context, private val copy
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setProgress(sitting.total, sitting.answered, false)
             .setContentIntent(open?.let { PendingIntent.getActivity(context, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE) })
-        sitting.closesAt?.let { end ->
-            builder.setWhen(end).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
-            builder.setTimeoutAfter((end - System.currentTimeMillis()).coerceAtLeast(1_000))
-        }
+        // Taken down by the window's end — or, when the end is not known (a re-opened sitting), after the longest a
+        // sitting is given, so a notification never outlives a paper after the app was killed mid-exam.
+        val end = sitting.closesAt
+        if (end != null) builder.setWhen(end).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
+        builder.setTimeoutAfter(((end ?: (System.currentTimeMillis() + ExamSitting.LONGEST_MILLIS)) - System.currentTimeMillis()).coerceAtLeast(1_000))
         manager.notify(NOTIFICATION_ID, builder.build())
     }
 

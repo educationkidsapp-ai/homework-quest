@@ -25,7 +25,11 @@ private final class ExamActivityController: ExamActivityBridge {
 
     func show(title: String, childName: String, closesAtMillis: Int64, answered: Int32, total: Int32) {
         let closesAt = closesAtMillis > 0 ? Date(timeIntervalSince1970: TimeInterval(closesAtMillis) / 1000) : nil
-        let content = ActivityContent(state: ExamActivityAttributes.ContentState(answered: Int(answered), total: Int(total)), staleDate: closesAt)
+        // Stale by the window's end, or — when the end is not known — two hours on: an activity never outlives a
+        // paper the app was killed in the middle of.
+        let content = ActivityContent(state: ExamActivityAttributes.ContentState(answered: Int(answered), total: Int(total)), staleDate: closesAt ?? Date().addingTimeInterval(2 * 60 * 60))
+        // After a relaunch the app's handle is gone but the activity may still be up: adopt it rather than start a second.
+        if activity == nil { activity = Activity<ExamActivityAttributes>.activities.first }
         if let activity {
             Task { await activity.update(content) }
             return
@@ -35,8 +39,8 @@ private final class ExamActivityController: ExamActivityBridge {
     }
 
     func end() {
-        guard let activity else { return }
-        self.activity = nil
-        Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        let live = activity.map { [$0] } ?? Activity<ExamActivityAttributes>.activities
+        activity = nil
+        for a in live { Task { await a.end(nil, dismissalPolicy: .immediate) } }
     }
 }
