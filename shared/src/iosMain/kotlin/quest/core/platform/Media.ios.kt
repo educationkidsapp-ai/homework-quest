@@ -6,7 +6,6 @@ import platform.darwin.NSObject
 import platform.UIKit.UIViewController
 import platform.UIKit.UIDocumentInteractionControllerDelegateProtocol
 import platform.UIKit.UIDocumentInteractionController
-import platform.UIKit.UIApplication
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -28,6 +27,7 @@ import platform.Foundation.NSData
 import platform.Foundation.timeIntervalSince1970
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
+import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.NSUserDomainMask
@@ -102,11 +102,18 @@ actual object DocumentViewer {
     private var controller: UIDocumentInteractionController? = null
     private var host: PreviewHost? = null
 
-    actual fun open(name: String, bytes: ByteArray, mimeType: String): Boolean {
-        if (bytes.isEmpty()) return false
-        val path = NSTemporaryDirectory() + name
-        if (!bytes.toNSData().writeToFile(path, true)) return false
-        val root = UIApplication.sharedApplication.keyWindow?.rootViewController ?: return false
+    /** `Library/Caches/documents` — the system may reclaim it, and the app clears it on sign-out. */
+    actual fun directory(): String {
+        val caches = NSFileManager.defaultManager.URLsForDirectory(NSCachesDirectory, NSUserDomainMask).first() as NSURL
+        val path = caches.path + "/documents"
+        NSFileManager.defaultManager.createDirectoryAtPath(path, true, null, null)
+        return path
+    }
+
+    actual fun open(name: String, mimeType: String): Boolean {
+        val path = directory() + "/" + safeFileName(name)
+        if (!NSFileManager.defaultManager.fileExistsAtPath(path)) return false
+        val root = activeKeyWindow()?.rootViewController ?: return false
         val preview = UIDocumentInteractionController.interactionControllerWithURL(NSURL.fileURLWithPath(path))
         val delegate = PreviewHost(root)
         preview.delegate = delegate

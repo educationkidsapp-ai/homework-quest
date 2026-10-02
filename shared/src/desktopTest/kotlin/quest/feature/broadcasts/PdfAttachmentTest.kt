@@ -2,6 +2,7 @@ package quest.feature.broadcasts
 
 import quest.api.dto.BroadcastAttachment
 import quest.core.platform.safeDocumentName
+import quest.core.platform.safeFileName
 import quest.feature.broadcasts.domain.isImage
 import quest.feature.broadcasts.domain.isPdf
 import kotlin.test.Test
@@ -36,12 +37,21 @@ class PdfAttachmentTest {
         assertFalse(attachment("plan.pdf", "application/pdf", id = " ").isPdf)
     }
 
-    @Test fun theCacheNameIsSafeAndAlwaysEndsInTheExtension() {
+    @Test fun theFileNameIsSafeAndAlwaysEndsInTheExtension() {
         assertEquals("Grade 1 weekly plan.pdf", safeDocumentName("Grade 1 weekly plan.pdf", "pdf"))
         assertEquals("plan.pdf", safeDocumentName("plan.PDF", "pdf"))
         assertEquals("passwd.pdf", safeDocumentName("../../etc/passwd", "pdf"))
         assertEquals("a_b_c.pdf", safeDocumentName("a:b*c", "pdf"))
         assertEquals("document.pdf", safeDocumentName(null, "pdf"))
         assertEquals("document.pdf", safeDocumentName("   ", "pdf"))
+        assertEquals("document.pdf", safeDocumentName("..", "pdf"))
+    }
+
+    /** `DocumentViewer.open` reduces whatever it is given to one path segment before it touches the file system. */
+    @Test fun aNameIsAlwaysOnePathSegment() {
+        assertEquals("passwd", safeFileName("../../etc/passwd"))
+        assertEquals("plan.pdf", safeFileName("C:\\Users\\x\\plan.pdf"))
+        assertEquals("document", safeFileName("../.."))
+        assertEquals("document", safeFileName(""))
     }
 }

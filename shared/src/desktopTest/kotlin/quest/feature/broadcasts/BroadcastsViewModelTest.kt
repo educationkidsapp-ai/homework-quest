@@ -1,5 +1,7 @@
 package quest.feature.broadcasts
 
+import quest.feature.broadcasts.domain.NoAttachmentDocuments
+import quest.feature.children.domain.SignOutUseCase
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -406,7 +408,7 @@ class BroadcastsViewModelTest {
     private fun countingApi() = CountingApi(FakeContentApi(TestAuth(), delayMillis = 0))
 
     private fun home(api: CountingApi, flags: FlagStore) =
-        ParentHomeViewModel(FakeChildren(maya), CalendarUseCase(NoMaps()), TestAuth(), api, flags)
+        ParentHomeViewModel(FakeChildren(maya), CalendarUseCase(NoMaps()), SignOutUseCase(TestAuth(), FakeChildren(maya), NoAttachmentDocuments), api, flags)
             .also { built.add(it) }
 
     /**

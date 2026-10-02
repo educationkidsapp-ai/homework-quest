@@ -82,8 +82,8 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
     }
     override suspend fun progress(childId: String): ProgressResponse = call { client.get("$baseUrl/children/$childId/progress") { authed() } }
 
-    // ---- §2 join school, §3 theme, §4 flags, §A platform settings. All four routes are public: no bearer token,
-    // because the parent types a school code before the child (and sometimes before the account) exists.
+    // ---- §3 theme, §4 flags, §A platform settings. All three routes are public: no bearer token, because the app
+    // reads them before anyone has signed in.
     override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> = call { client.get("$baseUrl/schools/$schoolId/flags") }
 
     override suspend fun schoolTheme(schoolId: String): SchoolTheme = call { client.get("$baseUrl/schools/$schoolId/theme") }

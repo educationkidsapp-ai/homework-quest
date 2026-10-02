@@ -1,5 +1,6 @@
 package quest.feature.parent.presentation
 
+import quest.feature.children.domain.SignOutUseCase
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
-import quest.api.AuthProvider
 import quest.api.ContentApi
 import quest.api.dto.Child
 import quest.api.dto.ChildAttendanceRecord
@@ -69,7 +69,7 @@ object ParentHomeContract {
 class ParentHomeViewModel(
     private val children: ChildrenRepository,
     private val calendar: CalendarUseCase,
-    private val auth: AuthProvider,
+    private val signOut: SignOutUseCase,
     private val api: ContentApi,
     private val flags: FlagStore,
 ) : MviViewModel<ParentHomeContract.State, ParentHomeContract.Intent, ParentHomeContract.Effect>(ParentHomeContract.State()) {
@@ -104,8 +104,7 @@ class ParentHomeViewModel(
                 handle(ParentHomeContract.Intent.Load)
             }
             ParentHomeContract.Intent.SignOut -> {
-                auth.signOut()
-                children.clear()
+                signOut()
                 effect(ParentHomeContract.Effect.SignedOut)
             }
         }

@@ -20,7 +20,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
-import quest.api.AuthProvider
 import quest.api.dto.Child
 import quest.api.dto.Curriculum
 import quest.core.mvi.MviEffect
@@ -28,6 +27,7 @@ import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
 import quest.feature.children.domain.ChildrenRepository
+import quest.feature.children.domain.SignOutUseCase
 import quest.feature.parent.presentation.ParentButton
 import quest.feature.parent.presentation.ParentCard
 import quest.feature.parent.presentation.ParentShell
@@ -55,7 +55,7 @@ object ChildrenContract {
  * The children the school linked to this parent. The app cannot add one — the admin does — so this screen only lists
  * what `GET /children` answers, and says so when the answer is empty.
  */
-class ChildrenViewModel(private val children: ChildrenRepository, private val auth: AuthProvider) :
+class ChildrenViewModel(private val children: ChildrenRepository, private val signOut: SignOutUseCase) :
     MviViewModel<ChildrenContract.State, ChildrenContract.Intent, ChildrenContract.Effect>(ChildrenContract.State()) {
     override suspend fun handle(intent: ChildrenContract.Intent) {
         when (intent) {
@@ -66,7 +66,7 @@ class ChildrenViewModel(private val children: ChildrenRepository, private val au
                 reduce { copy(loading = false, children = list, currentId = current) }
             }
             is ChildrenContract.Intent.Pick -> { children.select(intent.id); effect(ChildrenContract.Effect.Picked) }
-            ChildrenContract.Intent.SignOut -> { auth.signOut(); children.clear(); effect(ChildrenContract.Effect.SignedOut) }
+            ChildrenContract.Intent.SignOut -> { signOut(); effect(ChildrenContract.Effect.SignedOut) }
         }
     }
 }

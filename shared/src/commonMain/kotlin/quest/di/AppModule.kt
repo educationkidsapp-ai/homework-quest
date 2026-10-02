@@ -1,5 +1,9 @@
 package quest.di
 
+import quest.feature.children.domain.SignOutUseCase
+import quest.core.platform.DocumentViewer
+import quest.feature.broadcasts.domain.AttachmentDocuments
+import quest.feature.broadcasts.data.AttachmentDocumentStore
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import org.koin.core.module.Module
@@ -114,6 +118,8 @@ fun apiModule(config: ApiConfig): Module = module {
     single { ChatSocketClient(chatBaseUrl, get(), get()) }
     // MH3: `attachment.url` is root-relative and authenticated, so the loader needs the same base and the same bearer.
     single<AttachmentImages> { AttachmentImageStore(chatBaseUrl, get(), get()) }
+    // M1: a PDF is streamed into the document cache (10 MB cap), the directory the system viewer may read.
+    single<AttachmentDocuments> { AttachmentDocumentStore(chatBaseUrl, get(), get(), directory = { DocumentViewer.directory() }) }
     single<ChatRepository> { ChatRepositoryImpl(get(), get()) }
 }
 
@@ -141,6 +147,7 @@ val contentModule = module {
     single<JourneyRepository> { JourneyRepositoryImpl(get(), get()) }
     single<MapRepository> { MapRepositoryImpl(get(), get(), get()) }
     viewModel { SignInViewModel(get()) }
+    factory { SignOutUseCase(get(), get(), get()) }
     viewModel { ChildrenViewModel(get(), get()) }
     factory { LessonCopy(get(), get()) }
     viewModel { MapViewModel(get(), get(), get(), get(), get()) }

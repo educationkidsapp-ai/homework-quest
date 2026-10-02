@@ -1,5 +1,8 @@
 package quest.feature.broadcasts.presentation
 
+import quest.feature.broadcasts.domain.NoAttachmentDocuments
+import quest.feature.broadcasts.domain.AttachmentDocuments
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -38,15 +41,18 @@ import quest.ui.design.Dimens
 
 private enum class Opening { IDLE, WORKING, FAILED }
 
+/** Provided by the app root; [NoAttachmentDocuments] under tests, screenshots and previews, so nothing is fetched. */
+val LocalAttachmentDocuments = staticCompositionLocalOf<AttachmentDocuments> { NoAttachmentDocuments }
+
 /**
  * M1: a PDF attachment — a weekly plan the manager uploaded as a document. The card names the file and offers **Open**:
  * the bytes come through the app's own client with the parent's bearer (`/media/attachments/{id}` is authenticated, so
- * the system viewer alone would land on a 401), are kept on the device like a plan image, and are then handed to the
- * system's PDF viewer. A failure is a sentence under the card and the button stays — no error colour (§7).
+ * the system viewer alone would land on a 401), are streamed to the document cache — at most 10 MB, one copy — and
+ * the system's PDF viewer is then pointed at that file. A failure is a sentence under the card and the button stays — no error colour (§7).
  */
 @Composable
 fun AttachmentDocument(attachment: BroadcastAttachment, strings: Strings, modifier: Modifier = Modifier) {
-    val files = LocalAttachmentImages.current
+    val documents = LocalAttachmentDocuments.current
     val scope = rememberCoroutineScope()
     var state by remember(attachment.id) { mutableStateOf(Opening.IDLE) }
     val name = safeDocumentName(attachment.name, "pdf")
@@ -71,8 +77,9 @@ fun AttachmentDocument(attachment: BroadcastAttachment, strings: Strings, modifi
                 onClick = {
                     state = Opening.WORKING
                     scope.launch {
-                        val bytes = files.load(attachment)
-                        state = if (bytes != null && DocumentViewer.open(name, bytes, "application/pdf")) Opening.IDLE else Opening.FAILED
+                        // The store downloads and writes off the UI thread; opening is only an intent to the viewer.
+                        val file = documents.fetch(attachment)
+                        state = if (file != null && DocumentViewer.open(file, "application/pdf")) Opening.IDLE else Opening.FAILED
                     }
                 },
                 variant = DashboardButtonVariant.PRIMARY,

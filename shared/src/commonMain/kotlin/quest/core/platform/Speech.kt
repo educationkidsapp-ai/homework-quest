@@ -34,5 +34,5 @@ object SpeechLanguages {
 
     /** Arabic, Arabic Supplement, Arabic Extended-A and the two presentation-form blocks. */
     private fun isArabicScript(c: Char): Boolean =
-        c in '؀'..'ۿ' || c in 'ݐ'..'ݿ' || c in 'ࢠ'..'ࣿ' || c in 'ﭐ'..'﷿' || c in 'ﹰ'..'﻿'
+        c in '\u0600'..'\u06FF' || c in '\u0750'..'\u077F' || c in '\u08A0'..'\u08FF' || c in '\uFB50'..'\uFDFF' || c in '\uFE70'..'\uFEFF'
 }

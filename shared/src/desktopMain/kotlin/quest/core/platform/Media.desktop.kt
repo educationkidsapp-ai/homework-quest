@@ -17,8 +17,11 @@ actual object MediaFiles {
 }
 
 actual object DocumentViewer {
-    actual fun open(name: String, bytes: ByteArray, mimeType: String): Boolean = runCatching {
-        val file = File(File(System.getProperty("java.io.tmpdir"), "homework-quest-documents").apply { mkdirs() }, name).also { it.writeBytes(bytes) }
+    actual fun directory(): String = File(System.getProperty("java.io.tmpdir"), "homework-quest-documents").apply { mkdirs() }.absolutePath
+
+    actual fun open(name: String, mimeType: String): Boolean = runCatching {
+        val file = File(directory(), safeFileName(name))
+        if (!file.isFile) return false
         java.awt.Desktop.getDesktop().open(file)
     }.isSuccess
 }

@@ -90,8 +90,7 @@ val BroadcastAttachment.isWebUrl: Boolean
     get() = url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)
 
 /**
- * The bytes of an attachment the app fetches itself — an image or, since M1, a PDF — downloaded with the parent's
- * bearer and kept on the device. Implemented in `data`
+ * The bytes of an image attachment, downloaded with the parent's bearer and kept on the device. Implemented in `data`
  * over the app's Ktor client; [NoAttachmentImages] under tests, screenshots and previews, so nothing is ever fetched
  * off-app from a composition.
  */
@@ -102,4 +101,26 @@ fun interface AttachmentImages {
 
 object NoAttachmentImages : AttachmentImages {
     override suspend fun load(attachment: BroadcastAttachment): ByteArray? = null
+}
+
+/** The largest document the app will fetch — the server's own limit for a weekly plan PDF. */
+const val MAX_DOCUMENT_BYTES: Long = 10L * 1024 * 1024
+
+/**
+ * M1: document attachments (a weekly plan as a PDF), downloaded with the parent's bearer into the document cache.
+ * Unlike an image the bytes never sit in memory: they are streamed to one file, and a body larger than
+ * [MAX_DOCUMENT_BYTES] is abandoned and deleted. Implemented in `data`; [NoAttachmentDocuments] under tests,
+ * screenshots and previews.
+ */
+interface AttachmentDocuments {
+    /** The cached file's name (for `DocumentViewer.open`), or null when it could not be fetched or is too large. */
+    suspend fun fetch(attachment: BroadcastAttachment): String?
+
+    /** Deletes every cached document: they belong to the parent who was signed in. */
+    suspend fun clear()
+}
+
+object NoAttachmentDocuments : AttachmentDocuments {
+    override suspend fun fetch(attachment: BroadcastAttachment): String? = null
+    override suspend fun clear() = Unit
 }

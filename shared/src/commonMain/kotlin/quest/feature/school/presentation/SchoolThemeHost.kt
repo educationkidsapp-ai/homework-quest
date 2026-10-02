@@ -14,7 +14,9 @@ import org.koin.compose.koinInject
 import quest.core.runCancellable
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.school.domain.SchoolBranding
+import quest.feature.broadcasts.domain.AttachmentDocuments
 import quest.feature.broadcasts.domain.AttachmentImages
+import quest.feature.broadcasts.presentation.LocalAttachmentDocuments
 import quest.feature.broadcasts.presentation.LocalAttachmentImages
 import quest.feature.school.domain.SchoolLogoLoader
 import quest.feature.school.domain.SchoolSession
@@ -47,6 +49,7 @@ fun SchoolThemeHost(content: @Composable () -> Unit) {
     val children: ChildrenRepository = koinInject()
     val logos: SchoolLogoLoader = koinInject()
     val attachments: AttachmentImages = koinInject()
+    val documents: AttachmentDocuments = koinInject()
 
     val child by children.currentChild.collectAsState()
     val theme by session.theme.collectAsState()
@@ -70,6 +73,7 @@ fun SchoolThemeHost(content: @Composable () -> Unit) {
         // MH3: the weekly plan's image, downloaded with the parent's bearer. Provided here for the same reason the logo
         // loader is — a composable must not reach the network itself, and tests and screenshots get the no-op.
         LocalAttachmentImages provides attachments,
+        LocalAttachmentDocuments provides documents,
     ) { content() }
 }
 
