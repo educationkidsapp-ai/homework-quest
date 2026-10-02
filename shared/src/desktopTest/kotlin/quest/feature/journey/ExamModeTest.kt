@@ -62,7 +62,8 @@ class ExamModeTest {
     }
 
     private suspend fun <S> settle(read: () -> S, predicate: (S) -> Boolean) {
-        repeat(400) { if (predicate(read())) return; delay(5) }
+        // Ten seconds, not two: the fake sign-in alone waits 600 ms of real time and a loaded CI runner is slow to load.
+        repeat(2000) { if (predicate(read())) return; delay(5) }
         error("state never settled: ${read()}")
     }
 
