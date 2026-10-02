@@ -1,5 +1,6 @@
 package quest.feature.parent.presentation
 
+import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
@@ -93,16 +93,16 @@ fun PinScreen(state: PinContract.State, dispatch: (PinContract.Intent) -> Unit, 
             PinContract.Mode.REPEAT -> s.repeatPin
             PinContract.Mode.LOADING -> ""
         }
-        Text(title, style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk, textAlign = TextAlign.Center)
+        Text(title, style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(Dimens.s8))
         Text(
             when { state.error -> s.wrongPin; state.mismatch -> s.pinMismatch; else -> " " },
-            style = MaterialTheme.typography.bodyMedium, color = Palette.coral, textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.error, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(Dimens.s24))
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s16), modifier = Modifier.semantics { contentDescription = "${state.digits.length} of 4 digits" }) {
             repeat(4) { i ->
-                Box(Modifier.size(20.dp).border(2.dp, Palette.parentAccent, CircleShape).background(if (i < state.digits.length) Palette.parentAccent else Color.Transparent, CircleShape))
+                Box(Modifier.size(20.dp).border(2.dp, MaterialTheme.colorScheme.primary, CircleShape).background(if (i < state.digits.length) MaterialTheme.colorScheme.primary else Color.Transparent, CircleShape))
             }
         }
         Spacer(Modifier.height(Dimens.s32))
@@ -111,13 +111,13 @@ fun PinScreen(state: PinContract.State, dispatch: (PinContract.Intent) -> Unit, 
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s12), modifier = Modifier.padding(bottom = Dimens.s12)) {
                 row.forEach { key ->
                     Box(
-                        Modifier.size(76.dp).background(if (key.isEmpty()) Color.Transparent else Palette.parentSurface, CircleShape)
-                            .then(if (key.isEmpty()) Modifier else Modifier.border(1.dp, Palette.parentLine, CircleShape).clickable(role = Role.Button) {
+                        Modifier.size(76.dp).background(if (key.isEmpty()) Color.Transparent else MaterialTheme.colorScheme.surface, CircleShape)
+                            .then(if (key.isEmpty()) Modifier else Modifier.border(1.dp, DashboardTokens.ruleControl, CircleShape).clickable(role = Role.Button) {
                                 if (key == "⌫") dispatch(PinContract.Intent.Backspace) else dispatch(PinContract.Intent.Digit(key[0]))
                             })
                             .semantics { contentDescription = if (key == "⌫") "Delete" else key },
                         contentAlignment = Alignment.Center,
-                    ) { Text(key, style = MaterialTheme.typography.headlineMedium, color = Palette.parentInk) }
+                    ) { Text(key, style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.ink) }
                 }
             }
         }

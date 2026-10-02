@@ -28,21 +28,18 @@ import kotlin.random.Random
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import quest.api.dto.Stop
 import quest.api.dto.StopScoring
 import quest.api.dto.Tile
 import quest.ui.design.BigButton
+import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
 import quest.ui.design.Illustration
-import quest.ui.design.Palette
 import quest.ui.trace.TraceCanvas
 import quest.ui.trace.TraceScorer
 
@@ -58,9 +55,10 @@ private fun PickTiles(id: String, prompt: String, options: List<Tile>, correctId
     var mistakes by rememberSaveable(id) { mutableIntStateOf(0) }
     var done by rememberSaveable(id) { mutableStateOf(false) }
     val remaining = pick?.let { it - lit.size }
+    val labels = LocalStopLabels.current
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         PromptText(prompt)
-        if (pick != null) Text("$remaining more to tap", style = MaterialTheme.typography.labelLarge, color = Palette.inkSoft)
+        if (pick != null) Text(labels.moreToSelect.replace("{n}", "$remaining"), style = MaterialTheme.typography.labelLarge, color = DashboardTokens.inkSoft)
         Spacer(Modifier.height(Dimens.s16))
         TileGrid(options.map { it.spec() }, dimmed = dimmed, lit = lit, selected = selected, onTap = { tid ->
             if (done || tid in lit || tid in dimmed) return@TileGrid
@@ -69,7 +67,7 @@ private fun PickTiles(id: String, prompt: String, options: List<Tile>, correctId
         CheckButton(enabled = selected.isNotEmpty() && !done) {
             val (right, wrong) = quest.api.dto.MultiAnswerLogic.check(selected, correctIds)
             lit = lit + right; dimmed = dimmed + wrong; mistakes += wrong.size; selected = emptySet()
-            if (wrong.isNotEmpty()) onEvent(StopEvent.Speak(if (right.isNotEmpty()) "Some are right! Keep going." else "Not those. Try again!"))
+            if (wrong.isNotEmpty()) onEvent(StopEvent.Speak(if (right.isNotEmpty()) labels.someRight else labels.notThose))
             if (lit.containsAll(correctIds)) { done = true; onEvent(StopEvent.Completed(StopScoring.byMistakes(mistakes), answer = lit.joinToString(","), mistakes = mistakes)) }
         }
     }
@@ -87,6 +85,7 @@ fun MatchStop(stop: Stop.Match, onEvent: (StopEvent) -> Unit, modifier: Modifier
     var matched by rememberSaveable(stop.id) { mutableStateOf(setOf<String>()) }
     var mistakes by rememberSaveable(stop.id) { mutableIntStateOf(0) }
     var done by rememberSaveable(stop.id) { mutableStateOf(false) }
+    val notAMatch = LocalStopLabels.current.notAMatch
     Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
         PromptText(stop.prompt); Spacer(Modifier.height(Dimens.s16))
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s16)) {
@@ -98,7 +97,7 @@ fun MatchStop(stop: Stop.Match, onEvent: (StopEvent) -> Unit, modifier: Modifier
                     MatchTile(p.right, locked = p.id in matched, selected = false, onClick = {
                         val l = left ?: return@MatchTile
                         if (l == p.id) { matched = matched + p.id; left = null; if (matched.size == stop.pairs.size) { done = true; onEvent(StopEvent.Completed(StopScoring.byMistakes(mistakes), mistakes = mistakes)) } }
-                        else { mistakes += 1; left = null; onEvent(StopEvent.Speak("Not a match. Try again!")) }
+                        else { mistakes += 1; left = null; onEvent(StopEvent.Speak(notAMatch)) }
                     })
                 }
             }
@@ -109,15 +108,15 @@ fun MatchStop(stop: Stop.Match, onEvent: (StopEvent) -> Unit, modifier: Modifier
 @Composable
 private fun MatchTile(tile: Tile, locked: Boolean, selected: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.fillMaxWidth().height(84.dp).alpha(if (locked) 0.55f else 1f).shadow(if (locked) 0.dp else 4.dp, RoundedCornerShape(Dimens.radiusTile))
-            .background(if (locked) Palette.mint else Palette.cream, RoundedCornerShape(Dimens.radiusTile))
-            .border(if (selected) 4.dp else 0.dp, if (selected) Palette.sunDeep else Color.Transparent, RoundedCornerShape(Dimens.radiusTile))
+        Modifier.fillMaxWidth().height(84.dp).alpha(if (locked) 0.55f else 1f)
+            .background(if (locked) DashboardTokens.successBg else MaterialTheme.colorScheme.surface, RoundedCornerShape(DashboardTokens.radiusMd))
+            .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
             .clickable(enabled = !locked, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = (tile.label ?: tile.illustrationKey ?: "") + if (locked) ", matched" else "" },
         contentAlignment = Alignment.Center,
     ) {
         if (tile.illustrationKey != null && tile.label == null) Illustration(tile.illustrationKey!!, 64.dp, corner = 14.dp)
-        else Text(tile.label ?: "", style = MaterialTheme.typography.labelLarge, color = Palette.ink, textAlign = TextAlign.Center, modifier = Modifier.padding(6.dp))
+        else Text(tile.label ?: "", style = MaterialTheme.typography.labelLarge, color = DashboardTokens.ink, textAlign = TextAlign.Center, modifier = Modifier.padding(6.dp))
     }
 }
 
@@ -134,18 +133,19 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
     var done by rememberSaveable(stop.id) { mutableStateOf(false) }
     var locked by rememberSaveable(stop.id) { mutableIntStateOf(0) }  // leading prefix confirmed correct
     val byId = stop.items.associateBy { it.id }
+    val partlyRight = LocalStopLabels.current.orderPartlyRight
     Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally) {
         PromptText(stop.prompt); Spacer(Modifier.height(Dimens.s12))
         // slots
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             stop.correctOrder.indices.forEach { i ->
                 val id = placed.getOrNull(i)
-                Row(Modifier.fillMaxWidth().height(60.dp).background(if (i < locked) Palette.mint else Palette.sand.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                Row(Modifier.fillMaxWidth().height(60.dp).background(if (i < locked) DashboardTokens.successBg else DashboardTokens.bgSubtle, RoundedCornerShape(DashboardTokens.radiusMd))
                     .clickable(enabled = id != null && i >= locked && !done) { placed = placed.filterIndexed { j, _ -> j != i } }
                     .padding(horizontal = 12.dp).semantics { contentDescription = "slot ${i + 1}: ${id?.let { byId[it]?.text } ?: "empty"}" }, verticalAlignment = Alignment.CenterVertically) {
-                    Text("${i + 1}", style = MaterialTheme.typography.titleLarge, color = Palette.inkSoft); Spacer(Modifier.width(12.dp))
+                    Text("${i + 1}", style = MaterialTheme.typography.titleLarge, color = DashboardTokens.inkSoft); Spacer(Modifier.width(12.dp))
                     if (id != null) { byId[id]?.illustrationKey?.let { Illustration(it, 40.dp, corner = 10.dp); Spacer(Modifier.width(8.dp)) }
-                        Text(byId[id]?.text ?: "", style = MaterialTheme.typography.labelLarge, color = Palette.ink, maxLines = 2) }
+                        Text(byId[id]?.text ?: "", style = MaterialTheme.typography.labelLarge, color = DashboardTokens.ink, maxLines = 2) }
                 }
             }
         }
@@ -153,10 +153,10 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
         // pile
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             shuffled.filter { it !in placed }.forEach { id ->
-                Row(Modifier.fillMaxWidth().height(64.dp).shadow(3.dp, RoundedCornerShape(16.dp)).background(Palette.cream, RoundedCornerShape(16.dp))
+                Row(Modifier.fillMaxWidth().height(64.dp).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
                     .clickable(enabled = !done) { placed = placed + id; onEvent(StopEvent.Speak(byId[id]?.text ?: "")) }.padding(horizontal = 12.dp).semantics { contentDescription = byId[id]?.text ?: "" }, verticalAlignment = Alignment.CenterVertically) {
                     byId[id]?.illustrationKey?.let { Illustration(it, 44.dp, corner = 10.dp); Spacer(Modifier.width(8.dp)) }
-                    Text(byId[id]?.text ?: "", style = MaterialTheme.typography.labelLarge, color = Palette.ink, maxLines = 2)
+                    Text(byId[id]?.text ?: "", style = MaterialTheme.typography.labelLarge, color = DashboardTokens.ink, maxLines = 2)
                 }
             }
         }
@@ -164,7 +164,7 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
             attempts += 1
             val prefix = quest.api.dto.MultiAnswerLogic.lockedPrefix(placed, stop.correctOrder)
             if (prefix == stop.correctOrder.size) { locked = prefix; done = true; onEvent(StopEvent.Completed(StopScoring.byAttempts(attempts), answer = placed.joinToString(","), mistakes = attempts - 1)) }
-            else { locked = prefix; placed = placed.take(prefix); onEvent(StopEvent.Speak("Almost! The first $prefix are right. Try the rest again.")) }
+            else { locked = prefix; placed = placed.take(prefix); onEvent(StopEvent.Speak(partlyRight.replace("{n}", "$prefix"))) }
         }
     }
 }
@@ -187,28 +187,28 @@ fun RetellStop(stop: Stop.Retell, onEvent: (StopEvent) -> Unit, modifier: Modifi
     Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Dimens.s12)) {
         PromptText(stop.prompt)
         stop.cues.forEach { cue ->
-            BigCard(color = if (cue.stage in told) Palette.mint else Palette.cream, onClick = { told = told + cue.stage; onEvent(StopEvent.Speak("${cue.stage}. ${cue.cue}")) }) {
+            BigCard(color = if (cue.stage in told) DashboardTokens.successBg else MaterialTheme.colorScheme.surface, onClick = { told = told + cue.stage; onEvent(StopEvent.Speak("${cue.stage}. ${cue.cue}")) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     cue.illustrationKey?.let { Illustration(it, 64.dp, corner = 14.dp); Spacer(Modifier.width(Dimens.s12)) }
-                    Column { Text(cue.stage.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelLarge, color = Palette.inkSoft); Text(cue.cue, style = MaterialTheme.typography.bodyLarge, color = Palette.ink) }
+                    Column { Text(cue.stage.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelLarge, color = DashboardTokens.inkSoft); Text(cue.cue, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink) }
                 }
             }
         }
         RecorderControls(recorder)
-        DoneButton(text = "I told it!", enabled = told.size == stop.cues.size && !recorder.recording) { onEvent(StopEvent.Completed(StopScoring.OPEN, answer = "retold", recording = recorder.bytes)) }
+        DoneButton(text = LocalStopLabels.current.finished, enabled = told.size == stop.cues.size && !recorder.recording) { onEvent(StopEvent.Completed(StopScoring.OPEN, answer = "retold", recording = recorder.bytes)) }
     }
 }
 
-/** Open answer: speak (recorded), draw, or both. No wrong state; Pip celebrates the attempt. */
+/** Open answer: speak (recorded), draw, or both. No wrong state. */
 @Composable
 fun OpenAnswerStop(stop: Stop.OpenAnswer, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
     val recorder = RecorderState(stop.id, enabled = stop.mode != "draw")
     var drawing by rememberSaveable(stop.id) { mutableStateOf<String?>(null) }
     Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Dimens.s12)) {
         PromptText(stop.prompt)
-        if (stop.mode != "draw") { Text("🗣️", fontSize = 56.sp); Text("Say your idea out loud.", style = MaterialTheme.typography.bodyLarge, color = Palette.inkSoft, textAlign = TextAlign.Center); RecorderControls(recorder) }
+        if (stop.mode != "draw") { Text(LocalStopLabels.current.sayAnswer, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center); RecorderControls(recorder) }
         if (stop.mode != "speak" && LocalDrawingEnabled.current) DrawingCanvas(onChange = { drawing = it })
-        DoneButton(text = "I'm done!", enabled = !recorder.recording) { onEvent(StopEvent.Completed(StopScoring.OPEN, answer = if (drawing != null) "drawn" else "spoken", recording = recorder.bytes, drawing = drawing)) }
+        DoneButton(text = LocalStopLabels.current.finished, enabled = !recorder.recording) { onEvent(StopEvent.Completed(StopScoring.OPEN, answer = if (drawing != null) "drawn" else "spoken", recording = recorder.bytes, drawing = drawing)) }
     }
 }
 
@@ -228,9 +228,10 @@ private fun RecorderState(key: String, enabled: Boolean): RecorderHandle {
 @Composable
 private fun RecorderControls(r: RecorderHandle) {
     if (!r.available) return
+    val labels = LocalStopLabels.current
     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s12)) {
-        BigButton(if (r.recording) "Stop" else if (r.bytes == null) "Record" else "Record again", onClick = r.toggle, modifier = Modifier.width(170.dp), color = if (r.recording) Palette.coral else Palette.lavender, emoji = if (r.recording) "⏹️" else "🎙️", compact = true)
-        if (r.bytes != null && !r.recording) BigButton("Play", onClick = r.play, modifier = Modifier.width(130.dp), color = Palette.cream, emoji = "▶️", compact = true)
+        BigButton(if (r.recording) labels.stopRecording else if (r.bytes == null) labels.record else labels.recordAgain, onClick = r.toggle, modifier = Modifier.width(170.dp), primary = r.recording, compact = true)
+        if (r.bytes != null && !r.recording) BigButton(labels.play, onClick = r.play, modifier = Modifier.width(130.dp), primary = false, compact = true)
     }
 }
 
@@ -242,7 +243,7 @@ fun ExitTicketStop(stop: Stop.ExitTicket, onEvent: (StopEvent) -> Unit, modifier
     val q = stop.questions.getOrNull(index) ?: return
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = Dimens.s8)) {
-            stop.questions.indices.forEach { i -> Box(Modifier.size(14.dp).background(if (i < index) Palette.mint else if (i == index) Palette.sun else Palette.inkSoft.copy(alpha = 0.3f), RoundedCornerShape(7.dp))) }
+            stop.questions.indices.forEach { i -> Box(Modifier.size(14.dp).background(if (i < index) DashboardTokens.success else if (i == index) MaterialTheme.colorScheme.primary else DashboardTokens.inkSoft.copy(alpha = 0.3f), RoundedCornerShape(7.dp))) }
         }
         StopContent(q, onEvent = { e ->
             when (e) {

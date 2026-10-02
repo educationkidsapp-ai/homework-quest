@@ -1,5 +1,8 @@
 package quest.feature.children.presentation
 
+import androidx.compose.foundation.shape.CircleShape
+import quest.ui.design.StudentAvatar
+import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -56,8 +59,6 @@ import quest.feature.school.presentation.SchoolLogo
 import quest.ui.design.AvatarColors
 import quest.ui.design.Dimens
 import quest.ui.design.Palette
-import quest.ui.design.Pip
-import quest.ui.design.PipPose
 
 // hq-flag: none (this is the screen a child joins a school on, so there is no school whose flags could gate it)
 object AddChildContract {
@@ -239,7 +240,7 @@ fun AddChildRoute(editingId: String?, onSaved: () -> Unit, onBack: (() -> Unit)?
     ParentShell(title = { if (editingId == null) it.addChild else it.childProfile }, onBack = onBack) { s -> AddChildScreen(state, s, vm::dispatch) }
 }
 
-/** Screen 13: name, Pip in four colours, curriculum (American / British), grade (1 / 2 / 3), subject languages. */
+/** Screen 13: name, a profile colour, curriculum (American / British), grade (1 / 2 / 3), subject languages. */
 @Composable
 fun AddChildScreen(state: AddChildContract.State, s: Strings, dispatch: (AddChildContract.Intent) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16)) {
@@ -253,10 +254,10 @@ fun AddChildScreen(state: AddChildContract.State, s: Strings, dispatch: (AddChil
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s12)) {
             AvatarColors.keys.forEach { key ->
                 Box(
-                    Modifier.size(76.dp).background(Palette.parentSurface).border(if (state.avatar == key) 3.dp else 1.dp, if (state.avatar == key) MaterialTheme.colorScheme.secondary else Palette.parentRule)
+                    Modifier.size(76.dp).background(MaterialTheme.colorScheme.surface).border(if (state.avatar == key) 3.dp else 1.dp, if (state.avatar == key) MaterialTheme.colorScheme.secondary else Palette.parentRule)
                         .clickable(role = Role.Button) { dispatch(AddChildContract.Intent.Avatar(key)) }.semantics { contentDescription = "avatar $key" + if (state.avatar == key) ", selected" else "" },
                     contentAlignment = Alignment.Center,
-                ) { Pip(PipPose.IDLE, 60.dp, animated = false, color = key) }
+                ) { Box(Modifier.size(44.dp).background(AvatarColors.body(key), CircleShape)) }
             }
         }
         // A class card already says which course the child is in, so the choosers come off rather than offering a
@@ -277,7 +278,7 @@ fun AddChildScreen(state: AddChildContract.State, s: Strings, dispatch: (AddChil
             Chip("English", selected = "en" in state.languages) { dispatch(AddChildContract.Intent.ToggleLanguage("en")) }
             Chip("العربية", selected = "ar" in state.languages) { dispatch(AddChildContract.Intent.ToggleLanguage("ar")) }
         }
-        state.error?.let { Text(it, color = Palette.parentAccent, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Dimens.s8)) }
+        state.error?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Dimens.s8)) }
         Spacer(Modifier.height(Dimens.s24))
         ParentButton(s.save, { dispatch(AddChildContract.Intent.Save) }, enabled = state.name.isNotBlank() && !state.busy)
         if (state.editingId != null) {
@@ -285,7 +286,7 @@ fun AddChildScreen(state: AddChildContract.State, s: Strings, dispatch: (AddChil
             var confirm by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
             if (!confirm) ParentButton(s.deleteChild, { confirm = true }, primary = false, icon = "🗑️")
             else ParentCard {
-                Text(s.deleteChildBody, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft)
+                Text(s.deleteChildBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft)
                 Spacer(Modifier.height(Dimens.s12))
                 ParentButton(s.deleteChildConfirm, { dispatch(AddChildContract.Intent.Delete) })
             }
@@ -318,15 +319,15 @@ private fun JoinSchoolSection(state: AddChildContract.State, s: Strings, dispatc
         placeholder = { Text(s.schoolCodePlaceholder) },
         singleLine = true,
         isError = state.schoolNotFound,
-        supportingText = { Text(s.schoolCodeHint, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft) },
+        supportingText = { Text(s.schoolCodeHint, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft) },
     )
     if (state.schoolNotFound) {
         Spacer(Modifier.height(Dimens.s8))
         // The red band, the one shape the design system has for "this did not work".
         Row(
-            Modifier.fillMaxWidth().background(Palette.parentAccentSoft).border(2.dp, Palette.parentAccent).padding(horizontal = Dimens.s12, vertical = Dimens.s8),
+            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer).border(2.dp, MaterialTheme.colorScheme.primary).padding(horizontal = Dimens.s12, vertical = Dimens.s8),
             verticalAlignment = Alignment.CenterVertically,
-        ) { Text(s.schoolNotFound, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk) }
+        ) { Text(s.schoolNotFound, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink) }
     }
     if (state.school != null) {
         Spacer(Modifier.height(Dimens.s12))
@@ -350,10 +351,10 @@ private fun ClassCodeSection(state: AddChildContract.State, s: Strings, dispatch
     val found = state.section
     if (found != null) {
         ParentCard {
-            Text(found.name, style = MaterialTheme.typography.titleLarge, color = Palette.parentInk)
+            Text(found.name, style = MaterialTheme.typography.titleLarge, color = DashboardTokens.ink)
             Text(
                 "${if (found.curriculum == Curriculum.AMERICAN) s.american else s.british} · ${s.grade} ${found.grade} · ${found.schoolName}",
-                style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft,
+                style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft,
             )
             Spacer(Modifier.height(Dimens.s12))
             ParentButton(s.changeClass, { dispatch(AddChildContract.Intent.ClearClass) }, primary = false)
@@ -368,17 +369,17 @@ private fun ClassCodeSection(state: AddChildContract.State, s: Strings, dispatch
         placeholder = { Text(s.schoolCodePlaceholder) },
         singleLine = true,
         isError = state.classNotFound,
-        supportingText = { Text(s.classCodeHint, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft) },
+        supportingText = { Text(s.classCodeHint, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft) },
     )
     if (state.classNotFound) {
         Spacer(Modifier.height(Dimens.s8))
         Row(
-            Modifier.fillMaxWidth().background(Palette.parentAccentSoft).border(2.dp, Palette.parentAccent).padding(horizontal = Dimens.s12, vertical = Dimens.s8),
+            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer).border(2.dp, MaterialTheme.colorScheme.primary).padding(horizontal = Dimens.s12, vertical = Dimens.s8),
             verticalAlignment = Alignment.CenterVertically,
-        ) { Text(s.classNotFound, style = MaterialTheme.typography.bodyMedium, color = Palette.parentInk) }
+        ) { Text(s.classNotFound, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink) }
     }
     Spacer(Modifier.height(Dimens.s8))
-    Text(s.noClassCodeNote, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+    Text(s.noClassCodeNote, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
     Spacer(Modifier.height(Dimens.s8))
 }
 
@@ -396,16 +397,16 @@ private fun SchoolCard(state: AddChildContract.State, s: Strings, confirmed: Boo
             SchoolLogo(state.school?.logoUrl, name, size = 56.dp)
             Spacer(Modifier.size(Dimens.s12))
             Column(Modifier.weight(1f)) {
-                Text(name, style = MaterialTheme.typography.titleLarge, color = Palette.parentInk)
+                Text(name, style = MaterialTheme.typography.titleLarge, color = DashboardTokens.ink)
                 Text(
                     if (confirmed) "${s.joinedSchool} · ${state.schoolCode}" else state.schoolCode,
-                    style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft,
+                    style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft,
                 )
             }
         }
         Spacer(Modifier.height(Dimens.s12))
         if (confirmed) {
-            Text(s.schoolCurriculumNote, style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+            Text(s.schoolCurriculumNote, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
             Spacer(Modifier.height(Dimens.s8))
             ParentButton(s.changeSchool, { dispatch(AddChildContract.Intent.ClearSchool) }, primary = false)
         } else {
@@ -437,11 +438,11 @@ fun ChildPickerScreen(children: List<Child>, s: Strings, onPick: (Child) -> Unit
         children.forEach { c ->
             ParentCard(Modifier.padding(bottom = Dimens.s12), onClick = { onPick(c) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Pip(PipPose.IDLE, 56.dp, animated = false, color = c.avatarColor)
+                    StudentAvatar(c.name, size = 48.dp)
                     Spacer(Modifier.size(Dimens.s12))
                     Column {
-                        Text(c.name, style = MaterialTheme.typography.titleLarge, color = Palette.parentInk)
-                        Text(sections[c.id] ?: "${if (c.curriculum == Curriculum.BRITISH) s.british else s.american} · ${s.grade} ${c.grade}", style = MaterialTheme.typography.bodyMedium, color = Palette.parentInkSoft)
+                        Text(c.name, style = MaterialTheme.typography.titleLarge, color = DashboardTokens.ink)
+                        Text(sections[c.id] ?: "${if (c.curriculum == Curriculum.BRITISH) s.british else s.american} · ${s.grade} ${c.grade}", style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft)
                     }
                 }
             }

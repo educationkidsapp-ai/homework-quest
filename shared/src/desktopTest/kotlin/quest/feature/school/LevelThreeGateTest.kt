@@ -1,12 +1,13 @@
 package quest.feature.school
 
+import quest.feature.journey.presentation.LessonTheme
+import quest.feature.journey.presentation.LessonStrings
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.Density
@@ -21,7 +22,6 @@ import quest.feature.school.domain.FlagStore
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.LevelGate
 import quest.feature.school.presentation.LocalFlags
-import quest.ui.design.ChildTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -57,7 +57,7 @@ class LevelThreeGateTest {
 
     private fun finishedLevel(level: Int) = CompleteContract.State(
         loading = false, lesson = HotSoupSeed.lesson, level = level, stars = 24, starsTotal = 27,
-        stickerKey = "rocket", childName = "Maya", served = true, nextLevelUnlocked = true,
+        childName = "Maya", nextLevelUnlocked = true,
     )
 
     @OptIn(ExperimentalTestApi::class)
@@ -65,25 +65,25 @@ class LevelThreeGateTest {
         runComposeUiTest {
             setContent {
                 CompositionLocalProvider(LocalFlags provides flags(levelThree)) {
-                    ChildTheme { LessonCompleteScreen(finishedLevel(level), {}, {}, {}, {}, {}) }
+                    LessonTheme(LessonStrings.en, rtl = false) { LessonCompleteScreen(finishedLevel(level), {}, {}, {}, {}) }
                 }
             }
             assertions()
         }
 
     @OptIn(ExperimentalTestApi::class)
-    @Test fun finishingLevelTwoWithoutTheFlagOffersStickersRatherThanTheChallengePath() =
+    @Test fun finishingLevelTwoWithoutTheFlagOffersNoThirdLevel() =
         finishScreen(level = 2, levelThree = false) {
             onNodeWithText("Next level").assertDoesNotExist()
-            // The next-level slot becomes a second "Stickers" — the same ending level 3 gets at a school that has it.
-            onAllNodesWithText("Stickers").assertCountEquals(2)
+            // The same ending level 3 gets at a school that has it: repeat the lesson, or go home.
+            onNodeWithText("Repeat lesson").assertExists()
+            onNodeWithText("Back to home").assertExists()
         }
 
     @OptIn(ExperimentalTestApi::class)
     @Test fun finishingLevelTwoWithTheFlagStillOffersTheNextLevel() =
         finishScreen(level = 2, levelThree = true) {
             onNodeWithText("Next level").assertExists()
-            onAllNodesWithText("Stickers").assertCountEquals(1)
         }
 
     @OptIn(ExperimentalTestApi::class)

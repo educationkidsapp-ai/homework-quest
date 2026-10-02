@@ -1,5 +1,6 @@
 package quest.feature.chat.presentation
 
+import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -40,7 +41,6 @@ import quest.feature.parent.presentation.Strings
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
 
 object ChatThreadsContract {
     data class State(
@@ -180,14 +180,14 @@ fun ChatThreadsScreen(
 
         if (state.childNotPlaced) {
             ParentCard(Modifier.padding(vertical = Dimens.s8)) {
-                Text(strings.childNotPlaced, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk)
+                Text(strings.childNotPlaced, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
             }
             return
         }
 
         if (state.threads.isEmpty()) {
             ParentCard(Modifier.padding(vertical = Dimens.s8)) {
-                Text(strings.noTeachers, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInkSoft)
+                Text(strings.noTeachers, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkSoft)
             }
         }
 

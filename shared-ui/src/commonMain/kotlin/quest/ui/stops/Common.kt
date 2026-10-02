@@ -1,5 +1,9 @@
 package quest.ui.stops
 
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,7 +31,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -40,9 +43,9 @@ import quest.api.dto.Stop
 import quest.api.dto.Tile
 import quest.ui.design.AnswerTile
 import quest.ui.design.BigButton
+import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
 import quest.ui.design.Illustration
-import quest.ui.design.Palette
 
 /** One answer tile spec (label and/or picture). */
 data class TileSpec(val id: String, val label: String? = null, val picture: String? = null)
@@ -57,15 +60,15 @@ fun TileGrid(tiles: List<TileSpec>, onTap: (String) -> Unit, modifier: Modifier 
             if (row > 0) Spacer(Modifier.height(Dimens.tileGap))
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.tileGap)) {
                 pair.forEach { t ->
-                    val color = when { t.id in lit -> Palette.mint; t.id in selected -> Palette.sun; else -> Palette.cream }
+                    val color = when { t.id in lit -> DashboardTokens.successBg; t.id in selected -> MaterialTheme.colorScheme.primaryContainer; else -> MaterialTheme.colorScheme.surface }
                     AnswerTile(
-                        label = t.label ?: t.picture ?: "", onClick = { onTap(t.id) }, dimmed = t.id in dimmed, color = color,
+                        label = t.label ?: t.picture ?: "", onClick = { onTap(t.id) }, dimmed = t.id in dimmed, color = color, dimmedDescription = LocalStopLabels.current.alreadyTried,
                         fontSize = if ((t.label?.length ?: 0) > 8) 22 else fontSize,
                         content = if (t.picture != null && t.label == null) ({ Illustration(t.picture, 84.dp, corner = 18.dp) })
                         else if (t.picture != null) ({
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
                                 Illustration(t.picture, 56.dp, corner = 14.dp); Spacer(Modifier.width(8.dp))
-                                Text(t.label!!, fontSize = if (t.label.length > 10) 18.sp else 22.sp, color = Palette.ink, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+                                Text(t.label!!, fontSize = if (t.label.length > 10) 18.sp else 22.sp, color = DashboardTokens.ink, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
                             }
                         }) else null,
                     )
@@ -101,47 +104,58 @@ fun numberLineOf(stop: Stop): NumberLine? = when (stop) {
 
 @Composable
 fun PromptText(text: String, modifier: Modifier = Modifier) {
-    Text(text, style = MaterialTheme.typography.headlineMedium, color = Palette.ink, textAlign = TextAlign.Center, modifier = modifier.fillMaxWidth().padding(horizontal = Dimens.s16))
+    // The lesson's own words set their direction: an English question in an Arabic frame keeps its "?" at the end.
+    Text(text, style = MaterialTheme.typography.headlineMedium.copy(textDirection = TextDirection.Content), color = DashboardTokens.ink, textAlign = TextAlign.Center, modifier = modifier.fillMaxWidth().padding(horizontal = Dimens.s16))
 }
 
 @Composable
-fun SpeakButton(text: String, onEvent: (StopEvent) -> Unit, label: String = "Listen", modifier: Modifier = Modifier, width: Int = 260) {
-    BigButton(label, onClick = { onEvent(StopEvent.Speak(text)) }, color = Palette.lavender, modifier = modifier.width(width.dp), emoji = "🔊", compact = true)
+fun SpeakButton(text: String, onEvent: (StopEvent) -> Unit, label: String = LocalStopLabels.current.listen, modifier: Modifier = Modifier, width: Int = 260) {
+    BigButton(label, onClick = { onEvent(StopEvent.Speak(text)) }, primary = false, modifier = modifier.width(width.dp), compact = true)
 }
 
 @Composable
 fun SmallSpeakButton(text: String, onEvent: (StopEvent) -> Unit) {
+    val label = LocalStopLabels.current.sayIt
     Box(
-        Modifier.size(Dimens.minTarget).shadow(3.dp, RoundedCornerShape(20.dp)).background(Palette.lavender, RoundedCornerShape(20.dp))
-            .clickable(role = Role.Button) { onEvent(StopEvent.Speak(text)) }.semantics { contentDescription = "Say it" },
+        Modifier.size(Dimens.minTarget).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
+            .clickable(role = Role.Button) { onEvent(StopEvent.Speak(text)) }.semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
-    ) { Icon(Icons.AutoMirrored.Filled.VolumeUp, null, tint = Palette.ink) }
+    ) { Icon(Icons.AutoMirrored.Filled.VolumeUp, null, tint = MaterialTheme.colorScheme.primary) }
 }
 
 @Composable
-fun DoneButton(text: String = "Done", enabled: Boolean = true, onClick: () -> Unit) {
-    BigButton(text, onClick = onClick, emoji = "✅", enabled = enabled, modifier = Modifier.padding(top = Dimens.s16))
+fun DoneButton(text: String = LocalStopLabels.current.done, enabled: Boolean = true, onClick: () -> Unit) {
+    BigButton(text, onClick = onClick, enabled = enabled, modifier = Modifier.padding(top = Dimens.s16).padding(horizontal = Dimens.s16))
 }
 
 @Composable
 fun CheckButton(enabled: Boolean, onClick: () -> Unit) {
-    BigButton("Check", onClick = onClick, emoji = "👀", enabled = enabled, modifier = Modifier.padding(top = Dimens.s16))
+    BigButton(LocalStopLabels.current.check, onClick = onClick, enabled = enabled, modifier = Modifier.padding(top = Dimens.s16).padding(horizontal = Dimens.s16))
 }
 
 @Composable
 fun NumberChip(text: String, highlight: Boolean = false) {
+    val missing = LocalStopLabels.current.missingNumber
     Box(
-        Modifier.size(64.dp).shadow(3.dp, RoundedCornerShape(20.dp)).background(if (highlight) Palette.sun else Palette.cream, RoundedCornerShape(20.dp))
-            .semantics { contentDescription = if (text == "?") "missing number" else text },
+        Modifier.size(64.dp).background(if (highlight) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface, RoundedCornerShape(DashboardTokens.radiusMd)).border(1.dp, DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
+            .semantics { contentDescription = if (text == "?") missing else text },
         contentAlignment = Alignment.Center,
-    ) { Text(text, fontSize = 26.sp, color = Palette.ink, style = MaterialTheme.typography.labelLarge) }
+    ) { Text(text, fontSize = 26.sp, color = DashboardTokens.ink, style = MaterialTheme.typography.labelLarge) }
 }
 
 @Composable
-fun BigCard(modifier: Modifier = Modifier, color: Color = Palette.cream, selected: Boolean = false, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
+fun BigCard(modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.surface, selected: Boolean = false, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Box(
-        modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(Dimens.radiusCard)).background(color, RoundedCornerShape(Dimens.radiusCard))
-            .border(if (selected) 4.dp else 0.dp, if (selected) Palette.sunDeep else Color.Transparent, RoundedCornerShape(Dimens.radiusCard))
+        modifier.fillMaxWidth().background(color, RoundedCornerShape(DashboardTokens.radiusMd))
+            .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else DashboardTokens.ruleControl, RoundedCornerShape(DashboardTokens.radiusMd))
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier).padding(Dimens.s16),
     ) { content() }
 }
+
+/**
+ * Content that is the same in every language — a number sequence, a comparison, the answer tiles under them — keeps
+ * its left-to-right order when the lesson's frame is right-to-left for an Arabic reader.
+ */
+@Composable
+fun LeftToRight(content: @Composable () -> Unit) =
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr, content = content)

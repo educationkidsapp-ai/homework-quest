@@ -1,5 +1,11 @@
 package quest.screenshots
 
+import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
+import quest.ui.design.DashboardTokens
+import quest.ui.design.DashboardCard
+import quest.feature.journey.presentation.LessonTheme
+import quest.feature.journey.presentation.LessonStrings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,16 +37,10 @@ import quest.feature.journey.presentation.StopPlayerScreen
 import quest.feature.map.presentation.MapContract
 import quest.feature.map.presentation.WorldMapScreen
 import quest.feature.parent.presentation.Strings
-import quest.feature.rewards.domain.Sticker
-import quest.feature.rewards.presentation.RewardsContract
-import quest.feature.rewards.presentation.StickerBookScreen
-import quest.feature.rewards.presentation.TreasureChestScreen
 import quest.feature.school.domain.SchoolBranding
 import quest.feature.school.presentation.LocalSchoolBranding
-import quest.ui.design.ChildTheme
 import quest.ui.design.Dimens
 import quest.ui.design.LocalThemeOverrides
-import quest.ui.design.Palette
 import quest.ui.design.ThemeOverrides
 import quest.ui.design.schoolThemeOverrides
 import quest.ui.stops.StopContent
@@ -52,16 +52,16 @@ class ChildScreensScreenshotTest {
     private val hot = HotSoupSeed.lesson
     private val child = Child("c", "Maya", "sun", Curriculum.BRITISH, 1)
 
-    private fun shot(name: String, overrides: ThemeOverrides = ThemeOverrides(), branding: SchoolBranding = SchoolBranding(), content: @Composable () -> Unit) {
+    private fun shot(name: String, overrides: ThemeOverrides = ThemeOverrides(), branding: SchoolBranding = SchoolBranding(), strings: LessonStrings = LessonStrings.en, content: @Composable () -> Unit) {
         val f = Screenshots.render(name) {
-            CompositionLocalProvider(LocalThemeOverrides provides overrides, LocalSchoolBranding provides branding) { ChildTheme { content() } }
+            CompositionLocalProvider(LocalThemeOverrides provides overrides, LocalSchoolBranding provides branding) { LessonTheme(strings, rtl = strings === LessonStrings.ar) { content() } }
         }
         assertTrue(f.length() > 1000, "screenshot $name is empty")
     }
 
-    private fun stopShot(name: String, stop: Stop) = shot(name) {
-        Column(Modifier.fillMaxSize().background(Palette.sky).verticalScroll(rememberScrollState()).padding(top = Dimens.s24)) {
-            quest.ui.design.SpeechBubble(stop.speak, Modifier.padding(horizontal = Dimens.s16))
+    private fun stopShot(name: String, stop: Stop, strings: LessonStrings = LessonStrings.en) = shot(name, strings = strings) {
+        Column(Modifier.fillMaxSize().background(DashboardTokens.bg).verticalScroll(rememberScrollState()).padding(top = Dimens.s24)) {
+            DashboardCard(Modifier.padding(horizontal = Dimens.s16)) { Text(stop.speak, style = MaterialTheme.typography.titleMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Content), color = DashboardTokens.inkStrong) }
             Box(Modifier.padding(top = Dimens.s16)) { StopContent(stop, onEvent = {}) }
         }
     }
@@ -73,12 +73,11 @@ class ChildScreensScreenshotTest {
             Island("b", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "Counting by 2s", Subject.MATH, "l2", 1, listOf(1)),
             Island("c", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.WAITING, "Hot Soup for Mummy · Part 1", Subject.ENGLISH, "l3", 1, listOf(1)),
             Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Still asleep"),
-        )), {}, {}, {}, {})
+        )), {}, {})
     }
     /**
-     * §3 white label: the same map under Al Noor's theme — the school mark in the header, the two subject worlds in
-     * its `worldPalettes`, Pip on the raft in its `mascotColor`. The logo itself is the monogram: screenshots never
-     * fetch, so what is drawn is the fallback every school has before its logo arrives.
+     * §3 white label: the same student home under Al Noor's theme — its accent on the buttons, the chips and the
+     * avatar, its ground behind the cards.
      */
     @Test fun worldMapThemed() = shot(
         "02c-world-map-themed",
@@ -90,10 +89,10 @@ class ChildScreensScreenshotTest {
             Island("b", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "Counting by 2s", Subject.MATH, "l2", 1, listOf(1)),
             Island("c", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.WAITING, "Hot Soup for Mummy · Part 1", Subject.ENGLISH, "l3", 1, listOf(1)),
             Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Still asleep"),
-        )), {}, {}, {}, {})
+        )), {}, {})
     }
 
-    @Test fun worldMapEmpty() = shot("02b-world-map-empty") { WorldMapScreen(MapContract.State(loading = false, child = child, islands = listOf(Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Still asleep"))), {}, {}, {}, {}) }
+    @Test fun worldMapEmpty() = shot("02b-world-map-empty") { WorldMapScreen(MapContract.State(loading = false, child = child, islands = listOf(Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Still asleep"))), {}, {}) }
 
     @Test fun worldMapFormalGrade5() = shot("02d-world-map-formal-grade5") {
         WorldMapScreen(MapContract.State(loading = false, child = child.copy(grade = 5), streakDays = 4, islands = listOf(
@@ -101,7 +100,7 @@ class ChildScreensScreenshotTest {
             Island("b", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "Cellular Biology", Subject.SCIENCE, "l2", 1, listOf(1)),
             Island("c", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.WAITING, "Shakespeare & Sonnets", Subject.ENGLISH, "l3", 1, listOf(1)),
             Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "Grammaire Française", Subject.FRENCH),
-        )), {}, {}, {}, {})
+        )), {}, {})
     }
 
     /**
@@ -114,14 +113,18 @@ class ChildScreensScreenshotTest {
             Island("b", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.TODAY, "العدّ بالاثنينات", Subject.MATH, "l2", 1, listOf(1)),
             Island("c", IslandKind.LESSON, LocalDate(2026, 9, 14), IslandState.WAITING, "حساء ساخن لأمي", Subject.ENGLISH, "l3", 1, listOf(1)),
             Island("locked", IslandKind.LOCKED, LocalDate(2026, 9, 15), IslandState.LOCKED, "ما زال نائماً"),
-        )), {}, {}, {}, {}, strings = Strings.ar)
+        )), {}, {}, strings = Strings.ar)
     }
 
     @Test fun journey() = shot("03-journey") {
-        JourneyScreen(JourneyContract.State(loading = false, lesson = hot, play = hot.plays[0], levelsUnlocked = listOf(1), stopStars = mapOf("hs1-move" to 3, "hs1-pieces" to 3), childName = "Maya"), {}, {}, {})
+        JourneyScreen(JourneyContract.State(loading = false, lesson = hot, play = hot.plays[0], levelsUnlocked = listOf(1), stopStars = mapOf("hs1-move" to 3, "hs1-pieces" to 3), childName = "Maya"), {}, {})
     }
     @Test fun journeyComplete() = shot("03b-journey-full") {
-        JourneyScreen(JourneyContract.State(loading = false, lesson = hot, play = hot.plays[0], levelsUnlocked = listOf(1, 2), completedLevels = listOf(1), stopStars = hot.plays[0].stops.associate { it.id to 3 }, childName = "Maya"), {}, {}, {})
+        JourneyScreen(JourneyContract.State(loading = false, lesson = hot, play = hot.plays[0], levelsUnlocked = listOf(1, 2), completedLevels = listOf(1), stopStars = hot.plays[0].stops.associate { it.id to 3 }, childName = "Maya"), {}, {})
+    }
+
+    @Test fun journeyArabic() = shot("03d-journey-ar", strings = LessonStrings.ar) {
+        JourneyScreen(JourneyContract.State(loading = false, lesson = hot, play = hot.plays[0], levelsUnlocked = listOf(1), stopStars = mapOf("hs1-move" to 3, "hs1-pieces" to 3), childName = "Maya"), {}, {})
     }
 
     private val l1 = hot.plays[0].stops
@@ -151,15 +154,16 @@ class ChildScreensScreenshotTest {
     @Test fun stopSelectAll() = stopShot("25-stop-select-all", PhonicsSeed.level2.stops[5])
 
     private fun playerState(phase: PlayerContract.Phase) = PlayerContract.State(phase = phase, lesson = hot, play = hot.plays[0], index = 3, stopStars = mapOf("hs1-move" to 3, "hs1-pieces" to 3, "hs1-page1" to 3),
-        hint = "Who is in bed on page 1?", praise = "Great!", lastIngredient = l1[3].ingredient, childName = "Maya")
+        hint = "Who is in bed on page 1?", praise = "Correct", childName = "Maya")
     @Test fun player() = shot("26-player") { StopPlayerScreen(playerState(PlayerContract.Phase.STOP), {}, {}) }
     @Test fun hintSheet() = shot("27-hint-sheet") { StopPlayerScreen(playerState(PlayerContract.Phase.HINT).copy(index = 8, numberLine = MathSeed.level1.stops.filterIsInstance<Stop.Sequence>().first().numberLine), {}, {}) }
     @Test fun correctOverlay() = shot("28-correct-overlay") { StopPlayerScreen(playerState(PlayerContract.Phase.CORRECT), {}, {}) }
-    @Test fun ingredientDrop() = shot("29-ingredient-drop") { StopPlayerScreen(playerState(PlayerContract.Phase.INGREDIENT), {}, {}) }
+    @Test fun stepDone() = shot("29-step-done") { StopPlayerScreen(playerState(PlayerContract.Phase.STEP_DONE), {}, {}) }
+    @Test fun playerArabic() = shot("26c-player-ar", strings = LessonStrings.ar) { StopPlayerScreen(playerState(PlayerContract.Phase.STOP).copy(index = 8), {}, {}) }
 
-    @Test fun potFull() = shot("30-pot-full") { LessonCompleteScreen(CompleteContract.State(loading = false, lesson = hot, stars = 24, starsTotal = 27, stickerKey = "rocket", childName = "Maya"), {}, {}, {}, {}, {}) }
-    @Test fun certificate() = shot("31-certificate") { LessonCompleteScreen(CompleteContract.State(loading = false, lesson = hot, stars = 24, starsTotal = 27, stickerKey = "rocket", childName = "Maya", served = true, nextLevelUnlocked = true), {}, {}, {}, {}, {}) }
+    @Test fun lessonComplete() = shot("30-lesson-complete") { LessonCompleteScreen(CompleteContract.State(loading = false, lesson = hot, stars = 24, starsTotal = 27, childName = "Maya", nextLevelUnlocked = true), {}, {}, {}, {}) }
 
-    @Test fun stickerBook() = shot("32-sticker-book") { StickerBookScreen(RewardsContract.State(stickers = listOf(Sticker("1", "star-badge", 0), Sticker("2", "rocket", 0)), streakDays = 3, loading = false), {}, {}) }
-    @Test fun treasureChest() = shot("33-treasure-chest") { TreasureChestScreen(RewardsContract.State(streakDays = 4, loading = false), {}, {}) }
+    /** Arabic frame, but numbers still run left to right: 2 4 6 ?, and "left ? right" keeps its order. */
+    @Test fun stopSequenceArabic() = stopShot("18b-stop-sequence-ar", MathSeed.level1.stops[1], LessonStrings.ar)
+    @Test fun stopCompareArabic() = stopShot("20b-stop-compare-ar", MathSeed.level1.stops[4], LessonStrings.ar)
 }

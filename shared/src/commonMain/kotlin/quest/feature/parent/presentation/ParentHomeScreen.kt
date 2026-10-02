@@ -1,8 +1,6 @@
 package quest.feature.parent.presentation
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,13 +41,10 @@ import quest.feature.school.domain.FlagStore
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.ui.design.DashboardPill
+import quest.ui.design.StudentAvatar
 import quest.ui.design.DashboardPillVariant
 import quest.ui.design.DashboardTab
 import quest.ui.design.DashboardTokens
-import quest.ui.design.Dimens
-import quest.ui.design.Palette
-import quest.ui.design.Pip
-import quest.ui.design.PipPose
 import quest.ui.design.SubjectMeta
 
 object ParentHomeContract {
@@ -199,14 +193,7 @@ fun ParentHomeScreen(
                 onClick = { if (selected) onEditChild(c.id) else dispatch(ParentHomeContract.Intent.Select(c.id)) },
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .background(DashboardTokens.bgSubtle, CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Pip(PipPose.IDLE, 44.dp, animated = false, color = c.avatarColor)
-                    }
+                    StudentAvatar(c.name, size = 48.dp)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(

@@ -1,8 +1,17 @@
 package quest.feature.journey.presentation
 
+import androidx.compose.ui.text.style.TextDirection
+import quest.ui.design.DashboardTokens
+import quest.ui.design.DashboardProgressBar
+import quest.ui.design.DashboardPillVariant
+import quest.ui.design.DashboardPill
+import quest.ui.design.DashboardCard
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.border
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -10,7 +19,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -32,12 +40,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -49,16 +54,9 @@ import quest.feature.journey.presentation.PlayerContract.Phase
 import quest.feature.journey.presentation.PlayerContract.State
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.featureEnabled
-import quest.ui.design.BackButton
 import quest.ui.design.BigButton
 import quest.ui.design.Dimens
 import quest.ui.design.NumberLineView
-import quest.ui.design.Palette
-import quest.ui.design.Pip
-import quest.ui.design.PipPose
-import quest.ui.design.ReadAloudButton
-import quest.ui.design.SpeechBubble
-import quest.ui.journey.PotView
 import quest.ui.stops.StopContent
 import quest.ui.stops.StopEvent
 import quest.ui.stops.LocalStopMedia
@@ -94,44 +92,44 @@ fun StopPlayerRoute(lessonId: String, level: Int, variant: Int, index: Int, onFi
 
 @Composable
 fun StopPlayerScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Palette.sky)) {
+    val s = LocalLessonStrings.current
+    Box(Modifier.fillMaxSize().background(DashboardTokens.bg)) {
         when (state.phase) {
-            Phase.LOADING -> LoadingView("Getting ready…")
-            Phase.ERROR -> ErrorView(state.error ?: "Something went wrong.", onBack)
-            Phase.DONE -> LoadingView("Serving…")
+            Phase.LOADING -> LoadingView(s.loadingLesson)
+            Phase.ERROR -> ErrorView(state.error ?: s.genericError, onBack)
+            Phase.DONE -> LoadingView(s.savingWork)
             else -> StopView(state, dispatch, onBack)
         }
 
-        AnimatedVisibility(state.phase == Phase.HINT, enter = fadeIn(), exit = fadeOut()) { Box(Modifier.fillMaxSize().background(Palette.ink.copy(alpha = 0.35f))) }
+        AnimatedVisibility(state.phase == Phase.HINT, enter = fadeIn(), exit = fadeOut()) { Box(Modifier.fillMaxSize().background(DashboardTokens.inkStrong.copy(alpha = 0.35f))) }
         AnimatedVisibility(state.phase == Phase.HINT, modifier = Modifier.align(Alignment.BottomCenter), enter = slideInVertically(initialOffsetY = { it }) + fadeIn(), exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()) {
-            Box(Modifier.fillMaxWidth().shadow(12.dp, RoundedCornerShape(topStart = Dimens.radiusSheet, topEnd = Dimens.radiusSheet)).background(Palette.peach, RoundedCornerShape(topStart = Dimens.radiusSheet, topEnd = Dimens.radiusSheet)).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
+            val sheet = RoundedCornerShape(topStart = DashboardTokens.radiusLg, topEnd = DashboardTokens.radiusLg)
+            Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, sheet).border(1.dp, MaterialTheme.colorScheme.outline, sheet).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
                 HintSheetContent(state, dispatch)
             }
         }
-        AnimatedVisibility(state.phase == Phase.CORRECT, enter = fadeIn(), exit = fadeOut()) { CorrectOverlay(state.praise) }
-        AnimatedVisibility(state.phase == Phase.INGREDIENT, enter = fadeIn(), exit = fadeOut()) { IngredientOverlay(state) }
+        AnimatedVisibility(state.phase == Phase.CORRECT, enter = fadeIn(), exit = fadeOut()) { ConfirmationOverlay(state.praise) }
+        AnimatedVisibility(state.phase == Phase.STEP_DONE, enter = fadeIn(), exit = fadeOut()) {
+            ConfirmationOverlay(s.stepComplete, detail = s.stepsCompleted.replace("{done}", "${state.doneCount}").replace("{total}", "${state.total}"))
+        }
     }
 }
 
 @Composable
 private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) {
     val stop = state.stop ?: return
-    val play = state.play ?: return
+    val s = LocalLessonStrings.current
+    val position = s.stepOf.replace("{n}", "${state.index + 1}").replace("{total}", "${state.total}")
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = Dimens.s16, vertical = Dimens.s8), verticalAlignment = Alignment.CenterVertically) {
-            BackButton(onBack)
-            Spacer(Modifier.weight(1f))
-            Text("${state.index + 1} / ${state.total}", style = MaterialTheme.typography.labelLarge, color = Palette.inkSoft, modifier = Modifier.semantics { contentDescription = "stop ${state.index + 1} of ${state.total}" })
-            Spacer(Modifier.padding(Dimens.s8))
-            PotView(play.theme, state.collected, state.total, size = 56)
-            Spacer(Modifier.weight(1f))
-            ReadAloudButton({ dispatch(Intent.ReadAloud) })
+        LessonTopBar(onBack = onBack, onReadAloud = { dispatch(Intent.ReadAloud) }) {
+            Text(position, style = MaterialTheme.typography.labelLarge, color = DashboardTokens.inkSoft, modifier = Modifier.semantics { contentDescription = position })
+            Spacer(Modifier.height(Dimens.s4))
+            // How many steps are done, as a bar: no percentage and no clock (§7).
+            DashboardProgressBar(if (state.total == 0) 0f else state.doneCount.toFloat() / state.total)
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(Modifier.padding(horizontal = Dimens.s16), verticalAlignment = Alignment.CenterVertically) {
-                Pip(PipPose.IDLE, Dimens.pipSmall)
-                Spacer(Modifier.padding(Dimens.s4))
-                SpeechBubble(stop.speak, Modifier.weight(1f))
+            DashboardCard(Modifier.padding(horizontal = Dimens.s16)) {
+                Text(stop.speak, style = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Content), color = DashboardTokens.inkStrong, modifier = Modifier.fillMaxWidth())
             }
             Spacer(Modifier.height(Dimens.s16))
             StopContent(stop, onEvent = { e ->
@@ -149,46 +147,33 @@ private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
 
 @Composable
 private fun HintSheetContent(state: State, dispatch: (Intent) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(Dimens.s24).semantics { contentDescription = "Hint" }, horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Pip(PipPose.THINKING, Dimens.pipSmall)
-            Spacer(Modifier.padding(Dimens.s4))
-            SpeechBubble(state.hint, Modifier.weight(1f), color = Palette.cream)
-        }
+    val s = LocalLessonStrings.current
+    Column(Modifier.fillMaxWidth().padding(Dimens.s24).semantics { contentDescription = s.hint }) {
+        DashboardPill(s.hint, variant = DashboardPillVariant.INFO)
+        Spacer(Modifier.height(Dimens.s12))
+        Text(state.hint, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkStrong)
         state.numberLine?.let { Spacer(Modifier.height(Dimens.s16)); NumberLineView(it) }
         Spacer(Modifier.height(Dimens.s16))
-        BigButton("Try again", onClick = { dispatch(Intent.TryAgain) }, emoji = "💪")
-        Spacer(Modifier.height(Dimens.s16))
+        BigButton(s.tryAgain, onClick = { dispatch(Intent.TryAgain) })
     }
 }
 
+/** The short confirmation between steps: a tick, the word, and how far along the lesson is. */
 @Composable
-private fun CorrectOverlay(praise: String) {
-    val scale by animateFloatAsState(1f, spring(dampingRatio = 0.45f), label = "pop")
-    Box(Modifier.fillMaxSize().background(Palette.mint.copy(alpha = 0.94f)).semantics { contentDescription = "Correct! $praise" }, contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("⭐  ⭐  ⭐", fontSize = 40.sp, modifier = Modifier.scale(scale))
-            Spacer(Modifier.height(Dimens.s16))
-            Pip(PipPose.CELEBRATING, Dimens.pipLarge)
-            Spacer(Modifier.height(Dimens.s16))
-            Text(praise, style = MaterialTheme.typography.displayLarge, color = Palette.ink)
-        }
-    }
-}
-
-/** The finished stop's ingredient drops into the pot. */
-@Composable
-private fun IngredientOverlay(state: State) {
-    val scale by animateFloatAsState(1f, spring(dampingRatio = 0.4f), label = "drop")
-    val play = state.play ?: return
-    Box(Modifier.fillMaxSize().background(Palette.sun.copy(alpha = 0.92f)).semantics { contentDescription = "${state.lastIngredient?.name} goes in the pot" }, contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(state.lastIngredient?.emoji ?: "", fontSize = 72.sp, modifier = Modifier.scale(scale))
-            Text("${state.lastIngredient?.name ?: ""} goes in!", style = MaterialTheme.typography.displayLarge, color = Palette.ink)
-            Spacer(Modifier.height(Dimens.s16))
-            PotView(play.theme, state.collected, state.total, size = 160)
-            Spacer(Modifier.height(Dimens.s8))
-            Pip(PipPose.CELEBRATING, Dimens.pipMedium)
+private fun ConfirmationOverlay(text: String, detail: String? = null) {
+    Box(Modifier.fillMaxSize().background(DashboardTokens.inkStrong.copy(alpha = 0.35f)).semantics { contentDescription = text }, contentAlignment = Alignment.Center) {
+        DashboardCard(Modifier.padding(horizontal = Dimens.s32), padding = PaddingValues(Dimens.s24)) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(48.dp).background(DashboardTokens.successBg, CircleShape).border(1.dp, DashboardTokens.successBorder, CircleShape), contentAlignment = Alignment.Center) {
+                    Text("✓", style = MaterialTheme.typography.titleLarge, color = DashboardTokens.success)
+                }
+                Spacer(Modifier.height(Dimens.s12))
+                Text(text, style = MaterialTheme.typography.titleLarge, color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
+                if (detail != null) {
+                    Spacer(Modifier.height(Dimens.s4))
+                    Text(detail, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
+                }
+            }
         }
     }
 }

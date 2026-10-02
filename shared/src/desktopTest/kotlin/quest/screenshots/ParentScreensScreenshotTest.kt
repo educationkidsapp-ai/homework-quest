@@ -111,7 +111,7 @@ class ParentScreensScreenshotTest {
             ProgressContract.State(
                 loading = false,
                 reports = listOf(SkillReport("s1", "Counting by 2s", Subject.MATH, Band.GOING_WELL, "most of the time", 14, null)),
-                streakDays = 3, stickers = 7,
+                streakDays = 3,
                 results = listOf(
                     ReleasedResult("l1", "Counting in 2s", today, Subject.MATH, 82, "secure", "Lovely work on the number line — try the harder gaps next.", 1_757_800_000_000),
                     ReleasedResult("l2", "The sh sound", LocalDate(2026, 9, 11), Subject.ENGLISH, 64, "developing", null, 1_757_600_000_000),

@@ -1,5 +1,6 @@
 package quest.feature.broadcasts.presentation
 
+import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,7 +49,6 @@ import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.GateFallback
 import quest.ui.design.Dimens
-import quest.ui.design.Palette
 
 /**
  * MH3 (the owner's manager list 2, item 6): the **Weekly plan** page. MH1 made a plan "one grade's week as an image",
@@ -199,7 +199,7 @@ fun WeeklyPlanScreen(
             }
             if (problem != null) {
                 ParentCard(Modifier.padding(vertical = Dimens.s8)) {
-                    Text(problem, style = MaterialTheme.typography.bodyLarge, color = Palette.parentInkSoft)
+                    Text(problem, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkSoft)
                 }
                 return@Column
             }
@@ -238,14 +238,14 @@ private fun PlanCard(
             Text(
                 text = plan.weekStart?.let { weekLabel(it, strings) } ?: strings.weeklyPlan,
                 style = MaterialTheme.typography.titleMedium,
-                color = Palette.parentInk,
+                color = DashboardTokens.ink,
                 fontWeight = if (plan.read) FontWeight.Normal else FontWeight.Bold,
                 modifier = Modifier.weight(1f),
             )
-            if (!plan.read) Chip(strings.newBadge, Palette.sun)
+            if (!plan.read) Chip(strings.newBadge, DashboardTokens.warningBg)
         }
         Spacer(Modifier.height(Dimens.s4))
-        Text(authorLine(plan, strings), style = MaterialTheme.typography.bodySmall, color = Palette.parentInkSoft)
+        Text(authorLine(plan, strings), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
 
         if (!expanded) return@ParentCard
 
@@ -253,7 +253,7 @@ private fun PlanCard(
         val attachment = plan.attachment
         // MH1 requires an image on a plan, but QA still holds rows written before it: those fall back to their body.
         if (attachment != null && attachment.isImage) AttachmentImage(attachment, planDescription(plan, grade, strings), strings)
-        else Text(broadcastBody(plan, strings.isRtl), style = MaterialTheme.typography.bodyLarge, color = Palette.parentInk)
+        else Text(broadcastBody(plan, strings.isRtl), style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
     }
 }
 

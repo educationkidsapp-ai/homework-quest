@@ -16,10 +16,10 @@ import quest.feature.journey.presentation.JourneyContract.Intent
 import quest.feature.journey.presentation.JourneyContract.State
 import quest.ui.design.Timing
 
-/** The lesson journey screen: path of stops, the pot, the level selector. */
+/** The lesson overview: the list of steps and, for a homework, the level selector. */
 class JourneyViewModel(
     private val lessonId: String, initialLevel: Int, private val initialVariant: Int,
-    private val lessons: LessonRepository, private val journey: JourneyRepository, private val children: ChildrenRepository,
+    private val lessons: LessonRepository, private val journey: JourneyRepository, private val children: ChildrenRepository, private val copy: LessonCopy,
 ) : MviViewModel<State, Intent, Effect>(State(level = initialLevel, variant = initialVariant)) {
 
     init { dispatch(Intent.Load) }
@@ -30,13 +30,13 @@ class JourneyViewModel(
             is Intent.SelectLevel -> if (intent.level in current.levelsUnlocked) load(intent.level, 0)
             is Intent.TapStop -> { val s = current.stops.getOrNull(intent.index) ?: return; if (current.nodeStates[intent.index] != quest.ui.journey.NodeState.LOCKED) effect(Effect.OpenStop(lessonId, current.level, current.variant, intent.index)) }
             Intent.ReadAloud -> effect(Effect.Speak(readAloud()))
-            Intent.Serve -> effect(Effect.OpenComplete(lessonId, current.level, current.variant))
+            Intent.Finish -> effect(Effect.OpenComplete(lessonId, current.level, current.variant))
         }
     }
 
     private suspend fun load(level: Int, variant: Int) {
-        val child = children.currentChild.value ?: run { reduce { copy(loading = false, error = "No child selected.") }; return }
-        val lesson = runCatching { lessons.lesson(lessonId) }.getOrElse { reduce { copy(loading = false, error = "This quest is not on the phone yet. Try again when online.") }; return }
+        val child = children.currentChild.value ?: run { reduce { copy(loading = false, error = this@JourneyViewModel.copy.strings().noStudent) }; return }
+        val lesson = runCatching { lessons.lesson(lessonId) }.getOrElse { reduce { copy(loading = false, error = this@JourneyViewModel.copy.strings().lessonUnavailable) }; return }
         val play = lesson.play(level, variant) ?: lesson.plays.first()
         val completions = journey.completions(child.id)
         val unlocks = journey.parentUnlocks(child.id)
@@ -51,18 +51,19 @@ class JourneyViewModel(
 
     private fun readAloud(): String {
         val s = current
+        val t = copy.strings()
         return when {
-            s.complete -> "The ${s.play?.theme?.potName ?: "pot"} is full! Tap it to serve."
-            s.collected.isEmpty() -> "Tap the first stop to begin the journey!"
-            else -> "Great! ${s.collected.size} ingredients in the pot. Tap the next stop."
+            s.complete -> t.speakAllDone
+            s.doneCount == 0 -> t.speakStart
+            else -> t.speakProgress.replace("{n}", "${s.doneCount}")
         }
     }
 }
 
-/** Plays the stops of one level in order; owns hint sheet, correct overlay and ingredient drop. */
+/** Plays the steps of one level in order; owns the hint sheet and the two confirmation overlays. */
 class StopPlayerViewModel(
     private val lessonId: String, private val level: Int, private val variant: Int, private val startIndex: Int,
-    private val lessons: LessonRepository, private val journey: JourneyRepository, private val children: ChildrenRepository, private val media: ContentApi,
+    private val lessons: LessonRepository, private val journey: JourneyRepository, private val children: ChildrenRepository, private val media: ContentApi, private val copy: LessonCopy,
 ) : MviViewModel<PlayerContract.State, PlayerContract.Intent, PlayerContract.Effect>(PlayerContract.State(index = startIndex)) {
 
     private var childId = ""
@@ -82,9 +83,9 @@ class StopPlayerViewModel(
     }
 
     private suspend fun load() {
-        val child = children.currentChild.value ?: run { reduce { copy(phase = PlayerContract.Phase.ERROR, error = "No child selected.") }; return }
+        val child = children.currentChild.value ?: run { reduce { copy(phase = PlayerContract.Phase.ERROR, error = this@StopPlayerViewModel.copy.strings().noStudent) }; return }
         childId = child.id
-        val lesson = runCatching { lessons.lesson(lessonId) }.getOrElse { reduce { copy(phase = PlayerContract.Phase.ERROR, error = "This quest is missing.") }; return }
+        val lesson = runCatching { lessons.lesson(lessonId) }.getOrElse { reduce { copy(phase = PlayerContract.Phase.ERROR, error = this@StopPlayerViewModel.copy.strings().lessonMissing) }; return }
         val play = lesson.play(level, variant) ?: lesson.plays.first()
         val progress = journey.progress(child.id, lessonId, play.level, play.variant)
         reduce { copy(phase = PlayerContract.Phase.STOP, lesson = lesson, play = play, stopStars = progress.stops, childName = child.name) }
@@ -95,13 +96,13 @@ class StopPlayerViewModel(
         val stop = current.stop ?: return
         if (stop.category != StopCategory.SINGLE && stop.category != StopCategory.EXIT) return
         if (stop.category == StopCategory.EXIT) { // sub-question inside an exit ticket: brief praise, the ticket continues
-            reduce { copy(phase = PlayerContract.Phase.CORRECT, praise = praises[attempt % praises.size]) }
+            reduce { copy(phase = PlayerContract.Phase.CORRECT, praise = praise(attempt)) }
             effect(PlayerContract.Effect.Speak(current.praise)); launch { delay(900); reduce { copy(phase = PlayerContract.Phase.STOP) } }
             return
         }
         val stars = StopScoring.singleAnswer(attempt)
         record(stop.id, stars, answer, true, attempt, 0)
-        reduce { copy(phase = PlayerContract.Phase.CORRECT, praise = praises[(stopStars.size) % praises.size]) }
+        reduce { copy(phase = PlayerContract.Phase.CORRECT, praise = praise(stopStars.size)) }
         effect(PlayerContract.Effect.Speak(current.praise))
         launch { delay(Timing.correctOverlayMillis); dispatch(PlayerContract.Intent.Advance) }
     }
@@ -119,8 +120,8 @@ class StopPlayerViewModel(
         record(stop.id, stars, answer, true, 1, mistakes, recording, drawing)
         if (recording != null) launch { runCatching { media.uploadStopMedia(childId, stop.id, UploadFile("${stop.id}.m4a", "audio/mp4", recording), MediaKind.RECORDING) } }
         if (drawing != null) launch { runCatching { media.uploadStopMedia(childId, stop.id, UploadFile("${stop.id}.json", "application/json", drawing.encodeToByteArray()), MediaKind.DRAWING) } }
-        reduce { copy(phase = PlayerContract.Phase.INGREDIENT, lastIngredient = stop.ingredient) }
-        effect(PlayerContract.Effect.Speak("${stop.ingredient.name} goes in the pot!"))
+        reduce { copy(phase = PlayerContract.Phase.STEP_DONE) }
+        effect(PlayerContract.Effect.Speak(doneText()))
         launch { delay(1400); dispatch(PlayerContract.Intent.Advance) }
     }
 
@@ -133,9 +134,8 @@ class StopPlayerViewModel(
     private suspend fun advance() {
         val play = current.play ?: return
         if (current.phase == PlayerContract.Phase.CORRECT && current.stop?.category == StopCategory.SINGLE) {
-            // single-answer stop finished: drop the ingredient before moving on
-            val stop = current.stop!!
-            reduce { copy(phase = PlayerContract.Phase.INGREDIENT, lastIngredient = stop.ingredient) }
+            // single-answer step finished: confirm it before moving on
+            reduce { copy(phase = PlayerContract.Phase.STEP_DONE) }
             launch { delay(1200); dispatch(PlayerContract.Intent.Advance) }
             return
         }
@@ -152,5 +152,7 @@ class StopPlayerViewModel(
         }
     }
 
-    companion object { val praises = listOf("Yes!", "Great!", "You got it!") }
+    private fun praise(n: Int): String = copy.strings().praises.let { it[n % it.size] }
+
+    private fun doneText(): String = copy.strings().stepComplete
 }
