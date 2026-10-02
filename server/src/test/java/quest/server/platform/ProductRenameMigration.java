@@ -12,15 +12,15 @@ import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * `V28__product_name_myschool.sql`, run against the `platform_settings` row in the states a real database can be in.
+ * `V29__product_name_myschool.sql`, run against the `platform_settings` row in the states a real database can be in.
  *
- * <p>Flyway applies V28 once, to the freshly seeded row, so the guard — "keep a name an Admin set by hand" — never
+ * <p>Flyway applies V29 once, to the freshly seeded row, so the guard — "keep a name an Admin set by hand" — never
  * meets a custom name in any pipeline and would ship unexercised. The statements are read out of the migration file
  * rather than copied, and each case runs them twice to prove the second run is a no-op. Shared by the H2 and the
  * PostgreSQL test so both vendors execute exactly the same cases.
  */
 final class ProductRenameMigration {
-    private static final Path MIGRATION = Path.of("src/main/resources/db/migration/V28__product_name_myschool.sql");
+    private static final Path MIGRATION = Path.of("src/main/resources/db/migration/V29__product_name_myschool.sql");
 
     private ProductRenameMigration() {}
 

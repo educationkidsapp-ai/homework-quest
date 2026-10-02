@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
  * literal `Homework Quest` or `Schools Dashboard` outside the seed and the tests."
  *
  * <p>The seed is `db/migration/V5__flags_themes.sql`, which is where the name enters the system, and
- * `V28__product_name_myschool.sql` is the rename to MySchool (N1) — the current name is held to the same rule; the tests are
+ * `V29__product_name_myschool.sql` is the rename to MySchool (N1) — the current name is held to the same rule; the tests are
  * `src/test`, which has to spell the seeded value out to assert on it. Everything else — including a comment or a
  * model prompt — asks {@link PlatformSettingsService} instead.
  */
@@ -49,7 +49,7 @@ class ProductNameTest {
     @Test void the_seed_migration_is_the_one_place_the_name_appears() throws IOException {
         var seed = Files.readString(Path.of("src", "main", "resources", "db", "migration", "V5__flags_themes.sql"), StandardCharsets.UTF_8);
         assertThat(seed).contains("'Schools Dashboard'").contains("'Schools'");
-        var rename = Files.readString(Path.of("src", "main", "resources", "db", "migration", "V28__product_name_myschool.sql"), StandardCharsets.UTF_8);
+        var rename = Files.readString(Path.of("src", "main", "resources", "db", "migration", "V29__product_name_myschool.sql"), StandardCharsets.UTF_8);
         assertThat(rename).contains("name = 'MySchool'").contains("short_name = 'MySchool'");
 
         var elsewhere = new ArrayList<String>();

@@ -961,7 +961,7 @@ unknown code is a 404 and shows *"We couldn't find that school code."* A parent 
 §A: the product's own name, short name and logo are a row in `platform_settings` (id `default`, seeded
 `Schools Dashboard` / `Schools` by `V5__flags_themes.sql`), not a constant and not an env var.
 
-**The product is named MySchool (Arabic مدرستي) since N1, 2026-10-02.** `V28__product_name_myschool.sql` renames the
+**The product is named MySchool (Arabic مدرستي) since N1, 2026-10-02.** `V29__product_name_myschool.sql` renames the
 row to `MySchool` / `MySchool` only where it still holds the seeded defaults (a name an Admin set by hand is kept).
 Repository, package, Cloud Run service, database and bundle identifiers keep their old names on purpose.
 
