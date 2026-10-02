@@ -31,7 +31,7 @@ class ThemeApiTest extends ApiTestSupport {
         String school = createSchool(token);
         var theme = json(mvc.perform(get("/schools/" + school + "/theme")).andExpect(status().isOk()).andReturn());
         assertThat(theme.get("primaryInk").asText()).isEqualTo("#201E1D");
-        assertThat(theme.get("accent").asText()).isEqualTo("#CC2A0F");
+        assertThat(theme.get("accent").asText()).isEqualTo("#0762BF");
         assertThat(theme.get("fontChoice").asText()).isEqualTo("nunito");
         assertThat(theme.get("worldPalettes").get("math").get("soft").asText()).isEqualTo("#EAF4FF");
         assertThat(theme.get("appName").isNull()).isTrue();

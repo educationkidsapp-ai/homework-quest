@@ -50,7 +50,7 @@ class PlatformSettingsTest extends ApiTestSupport {
                 .andExpect(status().isOk()).andReturn());
         assertThat(saved.get("name").asText()).isEqualTo("Acme Learning");
         assertThat(saved.get("supportEmail").asText()).isEqualTo("help@acme.test");
-        assertThat(saved.get("defaultTheme").get("accent").asText()).isEqualTo("#CC2A0F");
+        assertThat(saved.get("defaultTheme").get("accent").asText()).isEqualTo("#0762BF");
 
         assertThat(platformName.get()).as("the rename is visible at once on the instance that made it").isEqualTo("Acme Learning");
         assertThat(json(mvc.perform(get("/platform-settings")).andReturn()).get("name").asText()).isEqualTo("Acme Learning");

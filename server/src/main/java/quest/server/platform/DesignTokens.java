@@ -20,9 +20,9 @@ import org.springframework.stereotype.Component;
  * <p>How the §3 theme fields map onto the tokens:
  * <ul>
  *   <li>`ground` ← `color.bg`, `primary` ← `color.surface`, `primaryInk` ← `color.ink`, `softBorder` ← `color.rule`;</li>
- *   <li>`accent` ← `color.accent-strong`, not `color.accent`: the tokens file says accent-strong is the brand red
- *       darkened until it clears 4.5:1, and the brand red itself is 3.8:1 on the ground — it would be rejected by
- *       the very validation this default has to pass;</li>
+ *   <li>`accent` ← `color.accent-strong`, not `color.accent`: the tokens file says accent-strong is the MySchool
+ *       blue one step darker, where it clears 4.5:1 (`docs/brand/palette.md`'s default accent), and `color.accent`
+ *       itself is 4.3:1 on the ground — it would be rejected by the very validation this default has to pass;</li>
  *   <li>`mascotColor` ← `mascotColor.body` darkened the same way, to {@link Contrast#MINIMUM_NON_TEXT}: the mascot
  *       is a graphic, not text, and the tokens' light blue is 1.6:1 on a near-white ground — below even that bar;</li>
  *   <li>each world ← `worldPalettes.<subject>` with `color.ink` as the ink drawn on it.</li>
@@ -50,7 +50,7 @@ public class DesignTokens {
     /** The theme a school with no theme of its own is shown (§3 "Default theme = the one in `docs/design.md`"). */
     public ThemeDto.SchoolTheme defaultTheme() { return defaultTheme; }
 
-    /** `color.<name>.value`, e.g. `color.accent-strong` → `#CC2A0F`. */
+    /** `color.<name>.value`, e.g. `color.accent-strong` → `#0762BF`. */
     public String colour(String name) { return value("color", name); }
 
     private ThemeDto.WorldPalette world(String subject) {

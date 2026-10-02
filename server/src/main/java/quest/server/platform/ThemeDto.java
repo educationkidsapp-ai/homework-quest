@@ -50,7 +50,7 @@ public final class ThemeDto {
             @Size(max = SafeText.MAX_NAME) String appName,
             @Schema(example = "#FFFFFF") String primary,
             @Schema(example = "#201E1D") String primaryInk,
-            @Schema(example = "#CC2A0F") String accent,
+            @Schema(example = "#0762BF") String accent,
             @Schema(example = "#F3F2F2") String ground,
             @Schema(example = "#D9D6D2") String softBorder,
             @Schema(example = "#598FB8") String mascotColor,

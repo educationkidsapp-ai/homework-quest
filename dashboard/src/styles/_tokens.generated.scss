@@ -7,13 +7,17 @@
   --hq-color-surface: #FFFFFF;                        /* Palette.parentSurface */
   --hq-color-ink: #201E1D;                            /* Palette.parentInk — text and rules */
   --hq-color-ink-soft: #6B6866;                       /* Palette.parentInkSoft */
-  --hq-color-accent: #EC3013;                         /* Palette.parentAccent — the one red */
-  --hq-color-accent-soft: #FBE4DF;                    /* Palette.parentAccentSoft — hover tint / red band background */
-  --hq-color-accent-strong: #CC2A0F;                  /* the same red darkened until white-on-red and red-on-ground both clear 4.5:1 — use it for accent TEXT and for fills that carry text; --hq-color-accent stays the brand red for rules and glyphs */
+  --hq-color-accent: #0774C9;                         /* Palette.parentAccent — the MySchool blue as a fill (docs/brand/palette.md brand-500): the first step white text clears 4.5:1 on; also the default accent in dark mode */
+  --hq-color-accent-soft: #E6F5FC;                    /* Palette.parentAccentSoft — hover tint / accent band background (brand-50) */
+  --hq-color-accent-strong: #0762BF;                  /* the same blue one step darker (brand-600), where white-on-blue and blue-on-ground both clear 4.5:1 — use it for accent TEXT; it is the default school theme's accent. --hq-color-accent is 4.3:1 as text on the ground */
+  --hq-color-gradient-from: #089CDF;                  /* logo light blue (brand-400) — brand gradient start, 135deg; decorative only, white text on it is 3.1:1 */
+  --hq-color-gradient-to: #0754B7;                    /* logo deep blue (brand-700) — brand gradient end */
+  --hq-color-secondary: #B8047A;                      /* logo magenta (magenta-600) — fills, chips, chart series */
+  --hq-color-tertiary: #FB9B0A;                       /* logo orange (orange-400) — fills only, never text */
   --hq-color-line: #201E1D;                           /* Palette.parentLine — 2px rules */
   --hq-color-rule: #D9D6D2;                           /* Palette.parentRule — light rules, disabled borders */
   --hq-color-disabled: #A9A5A1;                       /* Palette.parentDisabled */
-  --hq-color-on-accent: #FFFFFF;                      /* text on the red accent */
+  --hq-color-on-accent: #FFFFFF;                      /* text on the accent */
   --hq-color-on-ink: #FFFFFF;                         /* text on ink fills */
   --hq-color-focus: #201E1D;                          /* focus ring colour */
   --hq-color-band-good: #5FD6A5;                      /* Palette.bandGood (mint) — progress band, never red */
@@ -97,7 +101,7 @@
   --hq-shadow-raise: 0 1px 0 0 #201E1D;               /* a rule, not a blur — flat Modernist */
   --hq-shadow-lift: 0 2px 0 0 #201E1D;
   --hq-shadow-dialog: 0 4px 0 0 #201E1D;
-  --hq-shadow-drag: 0 4px 0 0 #EC3013;                /* drag-over accent */
+  --hq-shadow-drag: 0 4px 0 0 #0774C9;                /* drag-over accent */
   --hq-world-math-primary: #6FC3FF;                   /* placeholder — Palette.sea */
   --hq-world-math-deep: #3F9BE0;                      /* placeholder — Palette.seaDeep */
   --hq-world-math-soft: #EAF4FF;                      /* placeholder — Palette.sky */
@@ -120,6 +124,10 @@ $hq-tokens: (
   'color-accent': var(--hq-color-accent),
   'color-accent-soft': var(--hq-color-accent-soft),
   'color-accent-strong': var(--hq-color-accent-strong),
+  'color-gradient-from': var(--hq-color-gradient-from),
+  'color-gradient-to': var(--hq-color-gradient-to),
+  'color-secondary': var(--hq-color-secondary),
+  'color-tertiary': var(--hq-color-tertiary),
   'color-line': var(--hq-color-line),
   'color-rule': var(--hq-color-rule),
   'color-disabled': var(--hq-color-disabled),
