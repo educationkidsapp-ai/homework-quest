@@ -64,12 +64,10 @@ android {
             dimension = "env"
             applicationIdSuffix = ".qa"
             versionNameSuffix = "-qa"
-            resValue("string", "app_name", "HQ · QA")
             apiFields("qa")
         }
         create("prod") {
             dimension = "env"
-            resValue("string", "app_name", "Homework Quest")
             apiFields("prod")
         }
     }

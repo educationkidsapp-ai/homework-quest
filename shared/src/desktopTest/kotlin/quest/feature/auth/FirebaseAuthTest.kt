@@ -24,6 +24,7 @@ class FirebaseAuthTest {
     private val db = Db(DriverFactory(null))
     private val settings = SettingsStore(db)
     private val calls = mutableListOf<HttpRequestData>()
+    private var expired = 0
 
     private fun auth(script: (HttpRequestData) -> Pair<HttpStatusCode, String>) = FirebaseAuth(
         apiKey = "test-key", settings = settings,
@@ -32,6 +33,7 @@ class FirebaseAuthTest {
             val (status, body) = script(req)
             respond(body, status, headersOf("Content-Type", "application/json"))
         }),
+        onSessionExpired = { expired++ },
     )
 
     private val ok = """{"localId":"uid-1","email":"p@x.com","idToken":"id-1","refreshToken":"r-1","expiresIn":"3600"}"""
@@ -81,6 +83,16 @@ class FirebaseAuthTest {
         assertNull(a.idToken())
         assertEquals(AuthState.SignedOut, a.state.value)
         assertNull(settings.get(SettingsStore.KEY_FIREBASE_SESSION))
+        assertEquals(1, expired, "an expired session clears what a sign-out clears — the cached documents")
+    }
+
+    /** A sign-out the parent asked for goes through SignOutUseCase, which clears the cache itself: not twice. */
+    @Test fun anAskedForSignOutIsNotAnExpiry() = runTest {
+        settings.load()
+        val a = auth { HttpStatusCode.OK to ok }
+        a.signIn("p@x.com", "secret1")
+        a.signOut()
+        assertEquals(0, expired)
     }
 
     @Test fun signOutClearsEverything() = runTest {

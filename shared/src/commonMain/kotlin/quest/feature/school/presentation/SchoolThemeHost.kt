@@ -1,5 +1,11 @@
 package quest.feature.school.presentation
 
+import quest.ui.design.LocalDarkTheme
+import quest.ui.design.DashboardPalette
+import quest.feature.parent.domain.ParentRepository
+import quest.core.platform.SystemBarsAppearance
+import quest.feature.parent.domain.Appearance
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
@@ -51,8 +57,14 @@ fun SchoolThemeHost(content: @Composable () -> Unit) {
     val attachments: AttachmentImages = koinInject()
     val documents: AttachmentDocuments = koinInject()
 
+    val parent: ParentRepository = koinInject()
+
     val child by children.currentChild.collectAsState()
     val theme by session.theme.collectAsState()
+    // Light / Dark / System (Settings): System follows the device, and changes with it while the app is open.
+    val appearance by parent.appearance.collectAsState()
+    val dark = appearance.isDark(isSystemInDarkTheme())
+    SystemBarsAppearance(dark, followsSystem = appearance == Appearance.SYSTEM)
     val branding by session.branding.collectAsState()
 
     // The child decides the school: switching child switches theme and flags together, and a child in the default
@@ -66,7 +78,8 @@ fun SchoolThemeHost(content: @Composable () -> Unit) {
     }
 
     CompositionLocalProvider(
-        LocalThemeOverrides provides animatedOverrides(theme?.let(::schoolThemeOverrides)),
+        LocalDarkTheme provides dark,
+        LocalThemeOverrides provides animatedOverrides(theme?.let(::schoolThemeOverrides), dark),
         LocalSchoolBranding provides branding,
         LocalFlags provides session,
         LocalSchoolLogos provides logos,
@@ -81,40 +94,47 @@ fun SchoolThemeHost(content: @Composable () -> Unit) {
  * The app's own look written as a full [ThemeOverrides]: the value each role animates *from*, and where a role a
  * school leaves out lands. Every colour here must be the one its consumer would use with no overrides at all — the
  * host always provides a complete set, so a wrong base here would quietly re-colour the *unthemed* app, which is why
- * `SchoolThemeHostTest` compares the whole scheme against `ThemeOverrides()`.
+ * `SchoolThemeHostTest` compares the whole scheme against `ThemeOverrides()`, in both palettes.
  */
-internal val unthemed = ThemeOverrides(
-    primary = Palette.parentSurface,
-    primaryInk = Palette.parentInk,
-    accent = Palette.parentAccent,
-    ground = Palette.parentBg,
-    softBorder = Palette.parentLine,
-    mascotColor = AvatarColors.body(AvatarColors.MASCOT),
-    softAccent = Palette.parentAccentSoft,
-    worldPalettes = WorldPaletteOverrides(math = Palette.sand, english = Palette.lavender),
-)
+internal fun unthemed(dark: Boolean = false): ThemeOverrides {
+    val palette = if (dark) DashboardPalette.Dark else DashboardPalette.Light
+    return ThemeOverrides(
+        primary = palette.surface,
+        primaryInk = palette.ink,
+        accent = palette.brand,
+        ground = palette.bg,
+        softBorder = palette.rule,
+        mascotColor = AvatarColors.body(AvatarColors.MASCOT),
+        worldPalettes = WorldPaletteOverrides(math = Palette.sand, english = Palette.lavender),
+    )
+}
 
 /**
- * Every overridable role, animated from the token it replaces. A null [target] (no school, or a theme that leaves a
- * role alone) animates back to [unthemed], so leaving a school fades out of its colours just as joining faded in.
+ * Every overridable role, animated from the value it replaces. A null [target] (no school, or a theme that leaves a
+ * role alone) animates back to [unthemed], so leaving a school fades out of its colours just as joining faded in —
+ * and switching between light and dark cross-fades the same way.
+ *
+ * In the dark palette a school keeps its **accent** only (see `parentScheme`): its surface, ink, ground and border
+ * are a light set, so those four roles are the dark palette's own.
  */
 @Composable
-private fun animatedOverrides(target: ThemeOverrides?): ThemeOverrides {
+private fun animatedOverrides(target: ThemeOverrides?, dark: Boolean): ThemeOverrides {
     @Composable
     fun role(value: Color?, base: Color?, label: String): Color =
         animateColorAsState(value ?: base ?: Color.Unspecified, tween(Motion.themeTransitionMillis), label = label).value
 
+    val base = unthemed(dark)
+    val school = if (dark) target?.copy(primary = null, primaryInk = null, ground = null, softBorder = null) else target
     return ThemeOverrides(
-        primary = role(target?.primary, unthemed.primary, "primary"),
-        primaryInk = role(target?.primaryInk, unthemed.primaryInk, "primaryInk"),
-        accent = role(target?.accent, unthemed.accent, "accent"),
-        ground = role(target?.ground, unthemed.ground, "ground"),
-        softBorder = role(target?.softBorder, unthemed.softBorder, "softBorder"),
-        mascotColor = role(target?.mascotColor, unthemed.mascotColor, "mascot"),
-        softAccent = role(target?.softAccent, unthemed.softAccent, "softAccent"),
+        primary = role(school?.primary, base.primary, "primary"),
+        primaryInk = role(school?.primaryInk, base.primaryInk, "primaryInk"),
+        accent = role(school?.accent, base.accent, "accent"),
+        ground = role(school?.ground, base.ground, "ground"),
+        softBorder = role(school?.softBorder, base.softBorder, "softBorder"),
+        mascotColor = role(school?.mascotColor, base.mascotColor, "mascot"),
         worldPalettes = WorldPaletteOverrides(
-            math = role(target?.worldPalettes?.math, unthemed.worldPalettes.math, "worldMath"),
-            english = role(target?.worldPalettes?.english, unthemed.worldPalettes.english, "worldEnglish"),
+            math = role(school?.worldPalettes?.math, base.worldPalettes.math, "worldMath"),
+            english = role(school?.worldPalettes?.english, base.worldPalettes.english, "worldEnglish"),
         ),
         fontChoice = target?.fontChoice,
     )

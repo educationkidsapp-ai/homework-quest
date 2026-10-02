@@ -1,0 +1,4 @@
+<resources>
+    <!-- The same, when the device (or, from API 31, the app's own night mode) is dark: gray-900, light glyphs. -->
+    <style name="Theme.Quest" parent="Theme.Quest.Dark" />
+</resources>

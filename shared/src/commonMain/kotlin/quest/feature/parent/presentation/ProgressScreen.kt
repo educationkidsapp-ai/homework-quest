@@ -171,7 +171,7 @@ private fun ReleasedResults(results: List<ReleasedResult>, s: Strings) {
                     }
                 }
                 r.score?.let {
-                    Text("$it", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+                    Text("$it", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.accentInk)
                 }
             }
             r.band?.let {

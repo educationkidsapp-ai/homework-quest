@@ -15,7 +15,7 @@ fun main() {
     val config = if (useFake) ApiConfig.Fake else ApiConfig.Server(System.getenv("QUEST_API_URL"), System.getenv("QUEST_FIREBASE_API_KEY").orEmpty())
     startKoin { modules(appModules(config)) }
     application {
-        Window(onCloseRequest = ::exitApplication, title = "Homework Quest", state = rememberWindowState(width = 412.dp, height = 915.dp)) {
+        Window(onCloseRequest = ::exitApplication, title = "MySchool", state = rememberWindowState(width = 412.dp, height = 915.dp)) {
             App()
         }
     }

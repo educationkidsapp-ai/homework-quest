@@ -88,26 +88,21 @@ class TokensDriftTest {
         assertSp("hq.font.body-line", DesignTokens.fontBodyLine, body.lineHeight)
     }
 
-    // ---- the default scheme must be the token values, byte for byte ---------------------------------------------
+    // ---- the default scheme must be the dashboard's roles, byte for byte --------------------------------------
     @Test
     fun emptyThemeOverridesChangeNothing() {
         assertTrue(ThemeOverrides().isEmpty, "the default ThemeOverrides must be empty")
-        // ColorScheme has no equals(), so compare the roles an override can reach.
-        val scheme = parentScheme()
-        val withEmpty = parentScheme(ThemeOverrides())
-        assertEquals(scheme.primary, withEmpty.primary)
-        assertEquals(scheme.onPrimary, withEmpty.onPrimary)
-        assertEquals(scheme.secondary, withEmpty.secondary)
-        assertEquals(scheme.background, withEmpty.background)
-        assertEquals(scheme.surfaceVariant, withEmpty.surfaceVariant)
-        assertEquals(scheme.outline, withEmpty.outline)
-        assertEquals(Palette.parentAccent, scheme.primary)
-        assertEquals(Palette.white, scheme.onPrimary)
-        assertEquals(Palette.parentAccentSoft, scheme.primaryContainer)
-        assertEquals(Palette.parentSurface, scheme.surface)
-        assertEquals(Palette.parentInk, scheme.onSurface)
-        assertEquals(Palette.parentBg, scheme.background)
-        assertEquals(Palette.parentLine, scheme.outline)
+        listOf(DashboardPalette.Light, DashboardPalette.Dark).forEach { palette ->
+            // ColorScheme has no equals(), so compare the roles an override can reach.
+            val scheme = parentScheme(palette = palette)
+            assertEquals(palette.brand, scheme.primary)
+            assertEquals(Color.White, scheme.onPrimary)
+            assertEquals(palette.brandSoft, scheme.primaryContainer)
+            assertEquals(palette.surface, scheme.surface)
+            assertEquals(palette.ink, scheme.onSurface)
+            assertEquals(palette.bg, scheme.background)
+            assertEquals(palette.rule, scheme.outline)
+        }
     }
 
     /** §3's three brand colours land on the Material roles their *job* implies, not the ones their names suggest. */
@@ -120,7 +115,6 @@ class TokensDriftTest {
         val border = Color(0xFFC9DCD1)
         val scheme = parentScheme(ThemeOverrides(primary = brand, primaryInk = brandInk, accent = accent, ground = ground, softBorder = border))
         assertEquals(accent, scheme.primary, "a filled action carries `accent`")
-        assertEquals(accent, scheme.secondary, "and so does a selection border")
         assertEquals(brand, scheme.surface, "`primary` is the light brand surface")
         assertEquals(brandInk, scheme.onSurface, "carrying the ink the server measured against it")
         assertEquals(ground, scheme.background)
@@ -130,22 +124,35 @@ class TokensDriftTest {
     /** The label on an accent-filled button is chosen by luminance, because the server never measures that pair. */
     @Test
     fun theInkOnAnAccentFillFollowsItsLuminance() {
-        assertEquals(Palette.white, inkOn(Color(0xFF1F6B4A)))
-        assertEquals(Palette.parentInk, inkOn(Color(0xFFF2C75C)))
-        assertEquals(Palette.white, parentScheme(ThemeOverrides(accent = Color(0xFF1F6B4A))).onPrimary)
-        assertEquals(Palette.parentInk, parentScheme(ThemeOverrides(accent = Color(0xFFF2C75C))).onPrimary)
+        assertEquals(Color.White, inkOn(Color(0xFF1F6B4A)))
+        assertEquals(DashboardPalette.gray900, inkOn(Color(0xFFF2C75C)))
+        assertEquals(Color.White, parentScheme(ThemeOverrides(accent = Color(0xFF1F6B4A))).onPrimary)
+        assertEquals(DashboardPalette.gray900, parentScheme(ThemeOverrides(accent = Color(0xFFF2C75C))).onPrimary)
     }
 
-    /** The soft container is derived from the accent, so a school without one keeps the token's own soft red. */
+    /** The soft container is mixed from the accent, as `--hq-color-accent-soft` is, so a school's tint is its own. */
     @Test
-    fun theSoftContainerIsTheAccentOverTheGround() {
-        assertEquals(Palette.parentAccentSoft, parentScheme(ThemeOverrides()).primaryContainer)
+    fun theSoftContainerIsTheAccentOverTheSurface() {
         val tinted = softAccentOf(Color(0xFF1F6B4A), Color(0xFFFFFFFF))!!
-        assertTrue(tinted.luminance() > 0.7f, "a 12 % tint of a dark accent on white is still a light surface")
-        assertEquals(tinted, parentScheme(ThemeOverrides(softAccent = tinted)).primaryContainer)
-        // The token's own pair is close to the same relationship, which is why one formula serves both.
-        val tokenSoft = softAccentOf(Palette.parentAccent, Palette.parentBg)!!
-        assertTrue((tokenSoft.luminance() - Palette.parentAccentSoft.luminance()) < 0.06f, "the derived tint is in the token's family")
+        assertTrue(tinted.luminance() > 0.7f, "a 10 % tint of a dark accent on white is still a light surface")
+        assertEquals(tinted, parentScheme(ThemeOverrides(accent = Color(0xFF1F6B4A))).primaryContainer)
+        // On the dark surface the same accent gives a dark tint.
+        val dark = parentScheme(ThemeOverrides(accent = Color(0xFF1F6B4A)), DashboardPalette.Dark).primaryContainer
+        assertTrue(dark.luminance() < 0.1f)
+    }
+
+    /** The gradient, the magenta and the orange are the product's: a school's accent changes none of them. */
+    @Test
+    fun aSchoolsAccentLeavesTheBrandGradientAndAccentsAlone() {
+        val green = Color(0xFF1F6B4A)
+        listOf(DashboardPalette.Light, DashboardPalette.Dark).forEach { palette ->
+            val school = effectivePalette(palette, ThemeOverrides(accent = green))
+            assertEquals(palette.gradient, school.gradient)
+            assertEquals(palette.gradientText, school.gradientText)
+            assertEquals(palette.secondary, school.secondary)
+            assertEquals(palette.tertiary, school.tertiary)
+            assertEquals(green, parentScheme(ThemeOverrides(accent = green), palette).primary)
+        }
     }
 
     // ---- the generated set itself -------------------------------------------------------------------------------

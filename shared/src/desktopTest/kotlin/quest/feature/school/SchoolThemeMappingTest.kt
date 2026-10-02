@@ -1,5 +1,6 @@
 package quest.feature.school
 
+import quest.ui.design.DashboardPalette
 import androidx.compose.ui.graphics.Color
 import quest.api.dto.FontChoice
 import quest.api.dto.SchoolTheme
@@ -7,7 +8,6 @@ import quest.api.dto.WorldPalette
 import quest.feature.content.data.FakeContentApi
 import quest.ui.design.AvatarColors
 import quest.ui.design.DesignTokens
-import quest.ui.design.Palette
 import quest.ui.design.parentThemeScheme
 import quest.ui.design.parseThemeColor
 import quest.ui.design.schoolThemeOverrides
@@ -39,10 +39,10 @@ class SchoolThemeMappingTest {
         assertNull(overrides.ground)
         assertNull(overrides.worldPalettes.math)
         assertNull(overrides.worldPalettes.english)
-        // And the scheme falls straight back to the design tokens, so the app still looks like itself.
-        assertEquals(Palette.parentAccent, parentThemeScheme(overrides).primary)
-        assertEquals(Palette.parentSurface, parentThemeScheme(overrides).surface)
-        assertEquals(Palette.parentBg, parentThemeScheme(overrides).background)
+        // And the scheme falls straight back to the dashboard palette, so the app still looks like itself.
+        assertEquals(DashboardPalette.Light.brand, parentThemeScheme(overrides).primary)
+        assertEquals(DashboardPalette.Light.surface, parentThemeScheme(overrides).surface)
+        assertEquals(DashboardPalette.Light.bg, parentThemeScheme(overrides).background)
     }
 
     @Test fun hexShapesTheServerMaySend() {

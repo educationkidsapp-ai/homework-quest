@@ -1,5 +1,7 @@
 package quest.feature.school.presentation
 
+import quest.ui.design.brandGradient
+import quest.ui.design.DashboardTokens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.core.tween
@@ -19,7 +21,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
@@ -58,17 +59,16 @@ fun SchoolLogo(
     schoolName: String,
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
-    background: Color = MaterialTheme.colorScheme.primaryContainer,
-    ink: Color = MaterialTheme.colorScheme.onPrimaryContainer,
 ) {
     val logo by rememberSchoolLogo(logoUrl)
     val monogram = schoolName.trim().takeIf { it.isNotEmpty() }?.first()?.uppercase() ?: "?"
     Box(
-        modifier.size(size).clip(RoundedCornerShape(size / 6)).background(background)
+        // The dashboard's logo tile: the initial in white on the brand gradient (or the school's own accent gradient).
+        modifier.size(size).clip(RoundedCornerShape(DashboardTokens.radiusMd)).background(brandGradient())
             .semantics { contentDescription = schoolName.ifBlank { "School logo" } },
         contentAlignment = Alignment.Center,
     ) {
-        Text(monogram, style = MaterialTheme.typography.titleLarge, color = ink)
+        Text(monogram, style = MaterialTheme.typography.titleLarge, color = DashboardTokens.onBrand)
         AnimatedVisibility(logo != null, enter = fadeIn(tween(300))) {
             logo?.let { Image(it, contentDescription = null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
         }

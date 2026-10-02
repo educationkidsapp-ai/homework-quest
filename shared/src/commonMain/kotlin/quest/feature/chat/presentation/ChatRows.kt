@@ -195,7 +195,7 @@ fun ChatThreadRow(
                                 selected = resolved,
                             )
                         }
-                        if (thread.unread > 0) Chip("${thread.unread}", DashboardTokens.warningBg)
+                        if (thread.unread > 0) Chip("${thread.unread}", DashboardTokens.secondarySoft)
                     }
                 }
             }

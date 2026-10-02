@@ -315,7 +315,7 @@ fun BroadcastCard(
                 fontWeight = if (view.read) FontWeight.Normal else FontWeight.Bold,
                 modifier = Modifier.weight(1f),
             )
-            if (!view.read) Chip(strings.newBadge, DashboardTokens.warningBg)
+            if (!view.read) Chip(strings.newBadge, DashboardTokens.secondarySoft)
         }
 
         Spacer(Modifier.height(Dimens.s4))

@@ -2,7 +2,6 @@ package quest.feature.journey.presentation
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,7 +39,7 @@ import quest.ui.design.AnimatedDotsLoader
 import quest.ui.design.BackButton
 import quest.ui.design.BigButton
 import quest.ui.design.DashboardCard
-import quest.ui.design.DashboardPill
+import quest.ui.design.DashboardHeroCard
 import quest.ui.design.DashboardProgressBar
 import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
@@ -76,21 +75,20 @@ fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) 
     if (state.error != null) { ErrorView(state.error, onBack); return }
     if (state.loading || state.play == null) { LoadingView(s.loadingLesson); return }
     val total = state.stops.size
-    Column(Modifier.fillMaxSize().background(DashboardTokens.bg).safeDrawingPadding()) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         LessonTopBar(onBack = onBack, onReadAloud = { dispatch(Intent.ReadAloud) })
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            DashboardCard(Modifier.padding(horizontal = Dimens.s16)) {
+            DashboardHeroCard(Modifier.padding(horizontal = Dimens.s16)) {
+                val onHero = MaterialTheme.colorScheme.onPrimary
                 Column {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
-                        state.lesson?.subject?.let { DashboardPill(SubjectMeta.of(it).label(LocalLessonRtl.current)) }
-                    }
-                    Spacer(Modifier.height(Dimens.s8))
-                    Text(state.lesson?.title.orEmpty(), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong)
+                    Text(state.lesson?.subject?.let { SubjectMeta.of(it).label(LocalLessonRtl.current) }.orEmpty(), style = MaterialTheme.typography.labelLarge, color = onHero.copy(alpha = 0.9f))
+                    Spacer(Modifier.height(Dimens.s4))
+                    Text(state.lesson?.title.orEmpty(), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = onHero)
                     Spacer(Modifier.height(Dimens.s12))
                     // A bar and a count of steps — never a percentage (§7).
-                    DashboardProgressBar(if (total == 0) 0f else state.doneCount.toFloat() / total)
+                    DashboardProgressBar(if (total == 0) 0f else state.doneCount.toFloat() / total, color = onHero, trackColor = onHero.copy(alpha = 0.3f))
                     Spacer(Modifier.height(Dimens.s4))
-                    Text(s.stepsCompleted.replace("{done}", "${state.doneCount}").replace("{total}", "$total"), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                    Text(s.stepsCompleted.replace("{done}", "${state.doneCount}").replace("{total}", "$total"), style = MaterialTheme.typography.bodySmall, color = onHero)
                 }
             }
             Spacer(Modifier.height(Dimens.s12))
@@ -124,7 +122,7 @@ fun LessonTopBar(onBack: (() -> Unit)?, onReadAloud: () -> Unit, center: @Compos
 
 @Composable
 fun LoadingView(text: String) {
-    Column(Modifier.fillMaxSize().background(DashboardTokens.bg).safeDrawingPadding(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         AnimatedDotsLoader(dotSize = 12.dp, spacing = 8.dp)
         Spacer(Modifier.height(Dimens.s16))
         Text(text, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
@@ -133,7 +131,7 @@ fun LoadingView(text: String) {
 
 @Composable
 fun ErrorView(text: String, onBack: () -> Unit) {
-    Column(Modifier.fillMaxSize().background(DashboardTokens.bg).safeDrawingPadding().padding(Dimens.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(Dimens.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         DashboardCard {
             Text(text, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkStrong, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
