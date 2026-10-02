@@ -38,6 +38,8 @@ import quest.api.ContentApi
 import quest.core.db.Db
 import quest.core.db.SettingsStore
 import quest.core.platform.platformModule
+import quest.core.platform.connectivityModule
+import quest.feature.content.domain.PendingAnswersSync
 import quest.feature.auth.data.FakeAuth
 import quest.feature.auth.data.FirebaseAuth
 import quest.feature.auth.data.SessionRestorer
@@ -139,7 +141,7 @@ val coreModule = module {
     single { Db(get()) }
     single { SettingsStore(get()) }
     single { quest.feature.journey.data.LessonImages(get()) }
-    single { AppInitializer(get(), get(), get()) }
+    single { AppInitializer(get(), get(), get(), get()) }
 }
 
 /**
@@ -158,6 +160,8 @@ val contentModule = module {
     single<LessonRepository> { LessonRepositoryImpl(get(), get()) }
     single<JourneyRepository> { JourneyRepositoryImpl(get(), get()) }
     single<MapRepository> { MapRepositoryImpl(get(), get(), get()) }
+    // M4 (D3): one for the app — started by `AppInitializer`, nudged when the app comes to the front.
+    single { PendingAnswersSync(get(), get(), get()) }
     viewModel { SignInViewModel(get()) }
     // Signing out also turns the biometric lock off (M2) and empties the home-screen widget and any exam activity (M3).
     factory { SignOutUseCase(get(), get(), get(), alsoForget = { get<BiometricPreferences>().signedOut(); get<TodaySnapshotStore>().write(null); get<ExamSittingPresenter>().end() }) }
@@ -171,7 +175,7 @@ val contentModule = module {
     factory { LessonCopy(get(), get()) }
     viewModel { MapViewModel(get(), get(), get(), get(), get(), get(), publishToday = get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get(), get()) }
-    viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get(), sitting = get(), windows = get(), now = Today::epochMillis) }
+    viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get(), sitting = get(), windows = get(), now = Today::epochMillis, sync = get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> LessonCompleteViewModel(lessonId, level, variant, get(), get(), get(), get(), get(), get()) }
 }
 
@@ -208,4 +212,4 @@ val broadcastsModule = module {
     viewModel { WeeklyPlanViewModel(get(), get()) }
 }
 
-fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, broadcastsModule)
+fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), connectivityModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, broadcastsModule)

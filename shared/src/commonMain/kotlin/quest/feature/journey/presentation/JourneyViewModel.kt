@@ -15,6 +15,7 @@ import quest.core.mvi.MviViewModel
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.content.domain.JourneyRepository
 import quest.feature.content.domain.LessonRepository
+import quest.feature.content.domain.PendingAnswersSync
 import quest.feature.content.domain.SubmitOutcome
 import quest.feature.journey.presentation.JourneyContract.Effect
 import quest.feature.journey.presentation.JourneyContract.Intent
@@ -81,10 +82,17 @@ class StopPlayerViewModel(
     private val lessons: LessonRepository, private val journey: JourneyRepository, private val children: ChildrenRepository, private val media: ContentApi, private val copy: LessonCopy,
     /** M3: the sitting as the system shows it outside the app (Live Activity / ongoing notification). */
     private val sitting: ExamSittingPresenter = NoExamSittingPresenter, private val windows: ExamWindows = ExamWindows(), private val now: () -> Long = { 0L },
+    /** M4 (D3): delivers what is kept offline as soon as the network is back; the screen listens for its answer. */
+    private val sync: PendingAnswersSync? = null,
 ) : MviViewModel<PlayerContract.State, PlayerContract.Intent, PlayerContract.Effect>(PlayerContract.State(index = startIndex)) {
 
     private var childId = ""
-    init { dispatch(PlayerContract.Intent.Load) }
+    init {
+        dispatch(PlayerContract.Intent.Load)
+        // "Sending your answers…" no longer waits for a tap: once the sync has had an answer from the server about this
+        // paper, the screen asks again, and only a delivered paper becomes "Submitted".
+        sync?.let { s -> launch { s.settled.collect { if (lessonId in it && current.phase == PlayerContract.Phase.SENDING) dispatch(PlayerContract.Intent.SendAgain) } } }
+    }
 
     companion object { /** How long "Answer saved" stays up — one value for every answer. */ const val EXAM_ACKNOWLEDGE_MILLIS = 1_200L }
 
@@ -208,7 +216,7 @@ class StopPlayerViewModel(
         if (current.exam) {
             reduce { copy(phase = PlayerContract.Phase.DONE) }
             when (val outcome = journey.submit(childId, lessonId)) {
-                SubmitOutcome.QUEUED -> { reduce { copy(phase = PlayerContract.Phase.SENDING) }; return }
+                SubmitOutcome.QUEUED -> { reduce { copy(phase = PlayerContract.Phase.SENDING) }; sync?.nudge(); return }
                 SubmitOutcome.CLOSED -> { sitting.end(); reduce { copy(refusal = outcome) }; effect(PlayerContract.Effect.Finished(lessonId, level, variant)); return }
                 SubmitOutcome.SENT, SubmitOutcome.ALREADY_TAKEN -> sitting.end()
             }
