@@ -34,6 +34,7 @@ import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
+import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -74,6 +75,8 @@ private fun both(pick: (DashboardPalette) -> Color) = ColorProvider(day = pick(l
 @Composable
 private fun TodayContent(context: Context, snapshot: TodaySnapshot?) {
     val wide = LocalSize.current.width >= TodayWidget.MEDIUM.width
+    // The launcher lays the widget out for the device's locale; the words at least sit on the side their language reads from.
+    val align = if (snapshot?.rtl == true) TextAlign.End else TextAlign.Start
     fun open(link: TodayLink) = actionStartActivity(
         Intent(context, MainActivity::class.java).putExtra(AndroidTodaySnapshotStore.EXTRA_LINK, link.key).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
     )
@@ -92,19 +95,19 @@ private fun TodayContent(context: Context, snapshot: TodaySnapshot?) {
         val l = snapshot.labels
         Text(
             when (snapshot.lessonsToDo) { 0 -> l.allDone; 1 -> l.oneLessonToDo; else -> l.lessonsToDo.replace("{n}", "${snapshot.lessonsToDo}") },
-            maxLines = 1, style = TextStyle(color = both { it.brandInk }, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+            maxLines = 1, style = TextStyle(color = both { it.brandInk }, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = align), modifier = GlanceModifier.fillMaxWidth(),
         )
-        if (wide) snapshot.lessonTitles.forEach { Text("• $it", maxLines = 1, style = TextStyle(color = both { it.ink }, fontSize = 12.sp)) }
+        if (wide) snapshot.lessonTitles.forEach { Text("• $it", maxLines = 1, style = TextStyle(color = both { it.ink }, fontSize = 12.sp, textAlign = align), modifier = GlanceModifier.fillMaxWidth()) }
         snapshot.nextExamTitle?.let { title ->
             Spacer(GlanceModifier.height(4.dp))
             val until = snapshot.nextExamClosesAt?.let { " · " + l.examUntil.replace("{time}", TIME.format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()))) }.orEmpty()
-            Text("${l.exam}: $title$until", maxLines = if (wide) 1 else 2, style = TextStyle(color = both { it.secondaryInk }, fontSize = 12.sp, fontWeight = FontWeight.Medium))
+            Text("${l.exam}: $title$until", maxLines = if (wide) 1 else 2, style = TextStyle(color = both { it.secondaryInk }, fontSize = 12.sp, fontWeight = FontWeight.Medium, textAlign = align), modifier = GlanceModifier.fillMaxWidth())
         }
         if (snapshot.unreadMessages > 0) {
             Spacer(GlanceModifier.height(4.dp))
             Text(
                 if (snapshot.unreadMessages == 1) l.oneUnread else l.unread.replace("{n}", "${snapshot.unreadMessages}"),
-                maxLines = 1, style = TextStyle(color = both { it.inkSoft }, fontSize = 12.sp), modifier = GlanceModifier.clickable(open(TodayLink.MESSAGES)),
+                maxLines = 1, style = TextStyle(color = both { it.inkSoft }, fontSize = 12.sp, textAlign = align), modifier = GlanceModifier.fillMaxWidth().clickable(open(TodayLink.MESSAGES)),
             )
         }
     }
