@@ -820,7 +820,7 @@ builds at start-up from `design/tokens.json` — so no school ever renders witho
 
 ```json
 { "logoUrl": null, "appName": null,
-  "primary": "#FFFFFF", "primaryInk": "#201E1D", "accent": "#CC2A0F",
+  "primary": "#FFFFFF", "primaryInk": "#201E1D", "accent": "#0762BF",
   "ground": "#F3F2F2", "softBorder": "#D9D6D2", "mascotColor": "#598FB8",
   "worldPalettes": { "math":    { "primary": "#6FC3FF", "deep": "#3F9BE0", "soft": "#EAF4FF", "ink": "#201E1D" },
                      "english": { "primary": "#B69CFF", "deep": "#7E63D8", "soft": "#F1ECFF", "ink": "#201E1D" } },
@@ -829,6 +829,17 @@ builds at start-up from `design/tokens.json` — so no school ever renders witho
 
 That is the shipped default, as `GET /schools/by-code/ALNOOR` returns it for a school that has not been themed.
 `worldPalettes` has exactly the two worlds `math` and `english`.
+
+**Palette source of truth (B2).** The colours are the MySchool logo's, and they flow one way: `docs/brand/palette.md`
+→ `design/tokens.json` (and its byte-identical copy `server/src/main/resources/design/tokens.json`) → the server's
+default theme (`DesignTokens`, mirrored by `quest.api.dto.SchoolTheme()`), the dashboard's `_theme.scss` /
+`_tokens.generated.scss` and the app's generated `DesignTokens`. In the tokens `color.accent` is `#0774C9` (the fill
+white text clears AA on, and the dark-mode accent), `color.accent-strong` is `#0762BF` (the default theme's `accent`,
+5.4:1 on the ground), `color.accent-soft` is `#E6F5FC`, and `color.gradient-from` / `gradient-to` / `secondary` /
+`tertiary` carry the gradient's `#089CDF → #0754B7`, the magenta `#B8047A` and the orange `#FB9B0A`; the tokens have
+no dark slots, so dark values stay in `palette.md` and the front-ends. `V29__default_theme_logo_palette.sql` moved the
+accent of every stored theme that still held the old default's colours verbatim (`#CC2A0F` with the default surface,
+ink, ground, rule, mascot and worlds) to `#0762BF`; a theme with any colour of its own was left as it was.
 
 ### What a save is validated against
 
@@ -854,8 +865,8 @@ The message form, both verified locally:
 {"code":"bad_request","message":"mascotColor on ground is 1.6:1, needs 3.0:1"}
 ```
 
-(The first is the brand red `#EC3013` as text on `#F3F2F2`; the second is the tokens' mascot blue `#7EC8FF`. Both are
-why the defaults are the darkened variants.)
+(The first is the old brand red `#EC3013` as text on `#F3F2F2`; the second is the tokens' mascot blue `#7EC8FF`. Both
+are why the defaults are the darkened variants.)
 
 The two free-text fields are checked before any colour, in `SafeText`:
 

@@ -47,7 +47,7 @@ data class SchoolTheme(
     val appName: String? = null,
     val primary: String = "#FFFFFF",
     val primaryInk: String = "#201E1D",
-    val accent: String = "#CC2A0F",
+    val accent: String = "#0762BF",
     val ground: String = "#F3F2F2",
     val softBorder: String = "#D9D6D2",
     /**

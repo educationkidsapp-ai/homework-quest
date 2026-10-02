@@ -36,9 +36,11 @@ class DefaultThemeTest {
         assertThat(theme.primary()).isEqualTo(tokens.colour("surface"));
         assertThat(theme.primaryInk()).isEqualTo(tokens.colour("ink"));
         assertThat(theme.softBorder()).isEqualTo(tokens.colour("rule"));
-        // `color.accent` (#EC3013) is 3.8:1 on the ground and would be rejected; accent-strong is the tokens' own fix.
+        // `color.accent` (#0774C9) is 4.3:1 on the ground and would be rejected; accent-strong is the tokens' own fix.
         assertThat(theme.accent()).isEqualTo(tokens.colour("accent-strong"));
         assertThat(Contrast.ratio(tokens.colour("accent"), theme.ground())).isLessThan(Contrast.MINIMUM);
+        assertThat(theme.accent()).as("B2: the MySchool logo blue, docs/brand/palette.md's default accent").isEqualTo("#0762BF");
+        assertThat(Contrast.ratio("#FFFFFF", tokens.colour("accent"))).as("white text on the accent fill").isGreaterThanOrEqualTo(Contrast.MINIMUM);
         assertThat(theme.worldPalettes()).containsOnlyKeys("math", "english");
         assertThat(theme.fontChoice()).isEqualTo(ThemeDto.FontChoice.NUNITO);
     }

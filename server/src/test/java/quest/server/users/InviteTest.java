@@ -43,6 +43,7 @@ class InviteTest extends ApiTestSupport {
         var mail = mailer.last();
         assertThat(mail.to()).isEqualTo(email);
         assertThat(mail.subject()).contains("Al Noor Primary");
+        assertThat(mail.html()).as("B2: the button is the tokens' accent, the logo blue, not the old red").contains("background:#0762BF;color:#FFFFFF").doesNotContain("#d4261a");
         assertThat(mail.text()).contains("/dashboard/accept-invite?token=");
         String link = mail.token();
 

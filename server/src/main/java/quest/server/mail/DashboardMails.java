@@ -2,6 +2,7 @@ package quest.server.mail;
 
 import org.springframework.stereotype.Service;
 import quest.server.config.QuestProperties;
+import quest.server.platform.DesignTokens;
 
 /**
  * The two transactional emails phase 1 sends: the invite link and the password-reset link. Subjects carry the
@@ -11,9 +12,12 @@ import quest.server.config.QuestProperties;
 @Service
 public class DashboardMails {
     private final Mailer mailer; private final PlatformName platform; private final String dashboardUrl;
+    /** The button: the design tokens' accent (the MySchool blue) and the text drawn on it, never a literal. */
+    private final String accent, onAccent;
 
-    public DashboardMails(Mailer mailer, PlatformName platform, QuestProperties props) {
+    public DashboardMails(Mailer mailer, PlatformName platform, QuestProperties props, DesignTokens tokens) {
         this.mailer = mailer; this.platform = platform;
+        this.accent = tokens.colour("accent-strong"); this.onAccent = tokens.colour("on-accent");
         // DASHBOARD_URL is the origin the dashboard is served from; the Angular dashboard mounts at `/dashboard/` (D10),
         // so the links below carry that prefix. `webAdmin`'s `/panel/` keeps serving the old bundle until P3.6 retires it.
         String configured = props.dashboardUrl();
@@ -45,7 +49,7 @@ public class DashboardMails {
     private String html(String heading, String action, String link, String note) {
         return "<div style=\"font-family:Archivo,Helvetica,Arial,sans-serif;color:#1a1a1a\">"
                 + "<h1 style=\"font-size:20px;margin:0 0 16px\">" + escape(heading) + "</h1>"
-                + "<p style=\"margin:0 0 20px\"><a href=\"" + escape(link) + "\" style=\"display:inline-block;padding:12px 20px;background:#d4261a;color:#fff;text-decoration:none\">" + escape(action) + "</a></p>"
+                + "<p style=\"margin:0 0 20px\"><a href=\"" + escape(link) + "\" style=\"display:inline-block;padding:12px 20px;background:" + accent + ";color:" + onAccent + ";text-decoration:none\">" + escape(action) + "</a></p>"
                 + "<p style=\"font-size:13px;color:#666;margin:0\">" + escape(note) + "</p></div>";
     }
 

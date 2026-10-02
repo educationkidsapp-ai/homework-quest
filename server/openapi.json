@@ -5175,7 +5175,7 @@
       "SchoolTheme" : {
         "properties" : {
           "accent" : {
-            "example" : "#CC2A0F",
+            "example" : "#0762BF",
             "type" : "string"
           },
           "appName" : {

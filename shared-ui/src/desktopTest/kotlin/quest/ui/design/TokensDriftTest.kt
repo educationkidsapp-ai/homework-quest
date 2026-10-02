@@ -203,7 +203,7 @@ class TokensDriftTest {
 
     @Test
     fun rawValuesAreCarriedThrough() {
-        assertEquals("#EC3013", DesignTokens.all["hq.color.accent"])
+        assertEquals("#0774C9", DesignTokens.all["hq.color.accent"])
         assertEquals("240px", DesignTokens.all["hq.size.nav-width"])
         assertEquals("150ms", DesignTokens.all["hq.motion.fast"])
         assertEquals("rgba(32, 30, 29, 0.45)", DesignTokens.all["hq.color.overlay"])
