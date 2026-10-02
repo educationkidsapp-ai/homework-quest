@@ -54,8 +54,8 @@ class MapViewModel(
         if (island.lessonId in current.exams) {
             // §8: an exam opens only inside its window and only once. Outside it the card says why, and so does this.
             val t = copy.strings()
-            when (examStatus(island, now())) {
-                ExamStatus.OPEN -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 0))
+            when (examStatus(island, now(), loadedAt = current.now)) {
+                ExamStatus.OPEN, ExamStatus.REOPENED -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 0))
                 ExamStatus.SUBMITTED -> effect(Effect.Speak(t.examAlreadyTaken))
                 ExamStatus.CLOSED -> effect(Effect.Speak(t.examClosed))
                 ExamStatus.NOT_OPEN -> effect(Effect.Speak(t.examNotOpenYet))

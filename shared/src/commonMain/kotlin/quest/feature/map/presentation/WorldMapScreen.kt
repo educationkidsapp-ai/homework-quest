@@ -2,6 +2,8 @@ package quest.feature.map.presentation
 
 import androidx.compose.ui.platform.testTag
 import quest.ui.design.TestTags
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
 import quest.ui.design.StudentAvatar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -94,8 +96,10 @@ fun WorldMapRoute(
     val parent: ParentRepository = koinInject()
     val language by parent.language.collectAsStateWithLifecycle()
     val strings = if (featureEnabled(Flags.PARENT_PANEL_ARABIC)) Strings.forLanguage(language) else Strings.en
+    // The home page is read again every time the app comes back to the front: an exam the teacher re-opened, or one
+    // whose window shut while the app was away, shows as it is now rather than as it was when the page was first drawn.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.dispatch(Intent.Load) }
     LaunchedEffect(vm) {
-        vm.dispatch(Intent.Load)
         vm.effects.collect { e ->
             when (e) {
                 is Effect.Speak -> speaker.speak(e.text)
@@ -468,7 +472,7 @@ private fun FormalCourseworkCard(
 private fun ExamCourseworkCard(island: Island, card: ExamCard, strings: Strings, onOpen: () -> Unit) {
     val ls = if (strings.isRtl) LessonStrings.ar else LessonStrings.en
     val meta = SubjectMeta.of(island.subject)
-    val open = card.status == ExamStatus.OPEN
+    val open = card.status.canSit
     DashboardCard(
         modifier = Modifier.semantics(mergeDescendants = true) {},
         onClick = if (open) onOpen else null,
@@ -483,6 +487,7 @@ private fun ExamCourseworkCard(island: Island, card: ExamCard, strings: Strings,
                 }
                 when (card.status) {
                     ExamStatus.OPEN -> card.left?.let { DashboardPill(text = it, variant = DashboardPillVariant.INFO) }
+                    ExamStatus.REOPENED -> DashboardPill(text = ls.examReopenedShort, variant = DashboardPillVariant.INFO)
                     ExamStatus.SUBMITTED -> DashboardPill(text = ls.examSubmittedShort, variant = DashboardPillVariant.NEUTRAL)
                     ExamStatus.NOT_OPEN -> DashboardPill(text = ls.examNotOpenShort, variant = DashboardPillVariant.NEUTRAL)
                     ExamStatus.CLOSED, ExamStatus.UNAVAILABLE -> DashboardPill(text = ls.examClosedShort, variant = DashboardPillVariant.NEUTRAL)

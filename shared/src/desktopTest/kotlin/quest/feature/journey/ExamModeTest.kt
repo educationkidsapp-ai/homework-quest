@@ -389,10 +389,32 @@ class ExamModeTest {
         assertEquals(ExamStatus.NOT_OPEN, examStatus(island(), opens - 1))
         assertEquals(ExamStatus.OPEN, examStatus(island(), opens))
         assertEquals(ExamStatus.OPEN, examStatus(island(), closes - 1))
-        assertEquals(ExamStatus.CLOSED, examStatus(island(), closes))
+        assertEquals(ExamStatus.CLOSED, examStatus(island(), closes, loadedAt = opens))
         // Handed in beats the clock, and no window from the server means no sitting.
         assertEquals(ExamStatus.SUBMITTED, examStatus(island(IslandState.DONE), opens + 1))
         assertEquals(ExamStatus.UNAVAILABLE, examStatus(island(window = null), opens + 1))
+    }
+
+    /**
+     * The server lists an exam only while this student may sit it, and the window it sends is the exam's own. One
+     * that arrives already past its closing time is therefore a sitting the teacher re-opened — for a student who
+     * was absent or cut off — and must open, not read "Closed".
+     */
+    @Test fun anExamThatArrivesAfterItsWindowShutWasReopenedAndOpens() = examTest {
+        val loadedAt = closes + 5 * 60_000L
+        assertEquals(ExamStatus.REOPENED, examStatus(island(), loadedAt))
+        assertEquals(ExamStatus.REOPENED, examStatus(island(), loadedAt + 3_600_000L, loadedAt), "it does not flip to Closed while the page is open")
+        val card = examCard(island(), loadedAt, TimeZone.UTC, en, emptyList(), true)
+        assertEquals(en.examReopened, card.line)
+        assertNull(card.left, "the extra sitting's end is not in the contract, so no time is claimed")
+        assertEquals(listOf<MapContract.Effect>(MapContract.Effect.OpenLesson(exam.id, 1, 0)), home(island(), loadedAt).second)
+        // A paper she already handed in every answer of stays handed in, re-opened or not.
+        assertEquals(ExamStatus.SUBMITTED, examStatus(island(IslandState.DONE), loadedAt))
+    }
+
+    /** Loaded while open, tapped after the window shut: closed, until a refresh says otherwise. */
+    @Test fun aCardLoadedWhileOpenClosesWhenTheWindowDoes() {
+        assertEquals(ExamStatus.CLOSED, examStatus(island(), closes, loadedAt = opens))
     }
 
     @Test fun theCardSaysWhenItClosesAndRoughlyHowLongIsLeft() {
@@ -416,7 +438,7 @@ class ExamModeTest {
         assertEquals("3 Oct, 09:00", examTime(noon + 21 * 3_600_000L, noon, zone, months, true))
 
         // Outside the window the card says so and offers nothing else — and a submitted one shows no result.
-        assertEquals(en.examClosed, examCard(island(), closes, zone, en, months, true).line)
+        assertEquals(en.examReopened, examCard(island(), closes, zone, en, months, true).line)
         assertEquals(en.examSubmittedNote, examCard(island(IslandState.DONE), opens, zone, en, months, true).line)
         assertNull(examCard(island(IslandState.DONE), opens, zone, en, months, true).left)
     }
@@ -443,7 +465,8 @@ class ExamModeTest {
     @Test fun theHomeCardOpensAnExamOnlyInsideItsWindow() = examTest {
         assertEquals(listOf<MapContract.Effect>(MapContract.Effect.OpenLesson(exam.id, 1, 0)), home(island(), opens).second)
         assertEquals(listOf<MapContract.Effect>(MapContract.Effect.Speak(en.examNotOpenYet)), home(island(), opens - 1).second)
-        assertEquals(listOf<MapContract.Effect>(MapContract.Effect.Speak(en.examClosed)), home(island(), closes).second)
+        // Loaded with its window already shut, the server is saying this student may still sit it (a re-opening).
+        assertEquals(listOf<MapContract.Effect>(MapContract.Effect.OpenLesson(exam.id, 1, 0)), home(island(), closes).second)
     }
 
     @Test fun aSubmittedExamDoesNotOpenAgainAndSaysWhy() = examTest {
