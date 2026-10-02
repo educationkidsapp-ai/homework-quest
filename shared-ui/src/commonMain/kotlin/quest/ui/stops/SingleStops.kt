@@ -34,7 +34,7 @@ fun ChoiceStop(stop: Stop.Choice, onEvent: (StopEvent) -> Unit, modifier: Modifi
     val s = rememberSingleAnswer(stop, onEvent)
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         PromptText(stop.question); Spacer(Modifier.height(Dimens.s24))
-        TileGrid(stop.options.map { it.spec() }, onTap = s.answer, dimmed = s.dimmed)
+        TileGrid(stop.options.map { it.spec() }, onTap = s.answer, dimmed = s.dimmed, selected = s.selected)
     }
 }
 
@@ -47,7 +47,7 @@ fun TrueFalseStop(stop: Stop.TrueFalse, onEvent: (StopEvent) -> Unit, modifier: 
             Text(stop.statement, style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.ink, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
         Spacer(Modifier.height(Dimens.s24))
-        TileGrid(listOf(TileSpec(Stop.TrueFalse.TRUE_ID, LocalStopLabels.current.trueLabel), TileSpec(Stop.TrueFalse.FALSE_ID, LocalStopLabels.current.falseLabel)), onTap = s.answer, dimmed = s.dimmed, fontSize = 26)
+        TileGrid(listOf(TileSpec(Stop.TrueFalse.TRUE_ID, LocalStopLabels.current.trueLabel), TileSpec(Stop.TrueFalse.FALSE_ID, LocalStopLabels.current.falseLabel)), onTap = s.answer, dimmed = s.dimmed, selected = s.selected, fontSize = 26)
     }
 }
 
@@ -62,7 +62,7 @@ fun SequenceStop(stop: Stop.Sequence, onEvent: (StopEvent) -> Unit, modifier: Mo
             }
         }
         Spacer(Modifier.height(Dimens.s32))
-        TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed)
+        TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed, selected = s.selected)
     }
 }
 
@@ -81,7 +81,7 @@ fun CountStop(stop: Stop.Count, onEvent: (StopEvent) -> Unit, modifier: Modifier
             }
         }
         Spacer(Modifier.height(Dimens.s16))
-        TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed)
+        TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed, selected = s.selected)
     }
 }
 
@@ -96,7 +96,7 @@ fun CompareStop(stop: Stop.Compare, onEvent: (StopEvent) -> Unit, modifier: Modi
             }
         }
         Spacer(Modifier.height(Dimens.s32))
-        TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed, fontSize = 44)
+        TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed, selected = s.selected, fontSize = 44)
     }
 }
 
@@ -115,7 +115,7 @@ fun SoundStop(stop: Stop.Sound, onEvent: (StopEvent) -> Unit, modifier: Modifier
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Illustration(stop.illustrationKey, 180.dp)
         Spacer(Modifier.height(Dimens.s32))
-        TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed)
+        TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed, selected = s.selected)
     }
 }
 
@@ -125,7 +125,7 @@ fun WordStop(stop: Stop.Word, onEvent: (StopEvent) -> Unit, modifier: Modifier =
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         SpeakButton(stop.spokenWord, onEvent)
         Spacer(Modifier.height(Dimens.s32))
-        TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed)
+        TileGrid(stop.options.map { TileSpec(it.id, it.label) }, onTap = s.answer, dimmed = s.dimmed, selected = s.selected)
     }
 }
 
@@ -140,7 +140,7 @@ fun ReadTapStop(stop: Stop.ReadTap, onEvent: (StopEvent) -> Unit, modifier: Modi
             Spacer(Modifier.width(16.dp)); SmallSpeakButton(stop.word, onEvent)
         }
         Spacer(Modifier.height(Dimens.s32))
-        TileGrid(stop.options.map { TileSpec(it.id, picture = it.illustrationKey) }, onTap = s.answer, dimmed = s.dimmed)
+        TileGrid(stop.options.map { TileSpec(it.id, picture = it.illustrationKey) }, onTap = s.answer, dimmed = s.dimmed, selected = s.selected)
     }
 }
 
@@ -155,7 +155,7 @@ fun WriteSentenceStop(stop: Stop.WriteSentence, onEvent: (StopEvent) -> Unit, mo
         val options = stop.options
         if (!stop.free && options != null) {
             val s = rememberSingleAnswer(stop.id, stop.answer, LocalStopLabels.current.readSentenceAgain, null, onEvent)
-            TileGrid(options.map { TileSpec(it, it) }, onTap = s.answer, dimmed = s.dimmed)
+            TileGrid(options.map { TileSpec(it, it) }, onTap = s.answer, dimmed = s.dimmed, selected = s.selected)
         } else {
             quest.ui.trace.TraceCanvas(stop.answer, onFinished = { coverage -> onEvent(StopEvent.Completed(quest.ui.trace.TraceScorer.stars(coverage).coerceAtLeast(1), answer = stop.answer)) })
         }

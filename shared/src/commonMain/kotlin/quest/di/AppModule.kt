@@ -1,5 +1,6 @@
 package quest.di
 
+import quest.feature.parent.domain.UndeliveredExamAnswersUseCase
 import quest.feature.children.domain.SignOutUseCase
 import quest.core.platform.DocumentViewer
 import quest.feature.broadcasts.domain.AttachmentDocuments
@@ -151,7 +152,7 @@ val contentModule = module {
     factory { SignOutUseCase(get(), get(), get()) }
     viewModel { ChildrenViewModel(get(), get()) }
     factory { LessonCopy(get(), get()) }
-    viewModel { MapViewModel(get(), get(), get(), get(), get()) }
+    viewModel { MapViewModel(get(), get(), get(), get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> LessonCompleteViewModel(lessonId, level, variant, get(), get(), get(), get(), get(), get()) }
@@ -171,7 +172,7 @@ val parentModule = module {
     factory { CalendarUseCase(get()) }
     factory { ReleasedResultsUseCase(get()) }
     viewModel { (changePin: Boolean) -> PinViewModel(get(), get(), get(), changePin) }
-    viewModel { ParentHomeViewModel(get(), get(), get(), get(), get()) }
+    viewModel { ParentHomeViewModel(get(), get(), get(), get(), get(), UndeliveredExamAnswersUseCase(get(), get())) }
     viewModel { CalendarViewModel(get(), get(), get()) }
     viewModel { ProgressViewModel(get(), get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get()) }

@@ -90,15 +90,22 @@ fun rememberSingleAnswer(stopId: String, correctId: String, hint: String, number
     var dimmed by rememberSaveable(stopId) { mutableStateOf(setOf<String>()) }
     var attempts by rememberSaveable(stopId) { mutableIntStateOf(0) }
     var done by rememberSaveable(stopId) { mutableStateOf(false) }
-    return SingleAnswerState(dimmed, done) { id ->
+    var chosen by rememberSaveable(stopId) { mutableStateOf<String?>(null) }
+    val exam = LocalExamMode.current
+    return SingleAnswerState(dimmed, done, setOfNotNull(chosen)) { id ->
         if (done || id in dimmed) return@SingleAnswerState
         attempts += 1
-        if (id == correctId) { done = true; onEvent(StopEvent.Correct(attempts, id)) }
-        else { dimmed = dimmed + id; onEvent(StopEvent.Wrong(attempts, hint, numberLine)) }
+        when {
+            // An exam takes the first answer as the answer: it is marked as chosen, never as right or wrong.
+            exam -> { done = true; chosen = id; onEvent(if (id == correctId) StopEvent.Correct(1, id) else StopEvent.Wrong(1, hint, numberLine, id)) }
+            id == correctId -> { done = true; onEvent(StopEvent.Correct(attempts, id)) }
+            else -> { dimmed = dimmed + id; onEvent(StopEvent.Wrong(attempts, hint, numberLine, id)) }
+        }
     }
 }
 
-class SingleAnswerState(val dimmed: Set<String>, val done: Boolean, val answer: (String) -> Unit)
+/** [selected] is the option an exam answer chose — highlighted the same whether it was right or not. */
+class SingleAnswerState(val dimmed: Set<String>, val done: Boolean, val selected: Set<String>, val answer: (String) -> Unit)
 
 fun numberLineOf(stop: Stop): NumberLine? = when (stop) {
     is Stop.Sequence -> stop.numberLine; is Stop.Count -> stop.numberLine; is Stop.Compare -> stop.numberLine; else -> null

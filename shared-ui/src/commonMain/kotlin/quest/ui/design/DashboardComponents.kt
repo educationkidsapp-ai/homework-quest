@@ -187,8 +187,8 @@ fun DashboardButton(
  * Modern Status Badge / Pill:
  * Pill shape (CircleShape / 9999dp) with tinted background and high-contrast text.
  */
-/** [HIGHLIGHT] is the brand's orange — identity, not status: the streak. */
-enum class DashboardPillVariant { SUCCESS, WARNING, ERROR, INFO, NEUTRAL, HIGHLIGHT }
+/** [HIGHLIGHT] is the brand's orange — identity, not status: the streak. [ACCENT] is its magenta: a kind of work — an exam. */
+enum class DashboardPillVariant { SUCCESS, WARNING, ERROR, INFO, NEUTRAL, HIGHLIGHT, ACCENT }
 
 @Composable
 fun DashboardPill(
@@ -204,6 +204,7 @@ fun DashboardPill(
         DashboardPillVariant.INFO -> MaterialTheme.colorScheme.primaryContainer
         DashboardPillVariant.NEUTRAL -> DashboardTokens.bgSubtle
         DashboardPillVariant.HIGHLIGHT -> DashboardTokens.tertiarySoft
+        DashboardPillVariant.ACCENT -> DashboardTokens.secondarySoft
     }
     val textColor = when (variant) {
         DashboardPillVariant.SUCCESS -> DashboardTokens.success
@@ -212,6 +213,7 @@ fun DashboardPill(
         DashboardPillVariant.INFO -> DashboardTokens.accentInk
         DashboardPillVariant.NEUTRAL -> DashboardTokens.inkSoft
         DashboardPillVariant.HIGHLIGHT -> DashboardTokens.tertiaryInk
+        DashboardPillVariant.ACCENT -> DashboardTokens.secondaryInk
     }
     val borderColor = when (variant) {
         DashboardPillVariant.SUCCESS -> DashboardTokens.successBorder
@@ -220,6 +222,7 @@ fun DashboardPill(
         DashboardPillVariant.INFO -> MaterialTheme.colorScheme.primaryContainer
         DashboardPillVariant.NEUTRAL -> DashboardTokens.rule
         DashboardPillVariant.HIGHLIGHT -> DashboardTokens.tertiarySoft
+        DashboardPillVariant.ACCENT -> DashboardTokens.secondarySoft
     }
 
     Box(

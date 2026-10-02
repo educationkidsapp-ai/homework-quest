@@ -48,6 +48,7 @@ data class JourneyLabels(
     val levelNames: Map<Int, String> = mapOf(1 to "Core", 2 to "Extended", 3 to "Advanced"),
     val locked: String = "Locked",
     val completed: String = "Completed",
+    val answered: String = "Answered",
     val current: String = "Next",
     val certificate: String = "Certificate of completion",
     val certificateFor: String = "Awarded to",
@@ -85,22 +86,23 @@ enum class NodeState { DONE, CURRENT, LOCKED }
  * drawn but not tappable.
  */
 @Composable
-fun StepList(stops: List<Stop>, states: List<NodeState>, stars: List<Int?>, onTap: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun StepList(stops: List<Stop>, states: List<NodeState>, stars: List<Int?>, onTap: (Int) -> Unit, modifier: Modifier = Modifier, exam: Boolean = false) {
     val labels = LocalJourneyLabels.current
     Column(modifier.fillMaxWidth().padding(horizontal = Dimens.s16), verticalArrangement = Arrangement.spacedBy(Dimens.s8)) {
         stops.forEachIndexed { i, stop ->
             val state = states.getOrElse(i) { NodeState.LOCKED }
-            val stateWord = when (state) { NodeState.DONE -> labels.completed; NodeState.CURRENT -> labels.current; NodeState.LOCKED -> labels.locked }
+            val stateWord = when (state) { NodeState.DONE -> if (exam) labels.answered else labels.completed; NodeState.CURRENT -> labels.current; NodeState.LOCKED -> labels.locked }
             DashboardCard(
                 modifier = Modifier.heightIn(min = Dimens.minTarget).alpha(if (state == NodeState.LOCKED) 0.6f else 1f)
                     .semantics { contentDescription = "${labels.step.replace("{n}", "${i + 1}")}: ${stop.title}, $stateWord" },
-                onClick = if (state != NodeState.LOCKED) ({ onTap(i) }) else null,
+                // §8: an answered exam question is never reopened, and it says "Answered" — not how it went.
+                onClick = if (state == NodeState.CURRENT || (!exam && state == NodeState.DONE)) ({ onTap(i) }) else null,
                 borderColor = if (state == NodeState.CURRENT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         Modifier.size(36.dp).background(
-                            when (state) { NodeState.DONE -> DashboardTokens.successBg; NodeState.CURRENT -> MaterialTheme.colorScheme.primaryContainer; NodeState.LOCKED -> DashboardTokens.bgSubtle },
+                            when (state) { NodeState.DONE -> if (exam) DashboardTokens.bgSubtle else DashboardTokens.successBg; NodeState.CURRENT -> MaterialTheme.colorScheme.primaryContainer; NodeState.LOCKED -> DashboardTokens.bgSubtle },
                             RoundedCornerShape(DashboardTokens.radiusSm),
                         ),
                         contentAlignment = Alignment.Center,
@@ -108,7 +110,7 @@ fun StepList(stops: List<Stop>, states: List<NodeState>, stars: List<Int?>, onTa
                         Text(
                             if (state == NodeState.DONE) "✓" else "${i + 1}",
                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                            color = when (state) { NodeState.DONE -> DashboardTokens.success; NodeState.CURRENT -> DashboardTokens.accentInk; NodeState.LOCKED -> DashboardTokens.inkMuted },
+                            color = when (state) { NodeState.DONE -> if (exam) DashboardTokens.inkSoft else DashboardTokens.success; NodeState.CURRENT -> DashboardTokens.accentInk; NodeState.LOCKED -> DashboardTokens.inkMuted },
                         )
                     }
                     Spacer(Modifier.width(Dimens.s12))
@@ -118,6 +120,8 @@ fun StepList(stops: List<Stop>, states: List<NodeState>, stars: List<Int?>, onTa
                     }
                     val earned = stars.getOrNull(i)
                     when {
+                        exam && state == NodeState.DONE -> DashboardPill(labels.answered, variant = DashboardPillVariant.NEUTRAL)
+                        exam && state == NodeState.LOCKED -> Unit
                         earned != null -> StarRow(3, earned, starSize = 16.dp)
                         state == NodeState.DONE -> DashboardPill(labels.completed, variant = DashboardPillVariant.SUCCESS)
                         state == NodeState.CURRENT -> DashboardPill(labels.current, variant = DashboardPillVariant.INFO)

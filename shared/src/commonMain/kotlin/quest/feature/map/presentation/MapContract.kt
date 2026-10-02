@@ -10,6 +10,10 @@ object MapContract {
     data class State(
         val loading: Boolean = true, val child: Child? = null, val islands: List<Island> = emptyList(),
         val streakDays: Int = 0, val offline: Boolean = false, val error: String? = null,
+        /** §8: the lessons on the map that are exams — they get the exam card, never a score. */
+        val exams: Set<String> = emptySet(),
+        /** The device's clock when the map was loaded: what "open until" and the time left were worked out against. */
+        val now: Long = 0,
     ) : MviState {
         val isEmpty: Boolean get() = islands.none { it.kind != quest.api.dto.IslandKind.LOCKED }
     }

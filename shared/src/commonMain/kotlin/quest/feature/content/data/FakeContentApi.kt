@@ -1,5 +1,10 @@
 package quest.feature.content.data
 
+import quest.api.dto.ExamWindow
+import quest.api.dto.IslandState
+import quest.api.dto.IslandKind
+import quest.api.dto.Island
+import quest.api.samples.MathSeed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -61,7 +66,28 @@ import quest.core.platform.Today
 /**
  * @param persisted attempts the app already uploaded in earlier sessions (the fake is in-memory; a real server keeps them).
  */
-class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Long = 350, private val persisted: suspend (String) -> List<AttemptUpload> = { emptyList() }, private val today: () -> LocalDate = { Today.date() }) : ContentApi, SchoolApi {
+class FakeContentApi(
+    private val auth: AuthProvider, private val delayMillis: Long = 350, private val persisted: suspend (String) -> List<AttemptUpload> = { emptyList() }, private val today: () -> LocalDate = { Today.date() },
+    /** The fake server's clock — the one an exam window is read against, as on the real server. */
+    private val now: () -> Long = { Today.epochMillis() },
+) : ContentApi, SchoolApi {
+    // ---- §8: one exam, with the server's rules -----------------------------------------------------------------------
+    // [FakeExam] is open from an hour before the fake started until two hours after, so a build without a server
+    // always has an exam to sit. Tests move the window and re-open it the way a teacher would.
+    var examOpensAt: Long = now() - 3_600_000L
+    var examClosesAt: Long = now() + 2 * 3_600_000L
+    private val examSubmitted = mutableSetOf<String>()
+    private val examReopened = mutableSetOf<String>()
+
+    /** `POST /teacher/exams/{id}/reopen/{childId}`: one more sitting for this child; her answers so far are kept. */
+    fun reopenExam(childId: String) { examReopened += childId; examSubmitted -= childId }
+
+    /** The answers the fake server holds for the exam, by stop. */
+    suspend fun examAnswers(childId: String): Map<String, AttemptUpload> = allAttempts(childId).filter { it.lessonId == FakeExam.LESSON_ID }.associateBy { it.stopId }
+    fun examIsSubmitted(childId: String): Boolean = childId in examSubmitted
+
+    private fun examOpenFor(childId: String): Boolean = childId in examReopened || now() in examOpensAt until examClosesAt
+
     private val mutex = Mutex()
     private val children = mutableMapOf<String, MutableList<Child>>()          // uid → children
     private val attempts = mutableMapOf<String, MutableList<AttemptUpload>>()  // childId → attempts
@@ -121,17 +147,32 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
             if (completions.any { it.lessonId == lesson.id && it.level == 1 && it.variant == 1 }) return@mapNotNull null
             MapAssembler.ReviewCandidate(skillId, name, lesson.id, "${lesson.id}:1:1")
         }.distinctBy { it.lessonId }
-        return MapAssembler.assemble(child, Seeds.summaries, completions.map { LessonCompletionInfo(it.lessonId, it.level, it.stars, it.total, it.mostTwo) }, review, emptyMap(), from, to, today())
+        val assembled = MapAssembler.assemble(child, Seeds.summaries, completions.map { LessonCompletionInfo(it.lessonId, it.level, it.stars, it.total, it.mostTwo) }, review, emptyMap(), from, to, today())
+        // As `MapService.withExamWindows`: the exam is on the map only while this child may sit it, and carries the
+        // exam's own window (not a re-opening's).
+        if (!examOpenFor(childId)) return assembled
+        val exam = Island(
+            "island-${FakeExam.LESSON_ID}", IslandKind.LESSON, today(), if (childId in examSubmitted) IslandState.DONE else IslandState.TODAY,
+            FakeExam.lesson.title, FakeExam.lesson.subject, FakeExam.LESSON_ID, FakeExam.lesson.version, examWindow = ExamWindow(examOpensAt, examClosesAt, level = "1"),
+        )
+        return assembled.copy(islands = assembled.islands + exam)
     }
 
     override suspend fun lesson(id: String, version: Int?): PublishedLesson {
         net()
-        return Seeds.byId(id) ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No lesson $id"))
+        return Seeds.byId(id) ?: FakeExam.lesson.takeIf { it.id == id } ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No lesson $id"))
     }
 
     override suspend fun uploadAttempts(childId: String, attempts: List<AttemptUpload>): AttemptAck {
         net()
+        // §8, as `ExamAttemptService.open`: checked before a single row is written, and a refusal refuses the batch.
+        if (attempts.any { it.lessonId == FakeExam.LESSON_ID }) {
+            if (!examOpenFor(childId)) throw ApiException(ApiError(ApiError.EXAM_CLOSED, "\"${FakeExam.lesson.title}\" is not open right now."))
+            if (childId in examSubmitted) throw ApiException(ApiError(ApiError.EXAM_ALREADY_TAKEN, "\"${FakeExam.lesson.title}\" has already been handed in."))
+        }
         mutex.withLock { this.attempts.getOrPut(childId) { mutableListOf() }.addAll(attempts) }
+        // The paper is handed in when its last question is answered.
+        if (attempts.any { it.lessonId == FakeExam.LESSON_ID } && examAnswers(childId).keys.containsAll(FakeExam.lesson.examPlay!!.stops.map { it.id })) examSubmitted += childId
         return AttemptAck(attempts.size)
     }
 
@@ -454,4 +495,13 @@ class FakeContentApi(private val auth: AuthProvider, private val delayMillis: Lo
         /** What `GET /platform-settings` answers without a backend. */
         val platformDefaults = PlatformSettings(name = "MySchool", shortName = "MySchool")
     }
+}
+
+/**
+ * §8: the exam the fake API serves — the counting lesson's first level sat as a paper, under its own id so its answers
+ * never mix with the homework's.
+ */
+object FakeExam {
+    const val LESSON_ID = "lesson-fake-exam"
+    val lesson: PublishedLesson = MathSeed.lesson.copy(id = LESSON_ID, title = "Counting exam", type = "exam", hintsOff = true, numbersOff = true, examPlay = MathSeed.lesson.plays[0])
 }

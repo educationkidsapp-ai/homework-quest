@@ -60,6 +60,8 @@ import quest.ui.design.Dimens
 import quest.ui.design.NumberLineView
 import quest.ui.stops.StopContent
 import quest.ui.stops.StopEvent
+import quest.ui.stops.LocalExamMode
+import androidx.compose.runtime.CompositionLocalProvider
 import quest.ui.stops.LocalStopMedia
 import quest.core.platform.rememberStopMedia
 
@@ -99,7 +101,12 @@ fun StopPlayerScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
             Phase.LOADING -> LoadingView(s.loadingLesson)
             Phase.ERROR -> ErrorView(state.error ?: s.genericError, onBack)
             Phase.DONE -> LoadingView(s.savingWork)
-            else -> StopView(state, dispatch, onBack)
+            // §8's "already taken": the server holds a handed-in paper, so there is nothing to sit here.
+            Phase.REFUSED -> ErrorView(s.examAlreadyTaken, onBack)
+            // Every question is answered but the answers have not all reached the server: not "submitted" yet.
+            Phase.SENDING -> SendingView(onRetry = { dispatch(Intent.SendAgain) }, onBack = onBack)
+            // The stops read LocalExamMode: one answer each, and nothing that tells right from wrong.
+            else -> CompositionLocalProvider(LocalExamMode provides state.exam) { StopView(state, dispatch, onBack) }
         }
 
         AnimatedVisibility(state.phase == Phase.HINT, enter = fadeIn(), exit = fadeOut()) { Box(Modifier.fillMaxSize().background(DashboardTokens.inkStrong.copy(alpha = 0.35f))) }
@@ -111,7 +118,8 @@ fun StopPlayerScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
         }
         AnimatedVisibility(state.phase == Phase.CORRECT, enter = fadeIn(), exit = fadeOut()) { ConfirmationOverlay(state.praise) }
         AnimatedVisibility(state.phase == Phase.STEP_DONE, enter = fadeIn(), exit = fadeOut()) {
-            ConfirmationOverlay(s.stepComplete, detail = s.stepsCompleted.replace("{done}", "${state.doneCount}").replace("{total}", "${state.total}"))
+            // An exam acknowledges every answer with the same two words and the same neutral mark.
+            if (state.exam) ConfirmationOverlay(s.answerSaved, neutral = true) else ConfirmationOverlay(s.stepComplete, detail = s.stepsCompleted.replace("{done}", "${state.doneCount}").replace("{total}", "${state.total}"))
         }
     }
 }
@@ -120,7 +128,7 @@ fun StopPlayerScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
 private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) {
     val stop = state.stop ?: return
     val s = LocalLessonStrings.current
-    val position = s.stepOf.replace("{n}", "${state.index + 1}").replace("{total}", "${state.total}")
+    val position = (if (state.exam) s.questionOf else s.stepOf).replace("{n}", "${state.index + 1}").replace("{total}", "${state.total}")
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         LessonTopBar(onBack = onBack, onReadAloud = { dispatch(Intent.ReadAloud) }) {
             Text(position, style = MaterialTheme.typography.labelLarge, color = DashboardTokens.inkSoft, modifier = Modifier.semantics { contentDescription = position })
@@ -136,8 +144,8 @@ private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
             StopContent(stop, onEvent = { e ->
                 when (e) {
                     is StopEvent.Correct -> dispatch(Intent.Correct(e.attempt, e.answer))
-                    is StopEvent.Wrong -> dispatch(Intent.Wrong(e.attempt, e.hint, e.numberLine, ""))
-                    is StopEvent.Completed -> dispatch(Intent.Completed(e.stars, e.answer, e.mistakes, e.recording, e.drawing))
+                    is StopEvent.Wrong -> dispatch(Intent.Wrong(e.attempt, e.hint, e.numberLine, e.answer))
+                    is StopEvent.Completed -> dispatch(Intent.Completed(e.stars, e.answer, e.mistakes, e.recording, e.drawing, e.correct))
                     is StopEvent.Speak -> dispatch(Intent.Speak(e.text))
                 }
             }, childName = state.childName)
@@ -159,14 +167,33 @@ private fun HintSheetContent(state: State, dispatch: (Intent) -> Unit) {
     }
 }
 
+/** A finished exam whose answers are still on the device: what that means, and the one thing to do about it. */
+@Composable
+private fun SendingView(onRetry: () -> Unit, onBack: () -> Unit) {
+    val s = LocalLessonStrings.current
+    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(Dimens.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
+        DashboardCard(padding = PaddingValues(Dimens.s24)) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(s.examSending, style = MaterialTheme.typography.titleLarge, color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(Dimens.s8))
+                Text(s.examSendingBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center)
+            }
+        }
+        Spacer(Modifier.height(Dimens.s24))
+        BigButton(s.examSendAgain, onClick = onRetry)
+        Spacer(Modifier.height(Dimens.s12))
+        BigButton(s.backToHome, onClick = onBack, primary = false)
+    }
+}
+
 /** The short confirmation between steps: a tick, the word, and how far along the lesson is. */
 @Composable
-private fun ConfirmationOverlay(text: String, detail: String? = null) {
+private fun ConfirmationOverlay(text: String, detail: String? = null, neutral: Boolean = false) {
     Box(Modifier.fillMaxSize().background(DashboardTokens.inkStrong.copy(alpha = 0.35f)).semantics { contentDescription = text }, contentAlignment = Alignment.Center) {
         DashboardCard(Modifier.padding(horizontal = Dimens.s32), padding = PaddingValues(Dimens.s24)) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(48.dp).background(DashboardTokens.successBg, CircleShape).border(1.dp, DashboardTokens.successBorder, CircleShape), contentAlignment = Alignment.Center) {
-                    Text("✓", style = MaterialTheme.typography.titleLarge, color = DashboardTokens.success)
+                Box(Modifier.size(48.dp).background(if (neutral) MaterialTheme.colorScheme.primaryContainer else DashboardTokens.successBg, CircleShape).border(1.dp, if (neutral) MaterialTheme.colorScheme.primary else DashboardTokens.successBorder, CircleShape), contentAlignment = Alignment.Center) {
+                    Text("✓", style = MaterialTheme.typography.titleLarge, color = if (neutral) DashboardTokens.accentInk else DashboardTokens.success)
                 }
                 Spacer(Modifier.height(Dimens.s12))
                 Text(text, style = MaterialTheme.typography.titleLarge, color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)

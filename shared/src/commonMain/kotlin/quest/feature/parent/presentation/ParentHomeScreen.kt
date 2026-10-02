@@ -2,6 +2,8 @@ package quest.feature.parent.presentation
 
 import androidx.compose.ui.platform.testTag
 import quest.ui.design.TestTags
+import quest.feature.parent.domain.UndeliveredExamAnswersUseCase
+import quest.feature.parent.domain.UndeliveredExam
 import quest.feature.children.domain.SignOutUseCase
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -54,6 +56,8 @@ object ParentHomeContract {
         val children: List<Child> = emptyList(),
         val current: Child? = null,
         val today: List<CalendarDay> = emptyList(),
+        /** §8: exams of this child with answers that have not reached the school. */
+        val undelivered: List<UndeliveredExam> = emptyList(),
         val attendance: ChildAttendanceRecord? = null,
         /** MH3: unread announcements and events, the badge on the Announcements button. Plans are counted apart. */
         val unreadBroadcasts: Int = 0,
@@ -74,6 +78,7 @@ class ParentHomeViewModel(
     private val signOut: SignOutUseCase,
     private val api: ContentApi,
     private val flags: FlagStore,
+    private val undeliveredExams: UndeliveredExamAnswersUseCase? = null,
 ) : MviViewModel<ParentHomeContract.State, ParentHomeContract.Intent, ParentHomeContract.Effect>(ParentHomeContract.State()) {
     override suspend fun handle(intent: ParentHomeContract.Intent) {
         when (intent) {
@@ -99,7 +104,8 @@ class ParentHomeViewModel(
                 val feed = if (enabled) runCatching { api.childBroadcasts(current.id) }.getOrNull() else null
                 val unread = feed?.let { unreadAnnouncements(it.items, Today.epochMillis()) } ?: 0
                 val plans = if (enabled) runCatching { api.childWeeklyPlans(current.id).unread }.getOrDefault(0) else 0
-                reduce { copy(loading = false, children = list, current = current, today = days, attendance = att, unreadBroadcasts = unread, unreadPlans = plans) }
+                val undelivered = undeliveredExams?.invoke(current).orEmpty()
+                reduce { copy(loading = false, children = list, current = current, today = days, attendance = att, unreadBroadcasts = unread, unreadPlans = plans, undelivered = undelivered) }
             }
             is ParentHomeContract.Intent.Select -> {
                 children.select(intent.id)
@@ -183,6 +189,13 @@ fun ParentHomeScreen(
         }
 
         // ---- Attendance Section ----------------------------------------------
+        // §8: said plainly, because only the parent can act on it — get the device online, or ask for a re-opening.
+        state.undelivered.forEach { exam ->
+            ParentCard(Modifier.padding(top = 10.dp)) {
+                Text(s.examUndeliveredTitle, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.warning)
+                Text(s.examUndeliveredBody.replace("{n}", "${exam.answers}").replace("{title}", exam.title), style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink)
+            }
+        }
         SectionTitle(s.todaysAttendance)
         ParentCard(modifier = Modifier.padding(bottom = 10.dp)) {
             Row(

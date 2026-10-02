@@ -23,12 +23,18 @@ class SetPinUseCase(private val repo: ParentRepository) { suspend operator fun i
 /** Every skill the child has met — server bands when online, local first-try results otherwise. Words, never percentages. */
 class ProgressReportUseCase(private val journey: JourneyRepository, private val lessons: LessonRepository) {
     suspend operator fun invoke(child: Child): List<SkillReport> {
-        val local = lessons.cachedSummaries().flatMap { s -> lessons.cached(s.id)?.skills.orEmpty() }.distinctBy { it.id }.map { skill ->
-            val results = journey.firstTryResults(child.id, skill.id)
+        val remote = journey.progressReport(child.id)
+        // §8: an exam says nothing to the parent until the teacher releases it — not a score, and not a skill band
+        // nudged by its answers either. Offline nothing is known to be released, so every exam is left out.
+        val cached = lessons.cachedSummaries().mapNotNull { lessons.cached(it.id) }
+        val released = remote?.results.orEmpty().map { it.lessonId }.toSet()
+        val unreleasedExams = cached.filter { it.type == "exam" && it.id !in released }.map { it.id }.toSet()
+        val local = cached.flatMap { it.skills }.distinctBy { it.id }.map { skill ->
+            val results = journey.firstTryResults(child.id, skill.id, excludeLessons = unreleasedExams)
             val acc = ProgressBands.accuracy(results)
             SkillReport(skill.id, skill.name, skill.subject, acc?.let(ProgressBands::band), acc?.let(ProgressBands::accuracyWords), results.size, null)
         }
-        val remote = journey.progressReport(child.id) ?: return local
+        if (remote == null) return local
         // The server is the source of truth once it has the attempts; until they are uploaded, the local record wins.
         val localById = local.associateBy { it.skillId }
         val merged = remote.skills.map { r ->
