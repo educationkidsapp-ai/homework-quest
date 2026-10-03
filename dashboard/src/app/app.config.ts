@@ -7,6 +7,7 @@ import { routes } from './app.routes';
 import { provideSessionSync } from './core/auth/session-sync.service';
 import { authInterceptor } from './core/http/auth.interceptor';
 import { errorInterceptor } from './core/http/error.interceptor';
+import { mediaWidthInterceptor } from './core/http/media-width.interceptor';
 import { LANGUAGES, provideLanguage } from './core/i18n/language.service';
 import { HttpTranslocoLoader } from './core/i18n/transloco-loader';
 
@@ -21,7 +22,10 @@ export const appConfig: ApplicationConfig = {
     // Order matters. `errorInterceptor` is outermost so it never sees a 401 that
     // `authInterceptor` is about to fix with a refresh and a retry — the other way round,
     // every expired access token would flash a red band before quietly succeeding.
-    provideHttpClient(withFetch(), withInterceptors([errorInterceptor, authInterceptor])),
+    provideHttpClient(
+      withFetch(),
+      withInterceptors([errorInterceptor, authInterceptor, mediaWidthInterceptor]),
+    ),
     provideApiClient(),
     provideTransloco({
       config: {

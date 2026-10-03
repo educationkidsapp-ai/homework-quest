@@ -10,6 +10,8 @@ import { reserveTab } from '../../core/download/download';
 import { MediaService } from '../../core/media/media.service';
 import { AttachmentImageDirective, ButtonComponent, DialogComponent } from '../../ui';
 
+const THUMB_WIDTH = 600;
+
 /**
  * **The files on one chat message** (D4): pictures drawn, documents opened.
  *
@@ -38,7 +40,7 @@ import { AttachmentImageDirective, ButtonComponent, DialogComponent } from '../.
             [attr.aria-label]="'chat.attachment.viewImage' | transloco: { name: image.name }"
             (click)="enlarged.set(image)"
           >
-            <img class="ca__img" [hqAttachmentImage]="image.id" [alt]="image.name" />
+            <img class="ca__img" [hqAttachmentImage]="image.id" [downscale]="thumbWidth" [alt]="image.name" />
           </button>
         }
       </div>
@@ -163,6 +165,8 @@ export class ChatAttachmentsComponent {
 
   readonly attachments = input.required<readonly ChatAttachment[]>();
 
+  /** Twice the bubble's widest picture, for a sharp thumbnail on a 2x screen. */
+  protected readonly thumbWidth = THUMB_WIDTH;
   protected readonly images = computed(() => this.attachments().filter(isImageAttachment));
   protected readonly files = computed(() => this.attachments().filter((file) => !isImageAttachment(file)));
   protected readonly enlarged = signal<ChatAttachment | null>(null);
