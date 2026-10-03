@@ -7025,7 +7025,7 @@
           },
           "type" : "object"
         } ],
-        "required" : [ "answer", "hint", "id", "ingredient", "parentTip", "speak", "statement", "title", "type" ]
+        "required" : [ "hint", "id", "ingredient", "parentTip", "speak", "statement", "title", "type" ]
       },
       "UnreadCount" : {
         "properties" : {

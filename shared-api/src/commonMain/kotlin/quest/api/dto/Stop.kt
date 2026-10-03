@@ -10,7 +10,8 @@ import kotlinx.serialization.Serializable
 data class Tile(val id: String, val label: String? = null, val illustrationKey: String? = null, val pageImageId: String? = null)
 
 @Serializable data class Hotspot(val id: String, val label: String, val x: Float, val y: Float, val w: Float, val h: Float)
-@Serializable data class TapTask(val prompt: String, val hotspots: List<Hotspot>, val correctIds: List<String>)
+/** B3: [correctIds] is empty on a sealed exam paper (see [Stop]). */
+@Serializable data class TapTask(val prompt: String, val hotspots: List<Hotspot>, val correctIds: List<String> = emptyList())
 @Serializable data class StoryCard(val piece: String, val definition: String, val answer: String)
 @Serializable data class WordCard(val word: String, val meaning: String, val sentence: String, val illustrationKey: String)
 @Serializable data class MoveAction(val emoji: String, val text: String)
@@ -28,6 +29,17 @@ enum class StopCategory { INFO, SINGLE, MULTI, OPEN, EXIT }
 /**
  * One stop on the journey (dev prompt §5). `type` is the JSON discriminator; every stop carries the common
  * fields (title, the sentence Pip speaks, its ingredient, the parent tip) and its own content.
+ *
+ * **B3: a sealed exam paper carries no answer key.** `GET /lessons/{id}` for an exam whose results are not released
+ * yet sends every stop (in `plays`, `variant` and `examPlay`) with the key removed, so the defaults below are what a
+ * player reads there: `correctOptionId` "" (choice, sequence, count, compare, sound, word, readTap), `answer` null
+ * (trueFalse — `correctId` is then ""), `correctIds` [] (multiSelect, selectAll, `readPage.tapTask`),
+ * `correctOrder` [] (order — `items` is shuffled; size the answer by `items`), `hint` "" (every single-answer stop and
+ * trace), `modelAnswer` "" (retell, openAnswer), `answer` "" on a word-tile writeSentence (`options` set, not
+ * `free`), `numberLine.highlight` [], `parentTip` "" / "". A **match** stop's `pairs[i].right` tiles are shuffled
+ * across the pairs: the answer is still `leftPairId=pairIdOfTheTappedRightTile` and the server grades it against
+ * the same shuffle. Exam answers are graded by the server only; nothing on the device needs the key. A released
+ * exam, and every homework, is sent unchanged.
  */
 @Serializable
 sealed interface Stop {
@@ -100,59 +112,59 @@ sealed interface Stop {
     @Serializable @SerialName("choice")
     data class Choice(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        override val hint: String, val question: String, val options: List<Tile>, val correctOptionId: String,
+        override val hint: String = "", val question: String, val options: List<Tile>, val correctOptionId: String = "",
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "choice"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
     @Serializable @SerialName("trueFalse")
     data class TrueFalse(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        override val hint: String, val statement: String, val answer: Boolean,
+        override val hint: String = "", val statement: String, val answer: Boolean? = null,
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer {
-        override val type get() = "trueFalse"; override val correctId get() = if (answer) TRUE_ID else FALSE_ID; override val optionIds get() = listOf(TRUE_ID, FALSE_ID)
+        override val type get() = "trueFalse"; override val correctId get() = when (answer) { true -> TRUE_ID; false -> FALSE_ID; null -> "" }; override val optionIds get() = listOf(TRUE_ID, FALSE_ID)
         companion object { const val TRUE_ID = "true"; const val FALSE_ID = "false" }
     }
 
     @Serializable @SerialName("sequence")
     data class Sequence(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        override val hint: String, val chips: List<Int?>, val options: List<Option>, val correctOptionId: String, val numberLine: NumberLine,
+        override val hint: String = "", val chips: List<Int?>, val options: List<Option>, val correctOptionId: String = "", val numberLine: NumberLine,
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "sequence"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
     @Serializable @SerialName("count")
     data class Count(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        override val hint: String, val objectKey: String, val groupSizes: List<Int>, val options: List<Option>, val correctOptionId: String, val numberLine: NumberLine,
+        override val hint: String = "", val objectKey: String, val groupSizes: List<Int>, val options: List<Option>, val correctOptionId: String = "", val numberLine: NumberLine,
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "count"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id }; val total: Int get() = groupSizes.sum() }
 
     @Serializable @SerialName("compare")
     data class Compare(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        override val hint: String, val left: Int, val right: Int, val options: List<Option>, val correctOptionId: String, val numberLine: NumberLine,
+        override val hint: String = "", val left: Int, val right: Int, val options: List<Option>, val correctOptionId: String = "", val numberLine: NumberLine,
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "compare"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
     @Serializable @SerialName("sound")
     data class Sound(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        override val hint: String, val illustrationKey: String, val options: List<Option>, val correctOptionId: String,
+        override val hint: String = "", val illustrationKey: String, val options: List<Option>, val correctOptionId: String = "",
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "sound"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
     @Serializable @SerialName("word")
     data class Word(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        override val hint: String, val spokenWord: String, val options: List<Option>, val correctOptionId: String,
+        override val hint: String = "", val spokenWord: String, val options: List<Option>, val correctOptionId: String = "",
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "word"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
     @Serializable @SerialName("readTap")
     data class ReadTap(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        override val hint: String, val word: String, val options: List<PictureOption>, val correctOptionId: String,
+        override val hint: String = "", val word: String, val options: List<PictureOption>, val correctOptionId: String = "",
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer { override val type get() = "readTap"; override val correctId get() = correctOptionId; override val optionIds get() = options.map { it.id } }
 
@@ -160,14 +172,14 @@ sealed interface Stop {
     @Serializable @SerialName("multiSelect")
     data class MultiSelect(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        val prompt: String, val options: List<Tile>, val correctIds: List<String>, val pick: Int,
+        val prompt: String, val options: List<Tile>, val correctIds: List<String> = emptyList(), val pick: Int,
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "multiSelect"; override val category get() = StopCategory.MULTI }
 
     @Serializable @SerialName("selectAll")
     data class SelectAll(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        val prompt: String, val options: List<Tile>, val correctIds: List<String>,
+        val prompt: String, val options: List<Tile>, val correctIds: List<String> = emptyList(),
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "selectAll"; override val category get() = StopCategory.MULTI }
 
@@ -181,28 +193,28 @@ sealed interface Stop {
     @Serializable @SerialName("order")
     data class Order(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        val prompt: String, val items: List<OrderItem>, val correctOrder: List<String>,
+        val prompt: String, val items: List<OrderItem>, val correctOrder: List<String> = emptyList(),
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "order"; override val category get() = StopCategory.MULTI }
 
     @Serializable @SerialName("trace")
     data class Trace(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        val text: String, val hint: String,
+        val text: String, val hint: String = "",
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "trace"; override val category get() = StopCategory.MULTI }
 
     @Serializable @SerialName("retell")
     data class Retell(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        val prompt: String, val cues: List<RetellCue>, val modelAnswer: String, val record: Boolean = true,
+        val prompt: String, val cues: List<RetellCue>, val modelAnswer: String = "", val record: Boolean = true,
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "retell"; override val category get() = StopCategory.OPEN }
 
     @Serializable @SerialName("openAnswer")
     data class OpenAnswer(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        val prompt: String, val mode: String, val modelAnswer: String,
+        val prompt: String, val mode: String, val modelAnswer: String = "",
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : Stop { override val type get() = "openAnswer"; override val category get() = StopCategory.OPEN }
 
