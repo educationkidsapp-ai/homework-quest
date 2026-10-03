@@ -1,6 +1,7 @@
 package quest.feature.parent.presentation
 
 import quest.feature.notifications.domain.ParentBadges
+import quest.feature.push.presentation.PushPermissionCard
 import org.koin.compose.koinInject
 import androidx.compose.ui.platform.testTag
 import quest.ui.design.TestTags
@@ -161,6 +162,8 @@ fun ParentHomeRoute(
         ParentHomeScreen(
             state, s, vm::dispatch, onCalendar,
             onProgress, onSettings, onLessonPanel, onMessages, onBroadcasts, onWeeklyPlan, unreadMessages = unreadMessages.messages,
+            // M5: notifications are asked for here, in context, after sign-in — never at app start.
+            banner = { PushPermissionCard(arabic = s.isRtl, Modifier.padding(top = 10.dp)) },
         )
     }
 }
@@ -178,6 +181,7 @@ fun ParentHomeScreen(
     onBroadcasts: () -> Unit = {},
     onWeeklyPlan: () -> Unit = {},
     unreadMessages: Int = 0,
+    banner: @Composable () -> Unit = {},
 ) {
     Column(
         Modifier
@@ -192,6 +196,8 @@ fun ParentHomeScreen(
         state.children.forEach { c ->
             ChildRow(c, s, selected = c.id == state.current?.id, onClick = { dispatch(ParentHomeContract.Intent.Select(c.id)) })
         }
+
+        banner()
 
         // ---- Attendance Section ----------------------------------------------
         // §8: said plainly, because only the parent can act on it — get the device online, or ask for a re-opening.

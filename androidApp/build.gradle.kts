@@ -48,7 +48,25 @@ android {
         if (!f.exists()) return ""
         return Regex("\"current_key\"\\s*:\\s*\"([^\"]+)\"").find(f.readText())?.groupValues?.get(1) ?: ""
     }
+    // M5: push (FCM) is initialised by hand from the same file — `QuestApplication` builds `FirebaseOptions` from these
+    // four public identifiers — rather than by the google-services plugin, which fails any variant whose flavor has no
+    // google-services.json (prod today, CI). A flavor without the file gets empty values, and push is simply off.
+    fun fcmFields(flavor: String): Map<String, String> {
+        val f = file("src/$flavor/google-services.json")
+        if (!f.exists()) return emptyMap()
+        @Suppress("UNCHECKED_CAST") val json = groovy.json.JsonSlurper().parse(f) as Map<String, Any?>
+        val project = json["project_info"] as? Map<String, Any?> ?: return emptyMap()
+        @Suppress("UNCHECKED_CAST") val client = (json["client"] as? List<Map<String, Any?>>)?.firstOrNull() ?: return emptyMap()
+        val info = client["client_info"] as? Map<String, Any?>
+        @Suppress("UNCHECKED_CAST") val key = (client["api_key"] as? List<Map<String, Any?>>)?.firstOrNull()?.get("current_key")
+        return mapOf(
+            "FCM_APP_ID" to info?.get("mobilesdk_app_id"), "FCM_PROJECT_ID" to project["project_id"],
+            "FCM_SENDER_ID" to project["project_number"], "FCM_API_KEY" to key,
+        ).mapValues { it.value?.toString().orEmpty() }
+    }
     fun com.android.build.api.dsl.ApplicationProductFlavor.apiFields(flavor: String) {
+        val fcm = fcmFields(flavor)
+        listOf("FCM_APP_ID", "FCM_PROJECT_ID", "FCM_SENDER_ID", "FCM_API_KEY").forEach { buildConfigField("String", it, "\"${fcm[it].orEmpty()}\"") }
         val envUrl = findProperty("quest.$flavor.apiBaseUrl")?.toString()
         val url = envUrl ?: findProperty("quest.apiBaseUrl")?.toString()
         // an environment URL always means the real server; otherwise gradle.properties' quest.useFakeApi decides

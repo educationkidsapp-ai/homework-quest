@@ -8,7 +8,10 @@ import androidx.activity.enableEdgeToEdge
 import org.koin.android.ext.android.get
 import quest.App
 import quest.core.platform.AndroidTodaySnapshotStore
+import quest.core.platform.AppVisibility
 import quest.core.platform.BiometricHost
+import quest.core.platform.PushIntents
+import quest.feature.push.domain.isNewLaunch
 import quest.feature.today.domain.TodayLinks
 import quest.core.platform.applyNightMode
 import quest.feature.parent.domain.Appearance
@@ -31,13 +34,21 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         BiometricHost.attach(this)
         followWidgetTap(intent)
+        // M5: a tapped push that started the app — but not the same old intent again after process death or from Recents.
+        val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (isNewLaunch(restored = savedInstanceState != null, fromHistory = fromHistory)) PushIntents.follow(intent)
         setContent { App() }
     }
 
-    /** A tap on the "Today" widget while the app is already open arrives here (`singleTop`). */
+    // M5: while a screen of the app shows, a push refreshes the badges instead of posting a notification.
+    override fun onStart() { super.onStart(); AppVisibility.visible = true }
+    override fun onStop() { AppVisibility.visible = false; super.onStop() }
+
+    /** A tap on the "Today" widget or on a push while the app is already running arrives here (`singleTop`). */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         followWidgetTap(intent)
+        PushIntents.follow(intent)                      // M5: a tapped push while the app was in the background or open
     }
 
     /** M3: hands the tap to the shared UI, which follows it underneath the biometric lock — never around it. */

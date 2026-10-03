@@ -1,6 +1,13 @@
 package quest.core.platform
 
 import quest.feature.today.domain.ExamSittingPresenter
+import quest.feature.notifications.domain.ParentBadges
+import quest.feature.parent.domain.ParentRepository
+import quest.feature.push.domain.PushTokens
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import quest.feature.today.domain.TodaySnapshotStore
 import android.content.Context
 import android.speech.tts.TextToSpeech
@@ -58,4 +65,10 @@ actual fun platformModule(): Module = module {
     single<Speaker> { AndroidSpeaker(androidContext()) }
     single<TodaySnapshotStore> { AndroidTodaySnapshotStore(androidContext()) }
     single<ExamSittingPresenter> { AndroidExamSittingPresenter(androidContext(), get()) }
+    // M5: push for parents over FCM (off where the app has no google-services.json).
+    single<PushTokens> { FcmPushTokens(androidContext()) }
+    single {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        AndroidPushNotifier(androidContext(), language = { get<ParentRepository>().language.value }, onForeground = { scope.launch { get<ParentBadges>().refresh() } })
+    }
 }

@@ -1,5 +1,21 @@
 package quest.feature.notifications
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.runComposeUiTest
+import quest.api.DEFAULT_FLAGS
+import quest.api.dto.ChatMessage
+import quest.api.dto.ChatThread
+import quest.api.dto.ChatTopic
+import quest.feature.chat.domain.ChatConnectionState
+import quest.feature.chat.domain.ChatRepository
+import quest.feature.notifications.data.ParentUnreadSource
+import quest.feature.school.domain.FlagStore
+import quest.feature.school.presentation.LocalFlags
+import quest.ui.design.DashboardBottomNavigation
+import quest.ui.design.DashboardTab
+import kotlin.test.assertFalse
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,10 +41,8 @@ import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.broadcasts.presentation.BroadcastsContract
 import quest.feature.broadcasts.presentation.BroadcastsViewModel
 import quest.feature.children.domain.ChildrenRepository
-import quest.feature.notifications.domain.NotificationTarget
 import quest.feature.notifications.domain.NotificationsRepository
 import quest.feature.notifications.domain.rowsFor
-import quest.feature.notifications.domain.targetOf
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -65,13 +79,6 @@ class NotificationsTabTest {
     private val built = mutableListOf<BroadcastsViewModel>()
     @AfterTest fun tearDown() { built.forEach { it.viewModelScope.cancel() }; Dispatchers.resetMain() }
 
-    @Test fun aRowLeadsWhereItsLinkPoints() {
-        assertEquals(NotificationTarget.MESSAGES, targetOf(row("a", NotificationKind.CHAT_MESSAGE, "/children/c1/chat/t-maya")))
-        assertEquals(NotificationTarget.PROGRESS, targetOf(row("b", NotificationKind.EXAM_RELEASED, "/children/c1/progress")))
-        assertEquals(NotificationTarget.CHILD_HOME, targetOf(row("c", NotificationKind.HOMEWORK_PUBLISHED, "/children/c1/map")))
-        assertEquals(NotificationTarget.PROGRESS, targetOf(row("d", NotificationKind.EXAM_RELEASED, null)), "no link: the kind decides")
-    }
-
     @Test fun theTabListsTheCurrentChildsRowsOnly() {
         val rows = listOf(row("a", NotificationKind.CHAT_MESSAGE, null), row("b", NotificationKind.EXAM_RELEASED, null, childId = "c2"))
         assertEquals(listOf("a"), rowsFor("c1", rows).map { it.id })
@@ -91,12 +98,55 @@ class NotificationsTabTest {
         vm.dispatch(BroadcastsContract.Intent.OpenUpdate("r1")); runCurrent()
         assertEquals(listOf("r1"), rows.marked)
         assertNotNull(vm.state.value.updates.single().readAt)
-        assertEquals(listOf<BroadcastsContract.Effect>(BroadcastsContract.Effect.Follow(NotificationTarget.PROGRESS)), effects)
+        assertEquals(listOf<BroadcastsContract.Effect>(BroadcastsContract.Effect.Follow(rows.rows.single())), effects, "followed through the one router")
 
         rows.rows = rows.rows + row("r2", NotificationKind.CHAT_MESSAGE, "/children/c1/chat/t")
         val before = feed.loads
         frames.emit(ChatFrame.Notification(row("r2", NotificationKind.CHAT_MESSAGE, null))); runCurrent()
         assertEquals(before + 1, feed.loads, "a notification frame while the tab is open reloads it")
         assertEquals(2, vm.state.value.updates.size)
+    }
+
+    // ---- M5 (the owner, 2026-10-03): the Notifications tab never disappears
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test fun theBottomBarHasTheNotificationsTabWithEveryFlagOff() = runComposeUiTest {
+        val off = object : FlagStore { override val flags = MutableStateFlow(DEFAULT_FLAGS.keys.associateWith { false }) }
+        setContent { CompositionLocalProvider(LocalFlags provides off) { DashboardBottomNavigation(DashboardTab.HOME, {}) } }
+        onNodeWithText(DashboardTab.NOTIFICATION.labelEn).assertExists()
+    }
+
+    @Test fun withoutAnnouncementsTheTabStillListsHerRowsAndReadsNoFeed() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val feed = Feed()
+        val rows = Rows(listOf(row("r1", NotificationKind.EXAM_RELEASED, "/children/c1/progress")))
+        val vm = BroadcastsViewModel(Children(hala), feed, notifications = rows, feedOn = { false }).also { built += it }
+        vm.dispatch(BroadcastsContract.Intent.Load); runCurrent()
+        assertEquals(listOf("r1"), vm.state.value.updates.map { it.id })
+        assertEquals(0, feed.loads, "no announcements, no feed request")
+        assertEquals(null, vm.state.value.errorMessage)
+        assertFalse(vm.state.value.loading)
+    }
+
+    @Test fun withoutAnnouncementsTheBadgeStillCountsHerUnreadRows() = runTest {
+        val rows = Rows(listOf(row("a", NotificationKind.CHAT_MESSAGE, null), row("b", NotificationKind.EXAM_RELEASED, null, read = true)))
+        val feed = Feed()
+        val source = ParentUnreadSource(feed, rows, NoChat, announcementsOn = { false }, chatOn = { false })
+        assertEquals(1, source.notifications("c1"))
+        assertEquals(0, feed.loads)
+    }
+
+    private object NoChat : ChatRepository {
+        override val connectionState: StateFlow<ChatConnectionState> = MutableStateFlow(ChatConnectionState.DISCONNECTED)
+        override val incomingFrames = MutableSharedFlow<ChatFrame>()
+        override suspend fun threads(childId: String): List<ChatThread> = emptyList()
+        override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
+        override suspend fun managers(childId: String): List<ChatThread> = emptyList()
+        override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> = emptyList()
+        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?): ChatMessage = error("not used")
+        override suspend fun markRead(childId: String, teacherId: String) = Unit
+        override suspend fun sendTyping(childId: String, teacherId: String) = Unit
+        override fun connect() = Unit
+        override fun disconnect() = Unit
     }
 }

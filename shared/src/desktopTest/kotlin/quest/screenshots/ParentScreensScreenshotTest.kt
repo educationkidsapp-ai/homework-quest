@@ -292,9 +292,22 @@ class ParentScreensScreenshotTest {
         BroadcastsScreen(state = feedState(), strings = s)
     }
 
-    /** A school without the `announcements` flag: the server 404s and the screen says so rather than showing an error. */
+    /** A school without the `announcements` flag: the tab is still hers (M5) and simply has nothing from the school yet. */
     @Test fun broadcastsNotEnabled() = shot("54c-announcements-off") { s ->
         BroadcastsScreen(state = BroadcastsContract.State(loading = false, notEnabled = true), strings = s)
+    }
+
+    /** M5: a tapped push or row opened its event first, outlined; and a tap whose item is gone says so in one line. */
+    @Test fun notificationFocused() = shot("m5-04-notification-focused") { s ->
+        BroadcastsScreen(state = feedState().copy(focusBroadcast = "bc-event"), strings = s)
+    }
+
+    @Test fun notificationFocusedArabic() = shot("m5-04c-notification-focused-ar", Strings.ar) { s ->
+        BroadcastsScreen(state = feedState().copy(focusBroadcast = "bc-event"), strings = s)
+    }
+
+    @Test fun notificationGone() = shot("m5-05-notification-gone") { s ->
+        BroadcastsScreen(state = feedState().copy(gone = true), strings = s)
     }
 
     /**
@@ -357,12 +370,9 @@ class ParentScreensScreenshotTest {
         )
     }
 
-    /**
-     * MH4: the bottom bar with `announcements` off. §4's rule is that a school without a feature never learns it
-     * exists, so the Notifications tab is absent rather than present-and-bouncing.
-     */
-    @Test fun bottomNavWithoutAnnouncements() = shot("56-bottom-nav-no-announcements") {
-        DashboardBottomNavigation(DashboardTab.HOME, {}, showNotifications = false)
+    /** M5 (the owner, 2026-10-03): the bottom bar always carries the Notifications tab, whatever the school's flags. */
+    @Test fun bottomNavAlwaysHasNotifications() = shot("56-bottom-nav-notifications-always") {
+        DashboardBottomNavigation(DashboardTab.HOME, {}, unreadNotifications = 3)
     }
 
     @Test fun bottomNavArabic() = shot("56b-bottom-nav-ar", Strings.ar) { s ->

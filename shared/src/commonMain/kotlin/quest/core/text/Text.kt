@@ -21,3 +21,10 @@ fun longDate(date: LocalDate, months: List<String>, currentYear: Int): String {
     val month = months.getOrNull(date.monthNumber - 1) ?: date.month.name.lowercase().replaceFirstChar { it.uppercase() }
     return if (date.year == currentYear) "${date.dayOfMonth} $month" else "${date.dayOfMonth} $month ${date.year}"
 }
+
+/**
+ * M5: the digits of a number someone reads at a glance, in the reader's script — `١٢:٠٥` in Arabic, `12:05` otherwise.
+ * The dashboard's rule for counts that are read (`lesson-sources.component.ts`); separators and letters are left alone.
+ */
+fun localDigits(text: String, arabic: Boolean): String =
+    if (!arabic) text else buildString(text.length) { text.forEach { append(if (it in '0'..'9') '٠' + (it - '0') else it) } }

@@ -1,6 +1,8 @@
 package quest.core.platform
 
 import quest.feature.today.domain.ExamSittingPresenter
+import quest.feature.push.domain.NoPushTokens
+import quest.feature.push.domain.PushTokens
 import quest.feature.today.domain.TodaySnapshotStore
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
@@ -39,5 +41,8 @@ actual fun platformModule(): Module = module {
     single<Speaker> { IosSpeaker() }
     single<TodaySnapshotStore> { IosTodaySnapshotStore() }
     single<ExamSittingPresenter> { IosExamSittingPresenter() }
+    // M5: no push on iOS yet. The later step: an Apple developer account, an APNs key uploaded to the Firebase project,
+    // the Firebase Messaging SDK in iosApp and an actual PushTokens here — B4 already sends the APNs alert beside the data.
+    single<PushTokens> { NoPushTokens }
 }
 

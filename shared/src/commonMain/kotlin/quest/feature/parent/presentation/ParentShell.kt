@@ -133,13 +133,11 @@ fun ParentShell(
                 Box(Modifier.weight(1f).fillMaxWidth()) { content(strings) }
 
                 if (currentTab != null && onTabSelected != null) {
-                    // §4 / `FeatureGate.kt`: entry points are hidden by their own gate. Without this the Notification
-                    // tab still routed to `Routes.Broadcasts`, whose `GateFallback` sent the parent straight back.
+                    // M5 (the owner, 2026-10-03): the Notifications tab is always here, whatever the school's flags.
                     DashboardBottomNavigation(
                         currentTab = currentTab,
                         onTabSelected = onTabSelected,
                         isRtl = strings.isRtl,
-                        showNotifications = featureEnabled(Flags.ANNOUNCEMENTS),
                         unreadNotifications = counts.notifications,
                         unreadMessages = counts.messages,
                     )

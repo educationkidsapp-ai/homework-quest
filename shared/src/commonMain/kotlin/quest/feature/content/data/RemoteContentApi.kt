@@ -132,6 +132,16 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
 
     override suspend fun markAllNotificationsRead(): quest.api.dto.UnreadCount = call { client.post("$baseUrl/me/notifications/read-all") { authed() } }
 
+    // ---- B4: the parent's push token (`docs/runbook.md` "Push notifications"); both answer 204, the token in the body.
+    override suspend fun registerDevice(request: quest.api.dto.RegisterDeviceRequest) = noContent {
+        client.post("$baseUrl/me/devices") { authed(); contentType(ContentType.Application.Json); setBody(request) }
+    }
+
+    // The token travels in the body, never in a URL (B4, fc67b9d): paths end up in access logs and proxies.
+    override suspend fun unregisterDevice(token: String) = noContent {
+        client.post("$baseUrl/me/devices/unregister") { authed(); contentType(ContentType.Application.Json); setBody(quest.api.dto.UnregisterDeviceRequest(token)) }
+    }
+
     // ---- MH1/MH3: the weekly-plan archive and the parent's own account
     override suspend fun childWeeklyPlans(childId: String, from: String?, to: String?): quest.api.dto.WeeklyPlanArchive =
         call {
@@ -201,6 +211,11 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
         response.headers[HttpHeaders.Date]?.let { runCatching { it.fromHttpToGmtDate().timestamp }.getOrNull() }?.let { ServerClock.observe(it) }
         if (!response.status.isSuccess()) throw response.toException()
         return response.body()
+    }
+
+    private suspend inline fun noContent(block: () -> HttpResponse) {
+        val response = try { block() } catch (e: ApiException) { throw e } catch (e: Exception) { throw ApiException(ApiError(ApiError.NETWORK, e.message ?: "network"), e) }
+        if (!response.status.isSuccess()) throw response.toException()
     }
 
     private suspend fun HttpResponse.toException(): ApiException {

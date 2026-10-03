@@ -2,6 +2,8 @@ package quest.core.platform
 
 import quest.feature.today.domain.NoExamSittingPresenter
 import quest.feature.today.domain.ExamSittingPresenter
+import quest.feature.push.domain.NoPushTokens
+import quest.feature.push.domain.PushTokens
 import quest.feature.today.domain.TodaySnapshot
 import quest.feature.today.domain.TodaySnapshotStore
 import app.cash.sqldelight.db.SqlDriver
@@ -34,5 +36,7 @@ actual fun platformModule(): Module = module {
     // A desktop build has no home-screen widget and no system exam activity.
     single<TodaySnapshotStore> { object : TodaySnapshotStore { override suspend fun write(snapshot: TodaySnapshot?) = Unit } }
     single<ExamSittingPresenter> { NoExamSittingPresenter }
+    // M5: the desktop app has no push.
+    single<PushTokens> { NoPushTokens }
 }
 

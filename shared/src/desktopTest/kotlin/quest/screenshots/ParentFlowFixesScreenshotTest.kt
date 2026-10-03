@@ -90,9 +90,9 @@ class ParentFlowFixesScreenshotTest {
     // ---- D8: "Closes at" on an exam question
     private val question = paper.stops.indexOfFirst { it.category == StopCategory.SINGLE }
     private val sitting = PlayerContract.State(phase = PlayerContract.Phase.STOP, lesson = exam, play = paper, index = question, childName = "Hala", exam = true, closesAt = now + 40 * 60_000L)
-    @Test fun examClosesAt() = child("m4-03-exam-closes-at") { StopPlayerScreen(sitting, {}, {}) }
-    @Test fun examClosesAtDark() = child("m4-03b-exam-closes-at-dark", dark = true) { StopPlayerScreen(sitting, {}, {}) }
-    @Test fun examClosesAtArabic() = child("m4-03c-exam-closes-at-ar", LessonStrings.ar) { StopPlayerScreen(sitting, {}, {}) }
+    @Test fun examClosesAt() = child("m4-03-exam-closes-at") { StopPlayerScreen(sitting, {}, {}, now = { now }) }
+    @Test fun examClosesAtDark() = child("m4-03b-exam-closes-at-dark", dark = true) { StopPlayerScreen(sitting, {}, {}, now = { now }) }
+    @Test fun examClosesAtArabic() = child("m4-03c-exam-closes-at-ar", LessonStrings.ar) { StopPlayerScreen(sitting, {}, {}, now = { now }) }
 
     // ---- D6 + D7 + D12: a manager's resolved complaint, staff offline, an English message in the Arabic app
     private fun conversation() = ChatConversationContract.State(

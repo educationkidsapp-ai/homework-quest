@@ -13,6 +13,13 @@
         </intent>
     </queries>
     <application>
+        <!-- M5: push for parents. The token is asked for only after sign-in, never by Firebase on its own. -->
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
+        <service android:name="quest.core.platform.QuestMessagingService" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.quest.fileprovider"

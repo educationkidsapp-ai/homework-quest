@@ -2,7 +2,15 @@ package quest
 
 import quest.feature.today.domain.TodayLinks
 import quest.feature.today.domain.TodayLink
+import quest.feature.push.domain.PushLinks
+import quest.feature.push.domain.PushRegistration
+import quest.feature.push.presentation.PushNavigator
+import quest.feature.push.domain.ParentGate
+import androidx.compose.runtime.DisposableEffect
+import androidx.navigation.NavController
+import androidx.navigation.NavDestination.Companion.hasRoute
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.filterNotNull
 import androidx.compose.runtime.rememberCoroutineScope
 import quest.feature.lock.presentation.AppLockHost
 import quest.feature.lock.domain.AppLock
@@ -76,6 +84,7 @@ fun App() {
 @Composable
 fun QuestNavHost(nav: NavHostController, start: Any) {
     val lock: AppLock = koinInject()
+    val pushRegistration: PushRegistration = koinInject()
     val scope = rememberCoroutineScope()   // outlives the sign-in screen, which is popped the moment it succeeds
     // M3: a tap on the home-screen widget. The navigation happens underneath the lock's cover, so a locked app still
     // asks for the biometric first and then shows where the tap pointed. Signed out, the tap just opens the app.
@@ -90,11 +99,39 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
             TodayLink.MESSAGES -> nav.navigate(Routes.ParentPin())      // messages are the parent's: her gate comes first
         }
     }
+    // M5: a tapped push or Notifications row — one router for both. The navigation happens underneath the app's
+    // lock, like the widget's; every tap first passes the parent gate (biometric or PIN) unless it was passed a moment
+    // ago, and only then is the specific page opened. Collected, not keyed: consuming a tap changes the flow, and a
+    // keyed effect would be cancelled by that change before it navigated.
+    val pushes: PushNavigator = koinInject()
+    val gate: ParentGate = koinInject()
+    LaunchedEffect(Unit) {
+        PushLinks.pending.filterNotNull().collect { tap ->
+            PushLinks.consumed()
+            val step = pushes.follow(tap)
+            if (step == PushNavigator.Step.Gate) PushLinks.waitForGate(tap)
+            nav.follow(step)
+        }
+    }
+    LaunchedEffect(Unit) {
+        PushLinks.unlocked.filterNotNull().collect { tap ->
+            PushLinks.followed()
+            nav.follow(pushes.afterGate(tap))
+        }
+    }
+    // The child's side closes the parent gate at once, so a notification tapped there always asks again.
+    DisposableEffect(nav) {
+        val listener = NavController.OnDestinationChangedListener { _, destination, _ -> if (childSide.any { destination.hasRoute(it) }) gate.closed() }
+        nav.addOnDestinationChangedListener(listener)
+        onDispose { nav.removeOnDestinationChangedListener(listener) }
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { gate.away() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { gate.back() }
     NavHost(navController = nav, startDestination = start) {
         // After sign-in the parent sees every child the school linked to the account, and picks whose home to open.
         composable<Routes.SignIn> {
             // M2: a password sign-in is followed, once, by the offer to unlock with a biometric from now on.
-            SignInRoute(onSignedIn = { scope.launch { lock.signedIn() }; nav.navigate(Routes.ChildPicker) { popUpTo(Routes.SignIn) { inclusive = true } } })
+            SignInRoute(onSignedIn = { scope.launch { lock.signedIn() }; scope.launch { pushRegistration.signedIn() }; nav.navigate(Routes.ChildPicker) { popUpTo(Routes.SignIn) { inclusive = true } } })
         }
         composable<Routes.ChildPicker> {
             ChildPickerRoute(
@@ -151,5 +188,22 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
             }
         }
         parentGraph(nav)
+    }
+}
+
+/** The routes on the child's side of the parent gate. */
+private val childSide = listOf(Routes.SignIn::class, Routes.ChildPicker::class, Routes.WorldMap::class, Routes.Journey::class, Routes.StopPlayer::class, Routes.LessonComplete::class, Routes.ExamResult::class)
+
+/** One step of following a tap: the gate, a parent page on top of the parent home, or the child's home (and a page on it). */
+private fun NavHostController.follow(step: PushNavigator.Step) {
+    when (step) {
+        PushNavigator.Step.Nothing -> Unit
+        PushNavigator.Step.Gate -> navigate(Routes.ParentPin(push = true))
+        // One page of a kind: a tap on a row of the Notifications tab (or on a second push) replaces the page, not stacks it.
+        is PushNavigator.Step.Parent -> navigate(step.route) { popUpTo(step.route::class) { inclusive = true } }
+        is PushNavigator.Step.Child -> {
+            navigate(Routes.WorldMap) { popUpTo(0) { inclusive = true } }
+            step.route?.let { navigate(it) }
+        }
     }
 }

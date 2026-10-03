@@ -1,5 +1,8 @@
 package quest.feature.parent.presentation
 
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,16 +73,16 @@ class ProgressViewModel(
 }
 
 @Composable
-fun ProgressRoute(onBack: () -> Unit) {
+fun ProgressRoute(focusExam: String? = null, onBack: () -> Unit) {
     val vm: ProgressViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(vm) { vm.dispatch(ProgressContract.Intent.Load) }
-    ParentShell(title = { it.progress }, onBack = onBack) { s -> ProgressScreen(state, s) }
+    ParentShell(title = { it.progress }, onBack = onBack) { s -> ProgressScreen(state, s, focusExam) }
 }
 
 /** Screen 21: bands and words, never a percentage. */
 @Composable
-fun ProgressScreen(state: ProgressContract.State, s: Strings) {
+fun ProgressScreen(state: ProgressContract.State, s: Strings, focusExam: String? = null) {
     Column(
         Modifier
             .fillMaxSize()
@@ -95,7 +98,8 @@ fun ProgressScreen(state: ProgressContract.State, s: Strings) {
             Text(s.streak, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
         }
 
-        ReleasedResults(state.results, s)
+        // M5: a released result a notification pointed at comes first, outlined — the parent sees its score.
+        ReleasedResults(state.results.sortedByDescending { it.lessonId == focusExam }, s, focusExam)
 
         SectionTitle(s.weakSkills)
         val weak = state.reports.filter { it.band == Band.NEEDS_ANOTHER_LOOK }
@@ -154,12 +158,13 @@ fun ProgressScreen(state: ProgressContract.State, s: Strings) {
 }
 
 @Composable
-private fun ReleasedResults(results: List<ReleasedResult>, s: Strings) {
+private fun ReleasedResults(results: List<ReleasedResult>, s: Strings, focusExam: String? = null) {
     if (results.isEmpty()) return
     SectionTitle(s.teacherMarks)
     results.forEach { r ->
         val meta = SubjectMeta.of(r.subject)
-        ParentCard(Modifier.padding(bottom = 8.dp)) {
+        val outline = if (r.lessonId == focusExam) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(DashboardTokens.radiusMd)).testTag("result-focused") else Modifier
+        ParentCard(Modifier.padding(bottom = 8.dp).then(outline)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,

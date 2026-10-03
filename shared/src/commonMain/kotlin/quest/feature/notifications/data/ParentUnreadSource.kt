@@ -11,7 +11,7 @@ import quest.feature.notifications.domain.NotificationsRepository
 /**
  * M4 (D5): the Notifications badge counts what the tab lists unread — her own notification rows about this child (B3)
  * and the feed's announcements and events — and the Messages badge the unread messages over her threads. The tab is
- * behind `announcements`, so without that flag there is no tab and no count.
+ * always there (M5); without `announcements` it counts her own rows only, because there is no feed to read.
  */
 class ParentUnreadSource(
     private val broadcasts: BroadcastsRepository,
@@ -21,9 +21,8 @@ class ParentUnreadSource(
     private val chatOn: () -> Boolean,
 ) : UnreadSource {
     override suspend fun notifications(childId: String): Int? {
-        if (!announcementsOn()) return 0
         val rows = runCancellable { notifications.rows(childId).count { it.readAt == null } }.getOrNull()
-        val feed = runCancellable { unreadAnnouncements(broadcasts.feed(childId).items, Today.epochMillis()) }.getOrNull()
+        val feed = if (!announcementsOn()) 0 else runCancellable { unreadAnnouncements(broadcasts.feed(childId).items, Today.epochMillis()) }.getOrNull()
         return if (rows == null && feed == null) null else (rows ?: 0) + (feed ?: 0)
     }
 

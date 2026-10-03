@@ -21,6 +21,8 @@ class AppInitializer(
     private val settings: SettingsStore, private val auth: SessionRestorer, private val school: SchoolSession,
     private val answers: PendingAnswersSync,
     private val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    /** M5: what starts once the session is known — the push registration, which must never run for a signed-out app. */
+    private val onRestored: (CoroutineScope) -> Unit = {},
 ) {
     private var syncing: Job? = null
 
@@ -29,6 +31,6 @@ class AppInitializer(
         auth.restore()
         runCancellable { school.restore() }
         // M4 (D3): from here on, answers kept offline go up whenever the network comes back.
-        if (syncing == null) syncing = answers.start(appScope)
+        if (syncing == null) { syncing = answers.start(appScope); onRestored(appScope) }
     }
 }

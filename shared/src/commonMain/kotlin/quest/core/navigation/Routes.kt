@@ -16,19 +16,29 @@ object Routes {
     @Serializable data class ExamResult(val lessonId: String)
 
     // parent mode
-    @Serializable data class ParentPin(val lessonId: String? = null)
+    /** [push] (M5): a tapped notification waits behind this gate (`PushLinks.awaiting`) and is followed once it opens. */
+    @Serializable data class ParentPin(val lessonId: String? = null, val push: Boolean = false)
     @Serializable object ParentHome
     @Serializable object Calendar
-    @Serializable object Progress
+    /** [focusExam] (M5): a released exam a tapped notification is about, shown first and outlined. */
+    @Serializable data class Progress(val focusExam: String? = null)
     @Serializable object Settings
     @Serializable object ChangePin
     @Serializable data class LessonPanel(val lessonId: String)
     @Serializable object ChatThreads
 
     /** RM4: the broadcasts feed — this week's plan, announcements and events for the current child. */
-    @Serializable object Broadcasts
+    @Serializable data class Broadcasts(
+        /** M5: an announcement or event to open (a tapped push or row). */
+        val focusBroadcast: String? = null,
+        /** M5: a notification row to open and highlight. */
+        val focusRow: String? = null,
+        /** M5: the tapped item no longer exists — said in one line above the list. */
+        val gone: Boolean = false,
+    )
     /** MH3: the weekly-plan archive, the other half of what RM4 called School news. */
-    @Serializable object WeeklyPlan
+    /** [focus] (M5): the plan a tapped push or row is about, opened on arrival. */
+    @Serializable data class WeeklyPlan(val focus: String? = null)
 
     /** R8: the coordinators of the current child's section, where a parent starts a thread with one of them. */
     @Serializable object ChatCoordinators

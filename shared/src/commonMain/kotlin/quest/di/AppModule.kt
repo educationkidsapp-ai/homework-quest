@@ -48,6 +48,20 @@ import quest.feature.notifications.domain.UnreadSource
 import quest.feature.notifications.domain.NotificationsRepository
 import quest.feature.notifications.data.NotificationsRepositoryImpl
 import quest.feature.school.domain.Flags
+import quest.feature.push.data.ApiPushRegistrar
+import quest.feature.push.data.PushPreferencesImpl
+import quest.feature.push.domain.NotificationRouter
+import quest.feature.push.domain.ParentGate
+import quest.core.runCancellable
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
+import quest.feature.push.domain.PushPreferences
+import quest.feature.push.domain.PushPrompts
+import quest.feature.push.domain.PushRegistrar
+import quest.feature.push.domain.PushRegistration
+import quest.feature.push.presentation.PushNavigator
+import quest.api.AuthState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -109,7 +123,7 @@ fun apiModule(config: ApiConfig): Module = module {
     single<AuthProvider> {
         val key = (config as? ApiConfig.Server)?.firebaseApiKey.orEmpty()
         // Resolved when the session expires, not here: the document store itself depends on the auth provider.
-        if (key.isBlank()) FakeAuth(get()) else FirebaseAuth(key, get(), get(), onSessionExpired = { get<AttachmentDocuments>().clear(); get<BiometricPreferences>().signedOut(); get<TodaySnapshotStore>().write(null); get<ExamSittingPresenter>().end() })
+        if (key.isBlank()) FakeAuth(get()) else FirebaseAuth(key, get(), get(), onSessionExpired = { get<PushRegistration>().sessionExpired(); get<AttachmentDocuments>().clear(); get<BiometricPreferences>().signedOut(); get<TodaySnapshotStore>().write(null); get<ExamSittingPresenter>().end() })
     }
     single<SessionRestorer> { get<AuthProvider>() as SessionRestorer }
     // One Ktor client for the whole app: each `HttpClient()` starts an engine and its own thread pool, and the two
@@ -153,7 +167,8 @@ val coreModule = module {
     single { Db(get()) }
     single { SettingsStore(get()) }
     single { quest.feature.journey.data.LessonImages(get()) }
-    single { AppInitializer(get(), get(), get(), get()) }
+    // M5: once the session is restored, the push token is (re-)registered — and again whenever the app language changes.
+    single { AppInitializer(get(), get(), get(), get(), onRestored = { scope -> get<PushRegistration>().start(scope, get<ParentRepository>().language) }) }
 }
 
 /**
@@ -175,8 +190,9 @@ val contentModule = module {
     // M4 (D3): one for the app — started by `AppInitializer`, nudged when the app comes to the front.
     single { PendingAnswersSync(get(), get(), get()) }
     viewModel { SignInViewModel(get()) }
-    // Signing out also turns the biometric lock off (M2) and empties the home-screen widget and any exam activity (M3).
-    factory { SignOutUseCase(get(), get(), get(), alsoForget = { get<BiometricPreferences>().signedOut(); get<TodaySnapshotStore>().write(null); get<ExamSittingPresenter>().end() }) }
+    // Signing out also turns the biometric lock off (M2), empties the home-screen widget and any exam activity (M3), and
+    // withdraws the push token while the session can still say whose it is (M5).
+    factory { SignOutUseCase(get(), get(), get(), alsoForget = { get<PushRegistration>().signingOut(); get<BiometricPreferences>().signedOut(); get<TodaySnapshotStore>().write(null); get<ExamSittingPresenter>().end() }) }
     single { ExamWindows() }
     factory { PublishTodayUseCase(get(), get(), get()) }
     // M2: the biometric lock. One instance — it remembers when the app went to the background.
@@ -229,8 +245,30 @@ val broadcastsModule = module {
     }
     single { ParentBadges(get(), get()).also { it.start(CoroutineScope(SupervisorJob() + Dispatchers.Default), get<ChatRepository>().incomingFrames) } }
     single<NotificationsRepository> { NotificationsRepositoryImpl(get()) }
-    viewModel { BroadcastsViewModel(get(), get(), get<ChatRepository>().incomingFrames, get(), get()) }
+    viewModel { BroadcastsViewModel(get(), get(), get<ChatRepository>().incomingFrames, get(), get(), feedOn = { get<FlagStore>().isEnabled(Flags.ANNOUNCEMENTS) }) }
     viewModel { WeeklyPlanViewModel(get(), get()) }
 }
 
-fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), connectivityModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, broadcastsModule)
+/**
+ * M5: push for parents. The platform half ([quest.feature.push.domain.PushTokens]) is bound by `platformModule()` —
+ * FCM on Android, nothing on iOS and the desktop. The registration sends the app's language as `locale`: the language
+ * the parent reads the app in is the one the server writes the push in.
+ */
+val pushModule = module {
+    single<PushPreferences> { PushPreferencesImpl(get()) }
+    single<PushRegistrar> { ApiPushRegistrar(get()) }
+    single { PushRegistration(get(), get(), get(), get(), locale = { get<ParentRepository>().language.value }) }
+    factory { PushPrompts(get(), get()) }
+    // One gate memory for the app: the PIN screen opens it, the child's side and a minute away close it.
+    single { ParentGate(elapsed = ::elapsedRealtimeMillis, graceMillis = AppLock.BACKGROUND_LIMIT_MILLIS) }
+    factory {
+        val maps = get<MapRepository>()
+        NotificationRouter(get(), get(), get(), get(), lessonsOnMap = { child ->
+            val today = Today.date()
+            runCancellable { maps.map(child, today.minus(30, DateTimeUnit.DAY), today.plus(7, DateTimeUnit.DAY), today).islands.mapNotNull { it.lessonId }.toSet() }.getOrNull()
+        })
+    }
+    factory { PushNavigator(get(), get(), signedIn = { get<AuthProvider>().state.value is AuthState.SignedIn }) }
+}
+
+fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), connectivityModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, broadcastsModule, pushModule)

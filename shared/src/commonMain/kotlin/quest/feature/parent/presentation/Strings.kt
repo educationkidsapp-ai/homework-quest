@@ -136,6 +136,8 @@ data class Strings(
     val updateResult: String = "Result released",
     val updateHomework: String = "New homework",
     val updateOther: String = "Update",
+    /** M5: grouped, because this class is at the JVM's limit of constructor parameters. */
+    val notices: NoticeStrings = NoticeStrings.en,
     val thisWeeksPlan: String = "This week's plan",
     val earlierPlans: String = "Earlier weeks",
     /** `{date}` is replaced with the Sunday the plan's week starts on. */
@@ -362,6 +364,7 @@ data class Strings(
             updateResult = "صدرت النتيجة",
             updateHomework = "واجب جديد",
             updateOther = "تحديث",
+            notices = NoticeStrings.ar,
             thisWeeksPlan = "خطة هذا الأسبوع",
             earlierPlans = "أسابيع سابقة",
             weekOf = "أسبوع {date}",
@@ -439,3 +442,27 @@ val LocalStrings = staticCompositionLocalOf { Strings.en }
  * name in the reader's language — MySchool, مدرستي.
  */
 fun SchoolBranding.displayName(strings: Strings): String = if (appName == SchoolBranding.DEFAULT_APP_NAME) strings.appName else appName
+
+/** M5: the newer kinds a parent is told about, and what a tapped notification opens on the Notifications tab. */
+data class NoticeStrings(
+    val updateExam: String,
+    val updateClassNote: String,
+    val updateQuestion: String,
+    val updateComplaint: String,
+    val updateNews: String,
+    val fromYourNotification: String,
+    val itemGone: String,
+) {
+    companion object {
+        val en = NoticeStrings(
+            updateExam = "New exam", updateClassNote = "Class note", updateQuestion = "Teacher question",
+            updateComplaint = "Complaint update", updateNews = "School news",
+            fromYourNotification = "From your notification", itemGone = "That item is no longer available.",
+        )
+        val ar = NoticeStrings(
+            updateExam = "اختبار جديد", updateClassNote = "ملاحظة للصف", updateQuestion = "سؤال من المعلّم",
+            updateComplaint = "تحديث على الشكوى", updateNews = "أخبار المدرسة",
+            fromYourNotification = "من الإشعار", itemGone = "هذا العنصر لم يعد متاحاً.",
+        )
+    }
+}

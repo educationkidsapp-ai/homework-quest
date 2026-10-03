@@ -196,7 +196,7 @@ class FakeContentApi(
     // ---- §2 join school, §3 theme, §4 flags, §A platform settings -------------------------------------------------
     // One fake themed school; every other school id is the platform default (`DEFAULT_FLAGS` and the token theme).
 
-    override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> { net(); return DEFAULT_FLAGS + ("chat" to true) }
+    override suspend fun schoolFlags(schoolId: String): Map<String, Boolean> { net(); return DEFAULT_FLAGS + ("chat" to true) + ("announcements" to true) }
 
     override suspend fun schoolTheme(schoolId: String): SchoolTheme { net(); return if (schoolId == AL_NOOR_ID) alNoorTheme else SchoolTheme() }
 
@@ -370,10 +370,15 @@ class FakeContentApi(
     // ---- B3 parity: the parent's notification rows, so the Notifications tab runs without a server.
     private val fakeNotificationReads = mutableSetOf<String>()
     private fun fakeNotifications(): List<NotificationView> = listOf(
-        NotificationView("nt-result", NotificationKind.EXAM_RELEASED, "Exam result released", "Autumn maths test", "/children/c1/progress", lessonId = "exam-1", createdAt = 1_758_460_000_000L),
-        NotificationView("nt-msg", NotificationKind.CHAT_MESSAGE, "Message from Ms. Sara", "Hala did very well today.", "/children/c1/chat/t-sara", createdAt = 1_758_450_000_000L),
-        NotificationView("nt-hw", NotificationKind.HOMEWORK_PUBLISHED, "New homework", "Counting by 2s", "/children/c1/map", lessonId = "l1", createdAt = 1_758_440_000_000L),
-    ).map { if (it.id in fakeNotificationReads) it.copy(readAt = 1_758_470_000_000L) else it }
+        NotificationView("nt-result", NotificationKind.EXAM_RELEASED, "Exam result released", "Autumn maths test", "/children/$MAYA/progress", lessonId = "exam-1", createdAt = 1_758_460_000_000L, childId = MAYA),
+        NotificationView("nt-msg", NotificationKind.CHAT_MESSAGE, "Message from Ms. Sara", "Maya did very well today.", "/children/$MAYA/chat/t-sara", createdAt = 1_758_450_000_000L, childId = MAYA),
+        NotificationView("nt-hw", NotificationKind.HOMEWORK_PUBLISHED, "New homework", "Counting by 2s", "/children/$MAYA/map", lessonId = "l1", createdAt = 1_758_440_000_000L, childId = MAYA),
+        // M5: one row of each newer kind B4 writes, so every tap target can be tried without a server.
+        NotificationView("nt-plan", NotificationKind.BROADCAST_POSTED, "This week's plan", "Grade 1", "/children/$MAYA/broadcasts?open=bc-plan-${weekStartOf(today())}", lessonId = "bc-plan-${weekStartOf(today())}", createdAt = 1_758_435_000_000L, childId = MAYA),
+        NotificationView("nt-ann", NotificationKind.BROADCAST_POSTED, "Announcement from Ms. Lina", "Library books are due on Thursday.", "/children/$MAYA/broadcasts?open=bc-ann", lessonId = "bc-ann", createdAt = 1_758_430_000_000L, childId = MAYA),
+        NotificationView("nt-note", NotificationKind.ANNOUNCEMENT_POSTED, "Class note from Ms. Sara", "Please send a water bottle with your child every day this week — we are outside for PE.", "/children/$MAYA/announcements?open=an-1", lessonId = "an-1", createdAt = 1_758_425_000_000L, childId = MAYA),
+        NotificationView("nt-exam", NotificationKind.EXAM_PUBLISHED, "New exam: Counting exam", "Open today 08:00–10:00", "/children/$MAYA/map", lessonId = FakeExam.LESSON_ID, createdAt = 1_758_420_000_000L, childId = MAYA),
+        ).map { if (it.id in fakeNotificationReads) it.copy(readAt = 1_758_470_000_000L) else it }
 
     override suspend fun notifications(unread: Boolean?, limit: Int?): List<NotificationView> {
         net()
@@ -389,6 +394,11 @@ class FakeContentApi(
     }
 
     override suspend fun markAllNotificationsRead(): UnreadCount { net(); fakeNotificationReads += fakeNotifications().map { it.id }; return UnreadCount(0) }
+
+    /** B4: the push tokens the app registered, by token — what `/me/devices` would hold for this parent. */
+    val devices = mutableMapOf<String, quest.api.dto.RegisterDeviceRequest>()
+    override suspend fun registerDevice(request: quest.api.dto.RegisterDeviceRequest) { net(); devices[request.token] = request }
+    override suspend fun unregisterDevice(token: String) { net(); devices.remove(token) }
 
     override suspend fun childBroadcasts(childId: String): BroadcastFeed {
         net()
@@ -485,6 +495,8 @@ class FakeContentApi(
         /** The school code `createChild` places a child in the themed school for. */
         const val AL_NOOR_CODE = "ALNOOR"
         const val AL_NOOR_ID = "al-noor"
+        /** The first linked child, whom the fake's notification rows are about. */
+        const val MAYA = "fake-child-1"
 
         /**
          * Al Noor's colours, chosen the way the server's validator demands: [SchoolTheme.primary] is a light brand
@@ -515,7 +527,7 @@ class FakeContentApi(
 
         /** The two children the fake "admin" linked to every parent — two grades, so the picker and the switcher have something to switch. */
         val linkedChildren = listOf(
-            Child("fake-child-1", "Maya", "sky", Curriculum.BRITISH, 1),
+            Child(MAYA, "Maya", "sky", Curriculum.BRITISH, 1),
             Child("fake-child-2", "Omar", "mint", Curriculum.BRITISH, 4),
         )
 
