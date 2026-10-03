@@ -3,6 +3,7 @@ package quest.feature.content.data
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.onUpload
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
@@ -31,6 +32,7 @@ import quest.api.AuthProvider
 import quest.api.ContentApi
 import quest.api.UploadFile
 import quest.api.dto.ApiError
+import quest.api.dto.AttachmentRef
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
 import quest.api.dto.BroadcastFeed
@@ -179,6 +181,28 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
                 setBody(request)
             }
         }
+
+    override suspend fun uploadChatAttachment(childId: String, file: UploadFile): AttachmentRef = uploadChatAttachment(childId, file) {}
+
+    /**
+     * M7 (B5): `POST /media/attachments` with `purpose=chat` and the child the message is about, reporting the share
+     * of the bytes sent so the composer can draw its progress. The part's file name loses its quotes, which would
+     * otherwise end the `filename="…"` it is written into.
+     */
+    suspend fun uploadChatAttachment(childId: String, file: UploadFile, onProgress: (Float) -> Unit): AttachmentRef = call {
+        client.post("$baseUrl/media/attachments") {
+            authed()
+            setBody(MultiPartFormDataContent(formData {
+                append("purpose", "chat")
+                append("childId", childId)
+                append("file", file.bytes, Headers.build {
+                    append(HttpHeaders.ContentType, file.mimeType)
+                    append(HttpHeaders.ContentDisposition, "filename=\"${file.fileName.replace("\"", "_")}\"")
+                })
+            }))
+            onUpload { sent, total -> if (total != null && total > 0) onProgress((sent.toFloat() / total).coerceIn(0f, 1f)) }
+        }
+    }
 
     override suspend fun markChatRead(childId: String, teacherId: String): ChatReadReceipt =
         call { client.post("$baseUrl/children/$childId/chat/threads/$teacherId/read") { authed() } }

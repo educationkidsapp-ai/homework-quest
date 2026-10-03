@@ -78,7 +78,8 @@ class ChatConversationViewModelTest {
             return if (i < 0) emptyList() else history.drop(i + 1)
         }
 
-        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?): ChatMessage {
+        override suspend fun uploadAttachment(childId: String, file: quest.api.UploadFile, onProgress: (Float) -> Unit): quest.api.dto.AttachmentRef = error("not used")
+        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?, attachmentIds: List<String>): ChatMessage {
             sends.add(body to topic)
             if (failNextSend) { failNextSend = false; throw IllegalStateException("boom") }
             return ChatMessage("m-${sends.size}", threadId, ChatSender.PARENT, "p1", body, 1_758_450_000_000L)

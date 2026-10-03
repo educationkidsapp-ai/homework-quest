@@ -3,3 +3,6 @@
 
 /* Asked the first time the app uses Face ID to unlock (M2). */
 "NSFaceIDUsageDescription" = "افتح «مدرستي» ببصمة الوجه بدلاً من كلمة المرور.";
+
+/* Asked the first time a parent takes a photo for a message (M7). */
+"NSCameraUsageDescription" = "التقط صورة لإرسالها إلى المدرسة في الرسائل.";

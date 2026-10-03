@@ -27,6 +27,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -85,10 +87,28 @@ import quest.feature.parent.presentation.Strings
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.featureEnabled
-import androidx.compose.ui.text.style.TextOverflow
 import io.github.vinceglb.filekit.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.core.PickerMode
 import io.github.vinceglb.filekit.core.PickerType
+import io.github.vinceglb.filekit.core.PlatformFile
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import quest.api.UploadFile
+import quest.api.dto.AttachmentRef
+import quest.api.dto.ChatAttachment
+import quest.core.platform.photoAsJpeg
+import quest.core.platform.rememberCameraCapture
+import quest.feature.chat.domain.AttachmentRefusal
+import quest.feature.chat.domain.MAX_ATTACHMENTS
+import quest.feature.chat.domain.PHOTO_MAX_PX
+import quest.feature.chat.domain.PHOTO_QUALITY
+import quest.feature.chat.domain.PickedFile
+import quest.feature.chat.domain.TYPING_TIMEOUT_MS
+import quest.feature.chat.domain.asChatAttachment
+import quest.feature.chat.domain.contentTypeOf
+import quest.feature.chat.domain.preparePhoto
+import quest.feature.chat.domain.refusalFor
 import quest.ui.design.AnimatedLoadingView
 import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
@@ -109,7 +129,26 @@ object ChatConversationContract {
          * without this one transient 5xx would quietly downgrade a parent's complaint to a question.
          */
         val topic: ChatTopic? = null,
+        /** M7 (B5): the files on the message, in the order they were sent; a retry sends the same ids again. */
+        val attachments: List<ChatAttachment> = emptyList(),
     )
+
+    /**
+     * M7: one file in the composer's tray. It uploads the moment it is picked, so by the time she has written her
+     * sentence the photo is usually up; [ref] is the server's answer, and the message can only go once every draft
+     * has one. A failed upload stays in the tray with its own retry rather than disappearing.
+     */
+    data class Draft(
+        val localId: String,
+        val name: String,
+        val contentType: String,
+        val size: Long,
+        val progress: Float = 0f,
+        val ref: AttachmentRef? = null,
+        val failed: Boolean = false,
+    ) {
+        val uploading: Boolean get() = ref == null && !failed
+    }
 
     data class State(
         val childId: String = "",
@@ -143,6 +182,10 @@ object ChatConversationContract {
         val peerOnline: Boolean? = null,
         /** M4 (D7): who resolves this thread, and so who the Resolved banner says answered. */
         val resolver: Resolver = Resolver.COORDINATOR,
+        /** M7: the files waiting to go with the next message. */
+        val drafts: List<Draft> = emptyList(),
+        /** M7: why the last file she picked was not added — one sentence under the tray until she picks again. */
+        val refusal: AttachmentRefusal? = null,
     ) : MviState {
         /**
          * The toggle is offered on any thread that is not a complaint already — to a teacher, a coordinator or a
@@ -153,15 +196,22 @@ object ChatConversationContract {
          */
         val canMarkComplaint: Boolean
             get() = !loading && !withAdmin && topic == ChatTopic.QUESTION
+
+        /** Words, files or both — and only once every file is up, so nothing is sent without what she attached. */
+        val canSend: Boolean
+            get() = drafts.all { it.ref != null } && inputText.length <= 2000 && (inputText.isNotBlank() || drafts.isNotEmpty())
     }
 
     sealed interface Intent : MviIntent {
         data object Load : Intent
         data class UpdateInput(val text: String) : Intent
         data object SendMessage : Intent
-        data class SendCustom(val body: String) : Intent
         data class RetrySend(val clientId: String) : Intent
         data object ToggleComplaint : Intent
+        /** M7: files from the camera, the gallery or the document picker, checked and uploaded one by one. */
+        data class AddFiles(val files: List<PickedFile>) : Intent
+        data class RemoveDraft(val localId: String) : Intent
+        data class RetryDraft(val localId: String) : Intent
     }
 
     sealed interface Effect : MviEffect
@@ -189,14 +239,23 @@ class ChatConversationViewModel(
     private var typingJob: Job? = null
     private var lastTypingSentMillis: Long = 0L
 
+    /** M7: the bytes behind each draft, kept for its retry and dropped once the message is sent or the draft removed. */
+    private val pendingFiles = mutableMapOf<String, UploadFile>()
+    private val uploadJobs = mutableMapOf<String, Job>()
+
+    /** M7: thread ids a `typing` frame named that turned out not to be this conversation — asked about once each. */
+    private val otherThreads = mutableSetOf<String>()
+
     override suspend fun handle(intent: ChatConversationContract.Intent) {
         when (intent) {
             ChatConversationContract.Intent.Load -> loadInitialMessages()
             is ChatConversationContract.Intent.UpdateInput -> handleInputChanged(intent.text)
             ChatConversationContract.Intent.SendMessage -> sendMessage()
-            is ChatConversationContract.Intent.SendCustom -> sendMessage(intent.body)
             is ChatConversationContract.Intent.RetrySend -> retrySend(intent.clientId)
             ChatConversationContract.Intent.ToggleComplaint -> reduce { copy(markAsComplaint = !markAsComplaint) }
+            is ChatConversationContract.Intent.AddFiles -> addFiles(intent.files)
+            is ChatConversationContract.Intent.RemoveDraft -> removeDraft(intent.localId)
+            is ChatConversationContract.Intent.RetryDraft -> startUpload(intent.localId)
         }
     }
 
@@ -222,13 +281,64 @@ class ChatConversationViewModel(
         }
     }
 
-    private suspend fun sendMessage(customBody: String? = null) {
-        val body = (customBody ?: current.inputText).trim()
-        if (body.isBlank() || body.length > 2000) return
+    /**
+     * Each file is checked before a byte of it is read (type, size, room on the message), then read off the main
+     * thread — a photo the server would refuse as it is is re-encoded there — and checked again as it will go up.
+     * The last refusal is the one sentence the tray shows; the files that passed are added either way.
+     */
+    private suspend fun addFiles(files: List<PickedFile>) {
+        var refusal: AttachmentRefusal? = null
+        for (file in files) {
+            val early = refusalFor(file.name, file.size, current.drafts.size, file.photo)
+            if (early != null) { refusal = early; continue }
+            val upload = withContext(Dispatchers.Default) { runCatching { file.read() }.getOrNull() }
+            if (upload == null || upload.bytes.isEmpty()) { refusal = AttachmentRefusal.UNREADABLE; continue }
+            val late = refusalFor(upload.fileName, upload.bytes.size.toLong(), current.drafts.size)
+            if (late != null) { refusal = late; continue }
+            val localId = Ids.random()
+            pendingFiles[localId] = upload
+            reduce {
+                copy(drafts = drafts + ChatConversationContract.Draft(localId, upload.fileName, upload.mimeType, upload.bytes.size.toLong()))
+            }
+            startUpload(localId)
+        }
+        reduce { copy(refusal = refusal) }
+    }
+
+    private fun startUpload(localId: String) {
+        val file = pendingFiles[localId] ?: return
+        updateDraft(localId) { it.copy(progress = 0f, failed = false) }
+        uploadJobs[localId]?.cancel()
+        uploadJobs[localId] = launch {
+            try {
+                val ref = chat.uploadAttachment(childId, file) { sent -> updateDraft(localId) { it.copy(progress = sent) } }
+                updateDraft(localId) { it.copy(ref = ref, progress = 1f) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                updateDraft(localId) { it.copy(failed = true) }
+            }
+        }
+    }
+
+    private fun updateDraft(localId: String, change: (ChatConversationContract.Draft) -> ChatConversationContract.Draft) =
+        reduce { copy(drafts = drafts.map { if (it.localId == localId) change(it) else it }) }
+
+    private fun removeDraft(localId: String) {
+        uploadJobs.remove(localId)?.cancel()
+        pendingFiles.remove(localId)
+        reduce { copy(drafts = drafts.filterNot { it.localId == localId }, refusal = null) }
+    }
+
+    private suspend fun sendMessage() {
+        val state = current
+        if (!state.canSend) return
+        val body = state.inputText.trim()
+        val attachments = state.drafts.mapNotNull { it.ref?.asChatAttachment() }
 
         // The topic rides on exactly one send — the one made while the toggle is on. The toggle goes off with it, so a
         // failed send does not mark the next message as well; its retry carries the topic the message kept.
-        val opening = current.canMarkComplaint && current.markAsComplaint
+        val opening = state.canMarkComplaint && state.markAsComplaint
         val sentTopic = if (opening) ChatTopic.COMPLAINT else null
 
         val clientId = Ids.random()
@@ -240,32 +350,12 @@ class ChatConversationViewModel(
             isPending = true,
             clientId = clientId,
             topic = sentTopic,
+            attachments = attachments,
         )
 
-        reduce { copy(inputText = "", markAsComplaint = false, messages = messages + pendingMsg) }
-
-        try {
-            val confirmed = chat.sendMessage(childId, teacherId, body, clientId, sentTopic)
-            reduce {
-                val updated = messages.map { msg ->
-                    if (msg.clientId == clientId) confirmed.toUiMessage(isPending = false) else msg
-                }
-                // A thread that has just become a complaint is an open one, whatever it was before.
-                copy(
-                    messages = updated,
-                    topic = if (opening) ChatTopic.COMPLAINT else topic,
-                    resolved = if (opening) false else resolved,
-                    threadId = confirmed.threadId,
-                )
-            }
-        } catch (_: Throwable) {
-            reduce {
-                val updated = messages.map { msg ->
-                    if (msg.clientId == clientId) msg.copy(isPending = false, isFailed = true) else msg
-                }
-                copy(messages = updated)
-            }
-        }
+        state.drafts.forEach { pendingFiles.remove(it.localId); uploadJobs.remove(it.localId) }
+        reduce { copy(inputText = "", markAsComplaint = false, drafts = emptyList(), refusal = null, messages = messages + pendingMsg) }
+        deliver(pendingMsg)
     }
 
     private suspend fun retrySend(clientId: String) {
@@ -276,19 +366,26 @@ class ChatConversationViewModel(
             }
             copy(messages = updated)
         }
+        deliver(target)
+    }
 
+    /**
+     * Sends [message] — its words, its files' ids and the `topic` it was written with. The original `topic` goes out
+     * again on a retry: dropping it there would file the parent's complaint as an ordinary question.
+     */
+    private suspend fun deliver(message: ChatConversationContract.UiMessage) {
+        val clientId = message.clientId ?: return
         try {
-            // The original `topic` goes out again: dropping it here would file the parent's complaint as an ordinary
-            // question.
-            val confirmed = chat.sendMessage(childId, teacherId, target.body, clientId, target.topic)
+            val confirmed = chat.sendMessage(childId, teacherId, message.body, clientId, message.topic, message.attachments.map { it.id })
             reduce {
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) confirmed.toUiMessage(isPending = false) else msg
                 }
+                // A thread that has just become a complaint is an open one, whatever it was before.
                 copy(
                     messages = updated,
-                    topic = target.topic ?: topic,
-                    resolved = if (target.topic == ChatTopic.COMPLAINT) false else resolved,
+                    topic = message.topic ?: topic,
+                    resolved = if (message.topic == ChatTopic.COMPLAINT) false else resolved,
                     threadId = confirmed.threadId,
                 )
             }
@@ -348,6 +445,9 @@ class ChatConversationViewModel(
                                 }
                             }
                             if (senderTeacher) {
+                                // M7: her message is what the dots were announcing — they stop with it, not 5 s later.
+                                typingJob?.cancel()
+                                reduce { copy(isTeacherTyping = false) }
                                 chat.markRead(childId, teacherId)
                             }
                         }
@@ -365,11 +465,11 @@ class ChatConversationViewModel(
                         }
                     }
                     is ChatFrame.Typing -> {
-                        if (frame.from == ChatSender.TEACHER && isOurs(frame.threadId)) {
+                        if (frame.from == ChatSender.TEACHER && isOursOrResolve(frame.threadId)) {
                             reduce { copy(isTeacherTyping = true) }
                             typingJob?.cancel()
                             typingJob = launch {
-                                delay(4_500L)
+                                delay(TYPING_TIMEOUT_MS)
                                 reduce { copy(isTeacherTyping = false) }
                             }
                         }
@@ -402,6 +502,11 @@ class ChatConversationViewModel(
         }
     }
 
+    override fun onCleared() {
+        uploadJobs.values.forEach { it.cancel() }
+        super.onCleared()
+    }
+
     /**
      * Whether a per-thread frame belongs to the conversation on screen.
      *
@@ -412,6 +517,21 @@ class ChatConversationViewModel(
      */
     private fun isOurs(frameThreadId: String): Boolean = current.threadId == frameThreadId
 
+    /**
+     * M7: [isOurs] for a `typing` frame, which names its thread and nothing else. A conversation opened from a row
+     * with no thread behind it yet keeps a null id until a message arrives — so when the staff side opened the
+     * thread meanwhile (a manager's "Message the parent") and started typing, every frame was dropped as somebody
+     * else's. The first frame about an unknown thread asks the thread list which thread this conversation is now.
+     */
+    private suspend fun isOursOrResolve(frameThreadId: String): Boolean {
+        if (isOurs(frameThreadId)) return true
+        if (current.threadId != null || frameThreadId in otherThreads) return false
+        val id = runCatching { chat.threads(childId) }.getOrNull()?.firstOrNull { it.teacherId == teacherId }?.id
+        if (id != null) reduce { copy(threadId = id) }
+        if (id != frameThreadId) otherThreads += frameThreadId
+        return id == frameThreadId
+    }
+
     private fun ChatMessage.toUiMessage(isPending: Boolean = false): ChatConversationContract.UiMessage =
         ChatConversationContract.UiMessage(
             id = id,
@@ -420,6 +540,7 @@ class ChatConversationViewModel(
             createdAt = createdAt,
             readAt = readAt,
             isPending = isPending,
+            attachments = attachments,
         )
 }
 
@@ -450,20 +571,27 @@ fun ChatConversationRoute(
                     onSend = { vm.dispatch(ChatConversationContract.Intent.SendMessage) },
                     onRetry = { vm.dispatch(ChatConversationContract.Intent.RetrySend(it)) },
                     onToggleComplaint = { vm.dispatch(ChatConversationContract.Intent.ToggleComplaint) },
-                    onSendCustom = { vm.dispatch(ChatConversationContract.Intent.SendCustom(it)) },
+                    onPick = { vm.dispatch(ChatConversationContract.Intent.AddFiles(it)) },
+                    onRemoveDraft = { vm.dispatch(ChatConversationContract.Intent.RemoveDraft(it)) },
+                    onRetryDraft = { vm.dispatch(ChatConversationContract.Intent.RetryDraft(it)) },
                 )
             }
         }
     }
 }
 
-/** The header's presence line and whether its dot is lit; null when nothing is known about the other person. */
+/**
+ * The header's presence line and whether its dot is lit; null when nothing is known about the other person. M7: the
+ * typing line names who — "Ms. Nour is typing…" — rather than a bare "is typing…" under her name.
+ */
 fun presenceLine(state: ChatConversationContract.State, strings: Strings): Pair<String, Boolean>? = when {
-    state.isTeacherTyping -> strings.isTyping to true
+    state.isTeacherTyping -> typingLine(if (state.withAdmin) strings.schoolAdministration else state.teacherName, strings) to true
     state.peerOnline == true -> strings.online to true
     state.peerOnline == false -> strings.offline to false
     else -> null
 }
+
+fun typingLine(name: String, strings: Strings): String = strings.chatFiles.nameIsTyping.replace("{name}", name)
 
 /** M4 (D7): "Resolved — the … answered this", naming whoever the parent was writing to. */
 fun resolvedBanner(resolver: Resolver, strings: Strings): String = when (resolver) {
@@ -473,59 +601,11 @@ fun resolvedBanner(resolver: Resolver, strings: Strings): String = when (resolve
     Resolver.ADMIN -> strings.resolvedBannerAdmin
 }
 
-data class AttachedFile(
-    val name: String,
-    val size: Long,
-    val type: String, // "image" or "pdf"
-)
-
-data class ParsedMessage(
-    val text: String,
-    val attachment: AttachmentMeta? = null,
-)
-
-data class AttachmentMeta(
-    val id: String,
-    val type: String,
-    val name: String,
-    val size: String,
-)
-
-fun parseMessageBody(body: String): ParsedMessage {
-    val tagRegex = Regex("""\[attachment:([^:]+):(image|pdf):([^:]+):([^\]]+)\]""")
-    val match = tagRegex.find(body)
-    if (match != null) {
-        val (id, type, name, size) = match.destructured
-        val cleanText = body.replace(match.value, "").trim()
-        return ParsedMessage(
-            text = cleanText,
-            attachment = AttachmentMeta(id, type, name, size),
-        )
-    }
-
-    val imgRegex = Regex("""!\[([^\]]*)\]\(([^)]+)\)""")
-    val imgMatch = imgRegex.find(body)
-    if (imgMatch != null) {
-        val alt = imgMatch.groupValues[1].ifBlank { "Image" }
-        val cleanText = body.replace(imgMatch.value, "").trim()
-        return ParsedMessage(
-            text = cleanText,
-            attachment = AttachmentMeta(id = "img", type = "image", name = alt, size = "Image"),
-        )
-    }
-
-    val pdfRegex = Regex("""\[([^\]]+)\]\(([^)]+\.pdf[^)]*)\)""")
-    val pdfMatch = pdfRegex.find(body)
-    if (pdfMatch != null) {
-        val name = pdfMatch.groupValues[1]
-        val cleanText = body.replace(pdfMatch.value, "").trim()
-        return ParsedMessage(
-            text = cleanText,
-            attachment = AttachmentMeta(id = "pdf", type = "pdf", name = name, size = "PDF"),
-        )
-    }
-
-    return ParsedMessage(text = body)
+/** A file from FileKit's picker as the view model takes it: sized up front, read (and a photo prepared) on demand. */
+private fun PlatformFile.picked(photo: Boolean) = PickedFile(name, getSize() ?: 0L, photo) {
+    val bytes = readBytes()
+    if (photo) preparePhoto(name, bytes) { photoAsJpeg(it, PHOTO_MAX_PX, PHOTO_QUALITY) }
+    else contentTypeOf(name)?.let { UploadFile(name, it, bytes) }
 }
 
 @Composable
@@ -537,26 +617,27 @@ fun ChatConversationScreen(
     onSend: () -> Unit,
     onRetry: (String) -> Unit,
     onToggleComplaint: () -> Unit = {},
-    onSendCustom: (String) -> Unit = { onSend() },
+    onPick: (List<PickedFile>) -> Unit = {},
+    onRemoveDraft: (String) -> Unit = {},
+    onRetryDraft: (String) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
-    var attachedFile by remember { mutableStateOf<AttachedFile?>(null) }
     var showEmojiTray by remember { mutableStateOf(false) }
+    var showAttachMenu by remember { mutableStateOf(false) }
 
-    val filePicker = rememberFilePickerLauncher(
-        type = PickerType.File(listOf("png", "jpg", "jpeg", "webp", "pdf")),
-        mode = PickerMode.Single,
-    ) { platformFile ->
-        if (platformFile != null) {
-            val ext = platformFile.name.substringAfterLast('.', "").lowercase()
-            val isPdf = ext == "pdf"
-            val type = if (isPdf) "pdf" else "image"
-            val size = platformFile.getSize() ?: 0L
-            attachedFile = AttachedFile(
-                name = platformFile.name,
-                size = size,
-                type = type,
-            )
+    // M7: three ways in — the camera, the gallery (several at once) and a PDF — each checked and uploaded by the view
+    // model. The room left on the message caps what a picker lets her choose.
+    val room = (MAX_ATTACHMENTS - state.drafts.size).coerceAtLeast(1)
+    val galleryPicker = rememberFilePickerLauncher(type = PickerType.Image, mode = PickerMode.Multiple(maxItems = room)) { files ->
+        if (!files.isNullOrEmpty()) onPick(files.map { it.picked(photo = true) })
+    }
+    val pdfPicker = rememberFilePickerLauncher(type = PickerType.File(listOf("pdf")), mode = PickerMode.Multiple(maxItems = room)) { files ->
+        if (!files.isNullOrEmpty()) onPick(files.map { it.picked(photo = false) })
+    }
+    val camera = rememberCameraCapture { bytes ->
+        if (bytes != null) {
+            val name = "photo-${Today.epochMillis()}.jpg"
+            onPick(listOf(PickedFile(name, bytes.size.toLong(), photo = true) { preparePhoto(name, bytes) { photoAsJpeg(it, PHOTO_MAX_PX, PHOTO_QUALITY) } }))
         }
     }
 
@@ -702,50 +783,7 @@ fun ChatConversationScreen(
             }
         }
 
-        // Attached File Preview Chip
-        if (attachedFile != null) {
-            val file = attachedFile!!
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(horizontal = Dimens.s12, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(if (file.type == "pdf") "📄" else "🖼️", fontSize = 20.sp)
-                    Spacer(Modifier.width(8.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = file.name,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = DashboardTokens.inkStrong,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        val sizeKb = "${(file.size / 1024).coerceAtLeast(1)} KB"
-                        Text(
-                            text = "${if (file.type == "pdf") "PDF" else "Image"} • $sizeKb",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = DashboardTokens.inkSoft,
-                        )
-                    }
-                    IconButton(
-                        onClick = { attachedFile = null },
-                        modifier = Modifier.size(28.dp),
-                    ) {
-                        Text("✕", color = DashboardTokens.inkSoft, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    }
-                }
-            }
-        }
+        DraftTray(state.drafts, state.refusal, strings, onRemove = onRemoveDraft, onRetry = onRetryDraft)
 
         // Emoji Tray
         if (showEmojiTray) {
@@ -793,12 +831,32 @@ fun ChatConversationScreen(
                 Text(if (showEmojiTray) "⌨️" else "😊", fontSize = 20.sp)
             }
 
-            // Attachment Picker
-            IconButton(
-                onClick = { filePicker.launch() },
-                modifier = Modifier.size(40.dp),
-            ) {
-                Text("📎", fontSize = 20.sp)
+            // M7: the attach menu — camera (where there is one), gallery, PDF. Full once five files are on the message.
+            Box {
+                IconButton(
+                    onClick = { showAttachMenu = true },
+                    enabled = state.drafts.size < MAX_ATTACHMENTS,
+                    modifier = Modifier.size(40.dp).semantics { contentDescription = strings.chatFiles.attach },
+                ) {
+                    Text("📎", fontSize = 20.sp)
+                }
+                DropdownMenu(expanded = showAttachMenu, onDismissRequest = { showAttachMenu = false }) {
+                    if (camera != null) DropdownMenuItem(
+                        text = { Text(strings.chatFiles.attachCamera) },
+                        leadingIcon = { Text("📷") },
+                        onClick = { showAttachMenu = false; camera() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(strings.chatFiles.attachGallery) },
+                        leadingIcon = { Text("🖼️") },
+                        onClick = { showAttachMenu = false; galleryPicker.launch() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(strings.chatFiles.attachPdf) },
+                        leadingIcon = { Text("📄") },
+                        onClick = { showAttachMenu = false; pdfPicker.launch() },
+                    )
+                }
             }
 
             Spacer(Modifier.width(4.dp))
@@ -817,26 +875,11 @@ fun ChatConversationScreen(
 
             Spacer(Modifier.width(Dimens.s8))
 
-            val hasAttachment = attachedFile != null
-            val hasText = state.inputText.trim().isNotBlank() && state.inputText.length <= 2000
-            val canSend = hasAttachment || hasText
-
+            val canSend = state.canSend
             IconButton(
                 onClick = {
-                    if (canSend) {
-                        val body = if (attachedFile != null) {
-                            val att = attachedFile!!
-                            val sizeKb = "${(att.size / 1024).coerceAtLeast(1)} KB"
-                            val id = "att-${Today.epochMillis()}"
-                            val tag = "[attachment:$id:${att.type}:${att.name}:$sizeKb]"
-                            if (state.inputText.isNotBlank()) "$tag ${state.inputText.trim()}" else tag
-                        } else {
-                            state.inputText.trim()
-                        }
-                        attachedFile = null
-                        showEmojiTray = false
-                        onSendCustom(body)
-                    }
+                    showEmojiTray = false
+                    onSend()
                 },
                 enabled = canSend,
                 modifier = Modifier.size(44.dp).background(
@@ -864,7 +907,6 @@ private fun MessageBubble(
     val bubbleColor = if (isParent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
     val textColor = if (isParent) MaterialTheme.colorScheme.onPrimary else DashboardTokens.ink
     val shape = if (isParent) RoundedCornerShape(12.dp, 12.dp, 2.dp, 12.dp) else RoundedCornerShape(12.dp, 12.dp, 12.dp, 2.dp)
-    val parsed = remember(msg.body) { parseMessageBody(msg.body) }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -876,82 +918,17 @@ private fun MessageBubble(
                 .then(if (!isParent) Modifier.border(1.dp, MaterialTheme.colorScheme.outline, shape) else Modifier)
                 .padding(horizontal = Dimens.s12, vertical = Dimens.s8),
         ) {
-            // Render attachment card if present
-            if (parsed.attachment != null) {
-                val att = parsed.attachment
-                if (att.type == "pdf") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isParent) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f) else DashboardTokens.errorBg)
-                            .border(1.dp, if (isParent) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f) else DashboardTokens.errorBorder, RoundedCornerShape(8.dp))
-                            .padding(8.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .background(DashboardTokens.error, RoundedCornerShape(6.dp)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text("PDF", color = DashboardTokens.onBrand, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    text = att.name,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = textColor,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    text = "PDF • ${att.size}",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = if (isParent) textColor.copy(alpha = 0.8f) else DashboardTokens.inkSoft,
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isParent) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer)
-                            .border(1.dp, if (isParent) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp))
-                            .padding(8.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🖼️", fontSize = 24.sp)
-                            Spacer(Modifier.width(8.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    text = att.name,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = textColor,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    text = "Image • ${att.size}",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = if (isParent) textColor.copy(alpha = 0.8f) else DashboardTokens.inkSoft,
-                                )
-                            }
-                        }
-                    }
-                }
-                if (parsed.text.isNotBlank()) {
-                    Spacer(Modifier.height(Dimens.s8))
-                }
+            // M7 (B5): the files themselves — photos to look at, PDFs to open — not their names.
+            if (msg.attachments.isNotEmpty()) {
+                MessageAttachments(msg.attachments, strings)
+                if (msg.body.isNotBlank()) Spacer(Modifier.height(Dimens.s8))
             }
 
-            if (parsed.text.isNotBlank()) {
+            if (msg.body.isNotBlank()) {
                 Text(
-                    // M4 (D12): a message keeps its own direction inside the other language's screen.
-                    text = isolate(parsed.text),
+                    // M4 (D12): a message keeps its own direction inside the other language's screen. The body is
+                    // plain text — a pre-B5 `[attachment:…]` tag included — and is never parsed.
+                    text = isolate(msg.body),
                     style = MaterialTheme.typography.bodyLarge,
                     color = textColor,
                 )

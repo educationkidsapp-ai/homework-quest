@@ -20,9 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 import quest.api.ApiException
 import quest.api.dto.ChatFrame
+import quest.api.dto.ChatSender
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
 import quest.api.dto.Curriculum
@@ -31,6 +34,7 @@ import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
 import quest.feature.chat.domain.ChatRepository
+import quest.feature.chat.domain.TYPING_TIMEOUT_MS
 import quest.feature.chat.domain.applyStatus
 import quest.feature.chat.domain.applyPresence
 import quest.feature.children.domain.ChildrenRepository
@@ -51,6 +55,8 @@ object ChatThreadsContract {
         val threads: List<ChatThread> = emptyList(),
         /** The child's track, so a manager row names her department rather than the child's class (RM4). */
         val curriculum: Curriculum? = null,
+        /** M7: the threads whose staff side is typing right now, from `typing` frames; each lapses on its own. */
+        val typing: Set<String> = emptySet(),
     ) : MviState {
         /** Her teachers, the coordinators (R8) and the department manager (RM4) she has a thread with — three headings. */
         val teacherThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.TEACHER }
@@ -101,6 +107,14 @@ class ChatThreadsViewModel(
         }
     }
 
+    /** One timer per typing thread, so one person stopping does not clear another who is still at it. */
+    private val typingJobs = mutableMapOf<String, Job>()
+
+    private fun stopTyping(threadId: String) {
+        typingJobs.remove(threadId)?.cancel()
+        reduce { copy(typing = typing - threadId) }
+    }
+
     init {
         // Refresh thread list when new incoming messages or reads land; a `status` frame (R4) needs no request —
         // it carries everything the row's chip shows, so the list moves even while the network is gone.
@@ -110,7 +124,14 @@ class ChatThreadsViewModel(
                     is ChatFrame.Status -> reduce { copy(threads = applyStatus(threads, frame.threadId, frame.status, frame.at)) }
                     // M4 (D6): keeps the snapshot a conversation opens with current.
                     is ChatFrame.Presence -> frame.userId?.let { id -> reduce { copy(threads = applyPresence(threads, id, frame.online)) } }
+                    // M7: the list said nothing while a teacher, a coordinator or the manager typed; the row now does.
+                    is ChatFrame.Typing -> if (frame.from == ChatSender.TEACHER) {
+                        reduce { copy(typing = typing + frame.threadId) }
+                        typingJobs.remove(frame.threadId)?.cancel()
+                        typingJobs[frame.threadId] = launch { delay(TYPING_TIMEOUT_MS); stopTyping(frame.threadId) }
+                    }
                     is ChatFrame.Message, is ChatFrame.Read -> {
+                        if (frame is ChatFrame.Message && frame.message.sender == ChatSender.TEACHER) stopTyping(frame.message.threadId)
                         val child = children.currentChild.value ?: return@collect
                         runCatching {
                             val fresh = chat.threads(child.id)
@@ -202,24 +223,24 @@ fun ChatThreadsScreen(
 
         if (state.teacherThreads.isNotEmpty()) {
             SectionTitle(strings.teachersGroup)
-            state.teacherThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }) }
+            state.teacherThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }, typing = it.id in state.typing) }
         }
 
         if (state.coordinatorThreads.isNotEmpty()) {
             SectionTitle(strings.coordinatorsGroup)
-            state.coordinatorThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }) }
+            state.coordinatorThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }, typing = it.id in state.typing) }
         }
 
         if (state.managerThreads.isNotEmpty()) {
             SectionTitle(strings.managersGroup)
             val department = departmentWord(state.curriculum, strings)
-            state.managerThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }, department = department) }
+            state.managerThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }, department = department, typing = it.id in state.typing) }
         }
 
         // The parent cannot start one of these — New message does not offer the administration — but answers here.
         if (state.adminThreads.isNotEmpty()) {
             SectionTitle(strings.schoolAdministration)
-            state.adminThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }) }
+            state.adminThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }, typing = it.id in state.typing) }
         }
 
         Spacer(Modifier.height(Dimens.s16))

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -51,42 +52,52 @@ val LocalAttachmentDocuments = staticCompositionLocalOf<AttachmentDocuments> { N
  * the system's PDF viewer is then pointed at that file. A failure is a sentence under the card and the button stays — no error colour (§7).
  */
 @Composable
-fun AttachmentDocument(attachment: BroadcastAttachment, strings: Strings, modifier: Modifier = Modifier) {
+fun AttachmentDocument(
+    attachment: BroadcastAttachment,
+    strings: Strings,
+    modifier: Modifier = Modifier,
+    /** The line under the name — M7's chat card adds the size ("PDF document · 1.2 MB"). */
+    detail: String = strings.pdfDocument,
+    /** M7: a chat bubble is too narrow for name and button side by side, so the button goes under the name. */
+    stacked: Boolean = false,
+) {
     val documents = LocalAttachmentDocuments.current
     val scope = rememberCoroutineScope()
     var state by remember(attachment.id) { mutableStateOf(Opening.IDLE) }
     val name = safeDocumentName(attachment.name, "pdf")
     val shape = RoundedCornerShape(DashboardTokens.radiusSm)
+    val open: () -> Unit = {
+        state = Opening.WORKING
+        scope.launch {
+            // The store downloads and writes off the UI thread; opening is only an intent to the viewer.
+            val file = documents.fetch(attachment)
+            state = if (file != null && DocumentViewer.open(file, "application/pdf")) Opening.IDLE else Opening.FAILED
+        }
+    }
+    val label = if (state == Opening.WORKING) strings.documentOpening else strings.openDocument
     Column(modifier.fillMaxWidth()) {
-        Row(
+        Column(
             Modifier.fillMaxWidth().background(DashboardTokens.bgSubtle, shape).border(1.dp, DashboardTokens.rule, shape).padding(Dimens.s12)
                 .semantics(mergeDescendants = true) { contentDescription = "${strings.pdfDocument}, $name" },
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(40.dp).background(MaterialTheme.colorScheme.primaryContainer, shape), contentAlignment = Alignment.Center) {
-                Text("PDF", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.accentInk)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(40.dp).background(MaterialTheme.colorScheme.primaryContainer, shape), contentAlignment = Alignment.Center) {
+                    Text("PDF", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.accentInk)
+                }
+                Spacer(Modifier.width(Dimens.s12))
+                Column(Modifier.weight(1f)) {
+                    Text(name, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.inkStrong, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(detail, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                }
+                if (!stacked) {
+                    Spacer(Modifier.width(Dimens.s12))
+                    DashboardButton(label, open, variant = DashboardButtonVariant.PRIMARY, enabled = state != Opening.WORKING, modifier = Modifier.width(104.dp), height = 40.dp)
+                }
             }
-            Spacer(Modifier.width(Dimens.s12))
-            Column(Modifier.weight(1f)) {
-                Text(name, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.inkStrong, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(strings.pdfDocument, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+            if (stacked) {
+                Spacer(Modifier.height(Dimens.s8))
+                DashboardButton(label, open, variant = DashboardButtonVariant.PRIMARY, enabled = state != Opening.WORKING, modifier = Modifier.fillMaxWidth(), height = 44.dp)
             }
-            Spacer(Modifier.width(Dimens.s12))
-            DashboardButton(
-                text = if (state == Opening.WORKING) strings.documentOpening else strings.openDocument,
-                onClick = {
-                    state = Opening.WORKING
-                    scope.launch {
-                        // The store downloads and writes off the UI thread; opening is only an intent to the viewer.
-                        val file = documents.fetch(attachment)
-                        state = if (file != null && DocumentViewer.open(file, "application/pdf")) Opening.IDLE else Opening.FAILED
-                    }
-                },
-                variant = DashboardButtonVariant.PRIMARY,
-                enabled = state != Opening.WORKING,
-                modifier = Modifier.width(104.dp),
-                height = 40.dp,
-            )
         }
         if (state == Opening.FAILED) {
             Text(strings.documentFailed, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft, modifier = Modifier.padding(top = Dimens.s4))

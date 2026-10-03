@@ -38,10 +38,10 @@ import quest.ui.stops.StopMedia
 import kotlin.coroutines.resume
 
 @OptIn(ExperimentalForeignApi::class)
-private fun ByteArray.toNSData(): NSData = usePinned { NSData.create(bytes = it.addressOf(0), length = size.toULong()) }
+internal fun ByteArray.toNSData(): NSData = usePinned { NSData.create(bytes = it.addressOf(0), length = size.toULong()) }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun NSData.toByteArray(): ByteArray { val n = length.toInt(); if (n == 0) return ByteArray(0); return ByteArray(n).apply { usePinned { platform.posix.memcpy(it.addressOf(0), bytes, length) } } }
+internal fun NSData.toByteArray(): ByteArray { val n = length.toInt(); if (n == 0) return ByteArray(0); return ByteArray(n).apply { usePinned { platform.posix.memcpy(it.addressOf(0), bytes, length) } } }
 
 actual object MediaFiles {
     private val dir: String get() {

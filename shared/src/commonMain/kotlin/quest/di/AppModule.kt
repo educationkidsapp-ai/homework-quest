@@ -22,6 +22,7 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 import quest.feature.chat.data.ChatRepositoryImpl
 import quest.feature.chat.data.ChatSocketClient
+import quest.feature.chat.domain.AttachmentUploader
 import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.presentation.ChatConversationViewModel
@@ -143,11 +144,14 @@ fun apiModule(config: ApiConfig): Module = module {
             }
             single<ContentApi> { get<FakeContentApi>() }
             single<SchoolApi> { get<FakeContentApi>() }
+            single { AttachmentUploader { childId, file, onProgress -> get<FakeContentApi>().uploadChatAttachment(childId, file).also { onProgress(1f) } } }
         }
         is ApiConfig.Server -> {
             single { RemoteContentApi(config.baseUrl, get(), get()) }
             single<ContentApi> { get<RemoteContentApi>() }
             single<SchoolApi> { get<RemoteContentApi>() }
+            // M7: the server's upload reports progress; the fake's (below) answers in one step.
+            single { AttachmentUploader { childId, file, onProgress -> get<RemoteContentApi>().uploadChatAttachment(childId, file, onProgress) } }
         }
     }
 
@@ -160,7 +164,7 @@ fun apiModule(config: ApiConfig): Module = module {
     single<AttachmentImages> { AttachmentImageStore(chatBaseUrl, get(), get()) }
     // M1: a PDF is streamed into the document cache (10 MB cap), the directory the system viewer may read.
     single<AttachmentDocuments> { AttachmentDocumentStore(chatBaseUrl, get(), get(), directory = { DocumentViewer.directory() }) }
-    single<ChatRepository> { ChatRepositoryImpl(get(), get()) }
+    single<ChatRepository> { ChatRepositoryImpl(get(), get(), get()) }
 }
 
 val coreModule = module {

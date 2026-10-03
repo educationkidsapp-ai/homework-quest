@@ -1,0 +1,310 @@
+package quest.feature.chat
+
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import quest.api.UploadFile
+import quest.api.dto.AttachmentRef
+import quest.api.dto.ChatAttachment
+import quest.api.dto.ChatFrame
+import quest.api.dto.ChatMessage
+import quest.api.dto.ChatSender
+import quest.api.dto.ChatStaffRole
+import quest.api.dto.ChatThread
+import quest.api.dto.ChatTopic
+import quest.api.dto.Child
+import quest.api.dto.Curriculum
+import quest.feature.chat.domain.AttachmentRefusal
+import quest.feature.chat.domain.ChatConnectionState
+import quest.feature.chat.domain.ChatPeer
+import quest.feature.chat.domain.ChatRepository
+import quest.feature.chat.domain.MAX_PHOTO_BYTES
+import quest.feature.chat.domain.PickedFile
+import quest.feature.chat.domain.TYPING_TIMEOUT_MS
+import quest.feature.chat.domain.asThumbnail
+import quest.feature.chat.domain.contentTypeOf
+import quest.feature.chat.domain.formatBytes
+import quest.feature.chat.domain.preparePhoto
+import quest.feature.chat.domain.refusalFor
+import quest.feature.chat.presentation.ChatConversationContract
+import quest.feature.chat.presentation.ChatConversationViewModel
+import quest.feature.chat.presentation.ChatThreadsViewModel
+import quest.feature.chat.presentation.messagePreview
+import quest.feature.chat.presentation.presenceLine
+import quest.feature.children.domain.ChildrenRepository
+import quest.feature.parent.presentation.Strings
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * M7 — the owner's report of 2026-10-03: a photo or a PDF from the dashboard showed in the app as its name only, the
+ * parent could not send one at all (the composer only wrote an `[attachment:…]` tag into the text), and "Manager is
+ * typing" never appeared. These pin the file rules, the upload-then-send state machine and the typing indicator.
+ */
+class ChatAttachmentsTypingTest {
+
+    private val thread = "th-nour"
+    private val manager = "mg-nour"
+
+    /** A repository whose uploads are driven by the test: each waits on its own gate, so progress can be observed. */
+    private class FakeChat : ChatRepository {
+        val frames = MutableSharedFlow<ChatFrame>(extraBufferCapacity = 32)
+        override val connectionState = MutableStateFlow(ChatConnectionState.CONNECTED) as StateFlow<ChatConnectionState>
+        override val incomingFrames: SharedFlow<ChatFrame> = frames
+
+        var rows: List<ChatThread> = emptyList()
+        var threadsAsked = 0
+        val uploads = mutableListOf<UploadFile>()
+        val gates = mutableListOf<CompletableDeferred<Boolean>>()
+        val sends = mutableListOf<Pair<String, List<String>>>()
+
+        override suspend fun threads(childId: String): List<ChatThread> { threadsAsked++; return rows }
+        override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
+        override suspend fun managers(childId: String): List<ChatThread> = emptyList()
+        override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> = emptyList()
+        override suspend fun uploadAttachment(childId: String, file: UploadFile, onProgress: (Float) -> Unit): AttachmentRef {
+            uploads += file
+            val gate = CompletableDeferred<Boolean>().also { gates += it }
+            onProgress(0.5f)
+            if (!gate.await()) error("upload failed")
+            return AttachmentRef("att-${uploads.size}", file.fileName, file.mimeType, file.bytes.size.toLong(), width = 800, height = 600)
+        }
+        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?, attachmentIds: List<String>): ChatMessage {
+            sends += body to attachmentIds
+            return ChatMessage("m-${sends.size}", "th-nour", ChatSender.PARENT, "p1", body, 1L,
+                attachments = attachmentIds.map { ChatAttachment(it, "image/jpeg", "photo.jpg", 3) })
+        }
+        override suspend fun markRead(childId: String, teacherId: String) {}
+        override suspend fun sendTyping(childId: String, teacherId: String) {}
+        override fun connect() {}
+        override fun disconnect() {}
+
+        suspend fun awaitCollectors(n: Int = 1) {
+            repeat(400) { if (frames.subscriptionCount.value >= n) return; delay(5) }
+            error("nobody subscribed to the frame stream")
+        }
+    }
+
+    private val built = mutableListOf<androidx.lifecycle.ViewModel>()
+
+    @BeforeTest fun setUp() = Dispatchers.setMain(Dispatchers.Default)
+
+    @AfterTest fun tearDown() {
+        built.forEach { it.viewModelScope.cancel() }
+        built.clear()
+        Dispatchers.resetMain()
+    }
+
+    private fun conversation(chat: FakeChat, threadId: String? = thread) =
+        ChatConversationViewModel(
+            ChatPeer(childId = "c1", staffId = manager, staffName = "Ms. Nour", staffRole = ChatStaffRole.MANAGERIAL, threadId = threadId),
+            chat,
+        ).also { built += it }
+
+    private suspend fun <S> StateFlow<S>.await(timeoutMs: Long = 2_000, predicate: (S) -> Boolean): S {
+        repeat((timeoutMs / 5).toInt()) { if (predicate(value)) return value; delay(5) }
+        error("state never satisfied the predicate; last was $value")
+    }
+
+    private fun photo(name: String = "photo.jpg", size: Int = 3) = PickedFile(name, size.toLong(), photo = true) { UploadFile(name, "image/jpeg", ByteArray(size)) }
+    private fun document(name: String, size: Long) = PickedFile(name, size, photo = false) { UploadFile(name, "application/pdf", ByteArray(3)) }
+
+    // ---- the rules, before a byte is read
+
+    @Test fun typeAndSizeAreCheckedBeforeAnythingIsRead() {
+        assertNull(refusalFor("plan.pdf", 10L * 1024 * 1024, already = 0))
+        assertEquals(AttachmentRefusal.PDF_TOO_LARGE, refusalFor("plan.pdf", 10L * 1024 * 1024 + 1, already = 0))
+        assertEquals(AttachmentRefusal.PHOTO_TOO_LARGE, refusalFor("scan.png", MAX_PHOTO_BYTES + 1, already = 0))
+        assertEquals(AttachmentRefusal.WRONG_TYPE, refusalFor("notes.docx", 10, already = 0))
+        assertEquals(AttachmentRefusal.TOO_MANY, refusalFor("a.jpg", 10, already = 5))
+        // A gallery or camera photo is re-encoded rather than refused — an iPhone's HEIC included.
+        assertNull(refusalFor("IMG_0001.HEIC", 9_000_000, already = 0, photo = true))
+        assertEquals("image/webp", contentTypeOf("A.WEBP"))
+    }
+
+    @Test fun aPhotoTheServerWouldRefuseIsReEncodedAndOneItTakesIsSentAsItIs() {
+        val small = ByteArray(10)
+        assertEquals("image/png", preparePhoto("a.png", small) { error("not needed") }!!.mimeType)
+        val heic = preparePhoto("IMG_0001.HEIC", small) { byteArrayOf(1, 2, 3) }!!
+        assertEquals("IMG_0001.jpg" to "image/jpeg", heic.fileName to heic.mimeType)
+        assertNull(preparePhoto("broken.heic", small) { null })
+        assertEquals("1.5 MB", formatBytes(1_572_864))
+        assertEquals("820 KB", formatBytes(820 * 1024))
+    }
+
+    @Test fun aThumbnailIsCachedApartFromTheFullSizeFile() {
+        val file = ChatAttachment("a1", "image/jpeg", "p.jpg", 10)
+        assertTrue(file.asThumbnail().url.endsWith("/media/attachments/a1?w=720"))
+        assertTrue(file.asThumbnail().id != file.id, "the thumbnail must never stand in for the full-size bytes")
+    }
+
+    @Test fun previewsNameFilesByKindAndLegacyTagsStayText() {
+        fun msg(body: String, vararg files: ChatAttachment) = ChatMessage("m", "t", ChatSender.TEACHER, "s", body, 1, attachments = files.toList())
+        val photo = ChatAttachment("a", "image/jpeg", "p.jpg", 1)
+        val pdf = ChatAttachment("b", "application/pdf", "plan.pdf", 1)
+        assertEquals("📷 Photo", messagePreview(msg("", photo), Strings.en))
+        assertEquals("📷 2 photos", messagePreview(msg("", photo, photo), Strings.en))
+        assertEquals("📄 plan.pdf · This week", messagePreview(msg("This week", pdf), Strings.en))
+        assertEquals("📷 صورة", messagePreview(msg("", photo), Strings.ar))
+        assertEquals("[attachment:a1:image:report.png:1 KB]", messagePreview(msg("[attachment:a1:image:report.png:1 KB]"), Strings.en))
+    }
+
+    // ---- upload, then send
+
+    @Test fun aPhotoUploadsAsSoonAsItIsPickedAndTheMessageCarriesItsId() = runBlocking<Unit> {
+        val chat = FakeChat()
+        val vm = conversation(chat)
+        vm.dispatch(ChatConversationContract.Intent.AddFiles(listOf(photo())))
+        val uploading = vm.state.await { it.drafts.singleOrNull()?.progress == 0.5f }
+        assertTrue(uploading.drafts.single().uploading)
+        assertFalse(uploading.canSend, "nothing goes until every file is up")
+
+        chat.gates.single().complete(true)
+        vm.state.await { it.canSend }
+        vm.dispatch(ChatConversationContract.Intent.UpdateInput("This is the homework"))
+        vm.dispatch(ChatConversationContract.Intent.SendMessage)
+        val sent = vm.state.await { s -> s.messages.singleOrNull()?.isPending == false }
+
+        assertEquals("This is the homework" to listOf("att-1"), chat.sends.single())
+        assertTrue(sent.drafts.isEmpty())
+        assertEquals(listOf("att-1"), sent.messages.single().attachments.map { it.id })
+    }
+
+    @Test fun filesAloneAreAMessage() = runBlocking<Unit> {
+        val chat = FakeChat()
+        val vm = conversation(chat)
+        vm.dispatch(ChatConversationContract.Intent.AddFiles(listOf(photo())))
+        vm.state.await { chat.gates.isNotEmpty() }
+        chat.gates.single().complete(true)
+        vm.state.await { it.canSend }
+        vm.dispatch(ChatConversationContract.Intent.SendMessage)
+        vm.state.await { it.messages.isNotEmpty() }
+        assertEquals("", chat.sends.single().first)
+    }
+
+    @Test fun aFailedUploadStaysWithARetryAndBlocksTheSend() = runBlocking<Unit> {
+        val chat = FakeChat()
+        val vm = conversation(chat)
+        vm.dispatch(ChatConversationContract.Intent.AddFiles(listOf(photo())))
+        vm.state.await { chat.gates.isNotEmpty() }
+        chat.gates.single().complete(false)
+        val failed = vm.state.await { it.drafts.single().failed }
+        assertFalse(failed.copy(inputText = "hello").canSend, "a message never leaves without the file she attached")
+
+        vm.dispatch(ChatConversationContract.Intent.RetryDraft(failed.drafts.single().localId))
+        vm.state.await { chat.gates.size == 2 && !it.drafts.single().failed }
+        chat.gates[1].complete(true)
+        vm.state.await { it.drafts.single().ref != null }
+        assertEquals(2, chat.uploads.size, "the retry sends the same bytes again")
+    }
+
+    @Test fun refusedFilesAreNamedAndNeverUploaded() = runBlocking<Unit> {
+        val chat = FakeChat()
+        val vm = conversation(chat)
+        vm.dispatch(ChatConversationContract.Intent.AddFiles(listOf(document("big.pdf", 11L * 1024 * 1024))))
+        vm.state.await { it.refusal == AttachmentRefusal.PDF_TOO_LARGE }
+        vm.dispatch(ChatConversationContract.Intent.AddFiles(listOf(PickedFile("x.docx", 10, photo = false) { null })))
+        vm.state.await { it.refusal == AttachmentRefusal.WRONG_TYPE }
+        vm.dispatch(ChatConversationContract.Intent.AddFiles(listOf(PickedFile("gone.jpg", 10, photo = true) { null })))
+        vm.state.await { it.refusal == AttachmentRefusal.UNREADABLE }
+        assertTrue(chat.uploads.isEmpty())
+
+        // Five fit; the sixth is refused with its own sentence, and the five stay.
+        vm.dispatch(ChatConversationContract.Intent.AddFiles((1..6).map { photo("p$it.jpg") }))
+        val full = vm.state.await { it.drafts.size == 5 && it.refusal == AttachmentRefusal.TOO_MANY }
+        assertEquals(5, full.drafts.size)
+        assertTrue(Strings.ar.chatFiles.attachTooMany.isNotBlank() && Strings.en.chatFiles.attachTooMany.contains("5"))
+
+        vm.dispatch(ChatConversationContract.Intent.RemoveDraft(full.drafts.first().localId))
+        vm.state.await { it.drafts.size == 4 && it.refusal == null }
+    }
+
+    // ---- typing
+
+    @Test fun herTypingShowsByNameAndLapses() = runBlocking<Unit> {
+        val chat = FakeChat()
+        val vm = conversation(chat)
+        chat.awaitCollectors()
+        chat.frames.emit(ChatFrame.Typing(thread, ChatSender.TEACHER))
+        val typing = vm.state.await { it.isTeacherTyping }
+        assertEquals("Ms. Nour is typing…" to true, presenceLine(typing, Strings.en))
+        vm.state.await(TYPING_TIMEOUT_MS + 2_000) { !it.isTeacherTyping }
+    }
+
+    @Test fun herMessageEndsTheTypingAtOnce() = runBlocking<Unit> {
+        val chat = FakeChat()
+        val vm = conversation(chat)
+        chat.awaitCollectors()
+        chat.frames.emit(ChatFrame.Typing(thread, ChatSender.TEACHER))
+        vm.state.await { it.isTeacherTyping }
+        chat.frames.emit(ChatFrame.Message(ChatMessage("m9", thread, ChatSender.TEACHER, manager, "Here it is", 2L)))
+        vm.state.await(1_000) { !it.isTeacherTyping && it.messages.size == 1 }
+    }
+
+    @Test fun theParentsOwnTypingEchoIsNotShown() = runBlocking<Unit> {
+        val chat = FakeChat()
+        val vm = conversation(chat)
+        chat.awaitCollectors()
+        chat.frames.emit(ChatFrame.Typing(thread, ChatSender.PARENT))
+        delay(80)
+        assertFalse(vm.state.value.isTeacherTyping)
+    }
+
+    /**
+     * The defect behind "Manager is typing never shows" on the app's side: a conversation opened from a row with no
+     * thread yet holds a null id, and every `typing` frame then looked like another thread's — so a manager who had
+     * just opened the thread from the dashboard typed into silence. The frame now asks which thread this is.
+     */
+    @Test fun aConversationWithNoThreadYetLearnsItFromTheFirstTypingFrame() = runBlocking<Unit> {
+        val chat = FakeChat()
+        chat.rows = listOf(ChatThread(id = thread, childId = "c1", childName = "Hala", teacherId = manager, teacherName = "Ms. Nour", staffRole = ChatStaffRole.MANAGERIAL))
+        val vm = conversation(chat, threadId = null)
+        chat.awaitCollectors()
+        chat.frames.emit(ChatFrame.Typing(thread, ChatSender.TEACHER))
+        val now = vm.state.await { it.isTeacherTyping }
+        assertEquals(thread, now.threadId)
+    }
+
+    @Test fun anotherStaffMembersThreadIsAskedAboutOnce() = runBlocking<Unit> {
+        val chat = FakeChat()
+        chat.rows = listOf(ChatThread(id = null, childId = "c1", childName = "Hala", teacherId = manager, teacherName = "Ms. Nour"))
+        val vm = conversation(chat, threadId = null)
+        chat.awaitCollectors()
+        chat.frames.emit(ChatFrame.Typing("th-math", ChatSender.TEACHER))
+        chat.frames.emit(ChatFrame.Typing("th-math", ChatSender.TEACHER))
+        delay(120)
+        assertFalse(vm.state.value.isTeacherTyping)
+        assertEquals(1, chat.threadsAsked)
+    }
+
+    @Test fun theThreadListShowsWhoIsTyping() = runBlocking<Unit> {
+        val chat = FakeChat()
+        val children = object : ChildrenRepository {
+            override val currentChild: StateFlow<Child?> = MutableStateFlow(Child("c1", "Hala", "sun", Curriculum.BRITISH, 1))
+            override suspend fun refresh(): List<Child> = emptyList()
+            override suspend fun children(): List<Child> = emptyList()
+            override suspend fun select(id: String) {}
+            override suspend fun clear() {}
+        }
+        val vm = ChatThreadsViewModel(children, chat).also { built += it }
+        chat.awaitCollectors()
+        chat.frames.emit(ChatFrame.Typing(thread, ChatSender.TEACHER))
+        vm.state.await { thread in it.typing }
+        chat.frames.emit(ChatFrame.Message(ChatMessage("m9", thread, ChatSender.TEACHER, manager, "Done", 2L)))
+        vm.state.await { thread !in it.typing }
+    }
+}

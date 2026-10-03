@@ -3,3 +3,6 @@
 
 /* Asked the first time the app uses Face ID to unlock (M2). */
 "NSFaceIDUsageDescription" = "Unlock MySchool with Face ID instead of your password.";
+
+/* Asked the first time a parent takes a photo for a message (M7). */
+"NSCameraUsageDescription" = "Take a photo to send to the school in Messages.";

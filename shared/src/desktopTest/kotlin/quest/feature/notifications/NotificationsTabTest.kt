@@ -143,7 +143,8 @@ class NotificationsTabTest {
         override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
         override suspend fun managers(childId: String): List<ChatThread> = emptyList()
         override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> = emptyList()
-        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?): ChatMessage = error("not used")
+        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?, attachmentIds: List<String>): ChatMessage = error("not used")
+        override suspend fun uploadAttachment(childId: String, file: quest.api.UploadFile, onProgress: (Float) -> Unit): quest.api.dto.AttachmentRef = error("not used")
         override suspend fun markRead(childId: String, teacherId: String) = Unit
         override suspend fun sendTyping(childId: String, teacherId: String) = Unit
         override fun connect() = Unit
