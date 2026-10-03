@@ -32,3 +32,9 @@ sealed interface StopEvent {
  * player acknowledges every answer in the same words. Off by default; the exam player provides it.
  */
 val LocalExamMode = staticCompositionLocalOf { false }
+
+/**
+ * Exam only: the exit-ticket questions this sitting has already answered (by id). A ticket left half-way — the student
+ * went back home, or the app was killed — opens at its first unanswered question, never at one that was answered.
+ */
+val LocalAnsweredQuestions = staticCompositionLocalOf { emptySet<String>() }

@@ -695,4 +695,33 @@ class ExamModeTest {
         advanceTimeBy(3 * 60 * 60_000L); runCurrent()
         assertEquals(Phase.STOP, vm.state.value.phase, "the server, not the app, ends a re-opened sitting")
     }
+
+    /** Review of #197: the home page judges an exam window by the server's clock, so a tablet six hours fast still sees it open. */
+    @Test fun aFastDeviceClockDoesNotCloseAnOpenExam() = examTest {
+        val device = quest.core.platform.Today.epochMillis()
+        val server = device - 6 * 3_600_000L
+        quest.core.platform.ServerClock.observe(serverMillis = server, deviceMillis = device)
+        try {
+            val window = ExamWindow(server - 3_600_000L, server + 90 * 60_000L)
+            val maps = object : MapRepository {
+                override suspend fun map(child: Child, from: LocalDate, to: LocalDate, today: LocalDate) =
+                    MapResponse(child.id, HotSoupSeed.lesson.course, from, to, today, listOf(island(window = window)))
+            }
+            val rewards = object : RewardsRepository {
+                override suspend fun stickers(): List<Sticker> = emptyList()
+                override suspend fun addSticker(key: String): Sticker = Sticker("s", key, 0)
+                override suspend fun streak(): Streak = Streak(0, null)
+                override suspend fun saveStreak(streak: Streak) {}
+            }
+            // No clock passed: the view model's own default must be the server's.
+            val vm = MapViewModel(FakeChildren(maya), maps, FakeJourney(), rewards, copy, FakeLessons(exam)).also { built.add(it) }
+            vm.dispatch(MapContract.Intent.Load); runCurrent()
+            val loadedAt = vm.state.value.now
+            assertTrue(kotlin.math.abs(loadedAt - server) < 60_000, "loaded at the server's time, not the device's")
+            assertEquals(ExamStatus.OPEN, examStatus(island(window = window), loadedAt))
+            assertEquals(en.examOneHourLeft, examCard(island(window = window), loadedAt, TimeZone.UTC, en, emptyList(), true).left)
+        } finally {
+            quest.core.platform.ServerClock.observe(serverMillis = quest.core.platform.Today.epochMillis())
+        }
+    }
 }

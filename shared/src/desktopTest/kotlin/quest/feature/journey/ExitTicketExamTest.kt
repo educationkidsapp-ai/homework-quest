@@ -131,4 +131,47 @@ class ExitTicketExamTest {
         player.dispatch(PlayerContract.Intent.QuestionAnswered(ticket.questions[0].id, "10", true, 3)); runCurrent(); Thread.sleep(100); runCurrent()
         assertTrue(journey.pending(maya.id).isEmpty(), "a homework keeps its own exit-ticket flow")
     }
+
+    /** Review of #197: after "Continue exam" or an app kill the ticket resumes at its next question, and no question is sent twice. */
+    @Test fun aKilledSittingResumesTheTicketAtItsNextQuestion_andNeverSendsAQuestionTwice() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val journey = JourneyRepositoryImpl(api, db)
+        paper.stops.takeWhile { it !is Stop.ExitTicket }.forEach { journey.recordStop(maya.id, exam, paper, it.id, 3, "a", true, 1, 0) }
+        journey.submit(maya.id, exam.id); uploads.clear()
+        val children = object : ChildrenRepository {
+            override val currentChild: StateFlow<Child?> = MutableStateFlow(maya)
+            override suspend fun refresh() = listOf(maya)
+            override suspend fun children() = listOf(maya)
+            override suspend fun select(id: String) {}
+            override suspend fun clear() {}
+        }
+        val lessons = object : LessonRepository {
+            override suspend fun lesson(id: String, version: Int?) = exam
+            override suspend fun cached(id: String) = exam
+            override suspend fun cachedSummaries(): List<PublishedLessonSummary> = emptyList()
+            override suspend fun prefetch(map: MapResponse) {}
+        }
+        val copy = LessonCopy(ParentRepositoryImpl(settings), object : FlagStore { override val flags = MutableStateFlow(emptyMap<String, Boolean>()) })
+        val (q1, q2, _) = ticket.questions
+
+        val first = StopPlayerViewModel(exam.id, 1, 0, 0, lessons, journey, children, api, copy).also { vm = it }
+        await("the sitting opens") { first.state.value.phase == PlayerContract.Phase.STOP }
+        first.dispatch(PlayerContract.Intent.QuestionAnswered(q1.id, "10", correct = true, stars = 3))
+        await("q1 recorded") { kotlinx.coroutines.runBlocking { journey.answeredQuestions(maya.id, exam.id) }.contains(q1.id) }
+        first.viewModelScope.cancel()                                     // the app is killed
+
+        val second = StopPlayerViewModel(exam.id, 1, 0, 0, lessons, journey, children, api, copy).also { vm = it }
+        await("the sitting reopens") { second.state.value.phase == PlayerContract.Phase.STOP }
+        assertEquals(ticket.id, second.state.value.stop?.id)
+        assertTrue(q1.id in second.state.value.answeredQuestions, "the ticket knows q1 is answered, so it opens at q2")
+        second.dispatch(PlayerContract.Intent.QuestionAnswered(q1.id, "12", correct = false, stars = 0))   // a stale re-answer
+        second.dispatch(PlayerContract.Intent.QuestionAnswered(q2.id, "n2,n8", correct = true, stars = 3))
+        await("q2 recorded") { kotlinx.coroutines.runBlocking { journey.answeredQuestions(maya.id, exam.id) }.contains(q2.id) }
+        journey.recordAnswer(maya.id, exam, paper, q1.id, "x", false, 0)                                  // and at the repository too
+        journey.submit(maya.id, exam.id)
+
+        val q1Attempts = kotlinx.coroutines.runBlocking { db.read { selectAllAttempts(maya.id).executeAsList() } }.filter { it.stopId == q1.id }
+        assertEquals(1, q1Attempts.size, "one attempt per question, ever")
+        assertEquals("10", q1Attempts.single().answerJson)
+    }
 }

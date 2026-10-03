@@ -63,6 +63,7 @@ import quest.ui.design.NumberLineView
 import quest.ui.stops.StopContent
 import quest.ui.stops.StopEvent
 import quest.ui.stops.LocalExamMode
+import quest.ui.stops.LocalAnsweredQuestions
 import androidx.compose.runtime.CompositionLocalProvider
 import quest.ui.stops.LocalStopMedia
 import quest.core.platform.rememberStopMedia
@@ -108,7 +109,7 @@ fun StopPlayerScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
             // Every question is answered but the answers have not all reached the server: not "submitted" yet.
             Phase.SENDING -> SendingView(onRetry = { dispatch(Intent.SendAgain) }, onBack = onBack)
             // The stops read LocalExamMode: one answer each, and nothing that tells right from wrong.
-            else -> CompositionLocalProvider(LocalExamMode provides state.exam) { StopView(state, dispatch, onBack) }
+            else -> CompositionLocalProvider(LocalExamMode provides state.exam, LocalAnsweredQuestions provides state.answeredQuestions) { StopView(state, dispatch, onBack) }
         }
 
         AnimatedVisibility(state.phase == Phase.HINT, enter = fadeIn(), exit = fadeOut()) { Box(Modifier.fillMaxSize().background(DashboardTokens.inkStrong.copy(alpha = 0.35f))) }

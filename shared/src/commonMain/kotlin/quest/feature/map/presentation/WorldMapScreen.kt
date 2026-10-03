@@ -479,7 +479,7 @@ private fun FormalCourseworkCard(
 /**
  * §8: an exam on the student home. It says when the window closes and roughly how long is left, opens only while the
  * window is open, and once handed in says so and nothing else — no stars, no score until the teacher releases the
- * result. M4 (D4): after the release it shows the score and the level, and opens the result screen.
+ * result. M4 (D4): after the release it shows the level in words (never a score — §7) and opens the result screen.
  */
 @Composable
 private fun ExamCourseworkCard(island: Island, card: ExamCard, strings: Strings, onOpen: () -> Unit) {

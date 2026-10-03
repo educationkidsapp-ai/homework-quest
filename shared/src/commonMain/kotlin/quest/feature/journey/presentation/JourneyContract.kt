@@ -49,6 +49,8 @@ object PlayerContract {
          * 10:40"), never as a ticking timer (§7). Null for a homework, a re-opened sitting, or an end not known.
          */
         val closesAt: Long? = null,
+        /** Exam: the exit-ticket questions answered so far, so a resumed ticket starts at the next one. */
+        val answeredQuestions: Set<String> = emptySet(),
     ) : MviState {
         val stop: Stop? get() = play?.stops?.getOrNull(index)
         val total: Int get() = play?.stops?.size ?: 0

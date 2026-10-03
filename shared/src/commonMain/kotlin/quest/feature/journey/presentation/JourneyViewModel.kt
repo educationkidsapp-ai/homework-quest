@@ -128,7 +128,9 @@ class StopPlayerViewModel(
         val progress = journey.progress(child.id, lessonId, play.level, play.variant)
         // §8: a sitting resumes at the first unanswered question, wherever the route pointed — an answered one is never reopened.
         val index = if (exam) play.stops.indexOfFirst { it.id !in progress.stops } else startIndex
-        reduce { copy(phase = PlayerContract.Phase.STOP, lesson = lesson, play = play, index = index.coerceAtLeast(0), stopStars = progress.stops, childName = child.name, exam = exam) }
+        // Known before the first question is drawn: a half-done exit ticket opens at its next question, not its first.
+        val answeredQuestions = if (exam) journey.answeredQuestions(child.id, lessonId) else emptySet()
+        reduce { copy(phase = PlayerContract.Phase.STOP, lesson = lesson, play = play, index = index.coerceAtLeast(0), stopStars = progress.stops, childName = child.name, exam = exam, answeredQuestions = answeredQuestions) }
         if (exam && index < 0) { finish(); return }
         if (exam) { showSitting(); watchWindow() }
         current.stop?.let { effect(PlayerContract.Effect.Speak(it.speak)) }
@@ -182,6 +184,8 @@ class StopPlayerViewModel(
         val stop = current.stop ?: return
         val lesson = current.lesson ?: return; val play = current.play ?: return
         if (!current.exam || stop.category != StopCategory.EXIT || current.phase != PlayerContract.Phase.STOP || stop.id in current.stopStars) return
+        if (i.questionId in current.answeredQuestions) return
+        reduce { copy(answeredQuestions = answeredQuestions + i.questionId) }
         journey.recordAnswer(childId, lesson, play, i.questionId, i.answer, i.correct, i.stars)
     }
 

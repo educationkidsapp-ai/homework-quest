@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -280,10 +281,16 @@ private fun RecorderControls(r: RecorderHandle) {
 /** Three questions in a row; stars = average of the three. */
 @Composable
 fun ExitTicketStop(stop: Stop.ExitTicket, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
-    var index by rememberSaveable(stop.id) { mutableIntStateOf(0) }
-    var stars by rememberSaveable(stop.id) { mutableStateOf(listOf<Int>()) }
-    val q = stop.questions.getOrNull(index) ?: return
     val exam = LocalExamMode.current
+    val answered = LocalAnsweredQuestions.current
+    // An exam ticket resumes at its first unanswered question (or, every one answered, is finished at once below).
+    var index by rememberSaveable(stop.id) { mutableIntStateOf(if (exam) stop.questions.indexOfFirst { it.id !in answered }.let { if (it < 0) stop.questions.size else it } else 0) }
+    var stars by rememberSaveable(stop.id) { mutableStateOf(listOf<Int>()) }
+    if (exam && index >= stop.questions.size) {
+        LaunchedEffect(stop.id) { onEvent(StopEvent.Completed(0, mistakes = 0, correct = false)) }
+        return
+    }
+    val q = stop.questions.getOrNull(index) ?: return
     var wrongAnswers by rememberSaveable(stop.id) { mutableIntStateOf(0) }
     // Exam: each of the three takes one answer and the ticket moves on in silence; the player hears only that the
     // whole stop is finished, so nothing between the questions says which were right.

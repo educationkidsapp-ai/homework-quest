@@ -115,8 +115,13 @@ class JourneyRepositoryImpl(private val api: ContentApi, private val db: Db) : J
     }
 
     override suspend fun recordAnswer(childId: String, lesson: PublishedLesson, play: Play, questionId: String, answer: String, correct: Boolean, stars: Int) {
+        // A question answered before — a resumed ticket, a second tap — never gets a second attempt.
+        if (questionId in answeredQuestions(childId, lesson.id)) return
         db.write { insertAttempt(Ids.random(), childId, questionId, lesson.id, play.level.toLong(), lesson.skills.joinToString(",") { it.id }, answer, if (correct) 1 else 0, 1, if (correct) 0 else 1, stars.toLong(), Today.epochMillis()) }
     }
+
+    override suspend fun answeredQuestions(childId: String, lessonId: String): Set<String> =
+        db.read { selectAllAttempts(childId).executeAsList() }.filter { it.lessonId == lessonId }.mapTo(mutableSetOf()) { it.stopId }
 
     override suspend fun completeLevel(childId: String, lesson: PublishedLesson, play: Play): LevelProgress {
         val p = progress(childId, lesson.id, play.level, play.variant)

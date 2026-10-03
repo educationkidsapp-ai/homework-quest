@@ -9,6 +9,7 @@ import quest.api.dto.IslandKind
 import quest.api.dto.IslandState
 import quest.core.mvi.MviViewModel
 import quest.core.platform.Today
+import quest.core.platform.ServerClock
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.content.domain.JourneyRepository
 import quest.feature.content.domain.ChildResultsUseCase
@@ -28,7 +29,8 @@ class MapViewModel(
     private val rewards: RewardsRepository,
     private val copy: LessonCopy,
     private val lessons: LessonRepository,
-    private val now: () -> Long = Today::epochMillis,
+    /** M4 (D8): exam windows are judged by the server's clock (`Date` header), not the tablet's. */
+    private val now: () -> Long = ServerClock::now,
     private val publishToday: PublishTodayUseCase? = null,
     /** M4 (D4): the released results, score already dropped. */
     private val childResults: ChildResultsUseCase? = null,

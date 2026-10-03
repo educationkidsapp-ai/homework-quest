@@ -183,7 +183,7 @@ val contentModule = module {
     single { AppLock(get(), get(), get(), signOut = { get<SignOutUseCase>()() }, elapsed = ::elapsedRealtimeMillis) }
     viewModel { ChildrenViewModel(get(), get()) }
     factory { LessonCopy(get(), get()) }
-    viewModel { MapViewModel(get(), get(), get(), get(), get(), get(), publishToday = get(), childResults = get()) }
+    viewModel { MapViewModel(get(), get(), get(), get(), get(), get(), now = ServerClock::now, publishToday = get(), childResults = get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get(), sitting = get(), windows = get(), now = ServerClock::now, sync = get()) }
     factory { ChildResultsUseCase(get()) }
