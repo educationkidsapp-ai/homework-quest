@@ -42,6 +42,14 @@ object SchemaValidator {
     }.getOrElse { ValidationResult(listOf("not valid JSON: ${it.message}")) }
 
     /**
+     * B3: only the JSON-schema half of [validatePlayJson] — whether a play has the shape every app build decodes,
+     * without the rules about what a correct answer is. A sealed exam paper passes this and, on purpose, not those.
+     */
+    fun validatePlayShape(raw: String): ValidationResult = runCatching {
+        ValidationResult(schemaErrors(playSchema, json.parseToJsonElement(raw)))
+    }.getOrElse { ValidationResult(listOf("not valid JSON: ${it.message}")) }
+
+    /**
      * [lenient] = a hand-written (manual) play: any number of stops (1–9) and the exit ticket is optional, so an admin
      * can publish a single readPage + multiSelect. Model output is never lenient.
      */

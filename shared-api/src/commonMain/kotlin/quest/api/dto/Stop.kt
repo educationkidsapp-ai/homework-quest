@@ -10,7 +10,7 @@ import kotlinx.serialization.Serializable
 data class Tile(val id: String, val label: String? = null, val illustrationKey: String? = null, val pageImageId: String? = null)
 
 @Serializable data class Hotspot(val id: String, val label: String, val x: Float, val y: Float, val w: Float, val h: Float)
-/** B3: [correctIds] is empty on a sealed exam paper (see [Stop]). */
+/** B3: [correctIds] is a placeholder on a sealed exam paper (see [Stop]). */
 @Serializable data class TapTask(val prompt: String, val hotspots: List<Hotspot>, val correctIds: List<String> = emptyList())
 @Serializable data class StoryCard(val piece: String, val definition: String, val answer: String)
 @Serializable data class WordCard(val word: String, val meaning: String, val sentence: String, val illustrationKey: String)
@@ -30,16 +30,16 @@ enum class StopCategory { INFO, SINGLE, MULTI, OPEN, EXIT }
  * One stop on the journey (dev prompt §5). `type` is the JSON discriminator; every stop carries the common
  * fields (title, the sentence Pip speaks, its ingredient, the parent tip) and its own content.
  *
- * **B3: a sealed exam paper carries no answer key.** `GET /lessons/{id}` for an exam whose results are not released
- * yet sends every stop (in `plays`, `variant` and `examPlay`) with the key removed, so the defaults below are what a
- * player reads there: `correctOptionId` "" (choice, sequence, count, compare, sound, word, readTap), `answer` null
- * (trueFalse — `correctId` is then ""), `correctIds` [] (multiSelect, selectAll, `readPage.tapTask`),
- * `correctOrder` [] (order — `items` is shuffled; size the answer by `items`), `hint` "" (every single-answer stop and
- * trace), `modelAnswer` "" (retell, openAnswer), `answer` "" on a word-tile writeSentence (`options` set, not
- * `free`), `numberLine.highlight` [], `parentTip` "" / "". A **match** stop's `pairs[i].right` tiles are shuffled
- * across the pairs: the answer is still `leftPairId=pairIdOfTheTappedRightTile` and the server grades it against
- * the same shuffle. Exam answers are graded by the server only; nothing on the device needs the key. A released
- * exam, and every homework, is sent unchanged.
+ * **B3: on a sealed exam paper every key field is meaningless.** `GET /lessons/{id}` for an exam whose results are
+ * not released yet sends its plays with [Play.sealed] `true`. The shapes are the ones an installed app already
+ * decodes and plays, but nothing in them is the answer: every option, tile, item, pair and hotspot id is an opaque id
+ * (stable for that parent and exam, so a resumed sitting sees the same ones) and the lists are in an order that says
+ * nothing; `correctOptionId` is the first option sent, `trueFalse.answer` is `false`, `correctIds` (multiSelect,
+ * selectAll, `readPage.tapTask`) is `[]`, `correctOrder` is the items in the order sent, a word-tile writeSentence's
+ * `answer` is its first option, a match stop's right-hand tiles are assigned to the pairs in an order that is not the
+ * pairing, and `hint`, `modelAnswer`, `parentTip` and `numberLine.highlight` are empty. The player answers with the
+ * ids it was sent (`leftPairId=pairIdOfTheTappedRightTile` for a match) and the server grades them; nothing on the
+ * device needs the key. A released exam, and every homework, is sent as stored, without `sealed`.
  */
 @Serializable
 sealed interface Stop {
@@ -119,10 +119,10 @@ sealed interface Stop {
     @Serializable @SerialName("trueFalse")
     data class TrueFalse(
         override val id: String, override val title: String, override val speak: String, override val ingredient: Ingredient, override val parentTip: Bilingual,
-        override val hint: String = "", val statement: String, val answer: Boolean? = null,
+        override val hint: String = "", val statement: String, val answer: Boolean = false,
         override val imageId: String? = null, override val teacherText: String? = null,
     ) : SingleAnswer {
-        override val type get() = "trueFalse"; override val correctId get() = when (answer) { true -> TRUE_ID; false -> FALSE_ID; null -> "" }; override val optionIds get() = listOf(TRUE_ID, FALSE_ID)
+        override val type get() = "trueFalse"; override val correctId get() = if (answer) TRUE_ID else FALSE_ID; override val optionIds get() = listOf(TRUE_ID, FALSE_ID)
         companion object { const val TRUE_ID = "true"; const val FALSE_ID = "false" }
     }
 
@@ -239,13 +239,18 @@ data class Theme(val potName: String, val dishName: String, val potEmoji: String
 
 /** One level of a lesson (dev prompt §4). `variant` 0 = main, 1 = the "Again" variant of Level 1. */
 @Serializable
-data class Play(
+data class Play @kotlin.jvm.JvmOverloads constructor(
     val level: Int,
     val variant: Int = 0,
     val kind: SourceKind,
     val theme: Theme,
     val stops: List<Stop>,
     val id: String? = null,
+    /**
+     * B3: `true` on an exam paper sent before its results are released — every answer-key field is then a placeholder
+     * (see [Stop]). Absent (null) on everything else, so a homework's body is unchanged; read it as `sealed == true`.
+     */
+    val sealed: Boolean? = null,
 )
 
 /** Star rules from §5, shared by the app player and the server's usage report. */

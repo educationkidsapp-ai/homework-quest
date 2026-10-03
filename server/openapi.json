@@ -4473,6 +4473,9 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "sealed" : {
+            "type" : "boolean"
+          },
           "stops" : {
             "items" : {
               "oneOf" : [ {
@@ -7025,7 +7028,7 @@
           },
           "type" : "object"
         } ],
-        "required" : [ "hint", "id", "ingredient", "parentTip", "speak", "statement", "title", "type" ]
+        "required" : [ "answer", "hint", "id", "ingredient", "parentTip", "speak", "statement", "title", "type" ]
       },
       "UnreadCount" : {
         "properties" : {
