@@ -45,6 +45,9 @@ import quest.feature.content.data.FakeContentApi
 import quest.feature.content.data.FakeExam
 import quest.feature.content.data.JourneyRepositoryImpl
 import quest.feature.content.data.sealedForChild
+import quest.feature.content.data.PLACEHOLDER
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.assertCountEquals
 import quest.feature.content.domain.LessonRepository
 import quest.feature.journey.presentation.LessonCopy
 import quest.feature.journey.presentation.LessonStrings
@@ -91,18 +94,19 @@ class SealedPaperTest {
         assertEquals(22, sealedPaper.stops.map { it.type }.toSet().size, "every stop type of the contract is on the paper")
         assertEquals(true, sealedPaper.sealed)
         sealedPaper.stops.forEach { s ->
-            assertEquals("", s.parentTip.en, s.type)
+            assertEquals(PLACEHOLDER, s.parentTip.en, s.type)
             when (s) {
-                is Stop.SingleAnswer -> assertEquals("", s.hint, s.type)
-                is Stop.MultiSelect -> assertTrue(s.correctIds.isEmpty())
-                is Stop.SelectAll -> assertTrue(s.correctIds.isEmpty())
+                is Stop.TrueFalse -> { assertEquals(PLACEHOLDER, s.hint); assertEquals(Stop.TrueFalse.FALSE_ID, s.correctId, "trueFalse.answer is false") }
+                is Stop.SingleAnswer -> { assertEquals(PLACEHOLDER, s.hint, s.type); assertEquals(s.optionIds.first(), s.correctId, s.type) }
+                is Stop.MultiSelect -> assertEquals(s.options.take(s.pick).map { it.id }, s.correctIds, "the first options sent — a placeholder")
+                is Stop.SelectAll -> assertEquals(s.options.take(1).map { it.id }, s.correctIds)
                 is Stop.Order -> assertEquals(s.items.map { it.id }, s.correctOrder, "the placeholder is the order sent")
-                is Stop.Retell -> assertEquals("", s.modelAnswer)
-                is Stop.OpenAnswer -> assertEquals("", s.modelAnswer)
+                is Stop.Retell -> assertEquals(PLACEHOLDER, s.modelAnswer)
+                is Stop.OpenAnswer -> assertEquals(PLACEHOLDER, s.modelAnswer)
                 else -> Unit
             }
         }
-        assertTrue(sent.parentPanel.modelAnswers.isEmpty() && sent.parentPanel.stopTips.isEmpty())
+        assertTrue(sent.parentPanel.modelAnswers.all { it.en == PLACEHOLDER } && sent.parentPanel.stopTips.all { it.en == PLACEHOLDER })
         assertEquals(null, MathSeed.lesson.plays[0].sealed, "a homework stays as it is")
     }
 
@@ -113,7 +117,12 @@ class SealedPaperTest {
                 CompositionLocalProvider(LocalExamMode provides true) { StopContent(sealedPaper.stops[index.intValue], onEvent = {}) }
             }
         }
-        sealedPaper.stops.indices.forEach { i -> index.intValue = i; waitForIdle() }
+        sealedPaper.stops.indices.forEach { i ->
+            index.intValue = i; waitForIdle()
+            // The placeholders are never drawn: no "…" hint, tip or model answer on any stop (a cue may end in an
+            // ellipsis of its own, so the match is the placeholder as a whole text).
+            onAllNodes(hasText(PLACEHOLDER) or hasText("✔ $PLACEHOLDER")).assertCountEquals(0)
+        }
     }
 
     /** The order stop is sized by its cards: Check enables once every card is placed, and the answer is the ids sent. */
@@ -196,6 +205,19 @@ class SealedPaperTest {
     @Test fun theFakeServersExamIsSealedToo() = runTest {
         val paper = fake.lesson(FakeExam.LESSON_ID).examPlay!!
         assertEquals(true, paper.sealed)
-        assertTrue(paper.stops.filterIsInstance<Stop.SingleAnswer>().all { it.hint.isEmpty() })
+        assertTrue(paper.stops.filterIsInstance<Stop.SingleAnswer>().all { it.hint == PLACEHOLDER })
+    }
+
+    /** The parent's lesson panel draws no tip or model answer of a sealed paper — not even its "…". */
+    @Test fun theParentsPanelDrawsNoPlaceholderOfASealedPaper() = runComposeUiTest {
+        setContent {
+            quest.ui.design.ParentTheme(rtl = false) {
+                androidx.compose.runtime.CompositionLocalProvider(quest.feature.parent.presentation.LocalStrings provides quest.feature.parent.presentation.Strings.en) {
+                    quest.feature.parent.presentation.LessonPanelScreen(sent, quest.feature.parent.presentation.Strings.en)
+                }
+            }
+        }
+        waitForIdle()
+        onAllNodes(hasText(PLACEHOLDER) or hasText("✔ $PLACEHOLDER")).assertCountEquals(0)
     }
 }
