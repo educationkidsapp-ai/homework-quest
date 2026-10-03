@@ -50,7 +50,7 @@ import quest.ui.design.Dimens
  * client-side `[attachment:…]` tag is plain text like any other body.
  */
 fun messagePreview(message: ChatMessage, strings: Strings): String {
-    val files = message.attachments
+    val files = message.attachments.orEmpty()
     val label = when {
         files.isEmpty() -> null
         files.all { !isPdf(it.contentType) } ->

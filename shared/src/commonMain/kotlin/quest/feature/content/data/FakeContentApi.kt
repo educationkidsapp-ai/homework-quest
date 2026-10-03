@@ -459,7 +459,7 @@ class FakeContentApi(
             senderId = uid(),
             body = request.body.trim(),
             createdAt = 1_758_451_000_000L,
-            attachments = request.attachmentIds.mapNotNull { fakeUploads[it] },
+            attachments = request.attachmentIds.orEmpty().mapNotNull { fakeUploads[it] },
         )
         list.add(msg)
         return msg

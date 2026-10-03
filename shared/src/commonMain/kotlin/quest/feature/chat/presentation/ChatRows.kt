@@ -1,5 +1,6 @@
 package quest.feature.chat.presentation
 
+import quest.feature.chat.domain.resolverOf
 import quest.core.text.isolate
 import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.background
@@ -97,7 +98,7 @@ fun staffLabel(thread: ChatThread, strings: Strings, department: String? = null)
 fun threadDescription(thread: ChatThread, strings: Strings, department: String? = null, typing: Boolean = false): String = buildList {
     add(staffName(thread, strings))
     add(staffLabel(thread, strings, department))
-    if (typing) add(typingLine(staffName(thread, strings), strings))
+    if (typing) add(typingLine(resolverOf(thread.peerRole, thread.staffRole, thread.withAdmin == true), strings))
     if (thread.topic == ChatTopic.COMPLAINT) add(strings.complaintBadge)
     if (thread.status == ChatThreadStatus.RESOLVED) add(strings.statusResolved)
     if (thread.unread > 0) add("${thread.unread} ${strings.messages}")
@@ -166,7 +167,7 @@ fun ChatThreadRow(
                 if (typing) {
                     Spacer(Modifier.height(Dimens.s4))
                     Text(
-                        text = typingLine(staffName(thread, strings), strings),
+                        text = typingLine(resolverOf(thread.peerRole, thread.staffRole, thread.withAdmin == true), strings),
                         style = MaterialTheme.typography.bodyMedium,
                         color = DashboardTokens.success,
                         maxLines = 1,

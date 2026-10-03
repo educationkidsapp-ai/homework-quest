@@ -17,6 +17,7 @@ import quest.api.dto.AttachmentRef
 import quest.api.dto.ChatAttachment
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
+import quest.api.dto.ChatPeerRole
 import quest.api.dto.ChatSender
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
@@ -40,6 +41,7 @@ import quest.feature.chat.presentation.ChatConversationViewModel
 import quest.feature.chat.presentation.ChatThreadsViewModel
 import quest.feature.chat.presentation.messagePreview
 import quest.feature.chat.presentation.presenceLine
+import quest.feature.chat.presentation.threadDescription
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.presentation.Strings
 import kotlin.test.AfterTest
@@ -241,7 +243,7 @@ class ChatAttachmentsTypingTest {
         chat.awaitCollectors()
         chat.frames.emit(ChatFrame.Typing(thread, ChatSender.TEACHER))
         val typing = vm.state.await { it.isTeacherTyping }
-        assertEquals("Ms. Nour is typing…" to true, presenceLine(typing, Strings.en))
+        assertEquals("Manager is typing…" to true, presenceLine(typing, Strings.en))
         vm.state.await(TYPING_TIMEOUT_MS + 2_000) { !it.isTeacherTyping }
     }
 
@@ -265,14 +267,46 @@ class ChatAttachmentsTypingTest {
     }
 
     /**
-     * The defect behind "Manager is typing never shows" on the app's side: a conversation opened from a row with no
-     * thread yet holds a null id, and every `typing` frame then looked like another thread's — so a manager who had
-     * just opened the thread from the dashboard typed into silence. The frame now asks which thread this is.
+     * The app-side defect behind "Manager is typing never shows": a conversation opened before its thread existed
+     * (a row with `id: null`, no history) held a null thread id, and every `typing` frame — which names only its
+     * thread, and says `teacher` for any staff member — looked like another thread's. Each peer type now finds its
+     * thread on open and says who is typing by role.
      */
-    @Test fun aConversationWithNoThreadYetLearnsItFromTheFirstTypingFrame() = runBlocking<Unit> {
+    @Test fun everyStaffPeerWithNoHistoryShowsTypingByRole() = runBlocking<Unit> {
+        data class Case(val role: ChatStaffRole, val peerRole: ChatPeerRole?, val admin: Boolean, val label: String, val labelAr: String)
+        val cases = listOf(
+            Case(ChatStaffRole.TEACHER, ChatPeerRole.TEACHER, false, "Teacher is typing…", Strings.ar.chatFiles.typingTeacher),
+            Case(ChatStaffRole.COORDINATOR, ChatPeerRole.COORDINATOR, false, "Coordinator is typing…", Strings.ar.chatFiles.typingCoordinator),
+            Case(ChatStaffRole.MANAGERIAL, ChatPeerRole.MANAGERIAL, false, "Manager is typing…", Strings.ar.chatFiles.typingManager),
+            Case(ChatStaffRole.MANAGERIAL, null, true, "School administration is typing…", Strings.ar.chatFiles.typingAdmin),
+        )
+        for (case in cases) {
+            val staff = "staff-${case.role}-${case.admin}"
+            val id = "th-$staff"
+            val chat = FakeChat()
+            chat.rows = listOf(ChatThread(id = id, childId = "c1", childName = "Hala", teacherId = staff, teacherName = "X",
+                staffRole = case.role, peerRole = case.peerRole, withAdmin = if (case.admin) true else null))
+            val vm = ChatConversationViewModel(
+                ChatPeer("c1", staff, "X", staffRole = case.role, threadId = null, peerRole = case.peerRole, withAdmin = case.admin), chat,
+            ).also { built += it }
+            vm.dispatch(ChatConversationContract.Intent.Load)
+            vm.state.await { it.threadId == id }
+            chat.awaitCollectors()
+            chat.frames.emit(ChatFrame.Typing(id, ChatSender.TEACHER))
+            val typing = vm.state.await { it.isTeacherTyping }
+            assertEquals(case.label to true, presenceLine(typing, Strings.en), "${case.role} admin=${case.admin}")
+            assertEquals(case.labelAr, presenceLine(typing, Strings.ar)!!.first)
+        }
+    }
+
+    /** The staff side opens the thread while the conversation is already on screen: the first frame finds it. */
+    @Test fun aThreadOpenedAfterTheConversationIsFoundByItsFirstTypingFrame() = runBlocking<Unit> {
         val chat = FakeChat()
-        chat.rows = listOf(ChatThread(id = thread, childId = "c1", childName = "Hala", teacherId = manager, teacherName = "Ms. Nour", staffRole = ChatStaffRole.MANAGERIAL))
         val vm = conversation(chat, threadId = null)
+        vm.dispatch(ChatConversationContract.Intent.Load)
+        vm.state.await { !it.loading }
+        assertNull(vm.state.value.threadId)
+        chat.rows = listOf(ChatThread(id = thread, childId = "c1", childName = "Hala", teacherId = manager, teacherName = "Ms. Nour", staffRole = ChatStaffRole.MANAGERIAL))
         chat.awaitCollectors()
         chat.frames.emit(ChatFrame.Typing(thread, ChatSender.TEACHER))
         val now = vm.state.await { it.isTeacherTyping }
@@ -304,6 +338,8 @@ class ChatAttachmentsTypingTest {
         chat.awaitCollectors()
         chat.frames.emit(ChatFrame.Typing(thread, ChatSender.TEACHER))
         vm.state.await { thread in it.typing }
+        val row = ChatThread(id = thread, childId = "c1", childName = "Hala", teacherId = manager, teacherName = "Ms. Nour", staffRole = ChatStaffRole.MANAGERIAL, peerRole = ChatPeerRole.MANAGERIAL)
+        assertTrue(threadDescription(row, Strings.en, typing = true).contains("Manager is typing…"))
         chat.frames.emit(ChatFrame.Message(ChatMessage("m9", thread, ChatSender.TEACHER, manager, "Done", 2L)))
         vm.state.await { thread !in it.typing }
     }

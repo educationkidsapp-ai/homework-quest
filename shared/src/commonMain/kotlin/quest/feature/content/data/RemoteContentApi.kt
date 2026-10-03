@@ -185,16 +185,14 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
     override suspend fun uploadChatAttachment(childId: String, file: UploadFile): AttachmentRef = uploadChatAttachment(childId, file) {}
 
     /**
-     * M7 (B5): `POST /media/attachments` with `purpose=chat` and the child the message is about, reporting the share
-     * of the bytes sent so the composer can draw its progress. The part's file name loses its quotes, which would
-     * otherwise end the `filename="…"` it is written into.
+     * M7 (B5): `POST /children/{id}/chat/attachments` — one photo or PDF for a message about that child — reporting the
+     * share of the bytes sent so the composer can draw its progress. The part's file name loses its quotes, which
+     * would otherwise end the `filename="…"` it is written into.
      */
     suspend fun uploadChatAttachment(childId: String, file: UploadFile, onProgress: (Float) -> Unit): AttachmentRef = call {
-        client.post("$baseUrl/media/attachments") {
+        client.post("$baseUrl/children/$childId/chat/attachments") {
             authed()
             setBody(MultiPartFormDataContent(formData {
-                append("purpose", "chat")
-                append("childId", childId)
                 append("file", file.bytes, Headers.build {
                     append(HttpHeaders.ContentType, file.mimeType)
                     append(HttpHeaders.ContentDisposition, "filename=\"${file.fileName.replace("\"", "_")}\"")

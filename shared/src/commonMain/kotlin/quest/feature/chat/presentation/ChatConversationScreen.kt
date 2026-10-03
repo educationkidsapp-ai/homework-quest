@@ -67,6 +67,7 @@ import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatSender
 import quest.api.dto.ChatStaffRole
+import quest.api.dto.ChatThread
 import quest.api.dto.ChatThreadStatus
 import quest.api.dto.ChatTopic
 import quest.core.mvi.MviEffect
@@ -265,6 +266,9 @@ class ChatConversationViewModel(
             val history = chat.messages(childId, teacherId)
             val uiList = history.map { it.toUiMessage() }
             reduce { copy(loading = false, messages = uiList, threadId = history.firstOrNull()?.threadId ?: threadId) }
+            // M7: a thread with no history yet — one the staff side has just opened — still has an id the socket
+            // names it by, so it is looked up rather than left null until somebody writes.
+            if (current.threadId == null) resolveThreadId()
             // M4 (D11): a thread nobody has written in yet does not exist on the server, and `…/read` on it is a 404.
             if (current.threadId != null) chat.markRead(childId, teacherId)
         } catch (e: Throwable) {
@@ -518,18 +522,31 @@ class ChatConversationViewModel(
     private fun isOurs(frameThreadId: String): Boolean = current.threadId == frameThreadId
 
     /**
-     * M7: [isOurs] for a `typing` frame, which names its thread and nothing else. A conversation opened from a row
-     * with no thread behind it yet keeps a null id until a message arrives — so when the staff side opened the
-     * thread meanwhile (a manager's "Message the parent") and started typing, every frame was dropped as somebody
-     * else's. The first frame about an unknown thread asks the thread list which thread this conversation is now.
+     * M7: [isOurs] for a `typing` frame, which names its thread and nothing else. A conversation whose thread did not
+     * exist when it opened keeps a null id until a message arrives, and every frame then looked like another
+     * thread's — so a manager who opened the thread from the dashboard typed into silence. The first frame about an
+     * unknown thread looks this conversation's thread up again; a thread that turns out to be somebody else's is
+     * remembered, so it costs one request, not one per keystroke.
      */
     private suspend fun isOursOrResolve(frameThreadId: String): Boolean {
         if (isOurs(frameThreadId)) return true
         if (current.threadId != null || frameThreadId in otherThreads) return false
-        val id = runCatching { chat.threads(childId) }.getOrNull()?.firstOrNull { it.teacherId == teacherId }?.id
-        if (id != null) reduce { copy(threadId = id) }
-        if (id != frameThreadId) otherThreads += frameThreadId
-        return id == frameThreadId
+        resolveThreadId()
+        if (!isOurs(frameThreadId)) otherThreads += frameThreadId
+        return isOurs(frameThreadId)
+    }
+
+    /**
+     * This conversation's thread id from the parent's own rows: her thread list (teachers, and every coordinator,
+     * manager and administration thread that exists), then the coordinator and manager choosers, whose rows carry
+     * the id too once a thread exists. The row is the one whose staff member is this conversation's.
+     */
+    private suspend fun resolveThreadId() {
+        val lists: List<suspend () -> List<ChatThread>> = listOf({ chat.threads(childId) }, { chat.coordinators(childId) }, { chat.managers(childId) })
+        for (list in lists) {
+            val id = runCatching { list() }.getOrNull()?.firstOrNull { it.teacherId == teacherId && it.id != null }?.id
+            if (id != null) { reduce { copy(threadId = id) }; return }
+        }
     }
 
     private fun ChatMessage.toUiMessage(isPending: Boolean = false): ChatConversationContract.UiMessage =
@@ -540,7 +557,8 @@ class ChatConversationViewModel(
             createdAt = createdAt,
             readAt = readAt,
             isPending = isPending,
-            attachments = attachments,
+            // B5: absent on a message with no files.
+            attachments = attachments.orEmpty(),
         )
 }
 
@@ -582,16 +600,22 @@ fun ChatConversationRoute(
 
 /**
  * The header's presence line and whether its dot is lit; null when nothing is known about the other person. M7: the
- * typing line names who — "Ms. Nour is typing…" — rather than a bare "is typing…" under her name.
+ * typing line says who by role — "Manager is typing…" — because the frame itself only ever says `teacher` for staff.
  */
 fun presenceLine(state: ChatConversationContract.State, strings: Strings): Pair<String, Boolean>? = when {
-    state.isTeacherTyping -> typingLine(if (state.withAdmin) strings.schoolAdministration else state.teacherName, strings) to true
+    state.isTeacherTyping -> typingLine(state.resolver, strings) to true
     state.peerOnline == true -> strings.online to true
     state.peerOnline == false -> strings.offline to false
     else -> null
 }
 
-fun typingLine(name: String, strings: Strings): String = strings.chatFiles.nameIsTyping.replace("{name}", name)
+/** M7: who is typing, from the thread's `peerRole` (falling back to its staff side) as [Resolver] reads it. */
+fun typingLine(who: Resolver, strings: Strings): String = when (who) {
+    Resolver.TEACHER -> strings.chatFiles.typingTeacher
+    Resolver.COORDINATOR -> strings.chatFiles.typingCoordinator
+    Resolver.MANAGER -> strings.chatFiles.typingManager
+    Resolver.ADMIN -> strings.chatFiles.typingAdmin
+}
 
 /** M4 (D7): "Resolved — the … answered this", naming whoever the parent was writing to. */
 fun resolvedBanner(resolver: Resolver, strings: Strings): String = when (resolver) {

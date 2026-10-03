@@ -17,6 +17,7 @@ import quest.api.dto.Curriculum
 import quest.feature.broadcasts.domain.AttachmentImages
 import quest.feature.broadcasts.presentation.LocalAttachmentImages
 import quest.feature.chat.domain.AttachmentRefusal
+import quest.feature.chat.domain.Resolver
 import quest.feature.chat.presentation.ChatConversationContract
 import quest.feature.chat.presentation.ChatConversationScreen
 import quest.feature.chat.presentation.ChatThreadsContract
@@ -61,7 +62,7 @@ class ChatAttachmentsScreenshotTest {
 
     private fun conversation(ar: Boolean) = ChatConversationContract.State(
         childId = "c", teacherId = "nour", teacherName = if (ar) "أ. نور" else "Ms. Nour", loading = false,
-        staffRole = ChatStaffRole.MANAGERIAL, threadId = "t", peerOnline = true, isTeacherTyping = true,
+        staffRole = ChatStaffRole.MANAGERIAL, threadId = "t", peerOnline = true, isTeacherTyping = true, resolver = Resolver.MANAGER,
         inputText = if (ar) "هذه واجبات هلا" else "Here is Hala's homework",
         messages = listOf(
             ChatConversationContract.UiMessage("m1", if (ar) "هذه ورقة العمل لهذا الأسبوع." else "This week's worksheet.", false, now - 900_000, attachments = listOf(photo)),

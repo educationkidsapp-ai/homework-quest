@@ -70,7 +70,7 @@ fun preparePhoto(name: String, bytes: ByteArray, toJpeg: (ByteArray) -> ByteArra
 class PickedFile(val name: String, val size: Long, val photo: Boolean, val read: suspend () -> UploadFile?)
 
 /**
- * `POST /media/attachments` with `purpose=chat`, reporting progress in 0..1. Two implementations: the server's (Ktor's
+ * B5's upload for a chat message (`POST /children/{id}/chat/attachments`), reporting progress in 0..1. Two implementations: the server's (Ktor's
  * upload progress) and the fake's, which answers in one step — the screen reads both the same way.
  */
 fun interface AttachmentUploader {

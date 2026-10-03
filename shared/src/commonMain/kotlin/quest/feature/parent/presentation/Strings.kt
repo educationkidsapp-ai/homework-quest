@@ -507,8 +507,11 @@ data class NoticeStrings(
 
 /** M7: a message's photos and PDFs — previews, the attach menu, the upload tray and its refusals — and who is typing. */
 data class ChatFileStrings(
-    /** `{name}` is who is typing — the header and the thread row. */
-    val nameIsTyping: String,
+    /** Who is typing, by the role the parent is writing to (N1's `peerRole`) — the header and the thread row. */
+    val typingTeacher: String,
+    val typingCoordinator: String,
+    val typingManager: String,
+    val typingAdmin: String,
     val previewPhoto: String,
     /** `{n}` photos on one message. */
     val previewPhotos: String,
@@ -533,7 +536,10 @@ data class ChatFileStrings(
 ) {
     companion object {
         val en = ChatFileStrings(
-            nameIsTyping = "{name} is typing…",
+            typingTeacher = "Teacher is typing…",
+            typingCoordinator = "Coordinator is typing…",
+            typingManager = "Manager is typing…",
+            typingAdmin = "School administration is typing…",
             previewPhoto = "📷 Photo",
             previewPhotos = "📷 {n} photos",
             previewPdf = "📄 {name}",
@@ -553,7 +559,10 @@ data class ChatFileStrings(
             photoDescription = "Photo {name}",
         )
         val ar = ChatFileStrings(
-            nameIsTyping = "{name} يكتب الآن…",
+            typingTeacher = "المعلّمة تكتب الآن…",
+            typingCoordinator = "منسّق المادة يكتب الآن…",
+            typingManager = "مدير القسم يكتب الآن…",
+            typingAdmin = "إدارة المدرسة تكتب الآن…",
             previewPhoto = "📷 صورة",
             previewPhotos = "📷 {n} صور",
             previewPdf = "📄 {name}",
