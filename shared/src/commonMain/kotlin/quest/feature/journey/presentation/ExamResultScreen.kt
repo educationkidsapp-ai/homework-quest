@@ -26,7 +26,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
-import quest.api.dto.ReleasedResult
+import quest.feature.content.domain.ChildResult
+import quest.feature.content.domain.ChildResultsUseCase
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
@@ -36,7 +37,6 @@ import quest.core.platform.Today
 import quest.core.text.isolate
 import quest.core.text.longDate
 import quest.feature.children.domain.ChildrenRepository
-import quest.feature.content.domain.JourneyRepository
 import quest.feature.map.presentation.examBand
 import quest.feature.parent.domain.epochToDate
 import quest.feature.parent.presentation.Strings
@@ -52,12 +52,13 @@ import quest.ui.design.Dimens
 import quest.ui.design.SubjectMeta
 
 /**
- * M4 (D4): the result of an exam, once the teacher has released it — the score, the level and the teacher's comment,
- * in the formal exam design. Until the release there is no such screen: the card keeps saying the teacher will share
- * the result. It is read from the same released results the parent's Progress shows, so the two always agree.
+ * M4 (D4): the result of an exam, once the teacher has released it — the level she gave and her comment, in the formal
+ * exam design. Until the release there is no such screen: the card keeps saying the teacher will share the result. It
+ * is read from the same released results the parent's Progress shows, so the two always agree — **without the score**:
+ * §7 keeps a number out of 100 off a child's screen, and [ChildResultsUseCase] drops it before this screen sees it.
  */
 object ExamResultContract {
-    data class State(val loading: Boolean = true, val result: ReleasedResult? = null) : MviState
+    data class State(val loading: Boolean = true, val result: ChildResult? = null) : MviState
     sealed interface Intent : MviIntent { data object Load : Intent; data object ReadAloud : Intent }
     sealed interface Effect : MviEffect { data class Speak(val text: String) : Effect }
 }
@@ -65,7 +66,7 @@ object ExamResultContract {
 class ExamResultViewModel(
     private val lessonId: String,
     private val children: ChildrenRepository,
-    private val journey: JourneyRepository,
+    private val results: ChildResultsUseCase,
     private val copy: LessonCopy,
 ) : MviViewModel<ExamResultContract.State, ExamResultContract.Intent, ExamResultContract.Effect>(ExamResultContract.State()) {
     init { dispatch(ExamResultContract.Intent.Load) }
@@ -74,7 +75,7 @@ class ExamResultViewModel(
         when (intent) {
             ExamResultContract.Intent.Load -> {
                 val child = children.currentChild.value
-                val result = child?.let { journey.progressReport(it.id)?.results?.firstOrNull { r -> r.lessonId == lessonId } }
+                val result = child?.let { results(it.id)?.firstOrNull { r -> r.lessonId == lessonId } }
                 reduce { copy(loading = false, result = result) }
                 effect(ExamResultContract.Effect.Speak(spoken()))
             }
@@ -87,7 +88,6 @@ class ExamResultViewModel(
         val r = current.result ?: return s.examResultMissing
         return listOfNotNull(
             s.examResultTitle,
-            r.score?.let { "${s.examResultScore} $it" },
             r.band?.let { examBand(it, s) },
             r.comment?.takeIf { it.isNotBlank() }?.let { "${s.examResultComment}: $it" },
         ).joinToString(". ")
@@ -135,22 +135,11 @@ fun ExamResultScreen(state: ExamResultContract.State, dispatch: (ExamResultContr
                         color = DashboardTokens.inkStrong,
                     )
                     Spacer(Modifier.height(Dimens.s16))
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        r.score?.let {
-                            Column {
-                                Text(s.examResultScore, style = MaterialTheme.typography.labelMedium, color = DashboardTokens.inkSoft)
-                                Text("$it", style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.accentInk)
-                            }
-                            Spacer(Modifier.width(Dimens.s24))
-                        }
-                        r.band?.let {
-                            Column {
-                                Text(s.examResultBand, style = MaterialTheme.typography.labelMedium, color = DashboardTokens.inkSoft)
-                                Spacer(Modifier.height(Dimens.s4))
-                                // A calm pill, never an alarm colour: §7 keeps red off a child's screen.
-                                DashboardPill(text = examBand(it, s), variant = DashboardPillVariant.SUCCESS)
-                            }
-                        }
+                    Column {
+                        Text(s.examResultBand, style = MaterialTheme.typography.labelMedium, color = DashboardTokens.inkSoft)
+                        Spacer(Modifier.height(Dimens.s4))
+                        // A calm pill, never an alarm colour: §7 keeps red off a child's screen.
+                        DashboardPill(text = r.band?.let { examBand(it, s) } ?: s.examMarkedShort, variant = DashboardPillVariant.SUCCESS)
                     }
                     Spacer(Modifier.height(Dimens.s12))
                     Text(
@@ -159,7 +148,7 @@ fun ExamResultScreen(state: ExamResultContract.State, dispatch: (ExamResultContr
                     )
                 }
             }
-            r.comment?.takeIf { it.isNotBlank() }?.let { comment ->
+            r.comment?.let { comment ->
                 DashboardCard(padding = PaddingValues(Dimens.s16)) {
                     Column(Modifier.fillMaxWidth()) {
                         Text(s.examResultComment, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = DashboardTokens.inkStrong)

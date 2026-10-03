@@ -35,6 +35,12 @@ import quest.api.ApiException
 import quest.api.dto.ApiError
 import quest.api.dto.BroadcastView
 import quest.api.dto.ChatStaffRole
+import quest.api.dto.ChatFrame
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import quest.feature.notifications.domain.ParentBadges
 import quest.api.dto.Curriculum
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
@@ -97,7 +103,14 @@ object BroadcastsContract {
 class BroadcastsViewModel(
     private val children: ChildrenRepository,
     private val broadcasts: BroadcastsRepository,
+    /** M4 (D5): `/ws/chat` — a `notification` frame while the tab is open refreshes the list. */
+    frames: Flow<ChatFrame> = emptyFlow(),
+    private val badges: ParentBadges? = null,
 ) : MviViewModel<BroadcastsContract.State, BroadcastsContract.Intent, BroadcastsContract.Effect>(BroadcastsContract.State()) {
+
+    init {
+        launch { frames.collect { if (it is ChatFrame.Notification) dispatch(BroadcastsContract.Intent.Load) } }
+    }
 
     override suspend fun handle(intent: BroadcastsContract.Intent) {
         when (intent) {
@@ -145,6 +158,7 @@ class BroadcastsViewModel(
     private suspend fun open(id: String) {
         val child = children.currentChild.value ?: return
         val updated = runCatching { broadcasts.markRead(child.id, id) }.getOrNull() ?: return
+        badges?.refresh()
         reduce {
             copy(
                 unread = (unread - 1).coerceAtLeast(0),
@@ -171,6 +185,8 @@ fun BroadcastsRoute(
     GateFallback(Flags.ANNOUNCEMENTS, onBack)
     FeatureGate(Flags.ANNOUNCEMENTS) {
         LaunchedEffect(vm) { vm.dispatch(BroadcastsContract.Intent.Load) }
+        // M4 (D5): back in front with the tab open — what was posted meanwhile is shown without a pull.
+        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.dispatch(BroadcastsContract.Intent.Load) }
         ParentShell(
             title = { it.announcements },
             onBack = onBack,

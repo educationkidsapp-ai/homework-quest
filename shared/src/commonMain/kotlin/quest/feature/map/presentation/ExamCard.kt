@@ -4,7 +4,7 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import quest.api.dto.Island
-import quest.api.dto.ReleasedResult
+import quest.feature.content.domain.ChildResult
 import quest.api.dto.IslandState
 import quest.feature.journey.presentation.LessonStrings
 
@@ -49,16 +49,16 @@ fun examStatus(island: Island, loadedAt: Long, released: Boolean = false): ExamS
     }
 }
 
-/** [result] is the released result of this exam, if any; [started] is "at least one question answered" (M4, D9). */
+/** [marked] is the released result of this exam, if any; [started] is "at least one question answered" (M4, D9). */
 fun examCard(
     island: Island, loadedAt: Long, zone: TimeZone, s: LessonStrings, months: List<String>, shortMonths: Boolean,
-    result: ReleasedResult? = null, started: Boolean = false,
+    marked: ChildResult? = null, started: Boolean = false,
 ): ExamCard {
-    val status = examStatus(island, loadedAt, released = result != null)
+    val status = examStatus(island, loadedAt, released = marked != null)
     val window = island.examWindow
     val sit = if (started) s.continueExam else s.startExam
     return when (status) {
-        ExamStatus.RELEASED -> ExamCard(status, examResultLine(result!!, s), action = s.examSeeResult)
+        ExamStatus.RELEASED -> ExamCard(status, examResultLine(marked!!, s), action = s.examSeeResult)
         ExamStatus.SUBMITTED -> ExamCard(status, s.examSubmittedNote)
         ExamStatus.UNAVAILABLE -> ExamCard(status, s.examNeedsConnection)
         ExamStatus.REOPENED -> ExamCard(status, s.examReopened, action = sit)
@@ -66,17 +66,9 @@ fun examCard(
     }
 }
 
-/** "Score 60 · Secure" — or whichever of the two the teacher's release carries. */
-fun examResultLine(result: ReleasedResult, s: LessonStrings): String {
-    val band = result.band?.let { examBand(it, s) }
-    val score = result.score?.toString()
-    return when {
-        score != null && band != null -> s.examResultLine.replace("{score}", score).replace("{band}", band)
-        score != null -> "${s.examResultScore} $score"
-        band != null -> band
-        else -> s.examMarkedShort
-    }
-}
+/** "Marked by your teacher · Secure" — the level in words, never a number (§7); just "marked" when there is no band. */
+fun examResultLine(marked: ChildResult, s: LessonStrings): String =
+    marked.band?.let { s.examResultLine.replace("{band}", examBand(it, s)) } ?: s.examResultNoBand
 
 fun examBand(key: String, s: LessonStrings): String = s.examBands[key.lowercase()] ?: key
 

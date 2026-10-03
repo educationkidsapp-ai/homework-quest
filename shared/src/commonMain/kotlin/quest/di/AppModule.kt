@@ -40,6 +40,14 @@ import quest.core.db.SettingsStore
 import quest.core.platform.platformModule
 import quest.core.platform.connectivityModule
 import quest.feature.content.domain.PendingAnswersSync
+import quest.feature.content.domain.ChildResultsUseCase
+import quest.feature.notifications.data.ParentUnreadSource
+import quest.feature.notifications.domain.ParentBadges
+import quest.feature.notifications.domain.UnreadSource
+import quest.feature.school.domain.Flags
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import quest.feature.auth.data.FakeAuth
 import quest.feature.auth.data.FirebaseAuth
 import quest.feature.auth.data.SessionRestorer
@@ -174,9 +182,10 @@ val contentModule = module {
     single { AppLock(get(), get(), get(), signOut = { get<SignOutUseCase>()() }, elapsed = ::elapsedRealtimeMillis) }
     viewModel { ChildrenViewModel(get(), get()) }
     factory { LessonCopy(get(), get()) }
-    viewModel { MapViewModel(get(), get(), get(), get(), get(), get(), publishToday = get()) }
+    viewModel { MapViewModel(get(), get(), get(), get(), get(), get(), publishToday = get(), childResults = get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get(), sitting = get(), windows = get(), now = Today::epochMillis, sync = get()) }
+    factory { ChildResultsUseCase(get()) }
     viewModel { (lessonId: String) -> ExamResultViewModel(lessonId, get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> LessonCompleteViewModel(lessonId, level, variant, get(), get(), get(), get(), get(), get()) }
 }
@@ -210,7 +219,13 @@ val chatModule = module {
 /** RM4: the parent's broadcasts feed. Its own module — the feed is not chat, and it is read behind its own flag. */
 val broadcastsModule = module {
     single<BroadcastsRepository> { BroadcastsRepositoryImpl(get(), get()) }
-    viewModel { BroadcastsViewModel(get(), get()) }
+    // M4 (D5): the bottom bar's badges, one for the app, moved live by `/ws/chat`.
+    single<UnreadSource> {
+        val flags = get<FlagStore>()
+        ParentUnreadSource(get(), get(), announcementsOn = { flags.isEnabled(Flags.ANNOUNCEMENTS) }, chatOn = { flags.isEnabled(Flags.CHAT) })
+    }
+    single { ParentBadges(get(), get()).also { it.start(CoroutineScope(SupervisorJob() + Dispatchers.Default), get<ChatRepository>().incomingFrames) } }
+    viewModel { BroadcastsViewModel(get(), get(), get<ChatRepository>().incomingFrames, get()) }
     viewModel { WeeklyPlanViewModel(get(), get()) }
 }
 

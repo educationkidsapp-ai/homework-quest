@@ -51,6 +51,8 @@ import quest.feature.content.domain.LessonRepository
 import quest.feature.content.domain.LevelProgress
 import quest.feature.content.domain.MapRepository
 import quest.feature.content.domain.PendingAnswersSync
+import quest.feature.content.domain.ChildResult
+import quest.feature.content.domain.ChildResultsUseCase
 import quest.core.platform.ManualConnectivity
 import quest.feature.content.domain.StopMediaRecord
 import quest.feature.content.domain.SubmitOutcome
@@ -579,7 +581,7 @@ class ExamModeTest {
             override suspend fun streak(): Streak = Streak(0, null)
             override suspend fun saveStreak(streak: Streak) {}
         }
-        val vm = MapViewModel(FakeChildren(maya), maps, journey, rewards, copy, FakeLessons(exam), now = { now }).also { built.add(it) }
+        val vm = MapViewModel(FakeChildren(maya), maps, journey, rewards, copy, FakeLessons(exam), now = { now }, childResults = ChildResultsUseCase(journey)).also { built.add(it) }
         val effects = mutableListOf<MapContract.Effect>()
         backgroundScope.launch { vm.effects.collect { effects += it } }
         vm.dispatch(MapContract.Intent.Load); runCurrent()
@@ -607,12 +609,14 @@ class ExamModeTest {
     @Test fun afterReleaseTheChildSeesHerResultOnTheCardAndOpensIt() = examTest {
         val journey = FakeJourney().apply { report = report(released) }
         val (vm, effects) = home(island(IslandState.DONE), opens + 1, journey)
-        assertEquals(released, vm.state.value.results[exam.id])
+        val marked = vm.state.value.marked.getValue(exam.id)
+        assertEquals("secure", marked.band); assertEquals("Good effort, Hala.", marked.comment)
         assertEquals(listOf<MapContract.Effect>(MapContract.Effect.OpenResult(exam.id)), effects)
 
-        val card = examCard(island(IslandState.DONE), opens + 1, TimeZone.UTC, en, emptyList(), true, result = released)
+        val card = examCard(island(IslandState.DONE), opens + 1, TimeZone.UTC, en, emptyList(), true, marked = marked)
         assertEquals(ExamStatus.RELEASED, card.status)
-        assertEquals("Score 60 · Secure", card.line)
+        assertEquals("Marked by your teacher · Secure", card.line)
+        assertFalse(card.line.contains("60"), "§7: no score out of 100 on a child's screen")
         assertEquals(en.examSeeResult, card.action)
         assertFalse(card.status.canSit, "a released exam is never sat again")
     }
@@ -620,16 +624,16 @@ class ExamModeTest {
     @Test fun beforeReleaseTheCardStillSaysTheTeacherWillShareIt() = examTest {
         val journey = FakeJourney().apply { report = report(released.copy(lessonId = "another-lesson")) }
         val (vm, effects) = home(island(IslandState.DONE), opens + 1, journey)
-        assertTrue(vm.state.value.results.isEmpty(), "only this page's exams, and only released ones")
+        assertTrue(vm.state.value.marked.isEmpty(), "only this page's exams, and only released ones")
         assertEquals(listOf<MapContract.Effect>(MapContract.Effect.Speak(en.examAlreadyTaken)), effects)
     }
 
-    @Test fun theResultScreenShowsScoreLevelAndComment() = examTest {
+    @Test fun theResultScreenShowsLevelAndComment_neverTheScore() = examTest {
         val journey = FakeJourney().apply { report = report(released) }
-        val vm = ExamResultViewModel(exam.id, FakeChildren(maya), journey, copy).also { built.add(it) }
+        val vm = ExamResultViewModel(exam.id, FakeChildren(maya), ChildResultsUseCase(journey), copy).also { built.add(it) }
         runCurrent()
-        assertEquals(released, vm.state.value.result)
-        val missing = ExamResultViewModel("nope", FakeChildren(maya), journey, copy).also { built.add(it) }
+        assertEquals(ChildResult(exam.id, exam.title, Subject.ENGLISH, LocalDate(2026, 10, 2), "secure", "Good effort, Hala.", released.releasedAt), vm.state.value.result)
+        val missing = ExamResultViewModel("nope", FakeChildren(maya), ChildResultsUseCase(journey), copy).also { built.add(it) }
         runCurrent()
         assertNull(missing.state.value.result)
         assertFalse(missing.state.value.loading)
