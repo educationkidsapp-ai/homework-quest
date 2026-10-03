@@ -159,9 +159,12 @@ describe('list 3 — message a person, and the lesson statuses', () => {
     ]);
     const list = backend.expectOne((request) => request.url === '/management/complaints');
     expect(list.request.params.get('status')).toBe('open');
-    list.flush([
-      { ...THREAD, id: 'th-7', childId: 'ch-1', childName: 'Layla Ahmed', topic: 'complaint', status: 'open' },
-    ]);
+    // B6: the list answers `ComplaintList`.
+    list.flush({
+      complaints: [{ ...THREAD, id: 'th-7', childId: 'ch-1', childName: 'Layla Ahmed', title: 'Homework', status: 'open' }],
+      open: 1,
+      resolved: 0,
+    });
     await settle();
     expect(backend.match((request) => request.url.startsWith('/coordinator/'))).toEqual([]);
 
@@ -174,7 +177,7 @@ describe('list 3 — message a person, and the lesson statuses', () => {
     await settle();
     screen.getByRole('button', { name: 'Yes, resolve it' }).click();
     await settle();
-    const patch = backend.expectOne('/management/chat/threads/th-7/status');
+    const patch = backend.expectOne('/management/complaints/th-7/status');
     expect(patch.request.method).toBe('PATCH');
     expect(patch.request.body).toEqual({ status: 'resolved' });
     rendered.fixture.destroy();

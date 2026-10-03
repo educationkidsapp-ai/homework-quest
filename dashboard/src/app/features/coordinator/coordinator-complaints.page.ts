@@ -3,8 +3,14 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { catchError, of, tap } from 'rxjs';
-import { type ChatThread, ChatThreadStatusEnum, CoordinatorChatApi, ManagementChatApi } from '../../api';
+import { catchError, map, of, tap } from 'rxjs';
+import {
+  type Complaint,
+  ChatThreadStatusEnum,
+  ComplaintStatusRequestStatusEnum,
+  CoordinatorChatApi,
+  ManagementChatApi,
+} from '../../api';
 import { StaffAreaService } from '../../core/auth/staff-area';
 import { ChatService } from '../../core/chat/chat.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
@@ -156,10 +162,13 @@ export class CoordinatorComplaintsPage {
   protected readonly pending = signal<ComplaintRow | null>(null);
   protected readonly writeFailed = signal(false);
 
-  protected readonly threads = rxResource<ChatThread[], StatusFilter>({
+  /** B6: the lists answer `ComplaintList`; this screen keeps drawing its rows until the B6 dashboard package redraws it. */
+  protected readonly threads = rxResource<Complaint[], StatusFilter>({
     params: () => this.status(),
     stream: ({ params }) =>
-      this.manager() ? this.management.managementComplaints(params) : this.api.coordinatorComplaints(params),
+      (this.manager() ? this.management.managementComplaints(params) : this.api.coordinatorComplaints(params)).pipe(
+        map((list) => list.complaints),
+      ),
     defaultValue: [],
   });
 
@@ -206,11 +215,11 @@ export class CoordinatorComplaintsPage {
       this.threads
         .value()
         .map((thread) => ({
-          threadId: thread.id ?? '',
+          threadId: thread.id,
           childName: thread.childName,
           className: thread.className ?? '',
           lastAt: thread.lastMessage?.createdAt ?? null,
-          resolved: (live.get(thread.id ?? '') ?? thread.status) === ChatThreadStatusEnum.RESOLVED,
+          resolved: (live.get(thread.id) ?? thread.status) === ChatThreadStatusEnum.RESOLVED,
         }))
         // The list is a filter *on* status, so a row the socket has moved has to leave the tab it
         // no longer belongs to — not merely change the word in its last column.
@@ -243,16 +252,16 @@ export class CoordinatorComplaintsPage {
   }
 
   /**
-   * `PATCH /<area>/chat/threads/{id}/status`, then reload rather than patch the row in place:
+   * `PATCH /<area>/complaints/{id}/status` (B6), then reload rather than patch the row in place:
    * the list is a filter *on* status, so a resolved thread has to leave the open tab entirely and
    * a row that merely changed its badge would sit in a tab that no longer describes it.
    */
   protected commit(row: ComplaintRow): void {
     this.pending.set(null);
-    const body = { status: row.resolved ? 'open' : 'resolved' };
+    const body = { status: row.resolved ? ComplaintStatusRequestStatusEnum.OPEN : ComplaintStatusRequestStatusEnum.RESOLVED };
     (this.manager()
-      ? this.management.managementThreadStatus(row.threadId, body)
-      : this.api.coordinatorThreadStatus(row.threadId, body)
+      ? this.management.managementComplaintStatus(row.threadId, body)
+      : this.api.coordinatorComplaintStatus(row.threadId, body)
     )
       .pipe(
         tap(() => this.threads.reload()),

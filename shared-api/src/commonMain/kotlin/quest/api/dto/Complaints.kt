@@ -84,10 +84,11 @@ data class ComplaintList(val complaints: List<Complaint> = emptyList(), val open
 /**
  * `GET /children/{id}/complaints/recipients`: whom she may complain to about this child — every teacher of the
  * child's section, the coordinators of its subjects and the manager of its department. [subject] is the teacher's or
- * coordinator's subjects on that section ("math, science"), absent for a manager.
+ * coordinator's subjects on that section ("math, science"), absent for a manager. [peerRole] is named as
+ * [ChatThread.peerRole] is (and not `role`, which would collide with [Complaint.recipientRole] in a generated client).
  */
 @Serializable
-data class ComplaintRecipient(val staffId: String, val name: String, val role: ChatPeerRole, val subject: String? = null)
+data class ComplaintRecipient(val staffId: String, val name: String, val peerRole: ChatPeerRole, val subject: String? = null)
 
 /**
  * `POST /children/{id}/complaints` — [staffId] one of the recipients above (404 for anyone else), [title] 1–120

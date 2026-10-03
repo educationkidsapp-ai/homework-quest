@@ -122,10 +122,10 @@ class ComplaintApiTest extends ApiTestSupport {
     @Test @Order(1) void the_parent_is_offered_the_sections_teachers_its_coordinator_and_its_manager() throws Exception {
         var rows = parentJson(BRITISH_PARENT, "/children/" + childBritish + "/complaints/recipients");
         assertThat(names(rows, "staffId")).containsExactlyInAnyOrder(maya, lina, nour);
-        assertThat(rowWith(rows, "staffId", maya).get("role").asText()).isEqualTo("TEACHER");
+        assertThat(rowWith(rows, "staffId", maya).get("peerRole").asText()).isEqualTo("TEACHER");
         assertThat(rowWith(rows, "staffId", maya).get("subject").asText()).isEqualTo("math");
-        assertThat(rowWith(rows, "staffId", lina).get("role").asText()).isEqualTo("COORDINATOR");
-        assertThat(rowWith(rows, "staffId", nour).get("role").asText()).isEqualTo("MANAGERIAL");
+        assertThat(rowWith(rows, "staffId", lina).get("peerRole").asText()).isEqualTo("COORDINATOR");
+        assertThat(rowWith(rows, "staffId", nour).get("peerRole").asText()).isEqualTo("MANAGERIAL");
     }
 
     @Test @Order(2) void a_complaint_is_its_own_conversation_and_never_on_a_messages_list() throws Exception {
