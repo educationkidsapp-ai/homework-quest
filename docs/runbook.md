@@ -1339,20 +1339,16 @@ child's own school.
 child on it at all — a **manager**, in `chat_threads.staff_role` (V20; `TEACHER` for every row written before R4).
 `teacher_id` is that staff peer whatever the role, `peer_user_id` is the second staff member of a
 coordinator ↔ manager thread, and `teacher_unread` / `parent_unread` are the two badges: the staff peer's, and the
-counterpart's (the parent, or the manager). A thread also carries a `topic` (`question` / `complaint`, set by the
-parent on the message that opens it) and a `status` (`open` / `resolved`, moved only by the staff side).
+counterpart's (the parent, or the manager). A thread also carries a `topic` and a `status`; since **B6** every
+Messages thread is `question` / `open`, and a `complaint` row is a conversation of its own — see
+[Complaints (B6)](#complaints-b6).
 
 - **Parent ↔ coordinator.** `GET /children/{id}/coordinators` answers the coordinators whose `staff_scopes` cover a
   subject taught in the child's section, as `ChatThread` rows with `id: null` until she writes — the same shape the
-  teacher rows have. She then posts to `/children/{id}/chat/threads/{staffUserId}/messages`, adding
-  `{"topic":"complaint"}` on the **first** message to make it a complaint; a coordinator of another subject or the
-  other track is 404, exactly as a teacher who does not teach the section is. **S1 (owner's list of 2026-10-01):
-  a complaint may go to the teacher, the coordinator or the manager** — R4's `400 complaint_needs_coordinator` is
-  gone. One thread per (child, staff) means it usually lands on a conversation that already exists: `topic:"complaint"`
-  on any parent message turns that thread into an **open complaint** (and re-opens a resolved one); a later `question`
-  never takes it back out. The teacher sees it as `topic: complaint` on her `GET /teacher/chat/threads` row (the badge);
-  the coordinator in `/coordinator/complaints`; the manager in **`GET /management/complaints?status=`** with
-  `PATCH /management/chat/threads/{id}/status {"status":"open"|"resolved"}` (`management.complaints`, flag `chat`).
+  teacher rows have. She then posts to `/children/{id}/chat/threads/{staffUserId}/messages`; a coordinator of another
+  subject or the other track is 404, exactly as a teacher who does not teach the section is. **B6:** a send with
+  `{"topic":"complaint"}` — S1's way of turning a thread into a complaint — is `400 complaint_moved`; a complaint is
+  opened with `POST /children/{id}/complaints` ([Complaints (B6)](#complaints-b6)).
 - **Coordinator → teacher (S1).** `POST /coordinator/chat/threads {"teacherUserId":"…"}` — exactly one of
   `managerUserId` and `teacherUserId`. It is the row T1b's `POST /teacher/chat/staff-threads {coordinatorUserId}`
   creates from the other end (teacher on `teacher_id`, coordinator on `peer_user_id`, `staff_role` `COORDINATOR`);
@@ -1377,9 +1373,8 @@ support list (`GET /admin/chat/threads` without `mine=true`). The dashboard's ro
   `POST /management/chat/threads {"coordinatorUserId":"…"}` opens the same row from her side.
 - **Parent ↔ manager (RM2, DR5).** `GET /children/{id}/managers` answers the manager of the department the child's
   section is in, as `ChatThread` rows with `id: null` until the parent writes — `GET /children/{id}/coordinators`'
-  mirror. She then posts to `/children/{id}/chat/threads/{managerUserId}/messages`, and `{"topic":"complaint"}` is
-  allowed here too: a complaint about a coordinator is exactly what the manager is for. A manager of the other
-  department is 404.
+  mirror. She then posts to `/children/{id}/chat/threads/{managerUserId}/messages`; a complaint to her (about a
+  coordinator, say) is a [complaint](#complaints-b6). A manager of the other department is 404.
 - **Manager ↔ admin (RM2, DR5).** "The manager reports to and chats with the admin":
   `POST /management/chat/threads {"adminUserId":"…"}` from her side (the ids come from `GET /management/admins`) or
   `POST /admin/chat/threads {"managerUserId":"…"}` from the Admin's, with `X-School-Id`. One row either way. The
@@ -1406,10 +1401,8 @@ teacher of the section beforehand with `id: null`, so she can start one; a teach
 
 The coordinator's half is keyed by **thread**, not by child, because one of her threads has no child on it:
 `GET /coordinator/chat/threads?status=`, `GET|POST /coordinator/chat/threads/{id}/messages`,
-`POST /coordinator/chat/threads/{id}/read`, `POST /coordinator/chat/threads` and
-`PATCH /coordinator/chat/threads/{id}/status {"status":"resolved"}`. Her Complaints inbox is
-`GET /coordinator/complaints?status=open` — the `complaint` threads in scope, nothing more: DR3 keeps complaints in
-the chat rather than in a store of their own, so the `complaints` flag is still N5.2's and these routes carry `chat`.
+`POST /coordinator/chat/threads/{id}/read` and `POST /coordinator/chat/threads`. B6 moved her Complaints page to
+`/coordinator/complaints/**` ([Complaints (B6)](#complaints-b6)) and removed `PATCH /coordinator/chat/threads/{id}/status`.
 A parent thread leaves her list when the child leaves her scope, the way a teacher's does when the assignment goes.
 
 The **manager's** half is keyed by thread for the same reason (RM2): `GET /management/chat/threads?status=`,
@@ -1494,6 +1487,51 @@ tabs removed, stored and delivered exactly as typed, and **never interpreted as 
 text. More than **30 messages a minute** from one sender (REST and socket together, per instance) is `429
 rate_limited`. Support: `GET /admin/chat/threads` and `GET /admin/chat/threads/{threadId}/messages` as ADMIN with
 `X-School-Id` (read-only; without the header the Admin reads the flag defaults and the gate answers 404).
+
+### Complaints (B6)
+
+Owner, 2026-10-03: "Complaints must be separate from messages." Contract: `shared-api/…/dto/Complaints.kt`.
+
+**A complaint is its own conversation.** The parent opens it about one child, to one staff member — a teacher of the
+child's section, a coordinator of one of its subjects or the manager of its department (`GET
+/children/{id}/complaints/recipients`; anyone else, the Admin included, is 404) — with a `title` (1–120 characters) and a
+first message. It is a `chat_threads` row with `topic` `complaint` and `thread_key` = its own id (V33), so it sits
+**beside** her Messages thread with the same person and she may hold several. Its messages are ordinary `ChatMessage`s
+(rate limit, paging, socket `message` frames named by the complaint's id; B5's attachments once they land). No Messages
+list (`/children/{id}/chat/threads`, `/teacher/chat/**`, `/coordinator/chat/**`, `/management/chat/**`,
+`/admin/chat/**`) shows a complaint, no Messages route opens one (404), and no Complaints route opens a Messages
+thread. Replies, reads and status changes are REST only — the socket's commands address Messages threads.
+
+| Who | Routes | Sees |
+|---|---|---|
+| Parent (`child.complaints`) | `GET\|POST /children/{id}/complaints`, `GET …/recipients`, `GET …/{complaintId}?before=&since=&limit=`, `POST …/{complaintId}/messages`, `POST …/read`, `PATCH …/status {"status":"open"}` | every complaint about her own child |
+| Teacher (`teacher.complaints`) | `GET /teacher/complaints?status=`, `GET …/{id}`, `POST …/{id}/messages`, `POST …/read`, `PATCH …/status` | those addressed to her, while the child is in one of her sections |
+| Coordinator (`coordinator.complaints`) | the same five under `/coordinator/complaints` | addressed to her, and — read-only — those to a teacher of her subjects on a section in her reach |
+| Manager (`management.complaints`) | the same five under `/management/complaints` | addressed to her, and — read-only — those to the teachers and coordinators of her department |
+| Admin (`admin.complaints`, `X-School-Id`) | `GET /admin/complaints?status=`, `GET /admin/complaints/{id}` | every complaint of the school, read-only |
+
+Lists answer `ComplaintList {complaints, open, resolved}` — `?status=open|resolved|all` (default all) filters the rows,
+never the counts. A detail is `ComplaintDetail {complaint, messages, events}`. Anything out of scope — another school,
+another parent, another department, another teacher — is **404**. `Complaint.canReply` is true for the parent and the
+recipient; a supervisor or the Admin gets **403** on `…/messages` and `…/read`.
+
+**Status.** `open` → `resolved` by the recipient or a supervisor in scope; `resolved` → `open` by the recipient, a
+supervisor or the parent (`resolved` from the parent is 403). A message on a resolved complaint does **not** reopen it
+("thank you" is the usual last word). Every real change writes a `complaint_events` row (who, when — the client draws
+"Resolved by Nour · 3 Oct" from `ComplaintEvent`), sends both parties the socket `status` frame, and rings the other
+side: the parent's `complaint.status` row + push when staff moved it, the recipient's `complaint.status` row when the
+parent or a supervisor did. Re-setting the same status changes nothing and tells nobody.
+
+**Bells.** A new complaint → the recipient's `complaint.new` (body = title, link `/{area}/complaints?open={id}`). A
+parent's message → the recipient's `complaint.message` (one unread row per complaint). The recipient's reply → the
+parent's `complaint.message` row + push (`complaintId`, link `/children/{childId}/complaints/{id}`, collapse key
+`complaint:{id}`). Reading the complaint clears its `complaint.message` row. A complaint never writes `chat.message`.
+
+**Data written before B6.** V33 turns every `topic = complaint` row into a complaint as it is — messages, status and
+all, even one that began as a question thread: it gets its own `thread_key`, a title (the first 120 characters of its
+first message) and, when resolved, its resolution as an event. It leaves the Messages lists; the parent's next message
+to that person opens a fresh Messages thread. Flag: still `chat` (a complaint is stored and delivered as a
+conversation); the `complaints` key stays N5.2's.
 
 ### The socket: `/ws/chat`
 
@@ -1599,10 +1637,9 @@ the conversation rather than on the list:
   (`ChatService.activeGone`). Following a link also clears the
   search box and the correspondent chip, so the row it selects is visible. This is the shared page, so a bell link on
   the teacher's, the coordinator's and the admin's transports gets the same treatment.
-- **The manager's Complaints** (`/management/complaints`) is the coordinator's inbox component over
-  `GET /management/complaints?status=` and `PATCH /management/chat/threads/{id}/status` (`management.complaints`, the
-  `chat` flag); a row opens `/management/messages?thread=`. A thread with `withAdmin: true` is titled "School
-  administration" for a teacher and a coordinator.
+- **The manager's Complaints** (`/management/complaints`) — B6 replaced S1's inbox routes with
+  `/management/complaints/**` ([Complaints (B6)](#complaints-b6)); `PATCH /management/chat/threads/{id}/status` is gone.
+  A thread with `withAdmin: true` is titled "School administration" for a teacher and a coordinator.
 - **A remembered thread id never reaches the server.** `ChatService` is a root singleton: its `activeKey`, list and
   messages now end with the account (`forgetAccount`, on a change of `auth.user().id`), a key the freshly read list
   does not hold is dropped rather than refetched, and the socket's `onopen` refetches only a conversation the list
@@ -1763,7 +1800,8 @@ chat ones.
 | `broadcast.posted` | B4: a manager's or a coordinator's weekly plan, announcement or event reached the child's feed (`/management/broadcasts`, `/coordinator/broadcasts` or the older `/coordinator/announcements`), once per parent | `/children/{childId}/broadcasts?open={broadcastId}` |
 | `announcement.posted` | B4: a teacher's class note (`POST /teacher/announcements`) reached the child's course, once per parent | `/children/{childId}/announcements?open={id}` |
 | `question.sent` | B4: a teacher sent the child a question to answer (`POST /teacher/questions/{id}/send`), once | `/children/{childId}/teacher-questions/{id}` |
-| `complaint.status` | B4: a coordinator or manager resolved her thread or opened it again (title "Complaint resolved" / "… reopened"; "Conversation …" on a question thread) — one row per real change | `/children/{childId}/chat/{staffId}` |
+| `complaint.status` | B4/B6: a staff member resolved her complaint or opened it again (title "Complaint resolved" / "Complaint reopened") — one row per real change | `/children/{childId}/complaints/{complaintId}` |
+| `complaint.message` | B6: the recipient replied in her complaint — one unread row per complaint, read when she calls `…/complaints/{id}/read` | `/children/{childId}/complaints/{complaintId}` |
 
 Every parent row except `chat.message` is written after the release, publish, post or status change has committed, in a
 transaction of its own — a failure there is logged and never undoes the release — and only once per recipient, lesson and
@@ -1856,7 +1894,9 @@ coordinators and shows the R4 fields as chips (Complaint, Open/Resolved); `+ Mes
 `GET /children/{id}/coordinators` (which answers `ChatThread` rows, not a coordinator DTO) and a `This is a complaint`
 switch puts `topic: "complaint"` on the **thread-creating** message only — `400 complaint_needs_coordinator` if the
 peer is a teacher. The `status` frame carries **`at`**, not `resolvedAt`, and moves the row and the conversation's
-banner without a refetch; a resolved thread still accepts the parent's reply, so the composer stays live.
+banner without a refetch; a resolved thread still accepts the parent's reply, so the composer stays live. **B6** retires that
+switch: the server answers it `400 complaint_moved`, and the app moves complaints to a Complaints page of its own
+([Complaints (B6)](#complaints-b6)).
 
 ### Push notifications (B4)
 
@@ -1881,8 +1921,9 @@ parents' phones (`findByParentIdIn`); the sends then run on the push pool's own 
 
 | `kind` | From | `collapseKey` |
 |---|---|---|
-| `chat.message` | a teacher, coordinator, manager or the Admin writing in her child's thread, complaint threads included — a **new** unread row only (the bell's throttle: five messages before she opens the thread are one push; after she reads it, the next one pushes again) | `chat:{threadId}` |
-| `complaint.status` | a coordinator or manager resolving or reopening the thread | `chat:{threadId}` |
+| `chat.message` | a teacher, coordinator, manager or the Admin writing in her child's Messages thread — a **new** unread row only (the bell's throttle: five messages before she opens the thread are one push; after she reads it, the next one pushes again) | `chat:{threadId}` |
+| `complaint.message` | B6: the recipient replying in her complaint — the same throttle; the push carries `complaintId` | `complaint:{complaintId}` |
+| `complaint.status` | a staff member resolving or reopening her complaint; carries `complaintId` | `complaint:{complaintId}` |
 | `broadcast.posted` | a manager or coordinator: weekly plan (image or PDF), announcement, event — the feed's own predicate decides who | `broadcast:{broadcastId}` |
 | `announcement.posted` | a teacher's class note | `announcement:{id}` |
 | `question.sent` | a teacher's question to the child | `question:{id}` |

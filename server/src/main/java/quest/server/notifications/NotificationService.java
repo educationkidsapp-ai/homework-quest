@@ -124,14 +124,16 @@ public class NotificationService {
             case LESSON_NEEDS_SKILLS -> "Skills to confirm";
             case LESSON_READY -> "Questions ready";
             case LESSON_FAILED -> "Generation stopped";
-            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
+            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
+                 COMPLAINT_NEW, COMPLAINT_MESSAGE -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
         String body = switch (kind) {
             case LESSON_NEEDS_SKILLS -> name + " has been analysed. Confirm the skills to start writing the questions.";
             case LESSON_READY -> name + " is ready to review.";
             case LESSON_FAILED -> lesson.getErrorMessage() == null || lesson.getErrorMessage().isBlank() ? name + " stopped before it finished." : lesson.getErrorMessage();
-            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
+            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
+                 COMPLAINT_NEW, COMPLAINT_MESSAGE -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         try {
             notify(lesson.getSchoolId(), recipient, kind, title, body, link(roleOf(recipient), lesson.getId()), lesson.getId());
@@ -307,23 +309,81 @@ public class NotificationService {
     }
 
     /**
-     * B4: a coordinator or a manager resolved one of her threads, or opened it again. One row per change — a complaint
-     * reopened and resolved twice is news each time — collapsed with the thread's messages on her phone.
+     * B4: a staff member resolved one of her complaints, or opened it again. One row per change — a complaint reopened
+     * and resolved twice is news each time — collapsed with the complaint's messages on her phone. B6: the row and the
+     * push open the complaint on her Complaints page (`/children/{childId}/complaints/{complaintId}`).
      */
-    public void complaintStatus(String schoolId, String parentId, String childId, String threadId, String staffId, boolean complaint, boolean resolved, String by) {
+    public void complaintStatus(String schoolId, String parentId, String childId, String complaintId, boolean resolved, String by) {
         if (parentId == null || childId == null) return;
         boolean named = by != null && !by.isBlank();
-        String what = complaint ? "Complaint" : "Conversation", whatAr = complaint ? "الشكوى" : "المحادثة";
-        String title = what + (resolved ? " resolved" : " reopened"), titleAr = resolved ? "تم حل " + whatAr : "أعيد فتح " + whatAr;
+        String title = "Complaint" + (resolved ? " resolved" : " reopened"), titleAr = resolved ? "تم حل الشكوى" : "أعيد فتح الشكوى";
         String body = (named ? by : "Your school") + (resolved ? " marked it resolved." : " opened it again.");
         String bodyAr = resolved ? (named ? "أغلقها " + by + " بعد حلها." : "أغلقتها المدرسة بعد حلها.")
                 : (named ? "أعاد " + by + " فتحها." : "أعادت المدرسة فتحها.");
-        afterCommit(threadId + " (complaint.status)", () -> {
-            var told = tell(schoolId, parentId, childId, new Note(NotificationKind.COMPLAINT_STATUS, threadId, title, body,
-                    "/children/" + childId + "/chat/" + staffId, "chat:" + threadId).arabic(titleAr, bodyAr), false);
+        afterCommit(complaintId + " (complaint.status)", () -> {
+            var told = tell(schoolId, parentId, childId, new Note(NotificationKind.COMPLAINT_STATUS, complaintId, title, body,
+                    complaintLink(childId, complaintId), complaintKey(complaintId)).arabic(titleAr, bodyAr), false);
             if (told != null) push.toParents(List.of(told));
         });
     }
+
+    /**
+     * B6: the complaint's recipient hears that it moved without her — the parent reopened it, or a supervisor resolved or
+     * reopened it. A dashboard row, linked to her own Complaints page opened on it.
+     */
+    public void staffComplaintStatus(String schoolId, String userId, String complaintId, boolean resolved, String by) {
+        if (userId == null) return;
+        String title = "Complaint " + (resolved ? "resolved" : "reopened") + (by == null || by.isBlank() ? "" : " by " + by);
+        notify(schoolId, userId, NotificationKind.COMPLAINT_STATUS, title, null, complaintsLink(roleOf(userId), complaintId), complaintId);
+    }
+
+    /** B6: a parent opened a complaint addressed to this staff member — her bell, linked to her Complaints page. */
+    public void complaintNew(String schoolId, String userId, String complaintId, String from, String complaintTitle) {
+        if (userId == null) return;
+        notify(schoolId, userId, NotificationKind.COMPLAINT_NEW, "New complaint from " + (from == null || from.isBlank() ? "a parent" : from),
+                complaintTitle, complaintsLink(roleOf(userId), complaintId), complaintId);
+    }
+
+    /**
+     * B6: the parent wrote in a complaint — T1's one unread row per conversation, on the recipient's bell, linked to her
+     * Complaints page. Never fails the send, as {@link #chatMessage} never does.
+     */
+    public void complaintMessage(String schoolId, String userId, String complaintId, String from, String body) {
+        if (userId == null || complaintId == null) return;
+        String title = clip("Complaint message from " + (from == null || from.isBlank() ? "a parent" : from), TITLE_MAX);
+        try {
+            var row = upserts.upsertUnread(schoolId, userId, key(NotificationKind.COMPLAINT_MESSAGE), complaintId,
+                    title, clip(body, CHAT_BODY_MAX), complaintsLink(roleOf(userId), complaintId), null).row();
+            publishAfterCommit(schoolId, userId, view(row));
+        } catch (RuntimeException e) {
+            log.warn("notifications: could not write complaint.message for {}: {}", complaintId, e.toString());
+        }
+    }
+
+    /**
+     * B6: the recipient answered the parent's complaint — {@link #parentChatMessage}'s throttle and push, with the
+     * complaint's own kind, link and collapse key so the app opens its Complaints page rather than Messages.
+     */
+    public void parentComplaintMessage(String schoolId, String parentId, String childId, String complaintId, String from, String body) {
+        if (parentId == null || complaintId == null) return;
+        boolean named = from != null && !from.isBlank();
+        String title = clip("Reply to your complaint from " + (named ? from : "your school"), TITLE_MAX);
+        try {
+            var upsert = upserts.upsertUnread(schoolId, parentRecipient(parentId), key(NotificationKind.COMPLAINT_MESSAGE), complaintId,
+                    title, clip(body, CHAT_BODY_MAX), complaintLink(childId, complaintId), childId);
+            var row = upsert.row();
+            publishAfterCommit(schoolId, row.getUserId(), view(row));
+            if (upsert.fresh()) push.toParents(List.of(delivery(parentId, row,
+                    new Note(NotificationKind.COMPLAINT_MESSAGE, complaintId, row.getTitle(), row.getBody(), row.getLink(), complaintKey(complaintId))
+                            .arabic(named ? "رد على شكواك من " + from : "رد على شكواك من المدرسة", row.getBody()))));
+        } catch (RuntimeException e) {
+            log.warn("notifications: could not write a parent's complaint.message for {}: {}", complaintId, e.toString());
+        }
+    }
+
+    /** B6: the app's path to one complaint, and the tag its pushes share in the shade. */
+    public static String complaintLink(String childId, String complaintId) { return "/children/" + childId + "/complaints/" + complaintId; }
+    static String complaintKey(String complaintId) { return "complaint:" + complaintId; }
 
     /**
      * B4: what one parent row says, and what its push adds — the Arabic title and body (every kind has both; a staff
@@ -360,11 +420,12 @@ public class NotificationService {
     /** The row as a push, in English and in Arabic. */
     private static ParentPush.Delivery delivery(String parentId, NotificationEntity row, Note note) {
         String broadcastId = note.isBroadcast() ? note.entityId() : null;
+        String complaintId = note.kind() == NotificationKind.COMPLAINT_MESSAGE || note.kind() == NotificationKind.COMPLAINT_STATUS ? note.entityId() : null;
         var english = new PushMessage(note.kind(), row.getTitle(), row.getBody(), row.getId(), row.getChildId(), row.getLink(), broadcastId,
-                note.collapseKey(), note.opensAt(), note.closesAt());
+                note.collapseKey(), note.opensAt(), note.closesAt(), complaintId);
         var arabic = note.titleAr() == null ? null : new PushMessage(note.kind(), clip(note.titleAr(), TITLE_MAX),
                 note.bodyAr() == null ? row.getBody() : clip(note.bodyAr(), BODY_MAX), row.getId(), row.getChildId(), row.getLink(), broadcastId,
-                note.collapseKey(), note.opensAt(), note.closesAt());
+                note.collapseKey(), note.opensAt(), note.closesAt(), complaintId);
         return new ParentPush.Delivery(parentId, english, arabic);
     }
 
@@ -399,6 +460,13 @@ public class NotificationService {
     public void markThreadRead(String userId, String threadId) {
         if (userId == null || threadId == null) return;
         rows.markAboutRead(userId, key(NotificationKind.CHAT_MESSAGE), threadId, clock.instant());
+    }
+
+    /** B6: she read the complaint, so its `complaint.message` entry is read too. */
+    @Transactional
+    public void markComplaintRead(String userId, String complaintId) {
+        if (userId == null || complaintId == null) return;
+        rows.markAboutRead(userId, key(NotificationKind.COMPLAINT_MESSAGE), complaintId, clock.instant());
     }
 
     /**
@@ -501,6 +569,12 @@ public class NotificationService {
         };
         return threadId == null || threadId.isBlank() ? screen : screen + "?thread=" + threadId;
     }
+
+    /**
+     * B6: the recipient's own Complaints page, opened on one complaint. A complaint is addressed to a teacher, a
+     * coordinator or a manager, and {@link #area} names each one's dashboard.
+     */
+    public static String complaintsLink(String role, String complaintId) { return "/" + area(role) + "/complaints?open=" + complaintId; }
 
     /** `teacher.message`: the manager's Messages screen, on the thread the message was appended to (MG1). */
     public static String threadLink(String threadId) {

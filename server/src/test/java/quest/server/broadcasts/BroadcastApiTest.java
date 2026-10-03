@@ -53,7 +53,7 @@ import quest.server.tenancy.TenantContext;
  * nobody American, with a bell row for the staff and none for the author; re-posting the week replaces the plan; Sami's
  * event reaches the American parent only; a coordinator's announcement reaches the parents of her classes only and is
  * one row in both her feeds; Nour and Lina share one thread and Nour and the admin another; a British parent lists Nour
- * and opens a complaint with her; Sami can reach neither Lina nor Nour's thread; and every bus event names one school.
+ * and writes to her (B6: a complaint to her is `ComplaintApiTest`'s); Sami can reach neither Lina nor Nour's thread; and every bus event names one school.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -351,7 +351,7 @@ class BroadcastApiTest extends ApiTestSupport {
                 .andExpect(status().isNotFound());
     }
 
-    @Test @Order(7) void a_british_parent_lists_nour_and_opens_a_complaint_with_her() throws Exception {
+    @Test @Order(7) void a_british_parent_lists_nour_and_writes_to_her() throws Exception {
         var options = parentGet(BRITISH_PARENT, "/children/" + childBritishA + "/managers");
         assertThat(names(options, "teacherId")).containsExactly(nour);
         assertThat(options.get(0).get("staffRole").asText()).isEqualTo("MANAGERIAL");
@@ -366,11 +366,11 @@ class BroadcastApiTest extends ApiTestSupport {
 
         var opened = json(mvc.perform(post("/children/" + childBritishA + "/chat/threads/" + nour + "/messages")
                         .header("Authorization", bearer(BRITISH_PARENT)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"body\":\"The maths coordinator has not replied for a week.\",\"topic\":\"complaint\"}"))
+                        .content("{\"body\":\"The maths coordinator has not replied for a week.\"}"))
                 .andExpect(status().isCreated()).andReturn());
         String threadId = opened.get("threadId").asText();
         var inbox = rowWith(staffGet(nour, "MANAGERIAL", "/management/chat/threads"), "id", threadId);
-        assertThat(inbox.get("topic").asText()).isEqualTo("complaint");
+        assertThat(inbox.get("topic").asText()).as("B6: a Messages thread is never a complaint").isEqualTo("question");
         assertThat(inbox.get("childName").asText()).isEqualTo("Lila");
         assertThat(inbox.get("parentName").asText()).contains("@");
         created(nour, "/management/chat/threads/" + threadId + "/messages", "{\"body\":\"I will speak to her today.\"}");

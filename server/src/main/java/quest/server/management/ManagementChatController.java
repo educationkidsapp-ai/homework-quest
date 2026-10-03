@@ -22,9 +22,16 @@ import org.springframework.web.bind.annotation.RestController;
 import quest.api.dto.ChatMessage;
 import quest.api.dto.ChatReadReceipt;
 import quest.api.dto.ChatThread;
+import quest.api.dto.Complaint;
+import quest.api.dto.ComplaintArea;
+import quest.api.dto.ComplaintDetail;
+import quest.api.dto.ComplaintList;
+import quest.api.dto.ComplaintStatusRequest;
 import quest.api.dto.SendChatMessageRequest;
 import quest.server.auth.Principals;
 import quest.server.chat.ChatService;
+import quest.server.chat.ComplaintCodec;
+import quest.server.chat.ComplaintService;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
 import quest.server.flags.FeatureFlag;
@@ -60,8 +67,10 @@ public class ManagementChatController {
      */
     public record StaffThreadRequest(String childId, String coordinatorUserId, String adminUserId, String teacherUserId) {}
 
-    private final ChatService chat; private final Json json;
-    public ManagementChatController(ChatService chat, Json json) { this.chat = chat; this.json = json; }
+    private final ChatService chat; private final Json json; private final ComplaintService complaints; private final ComplaintCodec codec;
+    public ManagementChatController(ChatService chat, Json json, ComplaintService complaints, ComplaintCodec codec) {
+        this.chat = chat; this.json = json; this.complaints = complaints; this.codec = codec;
+    }
 
     @GetMapping(value = "/management/chat/threads", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('management.chat')")
@@ -69,24 +78,6 @@ public class ManagementChatController {
     public String managementChatThreads(@AuthenticationPrincipal Principals.User caller,
                                         @RequestParam(required = false) String status) {
         return json.encodeShared(chat.managerThreads(caller, status), BuiltinSerializersKt.ListSerializer(ChatThread.Companion.serializer()));
-    }
-
-    /** S1: her Complaints inbox — the `complaint` threads parents opened with her, `?status=open` while she works. */
-    @GetMapping(value = "/management/complaints", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@permit.has('management.complaints')")
-    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = ChatThread.class))))
-    public String managementComplaints(@AuthenticationPrincipal Principals.User caller,
-                                       @RequestParam(required = false) String status) {
-        return json.encodeShared(chat.managerComplaints(caller, status), BuiltinSerializersKt.ListSerializer(ChatThread.Companion.serializer()));
-    }
-
-    /** S1: `open` / `resolved` on a complaint of hers, the coordinator's write one scope over. */
-    @PatchMapping(value = "/management/chat/threads/{id}/status", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@permit.has('management.complaints')")
-    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatThread.class)))
-    public String managementThreadStatus(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
-                                         @RequestBody @jakarta.validation.Valid quest.server.coordinator.CoordinatorDto.ThreadStatusRequest body) {
-        return json.encodeShared(chat.managerStatus(caller, id, body.status()), ChatThread.Companion.serializer());
     }
 
     @GetMapping(value = "/management/chat/threads/{id}/messages", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -134,6 +125,56 @@ public class ManagementChatController {
     @PreAuthorize("@permit.has('management.chat')")
     public List<StaffPerson> managementAdmins(@AuthenticationPrincipal Principals.User caller) {
         return chat.admins(ManagerScope.require(caller)).stream().map(u -> new StaffPerson(u.getId(), ChatService.name(u))).toList();
+    }
+
+    // ---------------------------------------------------------------- B6: her Complaints page
+
+    /**
+     * B6: the complaints addressed to her and those she supervises (see `ComplaintService`), `?status=open|resolved|all`,
+     * with the open and resolved counts whatever the filter. Complaints are their own conversations: none of them is
+     * on her Messages list any more, and no Messages thread is on this one.
+     */
+    @GetMapping(value = "/management/complaints", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('management.complaints')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ComplaintList.class)))
+    public String managementComplaints(@AuthenticationPrincipal Principals.User caller, @RequestParam(required = false) String status) {
+        return codec.list(complaints.staffList(ComplaintArea.MANAGEMENT, caller, status));
+    }
+
+    @GetMapping(value = "/management/complaints/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('management.complaints')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ComplaintDetail.class)))
+    public String managementComplaint(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
+                                        @RequestParam(required = false) String before, @RequestParam(required = false) String since,
+                                        @RequestParam(required = false) Integer limit) {
+        return codec.detail(complaints.staffDetail(ComplaintArea.MANAGEMENT, caller, id, before, since, limit));
+    }
+
+    /** Her reply, when the complaint is addressed to her; a complaint she supervises is 403 here (`canReply`). */
+    @PostMapping(value = "/management/complaints/{id}/messages", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('management.complaints')")
+    @ResponseStatus(HttpStatus.CREATED)
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = SendChatMessageRequest.class)))
+    @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
+    public String managementSendComplaintMessage(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @RequestBody String body) {
+        var req = codec.message(body);
+        return codec.message(complaints.staffSend(ComplaintArea.MANAGEMENT, caller, id, req.getBody(), req.getClientId()));
+    }
+
+    @PostMapping(value = "/management/complaints/{id}/read", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('management.complaints')")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatReadReceipt.class)))
+    public String managementMarkComplaintRead(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
+        return codec.receipt(complaints.staffRead(ComplaintArea.MANAGEMENT, caller, id));
+    }
+
+    /** `resolved` or `open` (reopen), on a complaint addressed to her or one she supervises. */
+    @PatchMapping(value = "/management/complaints/{id}/status", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('management.complaints')")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ComplaintStatusRequest.class)))
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = Complaint.class)))
+    public String managementComplaintStatus(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @RequestBody String body) {
+        return codec.row(complaints.staffStatus(ComplaintArea.MANAGEMENT, caller, id, codec.status(body)));
     }
 
     private SendChatMessageRequest decode(String body) {

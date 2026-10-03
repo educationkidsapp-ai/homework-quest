@@ -72,8 +72,10 @@ class CoordinatorScopeArchitectureTest {
      *       two people on it, so nobody else can open it for her.</li>
      *   <li>{@code POST …/threads/{id}/messages} and {@code …/read} — the teacher's two chat writes, thread-keyed
      *       because one of her threads has no child on it. Both go through `ChatService`, which checks the peer.</li>
-     *   <li>{@code PATCH …/threads/{id}/status} — DR3's `open` / `resolved` on a complaint. It writes the thread she
-     *       is the staff peer of and nothing about the child, the class or the teacher.</li>
+     *   <li>B6 {@code POST /coordinator/complaints/{id}/messages}, {@code …/read} and {@code PATCH …/status} — DR3's
+     *       complaint, now a conversation of its own: her reply and read on one addressed to her, and `open` /
+     *       `resolved` on one addressed to her or to a teacher of her subjects. They write the complaint and nothing
+     *       about the child, the class or the teacher.</li>
      *   <li>{@code POST /coordinator/announcements} — DR4. It writes `announcements` rows for classes in her scope and
      *       is the one write that reaches parents, which is why it carries the `announcements` flag as well.</li>
      *   <li>{@code POST /coordinator/broadcasts} — RM2 (DR6), the same write under its own name: an announcement or an
@@ -83,7 +85,8 @@ class CoordinatorScopeArchitectureTest {
      */
     private static final Set<String> COMMUNICATION_WRITES = Set.of(
             "POST /coordinator/chat/threads", "POST /coordinator/chat/threads/{id}/messages",
-            "POST /coordinator/chat/threads/{id}/read", "PATCH /coordinator/chat/threads/{id}/status",
+            "POST /coordinator/chat/threads/{id}/read",
+            "POST /coordinator/complaints/{id}/messages", "POST /coordinator/complaints/{id}/read", "PATCH /coordinator/complaints/{id}/status",
             "POST /coordinator/announcements", "POST /coordinator/broadcasts");
 
     @Test void the_only_writes_in_the_coordinator_namespace_are_r4s_communication() {
